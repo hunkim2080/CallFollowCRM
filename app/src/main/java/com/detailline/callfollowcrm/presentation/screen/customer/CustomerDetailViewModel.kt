@@ -479,22 +479,14 @@ class CustomerDetailViewModel(
                 val before = container.preferences.collabAssignments
                 val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
                 if (after.size != before.size) container.preferences.collabAssignments = after
-                // 예약 취소 = 이 시공 '없던 일' → 총금액·잔금을 0 으로 비워 정산 '미수금'에 계속 뜨던 것 제거. (2026-07-30 사장님)
-                //   단 이미 '받은' 돈은 보존(데이터 보존): 계약금/잔금 중 받음 표시(paidAt≠null)된 건 금액을 안 지운다
-                //   (환불해주거나 보관 중인 실제 현금 기록이므로). 안 받은 금액만 0.
-                val cust = customer.value
-                val depositReceived = cust?.depositPaidAt != null
-                val balanceReceived = cust?.balancePaidAt != null
-                // ⚠️ 받은 잔금은 파생값(총액−계약금)일 수 있음(정산화면 완납토글은 balanceAmount 실체화 안 함).
-                //   총액을 null 로 지우면 그 파생 잔금이 0 이 되어 '받은 돈'이 증발 → 지우기 전에 실제 금액으로 고정. (버그감사 2026-07-30)
-                if (balanceReceived && cust != null) {
-                    val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(cust)
-                    container.customerRepository.updateBalanceAmount(customerId, row.balanceAmount)
-                }
+                // 예약 취소 = 완전 백지 (사장님 2026-08-28 결정): 총액·계약금·잔금·받음표시 전부 삭제.
+                //   (이전엔 '받은 돈은 보존'이었으나, 사장님이 "취소하면 금액도 다 없어져야" 로 명시 변경.
+                //    정산은 SettlementCalc 단일 출처라 금액을 지우면 정산 화면도 자동 연동돼 0 이 됨.)
+                container.customerRepository.updateBalancePaidAt(customerId, null)
+                container.customerRepository.updateDepositPaidAt(customerId, null)
                 container.customerRepository.updateTotalAmount(customerId, null)
-                // 완납(잔금 받음) 고객이면 계약금도 이미 받은 돈이므로 금액 보존(안 지움) — depositPaidAt 미표시 옛 완납 데이터 대비. (2026-08-11 돈 감사)
-                if (!depositReceived && !balanceReceived) container.customerRepository.updateDepositAmount(customerId, null)
-                if (!balanceReceived) container.customerRepository.updateBalanceAmount(customerId, null)
+                container.customerRepository.updateDepositAmount(customerId, null)
+                container.customerRepository.updateBalanceAmount(customerId, null)
             }
             // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)
             container.autoCategoryClassifier.reclassify(customerId)

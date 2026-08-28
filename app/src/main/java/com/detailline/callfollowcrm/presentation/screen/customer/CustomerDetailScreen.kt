@@ -158,6 +158,7 @@ fun CustomerDetailScreen(
     var categoryDialogOpen by remember { mutableStateOf(false) }
     // 일정·정산 카드 금액 편집 다이얼로그 — "total"(총금액) / "deposit"(계약금) / null(닫힘).
     var amountEditField by remember { mutableStateOf<String?>(null) }
+    var cancelBookingConfirm by remember { mutableStateOf(false) }  // 예약 취소 확인창 (2026-08-28 사장님)
     // 시공금액 변경 시 이유 입력 다이얼로그 (oldWon, newWon). null = 닫힘. (2026-06-30 사장님)
     var amountChangeReason by remember { mutableStateOf<Pair<Long, Long>?>(null) }
     // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
@@ -660,6 +661,16 @@ fun CustomerDetailScreen(
                                 TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
                                 Spacer(Modifier.height(8.dp))
                                 TossSecondaryButton(text = "💵 계약금 입력", onClick = { amountEditField = "deposit" })
+                            }
+                            // 예약 취소 — 카드에서 바로 잘 보이게 (전엔 날짜 팝업 안에 숨어 못 찾음). scheduled 있을 때만. (2026-08-28 사장님)
+                            if (scheduled != null) {
+                                Spacer(Modifier.height(6.dp))
+                                TextButton(
+                                    onClick = { cancelBookingConfirm = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("🗑 시공 예약 취소", color = TossError, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                }
                             }
                         } else {
                             // 2026-06-07 사장님 통점: 통화로 다 정해졌는데 일정 등록하려면 견적서 보내기밖에 없었음(고객이 또 입력).
@@ -1383,6 +1394,31 @@ fun CustomerDetailScreen(
                 categoryDialogOpen = false
             },
             onDismiss = { categoryDialogOpen = false }
+        )
+    }
+
+    // 예약 취소 확인 — 카드 '🗑 시공 예약 취소' → 여기. 취소 시 금액 전부 삭제(완전 백지). (2026-08-28 사장님)
+    if (cancelBookingConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { cancelBookingConfirm = false },
+            title = { Text("시공 예약 취소", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = {
+                Text(
+                    "이 시공 예약을 취소할까요?\n\n예약일과 함께 금액(총액·계약금·잔금)도 모두 지워지고, 정산에서도 빠져요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateScheduledWorkDate(null)
+                    cancelBookingConfirm = false
+                    android.widget.Toast.makeText(context, "시공 예약을 취소했어요 (금액도 정리됨)", android.widget.Toast.LENGTH_SHORT).show()
+                }) { Text("예약 취소", color = TossError, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { cancelBookingConfirm = false }) { Text("그대로 두기", color = TossTextSecondary) }
+            },
+            containerColor = Color.White
         )
     }
 
