@@ -9639,3 +9639,8 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 검증(공개 URL): MISS 3.74s → **HIT 1.24s**(CF edge). 새 배포=새 vc=새 URL=자동 fresh(**캐시 purge/CF토큰/앱변경 불필요**).
 - ⚠️ cowork: `/api/download/version` 은 그대로 no-cache(버전 감지 즉시성 유지). APK 파일 교체(`/internal/upload-apk`) 로직 무관.
 - commit: f6b3eba.
+
+## 2026-08-28 15:40 · android
+프로덕션(정식) 심사 배포 — 예문 확인·수정·삭제 등. versionCode 충돌(1616 중복) 회피용 커밋.
+- 변경: Play production track 업로드 재시도
+- commit: (this)
