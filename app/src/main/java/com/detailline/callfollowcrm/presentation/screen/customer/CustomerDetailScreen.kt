@@ -3586,6 +3586,29 @@ private fun CollabShareSheet(
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
                 }
                 Spacer(Modifier.height(14.dp))
+                // 자주 부르는 사람 — 번호 치기 전에 먼저 (많이 부른 순). 수첩(협업/일당·알바) 등록자 자동 목록. (2026-08-28 사장님)
+                run {
+                    val freq = container.preferences.collabAssignments.mapNotNull {
+                        it.split("|").getOrNull(1)?.filter { c -> c.isDigit() }?.takeLast(8)
+                    }.groupingBy { it }.eachCount()
+                    val picks = workers
+                        .filter { it.phone.filter { c -> c.isDigit() }.length >= 9 }
+                        .sortedByDescending { freq[it.phone.filter { c -> c.isDigit() }.takeLast(8)] ?: 0 }
+                        .take(10)
+                    if (picks.isNotEmpty()) {
+                        Text("자주 부르는 사람 — 눌러서 선택", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                            modifier = Modifier.padding(bottom = 6.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            picks.forEach { w ->
+                                val n = freq[w.phone.filter { c -> c.isDigit() }.takeLast(8)] ?: 0
+                                CollabPhoneChip(w.name + (if (n > 0) " ·$n" else "")) { partnerPhone = w.phone.filter { it.isDigit() } }
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text("목록에 없으면 아래에 번호를 직접 입력하세요.", fontSize = 11.sp, color = TossTextTertiary)
+                        Spacer(Modifier.height(14.dp))
+                    }
+                }
                 Text("함께 할 사장님 번호", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                     modifier = Modifier.padding(bottom = 6.dp))
                 androidx.compose.material3.OutlinedTextField(
@@ -3646,25 +3669,14 @@ private fun CollabShareSheet(
                     .filter { it.address.filter { ch -> ch.isDigit() }.length >= 9 }
                     .filterNot { sms -> workerCandidates.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == sms.address.filter { ch -> ch.isDigit() }.takeLast(8) } }
                     .take(8)
-                if (workerCandidates.isNotEmpty() || smsCandidates.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    if (workerCandidates.isNotEmpty()) {
-                        Text("수첩 일당·알바에서 불러오기", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                        Spacer(Modifier.height(6.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            workerCandidates.forEach { w ->
-                                CollabPhoneChip(w.name) { partnerPhone = w.phone.filter { it.isDigit() } }
-                            }
-                        }
-                    }
-                    if (smsCandidates.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text("최근 문자에서 불러오기", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                        Spacer(Modifier.height(6.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            smsCandidates.forEach { s ->
-                                CollabPhoneChip(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(s.address)) { partnerPhone = s.address.filter { it.isDigit() } }
-                            }
+                // (수첩 사람 목록은 위 '자주 부르는 사람'으로 올렸음 — 2026-08-28 사장님) 여기선 최근 문자만.
+                if (smsCandidates.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("최근 문자에서 불러오기", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    Spacer(Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        smsCandidates.forEach { s ->
+                            CollabPhoneChip(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(s.address)) { partnerPhone = s.address.filter { it.isDigit() } }
                         }
                     }
                 }
