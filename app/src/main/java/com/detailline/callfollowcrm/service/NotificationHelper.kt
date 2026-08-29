@@ -982,8 +982,17 @@ object NotificationHelper {
             context, BRIEF_ID, briefIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // 늦게(밤 10시 넘겨) 뜨는 마감 브리핑은 소리·헤드업 없이 조용히 — 자다/쉬다 깜짝 놀라지 않게. (2026-08-29 사장님)
+        //   원인: 브리핑은 밤 9시 타겟인데 폰이 절전(Doze)이면 밀려서, 앱을 켜는 순간(10시·11시 등) 뒤늦게 발사된다.
+        //   그때까지 소리 억제는 '앱 방해금지 토글(quietHours)'에만 의존 → 토글이 꺼져 있으면 늦은 밤에도 소리로 튀었다.
+        //   브리핑은 급하지 않은 하루 요약이므로, 정시(9시대)를 넘긴 늦은 발사는 무음 야간 채널로 조용히 보낸다.
+        //   (9시대 정시 발사는 그대로 소리 — 프로토 brief=오후 9시. resolveChannel 이 앱 방해금지도 계속 존중.)
+        val briefHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val briefChannel = if (briefHour >= 22 || briefHour < 8) {
+            ensureNightQuietChannel(context); CHANNEL_NIGHT_QUIET
+        } else CHANNEL_DAILY_BRIEF
         showProtoPush(
-            context, BRIEF_ID, CHANNEL_DAILY_BRIEF, ACCENT_BLUE,
+            context, BRIEF_ID, briefChannel, ACCENT_BLUE,
             title = "오늘 하루 마감 브리핑 🌙",
             msg = msg, note = note,
             contentIntent = pending,
