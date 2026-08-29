@@ -1,0 +1,145 @@
+name: Play 정식 자동배포 (새벽 3시 · 내부→정식 승격)
+
+# 무엇: 매일 새벽 3시(KST), 내부 테스트 트랙의 '최신 빌드'를 정식(production)으로 자동 승격.
+#        사장님이 배포를 까먹어도, 그날 작업(내부에 이미 올라간 빌드)이 알아서 사용자에게 감. (2026-08-29 사장님)
+#
+# 왜 '재빌드'가 아니라 '승격'인가:
+#   versionCode = git 커밋수 → 같은 코드를 재빌드하면 versionCode 가 같아 Play 가 중복 거절('1616 already used').
+#   그래서 '새로 빌드'하지 않고, 내부에 이미 올라가 있는 그 빌드를 정식 트랙으로 '이동(promote)'만 한다.
+#   → 새 versionCode 안 씀 = 충돌 원천 차단. 게다가 테스터가 내부에서 확인한 그 빌드 그대로 정식화(안전).
+#
+# 흐름(하루):
+#   낮  — 우리가 앱을 고치고 push  → play-deploy.yml 이 자동으로 '내부 테스트'에 올림(+si0in.kr).
+#   새벽3시 — 이 워크플로우가 내부 최신 > 정식 라이브 이면 정식으로 승격. 같으면(변경 없음) 스킵.
+#
+# 안전장치:
+#   ① 내부 최신이 정식보다 높을 때만 승격(변경 없으면 스킵 — 헛배포·중복 없음).
+#   ② main(=완성분)만 내부에 오르므로, 미완성(브랜치 격리)은 애초에 승격 대상이 아님.
+#   ③ 아침 슬랙 보고(성공/스킵/실패). 정식 라이브 시점 문자는 play-live-notify.yml 이 별도로 보냄.
+#
+# 필요 시크릿:
+#   PLAY_SERVICE_ACCOUNT_JSON — 이미 있음(play-deploy/play-live-notify 와 공용).
+#   SLACK_WEBHOOK_URL — 선택. 없으면 슬랙 보고만 생략되고 '배포 자체'는 정상 작동.
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # 18:00 UTC = 03:00 KST (매일)
+  workflow_dispatch:        # 수동 즉시 실행(테스트 / 오늘분 바로 올리기)
+
+concurrency:
+  group: play-prod-nightly
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 서비스계정 JSON 복원 (Play API · plain JSON)
+        env:
+          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$PLAY_SA" > sa.json
+          python3 -c "import json;json.load(open('sa.json'))" || { echo '::error::PLAY_SERVICE_ACCOUNT_JSON 이 유효 JSON 아님'; exit 1; }
+
+      - name: 파이썬 라이브러리
+        run: pip install --quiet google-api-python-client google-auth
+
+      - name: 내부 → 정식 승격 (내부 최신 > 정식 라이브 일 때만)
+        id: promote
+        run: |
+          python3 - <<'PY'
+          import os
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+
+          PKG = "com.detailline.callfollowcrm"
+          creds = service_account.Credentials.from_service_account_file(
+              "sa.json", scopes=["https://www.googleapis.com/auth/androidpublisher"])
+          svc = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
+
+          def latest_completed(track_obj):
+              """트랙에서 status=completed 인 릴리스 중 versionCode 최대치 + 이름/릴리스노트."""
+              vc, name, notes = 0, "", None
+              for rel in track_obj.get("releases", []):
+                  if rel.get("status") == "completed":
+                      for v in (rel.get("versionCodes") or []):
+                          if int(v) > vc:
+                              vc = int(v)
+                              name = rel.get("name", "") or ""
+                              notes = rel.get("releaseNotes")
+              return vc, name, notes
+
+          edit = svc.edits().insert(packageName=PKG, body={}).execute()
+          eid = edit["id"]
+          promoted = False
+          out_vc, out_vn = 0, ""
+          try:
+              internal = svc.edits().tracks().get(packageName=PKG, editId=eid, track="internal").execute()
+              production = svc.edits().tracks().get(packageName=PKG, editId=eid, track="production").execute()
+              i_vc, i_vn, i_notes = latest_completed(internal)
+              p_vc, _, _ = latest_completed(production)
+              print("내부 최신 완료 vc =", i_vc, "(", i_vn, ")")
+              print("정식 라이브 vc =", p_vc)
+              if i_vc == 0:
+                  print("내부 트랙에 완료된 릴리스 없음 → 스킵")
+              elif i_vc <= p_vc:
+                  print("정식(", p_vc, ") 이 내부(", i_vc, ") 이상 → 올릴 새 변경 없음 → 스킵")
+              else:
+                  rel = {"versionCodes": [str(i_vc)], "status": "completed"}
+                  if i_vn:
+                      rel["name"] = i_vn
+                  if i_notes:
+                      rel["releaseNotes"] = i_notes  # 내부 릴리스의 '새로운 기능' 문구 그대로 승계
+                  svc.edits().tracks().update(
+                      packageName=PKG, editId=eid, track="production",
+                      body={"track": "production", "releases": [rel]}).execute()
+                  svc.edits().commit(packageName=PKG, editId=eid).execute()
+                  promoted = True
+                  out_vc, out_vn = i_vc, i_vn
+                  print("✓ 정식 승격 완료 vc =", i_vc)
+          except Exception:
+              try:
+                  svc.edits().delete(packageName=PKG, editId=eid).execute()
+              except Exception:
+                  pass
+              raise
+          if not promoted:
+              # 승격 안 했으면 편집은 commit 하지 않고 폐기(정식 트랙 무변경).
+              try:
+                  svc.edits().delete(packageName=PKG, editId=eid).execute()
+              except Exception:
+                  pass
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("promoted=%s\n" % ("true" if promoted else "false"))
+              f.write("vc=%d\n" % out_vc)
+              f.write("vn=%s\n" % out_vn)
+          PY
+
+      - name: 아침 보고 → 슬랙 (성공 / 스킵)
+        if: steps.promote.outcome == 'success'
+        env:
+          SLACK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PROMOTED: ${{ steps.promote.outputs.promoted }}
+          VC: ${{ steps.promote.outputs.vc }}
+          VN: ${{ steps.promote.outputs.vn }}
+        run: |
+          if [ -z "$SLACK" ]; then echo "SLACK_WEBHOOK_URL 미설정 → 슬랙 보고 생략(배포는 정상)"; exit 0; fi
+          [ -z "$VN" ] && VN="$VC"
+          if [ "$PROMOTED" = "true" ]; then
+            MSG="🚀 새벽 자동배포: 정식(사용자용)으로 올렸어요 — v$VN (vc $VC). 구글 심사 통과하면 라이브 → 라이브되면 문자 갑니다."
+          else
+            MSG="🌙 새벽 자동배포: 오늘 정식으로 올릴 새 변경이 없었어요. (스킵)"
+          fi
+          MSG="$MSG" python3 -c "import json,os;open('/tmp/slack.json','w').write(json.dumps({'text':os.environ['MSG']}))"
+          curl -sS -X POST "$SLACK" -H 'Content-type: application/json; charset=utf-8' --data @/tmp/slack.json || true
+
+      - name: 아침 보고 → 슬랙 (실패)
+        if: failure()
+        env:
+          SLACK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK" ]; then exit 0; fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MSG="⚠️ 새벽 자동배포 실패 — 정식 승격 중 문제. 로그: $RUN_URL"
+          MSG="$MSG" python3 -c "import json,os;open('/tmp/slack.json','w').write(json.dumps({'text':os.environ['MSG']}))"
+          curl -sS -X POST "$SLACK" -H 'Content-type: application/json; charset=utf-8' --data @/tmp/slack.json || true
