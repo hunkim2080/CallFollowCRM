@@ -911,6 +911,7 @@ fun ChatScreen(
                 onAttachPhoto = { showPhotoPicker = true },
                 attachments = attachedPhotos,
                 onRemoveAttachment = { uri -> attachedPhotos = attachedPhotos - uri },
+                onAttachmentTap = { idx -> fullscreenImages = attachedPhotos; fullscreenStart = idx },
                 onSend = {
                     // ▶ 탭 = 즉시 발송 X. 사장님 확인 다이얼로그 거침 (실수 발송 방지).
                     val body = input.trim()
@@ -952,9 +953,9 @@ fun ChatScreen(
             body = body,
             photoCount = photos.size,
             onCancel = { sendConfirm = null },
-            onConfirm = {
+            onConfirm = { edited ->
                 sendConfirm = null
-                performSend(body, photos)
+                performSend(edited, photos)
             }
         )
     }
@@ -3537,6 +3538,7 @@ private fun Composer(
     onAttachPhoto: () -> Unit,
     attachments: List<android.net.Uri>,
     onRemoveAttachment: (android.net.Uri) -> Unit,
+    onAttachmentTap: (Int) -> Unit = {},   // 첨부 썸네일 탭 → 크게 보기(풀스크린 뷰어). (2026-08-29 사장님)
     onSend: () -> Unit,
     isSending: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
@@ -3572,12 +3574,13 @@ private fun Composer(
                     ) {
                         AsyncImage(
                             model = uri,
-                            contentDescription = "첨부 사진",
+                            contentDescription = "첨부 사진 — 탭하면 크게",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(TossGrayBg)
+                                .clickable { onAttachmentTap(attachments.indexOf(uri)) }
                         )
                         // 우측 상단 X 버튼 — 첨부 제거
                         androidx.compose.foundation.layout.Box(
@@ -4431,8 +4434,10 @@ private fun SendConfirmDialog(
     body: String,
     photoCount: Int,
     onCancel: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: (String) -> Unit
 ) {
+    // 확인창에서 바로 본문 수정 — 취소하고 작은 입력칸으로 안 돌아가도 됨. (2026-08-29 사장님)
+    var editBody by remember(body) { mutableStateOf(body) }
     // 프로토엔 발송 확인이 없지만(바로 전송), 실제 문자라 안전 확인은 유지.
     //   2026-06-03: 가운데 AlertDialog(진한 막) → 프로토식 바텀시트(그립+미리보기+보내기/취소)로 교체.
     androidx.compose.material3.ModalBottomSheet(
@@ -4442,7 +4447,7 @@ private fun SendConfirmDialog(
     ) {
         Column(
             // 내비바/제스처바와 [취소][보내기] 버튼 겹침 방지(M3 시트 인셋 0 버그 우회). 2026-06-11
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).bottomBarClearance(extra = 16.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).imePadding().bottomBarClearance(extra = 16.dp)
         ) {
             Text(
                 "$recipient 에게 보낼까요?",
@@ -4450,11 +4455,19 @@ private fun SendConfirmDialog(
             )
             Spacer(Modifier.height(14.dp))
             if (body.isNotBlank()) {
+                Text("✏️ 여기서 바로 고칠 수 있어요 (탭)", fontSize = 11.sp, color = TossTextTertiary,
+                    modifier = Modifier.padding(bottom = 5.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
                         .background(TossBlueSoft).padding(14.dp)
                 ) {
-                    Text(body, color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp)
+                    BasicTextField(
+                        value = editBody,
+                        onValueChange = { editBody = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
             if (photoCount > 0) {
@@ -4462,12 +4475,13 @@ private fun SendConfirmDialog(
                 Text("📷 사진 ${photoCount}장 첨부", color = TossTextSecondary, fontSize = 13.sp)
             }
             Spacer(Modifier.height(18.dp))
-            // sheet-cta 보내기
+            // sheet-cta 보내기 — 수정된 본문(editBody)으로 발송. (2026-08-29 사장님)
+            val canSend = editBody.isNotBlank() || photoCount > 0
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
-                    .clickable { onConfirm() }.padding(vertical = 15.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (canSend) TossBlue else TossGrayBg)
+                    .clickable(enabled = canSend) { onConfirm(editBody.trim()) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("보내기", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            ) { Text("보내기", color = if (canSend) Color.White else TossTextTertiary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(9.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossGrayBg)
