@@ -132,6 +132,8 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel,
     onBack: () -> Unit,
     onOpenCustomer: (Long) -> Unit,
+    /** 일정 시공 카드 탭 → 그 고객 문자(채팅) 바로. 일정을 누르는 이유가 '그날 문자 보내려고'인 경우가 대부분이라. (2026-08-30 사장님) */
+    onOpenChat: (String, Long) -> Unit = { _, _ -> },
     onAddSchedule: (Long?) -> Unit = {},
     onOpenSettle: () -> Unit = {},
     onOpenCollabSites: (String?) -> Unit = {},
@@ -400,7 +402,9 @@ fun ScheduleScreen(
                             //   (needAddress + 📍현장 주소 입력칸). 2026-06-18 의 "주소 없는데 일당사장에게 알람이 갔음"은
                             //   그 시트 가드가 담당. 여기서 통째로 막으면 일당 배정까지 못 하게 된다. (2026-07-16 사장님)
                             onAssign = { assignTarget = c },
-                            onClick = { onOpenCustomer(c.id) }
+                            // 시공 카드 탭 = 그날 그 고객한테 문자 보내려는 경우가 대부분 → 고객정보 대신 문자(채팅)로 바로.
+                            //   고객정보가 필요하면 채팅 헤더에서 열 수 있음(onOpenCustomerDetail). (2026-08-30 사장님)
+                            onClick = { onOpenChat(c.phoneNumber, c.id) }
                         )
                     }
                 }

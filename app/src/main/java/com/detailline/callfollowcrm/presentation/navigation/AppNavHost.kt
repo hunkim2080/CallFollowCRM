@@ -382,6 +382,7 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) },
                 onAddSchedule = { day -> navController.navigate(Destinations.scheduleAdd(day)) },
                 onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenCollabSites = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
