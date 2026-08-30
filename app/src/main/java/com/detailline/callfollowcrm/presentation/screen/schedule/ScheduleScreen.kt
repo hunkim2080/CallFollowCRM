@@ -463,7 +463,8 @@ fun ScheduleScreen(
                     )
                 }
                 items(asForSelected, key = { "as-${it.id}" }) { c ->
-                    AsDayCard(customer = c, selectedDayMs = selectedDayMs, onClick = { onOpenCustomer(c.id) })
+                    // A/S 카드도 시공 카드와 동일 — 탭 = 그 고객 문자(채팅) 바로. (2026-08-30 사장님)
+                    AsDayCard(customer = c, selectedDayMs = selectedDayMs, onClick = { onOpenChat(c.phoneNumber, c.id) })
                 }
             }
             // "더 추가"는 이미 일정/협업/A-S 가 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
