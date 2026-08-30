@@ -3497,13 +3497,17 @@ private fun DataBackupSection(
     val lastLabel = remember(lastBackupAt) {
         if (lastBackupAt <= 0L) "아직 없음"
         else {
+            // '오늘/어제'만으론 아침에 백업하고 낮에 고객·일정 더 쌓인 걸 놓침("오늘 했으니 안전" 착각).
+            //   → 정확한 날짜+시각까지 보여줘 '언제까지' 백업됐는지 분명히. (2026-08-30 사장님)
+            val d = java.util.Date(lastBackupAt)
             val day = (System.currentTimeMillis() - lastBackupAt) / (24L * 60 * 60 * 1000)
-            when {
+            val datePart = when {
                 day <= 0L -> "오늘"
                 day == 1L -> "어제"
-                day < 30L -> "${day}일 전"
-                else -> java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(lastBackupAt))
+                else -> java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA).format(d)
             }
+            val timePart = java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREA).format(d)
+            "$datePart $timePart"
         }
     }
     val recent = lastBackupAt > 0L && System.currentTimeMillis() - lastBackupAt < 14L * 24 * 60 * 60 * 1000
