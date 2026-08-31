@@ -4461,12 +4461,16 @@ private fun SendConfirmDialog(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
                         .background(TossBlueSoft).padding(14.dp)
                 ) {
+                    // 긴 문구도 키보드에 안 가리게 — 편집칸 높이 제한 + 내부 스크롤(커서 따라 자동 스크롤).
+                    //   전엔 본문을 통째로 펼쳐 아래 줄이 키보드 뒤로 넘어가 못 만졌음. (2026-08-31 사장님 '키보드가 가림')
                     BasicTextField(
                         value = editBody,
                         onValueChange = { editBody = it },
                         textStyle = androidx.compose.ui.text.TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                         modifier = Modifier.fillMaxWidth()
+                            .heightIn(max = 180.dp)
+                            .verticalScroll(rememberScrollState())
                     )
                 }
             }
