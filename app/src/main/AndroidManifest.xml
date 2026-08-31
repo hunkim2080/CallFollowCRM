@@ -356,5 +356,10 @@
             </intent-filter>
         </service>
 
+        <!-- 알림 '복사' 액션(인증번호 원탭 복사) 처리. (2026-09-01 사장님) -->
+        <receiver
+            android:name=".service.CopyToClipboardReceiver"
+            android:exported="false" />
+
     </application>
 </manifest>

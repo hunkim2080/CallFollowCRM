@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.business
 
+import com.detailline.callfollowcrm.util.copyToClip
+
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -316,6 +318,21 @@ fun BusinessInfoScreen(
                 )
                 FormattedField("계좌번호", accountNo, ::formatAccountNo, KeyboardType.Number, "예: 1234-5678-9012") { accountNo = it }
                 Field("예금주 (선택)", accountHolder, placeholder = "비우면 대표자 이름") { accountHolder = it }
+                // 계좌 전체 원탭 복사 — 고객에게 바로 붙여넣기. (2026-09-01 사장님)
+                if (accountNo.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFEAF2FF))
+                            .clickable {
+                                val holder = accountHolder.ifBlank { owner }
+                                context.copyToClip("계좌", listOf(bank, accountNo, holder).filter { it.isNotBlank() }.joinToString(" "))
+                            }
+                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                    ) {
+                        Text("📋 계좌 전체 복사 (고객에게 바로 붙여넣기)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    }
+                }
 
                 // 견적서 유효기간 — 프로토: 작은 입력칸 + "일" + 안내
                 FieldLabel("견적서 유효기간")

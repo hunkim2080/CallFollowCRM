@@ -1181,6 +1181,13 @@ object NotificationHelper {
      *   - 탭 = ChatScreen 진입
      *   - 액션은 후속 Step 에서 (RemoteInput / AI 추천 답변 / 전화)
      */
+    /** 문자 본문에서 인증번호(OTP) 추출 — '인증/코드/OTP' 문맥 뒤 4~8자리만(전화번호 오탐 방지). null=없음. (2026-09-01 사장님) */
+    private fun detectOtpCode(body: String): String? =
+        Regex(
+            "(?:인증번호|인증코드|승인번호|인증|코드|OTP|verification code|code)[^0-9]{0,8}(\\d{4,8})",
+            RegexOption.IGNORE_CASE
+        ).find(body)?.groupValues?.getOrNull(1)
+
     fun showIncomingSms(
         context: Context,
         phone: String,
@@ -1264,6 +1271,22 @@ object NotificationHelper {
 
         // 알림엔 추천 칩 없음(깔끔). 빠른 답장(RemoteInput) 하나만 — 추천은 탭해서 문자방에서.
         builder.addAction(replyAction)
+
+        // 인증번호(OTP) 감지 시 '복사' 액션 추가 — 은행·택배 인증번호 원탭 복사. (2026-09-01 사장님)
+        detectOtpCode(body)?.let { code ->
+            val copyIntent = Intent(context, CopyToClipboardReceiver::class.java).apply {
+                action = CopyToClipboardReceiver.ACTION_COPY
+                putExtra(CopyToClipboardReceiver.EXTRA_TEXT, code)
+                putExtra(CopyToClipboardReceiver.EXTRA_LABEL, "인증번호")
+            }
+            val copyPending = PendingIntent.getBroadcast(
+                context, ("copy" + phone + code).hashCode(), copyIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(R.drawable.ic_notification, "📋 $code 복사", copyPending).build()
+            )
+        }
 
         runCatching {
             NotificationManagerCompat.from(context)

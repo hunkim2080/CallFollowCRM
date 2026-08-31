@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.customer
 
+import com.detailline.callfollowcrm.util.copyToClip
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -393,6 +395,15 @@ fun CustomerDetailScreen(
                             fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
                         )
                         Spacer(Modifier.weight(1f))
+                        // 주소 원탭 복사 — 지도·문자에 붙이기 편하게. (2026-09-01 사장님)
+                        if (displayAddr.isNotBlank()) {
+                            Text("복사", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { ctx.copyToClip("주소", displayAddr) }
+                                    .padding(horizontal = 9.dp, vertical = 4.dp))
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(if (manualAddress != null) "✏️" else "＋", fontSize = 14.sp, color = TossBlue)
                     }
                     Spacer(Modifier.height(8.dp))
