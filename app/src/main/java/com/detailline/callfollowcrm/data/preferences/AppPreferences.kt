@@ -136,6 +136,16 @@ class AppPreferences(context: Context) {
     var incomingCallerCardEnabled: Boolean
         get() = prefs.getBoolean("incoming_caller_card_enabled", false)
         set(value) = prefs.edit().putBoolean("incoming_caller_card_enabled", value).apply()
+
+    // ── 구글 캘린더 연동 (2026-08-31, 본폰 미러링 대체) ──
+    /** 앱이 만든/찾은 "시공막내" 구글 캘린더 id. null = 아직 없음. */
+    var googleCalendarId: String?
+        get() = prefs.getString("google_calendar_id", null)
+        set(value) = prefs.edit().putString("google_calendar_id", value).apply()
+    /** 구글 캘린더 연결 여부(사장님이 연결 완료). UI 표시 + 자동동기화 시도 게이트. */
+    var googleCalendarConnected: Boolean
+        get() = prefs.getBoolean("google_calendar_connected", false)
+        set(value) = prefs.edit().putBoolean("google_calendar_connected", value).apply()
     /** 막내 비서 현재 단계(0~9, 10레벨마다). 앱 시작 시 Mascot 변신 복원용. (2026-06-14) */
     var agentTier: Int
         get() = prefs.getInt("agent_tier", 0)

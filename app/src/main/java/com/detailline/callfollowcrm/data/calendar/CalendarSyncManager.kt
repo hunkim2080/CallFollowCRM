@@ -22,6 +22,8 @@ interface CalendarSyncStore {
     suspend fun setCalendarId(id: String?)
     suspend fun eventId(customerId: Long, type: ScheduleType): String?
     suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?)
+    /** 시공/AS 일정이 있거나, 이미 올려둔 이벤트가 있는(=지울 수도 있는) 고객 전부. */
+    suspend fun scheduledCustomers(): List<CustomerEntity>
 }
 
 /**
@@ -65,6 +67,21 @@ class CalendarSyncManager(
         val cal = ensureCalendar(token) ?: return
         syncOne(token, cal, c, ScheduleType.WORK)
         syncOne(token, cal, c, ScheduleType.AS)
+    }
+
+    /**
+     * 시공/AS 일정 있는(또는 있던) 고객 전부를 한 번에 반영 — 연결 직후 / 수동 '지금 동기화'.
+     * 토큰·캘린더 준비는 한 번만. 반환 = 훑은 고객 수. 미연결이면 -1.
+     */
+    suspend fun syncAll(): Int {
+        val token = connection.getTokenSilently() ?: return -1
+        val cal = ensureCalendar(token) ?: return -1
+        val customers = store.scheduledCustomers()
+        for (c in customers) {
+            syncOne(token, cal, c, ScheduleType.WORK)
+            syncOne(token, cal, c, ScheduleType.AS)
+        }
+        return customers.size
     }
 
     /** 고객 삭제 시 그 고객의 모든 이벤트 정리. */

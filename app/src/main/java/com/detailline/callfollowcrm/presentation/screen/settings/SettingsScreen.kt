@@ -582,7 +582,7 @@ fun SettingsScreen(
                 }
                 // ══════════════ 본폰에서 일정 보기 (미러 링크) ══════════════
                 "mirror" -> {
-                    MirrorSection(container = container)
+                    GoogleCalendarSection(container = container)
                     Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ 시공막내 웹 (PC 사진 캘린더) ══════════════
@@ -1370,6 +1370,103 @@ private fun readOtpFromInbox(ctx: android.content.Context, sinceMs: Long): Strin
  *   본폰(빈 달력, 웹)이 이 업무폰의 고정 공유 코드를 넣어 "공유 신청" → 여기서 수락하면 내 일정이 본폰에 읽기전용으로.
  *   규칙: "업무폰이 코드 만들고, 본폰이 넣는다." 협업 요청(수락/거절)과 동일 컨셉. 옵트인(기본 꺼짐).
  */
+/**
+ * 구글 캘린더 연동 (본폰 미러링 대체, 2026-08-31) — 시공/AS 일정을 구글 "시공막내" 캘린더에 올림.
+ *   위젯·구글 캘린더 앱에서 보기 + 가족/직원 공유 + 폰 교체 백업. 참고: 동생 jeongsan/lib/calendar_sync.dart.
+ */
+@Composable
+private fun GoogleCalendarSection(container: AppContainer) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = container.preferences
+
+    var connected by remember { mutableStateOf(prefs.googleCalendarConnected) }
+    var busy by remember { mutableStateOf(false) }
+    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+
+    // 토큰 확보 후: 연결 플래그 ON + '시공막내' 캘린더 준비 + 기존 일정 전부 올리기
+    fun finishConnect(token: String?) {
+        if (token == null) { busy = false; toast("연결이 취소됐거나 실패했어요"); return }
+        prefs.googleCalendarConnected = true; connected = true
+        scope.launch {
+            val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
+            busy = false
+            toast(if (n >= 0) "구글 캘린더에 연결됐어요 — 일정 ${n}건 올렸어요" else "연결됐어요 (동기화는 잠시 후 자동 재시도)")
+        }
+    }
+
+    val consentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        finishConnect(container.googleCalendarConnection.tokenFromConsentResult(result.data))
+    }
+
+    fun connect() {
+        busy = true
+        scope.launch {
+            when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
+                is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.Success ->
+                    finishConnect(r.accessToken)
+                is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.NeedsConsent ->
+                    consentLauncher.launch(
+                        androidx.activity.result.IntentSenderRequest.Builder(r.intentSender).build()
+                    )
+                else -> { busy = false; toast("구글 로그인을 시작할 수 없어요") }
+            }
+        }
+    }
+
+    fun disconnect() {
+        prefs.googleCalendarConnected = false; connected = false
+        prefs.googleCalendarId = null
+        toast("연결을 껐어요 (이미 올라간 일정은 구글 캘린더에 그대로 남아요)")
+    }
+
+    fun syncNow() {
+        busy = true
+        scope.launch {
+            val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
+            busy = false
+            toast(if (n >= 0) "동기화했어요 (일정 ${n}건)" else "먼저 연결이 필요해요")
+        }
+    }
+
+    TossCard {
+        Column {
+            Text("📅 구글 캘린더 연동", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "시공·A/S 일정이 구글 캘린더('시공막내')에 자동으로 올라가요. 폰 위젯·구글 캘린더 앱에서 보고, 가족·직원과 공유하거나, 폰을 바꿔도 그대로 남아요.",
+                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            if (!connected) {
+                androidx.compose.material3.Button(
+                    onClick = { if (!busy) connect() },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (busy) "연결 중…" else "구글 계정 연결하기") }
+            } else {
+                Text("✓ 연결됨", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { if (!busy) syncNow() },
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (busy) "동기화 중…" else "지금 동기화") }
+                    Spacer(Modifier.width(8.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { if (!busy) disconnect() },
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("연결 끄기") }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MirrorSection(container: AppContainer) {
     val context = LocalContext.current

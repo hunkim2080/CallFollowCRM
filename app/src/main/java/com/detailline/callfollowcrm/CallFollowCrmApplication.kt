@@ -424,6 +424,12 @@ class CallFollowCrmApplication : Application() {
         // 웹 로그인 상태면 폰에 쌓인 현장사진을 서버로 백필 업로드(전부 웹서 보이게). 안 켜졌으면 즉시 skip.
         container.ownerPhotoUploadManager.kick(appScope)
 
+        // 구글 캘린더 연동 (2026-08-31, 본폰 미러링 대체) — 연결돼 있으면 앱 켤 때 시공/AS 일정을
+        //   구글 "시공막내" 캘린더에 1회 반영(이전 세션에 잡은 일정도 최신 유지). 미연결이면 조용히 skip.
+        if (container.preferences.googleCalendarConnected) {
+            appScope.launch { runCatching { container.calendarSyncManager.syncAll() } }
+        }
+
         // 현장 도착 지오펜스 — 다가오는 시공 현장 5km 등록(권한·토글 있을 때만).
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }

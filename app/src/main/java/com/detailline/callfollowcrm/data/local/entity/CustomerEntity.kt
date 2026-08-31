@@ -62,6 +62,12 @@ data class CustomerEntity(
      *   오늘 시공 히어로 [완료]→완료처리 시 set → 그 현장이 히어로에서 빠진다(완료 반영).
      */
     val workCompletedAt: Long? = null,
+    /**
+     * 구글 캘린더 동기화 — 시공/AS 일정의 구글 이벤트 id. null = 아직 안 올림.
+     * 본폰 미러링 대체(구글 캘린더 연동). DB v47 (2026-08-31 사장님).
+     */
+    val workCalendarEventId: String? = null,
+    val asCalendarEventId: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 ) {

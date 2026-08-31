@@ -188,6 +188,25 @@ class AppContainer(context: Context) {
         )
     }
 
+    // 2026-08-31 구글 캘린더 연동 (본폰 미러링 대체) — 시공/AS 일정을 구글 "시공막내" 캘린더에 동기화.
+    //   미러링(서버 경유 읽기전용)을 대체: 위젯·공유·백업까지. 참고: 동생 jeongsan/lib/calendar_sync.dart.
+    val googleCalendarConnection by lazy {
+        com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection(appContext)
+    }
+    val calendarSyncManager by lazy {
+        com.detailline.callfollowcrm.data.calendar.CalendarSyncManager(
+            connection = googleCalendarConnection,
+            api = com.detailline.callfollowcrm.data.calendar.CalendarApi(
+                okhttp3.OkHttpClient.Builder()
+                    .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+            ),
+            store = com.detailline.callfollowcrm.data.calendar.DefaultCalendarSyncStore(
+                preferences, db.customerDao()
+            )
+        )
+    }
+
     // 2026-08-13 시공막내 웹 사진 캘린더(읽기전용 뷰어) — 앱측: 스케줄 피드 push + QR authorize + 웹 로그아웃.
     //   서버 완료(docs/SERVER_HANDOFF_web_photo_calendar_SERVER_DONE.md). 미러와 독립(웹 로그인하면 켜짐).
     val webFeedRepository = com.detailline.callfollowcrm.ai.WebFeedRepository()

@@ -47,13 +47,20 @@
 ## 진행 체크
 - [x] 방향확정 · SHA-1 추출 · 동생코드 분석(calendar_sync.dart 정독)
 - [x] 콘솔: Calendar API 사용설정 + 동의화면 + Web/Android OAuth 클라이언트 생성
-- [x] **코어 3파일 작성 + compileDebugKotlin 통과** (아래)
-- [ ] 저장소 구현: prefs(calendarId) + DB **v44**(CustomerEntity 에 `workCalendarEventId`/`asCalendarEventId` 컬럼 + migration) + DAO → `CalendarSyncStore` 구현
-- [ ] AppContainer(DI) 배선: OkHttpClient → CalendarApi, GoogleCalendarConnection, CalendarSyncManager
-- [ ] 설정화면 "구글 캘린더 연결" (authorize + IntentSender 런처 `StartIntentSenderForResult`, 연결 이메일 표시, 해제)
-- [ ] 트리거: 일정 생성/수정 시 `syncCustomer`, 고객 삭제 시 `deleteCustomerEvents` 호출
-- [ ] 미러링 제거 (MirrorSyncManager/MirrorRepository/QrGen/설정진입점) + 서버 docs/SYNC.md 인계
+- [x] **코어 4파일 + 배선 전부 작성 + compileDebugKotlin 통과** — 연결/전체동기화 **테스트 가능**
+- [x] 저장소: prefs(`googleCalendarId`/`googleCalendarConnected`) + DB **v47**(CustomerEntity `workCalendarEventId`/`asCalendarEventId` + `MIGRATION_46_47`) + `DefaultCalendarSyncStore`
+- [x] AppContainer(DI): `googleCalendarConnection` + `calendarSyncManager` (OkHttp callTimeout 30s)
+- [x] 설정화면: **MirrorSection → GoogleCalendarSection 교체** (미러 UI 제거 + 연결/지금동기화/연결끄기, `StartIntentSenderForResult` 런처)
+- [x] 자동 동기화: 연결 직후 `syncAll` + 앱 켤 때 `syncAll`(연결 시, Application) + 수동 '지금 동기화'
+- [ ] (refine) 일정 생성/수정 **즉시** `syncCustomer` (지금은 앱시작/수동/연결시 `syncAll` 로 커버 — 세션 내 즉시성만 부족)
+- [ ] 미러링 코드 완전 제거 (`MirrorSection` 함수·`MirrorRepository`·`MirrorSyncManager`·Application `start()` line 418·미러 prefs) + 서버 docs/SYNC.md 인계
 - [ ] 2단계(내리기): events.list + extendedProperties 복원 + showDeleted + last-writer-wins
+
+### ⚠️ 테스트 경로 (사장님 결정 필요)
+디버그 SHA-1 만 OAuth Android 클라이언트에 등록됨 → **디버그 빌드(adb)로만 구글 로그인 됨.**
+- **(A) 스페어폰 + 디버그빌드**: 데이터 유실 X. 단 그 폰엔 실제 일정이 없어 테스트용 일정 하나 넣어 확인.
+- **(B) 메인폰 + Play 내부테스트**: 실제 일정으로 진짜 테스트. 단 Play Console → 앱 무결성 → **앱 서명 SHA-1** 을 OAuth Android 클라이언트에 추가해야 함(사장님). → push → 업데이트.
+→ 추천: 진짜 확인은 (B). 빠른 확인은 (A).
 
 ### 빌드된 코어 파일 (`app/.../data/calendar/`, 전부 컴파일 통과 · **아직 미배선 dead code**)
 - `CalendarApi.kt` — 구글 캘린더 REST(OkHttp+org.json): 목록/찾기/생성, 이벤트 insert/update/delete
