@@ -336,5 +336,15 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- 통화 스크리닝 — 새 안드로이드(10+)서 벨 중 수신번호 확보용(전화 안 막고 정보만 얹음). ROLE_CALL_SCREENING 보유 시만 호출. (2026-08-27 사장님) -->
+        <service
+            android:name=".service.IncomingCallScreeningService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

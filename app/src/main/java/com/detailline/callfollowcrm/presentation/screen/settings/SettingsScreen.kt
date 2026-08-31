@@ -2140,13 +2140,17 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(8.dp))
 
-    // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 상대 정보 카드를 통화화면 위에 띄움.
+    // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 화면 '테두리'에 상태색을 둘러 신규/예정/기존/완료를 한눈에. (2026-08-31 카드→테두리)
     //   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한 필요 → 켰는데 없으면 안내+허용 버튼.
     var callerCardOn by remember { mutableStateOf(prefs.incomingCallerCardEnabled) }
     var overlayGranted by remember { mutableStateOf(com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx)) }
     val overlayPermLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { overlayGranted = com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx) }
+    // 통화 스크리닝 역할 — 새 안드로이드(10+)서 벨 중 수신번호를 잡으려면 필요(전화 안 막고 테두리만 얹음). (2026-08-31 사장님)
+    val screeningRoleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { }
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2155,7 +2159,7 @@ private fun AutoSmsSection(
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text("전화가 오면 화면 위에 '누구·시공 일정·최근 대화' 카드를 띄워, 받기 전에 알아차려요",
+                    Text("전화가 오면 화면 테두리에 색이 둘러져, 받기 전에 신규·시공예정·기존·완료를 한눈에 (전화 화면은 그대로 · 신규=노랑)",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
                 }
                 Spacer(Modifier.width(8.dp))
@@ -2170,6 +2174,16 @@ private fun AutoSmsSection(
                                     android.net.Uri.parse("package:${ctx.packageName}")
                                 )
                             )
+                        }
+                    }
+                    // 통화 스크리닝 역할도 요청 — 있어야 벨 중 수신번호를 잡아 테두리가 뜬다. 이미 있으면 스킵(무해). (2026-08-31 사장님)
+                    if (want && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        runCatching {
+                            val rm = ctx.getSystemService(android.app.role.RoleManager::class.java)
+                            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+                                && !rm.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
+                                screeningRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
+                            }
                         }
                     }
                 })
@@ -2193,7 +2207,7 @@ private fun AutoSmsSection(
                     Column {
                         Text("⚠️ '다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
                             fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
-                        Text("여기를 눌러 허용하면 전화 올 때 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
+                        Text("여기를 눌러 허용하면 전화 올 때 테두리 색이 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
                     }
                 }
             }

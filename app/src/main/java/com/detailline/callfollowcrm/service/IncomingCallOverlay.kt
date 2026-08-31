@@ -40,6 +40,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -261,30 +273,27 @@ object IncomingCallOverlay {
             setContent {
                 val st by state.collectAsState()
                 st?.let {
-                    IncomingCallCard(
-                        state = it,
-                        onOpen = ::onOpenRecord,
-                        onClose = ::onCloseTapped
-                    )
+                    // 카드(전체 가림) → 테두리만(가장자리 색). 전화 화면 안 가리고 상태만 한눈에. (2026-08-31 사장님)
+                    EdgeStatusOverlay(status = it.status, loading = it.loading)
                 }
             }
         }
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,   // 전체화면 — 테두리를 화면 가장자리에 두름
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // 포커스 안 뺏음(전화 받기 방해 X) + 카드 밖 터치 통과 + 잠금화면 위에도 표시.
-            //   FLAG_SHOW_WHEN_LOCKED: 화면 꺼짐/잠금 상태로 전화 와도 카드가 뜨게(deprecated 지만 오버레이엔 유효).
+            // 테두리만 얹고 아무것도 안 막는다: 모든 터치 통과(NOT_TOUCHABLE — 받기/거절 그대로) +
+            //   포커스 안 뺏음 + 잠금화면 위에도 + 화면 끝(상태바·내비바)까지 그려 진짜 가장자리에.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
-            // 상단은 삼성 자체 통화 배너와 겹쳐 가려짐 → 화면 위쪽 28% 지점(상단배너 아래, 답변버튼 위)에 띄움.
-            //   (로그상 카드 창은 정상 생성·drawing 됐으나 삼성 InCallUI 에 가려 안 보였음. 2026-07-01)
+            // 전체화면이라 y offset 불필요. 테두리는 가장자리라 삼성 InCallUI(중앙)와 덜 겹침.
             gravity = Gravity.TOP
-            y = (appContext.resources.displayMetrics.heightPixels * 0.28f).toInt()
         }
 
         runCatching { wm.addView(composeView, params) }
@@ -366,6 +375,50 @@ private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = 
     IncomingCallOverlay.CallerStatus.SCHEDULED -> ScheduledPalette
     IncomingCallOverlay.CallerStatus.COMPLETED -> CompletedPalette
     IncomingCallOverlay.CallerStatus.EXISTING -> NeutralPalette
+}
+
+// 테두리 상태색 (프로토 확정값, 2026-08-31 사장님) — 신규=노랑(뛰어가 받기)·예정=초록·완료=빨강·기존=파랑.
+private fun edgeColorFor(status: IncomingCallOverlay.CallerStatus): Color = when (status) {
+    IncomingCallOverlay.CallerStatus.NEW -> Color(0xFFFF9F0A)
+    IncomingCallOverlay.CallerStatus.SCHEDULED -> Color(0xFF12C06A)
+    IncomingCallOverlay.CallerStatus.COMPLETED -> Color(0xFFF0436A)
+    IncomingCallOverlay.CallerStatus.EXISTING -> Color(0xFF3A86FF)
+}
+
+/**
+ * 전화 오는 순간 화면 '테두리'에 상태색만 — 바깥은 진하고 안쪽으로 연해지는 그라데이션.
+ *   전화 화면(다이얼러)은 안 가리고(창이 전체화면 투명+터치통과), 시공하다 멀리서 힐끗 봐도
+ *   색으로 신규/예정/기존/완료 판단. 순수 '보조' 표시. (2026-08-31 사장님: "테두리만·두껍게·안쪽 연해지게")
+ */
+@Composable
+private fun EdgeStatusOverlay(status: IncomingCallOverlay.CallerStatus, loading: Boolean) {
+    val color = if (loading) Color(0xFFAEB6C2) else edgeColorFor(status)  // 조회 전엔 중립 흰빛, 확정되면 상태색
+    val pulse = rememberInfiniteTransition(label = "edge")
+    val alpha by pulse.animateFloat(
+        initialValue = 1f, targetValue = 0.56f,
+        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "edgeAlpha"
+    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { this.alpha = alpha }   // 은은히 숨 쉬는(펄스) 테두리
+            .drawBehind {
+                val depth = size.minDimension * 0.17f            // 안쪽으로 연해지는 두께
+                val edgeC = color.copy(alpha = 0.72f)            // 가장자리 진하게
+                val clear = color.copy(alpha = 0f)               // 안쪽으로 투명
+                // 위/아래/왼/오 네 가장자리 그라데이션 (바깥 진함 → 안쪽 투명)
+                drawRect(Brush.verticalGradient(listOf(edgeC, clear), 0f, depth),
+                    size = Size(size.width, depth))
+                drawRect(Brush.verticalGradient(listOf(clear, edgeC), size.height - depth, size.height),
+                    topLeft = Offset(0f, size.height - depth), size = Size(size.width, depth))
+                drawRect(Brush.horizontalGradient(listOf(edgeC, clear), 0f, depth),
+                    size = Size(depth, size.height))
+                drawRect(Brush.horizontalGradient(listOf(clear, edgeC), size.width - depth, size.width),
+                    topLeft = Offset(size.width - depth, 0f), size = Size(depth, size.height))
+                // 바깥 또렷한 선(정의감)
+                drawRect(color = color, style = Stroke(width = 3.dp.toPx()))
+            }
+    )
 }
 
 @Composable
