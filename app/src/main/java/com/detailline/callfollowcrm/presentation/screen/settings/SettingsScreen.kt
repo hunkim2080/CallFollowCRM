@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.graphics.Brush
@@ -213,7 +214,7 @@ fun SettingsScreen(
         "smsapp" -> "기본 문자 앱"
         "noti" -> "고객 사진(문자) 받기"
         "server" -> "AI 서버 상태"
-        "mirror" -> "본폰에서 일정 보기"
+        "mirror" -> "구글 캘린더 연동"
         "web" -> "시공막내 웹 (PC)"
         else -> "더보기"
     }
@@ -401,15 +402,8 @@ fun SettingsScreen(
 
                 // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
                 //   (프로토 5그룹에 앱 기능 13개가 아무 데나 섞였던 것 → 성격별 6그룹으로. 새 그룹=기록·분석 / 알림·번호 관리.)
-                SettingsGroup("함께 일하는 사람") {
-                    // '팀원' 숨김(2026-07-18 사장님) → 라벨에서 팀원 뺌. 부활 시 FeatureFlags.SHOW_TEAM_MEMBERS.
-                    LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "인원 관리",
-                        if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS)
-                            "팀원 · 일당사장 — 현장에 보낼 사람 관리"
-                        else "일당사장 — 현장에 부를 사람(협업 사장) 관리",
-                        tier = "비즈니스", onClick = onOpenTeam)
-                    LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩",
-                        "거래처 — 자재·협력·장비 자주 거래하는 곳", onClick = onOpenNotebook)
+                // 인원 관리·수첩 제거(2026-08-31 사장님 "더보기 정리"). 관련 화면/nav 코드는 추후 청소.
+                SettingsGroup("협업·박람회") {
                     LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
                     // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
@@ -454,14 +448,13 @@ fun SettingsScreen(
                         .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
                     LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
                         navLabel) { subPage = "nav" }
-                    LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
-                        "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
+                    LockRow(Icons.Filled.DateRange, TossBlueSoft, TossBlue, "구글 캘린더 연동",
+                        "시공·A/S 일정을 구글 캘린더에 · 위젯·공유·폰교체 백업") { subPage = "mirror" }
                     LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
                         "PC 브라우저서 시공 사진 보기·블로그용 다운 · QR 로그인 · 보기 전용") { subPage = "web" }
                 }
                 SettingsGroup("도움말") {
-                    LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
-                        null, onClick = onShowIntro)
+                    // 앱 소개 다시 보기 제거(2026-08-31 사장님 "더보기 정리").
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고. Crashlytics(자동) 의 짝.
                     LockRow(Icons.Filled.BugReport, Color(0xFFFFF1F3), Color(0xFFF0436A), "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
@@ -3638,8 +3631,8 @@ private fun DataBackupSection(
         ) {
             Text(if (recent) "✅" else "⚠️", fontSize = 15.sp)
             Text(
-                if (recent) "최근에 백업했어요. 폰을 바꿔도 이 파일로 되살릴 수 있어요."
-                else "고객·돈 장부는 이 폰에만 저장돼요. 폰을 바꾸거나 앱을 지우면 되살릴 수 없어요. 가끔 백업해 두세요.",
+                if (recent) "최근에 서버에 백업했어요. 폰을 바꾸거나 앱을 지워도 되살릴 수 있어요."
+                else "고객·돈 장부는 이 폰에만 저장돼요. 폰을 바꾸거나 앱을 지우면 되살릴 수 없어요. 가끔 아래 [서버에 백업]을 눌러두세요.",
                 color = if (recent) Color(0xFF0E9F56) else Color(0xFFB8780A),
                 fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp,
                 modifier = Modifier.weight(1f)
@@ -3647,50 +3640,8 @@ private fun DataBackupSection(
         }
         Spacer(Modifier.height(9.dp))
 
-        Column(
-            Modifier.fillMaxWidth()
-                .tossCardShadow(RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White)
-                .padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(TossBlue)
-                    .clickable(enabled = !busy) { onExport() }
-                    .padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (busy) androidx.compose.material3.CircularProgressIndicator(
-                    color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
-                ) else Text("📤  내 데이터 내보내기 (백업)", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("마지막 백업: $lastLabel", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-                Text(
-                    "백업에서 가져오기",
-                    fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                    // 데이터 복원 진입점 — 맨 텍스트라 터치영역이 얇던 것 확대(clip+padding). (2026-08-11 접근성 감사)
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !busy) { onImport() }
-                        .padding(horizontal = 8.dp, vertical = 10.dp)
-                )
-            }
-            Text(
-                "고객·정산·시공·통화요약·가격표·문구를 파일 하나로 만들어 카톡·드라이브에 저장해요. (사진 제외)",
-                fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
-            )
-        }
-
-        Spacer(Modifier.height(10.dp))
-        // ☁️ 서버에 자동 보관(데이터 안전 2단계, 2026-08-21 사장님) — 파일 없이 서버에 → 폰 바꿔도/지워도 복원.
+        // ☁️ 서버에 백업 — 파일 없이 서버에 안전 보관 → 폰 바꿔도/지워도 복원.
+        //   (2026-08-21 사장님 · 로컬 파일 내보내기/가져오기는 제거 2026-08-31 사장님 "서버 백업만")
         Column(
             Modifier.fillMaxWidth()
                 .tossCardShadow(RoundedCornerShape(16.dp))
@@ -3711,14 +3662,21 @@ private fun DataBackupSection(
                     color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
                 ) else Text("☁️  서버에 백업하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Text(
-                "서버에서 복원하기",
-                fontSize = 13.sp, color = Color(0xFF1E6E6A), fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = !busy) { onServerRestore() }
-                    .padding(horizontal = 8.dp, vertical = 10.dp)
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("마지막 백업: $lastLabel", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                Text(
+                    "서버에서 복원하기",
+                    fontSize = 13.sp, color = Color(0xFF1E6E6A), fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !busy) { onServerRestore() }
+                        .padding(horizontal = 8.dp, vertical = 10.dp)
+                )
+            }
             Text(
                 "파일 없이 서버에 안전하게 보관해요. 폰을 바꾸거나 앱을 지워도, 새 폰에서 '서버에서 복원'으로 되살려요. (사진 제외)",
                 fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
