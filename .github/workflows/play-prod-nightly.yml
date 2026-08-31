@@ -22,8 +22,10 @@ name: Play 정식 자동배포 (새벽 3시 · 내부→정식 승격)
 #   SLACK_WEBHOOK_URL — 선택. 없으면 슬랙 보고만 생략되고 '배포 자체'는 정상 작동.
 
 on:
-  schedule:
-    - cron: "0 18 * * *"   # 18:00 UTC = 03:00 KST (매일)
+  # ⏸️ 스크리닝 Play 내부테스트 동안 자동 정식승격 멈춤 (2026-08-31). 스크리닝이 내부→정식으로 새는 것 방지.
+  #    테스트 끝나고 내부를 fix-only 로 되돌린 뒤 schedule 복구할 것.
+  # schedule:
+  #   - cron: "0 18 * * *"   # 18:00 UTC = 03:00 KST (매일)
   workflow_dispatch:        # 수동 즉시 실행(테스트 / 오늘분 바로 올리기)
 
 concurrency:
