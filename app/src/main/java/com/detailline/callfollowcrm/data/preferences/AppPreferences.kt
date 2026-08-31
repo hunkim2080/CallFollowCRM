@@ -474,6 +474,14 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean("auto_category_rebuilt_v2", value).apply()
 
     /**
+     * 2026-08-31 — '완료' 판정 버그(잔금 '액수' balanceAmount>0 를 '잔금 받음'으로 착각) 수정 후 1회 재정리.
+     *   계약금만 넣은 시공-예정 고객이 '시공 완료'로 잘못 분류돼 있던 걸 새 규칙(isWorkDone)으로 되돌린다. (사장님 신고)
+     */
+    var autoCategoryRebuiltV3: Boolean
+        get() = prefs.getBoolean("auto_category_rebuilt_v3", false)
+        set(value) = prefs.edit().putBoolean("auto_category_rebuilt_v3", value).apply()
+
+    /**
      * 2026-06-16 — 첫 실행 시 최근 7일 통화기록 1회 "따라잡기" 완료 여부.
      *   새 사장님이 깔면 상담함이 텅 비어 보이는 문제(전화로만 연락한 고객 누락) 보완.
      *   READ_CALL_LOG 권한 있을 때만 import 하고 true 로. 권한 없으면 false 유지 → 온보딩 grant 후 재시도.

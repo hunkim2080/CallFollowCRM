@@ -86,6 +86,12 @@ class CallFollowCrmApplication : Application() {
                 runCatching { container.autoCategoryClassifier.backfillAll() }
                 container.preferences.autoCategoryRebuiltV2 = true
             }
+            // 2026-08-31 — '완료' 판정 버그(잔금 액수 balanceAmount>0를 '잔금 받음'으로 착각) 수정 후 1회 재정리.
+            //   계약금만 넣은 시공-예정 고객이 '시공 완료'로 오분류돼 있던 걸 새 규칙(isWorkDone)으로 되돌림. (사장님 신고)
+            if (!container.preferences.autoCategoryRebuiltV3) {
+                runCatching { container.autoCategoryClassifier.backfillAll() }
+                container.preferences.autoCategoryRebuiltV3 = true
+            }
             // 2026-06-07 — 견적 기록 버그 수정 전(6/6 이전) 잘못 쌓인 "견적 회신 챙기기" 데이터 1회 정리.
             if (!container.preferences.estimateSentLegacyCleaned) {
                 // DELETE 성공했을 때만 플래그 세우기 — 중간 실패 시 다음 실행에 재시도(영영 안 지워지는 것 방지). (2026-08-11 데이터안전 감사)

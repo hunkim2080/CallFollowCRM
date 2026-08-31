@@ -6,8 +6,10 @@ import com.detailline.callfollowcrm.data.repository.CategoryRepository
  * 2026-05-30 사장님 #7 통점 — 기본 카테고리 seed.
  *
  * 사장님 결정 정의:
- *   - "시공 대기 고객" = 계약금 입금자 (depositAmount > 0, balanceAmount = 0/null)
- *   - "시공 완료 고객" = 잔금 입금자 (balanceAmount > 0)
+ *   - "시공 대기 고객" = 계약금 넣었거나 시공일 잡힌 고객 (아직 완료 전)
+ *   - "시공 완료 고객" = 잔금 받았거나(balancePaidAt) 완료 처리한(workCompletedAt) 고객 = CustomerEntity.isWorkDone
+ *     ⚠️ balanceAmount(잔금 '액수')는 '받음'이 아님 — 견적/총액 넣으면 (총액-계약금)이 자동 기록되므로
+ *        완료 판정에 쓰면 계약금만 넣은 시공-예정 고객이 완료로 오분류됨. (2026-08-31 사장님 신고 fix)
  *
  * Application.onCreate 의 appScope.launch 에서 seedIfMissing 호출.
  * idempotent — 이미 있으면 skip (CategoryRepository.upsert 가 findByName 우선).

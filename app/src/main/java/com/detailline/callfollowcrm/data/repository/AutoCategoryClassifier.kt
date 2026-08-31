@@ -49,10 +49,13 @@ class AutoCategoryClassifier(
                 || c.categoryId == doneId
             if (!canAutoClassify) continue   // 사장님 수동 카테고리는 절대 안 건드림
             val depositPaid = (c.depositAmount ?: 0L) > 0L
-            val balancePaid = (c.balanceAmount ?: 0L) > 0L
+            // 완료 판정은 단일 출처 isWorkDone(잔금 받음 balancePaidAt / 완료처리 workCompletedAt).
+            //   balanceAmount(잔금 '액수' — 견적 넣으면 총액-계약금이 자동 기록)를 '받음'으로 착각하면
+            //   계약금만 넣은 시공-예정 고객이 '시공 완료'로 오분류됨. (2026-08-31 사장님 신고)
+            val done = c.isWorkDone
             val scheduled = (c.scheduledWorkDate ?: 0L) > 0L
             val target: Long? = when {
-                balancePaid -> doneId
+                done -> doneId
                 scheduled || depositPaid -> pendingId
                 c.categoryId == pendingId || c.categoryId == doneId -> null  // 자격 없는데 상태칸 → 미분류
                 else -> c.categoryId
@@ -80,12 +83,14 @@ class AutoCategoryClassifier(
         if (!canAutoClassify) return customer.categoryId
 
         val depositPaid = (customer.depositAmount ?: 0L) > 0L
-        val balancePaid = (customer.balanceAmount ?: 0L) > 0L
+        // 완료 = 단일 출처 isWorkDone(잔금 받음 balancePaidAt / 완료처리 workCompletedAt).
+        //   balanceAmount(잔금 '액수')는 '받음'이 아님 → 계약금 고객이 완료로 오분류되던 버그 방지. (2026-08-31 사장님)
+        val done = customer.isWorkDone
         // 2026-06-07 사장님 정의: 계약 = 시공일(날짜) 등록 → "시공 대기". (상담만 = 미분류)
         val scheduled = (customer.scheduledWorkDate ?: 0L) > 0L
 
         return when {
-            balancePaid -> doneId ?: customer.categoryId          // 잔금 입금 → 시공 완료
+            done -> doneId ?: customer.categoryId          // 잔금 받음/완료처리 → 시공 완료
             scheduled || depositPaid -> pendingId ?: customer.categoryId  // 날짜 등록(계약) 또는 계약금 → 시공 대기
             // 자격 없음: 상태 카테고리에 잘못 들어가 있던 고객은 미분류로 되돌림. (상담만 한 고객 정리)
             customer.categoryId == pendingId || customer.categoryId == doneId -> null
