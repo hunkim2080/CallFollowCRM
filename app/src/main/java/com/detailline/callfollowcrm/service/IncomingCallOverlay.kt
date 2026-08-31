@@ -3,7 +3,11 @@ package com.detailline.callfollowcrm.service
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Shader
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -104,6 +108,7 @@ object IncomingCallOverlay {
     @Volatile private var currentNumber: String? = null
     private var loadJob: Job? = null
     private var safetyJob: Job? = null
+    private var colorJob: Job? = null   // 테두리 색을 _state(loading→확정) 따라 갱신
 
     private val _state = MutableStateFlow<CallerState?>(null)
     val state = _state.asStateFlow()
@@ -137,6 +142,8 @@ object IncomingCallOverlay {
             customerId = null,
             loading = true
         )
+        // 즉시 얹는다 — 스크리닝(onScreenCall)이 살아있는 '특권' 순간이라 백그라운드여도 오버레이가 허용된다(로그 확인).
+        //   T전화가 나중에 떠서 덮는 건, 스크리닝 서비스가 onScreenCall 안에서 bringToFront 로 위로 재장착해 해결. (2026-08-31 사장님)
         main.post { if (currentView == null) actuallyShow(appCtx) }
         startSafetyTimeout()
 
@@ -206,6 +213,25 @@ object IncomingCallOverlay {
     }
 
     /**
+     * 테두리를 '위로' 재장착 — 상태/잡은 유지하고 창만 제거→다시 add (나중에 add 된 오버레이가 위 z-order).
+     *   T전화 통화화면이 우리보다 나중에 떠서 덮은 걸 다시 위로 올린다. 스크리닝(onScreenCall)이 살아있는
+     *   '특권' 동안 호출해야 삼성 백그라운드 오버레이 차단을 통과함. (2026-08-31 사장님 — 최신폰 대응)
+     */
+    fun bringToFront(context: Context) {
+        val appCtx = context.applicationContext
+        main.post {
+            val v = currentView ?: return@post run { if (_state.value != null) actuallyShow(appCtx) }
+            runCatching {
+                (appCtx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.removeView(v)
+            }
+            currentOwner?.onDestroy()
+            currentView = null
+            currentOwner = null
+            actuallyShow(appCtx)   // _state 그대로 → 같은 테두리를 위로 다시
+        }
+    }
+
+    /**
      * 시공 일정/이력 한 줄 — "시공일 + D-day" 로 빠른 파악. (2026-07-01 사장님)
      *   남았으면 D-3, 오늘이면 오늘, 지났으면 D+5 (관례). 완료 처리됐으면 ✅.
      *   예) "🔨 3월 15일 시공 · D-3" / "🔨 3월 15일 시공 · 오늘" / "✅ 3월 15일 시공 완료 · D+5"
@@ -265,18 +291,11 @@ object IncomingCallOverlay {
     @SuppressLint("InflateParams")
     private fun actuallyShow(appContext: Context) {
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-        val owner = OverlayLifecycleOwner().also { it.onCreate(); it.onStart(); it.onResume() }
-        val composeView = ComposeView(appContext).apply {
-            setViewTreeLifecycleOwner(owner)
-            setViewTreeViewModelStoreOwner(owner)
-            setViewTreeSavedStateRegistryOwner(owner)
-            setContent {
-                val st by state.collectAsState()
-                st?.let {
-                    // 카드(전체 가림) → 테두리만(가장자리 색). 전화 화면 안 가리고 상태만 한눈에. (2026-08-31 사장님)
-                    EdgeStatusOverlay(status = it.status, loading = it.loading)
-                }
-            }
+        // ⚠️ Compose 오버레이는 이 창(수동 lifecycle)에서 렌더가 안 됐음 — 창은 맨 위(z-order #7)인데
+        //   화면캡처 결과 테두리가 하나도 안 그려짐(2026-08-31 실측). → 그냥 커스텀 View 로 Canvas 에 직접
+        //   테두리를 그린다(뷰 시스템이 onDraw 를 확실히 호출). (사장님 — 최신폰 대응)
+        val view = EdgeOverlayView(appContext).apply {
+            state.value?.let { setStatus(it.status, it.loading) }
         }
 
         val params = WindowManager.LayoutParams(
@@ -288,18 +307,24 @@ object IncomingCallOverlay {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            // ⚠️ FLAG_LAYOUT_NO_LIMITS 는 넣지 말 것 — 크기제약이 무제한이 돼 fillMaxSize()가 0×0 으로
+            //   측정되어 아무것도 안 그려진다(2026-08-31 로그로 확인). IN_SCREEN(전체화면 바운드)만.
             PixelFormat.TRANSLUCENT
         ).apply {
             // 전체화면이라 y offset 불필요. 테두리는 가장자리라 삼성 InCallUI(중앙)와 덜 겹침.
             gravity = Gravity.TOP
         }
 
-        runCatching { wm.addView(composeView, params) }
+        runCatching { wm.addView(view, params) }
             .onSuccess {
-                currentView = composeView; currentOwner = owner
-                android.util.Log.d(TAG, "actuallyShow: addView OK (y=${params.y})")
+                currentView = view
+                android.util.Log.d(TAG, "actuallyShow: addView OK")
+                // 상태(loading→확정) 반영 — _state 관찰해 색 갱신.
+                colorJob?.cancel()
+                colorJob = ioScope.launch {
+                    state.collect { s -> if (s != null) main.post { (currentView as? EdgeOverlayView)?.setStatus(s.status, s.loading) } }
+                }
             }
             .onFailure {
                 android.util.Log.w(TAG, "actuallyShow: addView FAILED", it)
@@ -310,6 +335,7 @@ object IncomingCallOverlay {
     private fun actuallyHide() {
         loadJob?.cancel(); loadJob = null
         safetyJob?.cancel(); safetyJob = null
+        colorJob?.cancel(); colorJob = null
         currentView?.let { v ->
             runCatching {
                 val wm = v.context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
@@ -378,47 +404,50 @@ private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = 
 }
 
 // 테두리 상태색 (프로토 확정값, 2026-08-31 사장님) — 신규=노랑(뛰어가 받기)·예정=초록·완료=빨강·기존=파랑.
-private fun edgeColorFor(status: IncomingCallOverlay.CallerStatus): Color = when (status) {
-    IncomingCallOverlay.CallerStatus.NEW -> Color(0xFFFF9F0A)
-    IncomingCallOverlay.CallerStatus.SCHEDULED -> Color(0xFF12C06A)
-    IncomingCallOverlay.CallerStatus.COMPLETED -> Color(0xFFF0436A)
-    IncomingCallOverlay.CallerStatus.EXISTING -> Color(0xFF3A86FF)
-}
-
 /**
- * 전화 오는 순간 화면 '테두리'에 상태색만 — 바깥은 진하고 안쪽으로 연해지는 그라데이션.
- *   전화 화면(다이얼러)은 안 가리고(창이 전체화면 투명+터치통과), 시공하다 멀리서 힐끗 봐도
- *   색으로 신규/예정/기존/완료 판단. 순수 '보조' 표시. (2026-08-31 사장님: "테두리만·두껍게·안쪽 연해지게")
+ * 전화 오는 순간 화면 '테두리'에 상태색만 — 바깥 진하고 안쪽으로 연해지는 그라데이션.
+ *   Compose 대신 커스텀 View 로 Canvas 에 직접 그린다 — 수동 lifecycle 오버레이 창에선 Compose 가
+ *   렌더되지 않았음(창은 맨 위였는데 화면캡처에 테두리가 아예 안 나옴, 2026-08-31 실측). View.onDraw 는 확실히 호출됨.
+ *   전화화면은 안 가림(창이 전체화면 투명+터치통과). 신규=노랑·예정=초록·완료=빨강·기존=파랑. (사장님 — 최신폰 대응)
  */
-@Composable
-private fun EdgeStatusOverlay(status: IncomingCallOverlay.CallerStatus, loading: Boolean) {
-    val color = if (loading) Color(0xFFAEB6C2) else edgeColorFor(status)  // 조회 전엔 중립 흰빛, 확정되면 상태색
-    val pulse = rememberInfiniteTransition(label = "edge")
-    val alpha by pulse.animateFloat(
-        initialValue = 1f, targetValue = 0.56f,
-        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "edgeAlpha"
-    )
-    Box(
-        Modifier
-            .fillMaxSize()
-            .graphicsLayer { this.alpha = alpha }   // 은은히 숨 쉬는(펄스) 테두리
-            .drawBehind {
-                val depth = size.minDimension * 0.17f            // 안쪽으로 연해지는 두께
-                val edgeC = color.copy(alpha = 0.72f)            // 가장자리 진하게
-                val clear = color.copy(alpha = 0f)               // 안쪽으로 투명
-                // 위/아래/왼/오 네 가장자리 그라데이션 (바깥 진함 → 안쪽 투명)
-                drawRect(Brush.verticalGradient(listOf(edgeC, clear), 0f, depth),
-                    size = Size(size.width, depth))
-                drawRect(Brush.verticalGradient(listOf(clear, edgeC), size.height - depth, size.height),
-                    topLeft = Offset(0f, size.height - depth), size = Size(size.width, depth))
-                drawRect(Brush.horizontalGradient(listOf(edgeC, clear), 0f, depth),
-                    size = Size(depth, size.height))
-                drawRect(Brush.horizontalGradient(listOf(clear, edgeC), size.width - depth, size.width),
-                    topLeft = Offset(size.width - depth, 0f), size = Size(depth, size.height))
-                // 바깥 또렷한 선(정의감)
-                drawRect(color = color, style = Stroke(width = 3.dp.toPx()))
-            }
-    )
+private class EdgeOverlayView(context: Context) : View(context) {
+    private var argb: Int = 0xFFAEB6C2.toInt()   // 조회 전 중립 흰빛
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f * context.resources.displayMetrics.density
+    }
+
+    fun setStatus(status: IncomingCallOverlay.CallerStatus, loading: Boolean) {
+        argb = if (loading) 0xFFAEB6C2.toInt() else when (status) {
+            IncomingCallOverlay.CallerStatus.NEW -> 0xFFFF9F0A.toInt()
+            IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF12C06A.toInt()
+            IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFF0436A.toInt()
+            IncomingCallOverlay.CallerStatus.EXISTING -> 0xFF3A86FF.toInt()
+        }
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val w = width.toFloat(); val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val depth = minOf(w, h) * 0.17f
+        val edge = (argb and 0x00FFFFFF) or (0xD9 shl 24)   // 바깥 진하게(~85%)
+        val clear = argb and 0x00FFFFFF                      // 안쪽 투명(0%)
+        // 위/아래/왼/오 네 가장자리 그라데이션 (바깥 진함 → 안쪽 투명)
+        fill.shader = LinearGradient(0f, 0f, 0f, depth, edge, clear, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, depth, fill)
+        fill.shader = LinearGradient(0f, h - depth, 0f, h, clear, edge, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, h - depth, w, h, fill)
+        fill.shader = LinearGradient(0f, 0f, depth, 0f, edge, clear, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, depth, h, fill)
+        fill.shader = LinearGradient(w - depth, 0f, w, 0f, clear, edge, Shader.TileMode.CLAMP)
+        canvas.drawRect(w - depth, 0f, w, h, fill)
+        // 바깥 또렷한 선
+        stroke.shader = null
+        stroke.color = (argb and 0x00FFFFFF) or (0xFF shl 24)
+        canvas.drawRect(0f, 0f, w, h, stroke)
+    }
 }
 
 @Composable

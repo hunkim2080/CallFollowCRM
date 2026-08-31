@@ -35,8 +35,15 @@ class IncomingCallScreeningService : CallScreeningService() {
 
         if (isIncoming && !number.isNullOrBlank()) {
             Log.d(TAG, "onScreenCall incoming numLen=${number.length}")
-            runCatching { IncomingCallOverlay.onRinging(applicationContext, number) }
-                .onFailure { Log.w(TAG, "overlay fail", it) }
+            runCatching {
+                // 즉시 테두리 표시 — onScreenCall 실행 중 = '특권' 순간이라 백그라운드여도 오버레이 허용됨.
+                IncomingCallOverlay.onRinging(applicationContext, number)
+                // T전화 통화화면이 뜰 시간을 주고(≈0.85s), onScreenCall 이 살아있는(특권) 동안 위로 재장착 → 안 가림.
+                //   이 서비스는 바인더 스레드라 sleep 해도 앱 ANR 아님(스크리닝 응답만 잠깐 미룸). (2026-08-31 최신폰 대응)
+                Thread.sleep(850)
+                IncomingCallOverlay.bringToFront(applicationContext)
+                Thread.sleep(150)   // 재장착(main) 완료 후 통화 통과
+            }.onFailure { Log.w(TAG, "overlay fail", it) }
         }
 
         // 어떤 경우에도 전화를 막거나 무음/알림차단 하지 않는다 — 기본값(빈 응답) = 그대로 통과.
