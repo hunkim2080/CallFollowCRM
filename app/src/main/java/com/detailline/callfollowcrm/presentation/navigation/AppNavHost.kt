@@ -8,6 +8,11 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -272,6 +277,38 @@ fun AppNavHost(
 
         composable(Destinations.HOME) {
             val vm: HomeViewModel = viewModel(factory = viewModelFactory { HomeViewModel(container) })
+            // PC 웹 QR 빠른 로그인 (2026-08-31 사장님) — 홈 상단 [QR] → 스캔 → ticket 승인(웹뷰어 approve 와 동일).
+            val homeCtx = LocalContext.current
+            val homeScope = rememberCoroutineScope()
+            val webQrScanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+                val contents = result.contents
+                if (!contents.isNullOrBlank()) {
+                    val ticket = runCatching { android.net.Uri.parse(contents).getQueryParameter("t") }
+                        .getOrNull()?.takeIf { it.isNotBlank() }
+                    if (ticket == null) {
+                        android.widget.Toast.makeText(homeCtx, "시공막내 웹 로그인 QR이 아니에요", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        val ownerPhone = container.preferences.bizPhone
+                        if (ownerPhone.filter { it.isDigit() }.length < 9) {
+                            android.widget.Toast.makeText(homeCtx, "먼저 내 번호(로그인)가 필요해요", android.widget.Toast.LENGTH_SHORT).show()
+                        } else homeScope.launch {
+                            val r = container.webFeedRepository.authorize(ticket, ownerPhone)
+                            val msg = when (r) {
+                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
+                                    container.preferences.webViewerActive = true
+                                    runCatching { container.webFeedSyncManager.pushNow(force = true) }
+                                    container.ownerPhotoUploadManager.kick(homeScope)
+                                    "PC 웹에 로그인됐어요 ✅ 사진도 웹으로 올라가요"
+                                }
+                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
+                                    "QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요."
+                                else -> "웹 로그인 실패 — 처음이면 더보기 → 시공막내 웹에서 인증을 한 번 해주세요."
+                            }
+                            android.widget.Toast.makeText(homeCtx, msg, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
             HomeScreen(
                 viewModel = vm,
                 // 카드 탭 [💬 메시지] 인라인 액션. customerId 없으면 ChatViewModel 이 phone lookup.
@@ -301,7 +338,16 @@ fun AppNavHost(
                 onOpenCollabSiteDetail = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
                 onOpenAutoSmsSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
                 // 막내 팁 카드 → 해당 기능 라우트로 이동(제네릭). (2026-07-04 사장님)
-                onOpenRoute = { route -> navController.navigate(route) }
+                onOpenRoute = { route -> navController.navigate(route) },
+                // PC 웹 QR 빠른 로그인 — 홈 상단 [QR] 아이콘. (2026-08-31 사장님)
+                onScanWebQr = {
+                    webQrScanLauncher.launch(
+                        ScanOptions()
+                            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                            .setPrompt("PC 화면의 QR을 비춰주세요")
+                            .setBeepEnabled(false)
+                    )
+                }
             )
         }
 

@@ -72,6 +72,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
@@ -225,7 +226,9 @@ fun HomeScreen(
     /** 상담함 "부재중 자동답장" 알림 길게누름 → 자동 문자 설정(부재중 응답 펼침). (2026-06-06) */
     onOpenAutoSmsSettings: () -> Unit = {},
     /** 막내 팁 카드 → 해당 기능 라우트로 이동(제네릭). (2026-07-04 사장님) */
-    onOpenRoute: (String) -> Unit = {}
+    onOpenRoute: (String) -> Unit = {},
+    /** 홈 상단 [QR] → PC 웹 로그인 QR 스캔(빠른 접근). (2026-08-31 사장님) */
+    onScanWebQr: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     // 상단 고정(핀) 거래처 suffix — 상담함 '고정' 칸 분리 + '답장 기다려요' 제외. (2026-08-24 사장님)
@@ -411,6 +414,18 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Search, "검색", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(6.dp))
+                // PC 웹 QR 빠른 로그인 — 어디서든 한 탭에 스캐너. (2026-08-31 사장님)
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color.White)
+                        .clickable { onScanWebQr() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.QrCodeScanner, "PC 웹 QR", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
                 }
             }
         },
