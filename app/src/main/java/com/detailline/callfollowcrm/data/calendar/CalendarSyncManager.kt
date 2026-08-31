@@ -135,8 +135,9 @@ class CalendarSyncManager(
         date ?: return null
         val days = (if (type == ScheduleType.WORK) c.scheduledWorkDays else c.asScheduledDays).coerceAtLeast(1)
         val minutes = if (type == ScheduleType.WORK) c.scheduledWorkMinutes else null // A/S 는 시각 없음
-        val label = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
-        val summary = if (type == ScheduleType.WORK) "$label 시공" else "$label A/S"
+        // 제목: 짧은 주소(지역+아파트+동+호) 우선, 주소 없거나 못 뽑으면 이름/번호. (2026-09-01 사장님)
+        val base = c.address?.let { shortAddress(it) } ?: (c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber)
+        val summary = if (type == ScheduleType.WORK) "🛠️ $base" else "🔧 $base (A/S)"
 
         val start = JSONObject()
         val end = JSONObject()
@@ -150,9 +151,14 @@ class CalendarSyncManager(
             end.put("date", dateOnly(date + days * DAY_MS))
         }
 
+        // 내용: 고객 메모 + 총금액 · 계약금. (2026-09-01 사장님)
+        val money = buildList {
+            c.totalAmount?.takeIf { it > 0L }?.let { add("총금액 ${won(it)}") }
+            c.depositAmount?.takeIf { it > 0L }?.let { add("계약금 ${won(it)}") }
+        }.joinToString(" · ")
         val desc = buildString {
-            if (c.phoneNumber.isNotBlank()) appendLine("📞 ${c.phoneNumber}")
-            if (c.memo.isNotBlank()) appendLine(c.memo)
+            if (c.memo.isNotBlank()) appendLine(c.memo.trim())
+            if (money.isNotEmpty()) append("💰 $money")
         }.trim()
 
         return JSONObject().apply {
@@ -180,4 +186,28 @@ class CalendarSyncManager(
 
     private fun seoulFmt(pattern: String): SimpleDateFormat =
         SimpleDateFormat(pattern, Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Seoul") }
+
+    /**
+     * 긴 주소 → 짧은 캘린더 제목. (2026-09-01 사장님)
+     * 예) "경기도 성남시 분당구 대왕판교로 364 하늘채아파트 10동 202호" → "분당 하늘채 10동 202호"
+     *   지역(구>시>군) + 아파트명 + N동 + N호. 2조각 미만이면 null(→ 이름/번호로 폴백).
+     */
+    private fun shortAddress(addr: String): String? {
+        val a = addr.trim()
+        if (a.isBlank()) return null
+        val parts = mutableListOf<String>()
+        (Regex("([가-힣]+)구(?=\\s|$)").find(a)?.groupValues?.getOrNull(1)
+            ?: Regex("([가-힣]+)시(?=\\s|$)").find(a)?.groupValues?.getOrNull(1)
+            ?: Regex("([가-힣]+)군(?=\\s|$)").find(a)?.groupValues?.getOrNull(1))
+            ?.let { parts.add(it) }
+        Regex("([가-힣A-Za-z0-9]+?)(?:아파트|아파|APT|apt|빌라|오피스텔|타워|캐슬|팰리스|파크|자이|래미안)")
+            .find(a)?.groupValues?.getOrNull(1)?.let { parts.add(it) }
+        Regex("(\\d+)\\s*동").find(a)?.groupValues?.getOrNull(1)?.let { parts.add("${it}동") }
+        Regex("(\\d+)\\s*호").find(a)?.groupValues?.getOrNull(1)?.let { parts.add("${it}호") }
+        return if (parts.size >= 2) parts.joinToString(" ") else null
+    }
+
+    /** 원 → 보기 좋은 금액. 만원 단위 딱 떨어지면 "N만원", 아니면 콤마. */
+    private fun won(amount: Long): String =
+        if (amount % 10_000L == 0L) "${amount / 10_000L}만원" else "%,d원".format(amount)
 }

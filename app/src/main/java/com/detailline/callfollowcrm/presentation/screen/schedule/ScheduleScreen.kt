@@ -137,6 +137,9 @@ fun ScheduleScreen(
     onAddSchedule: (Long?) -> Unit = {},
     onOpenSettle: () -> Unit = {},
     onOpenCollabSites: (String?) -> Unit = {},
+    /** 구글 캘린더 — 연결됨 여부 + 동기화/연결 실행(일정 탭 상단 버튼). (2026-09-01 사장님) */
+    calendarConnected: Boolean = false,
+    onCalendarSync: () -> Unit = {},
     /** 진입 시 미리 선택할 날(ms). 홈 "다음 시공" 카드에서 그 시공일로. null/<=0 = 오늘. */
     initialSelectedDayMs: Long? = null
 ) {
@@ -222,6 +225,21 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
+                    // 구글 캘린더 — 연결/동기화 (일정 탭에서 바로). (2026-09-01 사장님)
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(Color.White)
+                            .clickable { onCalendarSync() }
+                            .padding(horizontal = 11.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (calendarConnected) "🔄 동기화" else "📅 연결",
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .padding(end = 12.dp)

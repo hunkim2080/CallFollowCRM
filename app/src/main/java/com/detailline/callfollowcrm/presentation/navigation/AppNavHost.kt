@@ -424,6 +424,19 @@ fun AppNavHost(
             arguments = listOf(navArgument("day") { type = NavType.LongType; defaultValue = -1L })
         ) { entry ->
             val vm: ScheduleViewModel = viewModel(factory = viewModelFactory { ScheduleViewModel(container) })
+            // 구글 캘린더 — 일정 탭 상단 버튼에서 바로 연결/동기화. (2026-09-01 사장님)
+            val schedCtx = LocalContext.current
+            val schedScope = rememberCoroutineScope()
+            fun schedToast(m: String) = android.widget.Toast.makeText(schedCtx, m, android.widget.Toast.LENGTH_SHORT).show()
+            val calConnectLauncher = rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+            ) { result ->
+                val token = container.googleCalendarConnection.tokenFromConsentResult(result.data)
+                if (token != null) {
+                    container.preferences.googleCalendarConnected = true
+                    schedScope.launch { runCatching { container.calendarSyncManager.syncAll() }; schedToast("구글 캘린더 연결·동기화 완료") }
+                } else schedToast("연결이 취소됐어요")
+            }
             ScheduleScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
@@ -432,6 +445,24 @@ fun AppNavHost(
                 onAddSchedule = { day -> navController.navigate(Destinations.scheduleAdd(day)) },
                 onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenCollabSites = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
+                calendarConnected = container.preferences.googleCalendarConnected,
+                onCalendarSync = {
+                    schedScope.launch {
+                        if (container.preferences.googleCalendarConnected) {
+                            val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
+                            schedToast(if (n >= 0) "구글 캘린더에 동기화했어요" else "동기화 실패 — 잠시 후 다시")
+                        } else when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
+                            is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.Success -> {
+                                container.preferences.googleCalendarConnected = true
+                                runCatching { container.calendarSyncManager.syncAll() }
+                                schedToast("구글 캘린더 연결·동기화 완료")
+                            }
+                            is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.NeedsConsent ->
+                                calConnectLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(r.intentSender).build())
+                            else -> schedToast("구글 로그인을 시작할 수 없어요")
+                        }
+                    }
+                },
                 initialSelectedDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L }
             )
         }
