@@ -74,6 +74,11 @@ GEMINI_MODEL = "gemini-3.5-flash"   # 2026-08-17: gemini-2.0/2.5-flash 구글 �
 # 짧은 통화 (prepare-reply) 와 긴 통화 (call-audio-summary) 둘 다 안전한 120초.
 GEMINI_TIMEOUT_SEC = 120.0
 GEMINI_MAX_OUTPUT_TOKENS = 2048  # 핸드오프30 (2026-06-15): 500 → 2048. 긴 원문 다듬기 시 끊김 해결.
+# 돌려막기(2026-09-01 android): "GEMINI_API_KEYS=키1,키2" env → 순회. 없으면 단일 GEMINI_API_KEY.
+GEMINI_API_KEYS = [
+    k.strip() for k in (os.environ.get("GEMINI_API_KEYS") or GEMINI_API_KEY or "").split(",")
+    if k.strip()
+]
 
 # §15 — Admin token (사업 metric endpoint 보호용. /api/admin/* 호출 시 X-Admin-Token 헤더 필요)
 # 미설정 시 admin endpoint 는 503 (인증 비활성화).
@@ -12958,6 +12963,33 @@ def _build_refine_user_message(req: RefineRequest) -> str:
     return "\n".join(lines)
 
 
+async def _gemini_generate_rotate(payload: dict, timeout=None):
+    """돌려막기(2026-09-01): GEMINI_API_KEYS 순회 호출, 429/quota 면 다음 키. httpx.Response(마지막) 반환.
+    무료 Gemini 하루 20건/키 한도 → 키 여러 개로 40건+."""
+    keys = GEMINI_API_KEYS or ([GEMINI_API_KEY] if GEMINI_API_KEY else [])
+    if not keys:
+        raise RuntimeError("GEMINI_API_KEY(S) env var not set")
+    to = GEMINI_TIMEOUT_SEC if timeout is None else timeout
+    last = None
+    async with httpx.AsyncClient(timeout=to) as client:
+        for _i, _key in enumerate(keys):
+            _url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{GEMINI_MODEL}:generateContent?key={_key}"
+            )
+            resp = await client.post(
+                _url, json=payload, headers={"Content-Type": "application/json"}
+            )
+            last = resp
+            if resp.status_code == 429 or (
+                resp.status_code == 403 and "quota" in resp.text.lower()
+            ):
+                print(f"[gemini] key #{_i+1}/{len(keys)} quota({resp.status_code}) -> next")
+                continue
+            return resp
+    return last
+
+
 async def _call_gemini_refine(
     system_prompt: str, user_msg: str
 ) -> tuple[str, dict]:
@@ -12968,10 +13000,6 @@ async def _call_gemini_refine(
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY env var not set")
 
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    )
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
         "contents": [
@@ -12984,10 +13012,7 @@ async def _call_gemini_refine(
         },
     }
 
-    async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SEC) as client:
-        resp = await client.post(
-            url, json=payload, headers={"Content-Type": "application/json"}
-        )
+    resp = await _gemini_generate_rotate(payload, GEMINI_TIMEOUT_SEC)
 
     if resp.status_code != 200:
         raise RuntimeError(
@@ -13031,10 +13056,6 @@ async def _call_gemini_json_for_summary(
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY env var not set")
 
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    )
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
@@ -13067,10 +13088,7 @@ async def _call_gemini_json_for_summary(
         },
     }
 
-    async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SEC) as client:
-        resp = await client.post(
-            url, json=payload, headers={"Content-Type": "application/json"}
-        )
+    resp = await _gemini_generate_rotate(payload, GEMINI_TIMEOUT_SEC)
     if resp.status_code != 200:
         raise RuntimeError(
             f"Gemini API status {resp.status_code}: {resp.text[:300]}"

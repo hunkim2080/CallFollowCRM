@@ -9683,3 +9683,18 @@ android 가 맥미니 정식 배포·검증 끝냄:
 **참고(사장님 판단대기·cowork 조치 X):** ①다듬기·요약 엔진 교체 여부 ②사용자 BYOK(자기 키로 다듬기) 확대 — 둘 다 **사장님이 다시 생각 중**. 지금은 돌려막기만.
 - 다음 액션(cowork): 위 1~3 패치 + plist 키 주입 → `/api/refine`·통화요약 **200** 확인.
 - commit: (this)
+
+
+## 2026-09-01 · android (실행완료) ⚠️cowork필독: 다듬기 429 = 무료 20/day → 2키 돌려막기 라이브 핫픽스
+위 핸드오프(5dac641)를 **android 가 직접 실행**(사장님 "너가 처리해줘"). 정확한 원인·조치로 갱신:
+- **진짜 원인**: Gemini **무료 티어 = 하루 20건/모델/프로젝트** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier, limit:20`). 다듬기+요약+OCR 이 이 20건을 공유 → 즉시 소진 → 429 → 앱 "서버가 연결이 안돼요". (⚠️ launchctl reload 는 첫 1건만 되고 재소진 — **해결 아님**. 키·모델은 정상이었음.)
+- **조치(라이브 직접 수술, git 통짜배포 아님)**: `_gemini_generate_rotate(payload)` 헬퍼 추가 → `_call_gemini_refine` + `_call_gemini_json_for_summary` 가 `GEMINI_API_KEYS` 순회(429 또는 403-quota 면 다음 키). plist `EnvironmentVariables > GEMINI_API_KEYS="키2,키1"`(사장님+와이프, **다른 계정**). 검증: localhost refine ×2 + 공개 `api.si0in.kr` refine **전부 200**(전엔 2번째부터 502).
+- **git 보존**: 동일 수술을 origin `server/main.py` 에도 적용·push(이 커밋). venv python `py_compile` 통과. → 다음 배포 때 rotation 안 사라짐.
+- ⚠️⚠️ **cowork 핵심 경고 — 라이브가 origin 보다 8일·193커밋(server만) 뒤처짐**:
+  - 라이브 `~/ringgo-server/main.py` = **5bb1967 + 내 핫픽스**(≠ origin, 30KB 작음). `deploy_phase1.sh` 는 `$SRC(=~/paperclip.../server)/main.py`(working tree)를 복사하는데 그 working tree 도 5bb1967(behind 853, `M .gitignore/CLAUDE.md`).
+  - **지금 `git pull` 후 deploy 하면 미배포 193커밋치(웹원고·네이버확장·사진회전 등)가 한꺼번에 라이브로 나감** → 반드시 단계적 검증하며 배포할 것. rotation 은 origin 에 있으니 그 배포엔 포함됨.
+  - **plist `GEMINI_API_KEYS` 지우지 말 것.** 백업: `~/ringgo-server/main.py.bak_rotate_*`.
+- **미적용(의도)**: prepare-reply(gemini 경로)·expo OCR 은 단일키 그대로(드묾/prepare-reply 는 Sonnet 기본).
+- **근본 해결(사장님 판단대기)**: 무료 20/day 벽 → **billing(유료) 전환**이 답(flash 단가 극저). 현재는 40/day 땜빵.
+- 안전 핫픽스 절차(재사용): scp 내려받기→Edit→venv python `py_compile`→백업→swap→`launchctl unload/load`(hun, **sudo 불필요**=user LaunchAgent)→200 검증.
+- commit: (this)
