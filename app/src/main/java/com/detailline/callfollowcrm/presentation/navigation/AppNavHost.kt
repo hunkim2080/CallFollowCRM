@@ -347,7 +347,8 @@ fun AppNavHost(
                             .setPrompt("PC 화면의 QR을 비춰주세요")
                             .setBeepEnabled(false)
                     )
-                }
+                },
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
             )
         }
 

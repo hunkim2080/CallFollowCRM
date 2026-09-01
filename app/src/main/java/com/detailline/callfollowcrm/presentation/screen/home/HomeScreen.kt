@@ -228,7 +228,9 @@ fun HomeScreen(
     /** 막내 팁 카드 → 해당 기능 라우트로 이동(제네릭). (2026-07-04 사장님) */
     onOpenRoute: (String) -> Unit = {},
     /** 홈 상단 [QR] → PC 웹 로그인 QR 스캔(빠른 접근). (2026-08-31 사장님) */
-    onScanWebQr: () -> Unit = {}
+    onScanWebQr: () -> Unit = {},
+    /** "{업종} AI" 뱃지 탭 → 업종 선택(대표업종 1개). 업종 데이터 수집 → 시공 시장 빅데이터. (2026-09-01 사장님) */
+    onOpenTradeSelect: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     // 상단 고정(핀) 거래처 suffix — 상담함 '고정' 칸 분리 + '답장 기다려요' 제외. (2026-08-24 사장님)
@@ -380,17 +382,8 @@ fun HomeScreen(
                 AiBadge(
                     trade = ownerTrade,
                     alive = serverAlive,
-                    onClick = {
-                        val msg = when (serverAlive) {
-                            true -> {
-                                val secs = lastOkAtMs?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
-                                "✨ $ownerTrade 전문 AI · 서버 연결 정상 (${secs}초 전)"
-                            }
-                            false -> "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
-                            null -> "AI 서버 상태 체크 중..."
-                        }
-                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                    }
+                    // 탭 → 업종 선택(대표업종 1개). 업종 데이터 수집 → 시공 시장 빅데이터. 서버상태는 뱃지 점 색으로 표시. (2026-09-01 사장님)
+                    onClick = onOpenTradeSelect
                 )
                 Spacer(Modifier.width(6.dp))
                 // 프로토 상담함 앱바 👤 고객 · 🔍 검색 — 흰 원형 아이콘 버튼.
