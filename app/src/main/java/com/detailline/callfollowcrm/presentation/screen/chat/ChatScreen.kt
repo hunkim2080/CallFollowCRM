@@ -763,9 +763,12 @@ fun ChatScreen(
                                     audioDurationMs = callRec?.duration,
                                     onUseAsDraft = { msg ->
                                         setInput(if (input.isBlank()) msg else input + "\n" + msg)
-                                        // 넣어도 입력칸(맨 아래)이 안 보여 '안 눌린 것처럼' 느껴지던 것 → 포커스+토스트로 확실히 (2026-08-20 사장님 신고)
-                                        runCatching { composerFocusRequester.requestFocus() }
-                                        android.widget.Toast.makeText(context, "✍️ 후속 문자에 넣었어요 — 아래 입력칸에서 확인하고 보내세요", android.widget.Toast.LENGTH_SHORT).show()
+                                        // 요약 카드(위)에서 눌러도 입력칸(맨 아래)으로 쫙 내려가 '여기 썼구나' 바로 보이게.
+                                        //   reverseLayout=true → index 0 = 맨 아래(최신·입력칸). 어색한 토스트 대신 실제 이동+포커스로. (2026-09-01 사장님)
+                                        scope.launch {
+                                            runCatching { listState.animateScrollToItem(0) }
+                                            runCatching { composerFocusRequester.requestFocus() }
+                                        }
                                     },
                                     onSummarizeCall = { viewModel.summarizeCall(ti.record, context) },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },

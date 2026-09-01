@@ -347,11 +347,10 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 1.2 고객 페르소나 (프로토 openCustomer #2 — 헤더 바로 아래). 킬러콘텐츠 5단계.
+            // 1.2 고객 페르소나 — 숨김 (2026-09-01 사장님 "많이 안 씀, 일단 숨김"). 재노출하려면 아래 2줄 주석 해제.
             //   cowork prepare-reply 가 자동 생성(Haiku 4.5, 24h cache). 안드는 cache 조회만, 없으면 숨김.
-            val persona by viewModel.persona.collectAsState()
-            // 내용 있으면 보여주고, 내용은 없어도 생성 중(stale)이면 "분석 중" 카드로 자연스럽게. 둘 다 아니면 숨김.
-            persona?.let { p -> if (!p.isEmpty || p.stale) PersonaCard(p) }
+            // val persona by viewModel.persona.collectAsState()
+            // persona?.let { p -> if (!p.isEmpty || p.stale) PersonaCard(p) }
 
             // 1.3 현장 주소 — 표시 우선순위 (2026-05-28 사장님 결정):
             //   1) customer.address (사장님 수동 등록, DB v15) — 신뢰 최우선
@@ -713,6 +712,53 @@ fun CustomerDetailScreen(
             //   2026-06-04 사장님 결정 "프로토 100%". 통화기록/녹음/에이닷 요약 데이터 수집(backfill·
             //   AdotSummaryImporter)은 그대로 동작 — 고객정보 화면에서 카드로 노출만 안 함.
 
+            // 6.55 발행 이력 (2026-07-07 사장님) — 이 고객에게 발행한 견적서/시공접수서. · [시공접수서] 탭 (2026-07-18)
+            //   위치 일관성(2026-09-01 사장님): 다른 탭처럼 '탭 내용'이 현장사진 위. 시공접수서 내용(발행이력)을 현장사진 앞으로.
+            val issuedDocs by viewModel.issuedDocs.collectAsState()
+            if (detailTab == 2 && issuedDocs.isNotEmpty()) {
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("📄", fontSize = 13.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "발행 이력 ${issuedDocs.size}건",
+                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "보낸 견적서·시공접수서예요. 탭하면 다시 볼 수 있어요.",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        issuedDocs.forEachIndexed { idx, doc ->
+                            if (idx > 0) Spacer(Modifier.height(8.dp))
+                            IssuedDocRow(
+                                doc = doc,
+                                onOpen = {
+                                    if (doc.kind == "quote") {
+                                        com.detailline.callfollowcrm.presentation.screen.chat.quoteDocDataFromIssuedJson(doc.docJson)
+                                            ?.let { reviewQuoteDoc = it }
+                                            ?: run { intakeReviewDoc = doc }  // JSON 깨졌으면 요약으로 폴백
+                                    } else {
+                                        intakeReviewDoc = doc
+                                    }
+                                },
+                                // 이미 보낸 접수서 수정하기 — intake 만. 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)
+                                onEdit = if (doc.kind == "intake") ({ onOpenChatEditIssued(c.phoneNumber, c.id, doc.id) }) else null,
+                                onDelete = { issuedDocToDelete = doc }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // [시공접수서] 탭인데 발행 이력이 없을 때 안내. (2026-07-18 탭 재배치)
+            if (detailTab == 2 && issuedDocs.isEmpty()) {
+                DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
+            }
+
             // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
             //   ※ 팀원↔사장님 공유는 서버(team_site_photos) 보강 후 별도 연동 — docs/SERVER_HANDOFF 참조.
             val sitePhotos by viewModel.sitePhotos.collectAsState()
@@ -889,52 +935,6 @@ fun CustomerDetailScreen(
                         }
                     }
                 }
-            }
-
-            // 6.55 발행 이력 (2026-07-07 사장님) — 이 고객에게 발행한 견적서/시공접수서. · [시공접수서] 탭 (2026-07-18)
-            val issuedDocs by viewModel.issuedDocs.collectAsState()
-            if (detailTab == 2 && issuedDocs.isNotEmpty()) {
-                TossCard {
-                    Column {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("📄", fontSize = 13.sp)
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "발행 이력 ${issuedDocs.size}건",
-                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "보낸 견적서·시공접수서예요. 탭하면 다시 볼 수 있어요.",
-                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        issuedDocs.forEachIndexed { idx, doc ->
-                            if (idx > 0) Spacer(Modifier.height(8.dp))
-                            IssuedDocRow(
-                                doc = doc,
-                                onOpen = {
-                                    if (doc.kind == "quote") {
-                                        com.detailline.callfollowcrm.presentation.screen.chat.quoteDocDataFromIssuedJson(doc.docJson)
-                                            ?.let { reviewQuoteDoc = it }
-                                            ?: run { intakeReviewDoc = doc }  // JSON 깨졌으면 요약으로 폴백
-                                    } else {
-                                        intakeReviewDoc = doc
-                                    }
-                                },
-                                // 이미 보낸 접수서 수정하기 — intake 만. 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)
-                                onEdit = if (doc.kind == "intake") ({ onOpenChatEditIssued(c.phoneNumber, c.id, doc.id) }) else null,
-                                onDelete = { issuedDocToDelete = doc }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // [시공접수서] 탭인데 발행 이력이 없을 때 안내. (2026-07-18 탭 재배치)
-            if (detailTab == 2 && issuedDocs.isEmpty()) {
-                DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
             }
 
             // 6.6 팀원 현장 메모 — 직원이 링크 화면에서 보낸 특이사항(2026-06-06). 있을 때만 카드.
