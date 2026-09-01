@@ -444,6 +444,31 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
+
+    /** 카테고리·태그만 복원 — 서버 백업에서 카테고리+태그만 되살림(금액·메모·일정 등 다른 데이터 안 건드림). (2026-09-01 사장님) */
+    fun serverRestoreCategoriesOnly() {
+        if (_backupBusy.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _backupBusy.value = true
+            try {
+                val b64 = container.backupRepository.pull()
+                if (b64.isNullOrBlank()) {
+                    _backupMessage.value = "서버에 백업이 없어요. 먼저 '서버에 백업'을 눌러주세요."
+                } else {
+                    val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
+                    val r = DataBackup.importCategoriesOnly(container.appContext, bytes)
+                    _backupMessage.value = "☁️ 카테고리 복원 완료! 카테고리 ${r.categories}개 · 태그 ${r.tagged}명을 되살렸어요."
+                    _restartNeeded.value = true
+                }
+            } catch (e: DataBackup.NewerBackupException) {
+                _backupMessage.value = "서버 백업이 더 최신 버전이에요. 앱을 업데이트한 뒤 복원해주세요."
+            } catch (e: Exception) {
+                _backupMessage.value = "카테고리 복원에 실패했어요 — 잠시 후 다시 시도해주세요."
+            } finally {
+                _backupBusy.value = false
+            }
+        }
+    }
 }
 
 /** 더보기 막내 비서 카드 (프로토 agent-card). */

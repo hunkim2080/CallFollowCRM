@@ -492,7 +492,8 @@ fun HomeScreen(
             }
             val listState = rememberLazyListState()
             // 최근 대화 스크롤 버벅임 fix: 한 카드에 전체를 한 프레임에 그리면 끊김 → 기본 일부만, 나머지는 "더 보기".
-            var recentExpanded by remember { mutableStateOf(false) }
+            // rememberSaveable — 대화 다녀와도 '이전 대화 더 보기' 펼침·스크롤 위치 유지(리셋 방지). (2026-09-01 사장님)
+            var recentExpanded by rememberSaveable { mutableStateOf(false) }
             // 막내 팁 카드 — 눌러본(used)/닫은(dismissed) 건 prefs 로 영구 기억 + 화면 상태로 즉시 반영. (2026-07-04 사장님)
             var tipUsed by remember { mutableStateOf(prefs.makneTipUsed) }
             var tipDismissed by remember { mutableStateOf(prefs.makneTipDismissed) }

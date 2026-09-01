@@ -57,6 +57,7 @@ object DataBackup {
 
     data class ExportResult(val uri: Uri, val fileName: String, val rows: Int, val tables: Int, val customers: Int)
     data class ImportResult(val rows: Int, val tables: Int, val customers: Int)
+    data class CategoryRestoreResult(val categories: Int, val tagged: Int)
 
     class NewerBackupException : Exception("더 최신 버전에서 만든 백업이에요")
     class EmptyBackupException : Exception("백업 파일에서 데이터를 찾지 못했어요")
@@ -226,6 +227,73 @@ object DataBackup {
         restorePrefs(context, root.optJSONObject("prefs"))
         return ImportResult(totalRows, tableCount, customerCount)
     }
+
+    /**
+     * 카테고리·태그만 복원 (2026-09-01 사장님 — 일당 등 카테고리가 사라졌는데 다른 데이터는 안 되돌리고 싶을 때).
+     *   1) categories 테이블 복원(INSERT OR REPLACE) — 지워졌거나 id 가 뒤바뀐 카테고리 되살림.
+     *   2) customers.categoryId 복원 — 현재 '미분류(null)'인 고객만 백업값으로(현재 태그는 안 건드림).
+     *   나머지 테이블/컬럼(금액·메모·일정 등)은 절대 안 건드림 → 전체복원의 '되돌림' 부작용 없음.
+     */
+    fun importCategoriesOnly(context: Context, bytes: ByteArray): CategoryRestoreResult {
+        val jsonText = extractBackupJson(bytes) ?: throw EmptyBackupException()
+        val root = JSONObject(jsonText)
+        if (root.optInt("format", 1) > FORMAT) throw NewerBackupException()
+        val tables = root.optJSONObject("tables") ?: throw EmptyBackupException()
+
+        val db = AppDatabase.getInstance(context.applicationContext).openHelper.writableDatabase
+        var catCount = 0
+        var restored = 0
+        db.beginTransaction()
+        try {
+            // 1) categories 테이블 (INSERT OR REPLACE) — 카테고리 자체를 되살림/정정.
+            val catCols = tableColumns(db, "categories")
+            val catArr = tables.optJSONArray("categories")
+            if (catCols.isNotEmpty() && catArr != null) {
+                for (r in 0 until catArr.length()) {
+                    val row = catArr.optJSONObject(r) ?: continue
+                    val cols = ArrayList<String>()
+                    val keys = row.keys()
+                    while (keys.hasNext()) { val k = keys.next(); if (k in catCols) cols.add(k) }
+                    if (cols.isEmpty()) continue
+                    val placeholders = cols.joinToString(",") { "?" }
+                    val colList = cols.joinToString(",") { "`$it`" }
+                    val args = arrayOfNulls<Any?>(cols.size)
+                    for (i in cols.indices) args[i] = bindValue(row.get(cols[i]))
+                    db.execSQL("INSERT OR REPLACE INTO `categories` ($colList) VALUES ($placeholders)", args)
+                    catCount++
+                }
+            }
+            // 2) customers.categoryId — 현재 미분류(null)인 고객만 백업값으로. (현재 태그는 절대 안 덮음)
+            val before = countTaggedCustomers(db)
+            val custCols = tableColumns(db, "customers")
+            val custArr = tables.optJSONArray("customers")
+            if ("categoryId" in custCols && "id" in custCols && custArr != null) {
+                for (r in 0 until custArr.length()) {
+                    val row = custArr.optJSONObject(r) ?: continue
+                    if (row.isNull("categoryId")) continue
+                    val id = row.optLong("id", -1L)
+                    if (id < 0L) continue
+                    val catId = row.optLong("categoryId")
+                    db.execSQL(
+                        "UPDATE `customers` SET `categoryId`=? WHERE `id`=? AND `categoryId` IS NULL",
+                        arrayOf<Any?>(catId, id)
+                    )
+                }
+            }
+            restored = (countTaggedCustomers(db) - before).coerceAtLeast(0)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return CategoryRestoreResult(catCount, restored)
+    }
+
+    private fun countTaggedCustomers(db: androidx.sqlite.db.SupportSQLiteDatabase): Int =
+        runCatching {
+            db.query("SELECT COUNT(*) FROM customers WHERE categoryId IS NOT NULL").use { c ->
+                if (c.moveToFirst()) c.getInt(0) else 0
+            }
+        }.getOrDefault(0)
 
     // ─────────────────────────── 마지막 백업 시각 ───────────────────────────
 

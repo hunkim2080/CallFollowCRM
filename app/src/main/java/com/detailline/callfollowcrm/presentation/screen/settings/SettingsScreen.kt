@@ -397,7 +397,8 @@ fun SettingsScreen(
                     onExport = { viewModel.exportData() },
                     onImport = { showImportConfirm = true },
                     onServerBackup = { viewModel.serverBackup() },
-                    onServerRestore = { showServerRestoreConfirm = true }
+                    onServerRestore = { showServerRestoreConfirm = true },
+                    onRestoreCategories = { viewModel.serverRestoreCategoriesOnly() }
                 )
 
                 // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
@@ -3596,7 +3597,8 @@ private fun DataBackupSection(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onServerBackup: () -> Unit,
-    onServerRestore: () -> Unit
+    onServerRestore: () -> Unit,
+    onRestoreCategories: () -> Unit
 ) {
     val lastLabel = remember(lastBackupAt) {
         if (lastBackupAt <= 0L) "아직 없음"
@@ -3680,6 +3682,15 @@ private fun DataBackupSection(
             Text(
                 "파일 없이 서버에 안전하게 보관해요. 폰을 바꾸거나 앱을 지워도, 새 폰에서 '서버에서 복원'으로 되살려요. (사진 제외)",
                 fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
+            )
+            // 카테고리·태그만 복원 — 일당 등 카테고리가 사라졌을 때, 다른 데이터는 안 되돌리고 태그만. (2026-09-01 사장님)
+            Text(
+                "🏷️ 카테고리·태그만 복원 (일당 등)",
+                fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = !busy) { onRestoreCategories() }
+                    .padding(horizontal = 8.dp, vertical = 9.dp)
             )
         }
     }
