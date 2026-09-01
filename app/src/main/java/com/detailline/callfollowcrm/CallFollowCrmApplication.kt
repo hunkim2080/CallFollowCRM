@@ -199,10 +199,7 @@ class CallFollowCrmApplication : Application() {
                     //   스캔 직후 문자함 분류 1회 더(무료 로컬 규칙, classifyLocal 은 idempotent). 신규 설치 대기 단축. (2026-08-02 사장님 Q2)
                     runCatching {
                         val fresh = container.smsContactCacheRepository.observeAll(limit = 500).first()
-                        for (c in fresh) {
-                            val saved = runCatching { container.customerRepository.findByPhone(c.address) != null }.getOrDefault(false)
-                            runCatching { container.threadBucketRepository.classifyLocal(c.address, c.lastBody, saved, c.hasOwnerReply) }
-                        }
+                        classifyCachedContacts(fresh)
                     }
                 }
             }
@@ -365,10 +362,7 @@ class CallFollowCrmApplication : Application() {
             delay(6_000)   // 풀스캔/머지가 sms 캐시를 채운 뒤
             runCatching {
                 val contacts = container.smsContactCacheRepository.observeAll(limit = 500).first()
-                for (c in contacts) {
-                    val saved = runCatching { container.customerRepository.findByPhone(c.address) != null }.getOrDefault(false)
-                    runCatching { container.threadBucketRepository.classifyLocal(c.address, c.lastBody, saved, c.hasOwnerReply) }
-                }
+                classifyCachedContacts(contacts)
             }
             runCatching {
                 for (suf in container.preferences.adAllowlistSuffixes) {
@@ -533,6 +527,20 @@ class CallFollowCrmApplication : Application() {
             container.smsRepository.queryRecentContacts(scanLimit = 2000, contactLimit = 200)
         }.getOrDefault(emptyList())
         for (c in contacts) runCatching { container.smsContactCacheRepository.upsertOne(c) }
+    }
+
+    /** 캐시 연락처 로컬 분류. MMS 스캔은 lastBody 가 placeholder(MMS_PLACEHOLDER_BODY)라 [Web발신] 등 광고
+     *  표식이 가려짐 → 진짜 본문을 읽어 분류(안 그러면 사진 없는 웹발신 광고 MMS 가 '답장 기다려요'에 샘). (2026-09-01 사장님) */
+    private suspend fun classifyCachedContacts(
+        contacts: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact>
+    ) {
+        for (c in contacts) {
+            val saved = runCatching { container.customerRepository.findByPhone(c.address) != null }.getOrDefault(false)
+            val body = if (c.lastBody == com.detailline.callfollowcrm.data.repository.SmsRepository.MMS_PLACEHOLDER_BODY) {
+                runCatching { container.smsRepository.latestMmsBody(c.address) }.getOrNull() ?: c.lastBody
+            } else c.lastBody
+            runCatching { container.threadBucketRepository.classifyLocal(c.address, body, saved, c.hasOwnerReply) }
+        }
     }
 
     /** 최근 MMS 연락처를 캐시에 머지 — MMS 로 처음 연락온 번호도 "오늘 신규"·목록에 잡히게. */

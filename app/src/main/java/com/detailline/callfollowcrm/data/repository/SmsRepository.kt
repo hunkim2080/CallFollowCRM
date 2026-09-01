@@ -156,6 +156,19 @@ class SmsRepository(
     }
 
     /**
+     * 이 번호의 '가장 최근 MMS' 실제 본문 텍스트 — 스캔 캐시가 MMS_PLACEHOLDER_BODY 로 덮은 MMS 를
+     * 분류(문자함/광고)할 때 진짜 본문([Web발신] 등)을 읽기 위함. 사진만이면 null(=placeholder 유지=상담함).
+     * (2026-09-01 사장님 — 사진 없는 웹발신 광고 MMS 가 '답장 기다려요'에 새어듦)
+     */
+    fun latestMmsBody(phoneNumber: String, scanLimit: Int = 120): String? {
+        return runCatching { queryMmsOnly(phoneNumber, scanLimit) }
+            .getOrDefault(emptyList())
+            .maxByOrNull { it.dateMs }
+            ?.body
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    /**
      * 대화 **전체 본문** 검색 (돋보기) — 폰에 쌓인 모든 SMS/MMS 텍스트에서 키워드를 찾는다. 수신+발신 모두.
      *   왜: 기존 검색은 각 대화의 '마지막 문자 한 줄'(lastBody 캐시)만 봐서, 옛 문자 속 단어를 못 찾았음.
      *       (2026-08-02 사장님: AS 약속 고객을 대화 키워드로 검색했는데 안 나옴 — 그 단어가 마지막 문자가 아니라서.)
@@ -782,7 +795,7 @@ class SmsRepository(
                     seen[suffix] = SmsContact(
                         address = phone,
                         normalizedSuffix = suffix,
-                        lastBody = "📎 사진/첨부 메시지",
+                        lastBody = MMS_PLACEHOLDER_BODY,
                         lastDateMs = dateMs,
                         lastSent = isSent,
                         hasOwnerReply = isSent,
@@ -792,7 +805,7 @@ class SmsRepository(
                     // MMS dateMs 가 SMS lastDateMs 보다 더 최신이면 본문/방향 갱신.
                     val isNewer = dateMs > existing.lastDateMs
                     seen[suffix] = existing.copy(
-                        lastBody = if (isNewer) "📎 사진/첨부 메시지" else existing.lastBody,
+                        lastBody = if (isNewer) MMS_PLACEHOLDER_BODY else existing.lastBody,
                         lastDateMs = maxOf(existing.lastDateMs, dateMs),
                         lastSent = if (isNewer) isSent else existing.lastSent,
                         hasOwnerReply = existing.hasOwnerReply || isSent,
@@ -1223,6 +1236,8 @@ class SmsRepository(
     }
 
     companion object {
+        /** MMS 스캔(fillFromMms)이 본문 대신 붙이는 표식 — 이게 lastBody 면 실제 본문이 가려진 것. (2026-09-01) */
+        const val MMS_PLACEHOLDER_BODY = "📎 사진/첨부 메시지"
         private const val COL_ID = "_id"
         private const val COL_ADDRESS = "address"
         private const val COL_BODY = "body"
