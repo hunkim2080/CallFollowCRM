@@ -9644,3 +9644,42 @@ android 가 맥미니 정식 배포·검증 끝냄:
 프로덕션(정식) 심사 배포 — 예문 확인·수정·삭제 등. versionCode 충돌(1616 중복) 회피용 커밋.
 - 변경: Play production track 업로드 재시도
 - commit: (this)
+
+
+## 2026-09-01 · android → cowork ⚠️요청: Gemini 무료키 429 "돌려막기"(다중키 폴백)
+사장님 다듬기·통화요약 "서버가 연결이 안돼요" **실제원인 = Gemini 무료 티어 429(할당량 초과)**. 무료 키 1개(`GEMINI_API_KEY`)를 **4곳이 공유**(다듬기·통화요약·prepare-reply gemini경로·expo OCR)라 그 키가 죽으면 넷 다 죽음. 사장님이 **다른 구글계정으로 2번 키** 발급 → **429 뜨면 다음 키로 자동 전환** 원함.
+
+**서버(main.py) 요청 (§1 cowork 영역):**
+1. 다중키 env — `GEMINI_API_KEYS="키1,키2"`(콤마) 우선, 없으면 단일 `GEMINI_API_KEY` 폴백:
+   ```python
+   GEMINI_API_KEYS = [k.strip() for k in
+       (os.environ.get("GEMINI_API_KEYS") or GEMINI_API_KEY or "").split(",") if k.strip()]
+   ```
+2. 공용 헬퍼(키 순회, 429/403-quota면 다음 키):
+   ```python
+   async def _gemini_generate(model: str, payload: dict, timeout: float = GEMINI_TIMEOUT_SEC):
+       if not GEMINI_API_KEYS:
+           raise RuntimeError("GEMINI_API_KEY(S) env var not set")
+       last = None
+       async with httpx.AsyncClient(timeout=timeout) as client:
+           for i, key in enumerate(GEMINI_API_KEYS):
+               url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                      f"{model}:generateContent?key={key}")
+               resp = await client.post(url, json=payload,
+                                        headers={"Content-Type": "application/json"})
+               last = resp
+               if resp.status_code == 429 or (resp.status_code == 403 and "quota" in resp.text.lower()):
+                   print(f"[gemini] key #{i+1}/{len(GEMINI_API_KEYS)} 한도소진({resp.status_code}) → 다음 키")
+                   continue
+               return resp
+       return last  # 전부 소진 → 마지막 응답(429) 반환 → 호출부 기존 에러처리 그대로
+   ```
+3. 인라인 `...{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}...` **4곳을 헬퍼 호출로 교체** → L2725(prepare-reply gemini), L12973(`_call_gemini_refine`=다듬기), L13036(`_call_gemini_json_for_summary`=통화요약), L26063(expo OCR). 각 곳 `async with httpx.AsyncClient... resp = await client.post(url,...)` → `resp = await _gemini_generate(GEMINI_MODEL, payload[, timeout])`. 응답 처리(status!=200 raise 등) 그대로.
+
+**🔑 키 주입 (git 금지·비밀):** 사장님이 준 2개 키(본인+와이프, **서로 다른 계정**)를 macmini launchd plist `EnvironmentVariables > GEMINI_API_KEYS="키1,키2"` 에 직접. plist=gitignore(§6). SYNC/코드에 키값 절대 X.
+
+**⏱️ 급한 불(코드 배포 전 즉시):** plist `GEMINI_API_KEY` 를 **fresh 키(와이프)** 로 교체 + `launchctl unload/load` → 다듬기·요약 즉시 부활. (무료 리셋=美 PT 자정≈한국 오후4~5시. 근본은 위 다중키.)
+
+**참고(사장님 판단대기·cowork 조치 X):** ①다듬기·요약 엔진 교체 여부 ②사용자 BYOK(자기 키로 다듬기) 확대 — 둘 다 **사장님이 다시 생각 중**. 지금은 돌려막기만.
+- 다음 액션(cowork): 위 1~3 패치 + plist 키 주입 → `/api/refine`·통화요약 **200** 확인.
+- commit: (this)
