@@ -9728,3 +9728,8 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 변경: 앱 전용. CustomerStatusTag.kt 신설(customerStatusOf 단일출처 + 딱지). CustomersScreen 위임. 고객상세 헤더에 상태딱지. Play internal 자동배포.
 - commit: (아래)
 - 다음: 상담함 카드 상태딱지(분류딱지와 겹침 디자인 확인 후)
+
+## 2026-09-03 01:20 · android
+정식(production) 배포 시도 — 사장님 "정식 고고".
+- 1차 실패: versionCode 1658 충돌. CI versionCode=git커밋수+1 이라, 내부테스트가 같은 커밋으로 1658 선점 → 정식도 1658 빌드 → Play "already used" 거절. (트랙 무관 중복금지)
+- fix: 이 docs 커밋으로 커밋수 bump → 정식 재빌드=1659. docs-only라 내부 자동배포(paths app/**) 트리거 안 됨.
