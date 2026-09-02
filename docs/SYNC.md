@@ -9722,3 +9722,9 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 변경: 앱 전용. CustomersScreen customerStatus 에 잔금미수 분리, 탭/색/합계헤더, CategoryTagChip(분류딱지 동시표시). CustomersViewModel.categories 추가. Play internal 자동배포.
 - commit: (아래)
 - 다음: 일당 전용탭 · 상태딱지 전 화면 전파. 프로토 10e0bca0
+
+## 2026-09-03 01:05 · android
+상태딱지 공용화 + 고객상세 전파 (어디서나 따라다니게 #2)
+- 변경: 앱 전용. CustomerStatusTag.kt 신설(customerStatusOf 단일출처 + 딱지). CustomersScreen 위임. 고객상세 헤더에 상태딱지. Play internal 자동배포.
+- commit: (아래)
+- 다음: 상담함 카드 상태딱지(분류딱지와 겹침 디자인 확인 후)
