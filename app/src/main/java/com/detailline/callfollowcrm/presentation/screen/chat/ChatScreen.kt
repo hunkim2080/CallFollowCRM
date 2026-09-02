@@ -71,6 +71,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
@@ -327,6 +328,33 @@ fun ChatScreen(
     val setInput: (String) -> Unit = { s -> input = s; inputSelection = TextRange(s.length) }
     // 추천 답변/다음답변 탭 시 입력칸 포커스(커서 끝 + 키보드 올림). (2026-08-14 사장님)
     val composerFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    // 대화 안 검색 (카톡식 ▲▼) — 이 대화의 문자 + 통화 내용(요약·전문·태그)에서 찾아 위아래로 점프. (2026-09-02 사장님)
+    val listState = rememberLazyListState()
+    var searchMode by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var currentMatchIdx by remember { mutableStateOf(0) }
+    val renderRows = remember(timelineItems) { withDateDividers(timelineItems) }
+    val searchMatches = remember(renderRows, searchQuery, recordSummary) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) emptyList()
+        else renderRows.mapIndexedNotNull { i, ti ->
+            val hit = when (ti) {
+                is ChatTimelineItem.Msg -> ti.message.body.contains(q, ignoreCase = true)
+                is ChatTimelineItem.Call -> recordSummary[ti.record.id]?.let { s ->
+                    listOfNotNull(s.summaryText, s.transcriptText, s.tagsJson, s.customerNeed, s.problem, s.nextAction, s.title)
+                        .any { it.contains(q, ignoreCase = true) }
+                } ?: false
+                else -> false
+            }
+            if (hit) i else null
+        }
+    }
+    // 쿼리 바뀌면(매칭 집합 변경) 첫 매칭으로 자동 점프.
+    LaunchedEffect(searchMatches) {
+        currentMatchIdx = 0
+        if (searchMatches.isNotEmpty()) runCatching { listState.animateScrollToItem(searchMatches[0]) }
+    }
     var fullscreenImages by remember { mutableStateOf<List<android.net.Uri>?>(null) }
     var fullscreenStart by remember { mutableStateOf(0) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
@@ -584,7 +612,11 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    // 프로토 s-chat 앱바 = ← / 이름 / 📞 / ⓘ 만. (접수서·북마크는 프로토에 없어 제거 2026-06-03)
+                    // 대화 안 검색 (카톡식 ▲▼) — 이 대화의 문자·통화 내용에서 찾기. (2026-09-02 사장님)
+                    IconButton(onClick = { searchMode = !searchMode; if (!searchMode) searchQuery = "" }) {
+                        Icon(Icons.Default.Search, "대화 검색", tint = if (searchMode) TossBlue else TossTextSecondary)
+                    }
+                    // 프로토 s-chat 앱바 = ← / 이름 / 🔍 / 📞 / ⓘ. (접수서·북마크는 프로토에 없어 제거 2026-06-03)
                     //   접수서 링크는 향후 견적 작성기 3모드(문자견적/시공접수서/견적서)로 이동 예정.
                     //   저장된 메시지(북마크) 기능 코드는 남겨둠(starredViewerOpen) — 앱바 진입만 제거.
                     IconButton(onClick = { dialPhone(context, viewModel.phoneNumber) }) {
@@ -639,7 +671,7 @@ fun ChatScreen(
 
             // 메시지 채팅 영역 — 풀 카톡 스타일. reverseLayout=true 라 newest 가 아래에 표시.
             // 그래서 messages 도 dateMs DESC 그대로 넘기면 됨 (LazyColumn 이 뒤집어 렌더).
-            val listState = rememberLazyListState()
+            // listState 는 위(검색 점프용)로 끌어올림 — 여기선 재선언 안 함.
             // 2026-05-25 사장님 피드백: 진입 시 가장 최신 메시지가 즉시 화면에 잡혀야 함.
             //   메시지 첫 로드 + 새 메시지 도착 (size 변경) 시 items[0] (=최신) 로 강제 스크롤.
             //   사장님이 위로 옛 메시지 보다가 새 메시지 와도 자동 점프 — 약간 거슬릴 수도 있지만
@@ -680,6 +712,28 @@ fun ChatScreen(
                     prevIndex = idx; prevOffset = off
                 }
             }
+            // 대화 안 검색 바 — 앱바 🔍 누르면 뜸. 입력 + N/M + ▲▼ + ✕. (2026-09-02 사장님)
+            if (searchMode) {
+                InChatSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    total = searchMatches.size,
+                    current = if (searchMatches.isEmpty()) 0 else currentMatchIdx + 1,
+                    onUp = {   // ▲ 위(더 오래된 매칭·리스트 위쪽)
+                        if (searchMatches.isNotEmpty()) {
+                            currentMatchIdx = (currentMatchIdx + 1) % searchMatches.size
+                            scope.launch { runCatching { listState.animateScrollToItem(searchMatches[currentMatchIdx]) } }
+                        }
+                    },
+                    onDown = {  // ▼ 아래(더 최근 매칭)
+                        if (searchMatches.isNotEmpty()) {
+                            currentMatchIdx = (currentMatchIdx - 1 + searchMatches.size) % searchMatches.size
+                            scope.launch { runCatching { listState.animateScrollToItem(searchMatches[currentMatchIdx]) } }
+                        }
+                    },
+                    onClose = { searchMode = false; searchQuery = "" }
+                )
+            }
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -707,8 +761,14 @@ fun ChatScreen(
                 } else {
                     // key 안 줌 — SMS/MMS id 가 별도 테이블, 통화 id 도 별도라 충돌 위험. 인덱스 기반 렌더.
                     //   프로토 chat-date — 날짜 경계마다 회색 알약 구분선 삽입.
-                    val renderRows = withDateDividers(timelineItems)
-                    items(renderRows) { ti ->
+                    itemsIndexed(renderRows) { index, ti ->
+                        // 검색 중 '현재 매칭' 항목 = 노란 하이라이트(카톡식). 모든 항목이 fillMaxWidth 라 감싸도 정렬 유지.
+                        val isCurrentMatch = searchMode && searchMatches.getOrNull(currentMatchIdx) == index
+                        Box(
+                            Modifier.fillMaxWidth().then(
+                                if (isCurrentMatch) Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF3C4)) else Modifier
+                            )
+                        ) {
                         when (ti) {
                             is ChatTimelineItem.Msg -> {
                                 val msg = ti.message
@@ -796,6 +856,7 @@ fun ChatScreen(
                                 onEdit = if (ti.doc.kind == "intake") ({ editingIssuedDoc = ti.doc }) else null
                             )
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
+                        }
                         }
                     }
                 }
@@ -2733,6 +2794,55 @@ private fun formatCallDuration(seconds: Long): String? {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
+/** 대화 안 검색 바 (카톡식) — 입력 + N/M 카운트 + ▲▼ 점프 + ✕ 닫기. (2026-09-02 사장님) */
+@Composable
+private fun InChatSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    total: Int,
+    current: Int,
+    onUp: () -> Unit,
+    onDown: () -> Unit,
+    onClose: () -> Unit
+) {
+    val fr = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
+    Row(
+        Modifier.fillMaxWidth().background(Color.White).padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(horizontal = 12.dp, vertical = 9.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (query.isEmpty()) Text("이 대화에서 검색 (문자·통화)", fontSize = 14.sp, color = TossTextTertiary)
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 14.sp, color = TossTextPrimary),
+                cursorBrush = SolidColor(TossBlue),
+                modifier = Modifier.fillMaxWidth().focusRequester(fr)
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(
+            if (query.isBlank()) "" else "$current/$total",
+            fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = if (total > 0) TossBlue else TossTextTertiary
+        )
+        IconButton(onClick = onUp, enabled = total > 0) {
+            Text("▲", fontSize = 13.sp, color = if (total > 0) TossTextSecondary else TossTextTertiary)
+        }
+        IconButton(onClick = onDown, enabled = total > 0) {
+            Text("▼", fontSize = 13.sp, color = if (total > 0) TossTextSecondary else TossTextTertiary)
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, "닫기", tint = TossTextTertiary)
+        }
+    }
+}
+
 @Composable
 private fun ChatBubble(
     body: String,
