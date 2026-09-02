@@ -9704,3 +9704,9 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 변경: DB v47→48 (intake_events.customerMemo 추가, additive nullable). 서버 무관 — 앱이 기존 submissions payload.memo 를 파싱해 카드에 표시(그동안 받아서 버리던 것). Play internal 자동배포(push).
 - commit: 15953e2
 - 다음 액션: 없음. (전체 검색 기능 구현 착수 — 통화요약/문자/메모/고객 로컬 검색, 프로토 f9ad87cd)
+
+## 2026-09-02 21:15 · android
+전체 검색에 '통화 내용' 소스 추가 (기존 검색은 문자·고객만 뒤졌음)
+- 변경: 앱 전용(DB 무관). SearchViewModel 이 callSummaryRepository.search 로 통화요약·전문·태그까지 검색 → 통화로만 말한 것도 찾음. SearchResult.source(문자/통화/메모) 배지. Play internal 자동배포(push, 앞 배치 이어 2차).
+- commit: a9dc383
+- 다음 액션: 없음. (검색 프로토 f9ad87cd 반영)
