@@ -312,6 +312,11 @@ fun CustomerDetailScreen(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
+                    Spacer(Modifier.width(8.dp))
+                    // 상태 딱지(예약/잔금미수/완료 등) — 고객관리와 같은 계산, 어디서나 따라다니게. (2026-09-03 사장님)
+                    com.detailline.callfollowcrm.presentation.component.CustomerStatusTag(
+                        com.detailline.callfollowcrm.presentation.component.customerStatusOf(c)
+                    )
                     Spacer(Modifier.weight(1f))
                     androidx.compose.foundation.layout.Row(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)

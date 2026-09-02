@@ -335,19 +335,9 @@ private fun startOfToday(): Long {
  * 앱 데이터 → 프로토 상태. 시공일 미래=예약, 지남=완료, 잔금 받음=완료,
  *   시공 없고 14일 이내=신규, 14일 지남=미전환. (거래처/AS/단골은 데이터 없어 미할당)
  */
-private fun customerStatus(c: CustomerEntity, today0: Long, now: Long): String {
-    val wd = c.scheduledWorkDate
-    // 시공일이 미래 = 예약(시공 예정).
-    if (wd != null && wd >= today0) return "예약"
-    // 시공한 고객(시공일 지남 · 완료처리 · 잔금 받음). 이 중 잔금 안 받았으면 '잔금미수', 다 받았으면 '완료'. (2026-09-03 사장님)
-    val worked = (wd != null && wd < today0) || c.workCompletedAt != null || c.balancePaidAt != null
-    if (worked) {
-        val bal = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).balanceAmount
-        return if (c.balancePaidAt == null && bal > 0L) "잔금미수" else "완료"
-    }
-    val ageDays = (now - c.createdAt) / 86_400_000L
-    return if (ageDays <= 14) "신규" else "미전환"
-}
+// 상태 계산은 공용(CustomerStatusTag.kt)으로 단일화 — 상담함·고객상세와 같은 로직 보장. (2026-09-03 사장님)
+private fun customerStatus(c: CustomerEntity, today0: Long, now: Long): String =
+    com.detailline.callfollowcrm.presentation.component.customerStatusOf(c, today0, now)
 
 /** .rmsg — 한 줄 요약. 시공일·잔금 미수·메모·번호 순으로 의미 있는 것 채움. */
 private fun customerSubLine(c: CustomerEntity, status: String): String {
