@@ -9698,3 +9698,9 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - **근본 해결(사장님 판단대기)**: 무료 20/day 벽 → **billing(유료) 전환**이 답(flash 단가 극저). 현재는 40/day 땜빵.
 - 안전 핫픽스 절차(재사용): scp 내려받기→Edit→venv python `py_compile`→백업→swap→`launchctl unload/load`(hun, **sudo 불필요**=user LaunchAgent)→200 검증.
 - commit: (this)
+
+## 2026-09-02 20:58 · android
+상담함 카드정리 + 완료시 오늘현장 즉시제거 + 접수서 '남긴 메모' 카드표시
+- 변경: DB v47→48 (intake_events.customerMemo 추가, additive nullable). 서버 무관 — 앱이 기존 submissions payload.memo 를 파싱해 카드에 표시(그동안 받아서 버리던 것). Play internal 자동배포(push).
+- commit: 15953e2
+- 다음 액션: 없음. (전체 검색 기능 구현 착수 — 통화요약/문자/메모/고객 로컬 검색, 프로토 f9ad87cd)
