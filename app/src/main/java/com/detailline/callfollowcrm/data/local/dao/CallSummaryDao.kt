@@ -32,6 +32,21 @@ interface CallSummaryDao {
     @Query("SELECT * FROM call_summaries ORDER BY COALESCE(recordedAt, updatedAt) DESC")
     fun observeAll(): Flow<List<CallSummaryEntity>>
 
+    // 전체 검색 — 통화요약·전문(transcript)·태그·문제/니즈/다음액션 텍스트에서. "통화 내용까지 검색". (2026-09-02 사장님)
+    @Query("""
+        SELECT * FROM call_summaries
+        WHERE summaryText LIKE '%' || :q || '%'
+           OR transcriptText LIKE '%' || :q || '%'
+           OR tagsJson LIKE '%' || :q || '%'
+           OR title LIKE '%' || :q || '%'
+           OR customerNeed LIKE '%' || :q || '%'
+           OR problem LIKE '%' || :q || '%'
+           OR nextAction LIKE '%' || :q || '%'
+        ORDER BY COALESCE(recordedAt, updatedAt) DESC
+        LIMIT 60
+    """)
+    suspend fun search(q: String): List<CallSummaryEntity>
+
     @Query("SELECT * FROM call_summaries WHERE id = :id")
     suspend fun findById(id: Long): CallSummaryEntity?
 

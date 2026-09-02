@@ -20,6 +20,9 @@ class CallSummaryRepository(private val dao: CallSummaryDao) {
     /** 상담함 한줄 미리보기용 — 전체 통화요약(최신순). */
     fun observeAll(): Flow<List<CallSummaryEntity>> = dao.observeAll()
 
+    /** 전체 검색 — 통화 내용(요약·전문·태그·문제/니즈)에서. "통화 내용까지 검색". (2026-09-02 사장님) */
+    suspend fun search(q: String): List<CallSummaryEntity> = dao.search(q)
+
     suspend fun upsert(summary: CallSummaryEntity): Long = dao.insert(summary)
 
     suspend fun update(summary: CallSummaryEntity) = dao.update(summary)

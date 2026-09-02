@@ -90,7 +90,7 @@ fun SearchScreen(
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (query.isEmpty()) {
-                    Text("이름·전화번호·메시지 검색", fontSize = 15.sp, color = TossTextTertiary)
+                    Text("이름·전화·문자·통화 내용 검색", fontSize = 15.sp, color = TossTextTertiary)
                 }
                 BasicTextField(
                     value = query,
@@ -110,7 +110,7 @@ fun SearchScreen(
 
         when {
             // 프로토 doSearch 빈 쿼리 안내문 verbatim.
-            query.isBlank() -> CenterHint("이름·전화번호·메시지 내용으로\n고객을 찾아보세요")
+            query.isBlank() -> CenterHint("이름·전화·문자, 그리고 통화 내용까지\n뭐든 찾아보세요")
             results.isEmpty() -> CenterHint("검색 결과가 없어요")
             // 프로토: box.className='recent' → 흰 카드 하나 + recent-row 들.
             else -> LazyColumn(
@@ -174,9 +174,31 @@ private fun SearchRow(r: SearchResult, onClick: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             if (!r.snippet.isNullOrBlank()) {
-                Spacer(Modifier.height(3.dp))
-                Text(r.snippet, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SourceChip(r.source)
+                    Text(r.snippet, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
+        }
+    }
+}
+
+/** 검색 결과가 '어디서 걸렸는지' 배지 — 📞통화 / 💬문자 / 📝메모. 이름·전화 매칭(CUSTOMER)은 배지 없음. (2026-09-02 사장님) */
+@Composable
+private fun SourceChip(source: SearchSource) {
+    val chip = when (source) {
+        SearchSource.CALL -> Triple("📞 통화", Color(0xFFE7F8EE), Color(0xFF16A765))
+        SearchSource.MESSAGE -> Triple("💬 문자", Color(0xFFE7F0FE), Color(0xFF3182F6))
+        SearchSource.MEMO -> Triple("📝 메모", Color(0xFFEDE9FE), Color(0xFF7C5CFC))
+        SearchSource.CUSTOMER -> null
+    }
+    if (chip != null) {
+        Box(
+            Modifier.padding(end = 6.dp).background(chip.second, RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp, vertical = 1.dp)
+        ) {
+            Text(chip.first, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = chip.third, maxLines = 1)
         }
     }
 }
