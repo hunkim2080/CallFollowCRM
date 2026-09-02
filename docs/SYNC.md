@@ -9710,3 +9710,9 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 변경: 앱 전용(DB 무관). SearchViewModel 이 callSummaryRepository.search 로 통화요약·전문·태그까지 검색 → 통화로만 말한 것도 찾음. SearchResult.source(문자/통화/메모) 배지. Play internal 자동배포(push, 앞 배치 이어 2차).
 - commit: a9dc383
 - 다음 액션: 없음. (검색 프로토 f9ad87cd 반영)
+
+## 2026-09-02 21:40 · android
+채팅방 안 검색 (카톡식) — 이 대화의 문자+통화 내용 검색·▲▼점프·하이라이트
+- 변경: 앱 전용. ChatScreen 앱바 🔍 → 검색바. 통화요약/전문까지 대상. listState hoist + itemsIndexed 래핑(검색 OFF면 기존과 동일). Play internal 자동배포.
+- commit: (아래 hash)
+- 다음 액션: 없음. 프로토 4375d9df. 사장님 폰 스샷 검증 예정
