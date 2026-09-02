@@ -25,4 +25,9 @@ class CustomersViewModel(container: AppContainer) : ViewModel() {
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // 고객별 '분류 딱지'(일당·인테리어 등)용 — 상태 딱지(예약/잔금미수/완료)와 별개로 함께 표시. (2026-09-03 사장님)
+    val categories: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CategoryEntity>> =
+        container.categoryRepository.observeAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }

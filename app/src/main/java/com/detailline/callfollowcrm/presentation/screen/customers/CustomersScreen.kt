@@ -69,6 +69,7 @@ fun CustomersScreen(
     onOpenCustomerDetail: (Long) -> Unit
 ) {
     val customers by viewModel.customers.collectAsState()
+    val categories by viewModel.categories.collectAsState()
     var filter by remember { mutableStateOf("전체") }
 
     val now = remember { System.currentTimeMillis() }
@@ -133,6 +134,18 @@ fun CustomersScreen(
                 )
             }
 
+            // 잔금미수 탭 — 안 받은 돈 합계 강조(돈 받을 사람 한눈에). (2026-09-03 사장님)
+            if (filter == "잔금미수" && list.isNotEmpty()) {
+                val total = list.sumOf { com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(it.first).balanceAmount }
+                Column(
+                    Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp).fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF0E1)).padding(14.dp)
+                ) {
+                    Text("아직 ${total / 10000}만원 못 받았어요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB5470A))
+                    Text("시공 끝났는데 잔금 안 준 고객 ${list.size}명", fontSize = 12.sp, color = TossTextSecondary, modifier = Modifier.padding(top = 3.dp))
+                }
+            }
+
             if (list.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -162,7 +175,13 @@ fun CustomersScreen(
                             if (idx > 0) {
                                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                             }
-                            CustomerRow(c, status) { onOpenCustomerDetail(c.id) }
+                            // 분류 딱지(일당·인테리어 등) — 시스템 상태분류(시공대기/완료) 제외, 사장님이 만든 것만.
+                            val cat = c.categoryId?.let { cid -> categories.firstOrNull { it.id == cid } }
+                                ?.takeUnless {
+                                    it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
+                                        it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
+                                }
+                            CustomerRow(c, status, cat) { onOpenCustomerDetail(c.id) }
                         }
                     }
                 }
@@ -198,7 +217,7 @@ private fun CfChip(label: String, count: Int, on: Boolean, onClick: () -> Unit) 
 
 /** .recent-row — 아바타 + (이름·상태태그 / 한줄 요약). */
 @Composable
-private fun CustomerRow(c: CustomerEntity, status: String, onClick: () -> Unit) {
+private fun CustomerRow(c: CustomerEntity, status: String, category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null, onClick: () -> Unit) {
     val hasName = c.name?.isNotBlank() == true
     val title = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
     Row(
@@ -238,6 +257,10 @@ private fun CustomerRow(c: CustomerEntity, status: String, onClick: () -> Unit) 
                 )
                 Spacer(Modifier.size(7.dp))
                 StatusTag(status)
+                category?.let { cat ->
+                    Spacer(Modifier.size(5.dp))
+                    CategoryTagChip(cat)
+                }
             }
             Spacer(Modifier.height(3.dp))
             Text(
@@ -260,8 +283,21 @@ private fun StatusTag(status: String) {
     }
 }
 
+/** 분류 딱지(일당·인테리어 등) — 상태 딱지(예약/잔금미수/완료)와 별개로 함께 붙음. 보라. (2026-09-03 사장님) */
+@Composable
+private fun CategoryTagChip(cat: com.detailline.callfollowcrm.data.local.entity.CategoryEntity) {
+    Box(
+        Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFEDE9FE)).padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
+            fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C5CFC), maxLines = 1
+        )
+    }
+}
+
 // 단골·거래처·AS 제거 — customerStatus()가 절대 안 주는 상태라 칩이 항상 0건이었음(죽은 칩). (2026-08-15 UX감사#4)
-private val CUST_STATUSES = listOf("전체", "신규", "미전환", "예약", "완료")
+private val CUST_STATUSES = listOf("전체", "신규", "미전환", "예약", "잔금미수", "완료")
 
 // AV_TINTS — 프로토 avatarHtml 틴트 5색 [bg, fg].
 private val AV_TINTS = listOf(
@@ -280,6 +316,7 @@ private fun custTag(s: String): Pair<Color, Color> = when (s) {
     "거래처" -> Color(0xFF4F5BD8) to Color(0xFFECEEFE) // indigo
     "AS" -> Color(0xFFF0436A) to Color(0xFFFDEAEF)     // red
     "미전환" -> Color(0xFF9AA3AF) to Color(0xFFF4F5F7) // gray
+    "잔금미수" -> Color(0xFFE0620D) to Color(0xFFFFF0E1) // orange (돈 받을 것) (2026-09-03 사장님)
     else -> Color(0xFF3182F6) to Color(0xFFEAF2FE)     // blue (예약/상담)
 }
 
@@ -300,8 +337,14 @@ private fun startOfToday(): Long {
  */
 private fun customerStatus(c: CustomerEntity, today0: Long, now: Long): String {
     val wd = c.scheduledWorkDate
-    if (wd != null) return if (wd >= today0) "예약" else "완료"
-    if (c.balancePaidAt != null) return "완료"
+    // 시공일이 미래 = 예약(시공 예정).
+    if (wd != null && wd >= today0) return "예약"
+    // 시공한 고객(시공일 지남 · 완료처리 · 잔금 받음). 이 중 잔금 안 받았으면 '잔금미수', 다 받았으면 '완료'. (2026-09-03 사장님)
+    val worked = (wd != null && wd < today0) || c.workCompletedAt != null || c.balancePaidAt != null
+    if (worked) {
+        val bal = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).balanceAmount
+        return if (c.balancePaidAt == null && bal > 0L) "잔금미수" else "완료"
+    }
     val ageDays = (now - c.createdAt) / 86_400_000L
     return if (ageDays <= 14) "신규" else "미전환"
 }
