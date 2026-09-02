@@ -9716,3 +9716,9 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 변경: 앱 전용. ChatScreen 앱바 🔍 → 검색바. 통화요약/전문까지 대상. listState hoist + itemsIndexed 래핑(검색 OFF면 기존과 동일). Play internal 자동배포.
 - commit: (아래 hash)
 - 다음 액션: 없음. 프로토 4375d9df. 사장님 폰 스샷 검증 예정
+
+## 2026-09-03 00:45 · android
+고객관리 잔금미수 자동분류 + 상태·분류 2딱지
+- 변경: 앱 전용. CustomersScreen customerStatus 에 잔금미수 분리, 탭/색/합계헤더, CategoryTagChip(분류딱지 동시표시). CustomersViewModel.categories 추가. Play internal 자동배포.
+- commit: (아래)
+- 다음: 일당 전용탭 · 상태딱지 전 화면 전파. 프로토 10e0bca0
