@@ -36,5 +36,7 @@ data class IntakeEventEntity(
     /** 견적서 발급 때 사장님이 고른 시공 항목 이름들(", " 결합) — 확인 문자 '시공내용'. 없으면 null. (2026-06-28) */
     val itemsText: String? = null,
     /** 사장님이 '확인했어요' 눌러 고객에게 확인 문자를 보낸 시각. null = 아직 안 보냄. (2026-06-28) */
-    val confirmedAt: Long? = null
+    val confirmedAt: Long? = null,
+    /** 고객이 접수서에 남긴 메모(현관 비번·요청사항 등). 서버 payload.memo. 접수 카드에 표시. (2026-09-02 사장님) */
+    val customerMemo: String? = null
 )

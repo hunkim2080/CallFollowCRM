@@ -91,6 +91,7 @@ class IntakeSyncManager(private val container: AppContainer) {
                             dateLabel = dateLabel,
                             totalManwon = s.total.takeIf { it > 0 },
                             itemsText = s.estimateItems.joinToString(", ").takeIf { it.isNotBlank() },
+                            customerMemo = s.memo?.takeIf { it.isNotBlank() },
                             createdAt = System.currentTimeMillis()
                         )
                     )

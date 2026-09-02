@@ -2524,6 +2524,8 @@ private fun IntakeSegment(
             }
             if (sched.isNotEmpty()) add(sched)
             event.address?.let { add("📍 $it") }
+            // 고객이 접수서에 남긴 메모(현관 비번·요청사항 등) — "다 뒤지지 않게" 카드에 바로 표시. (2026-09-02 사장님)
+            event.customerMemo?.takeIf { it.isNotBlank() }?.let { add("📝 남긴 메모: $it") }
         }
         if (detailLines.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))

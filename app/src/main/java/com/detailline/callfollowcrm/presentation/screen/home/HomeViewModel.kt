@@ -728,11 +728,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             val start = DateTimeUtils.startOfDay(s)
             val end = start + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
             if (nowTodayStart !in start..end) return@filter false
-            // 완료한 현장도 '완료한 그날'은 회색 카드로 남김(다시 전화할 수도 있으니) → 다음날 자동 사라짐. (2026-06-14 사장님)
-            val done = c.workCompletedAt
-            if (done != null && DateTimeUtils.startOfDay(done) != nowTodayStart) return@filter false
+            // 완료 처리하면 '오늘의 현장(히어로)'에서 바로 빠짐 — "완료했는데 계속 남아 헷갈린다"는 신고. (2026-09-02 사장님)
+            //   (다시 전화는 고객목록·상담함에서 가능하므로 히어로에 회색으로 남길 필요 없음. 2026-06-14 회색카드 룰 대체)
+            if (c.workCompletedAt != null) return@filter false
             true
-        }.sortedWith(compareBy({ it.workCompletedAt != null }, { it.scheduledWorkMinutes ?: Int.MAX_VALUE }))
+        }.sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
         applyHeroOrder(base, order)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

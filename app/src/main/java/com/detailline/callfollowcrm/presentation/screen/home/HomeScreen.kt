@@ -1068,6 +1068,12 @@ fun HomeScreen(
                                 WaitingCard(
                                     item = item,
                                     aiSummary = aiCardSummaries[suffix],
+                                    category = item.customer?.categoryId?.let { cid ->
+                                        categoriesById.firstOrNull { it.id == cid }
+                                    }?.takeUnless {
+                                        it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
+                                            it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
+                                    },
                                     replyChoices = choices,
                                     aiPrepEnabled = prefs.aiReplyPrepEnabled,
                                     onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
@@ -3451,6 +3457,7 @@ private fun dialHome(context: android.content.Context, phone: String) {
 private fun WaitingCard(
     item: HomeItem,
     aiSummary: String?,
+    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
     replyChoices: List<com.detailline.callfollowcrm.ai.ReplyChoice>,
     aiPrepEnabled: Boolean = true,
     onOpenChat: () -> Unit,
@@ -3488,6 +3495,17 @@ private fun WaitingCard(
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
+            category?.let { cat ->
+                // 그룹 태그 — 사장님이 만든 분류(일당 등). 카드가 훑기용이라 분류가 한눈에. (2026-09-02 사장님: 카드 정리)
+                Spacer(Modifier.width(7.dp))
+                Box(Modifier.background(Color(0xFFEDE9FE), RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Text(
+                        (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
+                        fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC),
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.background(TossBlueSoft, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
@@ -3522,73 +3540,7 @@ private fun WaitingCard(
             }
         }
         Spacer(Modifier.height(11.dp))
-        if (replyChoices.isNotEmpty()) {
-            // 프로토 sugbox 확장 — ✨ AI 추천 답변 3개를 답변 영역에서 옆으로 넘겨 고르기 + 비행기(확인 후 발송). (2026-07-02 사장님)
-            //   페이저는 이 답변 박스에서만 → 카드 좌스와이프(스팸/정리)와 제스처 분리(안쪽 페이저가 드래그 먼저 소비).
-            val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { replyChoices.size })
-            val cur = replyChoices.getOrNull(pagerState.currentPage)
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFEEF4FF))
-                    .padding(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("AI 추천 답변", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                    if (cur?.label?.isNotBlank() == true) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "· ${cur.label}", fontSize = 11.sp, color = TossTextTertiary,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    if (replyChoices.size > 1) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("${pagerState.currentPage + 1}/${replyChoices.size}", fontSize = 11.sp, color = TossTextTertiary)
-                    }
-                }
-                Spacer(Modifier.height(7.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.foundation.pager.HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.weight(1f),
-                        pageSpacing = 10.dp,
-                        verticalAlignment = Alignment.Top
-                    ) { page ->
-                        Text(
-                            replyChoices[page].text, fontSize = 13.5.sp, color = TossTextSecondary,
-                            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Box(
-                        Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossBlue)
-                            .clickable { cur?.text?.let { onQuickSend(it) } },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, "보내기", tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
-                }
-                if (replyChoices.size > 1) {
-                    Spacer(Modifier.height(9.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        repeat(replyChoices.size) { i ->
-                            Box(
-                                Modifier.padding(horizontal = 3.dp).size(6.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(if (i == pagerState.currentPage) TossBlue else Color(0xFFCED8E6))
-                            )
-                        }
-                    }
-                }
-            }
-        } else if (item.lastBody.isNullOrBlank() || item.lastActivityWasCall) {
+        if (item.lastBody.isNullOrBlank() || item.lastActivityWasCall) {
             // 통화/부재중만 있거나, 문자 뒤 마지막이 '통화로 끝난' 손님 — 답장할 문자가 없는데
             //   "AI 답변 준비 중"이 떠 버그처럼 보임(2026-06-14, 2026-06-17 사장님). → 통화 안내 + [문자하기].
             val missed = item.record.callType == "MISSED"
@@ -3613,15 +3565,9 @@ private fun WaitingCard(
             // 프로토 preparing — 문자 받았고 추천 준비 전: "AI 답변 준비 중…" + [답장하기].
             //   'AI 답변 준비' OFF 면 준비 자체를 안 하므로 "준비 중"은 거짓 → 담백하게 "새 문자". (2026-07-16 사장님)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (aiPrepEnabled) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("AI 답변 준비 중…", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-                } else {
-                    Icon(Icons.AutoMirrored.Filled.Chat, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("새 문자 · 답장하기", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-                }
+                Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("답장하면 AI 추천도 받아요", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier
