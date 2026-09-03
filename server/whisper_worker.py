@@ -42,11 +42,14 @@ def main() -> int:
             cpu_threads=1,
             num_workers=1,
         )
+        # VAD(무음 감지) ON — 조용한 구간을 건너뛰어 Whisper 무음 환각("네네네" 반복) 제거. (2026-09-03 사장님)
+        #   beam_size 1→5 정확도↑(뭉개짐 감소). condition_on_previous_text=False 유지(반복 루프 방지).
         segments, _info = model.transcribe(
             audio_path,
             language="ko",
-            beam_size=1,
-            vad_filter=False,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500),
             condition_on_previous_text=False,
         )
         # 세그먼트별 시각(start)+텍스트를 JSON 으로 출력 (탭재생 start_ms 용).
