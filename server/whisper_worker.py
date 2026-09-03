@@ -35,8 +35,9 @@ def main() -> int:
         return 3
 
     try:
+        # base → small: 한국어 정확도 대폭↑ (뭉개짐 감소). CPU라 통화당 몇 초 더 걸리지만 배경 처리라 OK. (2026-09-03 사장님)
         model = WhisperModel(
-            "base",
+            "small",
             device="cpu",
             compute_type="default",
             cpu_threads=1,
