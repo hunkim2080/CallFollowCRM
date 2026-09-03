@@ -9740,3 +9740,9 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - fix: vad_filter=True + vad_parameters(min_silence 500ms) + beam_size 1→5. 라이브 scp+py_compile+백업(whisper_worker.py.bak_vadfix). 검증: 무음3초→[](환각0·EXIT0). fw 1.2.1.
 - 다음(선택): base→small 모델로 정확도↑(맥미니 부담). 사장님 그 통화 재공유로 실측 예정.
 - commit: (위)
+
+## 2026-09-03 10:00 · android(서버 핫픽스2)
+whisper base→small — 한국어 전사 정확도↑ (사장님 지적: 진작 정확도 챙겼어야).
+- 라이브 적용+백업(whisper_worker.py.bak_pre_small). 검증: small 다운로드+전사 EXIT0, 무음→[]. 데이터볼륨 285Gi 여유(디스크 '97%참'은 옛말 — reference 갱신함).
+- 이제 STT = small + vad_filter=True + beam_size5. 통화당 몇 초 더 걸리지만 배경처리라 체감無.
+- commit: (위)
