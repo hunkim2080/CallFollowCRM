@@ -9733,3 +9733,10 @@ android 가 맥미니 정식 배포·검증 끝냄:
 정식(production) 배포 시도 — 사장님 "정식 고고".
 - 1차 실패: versionCode 1658 충돌. CI versionCode=git커밋수+1 이라, 내부테스트가 같은 커밋으로 1658 선점 → 정식도 1658 빌드 → Play "already used" 거절. (트랙 무관 중복금지)
 - fix: 이 docs 커밋으로 커밋수 bump → 정식 재빌드=1659. docs-only라 내부 자동배포(paths app/**) 트리거 안 됨.
+
+## 2026-09-03 09:48 · android(서버 핫픽스)
+통화 전사 "네네네" 무음 환각 수정 — 라이브 맥미니 whisper_worker.py.
+- 원인: model.transcribe(vad_filter=False) → Whisper가 무음/잡음을 "네"로 환각(한국어 유명 패턴). base 모델·beam_size=1이라 정확도도 낮음(앞부분 뭉개짐).
+- fix: vad_filter=True + vad_parameters(min_silence 500ms) + beam_size 1→5. 라이브 scp+py_compile+백업(whisper_worker.py.bak_vadfix). 검증: 무음3초→[](환각0·EXIT0). fw 1.2.1.
+- 다음(선택): base→small 모델로 정확도↑(맥미니 부담). 사장님 그 통화 재공유로 실측 예정.
+- commit: (위)
