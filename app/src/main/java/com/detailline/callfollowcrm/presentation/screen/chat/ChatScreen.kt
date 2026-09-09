@@ -1016,7 +1016,11 @@ fun ChatScreen(
             recipient = displayName,
             body = body,
             photoCount = photos.size,
-            onCancel = { sendConfirm = null },
+            // 취소/뒤로가기해도 확인창에서 고친 본문은 입력칸에 반영 — 고친 게 날아가지 않게. (2026-09-03 사장님)
+            onCancel = { edited ->
+                sendConfirm = null
+                if (edited.trim() != body.trim()) setInput(edited)
+            },
             onConfirm = { edited ->
                 sendConfirm = null
                 performSend(edited, photos)
@@ -4548,15 +4552,16 @@ private fun SendConfirmDialog(
     recipient: String,
     body: String,
     photoCount: Int,
-    onCancel: () -> Unit,
+    onCancel: (editedBody: String) -> Unit,
     onConfirm: (String) -> Unit
 ) {
     // 확인창에서 바로 본문 수정 — 취소하고 작은 입력칸으로 안 돌아가도 됨. (2026-08-29 사장님)
+    //   취소/뒤로가기 시에도 고친 본문(editBody)을 onCancel 로 돌려줘 입력칸에 반영. (2026-09-03 사장님)
     var editBody by remember(body) { mutableStateOf(body) }
     // 프로토엔 발송 확인이 없지만(바로 전송), 실제 문자라 안전 확인은 유지.
     //   2026-06-03: 가운데 AlertDialog(진한 막) → 프로토식 바텀시트(그립+미리보기+보내기/취소)로 교체.
     androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onCancel,
+        onDismissRequest = { onCancel(editBody) },
         containerColor = Color.White,
         tonalElevation = 0.dp
     ) {
@@ -4604,7 +4609,7 @@ private fun SendConfirmDialog(
             Spacer(Modifier.height(9.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossGrayBg)
-                    .clickable { onCancel() }.padding(vertical = 15.dp),
+                    .clickable { onCancel(editBody) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) { Text("취소", color = TossTextSecondary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
         }
