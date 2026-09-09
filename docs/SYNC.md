@@ -9746,3 +9746,8 @@ whisper base→small — 한국어 전사 정확도↑ (사장님 지적: 진작
 - 라이브 적용+백업(whisper_worker.py.bak_pre_small). 검증: small 다운로드+전사 EXIT0, 무음→[]. 데이터볼륨 285Gi 여유(디스크 '97%참'은 옛말 — reference 갱신함).
 - 이제 STT = small + vad_filter=True + beam_size5. 통화당 몇 초 더 걸리지만 배경처리라 체감無.
 - commit: (위)
+
+## 2026-09-03 10:40 · android
+보내기 확인창 수정본 유실 fix — 취소/뒤로가기 시 고친 본문을 입력칸에 반영
+- 변경: 앱 전용(ChatScreen SendConfirmDialog onCancel(editedBody)). Play internal 자동배포.
+- commit: (위)
