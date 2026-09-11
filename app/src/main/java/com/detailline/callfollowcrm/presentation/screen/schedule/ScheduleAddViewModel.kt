@@ -96,17 +96,27 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                     name = name.trim().takeIf { it.isNotBlank() }
                 )
                 val id = customer.id
-                // 재방문(추가 시공): 이 고객의 현재 시공이 이미 "완료" 상태면, 그 완료 건을 이력(jobs)으로 보관하고
-                //   고객 필드를 리셋 → 아래 등록이 첫 시공을 덮어 지우지 않고 "새 건"으로 쌓인다. (2026-07-20 사장님)
-                container.jobRepository.archiveCompletedBeforeNewSchedule(id, System.currentTimeMillis())
-                container.customerRepository.updateScheduledWorkDate(id, DateTimeUtils.startOfDay(dayMs))
-                container.customerRepository.updateScheduledWorkTiming(id, workMinutes, workDays)
+                // 재방문/추가 시공 (Phase2 Stage A, DB v49): 일정을 jobs 에 **건으로 쌓는다** — 같은 고객에
+                //   두 번째 날짜를 잡아도 첫 일정을 덮어 지우지 않음. (2026-09-11 사장님: 인테리어 업체는 한 번호에 현장 여러 개)
+                //   CustomerEntity 시공필드는 addJob 안에서 '대표 건' 미러로 자동 갱신 → 기존 화면(홈·챗·접수서 등) 무변경.
+                val nowMs = System.currentTimeMillis()
+                val depositPaidAtMs = if (depositPaid && (depositAmount ?: 0L) > 0L) nowMs else null
+                container.jobRepository.addJob(
+                    customerId = id,
+                    scheduledWorkDate = DateTimeUtils.startOfDay(dayMs),
+                    scheduledWorkMinutes = workMinutes,
+                    scheduledWorkDays = workDays,
+                    address = address.takeIf { it.isNotBlank() },
+                    totalAmount = totalAmount,
+                    depositAmount = depositAmount,
+                    depositPaidAt = depositPaidAtMs,
+                    now = nowMs
+                )
+                // 돈(총액·계약금)은 Stage A 에선 기존대로 고객에도 기록 — 정산·미수금 계산이 그대로 맞게. (건별 정산은 Stage B)
                 if (address.isNotBlank()) container.customerRepository.updateAddress(id, address)
                 if (totalAmount != null) container.customerRepository.updateTotalAmount(id, totalAmount)
                 if (depositAmount != null) container.customerRepository.updateDepositAmount(id, depositAmount)
-                if (depositPaid && (depositAmount ?: 0L) > 0L) {
-                    container.customerRepository.updateDepositPaidAt(id, System.currentTimeMillis())
-                }
+                if (depositPaidAtMs != null) container.customerRepository.updateDepositPaidAt(id, depositPaidAtMs)
                 // 일당 배정 — 일정↔정산 연결(자동 차감) + 함께한 현장 기록.
                 if (crewWorkers.isNotEmpty() && crewWage > 0L) {
                     for (w in crewWorkers) {

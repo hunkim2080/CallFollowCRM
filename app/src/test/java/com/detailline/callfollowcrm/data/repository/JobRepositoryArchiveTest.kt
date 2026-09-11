@@ -26,7 +26,9 @@ class JobRepositoryArchiveTest {
 
     private fun customer(
         scheduledWorkDate: Long? = 1_000L,
-        workCompletedAt: Long? = null
+        workCompletedAt: Long? = null,
+        /** 잔금 받은 시각. 완납(미수 0)이어야 이력 보관이 진행된다 — 2026-07-30 돈 가드. */
+        balancePaidAt: Long? = null
     ) = CustomerEntity(
         id = 1L,
         phoneNumber = "01012345678",
@@ -36,6 +38,7 @@ class JobRepositoryArchiveTest {
         totalAmount = 400_000L,
         depositAmount = 100_000L,
         balanceAmount = 300_000L,
+        balancePaidAt = balancePaidAt,
         workCompletedAt = workCompletedAt,
         createdAt = 0L,
         updatedAt = 0L
@@ -45,7 +48,8 @@ class JobRepositoryArchiveTest {
     fun `완료된 시공이면 이력 보관하고 고객 필드를 리셋한다`() = runTest {
         val jobDao = mock<JobDao>()
         val customerDao = mock<CustomerDao> {
-            onBlocking { findById(1L) } doReturn customer(workCompletedAt = 5_000L)
+            // 완료 + **완납**(미수 0) 이어야 보관 진행 — 미수가 남으면 보류(2026-07-30 돈 가드).
+            onBlocking { findById(1L) } doReturn customer(workCompletedAt = 5_000L, balancePaidAt = 6_000L)
         }
         val repo = JobRepository(jobDao, customerDao)
 
@@ -94,6 +98,25 @@ class JobRepositoryArchiveTest {
 
         assertFalse(repo.archiveCompletedBeforeNewSchedule(1L, now = 9_000L))
         verifyBlocking(jobDao, never()) { insert(any()) }
+    }
+
+    /**
+     * 돈 가드 (2026-07-30 버그감사) — 완료됐어도 **미수(못 받은 돈)가 남아 있으면 보관 보류**.
+     *   보관해버리면 그 미수가 이력으로 옮겨져 정산·미수금 목록에서 조용히 사라지고,
+     *   사장님이 받을 돈을 놓친다(돈 사고). 완납된 뒤 재방문을 잡으면 그때 정상 정리된다.
+     */
+    @Test
+    fun `완료됐어도 미수가 남으면 보관 보류한다`() = runTest {
+        val jobDao = mock<JobDao>()
+        val customerDao = mock<CustomerDao> {
+            // 총 40만 · 계약금 10만 · 잔금 미수령(balancePaidAt = null) → 미수 40만 남음
+            onBlocking { findById(1L) } doReturn customer(workCompletedAt = 5_000L, balancePaidAt = null)
+        }
+        val repo = JobRepository(jobDao, customerDao)
+
+        assertFalse(repo.archiveCompletedBeforeNewSchedule(1L, now = 9_000L))
+        verifyBlocking(jobDao, never()) { insert(any()) }
+        verifyBlocking(customerDao, never()) { update(any()) }
     }
 }
 

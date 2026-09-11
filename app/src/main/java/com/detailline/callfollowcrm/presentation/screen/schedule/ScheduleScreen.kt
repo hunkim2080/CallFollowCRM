@@ -388,7 +388,8 @@ fun ScheduleScreen(
                 if (schedulesForSelected.size > 1) {
                     item(key = "day-count") { DayCount(schedulesForSelected.size) }
                 }
-                items(schedulesForSelected, key = { "c-${it.id}" }) { c ->
+                // 키 = (고객, 시공일) — 한 고객이 여러 날짜를 잡으면 id 만으론 키가 겹쳐 목록이 깨진다. (Stage A)
+                items(schedulesForSelected, key = { laneKeyOf(it) }) { c ->
                     val suffix = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
                     val originalDate = c.scheduledWorkDate ?: 0L
                     CollabSwipeBox(
@@ -1164,21 +1165,28 @@ private data class CalendarCell(
  * 한 달치 시공들에 lane(세로 칸) 배정 — 같은 시공은 며칠짜리든 매일 같은 lane 에 와야 막대가 가로로 이어진다.
  *   그리디 구간 패킹: 시작일 빠른 순 → 가장 위쪽 빈 lane(이전 시공 끝난 lane)에 배치. customerId→lane.
  */
-private fun assignScheduleLanes(schedules: List<CustomerEntity>): Map<Long, Int> {
+private fun assignScheduleLanes(schedules: List<CustomerEntity>): Map<String, Int> {
     val intervals = schedules.mapNotNull { c ->
         val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@mapNotNull null
         val days = c.scheduledWorkDays.coerceAtLeast(1)
-        Triple(c.id, s, s + (days - 1) * DateTimeUtils.DAY_MS)
+        Triple(laneKeyOf(c), s, s + (days - 1) * DateTimeUtils.DAY_MS)
     }.sortedWith(compareBy({ it.second }, { -(it.third - it.second) }))
     val laneEnds = ArrayList<Long>() // lane -> 그 lane 에 마지막으로 들어간 시공의 끝 ms
-    val map = HashMap<Long, Int>()
-    for ((id, s, e) in intervals) {
+    val map = HashMap<String, Int>()
+    for ((key, s, e) in intervals) {
         var lane = laneEnds.indexOfFirst { it < s }
         if (lane < 0) { laneEnds.add(e); lane = laneEnds.size - 1 } else laneEnds[lane] = e
-        map[id] = lane
+        map[key] = lane
     }
     return map
 }
+
+/**
+ * 시공 '건'의 키 = (고객, 시공일). 한 고객이 여러 날짜를 잡을 수 있으므로(재방문 Phase2 Stage A, DB v49)
+ *   고객 id 만으론 서로 다른 건이 구분되지 않는다 — 목록 key·달력 lane 모두 이 키를 쓴다. (2026-09-11 사장님)
+ */
+private fun laneKeyOf(c: CustomerEntity): String =
+    "${c.id}-${c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: 0L}"
 
 /**
  * 이 시공이 dayStart 날을 포함하는가 — 여러 날 시공(scheduledWorkDays) 고려.
@@ -1262,7 +1270,7 @@ private fun buildCalendarCells(
                 dayStart == e -> BarSeg.END
                 else -> BarSeg.MID
             }
-            DayBar(lane = laneMap[c.id] ?: 0, seg = seg, past = dayStart < todayStart)
+            DayBar(lane = laneMap[laneKeyOf(c)] ?: 0, seg = seg, past = dayStart < todayStart)
         }.sortedBy { it.lane }
         cells += CalendarCell(
             dayStartMs = dayStart,

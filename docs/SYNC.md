@@ -9751,3 +9751,15 @@ whisper base→small — 한국어 전사 정확도↑ (사장님 지적: 진작
 보내기 확인창 수정본 유실 fix — 취소/뒤로가기 시 고친 본문을 입력칸에 반영
 - 변경: 앱 전용(ChatScreen SendConfirmDialog onCancel(editedBody)). Play internal 자동배포.
 - commit: (위)
+
+## 2026-09-11 · android
+재방문 Phase2 **Stage A** — 한 고객 여러 일정(인테리어 업체 케이스). jobs = 일정 SoT 승격.
+- 변경: DB **v48→v49** (MIGRATION_48_49 — 각 고객 예정 시공을 jobs 로 COPY, customers 컬럼 유지 = 무손실).
+  등록=INSERT(덮어쓰기 제거) / 달력·일정이 jobs 읽음(건별 CustomerEntity 복사본) / 목록key·달력lane = (고객,시공일) /
+  건별 빼기·되돌리기 / "지난 시공 N건" = 완료건만(observeCompletedByCustomer).
+- CustomerEntity 시공필드 = '대표 건' 미러 → 홈·챗·접수서·미러·브리핑 등 리더 ~10곳 무변경.
+- 돈(정산·미수)·알람은 **그대로 고객 단위** → 건별 정산·알람은 Stage B. (두 번째 날짜 D-1 알람은 아직 안 울림)
+- 검증: compileDebugKotlin ✅ / 단위테스트 **242건 전부 통과** ✅ (신규 StageA 5건 + 오래 깨져있던 3건 교정 + 미수가드 회귀 1건)
+- ⚠️ **실기 마이그레이션(v49) 미검증** — 작업 시점 폰 미연결. 내부테스트 설치 후 **일정 화면 진입까지** 확인 필요.
+- commit: (아래)
+- 다음 액션: Stage B (정산 건별 + 알람 건별)

@@ -66,7 +66,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 48,
+    version = 49,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -844,6 +844,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v49 — 재방문 Phase2 Stage A: "한 고객 여러 일정"(인테리어 업체 케이스. 2026-09-11 사장님).
+        //   각 고객의 '현재 예정 시공'을 jobs 로 복사해 jobs 를 일정 SoT 로 승격.
+        //   ⚠️ COPY 만 — customers 의 시공 컬럼은 그대로 둠(= 대표 건 미러). 기존 화면 무변경·무손실.
+        //   이미 같은 고객·같은 날 건(Phase1 에서 보관된 완료건 등)이 있으면 건너뜀(중복 방지).
+        private val MIGRATION_48_49 = object : Migration(48, 49) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT INTO jobs (customerId, scheduledWorkDate, scheduledWorkMinutes, scheduledWorkDays,
+                                      address, totalAmount, depositAmount, depositPaidAt,
+                                      balanceAmount, balancePaidAt, workCompletedAt, createdAt, updatedAt)
+                    SELECT c.id, c.scheduledWorkDate, c.scheduledWorkMinutes, c.scheduledWorkDays,
+                           c.address, c.totalAmount, c.depositAmount, c.depositPaidAt,
+                           c.balanceAmount, c.balancePaidAt, c.workCompletedAt,
+                           strftime('%s','now') * 1000, strftime('%s','now') * 1000
+                    FROM customers c
+                    WHERE c.scheduledWorkDate IS NOT NULL
+                      AND NOT EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.customerId = c.id AND j.scheduledWorkDate = c.scheduledWorkDate
+                      )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -862,7 +888,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-                    MIGRATION_46_47, MIGRATION_47_48
+                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

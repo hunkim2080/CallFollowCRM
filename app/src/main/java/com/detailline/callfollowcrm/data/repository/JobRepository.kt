@@ -82,4 +82,94 @@ class JobRepository(
         )
         return true
     }
+
+    // ── Phase 2 Stage A (DB v49) — jobs = 일정의 SoT, CustomerEntity 시공필드 = "대표 건" 미러.
+    //    한 고객이 여러 날짜에 시공받아도 서로 안 덮어씀. (2026-09-11 사장님: 인테리어 업체는 한 번호에 현장 여러 개)
+
+    /** 완료된 지난 시공만 — 고객상세 "지난 시공 N건". 예정 건이 jobs 에 들어와도 안 섞이게. */
+    fun observeCompletedByCustomer(customerId: Long): Flow<List<JobEntity>> =
+        jobDao.observeCompletedByCustomer(customerId)
+
+    /** 시공일 잡힌 모든 건 — 캘린더/일정 화면의 SoT. */
+    fun observeScheduled(): Flow<List<JobEntity>> = jobDao.observeScheduled()
+
+    suspend fun findById(jobId: Long): JobEntity? = jobDao.findById(jobId)
+
+    /** 그 고객·그 날의 건 — 일정 카드에서 '어느 건'을 뺄지 특정할 때. */
+    suspend fun jobAt(customerId: Long, dayMs: Long): JobEntity? = jobDao.jobAt(customerId, dayMs)
+
+    /**
+     * 새 시공 건 등록 — 같은 고객의 기존 일정을 **덮지 않고** 건으로 쌓는다.
+     *   같은 고객·같은 날이 이미 있으면 중복 생성 안 함(연타 가드).
+     * @return 새 job id (중복이면 0)
+     */
+    suspend fun addJob(
+        customerId: Long,
+        scheduledWorkDate: Long,
+        scheduledWorkMinutes: Int?,
+        scheduledWorkDays: Int,
+        address: String?,
+        totalAmount: Long?,
+        depositAmount: Long?,
+        depositPaidAt: Long?,
+        now: Long
+    ): Long {
+        if (jobDao.countByCustomerAndDate(customerId, scheduledWorkDate) > 0) {
+            recomputeMirror(customerId, now)
+            return 0L
+        }
+        val id = jobDao.insert(
+            JobEntity(
+                customerId = customerId,
+                scheduledWorkDate = scheduledWorkDate,
+                scheduledWorkMinutes = scheduledWorkMinutes,
+                scheduledWorkDays = scheduledWorkDays.coerceAtLeast(1),
+                address = address,
+                totalAmount = totalAmount,
+                depositAmount = depositAmount,
+                depositPaidAt = depositPaidAt,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        recomputeMirror(customerId, now)
+        return id
+    }
+
+    /** 이 건을 일정에서만 뺌(고객·기록 보존) — 되돌리기 위해 삭제 대신 시공일만 비운다. */
+    suspend fun unscheduleJob(jobId: Long, now: Long) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(scheduledWorkDate = null, updatedAt = now))
+        recomputeMirror(j.customerId, now)
+    }
+
+    /** 되돌리기 — 뺀 건의 시공일 복구. */
+    suspend fun rescheduleJob(jobId: Long, dayMs: Long, now: Long) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(scheduledWorkDate = dayMs, updatedAt = now))
+        recomputeMirror(j.customerId, now)
+    }
+
+    /**
+     * CustomerEntity 시공필드 = 그 고객의 **대표 건** 미러 재계산.
+     *   대표 = 오늘 이후(미래) 중 가장 가까운 건, 없으면 가장 최근 건.
+     *   → CustomerEntity 를 읽는 기존 화면들(홈 히어로·챗·통화전 카드·접수서·미러·브리핑…)이 무변경으로 계속 동작.
+     *   ⚠️ Stage A 는 **일정 필드만** 미러링한다. 돈(총액·계약금·잔금)·완료처리는 기존처럼 고객 단위 유지 →
+     *      정산·미수금 계산이 그대로 맞음. 건별 정산은 Stage B.
+     */
+    suspend fun recomputeMirror(customerId: Long, now: Long) {
+        val c = customerDao.findById(customerId) ?: return
+        val jobs = jobDao.scheduledByCustomerOnce(customerId)
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.lastOrNull()
+        customerDao.update(
+            c.copy(
+                scheduledWorkDate = rep?.scheduledWorkDate,
+                scheduledWorkMinutes = rep?.scheduledWorkMinutes,
+                scheduledWorkDays = (rep?.scheduledWorkDays ?: 1).coerceAtLeast(1),
+                address = rep?.address?.takeIf { it.isNotBlank() } ?: c.address,
+                updatedAt = now
+            )
+        )
+    }
 }

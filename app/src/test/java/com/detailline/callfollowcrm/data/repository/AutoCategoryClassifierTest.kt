@@ -18,10 +18,13 @@ import org.mockito.kotlin.whenever
 /**
  * 자동 카테고리 분류 로직 검증.
  *
- * 사장님 결정 룰 (2026-05-30 #7 통점):
- *   - balanceAmount > 0 → "시공 완료"
- *   - depositAmount > 0 && balanceAmount 없음/0 → "시공 대기"
- *   - 둘 다 0/null → 분류 X
+ * 사장님 결정 룰 (2026-05-30 #7 통점 → 2026-08-31 수정):
+ *   - **실제로 받았으면**(balancePaidAt/workCompletedAt = isWorkDone) → "시공 완료"
+ *   - 시공일 등록 or depositAmount > 0 → "시공 대기"
+ *   - 자격 없음 → 분류 X
+ *
+ * ⚠️ 2026-08-31 변경: 예전엔 `balanceAmount > 0`(잔금 '액수')을 완료로 봤는데, 견적만 넣어도 잔금 액수가
+ *   자동 기록돼 **계약금만 낸 시공-예정 고객이 '시공 완료'로 오분류**됐다(사장님 신고). → 받은 '시각'(isWorkDone) 기준으로 교정.
  *
  * 수동 우선:
  *   - 사장님이 다른 카테고리 (예: VIP) 지정했으면 자동 분류 안 함.
@@ -57,7 +60,8 @@ class AutoCategoryClassifierTest {
         val customer = customer(
             categoryId = null,
             depositAmount = 100_000L,
-            balanceAmount = 500_000L
+            balanceAmount = 500_000L,
+            balancePaidAt = 5_000L   // 실제로 받음 → 완료 (액수만 있는 건 완료 아님, 2026-08-31)
         )
         assertEquals(doneCategory.id, classifier.resolveCategoryId(customer))
     }
@@ -109,7 +113,8 @@ class AutoCategoryClassifierTest {
         val customer = customer(
             categoryId = pendingCategory.id,
             depositAmount = 100_000L,
-            balanceAmount = 500_000L
+            balanceAmount = 500_000L,
+            balancePaidAt = 5_000L   // 실제로 받음 → 승격 (2026-08-31 규칙)
         )
         assertEquals(doneCategory.id, classifier.resolveCategoryId(customer))
     }
@@ -193,7 +198,9 @@ class AutoCategoryClassifierTest {
         categoryId: Long? = null,
         depositAmount: Long? = null,
         balanceAmount: Long? = null,
-        totalAmount: Long? = null
+        totalAmount: Long? = null,
+        /** 잔금을 **실제로 받은 시각**. 완료 판정(isWorkDone)의 기준. (2026-08-31) */
+        balancePaidAt: Long? = null
     ) = CustomerEntity(
         id = id,
         phoneNumber = "01012345678",
@@ -206,7 +213,7 @@ class AutoCategoryClassifierTest {
         depositAmount = depositAmount,
         depositPaidAt = null,
         balanceAmount = balanceAmount,
-        balancePaidAt = null,
+        balancePaidAt = balancePaidAt,
         totalAmount = totalAmount,
         createdAt = 0L,
         updatedAt = 0L

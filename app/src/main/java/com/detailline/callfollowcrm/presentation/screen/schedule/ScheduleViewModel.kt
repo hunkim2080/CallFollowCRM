@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -34,9 +35,28 @@ import java.util.Locale
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
 
-    val state: StateFlow<ScheduleUiState> = container.customerRepository.observeScheduled()
-        .map { list -> buildState(list) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScheduleUiState())
+    /**
+     * 일정 SoT = jobs (DB v49, 재방문 Phase2 Stage A). 한 고객이 여러 날짜를 잡아도 **건마다 한 줄**로 보인다.
+     *   건별 값(시공일·시간·일수·주소)을 채운 CustomerEntity **복사본**을 흘려보내므로, 카드·달력·배정 시트 등
+     *   기존 UI 가 CustomerEntity 를 그대로 읽으면서 건별로 동작한다. (2026-09-11 사장님: 인테리어 업체는 한 번호에 현장 여러 개)
+     */
+    val state: StateFlow<ScheduleUiState> = combine(
+        container.jobRepository.observeScheduled(),
+        container.customerRepository.observeAll()
+    ) { jobs, customers ->
+        val byId = customers.associateBy { it.id }
+        val rows = jobs.mapNotNull { j ->
+            val c = byId[j.customerId] ?: return@mapNotNull null
+            val day = j.scheduledWorkDate ?: return@mapNotNull null
+            c.copy(
+                scheduledWorkDate = day,
+                scheduledWorkMinutes = j.scheduledWorkMinutes,
+                scheduledWorkDays = j.scheduledWorkDays.coerceAtLeast(1),
+                address = j.address?.takeIf { it.isNotBlank() } ?: c.address
+            )
+        }
+        buildState(rows)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScheduleUiState())
 
     /** A/S 예약 잡힌 고객 — 시공 예약과 **별개** 흐름(시공 목록/막대와 안 섞임). 캘린더 주황 A/S 마커·A/S 목록용. (DB v43, 2026-08-01 사장님) */
     val asScheduled: StateFlow<List<CustomerEntity>> = container.customerRepository.observeAsScheduled()
@@ -285,13 +305,37 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 일정 카드 밀어서 삭제 — 이 현장을 "일정에서만" 뺌(고객·대화·정산 기록은 보존). 되돌리기 가능. (2026-06-13 사장님) */
+    /** 방금 일정에서 뺀 건 — "되돌리기"가 **그 건**을 되살리도록 기억. (Stage A) */
+    private var lastUnscheduledJobId: Long? = null
+
+    /** 일정 카드 밀어서 삭제 — **이 건만** 일정에서 뺌(고객·대화·정산 기록은 보존). 되돌리기 가능. (2026-06-13 사장님) */
     fun unschedule(customer: CustomerEntity) {
-        viewModelScope.launch { container.customerRepository.updateScheduledWorkDate(customer.id, null) }
+        val day = customer.scheduledWorkDate ?: return
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val job = container.jobRepository.jobAt(customer.id, DateTimeUtils.startOfDay(day))
+            if (job != null) {
+                lastUnscheduledJobId = job.id
+                container.jobRepository.unscheduleJob(job.id, now)
+            } else {
+                // jobs 에 아직 없는 옛 데이터 — 기존 방식(고객 시공일 비우기)으로 폴백.
+                lastUnscheduledJobId = null
+                container.customerRepository.updateScheduledWorkDate(customer.id, null)
+            }
+        }
     }
-    /** 되돌리기 — 뺀 일정을 원래 날짜로 복구. */
+    /** 되돌리기 — 방금 뺀 **그 건**을 원래 날짜로 복구. */
     fun restoreSchedule(customerId: Long, scheduledAtMs: Long) {
-        viewModelScope.launch { container.customerRepository.updateScheduledWorkDate(customerId, scheduledAtMs) }
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val jobId = lastUnscheduledJobId
+            if (jobId != null) {
+                container.jobRepository.rescheduleJob(jobId, DateTimeUtils.startOfDay(scheduledAtMs), now)
+                lastUnscheduledJobId = null
+            } else {
+                container.customerRepository.updateScheduledWorkDate(customerId, scheduledAtMs)
+            }
+        }
     }
 
     /** 협업 현장 표시 라벨 — 주소(지역+아파트/단독은 지역+동) "○○ 현장", 없으면 실제 고객 이름, 둘 다 없으면 "이 현장".
