@@ -9763,3 +9763,9 @@ whisper base→small — 한국어 전사 정확도↑ (사장님 지적: 진작
 - ⚠️ **실기 마이그레이션(v49) 미검증** — 작업 시점 폰 미연결. 내부테스트 설치 후 **일정 화면 진입까지** 확인 필요.
 - commit: (아래)
 - 다음 액션: Stage B (정산 건별 + 알람 건별)
+
+## 2026-09-12 12:20 · android
+업데이트 = Play 스토어 직행 + Play 설치에도 배너 노출
+- 변경: 앱 전용. openInstallPage → market://details(폴백 play.google.com → si0in). 배너 Play 가드 제거. 문구 "업데이트".
+- 배경: Play 설치 앱은 구글 재서명 → si0in APK 설치 거부(2026-09-03 실측). 배포를 Play 로 일원화.
+- commit: (위)
