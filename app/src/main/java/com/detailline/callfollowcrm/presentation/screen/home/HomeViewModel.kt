@@ -1466,13 +1466,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         // 새 버전 체크 — 앱 열 때마다(홈 진입) 체크하되 10분 연타만 방지. (2026-06-21 사장님: 베타 빨리 받게)
         //   서버 mtime_ms > BUILD_TIMESTAMP(+여유) 면 배너 ON. (기존 24시간 throttle → 테스터가 하루 늦게 받던 것)
         viewModelScope.launch {
-            // 플레이스토어로 설치된 앱은 업데이트를 플레이가 자동 처리 → 우리 사이드로드 배너/시트 안 띄움.
-            //   플레이 앱은 구글 서명이라 si0in APK 로 못 덮어씀(설치 실패·혼란). 사이드로드(베타)만 배너. (2026-07-18 사장님·플레이 통일)
-            if (isInstalledFromPlayStore()) {
-                _updateAvailable.value = false
-                _latestReleaseNotes.value = emptyList()
-                return@launch
-            }
+            // 2026-09-12 사장님: 배포를 Play 로 일원화 + "업데이트 버튼만 누르면 되게".
+            //   예전엔 Play 설치면 배너를 아예 숨겼다(si0in APK 는 구글 재서명과 서명이 안 맞아 설치 자체가 거부되므로
+            //   눌러봐야 실패 → 혼란). 이제 [지금 받기] 가 **Play 스토어 앱의 우리 앱 페이지**를 직접 열어
+            //   사장님이 [업데이트] 한 번만 누르면 되므로, Play 설치에도 배너를 띄운다.
+            //   (최신 버전 판단은 아래 UpdateChecker — 서버가 올라간 빌드의 versionCode 를 그대로 알려줌)
             val prefs = container.preferences
             val now = System.currentTimeMillis()
             if (now - prefs.lastUpdateCheckMs > 10L * 60 * 1000) {

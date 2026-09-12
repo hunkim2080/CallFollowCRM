@@ -166,24 +166,39 @@ import com.detailline.callfollowcrm.util.MoneyFormatter
 import androidx.compose.material.icons.filled.ChevronRight
 
 /**
- * 설치 페이지 열기 — 업데이트 배너/시트의 '받기' 공용. (2026-06-26 Custom Tabs, 2026-07-18 추출)
- *   Custom Tabs(크롬 엔진)로 열어 외부 브라우저 '데스크톱 모드' 오작동 방지. 실패 시 일반 ACTION_VIEW 폴백.
+ * 업데이트 받기 — **Play 스토어 앱의 우리 앱 페이지**를 바로 연다. 사장님은 [업데이트] 한 번만 누르면 끝. (2026-09-12 사장님)
+ *
+ * 왜 Play 인가: 앱이 Play 로 설치되면 구글이 재서명하므로, 예전처럼 si0in.kr 에서 받은 APK 는
+ *   서명이 안 맞아 **덮어쓰기 설치가 아예 거부**된다(2026-09-03 실측). 업데이트 경로는 Play 가 유일.
+ *
+ * 순서: ① market:// (Play 앱이 바로 뜸) → ② play.google.com (Play 앱 없으면 브라우저)
+ *   → ③ si0in.kr/install (Play 자체가 없는 기기 대비 최후 폴백).
  */
 private fun openInstallPage(context: android.content.Context) {
-    val uri = android.net.Uri.parse("https://si0in.kr/install")
+    val pkg = context.packageName
+    // ① Play 앱 직행 — 설치된 Play 로만 열리게 setPackage 고정(브라우저 선택창 안 뜸).
+    val market = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse("market://details?id=$pkg")
+    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        .setPackage("com.android.vending")
+    if (runCatching { context.startActivity(market); true }.getOrDefault(false)) return
+
+    // ② Play 웹 페이지 (Play 앱이 없거나 막힌 기기)
+    val web = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse("https://play.google.com/store/apps/details?id=$pkg")
+    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(web); true }.getOrDefault(false)) return
+
+    // ③ 최후 폴백 — 예전 설치 페이지(Play 미탑재 기기용).
     runCatching {
-        androidx.browser.customtabs.CustomTabsIntent.Builder()
-            .setShowTitle(true)
-            .build()
-            .apply { intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-            .launchUrl(context, uri)
-    }.onFailure {
-        runCatching {
-            context.startActivity(
-                android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }
+        context.startActivity(
+            android.content.Intent(
+                android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://si0in.kr/install")
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
 
@@ -450,7 +465,7 @@ fun HomeScreen(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
                             .clickable { openInstallPage(context) }
                             .padding(horizontal = 16.dp, vertical = 7.dp)
-                    ) { Text("지금 받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
+                    ) { Text("업데이트", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
                 }
             }
 
