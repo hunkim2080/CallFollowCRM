@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>기능 소개 — 시공막내 | 막내가 하는 일은 딱 4가지입니다</title>
+<title>기능 소개 — 시공막내 | 막내가 하는 일은 딱 3가지입니다</title>
 <meta name="description" content="① 전화: 놓쳐도 고객을 놓치지 않게 ② 견적: 문자 한 통이 계약서가 되게 ③ 일정·돈: 앱이 대신 지키게. 시공 사장님의 막내 비서, 시공막내의 기능을 3분에 이해하세요.">
 <link rel="canonical" href="https://si0in.kr/features">
 <meta property="og:type" content="website">
@@ -11,10 +11,10 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="시공막내 기능 소개 — 막내가 하는 일은 딱 4가지">
+<meta name="twitter:title" content="시공막내 기능 소개 — 막내가 하는 일은 딱 3가지">
 <meta name="twitter:description" content="전화 · 견적 · 일정과 돈. 시공 사장님에게 필요한 것만 담았습니다.">
 <meta name="twitter:image" content="https://si0in.kr/static/thumbs/features.png">
-<meta property="og:title" content="시공막내 기능 소개 — 막내가 하는 일은 딱 4가지">
+<meta property="og:title" content="시공막내 기능 소개 — 막내가 하는 일은 딱 3가지">
 <meta property="og:description" content="전화 · 견적 · 일정과 돈. 시공 사장님에게 필요한 것만 담았습니다.">
 <meta property="og:url" content="https://si0in.kr/features">
 <meta property="og:site_name" content="시공막내">
@@ -89,8 +89,8 @@
 
 <div class="hero">
   <span class="chip">시공 사장님 전용 · 핵심 기능 무료</span>
-  <h1>막내가 하는 일은<br>딱 4가지입니다</h1>
-  <p>기능은 많지만, 외울 필요 없습니다. 사장님이 기억할 건 이 네 줄이 전부예요.<br><span style="color:var(--t3);font-size:14px;">(박람회·전시회 뛰는 팀이라면, 전용 모드도 준비돼 있어요.)</span></p>
+  <h1>막내가 하는 일은<br>딱 3가지입니다</h1>
+  <p>기능은 많지만, 외울 필요 없습니다. 사장님이 기억할 건 이 세 줄이 전부예요.<br><span style="color:var(--t3);font-size:14px;">(박람회·전시회 뛰는 팀이라면, 전용 모드도 준비돼 있어요.)</span></p>
 </div>
 
 <div class="wrap">
@@ -104,11 +104,8 @@
       <ul>
         <li>전화 오면 <b>"지난주 방수 문의하신 분"</b> — 고객 카드가 먼저 뜹니다</li>
         <li>못 받으면 <b>자동 문자</b>가 나갑니다 — 고객이 다른 업체로 새지 않아요</li>
-        <li><b>통화 녹음도, AI 요약도 무료</b> — 평수·부위·희망일이 글로 남습니다</li>
-        <li><b>녹취 대화록</b>이 누가 말했는지 나뉘어 남고, 탭하면 그 대목부터 재생</li>
-        <li>요약을 <b>고객에게 그대로 전송</b> — "말이 달랐다"가 안 생깁니다</li>
-        <li>답장은 <b>AI 추천 3개</b> 중 골라서 10초 — <b>✨다듬기</b>가 전문 상담사 말투로</li>
-        <li><b>통화 내용까지 검색</b> — "그때 곰팡이 얘기했던 분"이 바로 나옵니다</li>
+        <li>통화가 끝나면 <b>AI가 요약</b> — 평수·부위·희망일이 글로 남습니다</li>
+        <li>답장은 <b>AI 추천 3개</b> 중 골라서 10초 — 내 말투로 다듬어 줍니다</li>
       </ul>
     </div>
     <div class="shot">
@@ -189,11 +186,8 @@
       <ul>
         <li>접수서가 제출되면 <b>일정에 자동 등록</b> — 손으로 적는 단계가 없습니다</li>
         <li>시공 하루 전, 고객에게 <b>안내 문자 자동 발송</b> — 겹침·펑크 예방</li>
-        <li><b>구글 캘린더 연동</b> — 폰 위젯에서 오늘 현장을 한눈에</li>
-        <li>한 고객에 <b>여러 현장·재시공</b>을 따로따로 — 단골일수록 안 엉킵니다</li>
-        <li>계약금·잔금이 현장별로 — <b>잔금 미수 자동 분류</b>로 못 받은 돈만 따로</li>
+        <li>계약금·잔금이 현장별로 — <b>못 받은 돈</b>이 화면에 남아 있습니다</li>
         <li>다른 사장님과 <b>협업 현장 공유</b> — 도착·완료·정산까지 한 화면</li>
-        <li><b>데이터 백업·복원</b> — 폰이 바뀌어도 고객과 돈 기록이 그대로</li>
       </ul>
     </div>
     <div class="shot">
@@ -220,54 +214,6 @@
         <text x="48" y="330" font-size="10.5" fill="#333D4B">수원 타일 — 계약금</text>
         <text x="252" y="330" font-size="10.5" text-anchor="end" font-weight="800" fill="#0B7A45">30만원 입금 ✓</text>
         <rect x="48" y="338" width="180" height="8" rx="4" fill="#E7F8EF"/>
-      </svg>
-    </div>
-  </section>
-
-  <!-- 넷 — 끝난 현장이 다음 손님을 -->
-  <section class="big">
-    <div>
-      <span class="num">넷</span>
-      <h2>끝난 현장이<br>다음 손님을 데려오게</h2>
-      <div class="sub">광고비를 더 쓰는 대신, 이미 한 일을 글로 만듭니다. 남의 글 짜깁기가 아니라 사장님이 실제로 나눈 상담과 찍은 사진이 원재료예요.</div>
-      <ul>
-        <li>끝난 현장의 <b>상담 문자·통화 요약·현장 사진</b>이 그대로 글 재료가 됩니다</li>
-        <li><b>블로그·인스타·스레드</b> 세 가지 형식으로 한 번에</li>
-        <li><b>네이버 블로그에 바로 올리기</b> — 크롬 확장으로 서식 그대로</li>
-        <li>검색엔진이 보는 건 <b>'직접 겪은 글'</b> — 매일 같은 틀로 찍어낸 글과 다릅니다</li>
-        <li>PC 웹에서 <b>시공 사진을 골라 내려받기</b> — 포트폴리오 정리까지</li>
-      </ul>
-    </div>
-    <div class="shot">
-      <svg viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="글 만들기 화면 예시">
-        <rect x="10" y="6" width="280" height="368" rx="28" fill="#0B0F19"/>
-        <rect x="18" y="14" width="264" height="352" rx="22" fill="#F4F5F7"/>
-        <text x="36" y="46" font-size="13" font-weight="900" fill="#0B0F19">✍️ 글 만들기</text>
-        <text x="36" y="62" font-size="9.5" fill="#9AA3AF">동탄 ○○아파트 · 시공 완료</text>
-
-        <rect x="34" y="74" width="232" height="76" rx="14" fill="#fff"/>
-        <text x="48" y="94" font-size="9.5" fill="#9AA3AF">이 현장에서 모인 재료</text>
-        <text x="48" y="113" font-size="10.5" fill="#333D4B">💬 상담 문자 12건</text>
-        <text x="48" y="131" font-size="10.5" fill="#333D4B">🎙️ 통화 요약 3건 · 📷 현장 사진 8장</text>
-
-        <path d="M150 158 v14 m-7 -6 l7 6 l7 -6" stroke="#3182F6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-
-        <rect x="34" y="180" width="232" height="118" rx="14" fill="#fff"/>
-        <rect x="34" y="180" width="232" height="6" rx="3" fill="#3182F6"/>
-        <text x="48" y="206" font-size="10.5" font-weight="900" fill="#0B0F19">동탄 욕실 줄눈 시공 후기</text>
-        <text x="48" y="222" font-size="9" fill="#9AA3AF">— 곰팡이 핀 줄눈, 이렇게 잡았습니다</text>
-        <rect x="48" y="232" width="204" height="7" rx="3.5" fill="#EEF0F3"/>
-        <rect x="48" y="245" width="204" height="7" rx="3.5" fill="#EEF0F3"/>
-        <rect x="48" y="258" width="150" height="7" rx="3.5" fill="#EEF0F3"/>
-        <rect x="48" y="274" width="56" height="16" rx="8" fill="#EEF4FF"/>
-        <text x="76" y="285" font-size="8" text-anchor="middle" fill="#1B64DA" font-weight="800">블로그</text>
-        <rect x="110" y="274" width="56" height="16" rx="8" fill="#F4F5F7"/>
-        <text x="138" y="285" font-size="8" text-anchor="middle" fill="#5A6472" font-weight="800">인스타</text>
-        <rect x="172" y="274" width="56" height="16" rx="8" fill="#F4F5F7"/>
-        <text x="200" y="285" font-size="8" text-anchor="middle" fill="#5A6472" font-weight="800">스레드</text>
-
-        <rect x="34" y="312" width="232" height="34" rx="12" fill="#03C75A"/>
-        <text x="150" y="334" font-size="11" text-anchor="middle" fill="#fff" font-weight="800">네이버 블로그에 올리기</text>
       </svg>
     </div>
   </section>
@@ -325,20 +271,14 @@
     <h3>그 외에 막내가 조용히 하는 일들</h3>
     <div class="chips">
       <span>📌 발행 이력 — "그때 얼마였더라?" 3초</span>
-      <span>🔍 전체 검색 — 옛 문자·통화 속 단어까지</span>
-      <span>🔧 A/S 예약 — 시공과 따로, 무료</span>
       <span>📮 정기 문자 예약 — AS·명절 인사</span>
       <span>🤝 협업 증거사진·일당 정산</span>
       <span>🖥️ PC 사진 캘린더 — 웹에서 시공사진 골라 다운로드 (QR 로그인)</span>
+      <span>📲 본폰↔업무폰 일정 미러 (QR)</span>
       <span>📷 사업자등록증·약관 촬영 자동입력</span>
-      <span>🔗 문자 속 전화·날짜 탭 — 바로 전화, 바로 일정 등록</span>
-      <span>📋 원탭 복사 — 주소·계좌·인증번호</span>
-      <span>📌 거래처 핀 고정 — 자주 보는 고객 맨 위로</span>
-      <span>🌙 방해금지 시간대 — 밤엔 조용히</span>
       <span>🗂️ 고객별 타임라인</span>
       <span>✍️ 문자 템플릿 + AI 제목</span>
       <span>🔔 수금 알림</span>
-      <span>📲 본폰↔업무폰 일정 미러 (QR)</span>
     </div>
   </div>
 
@@ -354,7 +294,7 @@
   </div>
 
   <div class="cta-band">
-    <h2>통화 녹음·요약까지, 오늘부터 무료</h2>
+    <h2>세 가지 다, 오늘부터 무료</h2>
     <p>핵심 기능 무료 · 카드 등록 없음 · 전화번호 인증이면 끝</p>
     <a href="/">무료로 시작하기 →</a>
   </div>
