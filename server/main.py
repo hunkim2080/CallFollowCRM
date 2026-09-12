@@ -6689,8 +6689,17 @@ _BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가�
      숫자를 쓰려면 위 연도처럼 확인 가능한 것만.
 - 숫자·계산 예시를 넣으면 좋음. 감탄사·이모지 남발 금지.
 - 허용 HTML: <h2> <p> <ul> <li> <b> <div class="box">(강조 박스). 다른 태그 금지.
-- 이해를 돕는 그림: 독자가 글만으로 이해하기 어려운 대목마다 <figure data-fig="키">한 줄 캡션</figure> 을 본문 중간에 2~3개 배치 (서버가 그림으로 바꿔줌). 키 종류:
-  calc(돈 계산·손실 크기) / flow(일 처리 3단계 흐름) / compare(나쁜 방식 vs 좋은 방식) / phone(고객과 문자 주고받기) / calendar(일정·날짜 겹침) / money(수금·정산 현황). 내용에 맞는 키만 사용.
+- 이해를 돕는 그림: 글만으로 이해하기 어려운 대목마다 <figure data-fig="키">캡션 | 슬롯=값 | 슬롯=값</figure> 를 본문 중간에 2~3개 배치 (서버가 그림으로 바꿔줌).
+  ★ 그림 안 글자(슬롯)를 반드시 이 글 내용으로 채운다. 안 채우면 글과 무관한 기본 문구가 그대로 나가 캡션과 그림이 따로 논다.
+  ★ 각 칸은 짧게 — 제목류 8자 이내, 값 10자 이내, 문장류 18자 이내.
+  calc(A 연산 B = C 계산) 슬롯: ai,a,a2 / op1 / bi,b,b2 / op2 / ci,c,c2  (ai·bi·ci=이모지 1개, op1·op2 는 + × = 중 하나)
+  flow(3단계 흐름) 슬롯: ai,a / bi,b / ci,c
+  compare(나쁜 방식 vs 좋은 방식) 슬롯: bad,bad1,bad2,bad3 / good,good1,good2,good3  (bad·good=한 줄 제목, 1=핵심 칩, 2=따옴표 대사, 3=결과)
+  phone(고객과 문자) 슬롯: q(고객이 보낸 말), a(내 답장), ok(상태 한 줄)
+  calendar(일정·겹침) 슬롯: m(월), c1(파란 일정), c2(빨간 겹침), c3(초록 자동)
+  money(수금·정산) 슬롯: t1,v1,n1 / t2,v2,n2  (t=현장명, v=금액·상태, n=한 줄 설명)
+  예) <figure data-fig="calc">줄눈 창업 초기비용 구성 | ai=🧰 | a=장비·재료 | a2=150만 | op1=+ | bi=📚 | b=교육 | b2=60만 | op2== | ci=💰 | c=총 초기비용 | c2=210만</figure>
+  내용에 맞는 키만 사용.
 
 출력은 반드시 JSON 하나:
 {"title": "후킹형 제목 (35자 이내)", "description": "검색 결과에 보일 요약 (100자 내외, 키워드 포함)", "category": "고객 응대|견적|일정 관리|수금·정산|영업·단골 중 하나", "tags": ["시공 사장님이 검색할 법한 키워드 4~6개 (예: 시공 어플, 공수 계산, 견적서 양식, 부재중 문자, 인테리어 단골). # 없이 단어만"], "body_html": "<p>...</p><h2>...</h2>... (본문 전체, 1200~1800자, CTA 밴드는 넣지 말 것 — 서버가 붙임)"}"""
@@ -6774,78 +6783,222 @@ def _render_tag_chips(tags) -> str:
 
 
 # ── 추가106 — 본문 중간 이해용 일러스트 세트 ──
-# Claude 가 <figure data-fig="키">캡션</figure> 로 위치만 고르면 서버가 SVG 로 치환.
+# Claude 가 <figure data-fig="키">캡션 | 슬롯=값 | 슬롯=값</figure> 로 그림 내용까지 지정.
+# (2026-09-12) 예전엔 그림 안 글자가 고정이라 캡션("초기비용 항목")과 그림("놓친 전화")이
+# 따로 놀았다 → 칸(슬롯)만 남기고 글자는 글 내용으로 채운다. 슬롯 안 주면 기존 기본값.
 _FIG_SVG_COMMON = 'xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block"'
-_FIG_SVGS: dict[str, str] = {
-    # 돈 계산 인포그래픽 (놓친 매출/미수금 등)
-    "calc": f'''<svg viewBox="0 0 640 210" {_FIG_SVG_COMMON} role="img">
-<rect width="640" height="210" rx="16" fill="#EEF4FF"/>
-<rect x="24" y="30" width="150" height="150" rx="14" fill="#fff"/><text x="99" y="86" font-size="34" text-anchor="middle">📵</text><text x="99" y="122" font-size="14" text-anchor="middle" font-weight="800" fill="#0B0F19">놓친 전화</text><text x="99" y="146" font-size="12" text-anchor="middle" fill="#5A6472">월 10통</text>
-<text x="205" y="112" font-size="26" text-anchor="middle" fill="#1B64DA" font-weight="900">×</text>
-<rect x="236" y="30" width="150" height="150" rx="14" fill="#fff"/><text x="311" y="86" font-size="34" text-anchor="middle">🤝</text><text x="311" y="122" font-size="14" text-anchor="middle" font-weight="800" fill="#0B0F19">계약 전환</text><text x="311" y="146" font-size="12" text-anchor="middle" fill="#5A6472">약 30%</text>
-<text x="417" y="112" font-size="26" text-anchor="middle" fill="#1B64DA" font-weight="900">=</text>
-<rect x="448" y="30" width="168" height="150" rx="14" fill="#1B64DA"/><text x="532" y="86" font-size="34" text-anchor="middle">💸</text><text x="532" y="122" font-size="15" text-anchor="middle" font-weight="900" fill="#fff">증발한 매출</text><text x="532" y="146" font-size="12" text-anchor="middle" fill="#CFE0FF">매달 수백만 원</text></svg>''',
-    # 3단계 흐름
-    "flow": f'''<svg viewBox="0 0 640 190" {_FIG_SVG_COMMON} role="img">
-<rect width="640" height="190" rx="16" fill="#F4F5F7"/>
-<rect x="26" y="46" width="170" height="98" rx="14" fill="#fff"/><text x="111" y="88" font-size="28" text-anchor="middle">📞</text><text x="111" y="120" font-size="13" text-anchor="middle" font-weight="800" fill="#0B0F19">일이 생기는 순간</text>
-<path d="M206 95 h26 m-8 -7 l8 7 l-8 7" stroke="#3182F6" stroke-width="3" fill="none" stroke-linecap="round"/>
-<rect x="242" y="46" width="170" height="98" rx="14" fill="#fff"/><text x="327" y="88" font-size="28" text-anchor="middle">📝</text><text x="327" y="120" font-size="13" text-anchor="middle" font-weight="800" fill="#0B0F19">그 자리에서 기록</text>
-<path d="M422 95 h26 m-8 -7 l8 7 l-8 7" stroke="#3182F6" stroke-width="3" fill="none" stroke-linecap="round"/>
-<rect x="458" y="46" width="156" height="98" rx="14" fill="#1B64DA"/><text x="536" y="88" font-size="28" text-anchor="middle">✅</text><text x="536" y="120" font-size="13" text-anchor="middle" font-weight="900" fill="#fff">자동으로 처리</text></svg>''',
-    # 나쁜 예 vs 좋은 예
-    "compare": f'''<svg viewBox="0 0 640 230" {_FIG_SVG_COMMON} role="img">
-<rect width="640" height="230" rx="16" fill="#F4F5F7"/>
-<rect x="24" y="26" width="284" height="178" rx="14" fill="#fff"/><rect x="24" y="26" width="284" height="6" rx="3" fill="#F0436A"/>
-<text x="166" y="66" font-size="15" text-anchor="middle" font-weight="900" fill="#F0436A">❌ 이렇게 하면</text>
-<rect x="48" y="86" width="236" height="34" rx="10" fill="#FDE8ED"/><text x="166" y="108" font-size="12.5" text-anchor="middle" fill="#B01E45">말로만 · 기억에 의존 · 기록 없음</text>
-<text x="166" y="152" font-size="12.5" text-anchor="middle" fill="#5A6472">"그때 그렇게 말씀하셨잖아요"</text>
-<text x="166" y="176" font-size="12.5" text-anchor="middle" fill="#5A6472">분쟁 · 재작업 · 신뢰 하락</text>
-<rect x="332" y="26" width="284" height="178" rx="14" fill="#fff"/><rect x="332" y="26" width="284" height="6" rx="3" fill="#16C172"/>
-<text x="474" y="66" font-size="15" text-anchor="middle" font-weight="900" fill="#0B7A45">⭕ 이렇게 하면</text>
-<rect x="356" y="86" width="236" height="34" rx="10" fill="#E7F8EF"/><text x="474" y="108" font-size="12.5" text-anchor="middle" fill="#0B7A45">문서로 · 자동 기록 · 언제든 확인</text>
-<text x="474" y="152" font-size="12.5" text-anchor="middle" fill="#5A6472">"여기 적혀 있는 대로 진행할게요"</text>
-<text x="474" y="176" font-size="12.5" text-anchor="middle" fill="#5A6472">깔끔한 마무리 · 소개로 이어짐</text></svg>''',
-    # 폰 문자 주고받기
-    "phone": f'''<svg viewBox="0 0 640 220" {_FIG_SVG_COMMON} role="img">
-<rect width="640" height="220" rx="16" fill="#EEF4FF"/>
-<rect x="150" y="24" width="340" height="172" rx="18" fill="#fff"/>
-<rect x="174" y="48" width="200" height="40" rx="14" fill="#F4F5F7"/><text x="188" y="73" font-size="13" fill="#333D4B">사장님, 견적 얼마예요?</text>
-<rect x="266" y="100" width="200" height="40" rx="14" fill="#3182F6"/><text x="280" y="125" font-size="13" fill="#fff">견적서와 링크 보내드렸어요 📄</text>
-<rect x="174" y="152" width="130" height="30" rx="12" fill="#E7F8EF"/><text x="188" y="172" font-size="12" fill="#0B7A45">접수 완료 ✓</text></svg>''',
-    # 달력 겹침/일정
-    "calendar": f'''<svg viewBox="0 0 640 220" {_FIG_SVG_COMMON} role="img">
-<rect width="640" height="220" rx="16" fill="#F4F5F7"/>
-<rect x="60" y="28" width="520" height="164" rx="14" fill="#fff"/>
-<rect x="60" y="28" width="520" height="40" rx="14" fill="#1B64DA"/><text x="320" y="54" font-size="15" text-anchor="middle" fill="#fff" font-weight="800">7월</text>
-<g font-size="13" fill="#5A6472" text-anchor="middle"><text x="120" y="98">월</text><text x="220" y="98">화</text><text x="320" y="98">수</text><text x="420" y="98">목</text><text x="520" y="98">금</text></g>
-<rect x="285" y="112" width="70" height="30" rx="9" fill="#EEF4FF"/><text x="320" y="132" font-size="11.5" text-anchor="middle" fill="#1B64DA" font-weight="800">A 현장</text>
-<rect x="285" y="148" width="70" height="30" rx="9" fill="#FDE8ED"/><text x="320" y="168" font-size="11.5" text-anchor="middle" fill="#F0436A" font-weight="800">B 현장?!</text>
-<rect x="385" y="112" width="70" height="30" rx="9" fill="#E7F8EF"/><text x="420" y="132" font-size="11.5" text-anchor="middle" fill="#0B7A45" font-weight="800">자동 등록</text></svg>''',
-    # 돈/정산
-    "money": f'''<svg viewBox="0 0 640 200" {_FIG_SVG_COMMON} role="img">
-<rect width="640" height="200" rx="16" fill="#F4F5F7"/>
-<rect x="40" y="34" width="270" height="132" rx="14" fill="#fff"/>
-<text x="60" y="70" font-size="13.5" font-weight="800" fill="#0B0F19">동탄 욕실 — 잔금</text>
-<rect x="60" y="86" width="160" height="12" rx="6" fill="#FDE8ED"/><text x="290" y="97" font-size="13" text-anchor="end" font-weight="900" fill="#F0436A">90만 미수</text>
-<text x="60" y="140" font-size="12" fill="#9AA3AF">잊고 있으면 그냥 사라지는 돈</text>
-<rect x="330" y="34" width="270" height="132" rx="14" fill="#fff"/>
-<text x="350" y="70" font-size="13.5" font-weight="800" fill="#0B0F19">수원 타일 — 계약금</text>
-<rect x="350" y="86" width="200" height="12" rx="6" fill="#E7F8EF"/><text x="580" y="97" font-size="13" text-anchor="end" font-weight="900" fill="#0B7A45">입금 확인 ✓</text>
-<text x="350" y="140" font-size="12" fill="#9AA3AF">현장별로 화면에 남아 있는 돈</text></svg>''',
+
+
+def _fig_esc(v) -> str:
+    import html as _html
+    return _html.escape(str(v if v is not None else "").strip())
+
+
+def _fig_fs(v, max_chars: int, base: float) -> float:
+    """칸보다 글자가 길면 폰트를 줄여 상자 밖 넘침을 막는다 (최소 62%)."""
+    n = len(str(v if v is not None else "").strip())
+    if n <= max_chars or n == 0:
+        return round(base, 1)
+    return round(max(base * 0.62, base * max_chars / float(n)), 1)
+
+
+def _fig_calc(s: dict) -> str:
+    """A (연산) B = C 계산 인포그래픽."""
+    g = lambda k, d: str(s.get(k) or d).strip()
+    ai, a, a2 = g("ai", "📵"), g("a", "놓친 전화"), g("a2", "월 10통")
+    bi, b, b2 = g("bi", "🤝"), g("b", "계약 전환"), g("b2", "약 30%")
+    ci, c, c2 = g("ci", "💸"), g("c", "증발한 매출"), g("c2", "매달 수백만 원")
+    op1, op2 = g("op1", "×"), g("op2", "=")
+    e = _fig_esc
+    return (
+        f'<svg viewBox="0 0 640 210" {_FIG_SVG_COMMON} role="img">'
+        f'<rect width="640" height="210" rx="16" fill="#EEF4FF"/>'
+        f'<rect x="24" y="30" width="150" height="150" rx="14" fill="#fff"/>'
+        f'<text x="99" y="86" font-size="34" text-anchor="middle">{e(ai)}</text>'
+        f'<text x="99" y="122" font-size="{_fig_fs(a, 8, 14)}" text-anchor="middle" font-weight="800" fill="#0B0F19">{e(a)}</text>'
+        f'<text x="99" y="146" font-size="{_fig_fs(a2, 10, 12)}" text-anchor="middle" fill="#5A6472">{e(a2)}</text>'
+        f'<text x="205" y="112" font-size="26" text-anchor="middle" fill="#1B64DA" font-weight="900">{e(op1)}</text>'
+        f'<rect x="236" y="30" width="150" height="150" rx="14" fill="#fff"/>'
+        f'<text x="311" y="86" font-size="34" text-anchor="middle">{e(bi)}</text>'
+        f'<text x="311" y="122" font-size="{_fig_fs(b, 8, 14)}" text-anchor="middle" font-weight="800" fill="#0B0F19">{e(b)}</text>'
+        f'<text x="311" y="146" font-size="{_fig_fs(b2, 10, 12)}" text-anchor="middle" fill="#5A6472">{e(b2)}</text>'
+        f'<text x="417" y="112" font-size="26" text-anchor="middle" fill="#1B64DA" font-weight="900">{e(op2)}</text>'
+        f'<rect x="448" y="30" width="168" height="150" rx="14" fill="#1B64DA"/>'
+        f'<text x="532" y="86" font-size="34" text-anchor="middle">{e(ci)}</text>'
+        f'<text x="532" y="122" font-size="{_fig_fs(c, 9, 15)}" text-anchor="middle" font-weight="900" fill="#fff">{e(c)}</text>'
+        f'<text x="532" y="146" font-size="{_fig_fs(c2, 11, 12)}" text-anchor="middle" fill="#CFE0FF">{e(c2)}</text>'
+        f'</svg>'
+    )
+
+
+def _fig_flow(s: dict) -> str:
+    """3단계 흐름."""
+    g = lambda k, d: str(s.get(k) or d).strip()
+    ai, a = g("ai", "📞"), g("a", "일이 생기는 순간")
+    bi, b = g("bi", "📝"), g("b", "그 자리에서 기록")
+    ci, c = g("ci", "✅"), g("c", "자동으로 처리")
+    e = _fig_esc
+    arrow = ('<path d="M{x} 95 h26 m-8 -7 l8 7 l-8 7" stroke="#3182F6" stroke-width="3" '
+             'fill="none" stroke-linecap="round"/>')
+    return (
+        f'<svg viewBox="0 0 640 190" {_FIG_SVG_COMMON} role="img">'
+        f'<rect width="640" height="190" rx="16" fill="#F4F5F7"/>'
+        f'<rect x="26" y="46" width="170" height="98" rx="14" fill="#fff"/>'
+        f'<text x="111" y="88" font-size="28" text-anchor="middle">{e(ai)}</text>'
+        f'<text x="111" y="120" font-size="{_fig_fs(a, 11, 13)}" text-anchor="middle" font-weight="800" fill="#0B0F19">{e(a)}</text>'
+        + arrow.replace("{x}", "206") +
+        f'<rect x="242" y="46" width="170" height="98" rx="14" fill="#fff"/>'
+        f'<text x="327" y="88" font-size="28" text-anchor="middle">{e(bi)}</text>'
+        f'<text x="327" y="120" font-size="{_fig_fs(b, 11, 13)}" text-anchor="middle" font-weight="800" fill="#0B0F19">{e(b)}</text>'
+        + arrow.replace("{x}", "422") +
+        f'<rect x="458" y="46" width="156" height="98" rx="14" fill="#1B64DA"/>'
+        f'<text x="536" y="88" font-size="28" text-anchor="middle">{e(ci)}</text>'
+        f'<text x="536" y="120" font-size="{_fig_fs(c, 10, 13)}" text-anchor="middle" font-weight="900" fill="#fff">{e(c)}</text>'
+        f'</svg>'
+    )
+
+
+def _fig_compare(s: dict) -> str:
+    """나쁜 방식 vs 좋은 방식."""
+    g = lambda k, d: str(s.get(k) or d).strip()
+    bad = g("bad", "이렇게 하면")
+    bad1 = g("bad1", "말로만 · 기억에 의존 · 기록 없음")
+    bad2 = g("bad2", "“그때 그렇게 말씀하셨잖아요”")
+    bad3 = g("bad3", "분쟁 · 재작업 · 신뢰 하락")
+    good = g("good", "이렇게 하면")
+    good1 = g("good1", "문서로 · 자동 기록 · 언제든 확인")
+    good2 = g("good2", "“여기 적혀 있는 대로 진행할게요”")
+    good3 = g("good3", "깔끔한 마무리 · 소개로 이어짐")
+    e = _fig_esc
+    return (
+        f'<svg viewBox="0 0 640 230" {_FIG_SVG_COMMON} role="img">'
+        f'<rect width="640" height="230" rx="16" fill="#F4F5F7"/>'
+        f'<rect x="24" y="26" width="284" height="178" rx="14" fill="#fff"/>'
+        f'<rect x="24" y="26" width="284" height="6" rx="3" fill="#F0436A"/>'
+        f'<text x="166" y="66" font-size="{_fig_fs(bad, 11, 15)}" text-anchor="middle" font-weight="900" fill="#F0436A">❌ {e(bad)}</text>'
+        f'<rect x="48" y="86" width="236" height="34" rx="10" fill="#FDE8ED"/>'
+        f'<text x="166" y="108" font-size="{_fig_fs(bad1, 17, 12.5)}" text-anchor="middle" fill="#B01E45">{e(bad1)}</text>'
+        f'<text x="166" y="152" font-size="{_fig_fs(bad2, 19, 12.5)}" text-anchor="middle" fill="#5A6472">{e(bad2)}</text>'
+        f'<text x="166" y="176" font-size="{_fig_fs(bad3, 19, 12.5)}" text-anchor="middle" fill="#5A6472">{e(bad3)}</text>'
+        f'<rect x="332" y="26" width="284" height="178" rx="14" fill="#fff"/>'
+        f'<rect x="332" y="26" width="284" height="6" rx="3" fill="#16C172"/>'
+        f'<text x="474" y="66" font-size="{_fig_fs(good, 11, 15)}" text-anchor="middle" font-weight="900" fill="#0B7A45">⭕ {e(good)}</text>'
+        f'<rect x="356" y="86" width="236" height="34" rx="10" fill="#E7F8EF"/>'
+        f'<text x="474" y="108" font-size="{_fig_fs(good1, 17, 12.5)}" text-anchor="middle" fill="#0B7A45">{e(good1)}</text>'
+        f'<text x="474" y="152" font-size="{_fig_fs(good2, 19, 12.5)}" text-anchor="middle" fill="#5A6472">{e(good2)}</text>'
+        f'<text x="474" y="176" font-size="{_fig_fs(good3, 19, 12.5)}" text-anchor="middle" fill="#5A6472">{e(good3)}</text>'
+        f'</svg>'
+    )
+
+
+def _fig_phone(s: dict) -> str:
+    """고객과 문자 주고받기 (말풍선 폭은 글자 길이에 맞춰 늘어남)."""
+    g = lambda k, d: str(s.get(k) or d).strip()
+    q = g("q", "사장님, 견적 얼마예요?")
+    a = g("a", "견적서와 링크 보내드렸어요 📄")
+    ok = g("ok", "접수 완료 ✓")
+    e = _fig_esc
+
+    def _w(t, fs, lo, hi):
+        return int(min(hi, max(lo, len(t) * fs * 0.92 + 28)))
+
+    wq, wa, wo = _w(q, 13, 120, 300), _w(a, 13, 120, 300), _w(ok, 12, 96, 240)
+    xa = 466 - wa
+    return (
+        f'<svg viewBox="0 0 640 220" {_FIG_SVG_COMMON} role="img">'
+        f'<rect width="640" height="220" rx="16" fill="#EEF4FF"/>'
+        f'<rect x="150" y="24" width="340" height="172" rx="18" fill="#fff"/>'
+        f'<rect x="174" y="48" width="{wq}" height="40" rx="14" fill="#F4F5F7"/>'
+        f'<text x="188" y="73" font-size="{_fig_fs(q, 20, 13)}" fill="#333D4B">{e(q)}</text>'
+        f'<rect x="{xa}" y="100" width="{wa}" height="40" rx="14" fill="#3182F6"/>'
+        f'<text x="{xa + 14}" y="125" font-size="{_fig_fs(a, 20, 13)}" fill="#fff">{e(a)}</text>'
+        f'<rect x="174" y="152" width="{wo}" height="30" rx="12" fill="#E7F8EF"/>'
+        f'<text x="188" y="172" font-size="{_fig_fs(ok, 16, 12)}" fill="#0B7A45">{e(ok)}</text>'
+        f'</svg>'
+    )
+
+
+def _fig_calendar(s: dict) -> str:
+    """일정·날짜 겹침."""
+    g = lambda k, d: str(s.get(k) or d).strip()
+    m = g("m", "7월")
+    c1, c2, c3 = g("c1", "A 현장"), g("c2", "B 현장?!"), g("c3", "자동 등록")
+    e = _fig_esc
+    return (
+        f'<svg viewBox="0 0 640 220" {_FIG_SVG_COMMON} role="img">'
+        f'<rect width="640" height="220" rx="16" fill="#F4F5F7"/>'
+        f'<rect x="60" y="28" width="520" height="164" rx="14" fill="#fff"/>'
+        f'<rect x="60" y="28" width="520" height="40" rx="14" fill="#1B64DA"/>'
+        f'<text x="320" y="54" font-size="15" text-anchor="middle" fill="#fff" font-weight="800">{e(m)}</text>'
+        f'<g font-size="13" fill="#5A6472" text-anchor="middle"><text x="120" y="98">월</text>'
+        f'<text x="220" y="98">화</text><text x="320" y="98">수</text>'
+        f'<text x="420" y="98">목</text><text x="520" y="98">금</text></g>'
+        f'<rect x="285" y="112" width="70" height="30" rx="9" fill="#EEF4FF"/>'
+        f'<text x="320" y="132" font-size="{_fig_fs(c1, 6, 11.5)}" text-anchor="middle" fill="#1B64DA" font-weight="800">{e(c1)}</text>'
+        f'<rect x="285" y="148" width="70" height="30" rx="9" fill="#FDE8ED"/>'
+        f'<text x="320" y="168" font-size="{_fig_fs(c2, 6, 11.5)}" text-anchor="middle" fill="#F0436A" font-weight="800">{e(c2)}</text>'
+        f'<rect x="385" y="112" width="70" height="30" rx="9" fill="#E7F8EF"/>'
+        f'<text x="420" y="132" font-size="{_fig_fs(c3, 6, 11.5)}" text-anchor="middle" fill="#0B7A45" font-weight="800">{e(c3)}</text>'
+        f'</svg>'
+    )
+
+
+def _fig_money(s: dict) -> str:
+    """수금·정산 현황 2칸."""
+    g = lambda k, d: str(s.get(k) or d).strip()
+    t1, v1, n1 = g("t1", "동탄 욕실 — 잔금"), g("v1", "90만 미수"), g("n1", "잊고 있으면 그냥 사라지는 돈")
+    t2, v2, n2 = g("t2", "수원 타일 — 계약금"), g("v2", "입금 확인 ✓"), g("n2", "현장별로 화면에 남아 있는 돈")
+    e = _fig_esc
+    return (
+        f'<svg viewBox="0 0 640 200" {_FIG_SVG_COMMON} role="img">'
+        f'<rect width="640" height="200" rx="16" fill="#F4F5F7"/>'
+        f'<rect x="40" y="34" width="270" height="132" rx="14" fill="#fff"/>'
+        f'<text x="60" y="70" font-size="{_fig_fs(t1, 14, 13.5)}" font-weight="800" fill="#0B0F19">{e(t1)}</text>'
+        f'<rect x="60" y="86" width="160" height="12" rx="6" fill="#FDE8ED"/>'
+        f'<text x="290" y="97" font-size="{_fig_fs(v1, 9, 13)}" text-anchor="end" font-weight="900" fill="#F0436A">{e(v1)}</text>'
+        f'<text x="60" y="140" font-size="{_fig_fs(n1, 17, 12)}" fill="#9AA3AF">{e(n1)}</text>'
+        f'<rect x="330" y="34" width="270" height="132" rx="14" fill="#fff"/>'
+        f'<text x="350" y="70" font-size="{_fig_fs(t2, 14, 13.5)}" font-weight="800" fill="#0B0F19">{e(t2)}</text>'
+        f'<rect x="350" y="86" width="200" height="12" rx="6" fill="#E7F8EF"/>'
+        f'<text x="580" y="97" font-size="{_fig_fs(v2, 9, 13)}" text-anchor="end" font-weight="900" fill="#0B7A45">{e(v2)}</text>'
+        f'<text x="350" y="140" font-size="{_fig_fs(n2, 17, 12)}" fill="#9AA3AF">{e(n2)}</text>'
+        f'</svg>'
+    )
+
+
+_FIG_BUILDERS = {
+    "calc": _fig_calc, "flow": _fig_flow, "compare": _fig_compare,
+    "phone": _fig_phone, "calendar": _fig_calendar, "money": _fig_money,
 }
 
 
+def _parse_fig_slots(raw: str):
+    """'캡션 | a=값 | b=값' → (캡션, {슬롯: 값}). 옛 '캡션만' 형식도 그대로 동작."""
+    import re as _re
+    caption_parts = []
+    slots = {}
+    for seg in str(raw or "").split("|"):
+        m = _re.match(r"^\s*([a-z][a-z0-9_]{0,6})\s*=(.*)$", seg, _re.S)
+        if m:
+            slots[m.group(1)] = m.group(2).strip()
+        elif seg.strip():
+            caption_parts.append(seg.strip())
+    return " ".join(caption_parts).strip(), slots
+
+
 def _inject_blog_figures(body: str) -> str:
-    """<figure data-fig="키">캡션</figure> → 실제 SVG + 캡션으로 치환."""
+    """<figure data-fig="키">캡션 | 슬롯=값</figure> → 실제 SVG + 캡션으로 치환."""
     import re as _re
     import html as _html
 
     def _rep(m):
-        key = m.group(1)
-        caption = m.group(2).strip()
-        svg = _FIG_SVGS.get(key)
-        if not svg:
+        build = _FIG_BUILDERS.get(m.group(1))
+        if not build:
+            return ""
+        caption, slots = _parse_fig_slots(m.group(2))
+        try:
+            svg = build(slots)
+        except Exception:
             return ""
         cap = (f'<figcaption style="font-size:12.5px;color:#9AA3AF;text-align:center;'
                f'margin-top:8px">{_html.escape(caption)}</figcaption>') if caption else ""
