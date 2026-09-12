@@ -9769,3 +9769,9 @@ whisper base→small — 한국어 전사 정확도↑ (사장님 지적: 진작
 - 변경: 앱 전용. openInstallPage → market://details(폴백 play.google.com → si0in). 배너 Play 가드 제거. 문구 "업데이트".
 - 배경: Play 설치 앱은 구글 재서명 → si0in APK 설치 거부(2026-09-03 실측). 배포를 Play 로 일원화.
 - commit: (위)
+
+## 2026-09-12 13:10 · android
+Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
+- 변경: 앱 전용. app-update-ktx:2.1.0. InAppUpdater(checkOnStart/completeIfDownloaded) + MainActivity 배선. 홈 배너는 폴백 유지.
+- 한계: Play 설치 앱만 동작 / Play 인지 시차 있음.
+- commit: (위)
