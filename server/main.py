@@ -2384,6 +2384,48 @@ VALID_URGENCIES = {"high", "medium", "low", "none"}
 # ============================================================================
 # Claude 호출
 # ============================================================================
+def _repair_json_stray_quotes(text: str) -> str:
+    """JSON 문자열 값 안에 escape 없이 들어온 " 를 살려낸다.
+
+    (2026-09-12) 모델이 body_html 에 <figure data-fig="calc"> 같은 HTML 속성
+    따옴표를 그대로 뱉는 일이 잦다. JSON 에선 백슬래시+" 여야 해서 그 하나로
+    통째 파싱이 깨진다. -> '진짜 종료 따옴표'만 남기고 나머지는 escape 해준다.
+    종료 판정: 다음 공백 아닌 문자가 , : } ] 이거나 문자열 끝이면 진짜 종료.
+    """
+    _BS = chr(92)
+    out = []
+    in_str = False
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if not in_str:
+            out.append(ch)
+            if ch == '"':
+                in_str = True
+            i += 1
+            continue
+        if ch == _BS and i + 1 < n:
+            out.append(ch)
+            out.append(text[i + 1])
+            i += 2
+            continue
+        if ch == '"':
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if j >= n or text[j] in ",:}]":
+                out.append(ch)
+                in_str = False
+            else:
+                out.append(_BS + '"')
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _parse_json_object(raw_text: str) -> dict:
     """Claude 응답에서 JSON 객체 한 개 추출. leading prose / 코드블럭 / trailing 처리.
 
@@ -2407,8 +2449,42 @@ def _parse_json_object(raw_text: str) -> dict:
 
     try:
         parsed, _ = json.JSONDecoder().raw_decode(text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Bad JSON from Claude: {text[:300]!r}") from e
+    except json.JSONDecodeError as e_first:
+        # 1차 실패 -> '잘못된 이스케이프' 복구 후 재시도.
+        # (2026-09-12 블로그 생성 500 의 실제 원인: 모델이 홑따옴표를 이스케이프해서 보냄)
+        # JSON 이 허용하는 이스케이프는 8종뿐이라 그 하나로 통째 파싱이 깨진다.
+        # -> 허용목록 밖 이스케이프는 백슬래시만 떼어 원래 문자로 되돌린다(내용 손실 없음).
+        import re as _re
+        _bad = _re.compile(r'\\\\|\\([^"\\/bfnrtu])')
+        repaired = _bad.sub(lambda m: m.group(0) if m.group(1) is None else m.group(1), text)
+        parsed = None
+        for _label, _dec, _src in (
+            ("이스케이프 복구", json.JSONDecoder(), repaired),
+            # strict=False = 문자열 안에 생 줄바꿈/제어문자가 들어와도 통과시킨다.
+            ("이스케이프+제어문자 복구", json.JSONDecoder(strict=False), repaired),
+            ("제어문자만 복구", json.JSONDecoder(strict=False), text),
+            ("따옴표 복구", json.JSONDecoder(strict=False),
+             _repair_json_stray_quotes(repaired)),
+            ("따옴표 복구(원문)", json.JSONDecoder(strict=False),
+             _repair_json_stray_quotes(text)),
+        ):
+            try:
+                parsed, _ = _dec.raw_decode(_src)
+                print(f"[json] {_label} 후 파싱 성공 (len={len(text)})")
+                break
+            except json.JSONDecodeError:
+                continue
+        if parsed is None:
+            # 원인 파악용 원문 덤프 (민감정보 없음: 블로그/요약 본문)
+            try:
+                import time as _t
+                _dump = f"/tmp/ringgo_bad_json_{int(_t.time())}.txt"
+                with open(_dump, "w", encoding="utf-8") as _f:
+                    _f.write(text)
+                print(f"[json] 파싱 실패 원문 덤프: {_dump} (pos={getattr(e_first, 'pos', None)})")
+            except Exception:
+                pass
+            raise ValueError(f"Bad JSON from Claude: {text[:300]!r}") from e_first
 
     if not isinstance(parsed, dict):
         raise ValueError(f"Not a JSON object: {parsed!r}")
@@ -6817,7 +6893,7 @@ async def _blog_generate_one(slug: Optional[str] = None) -> dict:
                 f"기승전으로 연결할 시공막내 기능: {feature}\n"
                 f"위 스타일 규칙대로 JSON 으로 글을 써줘.")
     parsed, response = await call_claude_json(
-        system_prompt=_BLOG_WRITE_SYSTEM, user_msg=user_msg, max_tokens=3000)
+        system_prompt=_BLOG_WRITE_SYSTEM, user_msg=user_msg, max_tokens=8000)
     _log_llm_usage_from_response("blog-autopublish", response)
     title = (parsed.get("title") or angle)[:60].strip()
     desc = (parsed.get("description") or "")[:160].strip()
