@@ -6111,9 +6111,10 @@ async def home_pricing():
 
 
 @app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
-async def home_blog():
+async def home_blog(page: int = 1, cat: str = ""):
     # 추가105 — DB 자동 발행분 + 초기 3편 합쳐 동적 렌더
-    return HTMLResponse(content=_render_blog_index_html())
+    # (2026-09-13) 글이 100편을 넘어 한 화면에 다 쏟아지던 것 → 카테고리 칩 + 페이지 번호
+    return HTMLResponse(content=_render_blog_index_html(page=page, cat=cat))
 
 
 @app.get("/updates", response_class=HTMLResponse, include_in_schema=False)
@@ -6585,6 +6586,18 @@ def _kst_now() -> "_dt.datetime":
     return _dt.datetime.utcnow() + _dt.timedelta(hours=9)
 
 
+# (2026-09-13) 썸네일이 전부 같은 파랑이라 목록이 파란 상자 벽처럼 보였다.
+# 카테고리마다 색을 달리해 훑을 때 구분되게 한다. 흰 글씨가 얹히니 전부 진한 색으로.
+_THUMB_COLORS = {
+    "견적":     ((49, 130, 246), (23, 88, 196)),     # 파랑
+    "영업·단골": ((124, 92, 252), (85, 58, 200)),     # 보라
+    "고객 응대":  ((18, 181, 165), (10, 124, 113)),    # 청록
+    "일정 관리":  ((232, 137, 11), (176, 96, 6)),      # 주황
+    "수금·정산": ((240, 67, 106), (186, 38, 72)),     # 코랄
+}
+_THUMB_COLOR_DEFAULT = ((49, 130, 246), (23, 88, 196))
+
+
 def _make_blog_thumb(title: str, category: str, slug: str) -> str:
     """1200×630 대표 섬네일 PNG 생성. 실패 시 default.png fallback."""
     try:
@@ -6605,7 +6618,7 @@ def _make_blog_thumb(title: str, category: str, slug: str) -> str:
 
         img = Image.new("RGB", (W, H))
         d = ImageDraw.Draw(img)
-        c1, c2 = (49, 130, 246), (23, 88, 196)
+        c1, c2 = _THUMB_COLORS.get((category or "").strip(), _THUMB_COLOR_DEFAULT)
         for y in range(H):
             t = y / H
             d.line([(0, y), (W, y)], fill=(
@@ -6644,7 +6657,7 @@ def _make_blog_thumb(title: str, category: str, slug: str) -> str:
             f = _font(30)
             tw = d.textlength(category, font=f)
             d.rounded_rectangle([70, top, 70 + tw + 48, top + 58], radius=29, fill="white")
-            d.text((94, top + 9), category, font=f, fill=(27, 100, 218))
+            d.text((94, top + 9), category, font=f, fill=c2)
             top += 92
         ts = 84
         lines = [title]
@@ -7274,22 +7287,88 @@ _BLOG_STATIC_META = [
 _BLOG_STATIC_META_MAP = {m["slug"]: m for m in _BLOG_STATIC_META}
 
 
-def _render_blog_index_html() -> str:
+_BLOG_PER_PAGE = 12
+
+
+def _blog_pager_html(page: int, pages: int, cat: str) -> str:
+    """< 1 2 3 … 9 > 페이지 번호. 현재 주변만 보여주고 나머지는 … 로 접는다."""
+    if pages <= 1:
+        return ""
+    import html as _html
+
+    def _href(n: int) -> str:
+        q = "?page=%d" % n
+        if cat:
+            q += "&cat=" + _html.escape(cat, quote=True).replace(" ", "%20")
+        return "/blog" + q
+
+    out = []
+    out.append(f'<a href="{_href(page - 1)}">‹</a>' if page > 1
+               else '<span class="off">‹</span>')
+    shown = sorted({1, pages, page - 1, page, page + 1})
+    prev = 0
+    for n in shown:
+        if n < 1 or n > pages:
+            continue
+        if prev and n - prev > 1:
+            out.append('<span class="gap">…</span>')
+        out.append(f'<span class="on">{n}</span>' if n == page
+                   else f'<a href="{_href(n)}">{n}</a>')
+        prev = n
+    out.append(f'<a href="{_href(page + 1)}">›</a>' if page < pages
+               else '<span class="off">›</span>')
+    return '<div class="pager">' + "".join(out) + "</div>"
+
+
+def _render_blog_index_html(page: int = 1, cat: str = "") -> str:
     import html as _html
     _blog_db_init()
     with db_conn() as con:
         rows = con.execute(
-            "SELECT slug, title, description, category, created_at_ms FROM blog_posts "
-            "ORDER BY created_at_ms DESC").fetchall()
+            "SELECT slug, title, description, category, created_at_ms, thumb "
+            "FROM blog_posts ORDER BY created_at_ms DESC").fetchall()
     cards = []
-    for slug, title, desc, cat, ms in rows:
+    for slug, title, desc, cat_, ms, thumb in rows:
         dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
-        with db_conn() as con2:
-            trow = con2.execute("SELECT thumb FROM blog_posts WHERE slug = ?", (slug,)).fetchone()
         cards.append({"slug": slug, "title": title, "description": desc,
-                      "category": cat, "date": f"{dt.year}. {dt.month}. {dt.day}",
-                      "thumb": (trow[0] if trow and trow[0] else "/static/thumbs/default.png")})
+                      "category": cat_, "date": f"{dt.year}. {dt.month}. {dt.day}",
+                      "thumb": thumb or "/static/thumbs/default.png"})
     cards += _BLOG_STATIC_META
+
+    # ── 카테고리 칩 (글 수 표시) ────────────────────────────────
+    counts: dict = {}
+    for c in cards:
+        k = (c.get("category") or "").strip()
+        if k:
+            counts[k] = counts.get(k, 0) + 1
+    order = sorted(counts.items(), key=lambda kv: -kv[1])
+    cat = (cat or "").strip()
+    if cat and cat not in counts:
+        cat = ""
+    chips = ['<a href="/blog"%s>전체<span class="n">%d</span></a>'
+             % ("" if not cat else "", len(cards))]
+    if not cat:
+        chips[0] = chips[0].replace('<a href="/blog"', '<a href="/blog" class="on"')
+    for k, v in order:
+        on = ' class="on"' if k == cat else ""
+        chips.append('<a href="/blog?cat=%s"%s>%s<span class="n">%d</span></a>'
+                     % (_html.escape(k, quote=True).replace(" ", "%20"), on,
+                        _html.escape(k), v))
+    chips_html = '<div class="chips">' + "".join(chips) + "</div>"
+
+    if cat:
+        cards = [c for c in cards if (c.get("category") or "").strip() == cat]
+
+    # ── 페이지 나누기 ──────────────────────────────────────────
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    pages = max(1, -(-len(cards) // _BLOG_PER_PAGE))
+    page = min(max(1, page), pages)
+    start = (page - 1) * _BLOG_PER_PAGE
+    view = cards[start:start + _BLOG_PER_PAGE]
+
     items = "".join(
         f'<a class="post" href="/blog/{c["slug"]}">'
         f'<img src="{c.get("thumb") or "/static/thumbs/default.png"}" alt="{_html.escape(c["title"])}" loading="lazy">'
@@ -7297,11 +7376,32 @@ def _render_blog_index_html() -> str:
         f'<h2>{_html.escape(c["title"])}</h2>'
         f'<p>{_html.escape(c["description"])}</p>'
         f'<div class="pmeta">{c["date"]} · 시공막내</div></div></a>'
-        for c in cards)
+        for c in view)
+
+    # 제목/canonical — 2페이지부터는 제목에 표시, 카테고리 목록은 색인 제외(얇은 중복 방지)
+    suffix = ""
+    if cat:
+        suffix += f" · {cat}"
+    if page > 1:
+        suffix += f" ({page}페이지)"
+    canon = f"{_HOME_BASE}/blog"
+    if cat:
+        canon += "?cat=" + _html.escape(cat, quote=True).replace(" ", "%20")
+        if page > 1:
+            canon += f"&page={page}"
+    elif page > 1:
+        canon += f"?page={page}"
+    robots = '<meta name="robots" content="noindex,follow">' if cat else ""
+
     extra_css = """
   .hero{max-width:920px;margin:0 auto;padding:48px 18px 6px;}
   .hero p{color:var(--t2);font-size:14.5px;margin-top:8px;}
-  .wrap{max-width:920px;margin:0 auto;padding:26px 18px 70px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;align-items:start;}
+  .chips{max-width:920px;margin:0 auto;padding:18px 18px 0;display:flex;flex-wrap:wrap;gap:8px;}
+  .chips a{font-size:13.5px;font-weight:700;color:var(--t2);background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;transition:border-color .15s,color .15s;}
+  .chips a:hover{border-color:var(--blue);color:var(--blue-dark);}
+  .chips a.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:800;}
+  .chips a .n{opacity:.55;font-size:12px;margin-left:5px;}
+  .wrap{max-width:920px;margin:0 auto;padding:20px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;align-items:start;}
   .post{display:block;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:transform .15s,border-color .15s;}
   .post:hover{border-color:var(--blue);transform:translateY(-3px);}
   .post img{width:100%;height:auto;display:block;aspect-ratio:1200/630;object-fit:cover;}
@@ -7310,13 +7410,21 @@ def _render_blog_index_html() -> str:
   .post h2{font-size:16.5px;margin:0;line-height:1.45;}
   .post p{font-size:13.2px;color:var(--t2);margin:8px 0 0;}
   .post .pmeta{font-size:11.5px;color:var(--t3);margin-top:10px;}
+  .pager{max-width:920px;margin:0 auto;padding:6px 18px 70px;display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;}
+  .pager a,.pager span{min-width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:14px;font-weight:800;color:var(--t2);background:#fff;border:1px solid var(--line);padding:0 10px;}
+  .pager a:hover{border-color:var(--blue);color:var(--blue-dark);}
+  .pager .on{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .pager .gap{border:0;background:transparent;color:var(--t3);min-width:20px;}
+  .pager .off{color:var(--t3);opacity:.4;}
+  .countline{max-width:920px;margin:0 auto;padding:14px 18px 0;font-size:12.5px;color:var(--t3);font-weight:700;}
 """
     return (
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>시공막내 블로그 — 시공 사장님을 위한 영업·응대·운영 팁</title>'
+        + robots +
+        f'<title>시공막내 블로그{suffix} — 시공 사장님을 위한 영업·응대·운영 팁</title>'
         '<meta name="description" content="혼자 일하는 시공·인테리어 사장님을 위한 실전 팁. 부재중 전화 응대, 견적서, 일정 관리, 수금까지 매일 한 편씩.">'
-        f'<link rel="canonical" href="{_HOME_BASE}/blog">'
+        f'<link rel="canonical" href="{canon}">'
         '<meta property="og:type" content="website">'
         '<meta property="og:title" content="시공막내 블로그 — 시공 사장님 실전 운영 팁">'
         '<meta property="og:description" content="현장 뛰면서 놓치는 돈 줄이는 법을 매일 씁니다.">'
@@ -7331,7 +7439,10 @@ def _render_blog_index_html() -> str:
         + _HOME_NAV +
         '<div class="hero"><h1>시공 사장님을 위한 실전 노트</h1>'
         '<p>영업 잘하는 법 말고, 현장 뛰면서 놓치는 돈 줄이는 법을 씁니다. 매일 아침 한 편.</p></div>'
+        + chips_html +
+        f'<div class="countline">{len(cards)}편 중 {start + 1}–{start + len(view)}번째</div>'
         f'<div class="wrap">{items}</div>'
+        + _blog_pager_html(page, pages, cat)
         + _HOME_FOOTER + '</body></html>'
     )
 
