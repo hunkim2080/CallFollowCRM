@@ -9794,3 +9794,8 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 - 변경: server/main.py _BLOG_WRITE_SYSTEM [왜 우리 글이 다른가] + eeat-why/ai-blog-diff 주제. 라이브 적용(백업 main.py.bak_eeat).
 - 가드: 알고리즘 단정·상위노출 보장 금지("유리하다" 수준).
 - commit: (위)
+
+## 2026-09-12 14:05 · android(서버 직접수정)
+블로그 규칙: 전문용어 3단 세트(용어→풀이→출처) + 가짜통계 금지 + "쓰지 않을 이유가 없도록"
+- 변경: server/main.py _BLOG_WRITE_SYSTEM. 라이브 적용(백업 main.py.bak_expert).
+- commit: (위)
