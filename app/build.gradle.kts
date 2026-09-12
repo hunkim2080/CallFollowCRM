@@ -149,6 +149,8 @@ dependencies {
 
     // 현장 도착 안내 — 지오펜싱(시공 현장 5km 진입 감지). FusedLocation + Geofencing.
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // Play 인앱 업데이트 — 앱 켤 때 Play 시트가 앱 위로 올라와 [업데이트] 바로 누르게. (2026-09-12 사장님)
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
     // 내 번호 자동입력 — 구글 전화번호 힌트(한 번 탭). (2026-06-12)
     implementation("com.google.android.gms:play-services-auth:21.2.0")
     // 2026-07-05: 사업자등록증 OCR(ML Kit text-recognition-korean) 제거 — 유일한 네이티브 .so 였고

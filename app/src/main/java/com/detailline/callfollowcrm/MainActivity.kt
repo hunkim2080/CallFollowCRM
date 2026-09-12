@@ -42,6 +42,10 @@ class MainActivity : ComponentActivity() {
         //   새 txt 통화요약을 자동 import. 폴더 미연결이면 즉시 no-op. (연결은 채팅 통화카드에서 1회.)
         AdotTextFolderScanner.scanIfConnected(this, container)
 
+        // Play 인앱 업데이트 — 앱 켜면 Play 시트가 화면 위로 올라와 [업데이트] 를 바로 누르게. (2026-09-12 사장님)
+        //   실패해도 앱엔 영향 없음(내부에서 전부 삼킴). 홈 배너는 폴백으로 유지.
+        com.detailline.callfollowcrm.util.InAppUpdater.checkOnStart(this)
+
         setContent {
             val pending = remember { pendingIntentState }
             LaunchedEffect(pending.value) {
@@ -139,6 +143,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 다 받아둔 업데이트가 있으면 설치 마무리. (아래 베타 핑은 bizPhone 없으면 early return 이라 그 앞에 둔다)
+        com.detailline.callfollowcrm.util.InAppUpdater.completeIfDownloaded(this)
         // 앱 진입(포그라운드)마다 베타 사용 핑 — 서버가 use_count++/last_seen 갱신 → admin '최근 앱 실행/사용 수' 실시간.
         //   캐싱 없이 매번 호출(cowork 요청 2026-06-21). 통계용이라 결과로 진입 막지 않음(fail-open). bizPhone 없으면 skip.
         val container = (application as? CallFollowCrmApplication)?.container ?: return
