@@ -2390,16 +2390,30 @@ def _repair_json_stray_quotes(text: str) -> str:
     (2026-09-12) 모델이 body_html 에 <figure data-fig="calc"> 같은 HTML 속성
     따옴표를 그대로 뱉는 일이 잦다. JSON 에선 백슬래시+" 여야 해서 그 하나로
     통째 파싱이 깨진다. -> '진짜 종료 따옴표'만 남기고 나머지는 escape 해준다.
-    종료 판정: 다음 공백 아닌 문자가 , : } ] 이거나 문자열 끝이면 진짜 종료.
+
+    (2026-09-13) 종료 판정에 문맥을 넣음. 본문에 큰따옴표를 쉼표로 나열한 문장
+    ("이 항목이 뭔가요", "이건 얼마예요" 처럼) 이 나오면 예전 규칙은 거기서
+    문자열이 끝난 줄 알고 뒤를 통째로 망가뜨렸다. 그래서:
+      - } ] ) 앞 → 종료
+      - : 앞    → 키였으니 종료
+      - , 앞    → 배열 안이면 종료. 객체 값 안이면 바로 뒤가 "새 키": 모양일
+                  때만 종료 (아니면 본문 속 인용이므로 escape)
     """
+    import re as _re
     _BS = chr(92)
+    _NEXT_KEY = _re.compile(r'\s*,\s*"[^"' + _BS + _BS + r']{1,80}"\s*:')
     out = []
+    stack = []          # 바깥 컨테이너: '{' 또는 '['
     in_str = False
     i = 0
     n = len(text)
     while i < n:
         ch = text[i]
         if not in_str:
+            if ch in "{[":
+                stack.append(ch)
+            elif ch in "}]" and stack:
+                stack.pop()
             out.append(ch)
             if ch == '"':
                 in_str = True
@@ -2414,7 +2428,19 @@ def _repair_json_stray_quotes(text: str) -> str:
             j = i + 1
             while j < n and text[j] in " \t\r\n":
                 j += 1
-            if j >= n or text[j] in ",:}]":
+            nxt = text[j] if j < n else ""
+            if nxt == "" or nxt in "}])":
+                close = True
+            elif nxt == ":":
+                close = True
+            elif nxt == ",":
+                # 배열 원소면 종료. 객체 값이면 '새 키'가 뒤따를 때만 종료.
+                close = (stack[-1] == "[") if stack else True
+                if not close:
+                    close = bool(_NEXT_KEY.match(text, i + 1))
+            else:
+                close = False
+            if close:
                 out.append(ch)
                 in_str = False
             else:
