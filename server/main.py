@@ -6161,12 +6161,16 @@ async def home_tag_page(tag_slug: str):
     if not entry:
         raise HTTPException(404, "해당 키워드의 글이 아직 없습니다")
     name = entry["name"]
+    posts = entry["posts"]
+    # (2026-09-12) 글 1개뿐인 태그 = 알맹이 없는 페이지. 이런 게 106개라 구글이
+    # "빈 방 양산"으로 볼 판이었다 → 색인만 빼고 링크는 따라가게(follow) 둔다.
+    robots_meta = '<meta name="robots" content="noindex,follow">' if len(posts) < 2 else ""
     cards = "".join(
         f'<a class="post" href="/blog/{p["slug"]}">'
         f'<img src="{p["thumb"]}" alt="{_html.escape(p["title"])}" loading="lazy">'
         f'<div class="pbody"><span class="cat">{_html.escape(p["category"])}</span>'
         f'<h2>{_html.escape(p["title"])}</h2><p>{_html.escape(p["description"])}</p></div></a>'
-        for p in entry["posts"])
+        for p in posts)
     extra_css = """
   .hero{max-width:920px;margin:0 auto;padding:48px 18px 6px;}
   .hero p{color:var(--t2);font-size:14.5px;margin-top:8px;}
@@ -6181,6 +6185,7 @@ async def home_tag_page(tag_slug: str):
     html = (
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        + robots_meta +
         f'<title>#{_html.escape(name)} 관련 글 — 시공막내 블로그</title>'
         f'<meta name="description" content="{_html.escape(name)} 관련 시공 사장님 실전 팁 모음. 시공막내 블로그.">'
         f'<link rel="canonical" href="{_HOME_BASE}/tag/{tag_slug}">'
@@ -6206,15 +6211,26 @@ async def sitemap_xml():
     urls += _KEYWORD_LANDING_URLS + _TOOL_URLS  # 추가110·111
     urls += [f"/blog/{s}" for s in _BLOG_POST_PAGES]
     # 추가105 — 자동 발행분 포함 + 추가109 태그 페이지
+    lastmods: dict = {}
     try:
         _blog_db_init()
         with db_conn() as con:
-            urls += [f"/blog/{r[0]}" for r in con.execute("SELECT slug FROM blog_posts").fetchall()]
-        urls += [f"/tag/{s}" for s in _all_tags_index().keys()]
+            for _s, _ms in con.execute(
+                    "SELECT slug, created_at_ms FROM blog_posts").fetchall():
+                urls.append(f"/blog/{_s}")
+                if _ms:
+                    lastmods[f"/blog/{_s}"] = _dt.datetime.utcfromtimestamp(
+                        _ms / 1000).strftime("%Y-%m-%d")
+        # (2026-09-12) 글 2개 이상 걸린 태그만 사이트맵에. 1개짜리(106개)는 알맹이가
+        # 없어 크롤링 예산만 먹고 '얇은 페이지'로 감점될 소지가 있다.
+        urls += [f"/tag/{_t}" for _t, _e in _all_tags_index().items()
+                 if len(_e["posts"]) >= 2]
     except Exception:
         pass
     body = "".join(
-        f"<url><loc>{base}{u}</loc><changefreq>weekly</changefreq></url>" for u in urls
+        f"<url><loc>{base}{u}</loc>"
+        + (f"<lastmod>{lastmods[u]}</lastmod>" if u in lastmods else "")
+        + "<changefreq>weekly</changefreq></url>" for u in urls
     )
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -6749,12 +6765,81 @@ def _render_blog_post_html(post: dict) -> str:
         'box-shadow:0 6px 18px rgba(27,100,218,.18)">'
         + post["body_html"] +
         _render_tag_chips(post.get("tags")) +
+        _render_related_posts(post) +
         '<div class="cta-band"><h2>이 모든 걸, 막내가 대신합니다</h2>'
         '<p>기본 기능 무료 · 카드 등록 없음 · 전화번호 인증이면 끝</p>'
         '<a href="/">시공막내 무료로 시작하기 →</a></div>'
         '<div style="margin-top:34px;font-size:14px;"><a href="/blog" style="color:var(--blue-dark);font-weight:700;">← 블로그 목록으로</a></div>'
         '</article>' + _HOME_FOOTER + '</body></html>'
     )
+
+
+# ── 추가112 (2026-09-12) — 글끼리 내부 링크 ──
+# 그전엔 글 24개가 서로 링크 하나 없는 '섬'이었다. 검색 로봇이 한 글을 읽고 나면
+# 다음 글로 갈 길이 없어 크롤이 끊기고, 사람도 다음 글로 못 넘어갔다.
+def _all_posts_meta() -> list:
+    """DB 자동발행분 + 정적 글을 한 목록으로 (최신순)."""
+    _blog_db_init()
+    out = []
+    try:
+        with db_conn() as con:
+            rows = con.execute(
+                "SELECT slug, title, thumb, description, category, tags, created_at_ms "
+                "FROM blog_posts ORDER BY created_at_ms DESC").fetchall()
+    except Exception:
+        rows = []
+    for slug, title, thumb, desc, cat, tags, ms in rows:
+        out.append({
+            "slug": slug, "title": title or "",
+            "thumb": thumb or "/static/thumbs/default.png",
+            "description": desc or "", "category": cat or "",
+            "tags": [t.strip() for t in (tags or "").split(",") if t.strip()],
+            "ms": ms or 0,
+        })
+    for slug, meta in _BLOG_STATIC_META_MAP.items():
+        out.append({
+            "slug": slug, "title": meta["title"], "thumb": meta["thumb"],
+            "description": meta["description"], "category": meta["category"],
+            "tags": list(_STATIC_POST_TAGS.get(slug, [])), "ms": 0,
+        })
+    return out
+
+
+def _related_posts(slug: str, tags, category: str, limit: int = 3) -> list:
+    """겹치는 태그 > 같은 카테고리 > 최신 순. 점수 0이어도 채워서 항상 3개 나오게."""
+    items = tags.split(",") if isinstance(tags, str) else (tags or [])
+    mine = {_tag_slug(t) for t in items if str(t).strip()}
+    scored = []
+    for q in _all_posts_meta():
+        if q["slug"] == slug:
+            continue
+        shared = len(mine & {_tag_slug(t) for t in q["tags"]})
+        score = shared * 10 + (3 if category and q["category"] == category else 0)
+        scored.append((score, q["ms"], q))
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    return [q for _sc, _ms, q in scored[:limit]]
+
+
+def _render_related_posts(post: dict) -> str:
+    import html as _html
+    rel = _related_posts(post["slug"], post.get("tags"), post.get("category") or "")
+    if not rel:
+        return ""
+    items = "".join(
+        f'<a href="/blog/{q["slug"]}" style="display:flex;gap:13px;align-items:center;'
+        f'padding:12px;border:1px solid var(--line);border-radius:14px;background:#fff;'
+        f'margin-bottom:10px;text-decoration:none">'
+        f'<img src="{q["thumb"]}" alt="" loading="lazy" style="width:98px;height:55px;'
+        f'object-fit:cover;border-radius:9px;flex:none">'
+        f'<span style="min-width:0">'
+        f'<span style="display:block;font-size:11.5px;font-weight:800;color:var(--blue-dark)">'
+        f'{_html.escape(q["category"])}</span>'
+        f'<span style="display:block;font-size:14.5px;font-weight:800;color:var(--t1);'
+        f'line-height:1.45;margin-top:3px">{_html.escape(q["title"])}</span></span></a>'
+        for q in rel)
+    return ('<div style="margin-top:34px;padding-top:22px;border-top:1px solid var(--line)">'
+            '<div style="font-size:15px;font-weight:900;margin-bottom:12px">같이 읽으면 좋은 글</div>'
+            + items + '</div>')
 
 
 def _tag_slug(tag: str) -> str:
