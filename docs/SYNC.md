@@ -9775,3 +9775,10 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 - 변경: 앱 전용. app-update-ktx:2.1.0. InAppUpdater(checkOnStart/completeIfDownloaded) + MainActivity 배선. 홈 배너는 폴백 유지.
 - 한계: Play 설치 앱만 동작 / Play 인지 시차 있음.
 - commit: (위)
+
+## 2026-09-12 13:30 · android(서버 직접수정)
+블로그 주제 큐 29 → 101편 (업종31×2 + 금액대허브2 + 전환7)
+- 변경: server/main.py _BLOG_TRADES 자동확장. 라이브 적용+재기동(백업 main.py.bak_blogqueue).
+- 근거: 네이버 데이터랩 실측 — 소자본창업=경쟁78만 제외, 출장세차창업 최고기회, 금액대는 100만/천만원만.
+- 남음: 글 작성 규칙(_BLOG_WRITE_SYSTEM)을 "창업 유입 → 상담 가치 전환" 구조로 손보기.
+- commit: (위)
