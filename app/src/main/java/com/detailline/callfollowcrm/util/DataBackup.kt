@@ -245,25 +245,54 @@ object DataBackup {
         var restored = 0
         db.beginTransaction()
         try {
-            // 1) categories 테이블 (INSERT OR REPLACE) — 카테고리 자체를 되살림/정정.
+            // 1) 카테고리는 **이름**으로 맞춘다. id 로 덮어쓰면 절대 안 된다.
+            //    🔴 2026-09-14 사고: 예전 구현은 INSERT OR REPLACE 로 백업의 id 를 그대로 밀어넣었다.
+            //       백업 id=3 "일당" ↔ 현재 id=3 "인테리어 업체" 처럼 번호가 어긋나 있으면
+            //       그 번호를 쓰던 카테고리가 통째로 갈아치워져서, 인테리어 업체 고객이 전부
+            //       "일당" 으로 보이고 원래 "일당" 행은 지워져 그 고객들은 미분류가 됐다.
+            //    → 이제: 이름이 이미 있으면 **그대로 둔다**(건드리지 않음). 없는 이름만 새로 만든다.
+            //       그리고 백업 id → 현재 id 로 번역표를 만들어 고객 태그를 붙인다.
             val catCols = tableColumns(db, "categories")
             val catArr = tables.optJSONArray("categories")
+            val nameToLocalId = HashMap<String, Long>()
+            db.query("SELECT `id`, `name` FROM `categories`").use { c ->
+                while (c.moveToNext()) nameToLocalId[c.getString(1).trim()] = c.getLong(0)
+            }
+            val backupIdToLocalId = HashMap<Long, Long>()
             if (catCols.isNotEmpty() && catArr != null) {
                 for (r in 0 until catArr.length()) {
                     val row = catArr.optJSONObject(r) ?: continue
+                    val name = row.optString("name", "").trim()
+                    if (name.isEmpty()) continue
+                    val backupId = row.optLong("id", -1L)
+                    val existing = nameToLocalId[name]
+                    if (existing != null) {
+                        if (backupId >= 0L) backupIdToLocalId[backupId] = existing
+                        continue // 이미 있는 카테고리는 이름·이모지·순서 어느 것도 안 덮는다.
+                    }
+                    // 없는 이름만 새로 만든다 — id 는 DB 가 새로 매긴다(백업 id 재사용 금지).
                     val cols = ArrayList<String>()
                     val keys = row.keys()
-                    while (keys.hasNext()) { val k = keys.next(); if (k in catCols) cols.add(k) }
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        if (k in catCols && k != "id") cols.add(k)
+                    }
                     if (cols.isEmpty()) continue
                     val placeholders = cols.joinToString(",") { "?" }
                     val colList = cols.joinToString(",") { "`$it`" }
                     val args = arrayOfNulls<Any?>(cols.size)
                     for (i in cols.indices) args[i] = bindValue(row.get(cols[i]))
-                    db.execSQL("INSERT OR REPLACE INTO `categories` ($colList) VALUES ($placeholders)", args)
-                    catCount++
+                    db.execSQL("INSERT OR IGNORE INTO `categories` ($colList) VALUES ($placeholders)", args)
+                    val newId = db.query("SELECT `id` FROM `categories` WHERE `name`=?", arrayOf<Any?>(name))
+                        .use { c -> if (c.moveToFirst()) c.getLong(0) else -1L }
+                    if (newId >= 0L) {
+                        nameToLocalId[name] = newId
+                        if (backupId >= 0L) backupIdToLocalId[backupId] = newId
+                        catCount++
+                    }
                 }
             }
-            // 2) customers.categoryId — 현재 미분류(null)인 고객만 백업값으로. (현재 태그는 절대 안 덮음)
+            // 2) customers.categoryId — 현재 미분류(null)인 고객만. 번역표를 거쳐야 엉뚱한 태그가 안 붙는다.
             val before = countTaggedCustomers(db)
             val custCols = tableColumns(db, "customers")
             val custArr = tables.optJSONArray("customers")
@@ -273,10 +302,10 @@ object DataBackup {
                     if (row.isNull("categoryId")) continue
                     val id = row.optLong("id", -1L)
                     if (id < 0L) continue
-                    val catId = row.optLong("categoryId")
+                    val localCat = backupIdToLocalId[row.optLong("categoryId")] ?: continue
                     db.execSQL(
                         "UPDATE `customers` SET `categoryId`=? WHERE `id`=? AND `categoryId` IS NULL",
-                        arrayOf<Any?>(catId, id)
+                        arrayOf<Any?>(localCat, id)
                     )
                 }
             }
