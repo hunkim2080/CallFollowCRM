@@ -810,7 +810,7 @@ private fun CalendarDay(
     val collabLane = if (isCollab) schedMaxLane + 1 else -1
     // 응답 안 한 협업 요청 = 주황 막대(초록 일정·보라 협업과 확실히 구분). 푸시 놓쳐도 일정 보다 눈에 띄게. (2026-07-08 사장님)
     val pendingLane = if (isPendingCollab) maxOf(schedMaxLane, collabLane) + 1 else -1
-    val lastLane = minOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), 2) // 최대 3줄(lane 0~2)
+    val lastLane = minOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), CAL_MAX_LANE) // 최대 3줄
     Box(
         modifier = modifier
             .height(52.dp)
@@ -1146,6 +1146,9 @@ private fun koreanMonthDay(ms: Long): String =
 // ─────────────────────────────────────────────────────────────
 
 /** 캘린더 막대 한 칸 — 일정 1건 = 막대 1줄(lane). 여러 날 시공은 START/MID/END 로 이어 그림. (프로토 jbar) */
+/** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~2 = 최대 3줄). 칸 렌더러와 반드시 같은 값. */
+private const val CAL_MAX_LANE = 2
+
 private enum class BarSeg { SINGLE, START, MID, END }
 private data class DayBar(val lane: Int, val seg: BarSeg, val past: Boolean)
 
@@ -1253,12 +1256,23 @@ private fun buildCalendarCells(
     val firstDow = cal.get(Calendar.DAY_OF_WEEK) // 1=SUN..7=SAT
     cal.add(Calendar.DAY_OF_MONTH, -(firstDow - 1)) // 그 주 일요일로
 
-    val laneMap = assignScheduleLanes(schedules)
+    // ⚠️ lane 은 '보이는 42칸과 겹치는 시공'만으로 배정한다. (2026-09-14 사장님 신고)
+    //   전체 이력(state.all)으로 배정하면 건이 쌓일수록 lane 번호가 계속 커지는데,
+    //   칸 렌더러는 3줄(lane 0~2)까지만 그린다 → lane 3 이상이 걸린 날은 막대가 통째로 사라졌다.
+    //   창 단위로 배정하면 번호가 작게 유지되고, 42칸 × 전체목록 필터링도 안 하게 되어 더 가볍다.
+    val windowStart = DateTimeUtils.startOfDay(cal.timeInMillis)
+    val windowEnd = windowStart + 41 * DateTimeUtils.DAY_MS
+    val visible = schedules.filter { c ->
+        val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@filter false
+        val e = s + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
+        s <= windowEnd && e >= windowStart
+    }
+    val laneMap = assignScheduleLanes(visible)
     val cells = ArrayList<CalendarCell>(42)
     repeat(42) {
         val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
         // 여러 날 시공은 기간 내 모든 날에 막대 표시 (scheduledWorkDays).
-        val daySchedules = schedules.filter { jobCoversDay(it, dayStart) }
+        val daySchedules = visible.filter { jobCoversDay(it, dayStart) }
         val hasPast = daySchedules.isNotEmpty() && dayStart < todayStart
         val hasUp = daySchedules.isNotEmpty() && dayStart >= todayStart
         val bars = daySchedules.mapNotNull { c ->
@@ -1270,7 +1284,12 @@ private fun buildCalendarCells(
                 dayStart == e -> BarSeg.END
                 else -> BarSeg.MID
             }
-            DayBar(lane = laneMap[laneKeyOf(c)] ?: 0, seg = seg, past = dayStart < todayStart)
+            // 그래도 한 날에 4건 이상 겹치면 마지막 줄에 눌러 담는다 — 안 보이는 것보다 낫다.
+            DayBar(
+                lane = (laneMap[laneKeyOf(c)] ?: 0).coerceAtMost(CAL_MAX_LANE),
+                seg = seg,
+                past = dayStart < todayStart
+            )
         }.sortedBy { it.lane }
         cells += CalendarCell(
             dayStartMs = dayStart,
