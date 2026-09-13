@@ -6114,13 +6114,14 @@ async def home_pricing():
 async def home_blog(page: int = 1, cat: str = ""):
     # 추가105 — DB 자동 발행분 + 초기 3편 합쳐 동적 렌더
     # (2026-09-13) 글이 100편을 넘어 한 화면에 다 쏟아지던 것 → 카테고리 칩 + 페이지 번호
-    return HTMLResponse(content=_render_blog_index_html(page=page, cat=cat))
+    return HTMLResponse(content=_inject_site_verify(
+        _render_blog_index_html(page=page, cat=cat)))
 
 
 @app.get("/updates", response_class=HTMLResponse, include_in_schema=False)
 async def home_updates():
     # 추가105 — app_updates 주 단위 자동 그룹을 상단에 주입
-    return HTMLResponse(content=_render_updates_dynamic())
+    return HTMLResponse(content=_inject_site_verify(_render_updates_dynamic()))
 
 
 @app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
@@ -6138,7 +6139,7 @@ async def home_blog_post(slug: str):
         raise HTTPException(404, "글을 찾을 수 없습니다")
     post = dict(zip(
         ("slug", "title", "description", "category", "body_html", "thumb", "created_at_ms", "tags"), row))
-    return HTMLResponse(content=_render_blog_post_html(post))
+    return HTMLResponse(content=_inject_site_verify(_render_blog_post_html(post)))
 
 
 # 추가109 — 정적 3편의 태그 (자동발행분은 DB tags)
