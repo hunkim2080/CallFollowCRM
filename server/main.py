@@ -6216,7 +6216,7 @@ async def home_tag_page(tag_slug: str):
         + robots_meta +
         f'<title>#{_html.escape(name)} 관련 글 — 시공막내 블로그</title>'
         f'<meta name="description" content="{_html.escape(name)} 관련 시공 사장님 실전 팁 모음. 시공막내 블로그.">'
-        f'<link rel="canonical" href="{_HOME_BASE}/tag/{tag_slug}">'
+        f'<link rel="canonical" href="{_HOME_BASE}/tag/{_urlquote(tag_slug)}">'
         '<meta property="og:type" content="website">'
         f'<meta property="og:title" content="#{_html.escape(name)} — 시공막내 블로그">'
         f'<meta property="og:image" content="{_HOME_BASE}/static/thumbs/blog.png">'
@@ -6255,8 +6255,11 @@ async def sitemap_xml():
                  if len(_e["posts"]) >= 2]
     except Exception:
         pass
+    # (2026-09-14) 한글 경로(/시공어플, /tag/줄눈-창업)를 그대로 넣으면 규격 위반이라
+    # 구글이 사이트맵을 '가져올 수 없음' 으로 처리한다 → 퍼센트 인코딩해서 내보낸다.
+    from urllib.parse import quote as _q
     body = "".join(
-        f"<url><loc>{base}{u}</loc>"
+        f"<url><loc>{base}{_q(u)}</loc>"
         + (f"<lastmod>{lastmods[u]}</lastmod>" if u in lastmods else "")
         + "<changefreq>weekly</changefreq></url>" for u in urls
     )
@@ -6882,6 +6885,12 @@ def _render_related_posts(post: dict) -> str:
             + items + '</div>')
 
 
+def _urlquote(path_part: str) -> str:
+    """URL 경로 한 조각을 퍼센트 인코딩 (한글 → %EC%..). 이미 인코딩된 건 그대로."""
+    from urllib.parse import quote as _q
+    return _q(path_part, safe="-_.~")
+
+
 def _tag_slug(tag: str) -> str:
     """태그 → URL slug (한글 유지, 공백→-, 소문자)."""
     import re as _re
@@ -6895,7 +6904,7 @@ def _render_tag_chips(tags) -> str:
         return ""
     items = (tags.split(",") if isinstance(tags, str) else tags)
     chips = "".join(
-        f'<a href="/tag/{_tag_slug(t)}" style="display:inline-block;font-size:13px;'
+        f'<a href="/tag/{_urlquote(_tag_slug(t))}" style="display:inline-block;font-size:13px;'
         f'font-weight:700;color:var(--blue-dark);background:var(--blue-tint);'
         f'border-radius:999px;padding:7px 14px;margin:4px 6px 4px 0;text-decoration:none">'
         f'#{_html.escape(t.strip())}</a>'
