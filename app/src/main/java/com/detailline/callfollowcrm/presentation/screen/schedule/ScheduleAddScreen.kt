@@ -466,6 +466,11 @@ private fun TimeCustomDialog(initialMinutes: Int, onConfirm: (Int) -> Unit, onDi
     }
 }
 
+/** 이 이상이면 "정말?" 하고 되묻는다 — 실수로 금액을 넣는 일이 있다. (2026-09-15 사장님) */
+private const val MAX_SANE_WORK_DAYS = 30
+/** 저장 상한 — 이보다 크면 달력이 통째로 망가진다. */
+private const val MAX_WORK_DAYS = 90
+
 /** 프로토 setSchedDaysCustom — 시공 기간 직접 입력 (일). */
 @Composable
 private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
@@ -477,8 +482,19 @@ private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismi
             Spacer(Modifier.height(4.dp))
             Text("며칠 동안 하나요?", fontSize = 12.sp, color = TossTextTertiary)
             Spacer(Modifier.height(12.dp))
-            SheetTextField(txt, { txt = it.filter { c -> c.isDigit() } }, placeholder = "예: 10",
+            SheetTextField(txt, { txt = it.filter { c -> c.isDigit() }.take(3) }, placeholder = "예: 10",
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+            // 실수로 금액 같은 큰 숫자를 넣으면 달력이 몇 주씩 뻗는다 — 저장 전에 한 번 되묻는다.
+            //   (2026-09-15 사장님: "강서구 일정이 왜 이렇게 길어진 거야?") 상한 90일.
+            val daysNum = txt.toIntOrNull() ?: 0
+            if (daysNum > MAX_SANE_WORK_DAYS) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "정말 ${daysNum}일짜리 공사인가요? 달력에 ${daysNum}일 내내 표시돼요. " +
+                        "혹시 금액을 넣으신 건 아닌지 확인해주세요.",
+                    fontSize = 12.sp, color = TossError, lineHeight = 17.sp
+                )
+            }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text("취소", color = TossTextSecondary, fontWeight = FontWeight.Medium,
@@ -486,7 +502,8 @@ private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismi
                 Spacer(Modifier.width(4.dp))
                 Text("확인", color = TossBlue, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
-                        onConfirm((txt.toIntOrNull() ?: 1).coerceAtLeast(1))
+                        // 상한 — 몇백 일이 들어가면 달력이 통째로 망가진다. (2026-09-15 사장님)
+                        onConfirm((txt.toIntOrNull() ?: 1).coerceIn(1, MAX_WORK_DAYS))
                     }.padding(horizontal = 14.dp, vertical = 10.dp))
             }
         }
