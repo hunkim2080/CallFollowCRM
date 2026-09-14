@@ -976,6 +976,37 @@ def db_init() -> None:
             )
             """
         )
+        # (2026-09-14 사장님) "링크 누가 들어왔었는지 체크돼?" → 안 되고 있었다.
+        #   보낸 것(issued)·제출한 것(submitted)만 알고 **열어는 봤는지**가 깜깜.
+        #   발행 76 / 제출 50 인데, 안 온 26건이 '문자를 못 본 것'인지 '열고 포기한 것'인지
+        #   구분이 안 되면 대응이 달라질 수가 없다(다시 보내기 vs 전화).
+        for _col, _type in (("first_opened_at_ms", "INTEGER"),
+                            ("last_opened_at_ms", "INTEGER"),
+                            ("open_count", "INTEGER NOT NULL DEFAULT 0")):
+            try:
+                con.execute(f"ALTER TABLE intake_forms ADD COLUMN {_col} {_type}")
+            except Exception:
+                pass  # 이미 있음
+        # (2026-09-14 사장님) 사이트 방문 발자국 — "우리가 만든 왕국에 들어오면 알아야지."
+        #   접수서 링크를 누가 다시 열었는지(분쟁 대비) + 블로그에 사람이 오는지(SEO 확인) 둘 다 여기서 본다.
+        #   ⚠️ IP 는 개인정보 → 90일 지나면 자동 삭제(_prune_visits). 처리방침의 '접속기록' 범위.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS site_visits (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts_ms       INTEGER NOT NULL,
+                method      TEXT NOT NULL,
+                path        TEXT NOT NULL,
+                status      INTEGER,
+                ip          TEXT,
+                ua          TEXT,
+                referer     TEXT,
+                is_bot      INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        con.execute("CREATE INDEX IF NOT EXISTS idx_visits_ts ON site_visits(ts_ms)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_visits_path ON site_visits(path, ts_ms)")
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_intake_phone "
             "ON intake_forms(phone, issued_at_ms)"
@@ -5528,6 +5559,63 @@ def _record_system_error(path: str, status: int, detail: str) -> None:
         pass
 
 
+# ─────────── 방문 발자국 (2026-09-14 사장님) ───────────
+#  "그냥 내 사이트에 모두 접속하면 그 발자국이 항상 다 남게 해줘."
+#  사람이 브라우저로 본 것만 남긴다 — 앱 폴링(/api)·정적파일까지 담으면 하루 수만 줄이라 못 본다.
+_VISIT_SKIP_PREFIX = ("/api/", "/static/", "/healthz", "/health", "/favicon", "/icon", "/manifest")
+_VISIT_BOT_MARKS = ("bot", "crawler", "spider", "slurp", "bingpreview", "facebookexternalhit",
+                    "python-requests", "curl/", "wget", "headlesschrome", "lighthouse")
+_VISIT_PRUNE_DAYS = 90
+_visit_prune_last_ms = 0
+
+
+def _prune_visits() -> None:
+    """90일 지난 발자국 삭제 — IP 는 개인정보라 무한 보관하면 안 된다. 하루 한 번만 돈다."""
+    global _visit_prune_last_ms
+    now = _now_ms()
+    if now - _visit_prune_last_ms < 24 * 60 * 60 * 1000:
+        return
+    _visit_prune_last_ms = now
+    try:
+        with db_conn() as con:
+            con.execute("DELETE FROM site_visits WHERE ts_ms < ?",
+                        (now - _VISIT_PRUNE_DAYS * 24 * 60 * 60 * 1000,))
+            con.commit()
+    except Exception as e:  # noqa: BLE001
+        print(f"[visit] 정리 실패(무시): {type(e).__name__}: {e}")
+
+
+def _record_visit(request: Request, status: int) -> None:
+    try:
+        path = request.url.path
+        if any(path.startswith(x) for x in _VISIT_SKIP_PREFIX):
+            return
+        # 클라우드플레어를 거치므로 진짜 IP 는 CF-Connecting-IP 에 있다.
+        h = request.headers
+        ip = (h.get("cf-connecting-ip") or h.get("x-forwarded-for", "").split(",")[0].strip()
+              or (request.client.host if request.client else "")) or None
+        ua = (h.get("user-agent") or "")[:300] or None
+        ref = (h.get("referer") or "")[:300] or None
+        is_bot = 1 if any(m in (ua or "").lower() for m in _VISIT_BOT_MARKS) else 0
+        with db_conn() as con:
+            con.execute(
+                "INSERT INTO site_visits (ts_ms, method, path, status, ip, ua, referer, is_bot) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (_now_ms(), request.method, path[:300], status, ip, ua, ref, is_bot),
+            )
+            con.commit()
+        _prune_visits()
+    except Exception as e:  # noqa: BLE001 — 기록 실패가 페이지를 막으면 안 됨
+        print(f"[visit] 기록 실패(무시): {type(e).__name__}: {e}")
+
+
+@app.middleware("http")
+async def _visit_log_middleware(request: Request, call_next):
+    response = await call_next(request)
+    _record_visit(request, response.status_code)
+    return response
+
+
 @app.middleware("http")
 async def _error_tracking_middleware(request: Request, call_next):
     try:
@@ -6268,6 +6356,112 @@ async def sitemap_xml():
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + body + "</urlset>"
     )
     return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/admin/visits", response_class=HTMLResponse, include_in_schema=False)
+async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLResponse:
+    """누가 언제 어느 페이지에 들어왔나. (2026-09-14 사장님 — "왕국에 들어오면 알아야지")
+
+    ?token=<ADMIN_TOKEN> · ?hours=24 · ?bots=1 이면 검색로봇도 함께.
+    """
+    import html as _e
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        return HTMLResponse("<h3 style='font-family:sans-serif;padding:40px'>접근 권한이 없어요</h3>", 403)
+    hours = max(1, min(int(hours or 24), 24 * 30))
+    since = _now_ms() - hours * 60 * 60 * 1000
+    where = "ts_ms >= ?" + ("" if bots else " AND is_bot = 0")
+    with db_conn() as con:
+        rows = con.execute(
+            f"SELECT ts_ms, method, path, status, ip, ua, referer, is_bot FROM site_visits "
+            f"WHERE {where} ORDER BY id DESC LIMIT 500", (since,)
+        ).fetchall()
+        tot = con.execute(f"SELECT COUNT(*) FROM site_visits WHERE {where}", (since,)).fetchone()[0]
+        uniq = con.execute(
+            f"SELECT COUNT(DISTINCT ip) FROM site_visits WHERE {where}", (since,)
+        ).fetchone()[0]
+        top = con.execute(
+            f"SELECT path, COUNT(*) c FROM site_visits WHERE {where} "
+            f"GROUP BY path ORDER BY c DESC LIMIT 10", (since,)
+        ).fetchall()
+
+    def when(ms):
+        d = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        return d.strftime("%m/%d %H:%M:%S")
+
+    def device(ua):
+        u = (ua or "").lower()
+        if "iphone" in u or "ipad" in u: return "📱 아이폰"
+        if "android" in u: return "📱 안드로이드"
+        if "windows" in u: return "💻 윈도우"
+        if "mac os" in u or "macintosh" in u: return "💻 맥"
+        if not u: return "❓"
+        return "🤖 로봇" if any(m in u for m in _VISIT_BOT_MARKS) else "💻 기타"
+
+    def where_from(ref):
+        r = (ref or "").lower()
+        if not r: return "직접 들어옴"
+        if "google" in r: return "🔍 구글"
+        if "naver" in r: return "🔍 네이버"
+        if "daum" in r: return "🔍 다음"
+        if "si0in.kr" in r: return "내 사이트 안에서"
+        return _e.escape((ref or "")[:40])
+
+    trs = "".join(
+        f"<tr><td class=t>{when(r[0])}</td>"
+        f"<td><a href='{_e.escape(r[2])}' target=_blank>{_e.escape(r[2])}</a></td>"
+        f"<td class=c>{r[3]}</td><td>{device(r[5])}</td>"
+        f"<td class=m>{_e.escape((r[4] or '-'))}</td><td class=m>{where_from(r[6])}</td></tr>"
+        for r in rows
+    ) or "<tr><td colspan=6 style='padding:30px;text-align:center;color:#9AA3AF'>아직 없어요</td></tr>"
+
+    tops = "".join(
+        f"<li><b>{t[1]}</b>회 &nbsp;<a href='{_e.escape(t[0])}' target=_blank>{_e.escape(t[0])}</a></li>"
+        for t in top
+    ) or "<li>아직 없어요</li>"
+
+    return HTMLResponse(f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>방문 발자국</title>
+<style>
+ body{{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#F4F5F7;margin:0;padding:18px;color:#0B0F19}}
+ h1{{font-size:19px;margin:0 0 4px}} .sub{{color:#5A6472;font-size:13px;margin-bottom:14px}}
+ .cards{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}}
+ .card{{background:#fff;border:1px solid #EEF0F3;border-radius:14px;padding:14px 16px;min-width:120px}}
+ .card .k{{font-size:12px;color:#9AA3AF;font-weight:800}} .card .v{{font-size:22px;font-weight:900;margin-top:2px}}
+ .box{{background:#fff;border:1px solid #EEF0F3;border-radius:14px;padding:14px 16px;margin-bottom:14px}}
+ .box h2{{font-size:13px;color:#9AA3AF;margin:0 0 8px}} .box ol{{margin:0;padding-left:20px;font-size:13.5px;line-height:1.9}}
+ table{{width:100%;border-collapse:collapse;background:#fff;border:1px solid #EEF0F3;border-radius:14px;overflow:hidden;font-size:13px}}
+ th{{background:#FAFBFC;text-align:left;padding:10px;color:#5A6472;font-size:12px;border-bottom:1px solid #EEF0F3}}
+ td{{padding:9px 10px;border-bottom:1px solid #F4F5F7;vertical-align:top}}
+ td.t{{white-space:nowrap;color:#5A6472;font-variant-numeric:tabular-nums}}
+ td.c{{color:#9AA3AF}} td.m{{color:#5A6472;font-size:12px}}
+ a{{color:#1B64DA;text-decoration:none}} a:hover{{text-decoration:underline}}
+ .f a{{display:inline-block;background:#fff;border:1px solid #EEF0F3;border-radius:999px;padding:6px 12px;
+       margin-right:6px;font-size:12.5px;font-weight:700;color:#5A6472}}
+ .f a.on{{background:#3182F6;border-color:#3182F6;color:#fff}}
+</style></head><body>
+<h1>👣 방문 발자국</h1>
+<div class=sub>최근 {hours}시간 · {'검색로봇 포함' if bots else '사람만 (검색로봇 제외)'}</div>
+<div class=cards>
+  <div class=card><div class=k>방문</div><div class=v>{tot}</div></div>
+  <div class=card><div class=k>다녀간 사람</div><div class=v>{uniq}</div></div>
+</div>
+<div class=f>
+  <a href="?token={token}&hours=24&bots={bots}" class="{'on' if hours==24 else ''}">24시간</a>
+  <a href="?token={token}&hours=168&bots={bots}" class="{'on' if hours==168 else ''}">7일</a>
+  <a href="?token={token}&hours=720&bots={bots}" class="{'on' if hours==720 else ''}">30일</a>
+  <a href="?token={token}&hours={hours}&bots={0 if bots else 1}" class="{'on' if bots else ''}">🤖 로봇 {'끄기' if bots else '보기'}</a>
+</div>
+<div style="height:12px"></div>
+<div class=box><h2>많이 본 페이지</h2><ol>{tops}</ol></div>
+<table>
+ <tr><th>언제</th><th>어느 페이지</th><th>응답</th><th>기기</th><th>IP</th><th>어디서 왔나</th></tr>
+ {trs}
+</table>
+<div style="color:#9AA3AF;font-size:11.5px;margin-top:14px;line-height:1.7">
+ 최근 500건까지 표시 · 90일 지난 기록은 자동 삭제됩니다(IP 는 개인정보).<br>
+ 접수서 링크(/q/...)를 고객이 다시 열면 여기에 남습니다.
+</div>
+</body></html>""")
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -18601,6 +18795,7 @@ async def intake_form_page(token: str) -> HTMLResponse:
             status_code=404,
         )
 
+    _intake_mark_opened(token)
     data = _intake_row_to_dict(row)
     now = _now_ms()
     if data["submitted_at_ms"] is not None:
@@ -19181,6 +19376,24 @@ def _render_intake_receipt_html(data: dict) -> str:
 </div></body></html>"""
 
 
+def _intake_mark_opened(token: str) -> None:
+    """접수서 링크가 열렸다고 남긴다. 실패해도 폼은 떠야 하므로 통째로 삼킨다. (2026-09-14 사장님)"""
+    try:
+        now = _now_ms()
+        with db_conn() as con:
+            con.execute(
+                "UPDATE intake_forms SET "
+                "  first_opened_at_ms = COALESCE(first_opened_at_ms, ?), "
+                "  last_opened_at_ms = ?, "
+                "  open_count = COALESCE(open_count, 0) + 1 "
+                "WHERE token = ?",
+                (now, now, token),
+            )
+            con.commit()
+    except Exception as e:  # noqa: BLE001 — 기록 실패가 접수를 막으면 안 됨
+        print(f"[intake] 열람 기록 실패(무시): {type(e).__name__}: {e}")
+
+
 @app.get("/q/{token}", response_class=HTMLResponse)
 async def quote_page(token: str) -> HTMLResponse:
     """고객 브라우저용 접수서 폼 (프로토 openQuote 1:1)."""
@@ -19191,6 +19404,7 @@ async def quote_page(token: str) -> HTMLResponse:
         ).fetchone()
     if not row:
         return _quote_status_page("❌ 유효하지 않은 링크", "사장님께 다시 링크를 받아 주세요.", 404)
+    _intake_mark_opened(token)
     data = _intake_row_to_dict(row)
     now = _now_ms()
     if data["submitted_at_ms"] is not None:
