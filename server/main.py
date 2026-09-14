@@ -6365,8 +6365,7 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
     ?token=<ADMIN_TOKEN> · ?hours=24 · ?bots=1 이면 검색로봇도 함께.
     """
     import html as _e
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        return HTMLResponse("<h3 style='font-family:sans-serif;padding:40px'>접근 권한이 없어요</h3>", 403)
+    # 인증은 _admin_gate_middleware 가 담당(쿠키 또는 ?token=).
     hours = max(1, min(int(hours or 24), 24 * 30))
     since = _now_ms() - hours * 60 * 60 * 1000
     where = "ts_ms >= ?" + ("" if bots else " AND is_bot = 0")
@@ -6462,6 +6461,95 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
  접수서 링크(/q/...)를 고객이 다시 열면 여기에 남습니다.
 </div>
 </body></html>""")
+
+
+# ─────────── 관리자 화면 자물쇠 (2026-09-14 사장님) ───────────
+#  발견: /admin 은 화면 자체가 누구나 열렸고(카드 몇 개만 토큰으로 가림),
+#        /admin/diagnostics·/admin/beta/signups 는 **토큰도 없이** 그냥 열렸다.
+#        공개 도메인이라 주소만 알면 신청자 전화번호까지 보이는 상태였다.
+#  → /admin 으로 시작하는 HTML 화면 전부를 한 번 로그인으로 잠근다.
+#     (/api/admin/* 은 예전처럼 헤더 토큰을 쓰므로 여기 해당 없음)
+#     비밀번호 = 사장님이 이미 쓰시던 ADMIN_TOKEN 그대로 — 새로 외울 게 없다.
+_ADMIN_COOKIE = "sm_admin"
+
+
+def _admin_cookie_value() -> str:
+    """쿠키에는 토큰 원문을 담지 않는다(브라우저에 비밀번호를 두지 않기 위해)."""
+    import hashlib
+    return hashlib.sha256((ADMIN_TOKEN + "|si0in-admin-v1").encode("utf-8")).hexdigest()
+
+
+def _admin_login_html(msg: str = "") -> str:
+    warn = (f'<div style="background:#FDE8ED;color:#B01E45;border-radius:10px;'
+            f'padding:10px 12px;font-size:13px;margin-bottom:12px">{msg}</div>') if msg else ""
+    return f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>관리자 로그인</title>
+<style>
+ body{{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#F4F5F7;margin:0;
+   display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}}
+ .box{{background:#fff;border:1px solid #EEF0F3;border-radius:18px;padding:26px 24px;width:100%;max-width:360px;
+   box-shadow:0 8px 26px rgba(17,24,39,.08)}}
+ h1{{font-size:19px;margin:0 0 6px;color:#0B0F19}} p{{font-size:13px;color:#5A6472;margin:0 0 18px;line-height:1.6}}
+ input{{width:100%;padding:13px 14px;border:1px solid #EEF0F3;border-radius:12px;font-size:15px;box-sizing:border-box}}
+ button{{width:100%;margin-top:10px;padding:14px;border:0;border-radius:12px;background:#3182F6;color:#fff;
+   font-size:15px;font-weight:800;cursor:pointer}}
+</style></head><body><div class=box>
+ <h1>🔒 시공막내 관리자</h1>
+ <p>사장님만 들어오는 곳이에요.<br>관리자 비밀번호를 넣어주세요.</p>
+ {warn}
+ <form method=post action="/admin/login">
+   <input type=password name=pw placeholder="관리자 비밀번호" autofocus autocomplete="current-password">
+   <button type=submit>들어가기</button>
+ </form>
+</div></body></html>"""
+
+
+@app.get("/admin/login", response_class=HTMLResponse, include_in_schema=False)
+async def admin_login_page() -> HTMLResponse:
+    return HTMLResponse(_admin_login_html())
+
+
+@app.post("/admin/login", include_in_schema=False)
+async def admin_login_submit(request: Request):
+    from fastapi.responses import RedirectResponse
+    form = await request.form()
+    pw = (form.get("pw") or "").strip()
+    if not ADMIN_TOKEN or pw != ADMIN_TOKEN:
+        return HTMLResponse(_admin_login_html("비밀번호가 달라요. 다시 넣어주세요."), status_code=401)
+    res = RedirectResponse(url="/admin", status_code=303)
+    res.set_cookie(_ADMIN_COOKIE, _admin_cookie_value(), max_age=30 * 24 * 3600,
+                   httponly=True, samesite="lax", secure=True, path="/admin")
+    return res
+
+
+@app.get("/admin/logout", include_in_schema=False)
+async def admin_logout():
+    from fastapi.responses import RedirectResponse
+    res = RedirectResponse(url="/admin/login", status_code=303)
+    res.delete_cookie(_ADMIN_COOKIE, path="/admin")
+    return res
+
+
+@app.middleware("http")
+async def _admin_gate_middleware(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/admin"):
+        return await call_next(request)
+    if path in ("/admin/login", "/admin/logout"):
+        return await call_next(request)
+    if not ADMIN_TOKEN:            # 토큰 미설정이면 잠글 수단이 없다 → 예전처럼 통과(맥미니 로컬 개발용)
+        return await call_next(request)
+    # ① 이미 로그인한 브라우저
+    if request.cookies.get(_ADMIN_COOKIE) == _admin_cookie_value():
+        return await call_next(request)
+    # ② 주소에 ?token= 을 붙여 온 경우 — 통과시키고 쿠키도 심어준다(다음부터 안 붙여도 됨)
+    if request.query_params.get("token") == ADMIN_TOKEN:
+        res = await call_next(request)
+        res.set_cookie(_ADMIN_COOKIE, _admin_cookie_value(), max_age=30 * 24 * 3600,
+                       httponly=True, samesite="lax", secure=True, path="/admin")
+        return res
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/admin/login", status_code=303)
 
 
 @app.get("/robots.txt", include_in_schema=False)
