@@ -982,7 +982,10 @@ def db_init() -> None:
         #   구분이 안 되면 대응이 달라질 수가 없다(다시 보내기 vs 전화).
         for _col, _type in (("first_opened_at_ms", "INTEGER"),
                             ("last_opened_at_ms", "INTEGER"),
-                            ("open_count", "INTEGER NOT NULL DEFAULT 0")):
+                            ("open_count", "INTEGER NOT NULL DEFAULT 0"),
+                            # 제출 당시 회선 — 나중에 링크를 연 사람이 '그 사람'인지 가늠하는 단서.
+                            #   (사장님: "지인한테 링크를 공유하면 다른 사람이 들어올 수도 있잖아" — 맞는 지적)
+                            ("submit_ip", "TEXT")):
             try:
                 con.execute(f"ALTER TABLE intake_forms ADD COLUMN {_col} {_type}")
             except Exception:
@@ -5594,6 +5597,10 @@ def _record_visit(request: Request, status: int) -> None:
         h = request.headers
         ip = (h.get("cf-connecting-ip") or h.get("x-forwarded-for", "").split(",")[0].strip()
               or (request.client.host if request.client else "")) or None
+        # 서버가 자기 자신을 부른 것(점검·스크린샷용 curl)은 방문이 아니다.
+        #   섞이면 사장님이 볼 때마다 "이건 뭐지? 로봇이야 사람이야?" 하게 된다. (2026-09-15 실제 혼동)
+        if ip in ("127.0.0.1", "::1", "localhost"):
+            return
         ua = (h.get("user-agent") or "")[:300] or None
         ref = (h.get("referer") or "")[:300] or None
         is_bot = 1 if any(m in (ua or "").lower() for m in _VISIT_BOT_MARKS) else 0
@@ -6389,12 +6396,58 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
 
     def device(ua):
         u = (ua or "").lower()
+        # ⚠️ 로봇을 **먼저** 본다. 구글봇 모바일 UA 에 'Android' 가 들어 있어서
+        #    기기부터 보면 검색로봇이 전부 '안드로이드'로 찍힌다. (2026-09-14 사장님 화면에서 발견)
+        if "googlebot" in u: return "🤖 구글봇"
+        if "bingbot" in u: return "🤖 빙봇"
+        if "yeti" in u: return "🤖 네이버봇"
+        if any(m in u for m in _VISIT_BOT_MARKS): return "🤖 로봇"
         if "iphone" in u or "ipad" in u: return "📱 아이폰"
         if "android" in u: return "📱 안드로이드"
         if "windows" in u: return "💻 윈도우"
         if "mac os" in u or "macintosh" in u: return "💻 맥"
         if not u: return "❓"
-        return "🤖 로봇" if any(m in u for m in _VISIT_BOT_MARKS) else "💻 기타"
+        return "💻 기타"
+
+    # 접수서 링크(/q/…, /intake/…)는 토큰이 곧 고객이다 → 이름·번호를 그대로 보여준다.
+    #   나머지 페이지는 누군지 알 길이 없으므로 IP 로 고정 별명을 만들어 '같은 사람'만 알아보게 한다.
+    _who_cache = {}
+
+    def who(path, ip):
+        import hashlib
+        tk = None
+        for pre in ("/q/", "/intake/"):
+            if path.startswith(pre):
+                tk = path[len(pre):].split("/")[0].split("?")[0]
+                break
+        if tk:
+            if tk not in _who_cache:
+                try:
+                    with db_conn() as c2:
+                        r2 = c2.execute(
+                            "SELECT customer_name, phone, submit_ip FROM intake_forms WHERE token = ?",
+                            (tk,)
+                        ).fetchone()
+                except Exception:
+                    r2 = None
+                if r2:
+                    nm = (r2[0] or "").strip()
+                    ph = (r2[1] or "").strip()
+                    ph_fmt = f"{ph[:3]}-{ph[3:7]}-{ph[7:]}" if len(ph) == 11 else ph
+                    label = (f"{nm} · {ph_fmt}" if nm and nm != "고객" else ph_fmt).strip()
+                    _who_cache[tk] = ("📋 " + label, r2[2])
+                else:
+                    _who_cache[tk] = ("📋 접수서(만료·삭제)", None)
+            label, sip = _who_cache[tk]
+            # ⚠️ 토큰으로 확실한 건 '어느 건' 이지 '누가' 가 아니다 — 링크는 남에게 넘어갈 수 있다.
+            #    제출할 때 쓴 회선과 같으면 본인일 가능성이 높다는 정도의 단서만 준다.
+            if sip and ip:
+                return label + (" · 제출한 기기 ✓" if sip == ip else " · 다른 기기 ⚠️")
+            return label
+        if not ip:
+            return "—"
+        h = hashlib.sha256(ip.encode()).hexdigest()[:3]
+        return f"손님 #{h}"
 
     def where_from(ref):
         r = (ref or "").lower()
@@ -6407,9 +6460,10 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
 
     trs = "".join(
         f"<tr><td class=t>{when(r[0])}</td>"
+        f"<td class=w>{_e.escape(who(r[2], r[4]))}</td>"
         f"<td><a href='{_e.escape(r[2])}' target=_blank>{_e.escape(r[2])}</a></td>"
-        f"<td class=c>{r[3]}</td><td>{device(r[5])}</td>"
-        f"<td class=m>{_e.escape((r[4] or '-'))}</td><td class=m>{where_from(r[6])}</td></tr>"
+        f"<td>{device(r[5])}</td><td class=m>{where_from(r[6])}</td>"
+        f"<td class=m title='{_e.escape(r[4] or '')}'>{_e.escape((r[4] or '-'))[:22]}</td></tr>"
         for r in rows
     ) or "<tr><td colspan=6 style='padding:30px;text-align:center;color:#9AA3AF'>아직 없어요</td></tr>"
 
@@ -6432,7 +6486,7 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
  th{{background:#FAFBFC;text-align:left;padding:10px;color:#5A6472;font-size:12px;border-bottom:1px solid #EEF0F3}}
  td{{padding:9px 10px;border-bottom:1px solid #F4F5F7;vertical-align:top}}
  td.t{{white-space:nowrap;color:#5A6472;font-variant-numeric:tabular-nums}}
- td.c{{color:#9AA3AF}} td.m{{color:#5A6472;font-size:12px}}
+ td.c{{color:#9AA3AF}} td.m{{color:#5A6472;font-size:12px}}\n td.w{{font-weight:800;white-space:nowrap}}
  a{{color:#1B64DA;text-decoration:none}} a:hover{{text-decoration:underline}}
  .f a{{display:inline-block;background:#fff;border:1px solid #EEF0F3;border-radius:999px;padding:6px 12px;
        margin-right:6px;font-size:12.5px;font-weight:700;color:#5A6472}}
@@ -6453,12 +6507,14 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
 <div style="height:12px"></div>
 <div class=box><h2>많이 본 페이지</h2><ol>{tops}</ol></div>
 <table>
- <tr><th>언제</th><th>어느 페이지</th><th>응답</th><th>기기</th><th>IP</th><th>어디서 왔나</th></tr>
+ <tr><th>언제</th><th>어느 건 / 방문자</th><th>어느 페이지</th><th>기기</th><th>어디서 왔나</th><th>IP</th></tr>
  {trs}
 </table>
 <div style="color:#9AA3AF;font-size:11.5px;margin-top:14px;line-height:1.7">
  최근 500건까지 표시 · 90일 지난 기록은 자동 삭제됩니다(IP 는 개인정보).<br>
- 접수서 링크(/q/...)를 고객이 다시 열면 여기에 남습니다.
+ 접수서 링크는 <b>어느 건인지</b>가 나옵니다. 다만 링크는 남에게 넘어갈 수 있으니
+ <b>'제출한 기기 ✓'</b> 표시가 있을 때만 본인일 가능성이 높습니다.<br>
+ 그 외 페이지는 누군지 알 수 없어 IP 로 고정 별명(손님 #xxx)을 붙입니다 — 같은 별명이면 같은 사람입니다.
 </div>
 </body></html>""")
 
@@ -6541,15 +6597,48 @@ async def _admin_gate_middleware(request: Request, call_next):
         return await call_next(request)
     # ① 이미 로그인한 브라우저
     if request.cookies.get(_ADMIN_COOKIE) == _admin_cookie_value():
-        return await call_next(request)
+        return await _admin_pass(call_next, request)
     # ② 주소에 ?token= 을 붙여 온 경우 — 통과시키고 쿠키도 심어준다(다음부터 안 붙여도 됨)
     if request.query_params.get("token") == ADMIN_TOKEN:
-        res = await call_next(request)
+        res = await _admin_pass(call_next, request)
         res.set_cookie(_ADMIN_COOKIE, _admin_cookie_value(), max_age=30 * 24 * 3600,
                        httponly=True, samesite="lax", secure=True, path="/admin")
         return res
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/admin/login", status_code=303)
+
+
+# 안쪽 화면들이 예전부터 **자기들끼리 또** 토큰을 묻는다(sessionStorage/localStorage 모달).
+#   문에서 이미 확인했는데 또 치게 하면 번거롭기만 하다. (2026-09-14 사장님: "이건 또 번거롭게")
+#   → 인증된 요청의 HTML 에만 토큰을 미리 심어 보낸다. 인증 안 된 사람에겐 애초에 이 응답이 안 간다.
+async def _admin_pass(call_next, request):
+    res = await call_next(request)
+    try:
+        ctype = res.headers.get("content-type", "")
+        if "text/html" not in ctype or res.status_code != 200:
+            return res
+        body = b"".join([chunk async for chunk in res.body_iterator])
+        if b"</head>" not in body or len(body) > 4_000_000:
+            return _raw(res, body)
+        tok = ADMIN_TOKEN.replace("\\", "\\\\").replace("'", "\\'")
+        seed = (
+            "<script>try{"
+            f"sessionStorage.setItem('admin_token','{tok}');"
+            f"localStorage.setItem('ringgo_admin_token','{tok}');"
+            "}catch(e){}</script>"
+        ).encode("utf-8")
+        return _raw(res, body.replace(b"</head>", seed + b"</head>", 1))
+    except Exception as e:  # noqa: BLE001 — 주입 실패가 화면을 깨면 안 됨
+        print(f"[admin] 토큰 주입 실패(무시): {type(e).__name__}: {e}")
+        return res
+
+
+def _raw(res, body: bytes):
+    """본문을 바꿔 되돌려줄 때 — content-length 는 새로 계산되게 뺀다."""
+    from starlette.responses import Response
+    headers = {k: v for k, v in res.headers.items() if k.lower() != "content-length"}
+    return Response(content=body, status_code=res.status_code,
+                    headers=headers, media_type=res.media_type)
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -19573,7 +19662,7 @@ async def quote_owner_privacy(token: str) -> HTMLResponse:
 # ─── API 3: POST /q/{token}/submit ───
 
 @app.post("/q/{token}/submit")
-async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
+async def quote_submit(token: str, req: QuoteSubmitRequest, request: Request = None) -> dict:
     """고객 제출 (프로토 finalizeQuote). 응답: {ok, submittedAtMs, customerPhone}."""
     phone = (req.phone or "").strip()
     address = (req.address or "").strip()
@@ -19629,6 +19718,19 @@ async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
              token),
         )
         con.commit()
+    # 제출한 회선 기록 — 나중에 같은 링크를 연 사람이 본인인지 비교용. 실패해도 제출은 정상.
+    try:
+        if request is not None:
+            _h = request.headers
+            _sip = (_h.get("cf-connecting-ip")
+                    or _h.get("x-forwarded-for", "").split(",")[0].strip()
+                    or (request.client.host if request.client else "")) or None
+            if _sip:
+                with db_conn() as _c:
+                    _c.execute("UPDATE intake_forms SET submit_ip = ? WHERE token = ?", (_sip, token))
+                    _c.commit()
+    except Exception as _e:  # noqa: BLE001
+        print(f"[quote/submit] 제출 회선 기록 실패(무시): {type(_e).__name__}: {_e}")
     print(f"[quote/submit] token={token} customerPhone={owner_customer_phone} owner={owner_phone} → submitted")
     if req.privacyAgreed:
         _record_intake_consent(phone)  # 추가98 — 고객 동의 영수증
