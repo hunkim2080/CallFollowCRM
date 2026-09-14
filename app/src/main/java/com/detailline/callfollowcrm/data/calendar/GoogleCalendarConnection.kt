@@ -24,7 +24,17 @@ import kotlin.coroutines.resumeWithException
  */
 class GoogleCalendarConnection(private val appContext: Context) {
 
-    private val calendarScope = Scope("https://www.googleapis.com/auth/calendar")
+    /**
+     * 요구 권한 — **이 앱이 만든 캘린더만**. (2026-09-14 사장님)
+     *
+     * 예전엔 `auth/calendar`(고객의 **모든** 캘린더 읽기·쓰기)를 달라고 했다. 우리는 "시공막내"
+     * 캘린더 하나에만 쓰는데 권한은 전부 받는 꼴이라 두 가지가 걸렸다:
+     *   ① 구글 OAuth 심사에서 '민감한 범위'로 까다롭게 본다 — 테스트 모드에 갇히면
+     *      테스터 명단에 이메일을 일일이 넣어야 하고, 연결이 7일마다 풀린다(회원 서비스로 불가).
+     *   ② 사용자가 동의 화면에서 "내 개인 일정을 다 본다고?" 하고 겁먹는다.
+     * `calendar.app.created` = 앱이 직접 만든 보조 캘린더만 보고·쓰고·지운다. 기능은 그대로.
+     */
+    private val calendarScope = Scope("https://www.googleapis.com/auth/calendar.app.created")
 
     sealed interface AuthResult {
         data class Success(val accessToken: String) : AuthResult

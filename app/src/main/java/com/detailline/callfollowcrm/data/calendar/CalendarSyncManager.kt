@@ -48,12 +48,18 @@ class CalendarSyncManager(
 
     private val calMutex = Mutex()
 
-    /** "시공막내" 캘린더 id — 없으면 찾거나(이름) 만든다. 동시 호출에도 한 번만 생성. */
+    /**
+     * "시공막내" 캘린더 id — 없으면 찾거나(이름) 만든다. 동시 호출에도 한 번만 생성.
+     *
+     * 권한을 `calendar.app.created`(앱이 만든 캘린더만)로 좁히면서 목록 조회가 막힐 수 있다.
+     *   → 찾기는 **실패해도 무시**하고 곧장 새로 만든다. 기능이 멈추면 안 되니까.
+     */
     suspend fun ensureCalendar(token: String): String? {
         store.getCalendarId()?.let { return it }
         return calMutex.withLock {
             store.getCalendarId() ?: run {
-                val id = api.findCalendarBySummary(token, CALENDAR_NAME)
+                val found = runCatching { api.findCalendarBySummary(token, CALENDAR_NAME) }.getOrNull()
+                val id = found
                     ?: api.createCalendar(token, CALENDAR_NAME, "시공막내 — 시공/AS 일정 (앱 자동 동기화)")
                 store.setCalendarId(id)
                 id
@@ -61,25 +67,47 @@ class CalendarSyncManager(
         }
     }
 
+    /**
+     * 저장해둔 캘린더가 더는 못 쓰는 것(권한 축소 전에 만든 것 / 사용자가 지운 것)일 때 버리고 새로 만든다.
+     *   좁힌 권한으로는 **예전 넓은 권한으로 만든 캘린더에 못 쓴다** → 403/404 가 뜬다.
+     *   그대로 두면 동기화가 영영 조용히 실패하므로, 한 번 갈아끼우고 이벤트 id 도 전부 비운다
+     *   (다음 동기화에서 새 캘린더에 다시 만들어짐).
+     */
+    private suspend fun resetCalendar(): Unit = calMutex.withLock {
+        store.setCalendarId(null)
+        for (c in runCatching { store.scheduledCustomers() }.getOrDefault(emptyList())) {
+            for (type in ScheduleType.entries) store.setEventId(c.id, type, null)
+        }
+    }
+
     /** 한 고객의 시공·A/S 일정을 캘린더에 반영. 미연결이면 조용히 넘어감(나중에 재시도). */
-    suspend fun syncCustomer(c: CustomerEntity) {
+    suspend fun syncCustomer(c: CustomerEntity, retried: Boolean = false) {
         val token = connection.getTokenSilently() ?: return
         val cal = ensureCalendar(token) ?: return
-        syncOne(token, cal, c, ScheduleType.WORK)
-        syncOne(token, cal, c, ScheduleType.AS)
+        var broken = syncOne(token, cal, c, ScheduleType.WORK)
+        broken = syncOne(token, cal, c, ScheduleType.AS) || broken
+        if (broken && !retried) {
+            resetCalendar()
+            syncCustomer(c, retried = true)
+        }
     }
 
     /**
      * 시공/AS 일정 있는(또는 있던) 고객 전부를 한 번에 반영 — 연결 직후 / 수동 '지금 동기화'.
      * 토큰·캘린더 준비는 한 번만. 반환 = 훑은 고객 수. 미연결이면 -1.
      */
-    suspend fun syncAll(): Int {
+    suspend fun syncAll(retried: Boolean = false): Int {
         val token = connection.getTokenSilently() ?: return -1
         val cal = ensureCalendar(token) ?: return -1
         val customers = store.scheduledCustomers()
         for (c in customers) {
-            syncOne(token, cal, c, ScheduleType.WORK)
-            syncOne(token, cal, c, ScheduleType.AS)
+            var broken = syncOne(token, cal, c, ScheduleType.WORK)
+            broken = syncOne(token, cal, c, ScheduleType.AS) || broken
+            // 첫 건에서 캘린더가 못 쓰는 걸 알면 나머지를 헛돌리지 말고 바로 갈아끼우고 처음부터.
+            if (broken && !retried) {
+                resetCalendar()
+                return syncAll(retried = true)
+            }
         }
         return customers.size
     }
@@ -97,7 +125,10 @@ class CalendarSyncManager(
     }
 
     // ── 한 종류(시공/AS) 반영 ────────────────────────────────
-    private suspend fun syncOne(token: String, cal: String, c: CustomerEntity, type: ScheduleType) {
+    /** @return true = 캘린더 자체를 못 쓴다(갈아끼워야 함). false = 정상이거나 일시적 실패. */
+    private suspend fun syncOne(
+        token: String, cal: String, c: CustomerEntity, type: ScheduleType
+    ): Boolean {
         val existing = store.eventId(c.id, type)
         val event = buildEvent(c, type)
 
@@ -107,7 +138,7 @@ class CalendarSyncManager(
                 runCatching { api.deleteEvent(token, cal, existing) }
                 store.setEventId(c.id, type, null)
             }
-            return
+            return false
         }
 
         try {
@@ -123,9 +154,14 @@ class CalendarSyncManager(
                     } else throw e
                 }
             }
+        } catch (e: CalendarApi.CalendarApiException) {
+            // 새 이벤트조차 못 만든다 = 이벤트가 아니라 **캘린더**가 문제(권한 없음/삭제됨).
+            //   호출측이 캘린더를 갈아끼우고 한 번 다시 시도하게 알린다.
+            if (e.code == 403 || e.code == 404) return true
         } catch (_: Exception) {
-            // 실패 → 이벤트 id 유지/미변경. 다음 동기화 때 재시도.
+            // 그 외 실패(네트워크 등) → 이벤트 id 유지. 다음 동기화 때 재시도.
         }
+        return false
     }
 
     // ── 고객 → 이벤트 JSON ───────────────────────────────────
