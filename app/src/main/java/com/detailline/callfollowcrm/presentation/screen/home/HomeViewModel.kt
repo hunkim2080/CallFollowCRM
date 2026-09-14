@@ -1481,6 +1481,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 prefs.latestReleaseNotes = info.notes   // 변경 내역 저장(서버가 주면). 없으면 빈 목록.
                 if (info.mtimeMs > 0) prefs.latestVersionMtimeMs = info.mtimeMs   // 배포 날짜 저장(배너 표시용). (2026-08-24)
             }
+            // 🔴 Play 로 설치한 앱에는 이 배너를 띄우지 않는다. (2026-09-15 사장님 신고)
+            //   이 배너는 **우리 서버에 올려둔 APK** 의 versionCode 를 보고 판단한다.
+            //   Play 설치자는 Play 가 주는 버전을 쓰는데(내부테스트 1699), 서버 APK 는 1700 이라
+            //   "방금 업데이트했는데 또 업데이트하라" 가 된다. 채널이 다른 걸 비교하니 당연히 어긋난다.
+            //   → Play 설치자는 InAppUpdater(앱 켤 때 Play 시트가 올라오는 그것)가 맡는다.
+            //     사이드로드(USB 설치) 사용자에게만 이 배너가 필요하다.
+            if (isInstalledFromPlayStore()) {
+                prefs.updateAvailable = false
+                _updateAvailable.value = false
+                _latestReleaseNotes.value = emptyList()
+                _updateDateLabel.value = ""
+                return@launch
+            }
             // 배너 판단은 '캐시된 boolean' 이 아니라 항상 최신코드 vs 내 버전으로 다시 계산 (UpdateChecker.shouldShowBanner 주석 참고).
             val latest = prefs.latestVersionCode
             val stillOld = com.detailline.callfollowcrm.util.UpdateChecker.shouldShowBanner(
