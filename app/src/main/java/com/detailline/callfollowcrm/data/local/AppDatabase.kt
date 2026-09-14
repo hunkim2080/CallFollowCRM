@@ -66,7 +66,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 49,
+    version = 50,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -870,6 +870,49 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v50 — 재방문 Phase2 **Stage B 1단계**: 건마다 메모·사진이 따로 붙게 (2026-09-14 사장님).
+        //   "인테리어 사장이 1차·2차·3차 계속 일을 준다. 그럼 잔금도 다르고 메모도 3개가 생겨야 한다."
+        //   ⚠️ 여기선 **칸만 만든다.** 화면/계산은 그대로 → 이 마이그레이션만으로는 아무것도 안 바뀐다(위험 0).
+        private val MIGRATION_49_50 = object : Migration(49, 50) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // ① 건별 메모
+                db.execSQL("ALTER TABLE jobs ADD COLUMN memo TEXT NOT NULL DEFAULT ''")
+                // 지금까지 쓰던 고객 메모는 '대표 건'(= customers 미러와 같은 날짜) 것으로 옮겨 심는다.
+                //   customers.memo 는 **지우지 않는다** — 아직 그걸 읽는 화면들이 있다.
+                db.execSQL(
+                    """
+                    UPDATE jobs SET memo = COALESCE((
+                        SELECT c.memo FROM customers c
+                        WHERE c.id = jobs.customerId
+                          AND c.memo IS NOT NULL AND c.memo <> ''
+                          AND c.scheduledWorkDate = jobs.scheduledWorkDate
+                    ), '')
+                    """.trimIndent()
+                )
+
+                // ② 현장 사진을 '건'에 붙임 (NULL = 아직 어느 건인지 모름)
+                db.execSQL("ALTER TABLE site_photos ADD COLUMN jobId INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_site_photos_jobId ON site_photos(jobId)")
+                // 기존 사진은 '찍힌 시각 기준으로 그때 진행 중이던(또는 직전) 건'에 붙인다.
+                //   그런 게 없으면(사진이 첫 시공보다 이른 경우) 그 고객의 가장 이른 건으로.
+                db.execSQL(
+                    """
+                    UPDATE site_photos SET jobId = COALESCE(
+                      (SELECT j.id FROM jobs j
+                        WHERE j.customerId = site_photos.customerId
+                          AND j.scheduledWorkDate IS NOT NULL
+                          AND j.scheduledWorkDate <= site_photos.createdAt
+                        ORDER BY j.scheduledWorkDate DESC LIMIT 1),
+                      (SELECT j.id FROM jobs j
+                        WHERE j.customerId = site_photos.customerId
+                          AND j.scheduledWorkDate IS NOT NULL
+                        ORDER BY j.scheduledWorkDate ASC LIMIT 1)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -888,7 +931,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49
+                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

@@ -11,11 +11,13 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "site_photos",
-    indices = [Index("customerId")]
+    indices = [Index("customerId"), Index("jobId")]
 )
 data class SitePhotoEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val customerId: Long,
+    /** 어느 시공 '건'의 사진인가. null = 아직 미분류(옛 데이터). (v50, 2026-09-14 사장님) */
+    val jobId: Long? = null,
     /** 앱 내부 저장소에 복사한 파일 절대 경로. */
     val filePath: String,
     /** '시공 전'|'시공 중'|'시공 후'|'추가' — 현재 미사용(확장 대비, null). */

@@ -35,6 +35,8 @@ data class JobEntity(
     val balanceAmount: Long? = null,
     val balancePaidAt: Long? = null,
     val workCompletedAt: Long? = null,
+    /** 이 건 전용 메모 — 고객 공통이 아니라 **현장마다** 따로. (v50, 2026-09-14 사장님) */
+    val memo: String = "",
     val createdAt: Long,
     val updatedAt: Long
 )
