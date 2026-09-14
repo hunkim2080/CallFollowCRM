@@ -437,6 +437,12 @@ object DataBackup {
 
     private fun skipPrefKey(k: String): Boolean {
         val lk = k.lowercase(Locale.ROOT)
+        // 🔴 '이 폰에서만 뜻이 있는' 설정은 되돌리면 안 된다. (2026-09-14 사장님)
+        //   구글 캘린더 연결은 **폰+구글계정+앱서명**에 묶인 허가라 백업으로 못 옮긴다.
+        //   그런데 "연결됨" 표시와 캘린더 id 는 그냥 설정칸 값이라 복원돼 버렸고,
+        //   → 앱은 "연결됨"이라고 하는데 실제 인증은 없어서 [동기화]가 계속 실패했다.
+        //   (사장님 재설치 직후 겪음. 표시가 거짓말을 하면 원인을 못 찾는다)
+        if (lk.startsWith("google_calendar") || lk.contains("calendar_connected")) return true
         return lk.contains("token") || lk.contains("fcm") || lk.contains("gcm") || lk.contains("folder")
     }
 

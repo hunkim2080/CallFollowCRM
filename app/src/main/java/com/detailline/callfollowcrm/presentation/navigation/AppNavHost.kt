@@ -451,7 +451,14 @@ fun AppNavHost(
                     schedScope.launch {
                         if (container.preferences.googleCalendarConnected) {
                             val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-                            schedToast(if (n >= 0) "구글 캘린더에 동기화했어요" else "동기화 실패 — 잠시 후 다시")
+                            if (n >= 0) schedToast("구글 캘린더에 동기화했어요")
+                            else {
+                                // 인증이 풀렸는데 "연결됨" 표시만 남아 있으면 사장님이 원인을 못 찾는다.
+                                //   (재설치/복원 후 실제로 겪음 — 표시는 연결됨인데 계속 실패) 2026-09-14
+                                //   → 표시를 내려서 다음 탭이 '연결'로 동작하게 하고, 뭘 해야 하는지 말해준다.
+                                container.preferences.googleCalendarConnected = false
+                                schedToast("구글 연결이 풀렸어요 — 한 번 더 눌러 다시 연결해주세요")
+                            }
                         } else when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
                             is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.Success -> {
                                 container.preferences.googleCalendarConnected = true
