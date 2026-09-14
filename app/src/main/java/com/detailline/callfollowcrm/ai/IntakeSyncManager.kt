@@ -23,6 +23,24 @@ class IntakeSyncManager(private val container: AppContainer) {
         val list = container.intakeFormRepository.submissions(devicePhone, since).getOrNull() ?: return
         if (list.isEmpty()) return
 
+        // 🔴 첫 실행(재설치 포함) — 기준선만 세우고 이번 판은 가져오지 않는다. (2026-09-14 사장님 신고)
+        //   since 기본값이 0 이라 "태초부터" 를 달라고 하게 되고, 서버에 쌓여 있던 옛 접수서가
+        //   전부 '새 제출'로 들어와 고객이 새로 생기고 알림이 쏟아졌다("접수서가 엄청 쌓이네").
+        //   → 지금 서버에 있는 건 전부 '이미 본 것'으로 찍어두고, 기준을 now 로 올린다.
+        //     (옛 접수서의 실제 내용은 [서버에서 복원]으로 들어온다 — 여기서 또 만들 필요가 없다)
+        if (since <= 0L) {
+            val seen = prefs.intakeImportedTokens.toMutableSet()
+            var floor = System.currentTimeMillis()
+            for (s in list) {
+                seen.add(s.token)
+                s.submittedAtMs?.let { if (it > floor) floor = it }
+            }
+            prefs.intakeImportedTokens = seen
+            prefs.intakeSyncSinceMs = floor
+            println("[intake] 첫 실행 — 기존 제출 ${list.size}건을 '이미 본 것'으로 기준선만 세움")
+            return
+        }
+
         val imported = prefs.intakeImportedTokens.toMutableSet()
         var maxSubmitted = since
         var failedFloor = Long.MAX_VALUE   // 처리 '실패'한 건의 최소 제출시각 — 마커가 이 앞을 못 넘게(다음 폴링 재시도=유실 방지). (2026-07-30 버그감사)
