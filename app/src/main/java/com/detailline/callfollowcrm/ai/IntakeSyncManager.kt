@@ -68,9 +68,8 @@ class IntakeSyncManager(private val container: AppContainer) {
                     container.customerRepository.updateScheduledWorkDate(c.id, it)
                     // 접수서로 잡힌 일정도 jobs 에 들어가야 달력에 뜬다. (2026-09-15 사장님)
                     runCatching {
-                        container.jobRepository.moveRepresentativeSchedule(
-                            c.id, com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it),
-                            System.currentTimeMillis()
+                        container.jobRepository.syncRepresentativeFromCustomer(
+                            c.id, System.currentTimeMillis()
                         )
                     }
                 }

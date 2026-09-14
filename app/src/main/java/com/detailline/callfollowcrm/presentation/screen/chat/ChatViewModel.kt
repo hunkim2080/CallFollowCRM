@@ -1635,11 +1635,8 @@ class ChatViewModel(
         withContext(Dispatchers.IO + NonCancellable) {
             runCatching {
                 container.customerRepository.updateScheduledWorkDate(id, timestampMs)
-                // 일정 탭·달력은 jobs 를 본다 — 같이 옮겨야 화면에 반영된다. (2026-09-15 사장님)
-                container.jobRepository.moveRepresentativeSchedule(
-                    id, com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(timestampMs),
-                    System.currentTimeMillis()
-                )
+                // 일정 탭·달력은 jobs 를 본다 — 같이 밀어넣어야 화면에 반영된다. (2026-09-15 사장님)
+                container.jobRepository.syncRepresentativeFromCustomer(id, System.currentTimeMillis())
             }
         }
         // 캘린더 등록 KPI — 채팅 AI제안 [시공일 등록]도 한 건으로 집계. (2026-06-25 cowork 요청)
@@ -1662,7 +1659,10 @@ class ChatViewModel(
     fun setScheduledWorkMinutes(minutes: Int?) = viewModelScope.launch {
         val id = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
-            runCatching { container.customerRepository.updateScheduledWorkMinutes(id, minutes) }
+            runCatching {
+                container.customerRepository.updateScheduledWorkMinutes(id, minutes)
+                container.jobRepository.syncRepresentativeFromCustomer(id, System.currentTimeMillis())
+            }
         }
     }
 
@@ -1670,7 +1670,10 @@ class ChatViewModel(
     fun setScheduledWorkTiming(minutes: Int?, days: Int) = viewModelScope.launch {
         val id = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
-            runCatching { container.customerRepository.updateScheduledWorkTiming(id, minutes, days) }
+            runCatching {
+                container.customerRepository.updateScheduledWorkTiming(id, minutes, days)
+                container.jobRepository.syncRepresentativeFromCustomer(id, System.currentTimeMillis())
+            }
         }
     }
 
