@@ -140,6 +140,10 @@ fun ScheduleScreen(
     /** 구글 캘린더 — 연결됨 여부 + 동기화/연결 실행(일정 탭 상단 버튼). (2026-09-01 사장님) */
     calendarConnected: Boolean = false,
     onCalendarSync: () -> Unit = {},
+    /** 동기화 도는 중 · 마지막으로 올린 시각(ms, 0=아직)·건수. 버튼 밑에 표시 — 계속 누르게 되지 않도록. (2026-09-15 사장님) */
+    calendarSyncing: Boolean = false,
+    calendarSyncedAtMs: Long = 0L,
+    calendarSyncedCount: Int = 0,
     /** 진입 시 미리 선택할 날(ms). 홈 "다음 시공" 카드에서 그 시공일로. null/<=0 = 오늘. */
     initialSelectedDayMs: Long? = null
 ) {
@@ -231,14 +235,28 @@ fun ScheduleScreen(
                             .padding(end = 8.dp)
                             .clip(RoundedCornerShape(11.dp))
                             .background(Color.White)
-                            .clickable { onCalendarSync() }
-                            .padding(horizontal = 11.dp, vertical = 9.dp),
+                            .clickable(enabled = !calendarSyncing) { onCalendarSync() }
+                            .padding(horizontal = 11.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            if (calendarConnected) "🔄 동기화" else "📅 연결",
-                            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                when {
+                                    calendarSyncing -> "⏳ 올리는 중"
+                                    calendarConnected -> "🔄 동기화"
+                                    else -> "📅 연결"
+                                },
+                                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                color = if (calendarSyncing) TossTextTertiary else TossBlue
+                            )
+                            // 언제 올렸는지 안 보이면 "됐나?" 싶어 계속 누르게 된다. (2026-09-15 사장님)
+                            if (calendarConnected && calendarSyncedAtMs > 0L && !calendarSyncing) {
+                                Text(
+                                    lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount),
+                                    fontSize = 9.5.sp, color = TossTextTertiary, maxLines = 1
+                                )
+                            }
+                        }
                     }
                     Box(
                         modifier = Modifier
@@ -1148,6 +1166,19 @@ private fun koreanMonthDay(ms: Long): String =
 /** 캘린더 막대 한 칸 — 일정 1건 = 막대 1줄(lane). 여러 날 시공은 START/MID/END 로 이어 그림. (프로토 jbar) */
 /** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~2 = 최대 3줄). 칸 렌더러와 반드시 같은 값. */
 private const val CAL_MAX_LANE = 2
+
+/** "방금 · 35건" / "오후 2:10 · 35건" / "어제 · 35건" — 버튼 밑 한 줄. (2026-09-15 사장님) */
+private fun lastSyncLabel(atMs: Long, count: Int): String {
+    val diff = System.currentTimeMillis() - atMs
+    val when_ = when {
+        diff < 60_000L -> "방금"
+        diff < 60 * 60_000L -> "${diff / 60_000L}분 전"
+        DateTimeUtils.startOfDay(atMs) == DateTimeUtils.startOfDay(System.currentTimeMillis()) ->
+            java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREA).format(java.util.Date(atMs))
+        else -> java.text.SimpleDateFormat("M/d", java.util.Locale.KOREA).format(java.util.Date(atMs))
+    }
+    return if (count > 0) "$when_ · ${count}건" else when_
+}
 
 private enum class BarSeg { SINGLE, START, MID, END }
 private data class DayBar(val lane: Int, val seg: BarSeg, val past: Boolean)

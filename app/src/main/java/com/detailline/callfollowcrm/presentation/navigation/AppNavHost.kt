@@ -433,6 +433,13 @@ fun AppNavHost(
             val calSyncing = androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(false)
             }
+            // 마지막으로 올린 시각·건수 — 버튼 밑에 보여줘서 "됐나?" 하고 또 누르지 않게. (2026-09-15 사장님)
+            val calSyncedAt = androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(container.preferences.googleCalendarSyncedAt)
+            }
+            val calSyncedN = androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(container.preferences.googleCalendarSyncedCount)
+            }
             val calConnectLauncher = rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
             ) { result ->
@@ -451,6 +458,9 @@ fun AppNavHost(
                 onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenCollabSites = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
                 calendarConnected = container.preferences.googleCalendarConnected,
+                calendarSyncing = calSyncing.value,
+                calendarSyncedAtMs = calSyncedAt.value,
+                calendarSyncedCount = calSyncedN.value,
                 onCalendarSync = {
                     schedScope.launch {
                         // 고객이 많으면 수백 번 통신이라 몇 분 걸린다. 아무 말이 없으면 고장 난 줄 안다.
@@ -465,7 +475,13 @@ fun AppNavHost(
                         if (container.preferences.googleCalendarConnected) {
                             schedToast("구글 캘린더에 올리는 중… 건수가 많으면 몇 분 걸려요")
                             val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-                            if (n >= 0) schedToast("구글 캘린더에 ${n}건 동기화했어요")
+                            if (n >= 0) {
+                                container.preferences.googleCalendarSyncedAt = System.currentTimeMillis()
+                                container.preferences.googleCalendarSyncedCount = n
+                                calSyncedAt.value = container.preferences.googleCalendarSyncedAt
+                                calSyncedN.value = n
+                                schedToast("구글 캘린더에 ${n}건 동기화했어요")
+                            }
                             else {
                                 // 인증이 풀렸는데 "연결됨" 표시만 남아 있으면 사장님이 원인을 못 찾는다.
                                 //   (재설치/복원 후 실제로 겪음 — 표시는 연결됨인데 계속 실패) 2026-09-14
@@ -478,6 +494,12 @@ fun AppNavHost(
                                 container.preferences.googleCalendarConnected = true
                                 schedToast("연결됐어요 — 이제 캘린더에 올리는 중…")
                                 val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
+                                if (n >= 0) {
+                                    container.preferences.googleCalendarSyncedAt = System.currentTimeMillis()
+                                    container.preferences.googleCalendarSyncedCount = n
+                                    calSyncedAt.value = container.preferences.googleCalendarSyncedAt
+                                    calSyncedN.value = n
+                                }
                                 schedToast(
                                     if (n >= 0) "구글 캘린더 연결·${n}건 동기화 완료"
                                     else "연결은 됐는데 올리기에 실패했어요 — 잠시 후 다시"

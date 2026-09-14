@@ -142,6 +142,14 @@ class AppPreferences(context: Context) {
     var googleCalendarId: String?
         get() = prefs.getString("google_calendar_id", null)
         set(value) = prefs.edit().putString("google_calendar_id", value).apply()
+    /** 마지막으로 구글 캘린더에 올린 시각(ms). 0 = 아직. 버튼 밑에 표시 — 계속 누르게 되지 않도록. (2026-09-15 사장님) */
+    var googleCalendarSyncedAt: Long
+        get() = prefs.getLong("google_calendar_synced_at", 0L)
+        set(value) = prefs.edit().putLong("google_calendar_synced_at", value).apply()
+    /** 그때 올린 건수. */
+    var googleCalendarSyncedCount: Int
+        get() = prefs.getInt("google_calendar_synced_count", 0)
+        set(value) = prefs.edit().putInt("google_calendar_synced_count", value).apply()
     /** 구글 캘린더 연결 여부(사장님이 연결 완료). UI 표시 + 자동동기화 시도 게이트. */
     var googleCalendarConnected: Boolean
         get() = prefs.getBoolean("google_calendar_connected", false)
