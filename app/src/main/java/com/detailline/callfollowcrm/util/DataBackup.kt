@@ -106,6 +106,7 @@ object DataBackup {
             put("exportedAt", System.currentTimeMillis())
             put("tables", tablesObj)
             put("prefs", dumpPrefs(context))   // 설정칸(협업 연결 등) 포함. (2026-08-24 사장님)
+            put("files", dumpFiles(context, db))  // 문구·현장 첨부 사진 **파일 자체**. (2026-09-14 사장님)
         }
 
         val dir = File(context.cacheDir, "shared").apply { mkdirs() }
@@ -160,6 +161,7 @@ object DataBackup {
             put("format", FORMAT); put("dbVersion", db.version); put("app", "시공막내")
             put("exportedAt", System.currentTimeMillis()); put("tables", tablesObj)
             put("prefs", dumpPrefs(context))   // 설정칸(협업 연결·스팸·자동문자·업체정보) 포함. (2026-08-24 사장님)
+            put("files", dumpFiles(context, db))  // 문구·현장 첨부 사진 **파일 자체**. (2026-09-14 사장님)
         }
         return root.toString().toByteArray(Charsets.UTF_8)
     }
@@ -225,6 +227,8 @@ object DataBackup {
         // 설정칸(협업 연결·스팸목록·자동문자·업체정보·설정 토글) 복원 — DB 밖(SharedPreferences)이라 트랜잭션 후.
         //   고객은 원래 id 그대로 복원되므로 collab_assignments 의 customerId 참조가 그대로 유효. (2026-08-24 사장님)
         restorePrefs(context, root.optJSONObject("prefs"))
+        // 첨부 사진 복원 — 파일을 풀고 DB 주소를 새 위치로 갱신(주소만 되돌리면 죽은 주소라 안 보임).
+        runCatching { restoreFiles(context, db, root.optJSONObject("files")) }
         return ImportResult(totalRows, tableCount, customerCount)
     }
 
@@ -437,6 +441,109 @@ object DataBackup {
     }
 
     /** 설정칸을 타입 보존해 JSON 으로. (복원 때 같은 타입으로 되돌림) */
+    // ─────────────────── 첨부 사진 백업/복원 (2026-09-14 사장님) ───────────────────
+    //  🔴 그동안 백업엔 사진의 **주소만** 들어갔다. 앱을 지우면
+    //     · content://…fileprovider/…  → 앱 내부 폴더가 통째로 삭제되고
+    //     · content://com.android.providers/… → "이 앱이 그 사진 봐도 된다"는 허가가 사라져서
+    //     복원해도 사진이 안 열렸다("문구 사진 다시 설정해야 하네").
+    //  → 이제 **파일 자체**를 백업에 담고, 복원 때 앱 내부에 풀어서 주소를 새로 연결한다.
+
+    /** 첨부 하나당 상한 — 이보다 큰 건 건너뛴다(백업이 과하게 커지는 것 방지). */
+    private const val FILE_MAX_BYTES = 4 * 1024 * 1024
+    /** 백업 전체의 첨부 총량 상한. 넘으면 그 뒤는 건너뜀(최신 것부터 담는다). */
+    private const val FILES_TOTAL_MAX_BYTES = 60 * 1024 * 1024
+    private const val TPL_DIR = "template_photos"
+    private const val SITE_DIR = "site_photos"
+
+    /** DB 가 가리키는 첨부 파일들을 읽어 base64 로. key = DB 에 저장된 원래 주소/경로. */
+    private fun dumpFiles(context: Context, db: androidx.sqlite.db.SupportSQLiteDatabase): JSONObject {
+        val out = JSONObject()
+        var total = 0
+        fun add(key: String, bytes: ByteArray, mime: String, name: String) {
+            if (bytes.isEmpty() || bytes.size > FILE_MAX_BYTES) return
+            if (total + bytes.size > FILES_TOTAL_MAX_BYTES) return
+            out.put(key, JSONObject()
+                .put("b64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                .put("mime", mime).put("name", name))
+            total += bytes.size
+        }
+        // 문구 첨부 — 최신 것부터(총량 상한에 걸리면 옛 것이 잘리게)
+        runCatching {
+            db.query("SELECT `fileUri`, `displayName`, `mimeType` FROM `template_attachments` ORDER BY `id` DESC").use { c ->
+                while (c.moveToNext()) {
+                    val uri = c.getString(0) ?: continue
+                    if (out.has(uri)) continue
+                    val bytes = readUriBytes(context, uri) ?: continue
+                    add(uri, bytes, c.getString(2) ?: "image/jpeg", c.getString(1) ?: "photo.jpg")
+                }
+            }
+        }
+        // 현장 사진 — 앱 내부 절대경로
+        runCatching {
+            db.query("SELECT `filePath` FROM `site_photos` ORDER BY `id` DESC").use { c ->
+                while (c.moveToNext()) {
+                    val p = c.getString(0) ?: continue
+                    if (out.has(p)) continue
+                    val f = File(p)
+                    if (!f.exists() || f.length() > FILE_MAX_BYTES) continue
+                    add(p, runCatching { f.readBytes() }.getOrNull() ?: continue, "image/jpeg", f.name)
+                }
+            }
+        }
+        return out
+    }
+
+    /** content:// 든 절대경로든 읽어서 바이트로. 못 읽으면 null(이미 죽은 주소). */
+    private fun readUriBytes(context: Context, uriStr: String): ByteArray? = runCatching {
+        if (!uriStr.startsWith("content://")) {
+            val f = File(uriStr)
+            return@runCatching if (f.exists() && f.length() <= FILE_MAX_BYTES) f.readBytes() else null
+        }
+        // 우리 앱 내부 파일이면 ContentResolver 안 거치고 바로 읽는다(FileProvider 권한 무관).
+        TemplatePhotoStore.fileFor(context, uriStr)?.let { return@runCatching it.readBytes() }
+        context.contentResolver.openInputStream(Uri.parse(uriStr))?.use { it.readBytes() }
+    }.getOrNull()
+
+    /**
+     * 백업의 files 를 앱 내부에 풀고, DB 의 주소를 **새 위치로 갱신**한다.
+     *   주소만 되돌리면 그 주소가 이미 죽었으므로 반드시 갱신까지 해야 사진이 보인다.
+     * @return 되살린 사진 장수
+     */
+    private fun restoreFiles(
+        context: Context, db: androidx.sqlite.db.SupportSQLiteDatabase, files: JSONObject?
+    ): Int {
+        if (files == null || files.length() == 0) return 0
+        var n = 0
+        val tplDir = File(context.filesDir, TPL_DIR).apply { mkdirs() }
+        val siteDir = File(context.filesDir, SITE_DIR).apply { mkdirs() }
+        val keys = files.keys()
+        while (keys.hasNext()) {
+            val oldKey = keys.next()
+            val o = files.optJSONObject(oldKey) ?: continue
+            val bytes = runCatching { Base64.decode(o.optString("b64"), Base64.NO_WRAP) }.getOrNull() ?: continue
+            if (bytes.isEmpty()) continue
+            val isSite = !oldKey.startsWith("content://") && oldKey.contains("/$SITE_DIR/")
+            val dir = if (isSite) siteDir else tplDir
+            val name = (o.optString("name").takeIf { it.isNotBlank() } ?: oldKey.substringAfterLast('/'))
+                .substringBefore('?').replace(Regex("[^A-Za-z0-9._-]"), "_")
+                .ifBlank { "photo_${System.currentTimeMillis()}.jpg" }
+            val f = File(dir, name)
+            val wrote = runCatching { f.writeBytes(bytes); true }.getOrDefault(false)
+            if (!wrote) continue
+            val newRef = if (isSite) f.absolutePath else runCatching {
+                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f).toString()
+            }.getOrNull() ?: continue
+            runCatching {
+                if (isSite) db.execSQL("UPDATE `site_photos` SET `filePath`=? WHERE `filePath`=?",
+                    arrayOf<Any?>(newRef, oldKey))
+                else db.execSQL("UPDATE `template_attachments` SET `fileUri`=? WHERE `fileUri`=?",
+                    arrayOf<Any?>(newRef, oldKey))
+            }
+            n++
+        }
+        return n
+    }
+
     private fun dumpPrefs(context: Context): JSONObject {
         val out = JSONObject()
         try {
