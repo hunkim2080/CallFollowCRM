@@ -4558,17 +4558,30 @@ private fun SendConfirmDialog(
     // 확인창에서 바로 본문 수정 — 취소하고 작은 입력칸으로 안 돌아가도 됨. (2026-08-29 사장님)
     //   취소/뒤로가기 시에도 고친 본문(editBody)을 onCancel 로 돌려줘 입력칸에 반영. (2026-09-03 사장님)
     var editBody by remember(body) { mutableStateOf(body) }
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     // 프로토엔 발송 확인이 없지만(바로 전송), 실제 문자라 안전 확인은 유지.
     //   2026-06-03: 가운데 AlertDialog(진한 막) → 프로토식 바텀시트(그립+미리보기+보내기/취소)로 교체.
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = { onCancel(editBody) },
-        containerColor = Color.White,
-        tonalElevation = 0.dp
+    //   2026-09-14 사장님 신고: 본문을 고치려고 탭하면 키보드가 미리보기·[보내기]를 통째로 가렸다.
+    //     ModalBottomSheet 는 **별도 윈도우**라 imePadding 이 안 먹는다(갤럭시). → 이 파일의 견적 시트·
+    //     팀원배정·정산목표와 같은 '액티비티 창 인라인 오버레이' 패턴으로 교체.
+    androidx.activity.compose.BackHandler { onCancel(editBody) }
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onCancel(editBody) }
     ) {
         Column(
-            // 내비바/제스처바와 [취소][보내기] 버튼 겹침 방지(M3 시트 인셋 0 버그 우회). 2026-06-11
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).imePadding().bottomBarClearance(extra = 16.dp)
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
+                // 더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .heightIn(max = 640.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp).padding(top = 6.dp, bottom = 22.dp)
         ) {
+            SheetGrabber()
             Text(
                 "$recipient 에게 보낼까요?",
                 color = TossTextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp
