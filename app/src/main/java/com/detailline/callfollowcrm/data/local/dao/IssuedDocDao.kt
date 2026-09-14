@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface IssuedDocDao {
     /** 고객상세 발행 이력 — 그 고객에게 발행한 문서(최신순). */
+    /** 캘린더 본문에 시공 내용·금액을 채우려고 가장 최근 발행분 1건만. (2026-09-14 사장님) */
+    @Query("SELECT * FROM issued_docs WHERE customerId = :customerId ORDER BY issuedAtMs DESC LIMIT 1")
+    suspend fun latestByCustomer(customerId: Long): IssuedDocEntity?
+
     @Query("SELECT * FROM issued_docs WHERE customerId = :customerId ORDER BY issuedAtMs DESC")
     fun observeByCustomer(customerId: Long): Flow<List<IssuedDocEntity>>
 

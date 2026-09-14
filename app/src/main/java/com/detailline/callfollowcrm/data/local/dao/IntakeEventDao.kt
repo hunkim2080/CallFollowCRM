@@ -9,6 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface IntakeEventDao {
+    /** 캘린더 본문용 — 가장 최근 제출 접수서 1건. (2026-09-14 사장님) */
+    @Query("SELECT * FROM intake_events WHERE phoneSuffix = :suffix ORDER BY submittedAtMs DESC LIMIT 1")
+    suspend fun latestBySuffix(suffix: String): IntakeEventEntity?
+
     @Query("SELECT * FROM intake_events WHERE phoneSuffix = :suffix ORDER BY submittedAtMs DESC")
     fun observeBySuffix(suffix: String): Flow<List<IntakeEventEntity>>
 

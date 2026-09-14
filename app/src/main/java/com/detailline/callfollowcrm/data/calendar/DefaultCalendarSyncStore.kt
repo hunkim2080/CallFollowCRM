@@ -15,7 +15,27 @@ import com.detailline.callfollowcrm.data.preferences.AppPreferences
 class DefaultCalendarSyncStore(
     private val prefs: AppPreferences,
     private val customerDao: CustomerDao,
+    private val issuedDocDao: com.detailline.callfollowcrm.data.local.dao.IssuedDocDao? = null,
+    private val intakeEventDao: com.detailline.callfollowcrm.data.local.dao.IntakeEventDao? = null,
 ) : CalendarSyncStore {
+
+    /**
+     * 캘린더 본문 재료 — 접수서(고객이 직접 적은 것) 우선, 없으면 내가 발행한 견적서.
+     *   (2026-09-14 사장님: "접수서를 받으면 시공 내용도 있고 금액도 다 있을 거니까")
+     */
+    override suspend fun workDetail(c: CustomerEntity): WorkDetail? {
+        val suffix = c.phoneNumber.filter { it.isDigit() }.takeLast(4)
+        val intake = if (suffix.length == 4) {
+            runCatching { intakeEventDao?.latestBySuffix(suffix) }.getOrNull()
+        } else null
+        val doc = runCatching { issuedDocDao?.latestByCustomer(c.id) }.getOrNull()
+        val items = intake?.itemsText?.takeIf { it.isNotBlank() }
+            ?: doc?.itemsText?.takeIf { it.isNotBlank() }
+        val memo = intake?.customerMemo?.takeIf { it.isNotBlank() }
+        val addr = intake?.address?.takeIf { it.isNotBlank() }
+        return if (items == null && memo == null && addr == null) null
+        else WorkDetail(itemsText = items, customerMemo = memo, address = addr)
+    }
 
     override suspend fun getCalendarId(): String? = prefs.googleCalendarId
     override suspend fun setCalendarId(id: String?) { prefs.googleCalendarId = id }

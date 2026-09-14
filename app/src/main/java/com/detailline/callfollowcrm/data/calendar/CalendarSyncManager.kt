@@ -24,7 +24,20 @@ interface CalendarSyncStore {
     suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?)
     /** 시공/AS 일정이 있거나, 이미 올려둔 이벤트가 있는(=지울 수도 있는) 고객 전부. */
     suspend fun scheduledCustomers(): List<CustomerEntity>
+
+    /**
+     * 캘린더 본문에 채울 시공 상세 — **접수서/견적서에 이미 다 있는데 안 쓰고 있었다.** (2026-09-14 사장님)
+     *   구현 안 한 곳(테스트 등)은 null → 예전처럼 메모·금액만 들어간다.
+     */
+    suspend fun workDetail(c: CustomerEntity): WorkDetail? = null
 }
+
+/** 캘린더 이벤트 본문 재료 — 접수서(intake_events) / 발행 견적(issued_docs) 에서 온다. */
+data class WorkDetail(
+    val itemsText: String? = null,     // 시공 내용 ("안방 화장실 바닥, 샤워부스 벽 3면")
+    val customerMemo: String? = null,  // 고객이 접수서에 남긴 말
+    val address: String? = null        // 고객이 접수서에 적은 주소 (앱에 주소가 비어 있을 때 대타)
+)
 
 /**
  * 구글 캘린더 동기화 핵심 (앱 → 캘린더, 1단계).
@@ -130,7 +143,9 @@ class CalendarSyncManager(
         token: String, cal: String, c: CustomerEntity, type: ScheduleType
     ): Boolean {
         val existing = store.eventId(c.id, type)
-        val event = buildEvent(c, type)
+        // 접수서/견적에 있는 시공 내용·주소·고객 메모까지 본문에 채운다. 못 가져와도 그냥 진행.
+        val detail = runCatching { store.workDetail(c) }.getOrNull()
+        val event = buildEvent(c, type, detail)
 
         if (event == null) {
             // 일정이 사라짐 → 있던 이벤트 삭제
@@ -166,13 +181,18 @@ class CalendarSyncManager(
 
     // ── 고객 → 이벤트 JSON ───────────────────────────────────
     /** 해당 종류의 일정이 없으면 null. */
-    private fun buildEvent(c: CustomerEntity, type: ScheduleType): JSONObject? {
+    private fun buildEvent(c: CustomerEntity, type: ScheduleType, detail: WorkDetail? = null): JSONObject? {
         val date = if (type == ScheduleType.WORK) c.scheduledWorkDate else c.asScheduledDate
         date ?: return null
         val days = (if (type == ScheduleType.WORK) c.scheduledWorkDays else c.asScheduledDays).coerceAtLeast(1)
         val minutes = if (type == ScheduleType.WORK) c.scheduledWorkMinutes else null // A/S 는 시각 없음
         // 제목: 짧은 주소(지역+아파트+동+호) 우선, 주소 없거나 못 뽑으면 이름/번호. (2026-09-01 사장님)
-        val base = c.address?.let { shortAddress(it) } ?: (c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber)
+        // 앱에 주소가 비어 있으면 **접수서에 고객이 적은 주소**로 대신한다 — 전엔 그냥 전화번호가 제목이었다.
+        val addr = c.address?.takeIf { it.isNotBlank() } ?: detail?.address?.takeIf { it.isNotBlank() }
+        val place = addr?.let { shortAddress(it) }
+        val who = c.name?.takeIf { it.isNotBlank() }
+        val base = listOfNotNull(place, who).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+            ?: c.phoneNumber
         val summary = if (type == ScheduleType.WORK) "🛠️ $base" else "🔧 $base (A/S)"
 
         val start = JSONObject()
@@ -187,14 +207,29 @@ class CalendarSyncManager(
             end.put("date", dateOnly(date + days * DAY_MS))
         }
 
-        // 내용: 고객 메모 + 총금액 · 계약금. (2026-09-01 사장님)
+        // 본문 — 폰 안 열고 캘린더만 봐도 현장이 그려지게. (2026-09-14 사장님)
+        //   재료는 접수서(intake_events)·발행 견적(issued_docs)에 이미 있었는데 안 쓰고 있었다.
+        val nl = "\n"
+        fun section(title: String, body: String?) = body?.trim()?.takeIf { it.isNotBlank() }?.let {
+            title + nl + it.lines().joinToString(nl) { ln -> "- " + ln.trim() } + nl
+        }
         val money = buildList {
             c.totalAmount?.takeIf { it > 0L }?.let { add("총금액 ${won(it)}") }
             c.depositAmount?.takeIf { it > 0L }?.let { add("계약금 ${won(it)}") }
+            c.balanceAmount?.takeIf { it > 0L }?.let {
+                add(if (c.balancePaidAt != null) "잔금 ${won(it)} 받음" else "잔금 ${won(it)}")
+            }
         }.joinToString(" · ")
+        val memoAll = listOfNotNull(
+            c.memo.takeIf { it.isNotBlank() },
+            detail?.customerMemo?.takeIf { it.isNotBlank() }?.let { "(고객) " + it }
+        ).joinToString(nl)
         val desc = buildString {
-            if (c.memo.isNotBlank()) appendLine(c.memo.trim())
-            if (money.isNotEmpty()) append("💰 $money")
+            section("📞 고객님 연락처", c.phoneNumber)?.let { append(it).append(nl) }
+            section("📋 시공 주소", addr)?.let { append(it).append(nl) }
+            section("🔔 시공 내용", detail?.itemsText)?.let { append(it).append(nl) }
+            section("💬 메모", memoAll)?.let { append(it).append(nl) }
+            section("💰 금액", money.takeIf { it.isNotEmpty() })?.let { append(it) }
         }.trim()
 
         return JSONObject().apply {

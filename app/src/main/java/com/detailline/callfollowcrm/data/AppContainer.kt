@@ -202,7 +202,10 @@ class AppContainer(context: Context) {
                     .build()
             ),
             store = com.detailline.callfollowcrm.data.calendar.DefaultCalendarSyncStore(
-                preferences, db.customerDao()
+                preferences, db.customerDao(),
+                // 캘린더 본문에 시공 내용·주소·고객 메모를 채우는 재료. (2026-09-14 사장님)
+                issuedDocDao = db.issuedDocDao(),
+                intakeEventDao = db.intakeEventDao()
             )
         )
     }
