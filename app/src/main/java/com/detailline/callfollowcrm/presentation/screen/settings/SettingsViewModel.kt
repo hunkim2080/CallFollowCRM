@@ -412,8 +412,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     _backupMessage.value = "서버 백업에 실패했어요 — 인터넷을 확인하고 다시 시도해주세요."
                 }
-            } catch (e: Exception) {
-                _backupMessage.value = "서버 백업 중 문제가 생겼어요 — 잠시 후 다시 시도해주세요."
+            } catch (e: Throwable) {
+                // ⚠️ Exception 만 잡으면 OutOfMemoryError(=Error) 가 새어나가 **앱이 통째로 꺼진다.**
+                //   (2026-09-15 사장님: "서버에 백업하기 누르면 막 꺼져" — 실제 크래시 로그 확인)
+                android.util.Log.e("Backup", "서버 백업 실패", e)
+                _backupMessage.value =
+                    if (e is OutOfMemoryError) "사진이 너무 많아 백업을 못 만들었어요 — 개발자에게 알려주세요."
+                    else "서버 백업 중 문제가 생겼어요 — 잠시 후 다시 시도해주세요."
             } finally {
                 _backupBusy.value = false
             }

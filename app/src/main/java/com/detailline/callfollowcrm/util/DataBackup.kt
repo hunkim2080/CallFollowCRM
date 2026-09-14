@@ -106,7 +106,7 @@ object DataBackup {
             put("exportedAt", System.currentTimeMillis())
             put("tables", tablesObj)
             put("prefs", dumpPrefs(context))   // 설정칸(협업 연결 등) 포함. (2026-08-24 사장님)
-            put("files", dumpFiles(context, db))  // 문구·현장 첨부 사진 **파일 자체**. (2026-09-14 사장님)
+            put("files", dumpFiles(context, db, FILES_TOTAL_EXPORT))  // 문구·현장 첨부 사진 **파일 자체**.
         }
 
         val dir = File(context.cacheDir, "shared").apply { mkdirs() }
@@ -157,13 +157,24 @@ object DataBackup {
             }
             tablesObj.put(table, arr)
         }
-        val root = JSONObject().apply {
-            put("format", FORMAT); put("dbVersion", db.version); put("app", "시공막내")
-            put("exportedAt", System.currentTimeMillis()); put("tables", tablesObj)
-            put("prefs", dumpPrefs(context))   // 설정칸(협업 연결·스팸·자동문자·업체정보) 포함. (2026-08-24 사장님)
-            put("files", dumpFiles(context, db))  // 문구·현장 첨부 사진 **파일 자체**. (2026-09-14 사장님)
+        fun build(withFiles: Boolean): ByteArray {
+            val root = JSONObject().apply {
+                put("format", FORMAT); put("dbVersion", db.version); put("app", "시공막내")
+                put("exportedAt", System.currentTimeMillis()); put("tables", tablesObj)
+                put("prefs", dumpPrefs(context))   // 설정칸(협업 연결·스팸·자동문자·업체정보) 포함.
+                if (withFiles) put("files", dumpFiles(context, db, FILES_TOTAL_SERVER))
+            }
+            return root.toString().toByteArray(Charsets.UTF_8)
         }
-        return root.toString().toByteArray(Charsets.UTF_8)
+        // 사진까지 담아보고, 메모리가 모자라면 **사진 없이** 다시 만든다.
+        //   백업이 아예 안 되는 것보다 사진만 빠지는 게 낫다. (2026-09-15 사장님 크래시)
+        return try {
+            build(true)
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.w("DataBackup", "사진 포함 백업이 메모리 부족 → 사진 빼고 재시도", e)
+            System.gc()
+            build(false)
+        }
     }
 
     // ─────────────────────────── 가져오기(복원) ───────────────────────────
@@ -454,20 +465,28 @@ object DataBackup {
     //     복원해도 사진이 안 열렸다("문구 사진 다시 설정해야 하네").
     //  → 이제 **파일 자체**를 백업에 담고, 복원 때 앱 내부에 풀어서 주소를 새로 연결한다.
 
-    /** 첨부 하나당 상한 — 이보다 큰 건 건너뛴다(백업이 과하게 커지는 것 방지). */
-    private const val FILE_MAX_BYTES = 4 * 1024 * 1024
-    /** 백업 전체의 첨부 총량 상한. 넘으면 그 뒤는 건너뜀(최신 것부터 담는다). */
-    private const val FILES_TOTAL_MAX_BYTES = 60 * 1024 * 1024
+    // 🔴 2026-09-15 사장님 신고 "서버에 백업하기 누르면 막 꺼져" → OutOfMemoryError 150MB.
+    //   사진을 base64 글자로 바꿔 JSON 에 넣으면 원본의 1.4배, 거기에 JSON 전체를 한 문자열로
+    //   만드는 순간 또 그만큼이 더 필요하다. 60MB 상한이면 폰이 못 버틴다.
+    //   → 상한을 확 낮추고, 그래도 모자라면 사진 없이 다시 만든다(백업 자체는 반드시 성공하게).
+    /** 첨부 하나당 상한. */
+    private const val FILE_MAX_BYTES = 2 * 1024 * 1024
+    /** 파일로 내보낼 때(zip) 첨부 총량. */
+    private const val FILES_TOTAL_EXPORT = 20 * 1024 * 1024
+    /** 서버 백업은 통째로 한 문자열이 되므로 더 빡빡하게. */
+    private const val FILES_TOTAL_SERVER = 8 * 1024 * 1024
     private const val TPL_DIR = "template_photos"
     private const val SITE_DIR = "site_photos"
 
     /** DB 가 가리키는 첨부 파일들을 읽어 base64 로. key = DB 에 저장된 원래 주소/경로. */
-    private fun dumpFiles(context: Context, db: androidx.sqlite.db.SupportSQLiteDatabase): JSONObject {
+    private fun dumpFiles(
+        context: Context, db: androidx.sqlite.db.SupportSQLiteDatabase, totalMax: Int
+    ): JSONObject {
         val out = JSONObject()
         var total = 0
         fun add(key: String, bytes: ByteArray, mime: String, name: String) {
             if (bytes.isEmpty() || bytes.size > FILE_MAX_BYTES) return
-            if (total + bytes.size > FILES_TOTAL_MAX_BYTES) return
+            if (total + bytes.size > totalMax) return
             out.put(key, JSONObject()
                 .put("b64", Base64.encodeToString(bytes, Base64.NO_WRAP))
                 .put("mime", mime).put("name", name))
