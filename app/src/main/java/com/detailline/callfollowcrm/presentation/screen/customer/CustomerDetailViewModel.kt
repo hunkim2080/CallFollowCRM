@@ -482,6 +482,13 @@ class CustomerDetailViewModel(
                 container.jobRepository.archiveCompletedBeforeNewSchedule(customerId, System.currentTimeMillis())
             }
             container.customerRepository.updateScheduledWorkDate(customerId, normalized)
+            // jobs 까지 같이 옮긴다 — 일정 탭·달력의 출처가 jobs 라 이걸 안 하면 화면이 안 바뀐다.
+            //   (2026-09-15 사장님: "일정을 싹 바꿨는데 캘린더가 안 변해")
+            runCatching {
+                container.jobRepository.moveRepresentativeSchedule(
+                    customerId, normalized, System.currentTimeMillis()
+                )
+            }
             markTodayCallsAsHandled()
             // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
             if (normalized == null) {

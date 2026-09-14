@@ -64,7 +64,16 @@ class IntakeSyncManager(private val container: AppContainer) {
                     "tok=${s.token} cid=${c.id} y=${s.workYear} mo=${s.workMonth} d=${s.workDay} conf=${s.confirmedDateIso} => workMs=$workMs total=${s.total}"
                 )
                 // 시공예약일도 '기존 로컬 값이 없을 때만' 채운다 — 사장님이 통화로 잡아둔 시공일을 접수서가 덮지 않게. (2026-08-11 데이터안전 감사 rank6)
-                if (c.scheduledWorkDate == null) workMs?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
+                if (c.scheduledWorkDate == null) workMs?.let {
+                    container.customerRepository.updateScheduledWorkDate(c.id, it)
+                    // 접수서로 잡힌 일정도 jobs 에 들어가야 달력에 뜬다. (2026-09-15 사장님)
+                    runCatching {
+                        container.jobRepository.moveRepresentativeSchedule(
+                            c.id, com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it),
+                            System.currentTimeMillis()
+                        )
+                    }
+                }
                 android.util.Log.i(
                     "IntakeSync",
                     "after setDate cid=${c.id} readBack=${container.customerRepository.findById(c.id)?.scheduledWorkDate}"

@@ -136,6 +136,53 @@ class JobRepository(
         return id
     }
 
+    /**
+     * 고객의 **대표 건** 시공일을 옮긴다(예정 건이 없으면 만든다). dayMs=null 이면 일정 취소.
+     *
+     * 🔴 왜 필요한가 (2026-09-15 사장님: "일정을 싹 바꿨는데 캘린더가 안 변해")
+     *   Stage A(9/11)에서 일정 화면·달력의 출처를 jobs 로 옮겼는데,
+     *   **고객 단위로 날짜를 바꾸는 옛 경로들**(고객상세 날짜 픽커 · 채팅 문자 속 날짜 링크 ·
+     *   접수서 자동 등록)은 여전히 customers 만 고치고 있었다.
+     *   → 고객 카드의 날짜는 바뀌는데 일정 탭·달력은 그대로 = "고쳐도 반영이 안 된다".
+     *   이 함수로 jobs 까지 같이 옮겨서 화면이 따라오게 한다.
+     *
+     * '건'을 새로 쌓는 addJob 과 다르다 — 이건 **기존 건의 날짜를 옮기는 것**이다.
+     */
+    suspend fun moveRepresentativeSchedule(customerId: Long, dayMs: Long?, now: Long) {
+        val jobs = jobDao.scheduledByCustomerOnce(customerId)
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.lastOrNull()
+        when {
+            dayMs == null -> rep?.let { jobDao.update(it.copy(scheduledWorkDate = null, updatedAt = now)) }
+            rep != null -> {
+                if (rep.scheduledWorkDate != dayMs) {
+                    jobDao.update(rep.copy(scheduledWorkDate = dayMs, updatedAt = now))
+                }
+            }
+            else -> {
+                // 예정 건이 하나도 없는 고객 — 지금 값으로 새 건을 만든다(중복 가드 포함).
+                if (jobDao.countByCustomerAndDate(customerId, dayMs) == 0) {
+                    val c = customerDao.findById(customerId)
+                    jobDao.insert(
+                        JobEntity(
+                            customerId = customerId,
+                            scheduledWorkDate = dayMs,
+                            scheduledWorkMinutes = c?.scheduledWorkMinutes,
+                            scheduledWorkDays = (c?.scheduledWorkDays ?: 1).coerceAtLeast(1),
+                            address = c?.address,
+                            totalAmount = c?.totalAmount,
+                            depositAmount = c?.depositAmount,
+                            depositPaidAt = c?.depositPaidAt,
+                            createdAt = now,
+                            updatedAt = now
+                        )
+                    )
+                }
+            }
+        }
+        recomputeMirror(customerId, now)
+    }
+
     /** 이 건을 일정에서만 뺌(고객·기록 보존) — 되돌리기 위해 삭제 대신 시공일만 비운다. */
     suspend fun unscheduleJob(jobId: Long, now: Long) {
         val j = jobDao.findById(jobId) ?: return

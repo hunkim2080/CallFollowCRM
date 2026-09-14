@@ -1635,6 +1635,11 @@ class ChatViewModel(
         withContext(Dispatchers.IO + NonCancellable) {
             runCatching {
                 container.customerRepository.updateScheduledWorkDate(id, timestampMs)
+                // 일정 탭·달력은 jobs 를 본다 — 같이 옮겨야 화면에 반영된다. (2026-09-15 사장님)
+                container.jobRepository.moveRepresentativeSchedule(
+                    id, com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(timestampMs),
+                    System.currentTimeMillis()
+                )
             }
         }
         // 캘린더 등록 KPI — 채팅 AI제안 [시공일 등록]도 한 건으로 집계. (2026-06-25 cowork 요청)
