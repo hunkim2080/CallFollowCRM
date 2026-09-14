@@ -186,14 +186,17 @@ class CalendarSyncManager(
         date ?: return null
         val days = (if (type == ScheduleType.WORK) c.scheduledWorkDays else c.asScheduledDays).coerceAtLeast(1)
         val minutes = if (type == ScheduleType.WORK) c.scheduledWorkMinutes else null // A/S 는 시각 없음
-        // 제목: 짧은 주소(지역+아파트+동+호) 우선, 주소 없거나 못 뽑으면 이름/번호. (2026-09-01 사장님)
-        // 앱에 주소가 비어 있으면 **접수서에 고객이 적은 주소**로 대신한다 — 전엔 그냥 전화번호가 제목이었다.
+        // 제목 = 사장님이 예전에 쓰시던 양식 그대로. (2026-09-14 사장님)
+        //   🏗️[125] 서울 송파구     ← [총금액 만원] + 시/도 + 시군구
+        //   달력을 훑기만 해도 "그날 얼마짜리 현장인지" 가 바로 보여야 한다는 게 요지.
+        //   앱에 주소가 비면 **접수서에 고객이 적은 주소**로 대신한다(전엔 곧장 전화번호가 제목이었다).
         val addr = c.address?.takeIf { it.isNotBlank() } ?: detail?.address?.takeIf { it.isNotBlank() }
-        val place = addr?.let { shortAddress(it) }
+        val region = addr?.let { regionOf(it) }
         val who = c.name?.takeIf { it.isNotBlank() }
-        val base = listOfNotNull(place, who).takeIf { it.isNotEmpty() }?.joinToString(" · ")
-            ?: c.phoneNumber
-        val summary = if (type == ScheduleType.WORK) "🛠️ $base" else "🔧 $base (A/S)"
+        val base = region ?: who ?: c.phoneNumber
+        val moneyTag = c.totalAmount?.takeIf { it > 0L }?.let { "[${it / 10_000L}]" } ?: ""
+        val summary = if (type == ScheduleType.WORK) "🏗️$moneyTag $base".trim()
+        else "🔧$moneyTag $base (A/S)".trim()
 
         val start = JSONObject()
         val end = JSONObject()
@@ -227,7 +230,9 @@ class CalendarSyncManager(
         val desc = buildString {
             section("📞 고객님 연락처", c.phoneNumber)?.let { append(it).append(nl) }
             section("📋 시공 주소", addr)?.let { append(it).append(nl) }
-            section("🔔 시공 내용", detail?.itemsText)?.let { append(it).append(nl) }
+            // 시공 내용은 쉼표로 붙이지 말고 **한 줄에 하나씩** (사장님: 그래야 가독성이 좋다)
+            section("🔔 시공 내용", detail?.itemsText?.let { splitItems(it).joinToString(nl) })
+                ?.let { append(it).append(nl) }
             section("💬 메모", memoAll)?.let { append(it).append(nl) }
             section("💰 금액", money.takeIf { it.isNotEmpty() })?.let { append(it) }
         }.trim()
@@ -281,4 +286,27 @@ class CalendarSyncManager(
     /** 원 → 보기 좋은 금액. 만원 단위 딱 떨어지면 "N만원", 아니면 콤마. */
     private fun won(amount: Long): String =
         if (amount % 10_000L == 0L) "${amount / 10_000L}만원" else "%,d원".format(amount)
+
+    /**
+     * 캘린더 제목에 쓸 지역 — "서울 송파구", "경기 안산시". (2026-09-14 사장님 예전 양식)
+     *   주소 첫 두 덩어리를 보되, 특별시/광역시/도 는 짧게 줄인다. 못 알아보면 null.
+     */
+    private fun regionOf(addr: String): String? {
+        val t = addr.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (t.isEmpty()) return null
+        val sido = t[0]
+            .replace("특별자치도", "").replace("특별자치시", "")
+            .replace("특별시", "").replace("광역시", "")
+            .removeSuffix("도")
+            .ifBlank { t[0] }
+        val gu = t.getOrNull(1)?.takeIf { it.endsWith("시") || it.endsWith("군") || it.endsWith("구") }
+        return listOfNotNull(sido.takeIf { it.isNotBlank() }, gu).joinToString(" ").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 시공 내용 항목 나누기 — 쉼표로 붙어 있으면 읽기 힘들다고 하셔서 **한 줄에 하나씩**. (2026-09-14 사장님)
+     *   "안방 화장실 바닥, 샤워부스 벽 3면" → 두 줄.
+     */
+    private fun splitItems(raw: String): List<String> =
+        raw.split('\n', ',', '·', ';').map { it.trim() }.filter { it.isNotBlank() }
 }
