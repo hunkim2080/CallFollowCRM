@@ -429,6 +429,10 @@ fun AppNavHost(
             val schedCtx = LocalContext.current
             val schedScope = rememberCoroutineScope()
             fun schedToast(m: String) = android.widget.Toast.makeText(schedCtx, m, android.widget.Toast.LENGTH_SHORT).show()
+            /** 동기화 도는 중 — 연타 방지용. (2026-09-14 사장님: 눌러도 반응이 없어 보임) */
+            val calSyncing = androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(false)
+            }
             val calConnectLauncher = rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
             ) { result ->
@@ -449,9 +453,19 @@ fun AppNavHost(
                 calendarConnected = container.preferences.googleCalendarConnected,
                 onCalendarSync = {
                     schedScope.launch {
+                        // 고객이 많으면 수백 번 통신이라 몇 분 걸린다. 아무 말이 없으면 고장 난 줄 안다.
+                        //   (2026-09-14 사장님: "눌렀는데 반응이 없네? 무슨 안내가 있어야 하지 않나")
+                        //   → 누르는 즉시 알리고, 도는 동안 또 누르면 연타 방지, 끝나면 건수까지 말해준다.
+                        if (calSyncing.value) {
+                            schedToast("이미 동기화 중이에요 — 잠시만 기다려주세요")
+                            return@launch
+                        }
+                        calSyncing.value = true
+                        try {
                         if (container.preferences.googleCalendarConnected) {
+                            schedToast("구글 캘린더에 올리는 중… 건수가 많으면 몇 분 걸려요")
                             val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-                            if (n >= 0) schedToast("구글 캘린더에 동기화했어요")
+                            if (n >= 0) schedToast("구글 캘린더에 ${n}건 동기화했어요")
                             else {
                                 // 인증이 풀렸는데 "연결됨" 표시만 남아 있으면 사장님이 원인을 못 찾는다.
                                 //   (재설치/복원 후 실제로 겪음 — 표시는 연결됨인데 계속 실패) 2026-09-14
@@ -462,13 +476,20 @@ fun AppNavHost(
                         } else when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
                             is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.Success -> {
                                 container.preferences.googleCalendarConnected = true
-                                runCatching { container.calendarSyncManager.syncAll() }
-                                schedToast("구글 캘린더 연결·동기화 완료")
+                                schedToast("연결됐어요 — 이제 캘린더에 올리는 중…")
+                                val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
+                                schedToast(
+                                    if (n >= 0) "구글 캘린더 연결·${n}건 동기화 완료"
+                                    else "연결은 됐는데 올리기에 실패했어요 — 잠시 후 다시"
+                                )
                             }
-                            is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.NeedsConsent ->
+                            is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.NeedsConsent -> {
+                                schedToast("구글 계정을 골라주세요")
                                 calConnectLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(r.intentSender).build())
-                            else -> schedToast("구글 로그인을 시작할 수 없어요")
+                            }
+                            else -> schedToast("구글 로그인을 시작할 수 없어요 — 잠시 후 다시")
                         }
+                        } finally { calSyncing.value = false }
                     }
                 },
                 initialSelectedDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L }
