@@ -76,6 +76,7 @@ object NotificationHelper {
     private const val CHANNEL_COLLAB_COMPLETED = "collab_completed_snd"  // 작업 완료
     private const val CHANNEL_COLLAB_ENDED = "collab_ended_snd"          // 협업 해제
     private const val CHANNEL_COLLAB_PAID = "collab_paid_snd"            // 입금 완료
+    private const val CHANNEL_COLLAB_RESCHEDULE = "collab_reschedule_snd" // 시공 일정 변경 (2026-09-15)
     /**
      * 리마인더에서 분리한 전용 소리 채널. (2026-07-15 사장님 지시)
      *   "시공·정산 리마인더" 한 칸이 D-1·잔금·5km도착·브리핑·정기문자·팀원·본폰공유신청 7가지를 다 울려서
@@ -154,6 +155,10 @@ object NotificationHelper {
             "협업 해제", "상대가 협업을 해제하면 알려줘요 (기록은 남아요)"),
         SoundSlot("collab_paid", "협업 입금 완료", "sound_collab_paid",
             "💰 협업 입금 완료", "협업 현장 정산 입금이 완료되면 알려줘요"),
+        // 일정이 바뀐 건데 댓글과 같은 소리가 나서 사장님이 "댓글 달렸나?" 로 오해했다. (2026-09-15 사장님 신고)
+        //   기본값은 일정 느낌의 '내일시공' 소리 — 목록에서 바꿀 수 있다.
+        SoundSlot("collab_reschedule", "협업 일정 변경", "sound_install_d1",
+            "📅 협업 일정 변경", "협업 현장의 시공 날짜·시간이 바뀌면 알려줘요"),
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
     val SOUND_OPTIONS = listOf(
@@ -211,6 +216,7 @@ object NotificationHelper {
         "collab_departed" to CHANNEL_COLLAB_DEPARTED, "collab_arrived" to CHANNEL_COLLAB_ARRIVED,
         "collab_completed" to CHANNEL_COLLAB_COMPLETED, "collab_ended" to CHANNEL_COLLAB_ENDED,
         "collab_paid" to CHANNEL_COLLAB_PAID,
+        "collab_reschedule" to CHANNEL_COLLAB_RESCHEDULE,
         "install_d1" to CHANNEL_INSTALL_D1, "daily_brief" to CHANNEL_DAILY_BRIEF,
         "recurring" to CHANNEL_RECURRING,
     )
@@ -923,8 +929,9 @@ object NotificationHelper {
 
     /**
      * A(현장 주인)가 시공일정을 바꿈 → 협업 사장(B)에게 "일정 변경: 옛→새" 알림. (2026-07-16 사장님)
-     *   서버 FCM(type=collab_reschedule)로 옴. 소리는 우선 '협업 현장 소식'(comment) 채널 재사용 —
-     *   전용 '일정 변경' 소리 분리는 사장님 확인 후(§SYNC). 탭 = 그 협업 현장.
+     *   서버 FCM(type=collab_reschedule)로 옴. 탭 = 그 협업 현장.
+     *   전용 채널·소리(collab_reschedule) — 예전엔 댓글 채널(collab_comment)을 빌려 써서, 일정이 바뀌어도
+     *   댓글 소리가 나고 알림설정에도 "협업 현장 댓글·사진"으로 묶여 사장님이 계속 댓글로 오해했다. (2026-09-15 사장님)
      * @param oldLabel/newLabel "6/21(수)" 같은 라벨(서버가 못 주면 at_ms 로 앱이 포맷).
      */
     fun showCollabReschedule(
@@ -954,7 +961,7 @@ object NotificationHelper {
             else -> "'${site}' 시공 일정이 바뀌었어요 — 확인해 주세요"
         }
         showProtoPush(
-            context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_PURPLE,
+            context, notifId, CHANNEL_COLLAB_RESCHEDULE, ACCENT_PURPLE,
             title = "📅 협업 현장 일정 변경",
             msg = msg,
             contentIntent = pending,
