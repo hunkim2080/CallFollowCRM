@@ -9799,3 +9799,9 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 블로그 규칙: 전문용어 3단 세트(용어→풀이→출처) + 가짜통계 금지 + "쓰지 않을 이유가 없도록"
 - 변경: server/main.py _BLOG_WRITE_SYSTEM. 라이브 적용(백업 main.py.bak_expert).
 - commit: (위)
+
+## 2026-09-15 · android
+협업 '일정 변경' 알림 전용 채널 분리 + 고객정보 배치(메모↓·탭↑)
+- 변경: 알림 채널 `collab_reschedule_snd` 신설(소리 슬롯 "협업 일정 변경"). 서버 인터페이스 변경 없음(type=collab_reschedule 그대로).
+- 변경: 고객 정보 화면 순서 = 전화 → 주소 → 탭 → 탭 내용 → 메모 → 현장 사진
+- commit: e120780e, 0de3fb96
