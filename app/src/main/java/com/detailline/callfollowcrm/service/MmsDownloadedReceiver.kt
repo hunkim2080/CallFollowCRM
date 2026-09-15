@@ -114,6 +114,28 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
                 categoryLabel = categoryLabel,
                 customerId = customerForNotif?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
             )
+            // 🔴 여기서 알렸다는 걸 **기록**해야 한다. (2026-09-15 사장님: "시간 지나고 또 신규문자 왔다고 2번 울려")
+            //   MMS 알림 경로가 둘이다 — ① 다운로드 완료(여기, 즉시) ② 주기 폴링(notifyNewInboxMms).
+            //   ①이 기록을 안 남기니 ②가 같은 문자를 '새 문자'로 보고 한 번 더 울렸다.
+            //   → 방금 알린 그 문자의 mmsId 를 notifiedMmsIds 에 넣고 마커도 전진시킨다.
+            runCatching {
+                val prefs = container.preferences
+                val sameNum = sender.filter { it.isDigit() }.takeLast(8)
+                val ids = container.smsRepository
+                    .queryInboxMmsSince(receivedAtMs - 3_000L, limit = 5)
+                    .filter {
+                        it.dateMs <= receivedAtMs + 3_000L &&
+                            it.sender.filter { c -> c.isDigit() }.takeLast(8) == sameNum
+                    }
+                    .map { it.mmsId.toString() }
+                if (ids.isNotEmpty()) {
+                    prefs.notifiedMmsIds = (prefs.notifiedMmsIds + ids).toList().takeLast(80).toSet()
+                }
+                if (prefs.lastNotifiedMmsMs in 1 until receivedAtMs) {
+                    prefs.lastNotifiedMmsMs = receivedAtMs
+                }
+                Log.i(TAG, "알림 기록 — mmsIds=${ids.size} marker→$receivedAtMs")
+            }
         }
 
         // 2) 홈 상담함 캐시 upsert.
