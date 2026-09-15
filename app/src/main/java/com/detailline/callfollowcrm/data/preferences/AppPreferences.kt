@@ -151,6 +151,19 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("google_calendar_synced_count", 0)
         set(value) = prefs.edit().putInt("google_calendar_synced_count", value).apply()
     /** 구글 캘린더 연결 여부(사장님이 연결 완료). UI 표시 + 자동동기화 시도 게이트. */
+    /**
+     * 구글 캘린더에 **마지막으로 올린 내용의 지문**. 같으면 다시 안 올린다. (2026-09-16 사장님)
+     *   '지금 동기화'가 46초 걸리던 원인 = 안 바뀐 일정까지 매번 구글에 다시 올리기.
+     *   지워져도 손해는 없다(그냥 한 번 다 올림).
+     */
+    fun calendarEventHash(customerId: Long, typeKey: String): String? =
+        prefs.getString("cal_hash_${customerId}_$typeKey", null)
+
+    fun setCalendarEventHash(customerId: Long, typeKey: String, hash: String?) {
+        val k = "cal_hash_${customerId}_$typeKey"
+        if (hash == null) prefs.edit().remove(k).apply() else prefs.edit().putString(k, hash).apply()
+    }
+
     var googleCalendarConnected: Boolean
         get() = prefs.getBoolean("google_calendar_connected", false)
         set(value) = prefs.edit().putBoolean("google_calendar_connected", value).apply()

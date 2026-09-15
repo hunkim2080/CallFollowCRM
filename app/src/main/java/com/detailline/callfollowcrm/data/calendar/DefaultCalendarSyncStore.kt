@@ -55,6 +55,14 @@ class DefaultCalendarSyncStore(
         customerDao.update(updated)
     }
 
+    /** 지문은 prefs 에 (고객,종류) 별로. DB 마이그레이션 없이 붙이려고 — 지워져도 다시 올릴 뿐 손해 없음. */
+    override suspend fun eventHash(customerId: Long, type: ScheduleType): String? =
+        prefs.calendarEventHash(customerId, type.key)
+
+    override suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?) {
+        prefs.setCalendarEventHash(customerId, type.key, hash)
+    }
+
     override suspend fun scheduledCustomers(): List<CustomerEntity> =
         customerDao.allOnce().filter {
             it.scheduledWorkDate != null || it.asScheduledDate != null ||

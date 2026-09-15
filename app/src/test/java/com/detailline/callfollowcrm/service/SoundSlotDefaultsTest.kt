@@ -34,6 +34,9 @@ class SoundSlotDefaultsTest {
         "collab_completed" to "sound_collab_completed",
         "collab_ended" to "sound_collab_ended",
         "collab_paid" to "sound_collab_paid",
+        // 2026-09-15 신설 — 협업 '일정 변경'이 댓글 소리로 울려 사장님이 댓글로 오해하던 것.
+        //   전용 소리가 아직 없어 일정 느낌의 '내일시공' 소리를 빌려 쓴다(설정에서 바꿀 수 있음).
+        "collab_reschedule" to "sound_install_d1",
     )
 
     @Test fun `기본값이 사장님이 설정한 소리와 정확히 같다`() {

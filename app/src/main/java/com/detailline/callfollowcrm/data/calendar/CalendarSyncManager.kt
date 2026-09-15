@@ -26,6 +26,18 @@ interface CalendarSyncStore {
     suspend fun scheduledCustomers(): List<CustomerEntity>
 
     /**
+     * 마지막으로 구글에 올린 **내용의 지문**. 같으면 다시 안 올린다.
+     *
+     * 🔴 왜 (2026-09-16 사장님 "구글캘린더 연결이 왜 자꾸 실패하지?"):
+     *   실패가 아니라 **46초 걸려서** 실패로 보였다. 일정이 있는 고객이 수백 명인데
+     *   내용이 그대로여도 매번 한 명당 2번(시공·A/S) 구글에 요청을 보냈다 = 수백 번의 왕복.
+     *   지문이 같으면 건너뛰면, 두 번째부터는 **바뀐 일정만** 올리게 된다.
+     *   구현 안 한 곳(테스트 등)은 null 이라 예전처럼 전부 올린다.
+     */
+    suspend fun eventHash(customerId: Long, type: ScheduleType): String? = null
+    suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?) {}
+
+    /**
      * 캘린더 본문에 채울 시공 상세 — **접수서/견적서에 이미 다 있는데 안 쓰고 있었다.** (2026-09-14 사장님)
      *   구현 안 한 곳(테스트 등)은 null → 예전처럼 메모·금액만 들어간다.
      */
@@ -57,6 +69,18 @@ class CalendarSyncManager(
         const val CALENDAR_NAME = "시공막내"
         private const val DEFAULT_BLOCK_MS = 2 * 60 * 60_000L // 시각만 있을 때 기본 2시간 블록(사장님 확인)
         private const val DAY_MS = 86_400_000L
+
+        /**
+         * 이 건을 **안 올리고 건너뛰어도 되는가.**
+         *
+         * ⚠️ 잘못 건너뛰면 일정이 구글 캘린더에 영영 안 올라간다(사장님이 현장을 놓친다) → 규칙을 따로 빼서
+         *    [CalendarSkipRuleTest] 로 고정한다. 조건은 **둘 다** 만족해야 한다:
+         *   ① 이미 올려둔 이벤트 id 가 있다 = 구글에 실제로 존재한다는 유일한 증거
+         *   ② 지난번에 올린 내용의 지문이 지금과 같다 = 바뀐 게 없다
+         *   지문이 없으면(처음이거나 지난번 실패) 무조건 올린다.
+         */
+        internal fun canSkipUpload(existingEventId: String?, lastHash: String?, newHash: String): Boolean =
+            existingEventId != null && lastHash != null && lastHash == newHash
     }
 
     private val calMutex = Mutex()
@@ -89,7 +113,10 @@ class CalendarSyncManager(
     private suspend fun resetCalendar(): Unit = calMutex.withLock {
         store.setCalendarId(null)
         for (c in runCatching { store.scheduledCustomers() }.getOrDefault(emptyList())) {
-            for (type in ScheduleType.entries) store.setEventId(c.id, type, null)
+            for (type in ScheduleType.entries) {
+                store.setEventId(c.id, type, null)
+                store.setEventHash(c.id, type, null)   // 새 캘린더엔 아무것도 없다 → 전부 다시 올려야 함
+            }
         }
     }
 
@@ -152,9 +179,14 @@ class CalendarSyncManager(
             if (existing != null) {
                 runCatching { api.deleteEvent(token, cal, existing) }
                 store.setEventId(c.id, type, null)
+                store.setEventHash(c.id, type, null)
             }
             return false
         }
+
+        // 지난번에 올린 내용과 똑같으면 구글에 안 물어본다 — 수백 번의 왕복이 여기서 사라진다.
+        val hash = eventHash(event)
+        if (canSkipUpload(existing, store.eventHash(c.id, type), hash)) return false
 
         try {
             if (existing == null) {
@@ -169,14 +201,26 @@ class CalendarSyncManager(
                     } else throw e
                 }
             }
+            // 여기까지 왔으면 이 내용이 구글에 올라가 있다 — 다음엔 건너뛸 수 있게 지문 저장.
+            store.setEventHash(c.id, type, hash)
         } catch (e: CalendarApi.CalendarApiException) {
             // 새 이벤트조차 못 만든다 = 이벤트가 아니라 **캘린더**가 문제(권한 없음/삭제됨).
             //   호출측이 캘린더를 갈아끼우고 한 번 다시 시도하게 알린다.
+            store.setEventHash(c.id, type, null)   // 실패했으니 '올렸다' 표시를 남기면 안 된다
             if (e.code == 403 || e.code == 404) return true
         } catch (_: Exception) {
             // 그 외 실패(네트워크 등) → 이벤트 id 유지. 다음 동기화 때 재시도.
+            store.setEventHash(c.id, type, null)
         }
         return false
+    }
+
+    /** 이벤트 내용의 지문 — 제목·시간·본문이 하나라도 바뀌면 달라진다. */
+    private fun eventHash(event: JSONObject): String {
+        val text = event.toString()
+        var h = 1125899906842597L          // FNV 계열 간단 해시. 충돌 확률이 낮고 값이 짧다.
+        for (ch in text) h = 31 * h + ch.code
+        return java.lang.Long.toHexString(h)
     }
 
     // ── 고객 → 이벤트 JSON ───────────────────────────────────
