@@ -195,7 +195,7 @@ fun CustomerDetailScreen(
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     // 고객 정보 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 0 일정·정산 / 1 협업 / 2 시공접수서 / 3 블로그(준비중).
-    //   자주 쓰는 정보(이름·전화·주소·시공일/받은돈·메모·사진)는 탭 위에 항상. 나머지 4개만 탭으로 정리.
+    //   이름·전화·주소는 탭 위, 메모·현장사진은 탭 내용 아래(짝) — 주소 바로 밑에 탭이 오게. (2026-09-15 사장님)
     var detailTab by remember(customer?.id) { mutableStateOf(0) }
 
     // composer 는 bottomBar 로 이동됨. 스크롤 영향 안 받아 bringIntoView 등 복잡한 로직 불필요.
@@ -467,37 +467,6 @@ fun CustomerDetailScreen(
                 )
             }
 
-            // 메모 카드 — 자주 쓰는 정보라 탭 위 항상 표시. (2026-07-18 탭 재배치로 여기로 올림)
-            val memoFocus = remember { FocusRequester() }
-            TossCard {
-                Column {
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
-                    ) {
-                        Text("📝", fontSize = 13.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Text("메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                        Spacer(Modifier.weight(1f))
-                        val savedMemo = c.memo.orEmpty()
-                        val (memoStatus, memoStatusColor) = when {
-                            memoInput != savedMemo -> "저장 중…" to TossTextTertiary
-                            memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
-                            else -> "자동으로 저장돼요" to TossTextTertiary
-                        }
-                        Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = memoInput,
-                        onValueChange = { memoInput = it },
-                        placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(140.dp).focusRequester(memoFocus),
-                        colors = tossFieldColors()
-                    )
-                }
-            }
-
             // ── 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 위 정보는 항상, 아래 4개 섹션만 탭으로 전환 ──
             run {
                 // "블로그"(비즈니스 요금제 예정) 탭은 출시 전까지 숨김 — 눌러도 "곧 제공" 토스트만 뜨는 데드엔드였음.
@@ -762,6 +731,37 @@ fun CustomerDetailScreen(
             // [시공접수서] 탭인데 발행 이력이 없을 때 안내. (2026-07-18 탭 재배치)
             if (detailTab == 2 && issuedDocs.isEmpty()) {
                 DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
+            }
+
+            // 메모 카드 — 현장 사진 바로 위. (2026-09-15 사장님: "메모란 밑에 현장사진, 주소 아래는 탭이 바로 나와야")
+            val memoFocus = remember { FocusRequester() }
+            TossCard {
+                Column {
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
+                    ) {
+                        Text("📝", fontSize = 13.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Spacer(Modifier.weight(1f))
+                        val savedMemo = c.memo.orEmpty()
+                        val (memoStatus, memoStatusColor) = when {
+                            memoInput != savedMemo -> "저장 중…" to TossTextTertiary
+                            memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
+                            else -> "자동으로 저장돼요" to TossTextTertiary
+                        }
+                        Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = memoInput,
+                        onValueChange = { memoInput = it },
+                        placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
+                        modifier = Modifier.fillMaxWidth().height(140.dp).focusRequester(memoFocus),
+                        colors = tossFieldColors()
+                    )
+                }
             }
 
             // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
