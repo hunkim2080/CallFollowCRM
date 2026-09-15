@@ -29,35 +29,87 @@ object NotificationHelper {
     private const val CHANNEL_GENERAL_SMS = "general_sms_box"
     /** 통화 후 문자 보내기 — 새 번호 통화 끝나면 "문자 보낼까요?" + 템플릿 선택. (2026-07-12 사장님) */
     private const val CHANNEL_POSTCALL = "postcall_picker"
-    private const val POSTCALL_ID_BASE = 9_300_000
     /** 고객이 시공접수서를 작성·제출했을 때 알림. */
     private const val CHANNEL_INTAKE = "intake_submitted_2"
-    private const val INTAKE_ID_OFFSET = 8_000_000
     /** 시간 기반 리마인더(시공 D-1·잔금 미수·마감 브리핑). */
     private const val CHANNEL_REMINDER = "reminder_2"
-    private const val D1_ID_OFFSET = 9_000_000
-    private const val SETTLE_ID_OFFSET = 9_500_000
-    private const val AS_ID_OFFSET = 9_250_000            // A/S 그날 알림 (DB v43)
-    private const val BRIEF_ID = 9_700_000
-    private const val RECUR_ID = 9_800_000
-    private const val ARRIVAL_ID_OFFSET = 9_900_000
-    private const val DEPART_ID_OFFSET = 9_600_000
-    private const val COLLAB_ID_OFFSET = 9_400_000
-    private const val COLLAB_INVITE_ID_OFFSET = 9_450_000
-    /** 본폰 미러 v2 — 새 공유 신청 알림(한 스레드, 갱신). (2026-07-14) */
-    private const val MIRROR_SHARE_ID = 9_910_000
-    /** 협업 현장 새 댓글 알림 — site_id hash 기준(현장당 한 스레드 알림, 새 댓글이면 update). (2026-07-02) */
-    private const val COLLAB_COMMENT_ID_OFFSET = 9_350_000
-    /** 협업 현장 새 사진 알림 — 상대가 현장 증거사진 올리면. (2026-07-02) */
-    private const val COLLAB_PHOTO_ID_OFFSET = 9_360_000
-    /** 박람회 시공자 배정 알림 — 방(room_id) hash 기준(방당 한 스레드, 배분 여러 건이면 update). (2026-07-27) */
-    private const val EXPO_ASSIGN_ID_OFFSET = 9_700_000
-    /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
-    private const val SMS_ID_OFFSET = 10_000_000
-    private const val MMS_FAIL_ID = 9_300_000
     /** 오늘의 현장 상시 알림 — 현장에서 주소(동/호) 계속 확인용. 무음·상단고정(ongoing), 하루 1건. (2026-07-10 사장님) */
     private const val CHANNEL_TODAY_SITE = "today_site"
-    private const val TODAY_SITE_ID = 9_200_000
+
+    // ══════════════ 알림 번호(ID) 체계 — 종류마다 100만 칸 (2026-09-15 사장님) ══════════════
+    //
+    // 알림에는 '번호표'가 있고, 같은 번호로 쏘면 **나중 알림이 앞 알림을 조용히 덮어쓴다**
+    //   (사장님 눈엔 "그 알림이 아예 안 왔다"로 보임 — 로그도 안 남아 원인 찾기가 제일 어려운 종류).
+    //
+    // 예전 방식: 종류별 시작번호를 1만~50만 간격으로 띄우고 뒤에 `(hash and 0x7FFFFF)`(최대 838만)를 더함
+    //   → 한 종류가 옆 종류 자리를 통째로 넘어가 있었다. 실제로 겹쳐 있던 곳:
+    //     · 통화후 문자(9_300_000~9_365_535) ↔ 협업 댓글(9_350_000~) · 협업 사진(9_360_000~)
+    //     · MMS 발송실패(9_300_000 고정) ↔ 통화후 문자 시작번호(정확히 같음)
+    //     · 박람회 배정(9_700_000~) ↔ 마감 브리핑(9_700_000 고정)
+    //     · 접수서(8_000_000~) ↔ 통화요약(8_000_000~)
+    //
+    // 지금 방식: 종류마다 **100만짜리 칸을 하나씩** 주고, 뒤에 붙는 값은 반드시 그 칸 안(0~999,999)으로 접는다.
+    //   → 서로 다른 종류끼리는 번호가 겹칠 수 **없다**(구조상 불가능). 같은 종류 안에서만 hash 가 겹칠 수 있는데,
+    //     그건 원래 의도(같은 고객·같은 현장이면 같은 알림을 갱신)에 가깝다.
+    //   ⚠️ FAM_* 숫자는 한 번 정하면 바꾸지 않는다 — 바꾸면 이미 떠 있는 알림을 못 지운다(cancel 이 빗나감).
+    internal const val ID_BAND = 1_000_000
+    /** 종류 칸 안으로 접기 — 음수 hash 도 안전하게 0~999,999. */
+    internal fun bandKey(key: Int): Int = ((key % ID_BAND) + ID_BAND) % ID_BAND
+    /** 그 종류의 알림 번호. 종류가 다르면 번호대가 달라 절대 안 겹친다. */
+    internal fun famId(family: Int, key: Int): Int = family * ID_BAND + bandKey(key)
+
+    internal const val FAM_CALL_FOLLOW = 1       // 통화 후속(기본)
+    internal const val FAM_AUTO_REPLY = 2        // 자동응답 보냄
+    internal const val FAM_QUIET = 3             // 조용한 통화 알림
+    internal const val FAM_SUMMARY = 4           // 통화요약 완료
+    internal const val FAM_INTAKE = 5            // 시공접수서 제출
+    private const val FAM_D1 = 6                // 내일 시공
+    internal const val FAM_AS = 7                // A/S 그날
+    internal const val FAM_SETTLE = 8            // 잔금 미수
+    internal const val FAM_ARRIVAL = 9           // 현장 도착 안내
+    internal const val FAM_DEPART = 10           // 출발
+    internal const val FAM_COLLAB = 11           // 협업 진행(수락·출발·도착·완료·일정변경)
+    internal const val FAM_COLLAB_COMMENT = 12   // 협업 현장 댓글
+    internal const val FAM_COLLAB_PHOTO = 13     // 협업 현장 사진
+    internal const val FAM_COLLAB_INVITE = 14    // 협업 요청·해제·입금
+    internal const val FAM_EXPO = 15             // 박람회 배정
+    internal const val FAM_SMS = 16              // 수신 문자
+    internal const val FAM_POSTCALL = 17         // 통화 후 "문자 보낼까요?"
+    internal const val FAM_MMS_FAIL = 18         // MMS 발송 실패
+    internal const val FAM_SINGLE = 19           // 하나짜리 알림들(아래 상수로 번호 고정)
+
+    /**
+     * 종류 목록 — 단위테스트(NotificationIdTest)가 "어떤 두 종류도 번호가 안 겹친다"를 매번 검사한다.
+     *   새 알림 종류를 추가하면 FAM_ 상수와 함께 **여기에도 한 줄 추가**할 것.
+     */
+    internal val ID_FAMILIES: List<Pair<String, Int>> = listOf(
+        "통화 후속" to FAM_CALL_FOLLOW,
+        "자동응답" to FAM_AUTO_REPLY,
+        "조용한 통화" to FAM_QUIET,
+        "통화요약" to FAM_SUMMARY,
+        "시공접수서" to FAM_INTAKE,
+        "내일 시공" to FAM_D1,
+        "A/S" to FAM_AS,
+        "잔금 미수" to FAM_SETTLE,
+        "현장 도착" to FAM_ARRIVAL,
+        "출발" to FAM_DEPART,
+        "협업 진행" to FAM_COLLAB,
+        "협업 댓글" to FAM_COLLAB_COMMENT,
+        "협업 사진" to FAM_COLLAB_PHOTO,
+        "협업 요청·해제·입금" to FAM_COLLAB_INVITE,
+        "박람회 배정" to FAM_EXPO,
+        "수신 문자" to FAM_SMS,
+        "통화 후 문자" to FAM_POSTCALL,
+        "MMS 발송실패" to FAM_MMS_FAIL,
+        "하나짜리 알림" to FAM_SINGLE,
+    )
+
+    internal const val BRIEF_ID = FAM_SINGLE * ID_BAND + 1
+    internal const val RECUR_ID = FAM_SINGLE * ID_BAND + 2
+    internal const val TODAY_SITE_ID = FAM_SINGLE * ID_BAND + 3
+    /** 본폰 미러 v2 — 새 공유 신청 알림(한 스레드, 갱신). (2026-07-14) */
+    internal const val MIRROR_SHARE_ID = FAM_SINGLE * ID_BAND + 4
+    internal const val MMS_FAIL_ID = FAM_SINGLE * ID_BAND + 5
     // 전용 소리 슬롯 채널 (2026-07-13 사장님) — 통화요약/협업수락/협업거절 각각 소리 고르게. 새 채널 id 라 첫 생성부터 소리 적용.
     private const val CHANNEL_CALL_SUMMARY = "call_summary_snd"
     private const val CHANNEL_COLLAB_ACCEPTED = "collab_accepted_snd"
@@ -92,9 +144,7 @@ object NotificationHelper {
     // 시스템이 colorized 를 무시해도 setColor 는 항상 small-icon 틴트 + 앱명 accent 로 동작.
     private val NOTIFICATION_BG_COLOR = 0xFFBBDEFB.toInt()
     /** callRecordId 없을 때만 쓰는 fallback. 정상 흐름은 항상 callRecordId 기반 unique ID. */
-    private const val FALLBACK_NOTIFICATION_ID = 1001
-    /** AutoReply 알림은 callRecordId 기반 + offset 으로 후속 알림과 분리. */
-    private const val AUTO_REPLY_ID_OFFSET = 5_000_000
+    internal const val FALLBACK_NOTIFICATION_ID = FAM_SINGLE * ID_BAND + 6
 
     // ══════════════ 알림 종류별 소리 (더보기 → 알림 소리, 2026-07-10 사장님) ══════════════
     /**
@@ -468,7 +518,7 @@ object NotificationHelper {
         timeLabel: String?,
         address: String
     ) {
-        val notifId = D1_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val notifId = famId(FAM_D1, customerId.toInt())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
@@ -503,7 +553,7 @@ object NotificationHelper {
         whenLabel: String,
         address: String
     ) {
-        val notifId = AS_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val notifId = famId(FAM_AS, customerId.toInt())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
@@ -536,7 +586,7 @@ object NotificationHelper {
         balanceManwon: Long,
         daysSince: Int
     ) {
-        val notifId = SETTLE_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val notifId = famId(FAM_SETTLE, customerId.toInt())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
@@ -568,7 +618,7 @@ object NotificationHelper {
 
     /** 현장 도착 안내 — 프로토 PUSH.arrival(초록). 5km 진입 시. 무음 자동발송 X. */
     fun showArrival(context: Context, customerId: Long, phone: String, name: String) {
-        val notifId = ARRIVAL_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val notifId = famId(FAM_ARRIVAL, customerId.toInt())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
@@ -602,7 +652,7 @@ object NotificationHelper {
         place: String,
         text: String? = null
     ) {
-        val notifId = DEPART_ID_OFFSET + (eventId.toInt() and 0x7FFFFF)
+        val notifId = famId(FAM_DEPART, eventId.toInt())
         val pending = appOpenPending(context, notifId, MainActivity.ACTION_TEAM)  // 팀 현황으로 (HOME 아님). (2026-08-13)
         val (title, msg, accent) = when (kind) {
             "arrived" -> Triple(
@@ -648,7 +698,7 @@ object NotificationHelper {
         reason: String? = null,   // 거절 사유(declined) — A 에게 "왜 거절했는지" 표시. (2026-07-08 사장님)
         auto: Boolean = false
     ) {
-        val notifId = COLLAB_ID_OFFSET + (eventId.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB, eventId.hashCode())
         // 협업 진행 알림(수락/출발/도착/완료)은 전부 '주인(A)'이 받음. A 는 '받은 협업현장' 목록에
         //   이 현장이 없어 /shared/{id} 로 보내면 "공유받은 현장이 없어요"가 떠 버림(2026-06-14 버그).
         //   기존엔 그래서 action 없이 앱만 열어 → 탭해도 아무 반응 없음(2026-06-20 사장님 신고).
@@ -744,7 +794,7 @@ object NotificationHelper {
         body: String
     ) {
         if (siteId.isBlank()) return
-        val notifId = COLLAB_COMMENT_ID_OFFSET + (siteId.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_COMMENT, siteId.hashCode())
         // 탭 → 그 현장 상세(댓글)로 바로. ACTION_COLLAB_SITE + shareId → SharedSiteScreen 이 초기 shareId 로 상세 자동 오픈
         //   (받은현장 B·내가공유한현장 A 둘 다 매칭). (2026-07-02 사장님 "댓글로 가야하는데 목록으로 감")
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -775,7 +825,7 @@ object NotificationHelper {
         siteTitle: String
     ) {
         if (siteId.isBlank()) return
-        val notifId = COLLAB_PHOTO_ID_OFFSET + (siteId.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_PHOTO, siteId.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_COLLAB_SITE
             putExtra(MainActivity.EXTRA_SHARE_ID, siteId)
@@ -802,7 +852,7 @@ object NotificationHelper {
      *   고객 번호/대화는 안 들어옴(벽) — 보내는 사장 이름 + 현장 라벨만.
      */
     fun showCollabInvite(context: Context, shareId: String, ownerName: String, title: String) {
-        val notifId = COLLAB_INVITE_ID_OFFSET + (shareId.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_INVITE, shareId.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
@@ -825,7 +875,7 @@ object NotificationHelper {
 
     /** 협업 초대 알림 지우기 — B 가 수락/거절하면 호출. showCollabInvite 와 같은 notifId 공식. (2026-06-14) */
     fun cancelCollabInvite(context: Context, shareId: String) {
-        val notifId = COLLAB_INVITE_ID_OFFSET + (shareId.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_INVITE, shareId.hashCode())
         NotificationManagerCompat.from(context).cancel(notifId)
     }
 
@@ -834,7 +884,7 @@ object NotificationHelper {
      *   프로토 b-remind 아래 푸시: "사장님께 '거의 다 왔어요'를 알려드렸어요!"
      */
     fun showCollabArrivedConfirm(context: Context, shareId: String, title: String) {
-        val notifId = COLLAB_INVITE_ID_OFFSET + ("arrconf:$shareId".hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_INVITE, "arrconf:$shareId".hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
@@ -858,7 +908,7 @@ object NotificationHelper {
 
     /** 협업 해제됨 — 상대(A 또는 B)가 협업을 끝냄. 받는 쪽에 알림 + 기록은 보존. (FCM collab_ended) */
     fun showCollabEnded(context: Context, shareId: String, byName: String, title: String) {
-        val notifId = COLLAB_INVITE_ID_OFFSET + ("ended:$shareId".hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_INVITE, "ended:$shareId".hashCode())
         // 탭하면 "무엇을/누가 해제했는지" 토스트 + 협업 현장 목록. (전엔 /shared/{id} 로 갔는데 해제된 현장은 목록서
         //   빠져 상세가 안 열리고 빈 목록만 떴음 — "뭐가 해제됐는지 안 보임" fix). (2026-06-21 사장님)
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -884,7 +934,7 @@ object NotificationHelper {
 
     /** 협업 입금 완료(받는 쪽) — 주인(A)이 입금완료 표시 → 협업한 사장 B 에게 알림. (FCM collab_paid) */
     fun showCollabPaid(context: Context, shareId: String, title: String) {
-        val notifId = COLLAB_INVITE_ID_OFFSET + ("paid:$shareId".hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB_INVITE, "paid:$shareId".hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
@@ -908,7 +958,7 @@ object NotificationHelper {
      *  서버 FCM(type=expo_assigned)로 옴. 배분은 건별로 여러 번 오므로 방(room_id) 기준 같은 ID 로 update(한 개로 합쳐짐).
      *  탭 = 앱 열기(박람회 > 내 접수서함에서 확인). 소리는 '협업 요청' 채널 재사용(전용 분리는 추후). */
     fun showExpoAssigned(context: Context, roomId: String, roomName: String) {
-        val notifId = EXPO_ASSIGN_ID_OFFSET + (roomId.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_EXPO, roomId.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -942,7 +992,7 @@ object NotificationHelper {
         newLabel: String?,
         timeLabel: String?
     ) {
-        val notifId = COLLAB_ID_OFFSET + ("reschedule:$shareId".hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_COLLAB, "reschedule:$shareId".hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
@@ -1146,7 +1196,7 @@ object NotificationHelper {
         dateLabel: String? = null,
         totalManwon: Int = 0
     ) {
-        val notifId = INTAKE_ID_OFFSET + (token.hashCode() and 0x7FFFFF)
+        val notifId = famId(FAM_INTAKE, token.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
@@ -1178,7 +1228,7 @@ object NotificationHelper {
         // 숫자 4개 미만(영문 브랜드 발신자 등)이면 뒷8자리가 "" → "".hashCode()==0 로 전부 같은 id 가 되어
         //   서로 다른 발신자 알림이 덮어써졌음 → 발신자 원문 전체로 유니크화. (2026-08-08 stale 감사)
         val base = if (digits.length >= 4) digits.takeLast(8).hashCode() else phone.trim().hashCode()
-        return SMS_ID_OFFSET + (base and 0x7FFFFFF)
+        return famId(FAM_SMS, base)
     }
 
     /**
@@ -1356,7 +1406,7 @@ object NotificationHelper {
         if (items.isEmpty()) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val who = displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)
-        val nid = POSTCALL_ID_BASE + (phone.hashCode() and 0xFFFF)
+        val nid = famId(FAM_POSTCALL, phone.hashCode())
         // resolveChannel: 방해금지 시간엔 야간(무음) 채널로 몰아 야간에도 소리·헤드업으로 튀던 것 방지(다른 알림과 동일 게이트).
         //   비-슬롯 채널이라 평소엔 CHANNEL_POSTCALL 그대로. (2026-08-11 알림 감사)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_POSTCALL))
@@ -1436,7 +1486,7 @@ object NotificationHelper {
         isMissed: Boolean,
         customerId: Long? = null
     ) {
-        val notifId = (callRecordId?.toInt()?.and(0x7FFFFFFF) ?: 0) + QUIET_ID_OFFSET
+        val notifId = famId(FAM_QUIET, callRecordId?.toInt() ?: 0)
         val intent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phoneNumber)
@@ -1479,7 +1529,7 @@ object NotificationHelper {
         customerId: Long? = null,
         preview: String? = null
     ) {
-        val notifId = (callRecordId?.toInt()?.and(0x7FFFFFFF) ?: 0) + SUMMARY_READY_ID_OFFSET
+        val notifId = famId(FAM_SUMMARY, callRecordId?.toInt() ?: 0)
         // customerId 가 있으면 같이 실어 보냄 → 채팅이 번호 포맷 매칭이 아니라 '그 고객'으로 정확히 열림.
         //   (2026-06-18 사장님 버그: 요약 알림 탭하면 관련없는 곳으로 이동 — 녹음 번호 포맷이 달라 빈/엉뚱한 대화가 열렸을 수 있음)
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -1532,8 +1582,8 @@ object NotificationHelper {
     //     · 앱을 켜면(=봤다) clearCallSummaryNotifications 로 싹 정리.
     /** 통화요약 알림들을 묶는 키. */
     private const val CALL_SUMMARY_GROUP = "call_summary_group"
-    /** 묶음 머리(요약) 알림 ID — 8_000_000 대(요약·접수서)와 안 겹치게 8.5M. */
-    private const val CALL_SUMMARY_GROUP_ID = 8_500_000
+    /** 묶음 머리(요약) 알림 ID. */
+    internal const val CALL_SUMMARY_GROUP_ID = FAM_SINGLE * ID_BAND + 7
 
     /**
      * 지금 알림창에 살아있는 통화요약 알림들을 모아 '머리' 알림 한 개를 갱신.
@@ -1596,11 +1646,6 @@ object NotificationHelper {
         runCatching { nm.cancel(CALL_SUMMARY_GROUP_ID) }
     }
 
-    /** 요약 완료 알림 ID offset — 다른 알림(AUTO_REPLY 5M / QUIET 7M)과 분리. */
-    private const val SUMMARY_READY_ID_OFFSET = 8_000_000
-
-    /** quiet 알림 ID 와 일반 후속 ID 충돌 방지 offset (AUTO_REPLY_ID_OFFSET 와도 분리). */
-    private const val QUIET_ID_OFFSET = 7_000_000
 
     /** 해당 통화 후속 처리가 끝나면 호출 — 그 통화의 알림만 정리. */
     fun cancelFor(context: Context, callRecordId: Long?) {
@@ -1609,18 +1654,14 @@ object NotificationHelper {
         }
     }
 
-    /**
-     * callRecordId → notification ID 매핑.
-     * Long → Int 변환은 .toInt() 로 하면 충돌 가능성이 작긴 하지만, 정수 오버플로 안전성을 위해
-     * 음수가 되지 않도록 absoluteValue 처리. fallback 영역(<1000)과 충돌 방지 위해 +10000 offset.
-     */
+    /** callRecordId → 통화 후속 알림 번호. 번호대는 famId 가 보장(다른 종류와 절대 안 겹침). */
     private fun notificationIdFor(callRecordId: Long?): Int {
         if (callRecordId == null || callRecordId <= 0) return FALLBACK_NOTIFICATION_ID
-        return (callRecordId.toInt() and 0x7FFFFFFF) + 10000
+        return famId(FAM_CALL_FOLLOW, callRecordId.toInt())
     }
 
     private fun autoReplyIdFor(callRecordId: Long): Int =
-        (callRecordId.toInt() and 0x7FFFFFFF) + AUTO_REPLY_ID_OFFSET
+        famId(FAM_AUTO_REPLY, callRecordId.toInt())
 
     /** 자동 응답 대기 중 알림 (10초 카운트다운). 취소 액션 포함. */
     fun showAutoReplyPending(
@@ -1694,14 +1735,13 @@ object NotificationHelper {
         )
     }
 
-    private const val MMS_FAIL_ID_BASE = 970_000
 
     /**
      * MMS(사진) 직접 발송 실패 알림 — 지하·약신호 현장에서 사진이 실제론 못 나갔는데 '사진 보냈어요'로 뜨던
      *   '거짓 성공'을 막는다. 사장님이 실패를 인지하고 신호 좋을 때 탭해서 다시 보내게. (2026-08-11 오프라인 감사 rank1)
      */
     fun showMmsSendFailed(context: Context, phoneNumber: String) {
-        val id = MMS_FAIL_ID_BASE + (phoneNumber.filter { it.isDigit() }.takeLast(8).hashCode() and 0x7FFFFFF)
+        val id = famId(FAM_MMS_FAIL, phoneNumber.filter { it.isDigit() }.takeLast(8).hashCode())
         showProtoPush(
             context, id, CHANNEL_AUTO_REPLY, ACCENT_PINK,
             title = "⚠️ 사진이 안 보내졌어요",

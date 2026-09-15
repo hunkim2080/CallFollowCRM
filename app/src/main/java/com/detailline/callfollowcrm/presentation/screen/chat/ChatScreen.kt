@@ -42,6 +42,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -753,6 +754,8 @@ fun ChatScreen(
                     .padding(horizontal = 18.dp),
                 reverseLayout = true,
                 verticalArrangement = Arrangement.spacedBy(9.dp),
+                // 마지막 말풍선이 입력줄 흰 바에 3px 까지 붙어 답답해 보였다(카톡은 33px 띄움). (2026-09-15 사장님)
+                contentPadding = PaddingValues(top = 6.dp, bottom = 10.dp),
                 state = listState
             ) {
                 if (timelineItems.isEmpty()) {
