@@ -266,6 +266,8 @@ fun HomeScreen(
     val waitingReplies by viewModel.waitingReplies.collectAsState()
     val waitingReplyChoices by viewModel.waitingReplyChoices.collectAsState()
     val categoriesById by viewModel.categories.collectAsState()
+    // 줄마다 firstOrNull 로 전체 카테고리를 훑던 것 → 맵 한 번(대화 200줄이면 200번 훑던 일). (2026-09-15)
+    val categoryById = remember(categoriesById) { categoriesById.associateBy { it.id } }
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val yesterdayNew by viewModel.yesterdayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
@@ -501,7 +503,12 @@ fun HomeScreen(
             val listState = rememberLazyListState()
             // 최근 대화 스크롤 버벅임 fix: 한 카드에 전체를 한 프레임에 그리면 끊김 → 기본 일부만, 나머지는 "더 보기".
             // rememberSaveable — 대화 다녀와도 '이전 대화 더 보기' 펼침·스크롤 위치 유지(리셋 방지). (2026-09-01 사장님)
-            var recentExpanded by rememberSaveable { mutableStateOf(false) }
+            //
+            // 2026-09-15 사장님 "이전 대화 더보기 눌렀는데 엄청 버벅이는 느낌":
+            //   전엔 누르면 **남은 대화 전부**를 한 프레임에 그렸다(대화가 200개면 200줄을 한 번에) → 그 순간 뚝 끊김.
+            //   최근 대화는 한 흰 카드 안(= 한 덩어리)이라 화면 밖 줄도 미리 다 그려야 해서 더 무겁다.
+            //   → 한 번 누를 때 RECENT_MORE(30줄)씩만 늘린다. 한 번의 일감이 작아져 끊김이 안 느껴진다.
+            var recentShown by rememberSaveable { mutableStateOf(RECENT_FIRST) }
             // 막내 팁 카드 — 눌러본(used)/닫은(dismissed) 건 prefs 로 영구 기억 + 화면 상태로 즉시 반영. (2026-07-04 사장님)
             var tipUsed by remember { mutableStateOf(prefs.makneTipUsed) }
             var tipDismissed by remember { mutableStateOf(prefs.makneTipDismissed) }
@@ -626,7 +633,7 @@ fun HomeScreen(
                 val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
                 val rowKey = "row-${item.record.id}-${item.record.phoneNumber}"
                 val rowCategory = item.customer?.categoryId?.let { cid ->
-                    categoriesById.firstOrNull { it.id == cid }
+                    categoryById[cid]
                 }
                 HomeRow(
                     item = item,
@@ -1084,7 +1091,7 @@ fun HomeScreen(
                                     item = item,
                                     aiSummary = aiCardSummaries[suffix],
                                     category = item.customer?.categoryId?.let { cid ->
-                                        categoriesById.firstOrNull { it.id == cid }
+                                        categoryById[cid]
                                     }?.takeUnless {
                                         it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
                                             it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
@@ -1126,7 +1133,7 @@ fun HomeScreen(
                                         unread = unread,
                                         aiSummary = aiCardSummaries[suffix],
                                         category = rItem.customer?.categoryId?.let { cid ->
-                                            categoriesById.firstOrNull { it.id == cid }
+                                            categoryById[cid]
                                         }?.takeUnless {
                                             it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
                                                 it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
@@ -1144,7 +1151,7 @@ fun HomeScreen(
                 if (recent.isNotEmpty()) {
                     item(key = "recent-head") { SecSub("최근 대화") }
                     item(key = "recent-card") {
-                        val shownRecent = if (recentExpanded) recent else recent.take(12)
+                        val shownRecent = recent.take(recentShown)
                         // 프로토 renderRecent 1:1 — 대화 3개마다 팁 하나. 단, 팁이 실제로 끼일 때만 카드를 끊고(flush),
                         //   팁이 없거나 다 떨어지면 남은 대화는 한 카드로 쭉 이어진다. (2026-07-08 사장님: 팁 없을 때
                         //   chunked(3) 가 무조건 쪼개 빈 단락/틈 = 촌스러운 구분이 생기던 것 → 프로토대로 tip 있을 때만 분할)
@@ -1224,7 +1231,7 @@ fun HomeScreen(
                                                             // 그룹 태그 — 사장님이 만든 분류(일당 등)만. 자동 시스템 카테고리(시공 대기/완료)는
                                                             //   상태 태그와 중복이라 태그로 안 띄움(그럼 모든 행에 붙어 '일당' 이 안 도드라짐). (2026-08-04)
                                                             category = rItem.customer?.categoryId?.let { cid ->
-                                                                categoriesById.firstOrNull { it.id == cid }
+                                                                categoryById[cid]
                                                             }?.takeUnless {
                                                                 it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
                                                                     it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
@@ -1242,11 +1249,14 @@ fun HomeScreen(
                             if (recent.size > shownRecent.size) {
                                 Box(
                                     Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
-                                        .clickable { recentExpanded = true }.padding(vertical = 14.dp),
+                                        .clickable { recentShown += RECENT_MORE }.padding(vertical = 14.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        "이전 대화 ${recent.size - shownRecent.size}개 더 보기",
+                                        // 30개씩 — 남은 게 그보다 적으면 그 수만큼.
+                                        "이전 대화 ${minOf(RECENT_MORE, recent.size - shownRecent.size)}개 더 보기" +
+                                            (recent.size - shownRecent.size - RECENT_MORE).takeIf { it > 0 }
+                                                ?.let { " · 남은 ${it + RECENT_MORE}개" } .orEmpty(),
                                         fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
@@ -3721,6 +3731,11 @@ private fun RecentRow(
     }
 }
 
+/** 최근 대화 처음 보여주는 줄 수. */
+private const val RECENT_FIRST = 12
+/** '이전 대화 더 보기' 한 번에 늘리는 줄 수 — 한 프레임 일감을 작게 유지. (2026-09-15 사장님) */
+private const val RECENT_MORE = 30
+
 private data class RecentTag(val text: String, val fg: Color, val bg: Color)
 
 /**
@@ -3746,6 +3761,9 @@ private fun recentStatusTag(c: com.detailline.callfollowcrm.data.local.entity.Cu
     return null
 }
 
+/** 최근 대화 줄에서 쓰는 날짜 포맷 — 줄마다 새로 만들면 낭비라 하나만 둔다. (2026-09-15) */
+private val RECENT_MD_FORMAT = java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN)
+
 /** 프로토 recent 시각 — 오늘/어제/N일 전/M/D (절대시각 X). */
 private fun recentTimeLabel(ms: Long): String {
     val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
@@ -3753,7 +3771,7 @@ private fun recentTimeLabel(ms: Long): String {
         0 -> "오늘"
         1 -> "어제"
         in 2..6 -> "${days}일 전"
-        else -> java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN).format(java.util.Date(ms))
+        else -> RECENT_MD_FORMAT.format(java.util.Date(ms))
     }
 }
 
