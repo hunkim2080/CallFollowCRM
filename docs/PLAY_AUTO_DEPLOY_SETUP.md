@@ -81,3 +81,29 @@
 - 업로드: `r0adkll/upload-google-play@v1`, packageName=`com.detailline.callfollowcrm`.
 - **로컬 release 빌드와 병행 주의**: CI 로 넘어간 뒤엔 로컬에서 또 release 빌드+업로드하면 같은 versionCode(커밋수+1) 라 Play 가 둘 중 하나 거절. 릴리즈는 CI 로 일원화 권장.
 - R8(minify) off 라 크래시 매핑 업로드 이슈 없음.
+
+---
+
+## 🔐 Android 개발자 인증 — 서명키 등록 (2026-09-16)
+
+**마감 2026-09-30.** 미등록 앱은 Google Play 에서 삭제되고, 외부 배포분도 인증된 기기에 설치 불가.
+
+Play Console → **Android 개발자 인증** → 패키지 `com.detailline.callfollowcrm` (상태: 등록됨). 키 3개:
+
+| 지문(앞) | 무엇 | 등록 경로 |
+|---|---|---|
+| `95:7B:B1:AE:…` | Play 배포용 | 구글 자동 |
+| `4B:A1:E0:C1:…` | Play 관련 | 구글 자동 |
+| `4B:C6:27:28:…:4B:22:EE` | **si0in.kr 배포 APK** (`ringgo-release.jks`, alias `ringgo`) | **2026-09-16 수동 추가** |
+
+⚠️ **왜 수동이 필요했나**: Play 는 업로드본을 벗겨내고 **자기 키로 재서명**해 배포한다 →
+구글은 'Play 로 나가는 키'만 자동 등록했다. **사이트에서 직접 나눠주는 APK 의 서명키는 빠진다.**
+넣지 않으면 9/30 이후 si0in.kr 설치본이 안 깔릴 수 있다(Play 설치본은 무관).
+**키스토어를 바꾸면 새 키도 반드시 '키 추가' 할 것.**
+
+**지문 확인 방법** — `keytool -printcert -jarfile` 은 v1 서명이 없는 APK 를 못 읽는다("서명된 jar 아님"). apksigner 를 쓴다:
+```
+%LOCALAPPDATA%\Android\Sdk\build-tools\37.0.0\apksigner.bat verify --print-certs app\build\outputs\apk\release\shigongmagne.apk
+"C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore ringgo-release.jks -alias ringgo -storepass <비번>
+```
+지문(SHA-256)은 비밀값이 아니다 — 공개해도 안전. 진짜 비밀은 `ringgo-release.jks` + `keystore.properties`.
