@@ -86,6 +86,14 @@ SKIP_MAX=$(grep -o "Skipped [0-9]* frames" "$LOG" | awk '{print $2}' | sort -rn 
 SKIP_MAX=${SKIP_MAX:-0}
 FREEZE_SEC=$(awk -v f="$SKIP_MAX" 'BEGIN{printf "%.1f", f/60}')
 ADDR_N=$(grep -c "mms/.*/addr, match=13, calling pid" "$LOG")
+# 같은 사진문자를 몇 번씩 다시 물어봤나(반복 배수). 1.0 = 한 건당 딱 한 번 = 이상적.
+#   총 횟수만 보면 "사진문자가 많은 폰"과 "같은 걸 계속 되묻는 앱"을 구분 못 한다.
+ADDR_UNIQ=$(grep -o "content://mms/[0-9]*/addr" "$LOG" | sort -u | wc -l | tr -d ' ')
+if [ "${ADDR_UNIQ:-0}" -gt 0 ]; then
+  ADDR_RATIO=$(awk -v t="$ADDR_N" -v u="$ADDR_UNIQ" 'BEGIN{printf "%.1f", t/u}')
+else
+  ADDR_RATIO="0.0"
+fi
 CRASH_N=$(grep -cE "FATAL EXCEPTION|am_anr" "$LOG")
 
 say ""
@@ -93,7 +101,7 @@ hr
 say "📋 검진 결과"
 hr
 say "  화면 멈춤(최대)   : ${FREEZE_SEC}초   (${SKIP_MAX}프레임)"
-say "  문자창고 조회     : ${ADDR_N}회"
+say "  문자창고 조회     : ${ADDR_N}회 (서로 다른 ${ADDR_UNIQ}건 × 반복 ${ADDR_RATIO}배)"
 say "  메모리            : ${PSS_BEFORE}KB → ${PSS_AFTER}KB"
 say "  앱 생존           : $([ -n "$ALIVE" ] && echo '살아있음 ✅' || echo '꺼짐 ❌')"
 say "  크래시/응답없음   : ${CRASH_N}건"
@@ -103,8 +111,10 @@ say ""
 WARN=0
 awk -v s="$FREEZE_SEC" 'BEGIN{exit !(s>=5)}' && { say "  🔴 화면 멈춤 ${FREEZE_SEC}초 — 안드로이드가 앱을 죽이는 선(5초)을 넘었습니다."; WARN=1; }
 awk -v s="$FREEZE_SEC" 'BEGIN{exit !(s>=1.5 && s<5)}' && { say "  🟡 화면 멈춤 ${FREEZE_SEC}초 — 사장님이 '버벅인다'고 느끼는 구간."; WARN=1; }
-[ "$ADDR_N" -ge 2000 ] && { say "  🔴 문자창고를 ${ADDR_N}번 두드렸습니다 — 폭주입니다."; WARN=1; }
-[ "$ADDR_N" -ge 500 ] && [ "$ADDR_N" -lt 2000 ] && { say "  🟡 문자창고 ${ADDR_N}회 — 지켜볼 수준."; WARN=1; }
+# 판정은 '총 횟수'가 아니라 '반복 배수'로 한다 — 사진문자가 많은 건 죄가 아니고,
+#   같은 걸 계속 되묻는 게 죄다. (2026-09-15 실측: 수정 전 8.4배 → 캐시 후 2.5배 → 목표 1.0배)
+awk -v r="$ADDR_RATIO" 'BEGIN{exit !(r>=4)}' && { say "  🔴 같은 사진문자를 ${ADDR_RATIO}번씩 다시 물어봅니다 — 폭주입니다."; WARN=1; }
+awk -v r="$ADDR_RATIO" 'BEGIN{exit !(r>=1.5 && r<4)}' && { say "  🟡 같은 사진문자를 ${ADDR_RATIO}번씩 다시 물어봅니다 — 아직 낭비가 있습니다."; WARN=1; }
 [ -z "$ALIVE" ] && { say "  🔴 검사 도중 앱이 꺼졌습니다."; WARN=1; }
 [ "$CRASH_N" -gt 0 ] && { say "  🔴 크래시/응답없음 기록 ${CRASH_N}건 — 로그: $LOG"; WARN=1; }
 [ "$WARN" -eq 0 ] && say "  ✅ 이상 없음."

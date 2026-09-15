@@ -528,7 +528,24 @@ class SmsRepository(
             ): Boolean = size > MMS_ADDR_CACHE_MAX
         }
 
+    /**
+     * MMS 한 건당 자물쇠. 같은 건을 동시에 물어보는 걸 막는다.
+     *   캐시만 달았을 때 실측 1,605회 / 서로 다른 MMS 632개 = 같은 건을 평균 2.5번(최대 8번) 중복 조회했다.
+     *   앱 시작 때 여러 작업(홈 prefetch·대화 열기 등)이 **동시에** 훑는데, 아직 캐시에 안 들어간
+     *   같은 건을 나란히 물어보기 때문. 먼저 들어간 하나만 묻고 나머지는 그 답을 받아 가게 한다.
+     */
+    private val mmsAddrLocks = java.util.concurrent.ConcurrentHashMap<Long, Any>()
+
     private fun getMmsAddresses(mmsId: Long): List<Pair<String, Int>> {
+        synchronized(mmsAddressCache) { mmsAddressCache[mmsId] }?.let { return it }
+        // 자물쇠가 무한정 쌓이지 않게 — 캐시 상한을 넘으면 비운다(자물쇠는 버려도 안전).
+        if (mmsAddrLocks.size > MMS_ADDR_CACHE_MAX) mmsAddrLocks.clear()
+        val lock = mmsAddrLocks.computeIfAbsent(mmsId) { Any() }
+        return synchronized(lock) { getMmsAddressesLocked(mmsId) }
+    }
+
+    private fun getMmsAddressesLocked(mmsId: Long): List<Pair<String, Int>> {
+        // 자물쇠를 기다리는 동안 앞사람이 이미 채워놨을 수 있다 — 그럼 물어볼 필요 없음.
         synchronized(mmsAddressCache) { mmsAddressCache[mmsId] }?.let { return it }
         val uri = Uri.parse("content://mms/$mmsId/addr")
         val proj = arrayOf("address", "type")
