@@ -145,6 +145,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // 다 받아둔 업데이트가 있으면 설치 마무리. (아래 베타 핑은 bizPhone 없으면 early return 이라 그 앞에 둔다)
         com.detailline.callfollowcrm.util.InAppUpdater.completeIfDownloaded(this)
+        // 앱을 켰다 = 통화요약을 봤다 → 쌓인 요약 알림 정리. (2026-09-15 사장님: "요약이 너무 많이 쌓인다")
+        //   아래 bizPhone early-return 보다 앞에 둔다(번호 등록 전에도 동작).
+        com.detailline.callfollowcrm.service.NotificationHelper.clearCallSummaryNotifications(this)
         // 앱 진입(포그라운드)마다 베타 사용 핑 — 서버가 use_count++/last_seen 갱신 → admin '최근 앱 실행/사용 수' 실시간.
         //   캐싱 없이 매번 호출(cowork 요청 2026-06-21). 통계용이라 결과로 진입 막지 않음(fail-open). bizPhone 없으면 skip.
         val container = (application as? CallFollowCrmApplication)?.container ?: return

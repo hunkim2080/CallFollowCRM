@@ -1515,9 +1515,85 @@ object NotificationHelper {
             .setAutoCancel(true)
             // 에이닷처럼 안 사라지고 알림창에 남게 — 4초 자동소멸(setTimeoutAfter) 제거. 탭하면 사라짐. (2026-07-03 사장님)
             .setContentIntent(pending)
+            .setGroup(CALL_SUMMARY_GROUP)   // 여러 건이면 '✨ 통화요약 N건' 한 칸으로 접힘 (2026-09-15 사장님)
         try {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())
+            updateCallSummaryGroup(context)
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+    }
+
+    // ══════════════ 통화요약 알림 묶음 (2026-09-15 사장님) ══════════════
+    //
+    // 사장님 신고: "통화 요약이 너무 많이 쌓이는데 이게 맞나? 너무 복잡한데... 클릭해서 보지는 않거든."
+    //   통화 한 건당 알림 한 개 + (2026-07-03 지시로) 탭 전엔 안 사라짐 → 하루 지나면 알림창이 요약으로 도배.
+    //   그런데 사장님은 본문 한 줄("화장실 케라폭시 견적 문의 · 6898님")을 알림창에서 그냥 읽고 계셨다
+    //   = 안 누르는 게 정상. 그래서 '알림을 없애기'가 아니라 '한 칸으로 접기' 로 푼다.
+    //     · 접히면: ✨ 통화요약 3건 / 펼치면: 통화별 한 줄이 그대로 다 보임(읽는 방식 그대로).
+    //     · 앱을 켜면(=봤다) clearCallSummaryNotifications 로 싹 정리.
+    /** 통화요약 알림들을 묶는 키. */
+    private const val CALL_SUMMARY_GROUP = "call_summary_group"
+    /** 묶음 머리(요약) 알림 ID — 8_000_000 대(요약·접수서)와 안 겹치게 8.5M. */
+    private const val CALL_SUMMARY_GROUP_ID = 8_500_000
+
+    /**
+     * 지금 알림창에 살아있는 통화요약 알림들을 모아 '머리' 알림 한 개를 갱신.
+     *   살아있는 걸 직접 읽으므로(activeNotifications) 별도 저장·카운터가 필요 없다 —
+     *   사장님이 몇 개를 지웠든 항상 실제 개수와 맞는다.
+     */
+    private fun updateCallSummaryGroup(context: Context) {
+        val m = context.getSystemService(NotificationManager::class.java) ?: return
+        val kids = runCatching {
+            m.activeNotifications.orEmpty().filter {
+                it.notification?.group == CALL_SUMMARY_GROUP && it.id != CALL_SUMMARY_GROUP_ID
+            }
+        }.getOrNull().orEmpty()
+        // 한 건뿐이면 머리 알림이 오히려 두 줄로 보여 지저분 — 2건부터 묶는다.
+        if (kids.size < 2) {
+            runCatching { NotificationManagerCompat.from(context).cancel(CALL_SUMMARY_GROUP_ID) }
+            return
+        }
+        val lines = kids.sortedByDescending { it.postTime }.mapNotNull {
+            it.notification?.extras?.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString()
+                ?.trim()?.takeIf { t -> t.isNotBlank() }
+        }
+        val headline = "\u2728 통화요약 ${kids.size}건"
+        val style = NotificationCompat.InboxStyle().setBigContentTitle(headline)
+        lines.take(6).forEach { style.addLine(it) }
+        if (lines.size > 6) style.setSummaryText("외 ${lines.size - 6}건 더")
+        val pending = appOpenPending(context, CALL_SUMMARY_GROUP_ID)
+        val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_CALL_SUMMARY))
+            .setSmallIcon(R.drawable.ic_notification)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setColor(NOTIFICATION_BG_COLOR)
+            .setContentTitle(headline)
+            .setContentText(lines.firstOrNull()?.let { first ->
+                if (kids.size > 1) "$first 외 ${kids.size - 1}건" else first
+            } ?: "통화 요약이 준비됐어요")
+            .setStyle(style)
+            .setGroup(CALL_SUMMARY_GROUP)
+            .setGroupSummary(true)
+            // 소리·헤드업은 개별 알림이 이미 냈다 — 머리 알림까지 울리면 두 번 운다.
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+        try {
+            NotificationManagerCompat.from(context).notify(CALL_SUMMARY_GROUP_ID, builder.build())
+        } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+    }
+
+    /**
+     * 앱을 켜면 통화요약 알림은 '봤다'로 보고 싹 치운다. (요약 자체는 앱 안 채팅방에 그대로 남는다)
+     *   MainActivity.onResume 에서 호출. 사장님이 알림을 안 누르시니 앱 진입이 유일한 '읽음' 신호다.
+     */
+    fun clearCallSummaryNotifications(context: Context) {
+        val nm = NotificationManagerCompat.from(context)
+        val m = context.getSystemService(NotificationManager::class.java)
+        runCatching {
+            m?.activeNotifications.orEmpty()
+                .filter { it.notification?.group == CALL_SUMMARY_GROUP }
+                .forEach { sbn -> runCatching { nm.cancel(sbn.id) } }
+        }
+        runCatching { nm.cancel(CALL_SUMMARY_GROUP_ID) }
     }
 
     /** 요약 완료 알림 ID offset — 다른 알림(AUTO_REPLY 5M / QUIET 7M)과 분리. */
