@@ -505,22 +505,49 @@ class SmsRepository(
         return null
     }
 
+    /**
+     * mms/{id}/addr 결과 캐시(최근 3000건, LRU).
+     *
+     * 🔴 왜 필요한가 — 2026-09-15 사장님 "상담함에서 쭉 내리면 10초쯤 뒤 그냥 꺼져" 실측 원인.
+     *   홈에서 카드가 보일 때마다 그 번호의 MMS 캐시를 미리 채우는데(SmsCachePrefetcher),
+     *   번호 하나를 채우려고 **최근 MMS 500건을 전부 훑으며 건건이** content://mms/{id}/addr 를 물어봤다.
+     *   = 번호 하나당 최대 500번의 프로세스 간 호출(binder). 보이는 카드가 여러 개면 수천 번.
+     *   갤S9+ 실측: 초당 350회 조회가 몇 분간 지속, 삼성 문자 provider 까지 같이 느려지고
+     *   메인 스레드가 5.9초 멈춤(logcat "Skipped 355 frames") → 응답 없음 판정으로 앱 종료.
+     *
+     *   한 번 저장된 MMS 의 주소는 **절대 안 바뀐다**(불변). 그래서 한 번만 물어보고 기억해두면,
+     *   두 번째 번호부터는 같은 MMS 들을 다시 물어볼 필요가 전혀 없다 → 조회 수가 0 에 수렴.
+     *
+     *   (아주 드물게 MMS 가 지워지고 같은 _id 가 재사용되면 그 한 건의 주소가 옛것일 수 있다.
+     *    앱을 다시 켜면 사라지는 수준이라, 위 사고를 막는 값에 비하면 무시할 만하다.)
+     */
+    private val mmsAddressCache =
+        object : LinkedHashMap<Long, List<Pair<String, Int>>>(512, 0.75f, true) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<Long, List<Pair<String, Int>>>
+            ): Boolean = size > MMS_ADDR_CACHE_MAX
+        }
+
     private fun getMmsAddresses(mmsId: Long): List<Pair<String, Int>> {
+        synchronized(mmsAddressCache) { mmsAddressCache[mmsId] }?.let { return it }
         val uri = Uri.parse("content://mms/$mmsId/addr")
         val proj = arrayOf("address", "type")
+        // 조회 자체가 실패하면(provider 일시 오류) 캐시에 넣지 않는다 — 빈 값이 굳어버리면 사진이 영영 안 붙는다.
         val cursor = queryProviderWithRetry(uri, proj, null, null) ?: return emptyList()
-        return cursor.use { c ->
+        val out = cursor.use { c ->
             val addrIdx = c.getColumnIndex("address")
             val typeIdx = c.getColumnIndex("type")
             if (addrIdx < 0 || typeIdx < 0) return@use emptyList()
-            val out = mutableListOf<Pair<String, Int>>()
+            val list = mutableListOf<Pair<String, Int>>()
             while (c.moveToNext()) {
                 val addr = c.getString(addrIdx).orEmpty()
                 if (addr.isBlank() || addr == "insert-address-token") continue
-                out += addr to c.getInt(typeIdx)
+                list += addr to c.getInt(typeIdx)
             }
-            out
+            list
         }
+        synchronized(mmsAddressCache) { mmsAddressCache[mmsId] = out }
+        return out
     }
 
     /** inbox 면 from(137), sent 면 to(151) 우선. 없으면 아무 거나. */
@@ -1236,6 +1263,9 @@ class SmsRepository(
     }
 
     companion object {
+        /** mms 주소 캐시 상한(건). 최근 MMS 스캔 상한(2000)보다 넉넉히. (2026-09-15) */
+        private const val MMS_ADDR_CACHE_MAX = 3000
+
         /** MMS 스캔(fillFromMms)이 본문 대신 붙이는 표식 — 이게 lastBody 면 실제 본문이 가려진 것. (2026-09-01) */
         const val MMS_PLACEHOLDER_BODY = "📎 사진/첨부 메시지"
         private const val COL_ID = "_id"
