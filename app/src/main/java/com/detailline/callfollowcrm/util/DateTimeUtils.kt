@@ -12,6 +12,7 @@ object DateTimeUtils {
     private val fullFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     private val dateOnly by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
     private val koreanDate by lazy { SimpleDateFormat("yyyy년 M월 d일 (E)", Locale.KOREAN) }
+    private val monthDayShort by lazy { SimpleDateFormat("M/d", Locale.KOREAN) }
     private val monthHeader by lazy { SimpleDateFormat("yyyy년 M월", Locale.KOREAN) }
 
     /**
@@ -31,6 +32,24 @@ object DateTimeUtils {
     fun formatFull(epoch: Long): String = fullFormat.format(Date(epoch))
     fun formatDateOnly(epoch: Long): String = dateOnly.format(Date(epoch))
     fun formatKoreanDate(epoch: Long): String = koreanDate.format(Date(epoch))
+
+    /** "9/17" 같은 짧은 날짜 — 기간 꼬리표에서 끝나는 날 표시용. */
+    fun formatMonthDay(epoch: Long): String = monthDayShort.format(Date(epoch))
+
+    /**
+     * 여러 날 시공 꼬리표 — `" · 3일 (~9/17)"`. 하루짜리면 빈 문자열.
+     *
+     * 왜 공용으로 두나 (2026-09-15 사장님): "3일 중 1일차" 처럼 기간을 길게 잡아도 화면에는
+     *   **시작 날짜만** 보이던 곳들이 있었다(고객정보 '시공 예약', 지난 시공 이력).
+     *   화면마다 제각각 적으면 또 어딘가 빠지므로, 표기를 한 곳에서 만든다.
+     */
+    fun workPeriodSuffix(startMs: Long?, days: Int): String {
+        if (startMs == null) return ""
+        val n = days.coerceAtLeast(1)
+        if (n <= 1) return ""
+        val end = startOfDay(startMs) + (n - 1) * DAY_MS
+        return " · ${n}일 (~${formatMonthDay(end)})"
+    }
     fun formatMonthHeader(epoch: Long): String = monthHeader.format(Date(epoch))
 
     /** 하루 = 86,400,000 ms (한국은 DST 없음 → 안전). 시공 기간(여러 날) 계산에 사용. */

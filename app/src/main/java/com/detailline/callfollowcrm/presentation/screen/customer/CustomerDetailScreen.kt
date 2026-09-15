@@ -585,7 +585,12 @@ fun CustomerDetailScreen(
                         if (scheduled != null || hasAmount) {
                             CdKv(
                                 "시공 예약",
-                                if (scheduled != null) DateTimeUtils.formatKoreanDate(scheduled) + (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") else "아직 예약 안 됨 · 탭해서 설정",
+                                // 여러 날 시공이면 기간까지 — 전엔 시작 날짜만 보여 "3일 중 1일차"인 걸 알 수 없었다. (2026-09-15 사장님)
+                                if (scheduled != null)
+                                    DateTimeUtils.formatKoreanDate(scheduled) +
+                                        (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") +
+                                        DateTimeUtils.workPeriodSuffix(scheduled, c.scheduledWorkDays)
+                                else "아직 예약 안 됨 · 탭해서 설정",
                                 valueColor = if (scheduled != null) TossBlue else TossTextTertiary,
                                 onClick = { datePickerOpen = true }
                             )
@@ -920,7 +925,10 @@ fun CustomerDetailScreen(
                             if (idx > 0) Spacer(Modifier.height(10.dp))
                             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 Text(
-                                    job.scheduledWorkDate?.let { DateTimeUtils.formatKoreanDate(it) } ?: "날짜 미상",
+                                    job.scheduledWorkDate?.let {
+                                        DateTimeUtils.formatKoreanDate(it) +
+                                            DateTimeUtils.workPeriodSuffix(it, job.scheduledWorkDays)
+                                    } ?: "날짜 미상",
                                     fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
                                 )
                                 Spacer(Modifier.weight(1f))
