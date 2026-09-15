@@ -68,6 +68,10 @@ sleep 1
 adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
 sleep 6
 PSS_BEFORE=$(pss)
+# 우리 앱의 pid — 멈춤(Choreographer)은 이 pid 것만 세야 한다.
+#   ⚠️ 2026-09-16: pid 를 안 가리고 세다가 옆에서 돌던 **다른 앱**의 90프레임 멈춤(1.5초)을
+#      우리 것으로 잘못 보고했다. 남의 집 불을 우리 불로 읽으면 엉뚱한 데를 고치게 된다.
+APP_PID=$(adb shell pidof "$PKG" | tr -d '\r' | awk '{print $1}')
 
 # ── 3. 스크롤 흉내 (사장님이 '쭉 내리는' 그 동작) ──────────────
 say "🔄 상담함에서 ${FLINGS}번 쭉 내려봅니다..."
@@ -82,10 +86,20 @@ kill "$LOGPID" >/dev/null 2>&1
 sleep 1
 
 # ── 4. 판독 ──────────────────────────────────────────────────
-SKIP_MAX=$(grep -o "Skipped [0-9]* frames" "$LOG" | awk '{print $2}' | sort -rn | head -1)
+if [ -n "${APP_PID:-}" ]; then
+  SKIP_MAX=$(grep -E "Choreographer\( *${APP_PID}\)" "$LOG" | grep -o "Skipped [0-9]* frames" \
+             | awk '{print $2}' | sort -rn | head -1)
+else
+  SKIP_MAX=$(grep -o "Skipped [0-9]* frames" "$LOG" | awk '{print $2}' | sort -rn | head -1)
+fi
 SKIP_MAX=${SKIP_MAX:-0}
 FREEZE_SEC=$(awk -v f="$SKIP_MAX" 'BEGIN{printf "%.1f", f/60}')
-ADDR_N=$(grep -c "mms/.*/addr, match=13, calling pid" "$LOG")
+if [ -n "${APP_PID:-}" ]; then
+  ADDR_N=$(grep -c "mms/.*/addr, match=13, calling pid = ${APP_PID}$" "$LOG")
+  [ "$ADDR_N" -eq 0 ] && ADDR_N=$(grep -c "mms/.*/addr, match=13, calling pid" "$LOG")
+else
+  ADDR_N=$(grep -c "mms/.*/addr, match=13, calling pid" "$LOG")
+fi
 # 같은 사진문자를 몇 번씩 다시 물어봤나(반복 배수). 1.0 = 한 건당 딱 한 번 = 이상적.
 #   총 횟수만 보면 "사진문자가 많은 폰"과 "같은 걸 계속 되묻는 앱"을 구분 못 한다.
 ADDR_UNIQ=$(grep -o "content://mms/[0-9]*/addr" "$LOG" | sort -u | wc -l | tr -d ' ')
@@ -100,7 +114,7 @@ say ""
 hr
 say "📋 검진 결과"
 hr
-say "  화면 멈춤(최대)   : ${FREEZE_SEC}초   (${SKIP_MAX}프레임)"
+say "  화면 멈춤(최대)   : ${FREEZE_SEC}초   (${SKIP_MAX}프레임, 우리 앱 pid ${APP_PID:-?})"
 say "  문자창고 조회     : ${ADDR_N}회 (서로 다른 ${ADDR_UNIQ}건 × 반복 ${ADDR_RATIO}배)"
 say "  메모리            : ${PSS_BEFORE}KB → ${PSS_AFTER}KB"
 say "  앱 생존           : $([ -n "$ALIVE" ] && echo '살아있음 ✅' || echo '꺼짐 ❌')"
