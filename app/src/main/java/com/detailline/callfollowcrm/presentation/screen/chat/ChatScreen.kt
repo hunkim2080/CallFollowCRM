@@ -193,6 +193,18 @@ fun ChatScreen(
         focusManager.clearFocus()
         keyboardController?.hide()
     }
+    /**
+     * 시트를 열기 전에 키보드를 내린다. (2026-09-15 사장님: "키보드가 문구 넣기를 가림")
+     *
+     * ModalBottomSheet 는 **별도 윈도우**라 키보드 높이를 못 받는다 → 키보드가 떠 있는 채로 시트를 열면
+     * 시트가 화면 바닥에 붙어 그대로 가려진다. 채팅은 입력칸에 글을 쓰다가 시트를 여는 일이 잦아
+     * 이 상황이 자주 난다. 시트마다 인셋을 붙이는 것보다, **여는 순간 키보드를 내리는 게** 확실하다.
+     */
+    fun hideKeyboardThen(open: () -> Unit) {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        open()
+    }
 
     val customer by viewModel.customer.collectAsState()
     val messages by viewModel.messages.collectAsState()
@@ -786,6 +798,7 @@ fun ChatScreen(
                                     },
                                     onTapEntity = { tag, value ->
                                         // 문자 속 전화/날짜 링크 탭 → 액션 시트. (2026-08-04 사장님)
+                                        hideKeyboardThen { }   // 시트가 키보드에 가리지 않게 (2026-09-15)
                                         linkActionTarget = when (tag) {
                                             "PHONE" -> LinkTapAction.Phone(value)
                                             "DATE" -> {
@@ -4363,7 +4376,10 @@ private fun TemplatePickerDialog(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                .navigationBarsPadding()
+                // 🔴 내비바만 보면 **키보드가 문구 목록을 통째로 덮는다.** (2026-09-15 사장님 스샷)
+                //   채팅 입력칸에 글을 쓰다가 [문구 넣기]를 누르면 키보드가 떠 있는 상태다.
+                //   더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .heightIn(max = 620.dp)
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 18.dp)
         ) {
