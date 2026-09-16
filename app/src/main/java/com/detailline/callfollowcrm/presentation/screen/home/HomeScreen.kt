@@ -3531,6 +3531,16 @@ private fun WaitingCard(
                     )
                 }
             }
+            // 상태 태그 — 시공 D-N / D-DAY / 계약금 / 완료. (2026-09-16 사장님: "예약고객은 기다려요에 태그가 안붙나?")
+            //   최근 대화 줄엔 이미 붙던 것인데 여기엔 없었다. 이 고객은 분류가 '시공 대기'(자동 분류)라
+            //   분류 태그도 일부러 숨겨져(모두에게 붙어서 '일당' 같은 진짜 분류가 안 도드라짐) **아무것도 안 붙었다.**
+            //   답장을 기다리는 사람이 '오늘 시공 가는 집'인지 아닌지는 답장 내용이 완전히 달라지는 정보다.
+            recentStatusTag(item.customer)?.let { tag ->
+                Spacer(Modifier.width(7.dp))
+                Box(Modifier.background(tag.bg, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Text(tag.text, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = tag.fg, maxLines = 1)
+                }
+            }
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.background(TossBlueSoft, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
