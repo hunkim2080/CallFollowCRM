@@ -229,34 +229,23 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
-                    // 구글 캘린더 — 연결/동기화 (일정 탭에서 바로). (2026-09-01 사장님)
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(Color.White)
-                            .clickable(enabled = !calendarSyncing) { onCalendarSync() }
-                            .padding(horizontal = 11.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                when {
-                                    calendarSyncing -> "⏳ 올리는 중"
-                                    calendarConnected -> "🔄 동기화"
-                                    else -> "📅 연결"
-                                },
-                                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                                color = if (calendarSyncing) TossTextTertiary else TossBlue
-                            )
-                            // 언제 올렸는지 안 보이면 "됐나?" 싶어 계속 누르게 된다. (2026-09-15 사장님)
-                            if (calendarConnected && calendarSyncedAtMs > 0L && !calendarSyncing) {
-                                Text(
-                                    lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount),
-                                    fontSize = 9.5.sp, color = TossTextTertiary, maxLines = 1
-                                )
-                            }
-                        }
+                    // 구글 캘린더 — **연결한 사람에게만**, 버튼이 아니라 '언제 올렸는지' 한 줄. (2026-09-16 사장님)
+                    //   "이제 버튼 안 눌러도 되는 거면 동기화 날짜만 적히면 될 듯한데. 지금은 투박해서.
+                    //    그리고 구글 캘린더를 연동한 사람만 나와야 하지 않을까?"
+                    //   일정·메모가 바뀌면 CalendarAutoSync 가 알아서 올린다 → 누를 일이 없다.
+                    //   미연결이면 아예 안 보인다(연결은 더보기 > 설정에서). 안 쓰는 사람 화면을 안 어지럽힌다.
+                    //   탭은 살려둔다 — 자동이 늦을 때 직접 올릴 수 있는 뒷문(겉보기는 조용한 글씨).
+                    if (calendarConnected) {
+                        Text(
+                            if (calendarSyncing) "⏳ 올리는 중"
+                            else "📅 " + lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount),
+                            fontSize = 11.sp,
+                            color = TossTextTertiary,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(end = 10.dp)
+                                .clickable(enabled = !calendarSyncing) { onCalendarSync() }
+                        )
                     }
                     Box(
                         modifier = Modifier
@@ -1169,6 +1158,8 @@ private const val CAL_MAX_LANE = 2
 
 /** "방금 · 35건" / "오후 2:10 · 35건" / "어제 · 35건" — 버튼 밑 한 줄. (2026-09-15 사장님) */
 private fun lastSyncLabel(atMs: Long, count: Int): String {
+    // 아직 한 번도 안 올렸으면 시각이 없다 — "방금" 이라고 거짓말하지 않는다. (2026-09-16)
+    if (atMs <= 0L) return "아직"
     val diff = System.currentTimeMillis() - atMs
     val when_ = when {
         diff < 60_000L -> "방금"
