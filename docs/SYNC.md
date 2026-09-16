@@ -9880,3 +9880,8 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 견적 만들기 시트 — 제목·탭 고정, 그 아래만 스크롤
 - 변경: 앱 전용
 - commit: 736fe107
+
+## 2026-09-17 01:30 · android
+재방문 Stage B — D-1·잔금 알람 건별 발사 + SettlementCalc 건별 계산
+- 변경: 앱 전용. 알림 dedup 키 형식 변경(d1j:/settlej:)
+- commit: 1b94de82 · 다음=Stage C(B안 탭형 화면)
