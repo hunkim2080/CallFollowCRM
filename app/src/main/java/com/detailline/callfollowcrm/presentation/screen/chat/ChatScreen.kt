@@ -2969,7 +2969,7 @@ private fun ChatBubble(
                     interactionSource = bubbleInteraction,
                     indication = null,
                     onClick = {
-                        // 탭 지점의 annotation(전화/날짜/URL) 조회. 없으면 기존 동작(첫 URL 열기).
+                        // 탭 지점의 annotation(전화/날짜/주소/URL) 조회. 없으면 기존 동작(첫 URL 열기).
                         val pos = lastTextDown; lastTextDown = null
                         val ann = if (pos != null) bubbleLayout?.let { lr ->
                             val off = lr.getOffsetForPosition(pos)
@@ -2977,7 +2977,10 @@ private fun ChatBubble(
                         } else null
                         when (ann?.tag) {
                             "URL" -> runCatching { uriHandler.openUri(ann.item) }
-                            "PHONE", "DATE" -> onTapEntity(ann.tag, ann.item)
+                            // ⚠️ 새 종류를 linkifyBody 에 추가하면 **여기에도 반드시 넣어야 한다.**
+                            //   2026-09-16: 주소(ADDR)를 밑줄까지만 그리고 여기에 안 넣어서, 눌러도 아무 일도
+                            //   안 일어났다(else 로 빠져 URL 열기 시도 → URL 이 없으니 무반응). 빌드·테스트는 다 통과했다.
+                            "PHONE", "DATE", "ADDR" -> onTapEntity(ann.tag, ann.item)
                             else -> firstUrl?.let { runCatching { uriHandler.openUri(it) } }
                         }
                     },
