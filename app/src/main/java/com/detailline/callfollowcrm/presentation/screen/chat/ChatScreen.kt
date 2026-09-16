@@ -4643,7 +4643,16 @@ private fun AddressRegisterSheet(
         looking = false
     }
 
-    val baseAddr = (if (useFound) found?.resolved else null) ?: parts.base.ifBlank { detected }
+    // 고객이 준 형태를 따라간다 — 지번으로 줬으면 지번, 도로명으로 줬으면 도로명. (2026-09-16 사장님)
+    //   사장님이 늘 보던 모양 그대로 저장돼야 헷갈리지 않는다.
+    val preferRoad = remember(detected) {
+        com.detailline.callfollowcrm.util.AddressExtractor.looksLikeRoadAddress(detected)
+    }
+    val foundMain = found?.let { if (preferRoad) (it.roadAddress ?: it.resolved) else (it.resolved ?: it.roadAddress) }
+    // 나머지 하나는 버리지 않고 **회색 참고용**으로 아래 작게. ("2개 주소 다 받아오고 참고용으로")
+    val foundAlt = found?.let { if (preferRoad) it.resolved else it.roadAddress }
+        ?.takeIf { it.isNotBlank() && it != foundMain }
+    val baseAddr = (if (useFound) foundMain else null) ?: parts.base.ifBlank { detected }
     // 최종 주소 = 기준 주소 + 동 + 호 (빈 칸은 빠짐)
     val finalAddr = listOfNotNull(
         baseAddr.trim().takeIf { it.isNotBlank() },
@@ -4698,7 +4707,7 @@ private fun AddressRegisterSheet(
                     AddrChoiceCard(
                         label = "\uD83D\uDD0E 지도에서 찾은 주소",
                         value = listOfNotNull(
-                            found!!.roadAddress ?: found!!.resolved,
+                            foundMain,
                             found!!.placeName?.let { "($it)" }
                         ).joinToString(" "),
                         selected = useFound,
@@ -4757,6 +4766,14 @@ private fun AddressRegisterSheet(
                     Spacer(Modifier.height(3.dp))
                     Text(finalAddr.ifBlank { "—" }, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         color = TossTextPrimary, lineHeight = 20.sp)
+                    // 다른 형태(도로명↔지번)는 버리지 않고 회색 작게 — 참고용. (2026-09-16 사장님)
+                    if (useFound && foundAlt != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            (if (preferRoad) "지번 " else "도로명 ") + foundAlt,
+                            fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp
+                        )
+                    }
                 }
             }
             // 이미 주소가 있으면 덮어쓰는 것임을 분명히 — 모르고 바꾸는 사고 방지.

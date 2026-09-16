@@ -227,6 +227,32 @@ object AddressExtractor {
         return null
     }
 
+    /**
+     * 고객이 **도로명**으로 줬나 **지번**으로 줬나. (2026-09-16 사장님)
+     *   "고객이 지번으로 주면 지번으로 하고 도로명으로 주면 도로명으로 받아오고"
+     *
+     *   도로명 = "○○로 / ○○길" 뒤에 건물번호 숫자   (동탄대로24길 **199**)
+     *   지번   = "○○동/읍/면" 뒤에 번지 숫자          (영천동 **720**)
+     *   둘 다 아니면(아파트명만 등) 도로명을 기본으로 — 내비가 더 잘 찾는다.
+     */
+    fun looksLikeRoadAddress(raw: String?): Boolean {
+        val s = tidyAddress(raw)
+        if (s.isBlank()) return true
+        val road = ROAD_FORM_RX.containsMatchIn(s)
+        val jibun = JIBUN_FORM_RX.containsMatchIn(s)
+        return when {
+            road && !jibun -> true
+            jibun && !road -> false
+            else -> true          // 둘 다거나 둘 다 아니면 도로명
+        }
+    }
+
+    /** "○○로 12" · "○○대로24길 199" — 로/길 뒤에 건물번호. */
+    private val ROAD_FORM_RX = Regex("[가-힣A-Za-z0-9]{1,15}(?:대로|로|길)\\s*\\d{1,5}")
+
+    /** "○○동 740" · "○○읍 12-3" — 동/읍/면/리 뒤에 번지. (숫자+동 은 동호수라 제외) */
+    private val JIBUN_FORM_RX = Regex("(?<!\\d)[가-힣]{1,15}(?:동|읍|면|리)\\s*\\d{1,5}(?:-\\d{1,5})?(?!\\s*호)")
+
     /** 주소를 "앞부분 / 동 / 호" 로 쪼갠 것. 등록 시트가 칸을 자동으로 채우는 데 쓴다. */
     data class Parts(val base: String, val dong: String?, val ho: String?)
 
