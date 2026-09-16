@@ -67,7 +67,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 51,
+    version = 52,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -942,6 +942,42 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v52 — 달력에서 사라진 시공 되살리기 (2026-09-17 실기 발견).
+        //   증상: 상담함엔 "다음 시공 모레(9/19)" 가 뜨는데 일정 탭·달력엔 그 날이 비어 있었다.
+        //   원인: v49 부터 일정 SoT 가 jobs 인데, **접수서(고객이 직접 작성)로 잡힌 시공일**은
+        //         customers 에만 쓰고 jobs 에 안 넣었다. 그 구멍은 2026-09-15(0aeef7f6)에 막았지만,
+        //         그 전에 들어온 건들은 이미 jobs 없이 남아 있다 — 마이그레이션은 과거를 안 고쳐준다.
+        //   왜 급한가: 달력만 비는 게 아니다. **D-1 안내와 잔금 알림도 jobs 를 돌기 때문에**
+        //         (ReminderWorker, Stage B) 모레 시공인데 하루 전 문자가 안 나간다.
+        //   무엇을 하나: v49 와 **같은 SQL 을 한 번 더** 돌린다. 이미 있는 건은 NOT EXISTS 로 건너뛰므로
+        //         중복이 안 생기고, 지우는 것도 없다(위험 0).
+        private val MIGRATION_51_52 = object : Migration(51, 52) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT INTO jobs (customerId, scheduledWorkDate, scheduledWorkMinutes, scheduledWorkDays,
+                                      address, totalAmount, depositAmount, depositPaidAt,
+                                      balanceAmount, balancePaidAt, workCompletedAt, createdAt, updatedAt)
+                    SELECT c.id, c.scheduledWorkDate, c.scheduledWorkMinutes, c.scheduledWorkDays,
+                           c.address, c.totalAmount, c.depositAmount, c.depositPaidAt,
+                           c.balanceAmount, c.balancePaidAt, c.workCompletedAt,
+                           strftime('%s','now') * 1000, strftime('%s','now') * 1000
+                    FROM customers c
+                    WHERE c.scheduledWorkDate IS NOT NULL
+                      AND NOT EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.customerId = c.id
+                          AND j.scheduledWorkDate IS NOT NULL
+                          -- '같은 밀리초'로 비교하면 접수서처럼 시각까지 든 값이 새 줄로 또 들어간다.
+                          -- 사람이 보는 단위는 '그 날' 이므로 날짜로 맞춘다.
+                          AND date(j.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                              = date(c.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                      )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -961,7 +997,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
-                    MIGRATION_50_51
+                    MIGRATION_50_51, MIGRATION_51_52
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.
