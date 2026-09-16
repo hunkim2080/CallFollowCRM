@@ -847,6 +847,25 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("trade_ask_dismissed", false)
         set(value) = prefs.edit().putBoolean("trade_ask_dismissed", value).apply()
 
+    /**
+     * "입금했다" 감지 카드에서 사장님이 **아니요**로 넘긴 문자들. 다시 안 묻는다. (2026-09-17)
+     * 키 = "<번호뒷자리>:<문자시각ms>". 번호별로 최근 200개만 들고 있는다(무한히 쌓이지 않게).
+     */
+    fun dismissedPayClaims(phone: String): Set<Long> {
+        val p = phone.filter { it.isDigit() }.takeLast(8)
+        return prefs.getStringSet("payclaim_dismissed", emptySet()).orEmpty()
+            .mapNotNull { k -> k.substringAfter("$p:", "").toLongOrNull()?.takeIf { k.startsWith("$p:") } }
+            .toSet()
+    }
+
+    fun addDismissedPayClaim(phone: String, messageMs: Long) {
+        val p = phone.filter { it.isDigit() }.takeLast(8)
+        val cur = prefs.getStringSet("payclaim_dismissed", emptySet()).orEmpty().toMutableList()
+        cur.add("$p:$messageMs")
+        val trimmed = if (cur.size > 200) cur.takeLast(200) else cur
+        prefs.edit().putStringSet("payclaim_dismissed", trimmed.toSet()).apply()
+    }
+
     /** 수첩 일당/거래처용 자주 쓰는 문구. 구분자  (SMS 본문에 안 나오는 제어문자). */
     /**
      * 오늘 시공 히어로 카드 수동 순서 (고객 ID). 사장님이 꾹 눌러 트렐로식으로 끌어 바꾼 순서.

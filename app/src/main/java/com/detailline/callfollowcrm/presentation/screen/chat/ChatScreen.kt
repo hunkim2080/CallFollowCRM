@@ -1024,6 +1024,33 @@ fun ChatScreen(
                 }
             }
             // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
+            // 💰 고객이 "입금했다"고 한 문자 — 잔금이 남아 있을 때만 물어본다. (2026-09-17 사장님)
+            //   실측: 받은 문자 1,085통 중 50통이 이런 문자였다(오탐 0). 지금은 사장님이 그걸 보고
+            //   정산에 들어가 직접 눌러야 한다.
+            //   ⚠️ **자동으로 처리하지 않는다.** 판별이 틀리면 안 받은 돈이 '받음'이 되고 미수금이 사라진다.
+            val payDismissed by viewModel.payClaimDismissed.collectAsState()
+            val payClaim = remember(messages, customer, payDismissed) {
+                val last = messages.firstOrNull()
+                val cc = customer
+                if (last == null || last.sent || cc == null) null
+                else if (last.dateMs in payDismissed) null
+                else {
+                    val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(cc)
+                    // 받을 돈이 없으면 물어볼 이유가 없다(이미 완납이거나 금액 미입력).
+                    if (settle.outstanding <= 0L) null
+                    else com.detailline.callfollowcrm.domain.payment.PaymentClaimDetector
+                        .detect(last.body)?.let { claim -> Triple(last.dateMs, claim, settle.outstanding) }
+                }
+            }
+            payClaim?.let { (msgMs, claim, outstanding) ->
+                PayClaimCard(
+                    saidAmountWon = claim.amountWon,
+                    outstandingWon = outstanding,
+                    onYes = { viewModel.markBalancePaid(); viewModel.dismissPayClaim(msgMs) },
+                    onNo = { viewModel.dismissPayClaim(msgMs) }
+                )
+            }
+
             // ↩︎ 다듬기 전으로 — 다듬은 직후에만. 직접 고치거나 보내면 사라진다.
             // 보내고 나면 입력칸이 비는데(setInput("")) 그건 onChange 를 안 거친다 →
             //   되돌리기 줄만 남아, 누르면 방금 보낸 글이 되살아난다. 빈 칸이면 아예 안 그린다.
@@ -3324,6 +3351,70 @@ private fun TradeAskCard(
                 fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark,
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
                     .clickable(onClick = onOther).padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+        }
+    }
+}
+
+/** 돈 표기 — 만원 단위로 떨어지면 "95만원", 아니면 "1,234,500원". */
+private fun payWonLabel(won: Long): String =
+    if (won % 10_000L == 0L) "${won / 10_000L}만원" else com.detailline.callfollowcrm.util.MoneyFormatter.won(won)
+
+/**
+ * "입금했습니다" 확인 카드. (2026-09-17 사장님)
+ *
+ * 왜 묻기만 하나: 판별이 틀리면 **안 받은 돈이 '받음'이 되고 미수금이 조용히 사라진다.**
+ *   못 잡는 건 손해가 없다(예전처럼 직접 누르면 된다). 그래서 자동 처리는 하지 않는다.
+ *
+ * 고객이 말한 금액이 **우리가 아는 잔금과 다르면** 그 사실을 같이 보여준다 —
+ * 계약금만 보냈는데 잔금 전액을 받음으로 찍으면 돈이 틀어진다.
+ */
+@Composable
+private fun PayClaimCard(
+    saidAmountWon: Long?,
+    outstandingWon: Long,
+    onYes: () -> Unit,
+    onNo: () -> Unit
+) {
+    val green = Color(0xFF0E9F62)
+    val mismatch = saidAmountWon != null && saidAmountWon != outstandingWon
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFE7F8F0))
+            .padding(horizontal = 15.dp, vertical = 13.dp)
+    ) {
+        Text(
+            "💰 입금하셨다고 하네요",
+            fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0B5E3C)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            buildString {
+                append("남은 잔금 ")
+                append(payWonLabel(outstandingWon))
+                append(" 을 받음으로 표시할까요?")
+                if (mismatch) {
+                    append("\n(고객은 ")
+                    append(payWonLabel(saidAmountWon!!))
+                    append(" 이라고 했어요 — 확인해보세요)")
+                }
+            },
+            fontSize = 12.sp, color = Color(0xFF3B7A5E), lineHeight = 18.sp
+        )
+        Spacer(Modifier.height(11.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(
+                "네, 받았어요",
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(green)
+                    .clickable(onClick = onYes).padding(horizontal = 14.dp, vertical = 9.dp)
+            )
+            Text(
+                "아니요",
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                    .clickable(onClick = onNo).padding(horizontal = 14.dp, vertical = 9.dp)
             )
         }
     }

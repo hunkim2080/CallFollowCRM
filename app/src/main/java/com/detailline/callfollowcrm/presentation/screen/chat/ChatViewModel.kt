@@ -598,6 +598,40 @@ class ChatViewModel(
         _tradeAskVisible.value = false
     }
 
+    // ── 고객이 "입금했다"고 한 문자 (2026-09-17 사장님) ──────────────
+    //   실측: 받은 문자 1,085통 중 50통. 지금은 사장님이 그걸 보고 정산에 들어가 직접 눌러야 한다.
+    //   ⚠️ **자동으로 처리하지 않는다.** 잘못 잡으면 안 받은 돈이 '받음'이 되고 미수금이 사라진다.
+    //      항상 물어보고, 사장님이 누를 때만 기록한다.
+
+    /** 이 대화에서 사장님이 "아니요"로 넘긴 문자들 — 다시 안 묻는다. */
+    private val _payClaimDismissed = MutableStateFlow<Set<Long>>(emptySet())
+    val payClaimDismissed = _payClaimDismissed.asStateFlow()
+
+    fun dismissPayClaim(messageMs: Long) {
+        _payClaimDismissed.value = _payClaimDismissed.value + messageMs
+        container.preferences.addDismissedPayClaim(phoneNumber, messageMs)
+    }
+
+    init {
+        _payClaimDismissed.value = container.preferences.dismissedPayClaims(phoneNumber)
+    }
+
+    /** [네, 받았어요] — 잔금 받음으로 기록. 고객 상세의 '잔금 확인'과 같은 처리. */
+    fun markBalancePaid(onDone: (Boolean) -> Unit = {}) {
+        val c = customer.value
+        if (c == null) { _toast.value = "고객 정보가 없어요"; onDone(false); return }
+        viewModelScope.launch {
+            val ok = runCatching {
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    container.customerRepository.updateBalancePaidAt(c.id, System.currentTimeMillis())
+                    container.autoCategoryClassifier.reclassify(c.id)
+                }
+            }.isSuccess
+            _toast.value = if (ok) "잔금 받음으로 기록했어요" else "기록하지 못했어요"
+            onDone(ok)
+        }
+    }
+
     fun cancelSuggestions() {
         suggestionJob?.cancel()
         suggestionJob = null
