@@ -223,9 +223,6 @@ fun SettingsScreen(
     }
     BackHandler(enabled = subPage != null) { subPage = null }
 
-    if (showDeleteAccount) {
-        DeleteAccountSheet(onDismiss = { showDeleteAccount = false })
-    }
     if (showDiagnostics) {
         DiagnosticsDialog(
             onDismiss = { showDiagnostics = false },
@@ -610,6 +607,13 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    // 인라인 오버레이는 Scaffold 뒤에 놓아야 위에 그려진다.
+    //   앞에 두면 컴파일도 되고 상태도 바뀌는데 본문이 덮어서 '눌러도 아무 일 없음' 으로 보인다. (2026-09-17 실기)
+    //   DiagnosticsDialog 는 Dialog(별도 창)라 위치와 무관 — 같이 두면 헷갈린다.
+    if (showDeleteAccount) {
+        DeleteAccountSheet(onDismiss = { showDeleteAccount = false })
     }
 }
 
