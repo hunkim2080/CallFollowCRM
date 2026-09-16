@@ -9828,3 +9828,8 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 - 변경(앱): MessageEntities.Type.ADDRESS 신설, AddressResolveRepository 추가.
   고객상세의 '감지 주소 자동 저장' 제거 → 제안 카드(확인 후 저장).
 - ⚠️ 카카오 403 (OPEN_MAP_AND_LOCAL disabled) — 사장님이 카카오 콘솔에서 켜야 함.
+
+## 2026-09-16 09:40 · android
+고객 정보 맨 아래 빈 여백 제거 (내비바 인셋 이중 계산)
+- 변경: 앱 UI만. 서버/API 영향 없음
+- commit: 74fc0c1b
