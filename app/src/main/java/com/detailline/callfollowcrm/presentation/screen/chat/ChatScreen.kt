@@ -123,6 +123,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -439,6 +440,10 @@ fun ChatScreen(
     // 프로토 chat-actions [문구 넣기] → 템플릿 picker 시트.
     var tplPickerOpen by remember { mutableStateOf(false) }
     var confirmDeleteTpl by remember { mutableStateOf<Long?>(null) }   // 자주 쓰는 문구 삭제 확인(앱 기조: 삭제류 확인창). (2026-07-30)
+    // 안내 띠(스낵바)가 **입력창·첨부 사진을 덮던 것**. (2026-09-16 사장님 스샷)
+    //   이 화면은 입력창이 Scaffold 의 bottomBar 가 아니라 본문 안에 있다 →
+    //   스낵바가 화면 맨 아래에 떠서 입력창 위로 올라앉는다. 입력창 높이만큼 올려준다.
+    var composerHeightPx by remember { mutableStateOf(0) }
     // 문구 꾹 누르기 → 액션 시트 / 수정 / 이름 바꾸기. (2026-09-16 사장님 개편)
     var tplActions by remember { mutableStateOf<MessageTemplateEntity?>(null) }
     var tplEditBody by remember { mutableStateOf<MessageTemplateEntity?>(null) }
@@ -606,7 +611,13 @@ fun ChatScreen(
         //   예전엔 ime 단독 → 갤S23U 등에서 제스처/3버튼 내비바(홈버튼)가 입력창을 가림.
         //   (S9 는 액티비티창 navbar inset 0 라 영향 없음 → S9 유지, S23U 해결.) (2026-06-22 사장님)
         contentWindowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = {
+            val d = androidx.compose.ui.platform.LocalDensity.current
+            SnackbarHost(
+                snackbar,
+                modifier = Modifier.padding(bottom = with(d) { composerHeightPx.toDp() })
+            )
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -1007,6 +1018,7 @@ fun ChatScreen(
             }
             // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
             Composer(
+                modifier = Modifier.onSizeChanged { composerHeightPx = it.height },
                 input = input,
                 selection = inputSelection,
                 onChange = { input = it },
@@ -3827,6 +3839,7 @@ private fun QuickActionPill(label: String, emoji: String, onTap: () -> Unit) {
 
 @Composable
 private fun Composer(
+    modifier: Modifier = Modifier,
     input: String,
     selection: TextRange,
     onChange: (String) -> Unit,
@@ -3852,7 +3865,7 @@ private fun Composer(
 ) {
     // 프로토 .composer — 흰 바 + 상단 테두리 + padding 9/14/16.
     Column(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
             .background(Color.White)
             .drawBehind {
                 val s = 1.dp.toPx()

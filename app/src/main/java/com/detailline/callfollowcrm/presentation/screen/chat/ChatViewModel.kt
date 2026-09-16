@@ -904,7 +904,11 @@ class ChatViewModel(
                 maybeInferPrinciple(trimmed)  // (Phase 2) 추천과 다르게 보냈으면 '원칙' 추론. (2026-06-17 사장님)
             }
 
-            _toast.value = if (ok) "보냈어요" else "문자를 못 보냈어요 — 신호 확인하고 다시 눌러주세요"
+            // 성공하면 **아무 말도 안 한다**. (2026-09-16 사장님 "이게 대화창을 가려버리더라고")
+            //   보낸 말풍선이 그 자리에 바로 뜬다 — 그게 이미 증거다.
+            //   그 위에 "보냈어요" 를 또 덮으면, 방금 보낸 내 문자를 가린다.
+            //   실패는 그대로 크게 말한다 — 그건 화면이 안 알려주니까.
+            if (!ok) _toast.value = "문자를 못 보냈어요 — 신호 확인하고 다시 눌러주세요"
             onResult(ok)
             } finally {
                 _isSending.value = false
