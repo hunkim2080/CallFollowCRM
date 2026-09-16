@@ -13728,15 +13728,21 @@ class AddressResolveRequest(BaseModel):
 
 
 async def _search_kakao_local(query: str) -> Optional[dict]:
-    """카카오 키워드 검색 (아파트 그룹 AP1). 첫 hit 반환.
+    """카카오 키워드 검색. 첫 hit 반환.
 
     실패(키 없음 / 네트워크 오류 / 200 아님 / docs 빈 배열) 시 None.
+
+    🔴 2026-09-16: 예전엔 `category_group_code="AP1"`(아파트) 을 같이 보냈는데 **그런 코드는 없다.**
+       카카오가 매번 ValidationError(400) 로 거절 → 이 검색은 만들어진 이래 **한 번도 성공한 적이 없다.**
+       (앱이 이 API 를 안 부르고 있어서 아무도 몰랐고, 키 쿼터 오류가 한 번 더 가렸다.)
+       카카오의 유효 코드는 MT1·CS2·PS3·SC4·AC5·PK6·OL7·SW8·BK9·CT1·AG2·PO3·AT4·AD5·FD6·CE7·HP8·PM9 뿐.
+       아파트 전용 코드가 없으므로 **필터 없이** 키워드로 찾는다(어차피 우리가 넣는 말이 단지명이다).
     """
     if not KAKAO_REST_API_KEY:
         return None
     url = "https://dapi.kakao.com/v2/local/search/keyword.json"
     headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
-    params = {"query": query, "category_group_code": "AP1", "size": 5}
+    params = {"query": query, "size": 5}
     try:
         async with httpx.AsyncClient(timeout=KAKAO_TIMEOUT_SEC) as client:
             resp = await client.get(url, headers=headers, params=params)
@@ -13794,6 +13800,16 @@ async def _extract_address_by_llm(context_text: str) -> Optional[str]:
     return addr
 
 
+import re as _addr_re
+
+_DONG_HO_RX = _addr_re.compile(r"\s*\d{1,4}동(?:\s*\d{1,5}호)?|\s*\d{1,5}호")
+
+
+def _strip_dong_ho(addr: str) -> str:
+    """지도 검색용 — "잠실엘스 101동 1503호" → "잠실엘스". (동·호수가 붙으면 검색결과 0건)"""
+    return _DONG_HO_RX.sub("", addr or "").strip()
+
+
 def _log_address_resolve_call() -> None:
     """endpoint 호출 카운트만 잡고 비용은 0 (kakao-local 단가 0)."""
     log_llm_usage(
@@ -13842,7 +13858,14 @@ async def address_resolve(req: AddressResolveRequest) -> dict:
     if llm_addr:
         # AI 가 뽑은 건 사람이 쓴 그대로라 표기가 제각각 → 카카오로 한 번 더 정규화해 본다.
         #   되면 도로명·좌표까지 얻고, 안 되면 AI 가 뽑은 문자열을 그대로 쓴다(그것만으로도 충분히 쓸모 있음).
-        hit = await _search_kakao_local(llm_addr) if KAKAO_REST_API_KEY else None
+        #   ⚠️ 동·호수를 붙인 채로 찾으면 0건이다("잠실엘스 101동 1503호" → 검색결과 없음). 떼고 찾는다.
+        hit = None
+        if KAKAO_REST_API_KEY:
+            base = _strip_dong_ho(llm_addr)
+            for q in ([base] if base and base != llm_addr else []) + [llm_addr]:
+                hit = await _search_kakao_local(q)
+                if hit:
+                    break
         _log_address_resolve_call()
         if hit:
             return {
