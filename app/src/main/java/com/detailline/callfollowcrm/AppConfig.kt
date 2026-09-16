@@ -34,6 +34,9 @@ object AppConfig {
     const val CONSENT_OPTIONAL_URL: String = "$BASE_URL/consent/optional"
     const val PRIVACY_POLICY_URL: String = "$BASE_URL/privacy"
 
+    /** 계정 삭제 요청 페이지 — 플레이 콘솔 데이터 보안 폼의 '계정 삭제 URL'. (2026-09-17) */
+    const val ACCOUNT_DELETE_URL: String = "$BASE_URL/account/delete"
+
     /**
      * 베타 테스터 신청 문자를 받을 번호 (로그인 화면 '베타 신청하기' → 문자앱으로 이 번호에 전송).
      *   화이트리스트에 없는 사람이 신청하면 사장님이 이 번호로 문자를 받아 수동 등록. (2026-07-25 사장님)

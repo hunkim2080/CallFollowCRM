@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>계정 삭제 요청 — 시공막내</title>
+<style>
+  :root {
+    --blue:#3182F6; --blue-dark:#1B64DA; --bg:#F4F5F7; --card:#fff;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#E8EBEF; --red:#D32F4E; --red-bg:#FDECEF;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Pretendard',-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--t1);
+         line-height:1.7; padding:28px 18px 70px; }
+  .wrap { max-width:560px; margin:0 auto; }
+  header { margin-bottom:22px; }
+  h1 { font-size:24px; font-weight:800; letter-spacing:-.03em; }
+  .app { font-size:13px; color:var(--t3); margin-top:6px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:14px; }
+  h2 { font-size:16px; font-weight:800; margin-bottom:10px; }
+  p { font-size:14.5px; color:var(--t2); margin-bottom:10px; }
+  ul { margin:0 0 10px 20px; } li { font-size:14.5px; color:var(--t2); margin-bottom:5px; }
+  b { color:var(--t1); }
+  label { display:block; font-size:12px; font-weight:800; color:var(--t3); margin:14px 0 6px; }
+  input { width:100%; padding:13px 14px; font-size:16px; font-family:inherit; border:1px solid var(--line);
+          border-radius:11px; background:var(--bg); color:var(--t1); }
+  input:focus { outline:2px solid var(--blue); outline-offset:0; background:#fff; }
+  button { width:100%; padding:15px; font-size:15px; font-weight:800; font-family:inherit; border:0;
+           border-radius:12px; cursor:pointer; margin-top:12px; }
+  .b-blue { background:var(--blue); color:#fff; }
+  .b-red { background:var(--red); color:#fff; }
+  button:disabled { background:#E5E8EC; color:#B9C0C9; cursor:default; }
+  .msg { margin-top:12px; font-size:13.5px; padding:12px 14px; border-radius:11px; display:none; }
+  .msg.err { display:block; background:var(--red-bg); color:var(--red); }
+  .msg.ok { display:block; background:#E6F6EE; color:#0E7A50; }
+  .warn { background:var(--red-bg); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+  .warn b { color:var(--red); }
+  footer { font-size:12.5px; color:var(--t3); margin-top:20px; text-align:center; }
+  footer a { color:var(--blue); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>계정 삭제 요청</h1>
+    <div class="app">시공막내 (com.detailline.callfollowcrm) · 디테일라인</div>
+  </header>
+
+  <div class="warn">
+    <b>⚠️ 삭제하면 되돌릴 수 없습니다.</b><br>
+    <span style="font-size:14px;color:var(--t2)">지우기 전에 앱에서 [데이터 내보내기]로 백업해 두세요.</span>
+  </div>
+
+  <div class="card">
+    <h2>무엇이 지워지나요</h2>
+    <ul>
+      <li>회원 정보 — 전화번호, 인증 기록, 사업자 정보</li>
+      <li>서버에 보관된 <b>통화 요약</b>과 <b>AI 답변 기록</b></li>
+      <li>서버 <b>백업본</b>, 현장 사진, 일정·견적 공유 기록</li>
+      <li>팀·협업 연결, 웹 로그인 기록, 푸시 토큰</li>
+    </ul>
+    <p style="font-size:13px;color:var(--t3)">
+      ※ 통화 <b>녹음 파일</b>은 원래 받아쓰기 직후 바로 지워지므로 서버에 남아 있지 않습니다.<br>
+      ※ 법령상 보관 의무가 있는 결제·거래 기록은 관련 법이 정한 기간(전자상거래법 5년) 동안 분리 보관 후 파기됩니다.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>본인 확인</h2>
+    <p>남의 번호로 삭제되는 일이 없도록, 문자로 받은 인증번호를 넣어야 삭제됩니다.</p>
+
+    <label for="phone">가입한 휴대폰 번호</label>
+    <input id="phone" type="tel" inputmode="numeric" placeholder="010-0000-0000" autocomplete="tel">
+    <button id="send" class="b-blue">인증번호 받기</button>
+
+    <div id="step2" style="display:none">
+      <label for="code">문자로 받은 6자리</label>
+      <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="000000">
+      <button id="del" class="b-red">계정과 데이터 영구 삭제</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <footer>
+    문의: <a href="mailto:hugman2080@gmail.com">hugman2080@gmail.com</a><br>
+    <a href="/privacy">개인정보 처리방침</a>
+  </footer>
+</div>
+
+<script>
+  var phoneEl = document.getElementById('phone');
+  var codeEl = document.getElementById('code');
+  var msgEl = document.getElementById('msg');
+  var sendBtn = document.getElementById('send');
+  var delBtn = document.getElementById('del');
+  var step2 = document.getElementById('step2');
+
+  function show(kind, text) { msgEl.className = 'msg ' + kind; msgEl.textContent = text; }
+  function digits(v) { return (v || '').replace(/[^0-9]/g, ''); }
+
+  phoneEl.addEventListener('input', function () {
+    var d = digits(phoneEl.value).slice(0, 11);
+    phoneEl.value = d.length > 7 ? d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7)
+                  : d.length > 3 ? d.slice(0, 3) + '-' + d.slice(3) : d;
+  });
+
+  sendBtn.addEventListener('click', function () {
+    var p = digits(phoneEl.value);
+    if (p.length < 10) { show('err', '휴대폰 번호를 정확히 넣어주세요.'); return; }
+    sendBtn.disabled = true; show('ok', '인증번호를 보내는 중…');
+    fetch('/api/auth/request-code', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: p })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        sendBtn.disabled = false;
+        if (!res.ok) { show('err', (res.j && res.j.detail) || '인증번호를 보내지 못했어요.'); return; }
+        step2.style.display = 'block';
+        show('ok', '문자로 인증번호를 보냈어요. 6자리를 넣어주세요.');
+      }).catch(function () { sendBtn.disabled = false; show('err', '연결에 실패했어요. 잠시 후 다시 시도해주세요.'); });
+  });
+
+  delBtn.addEventListener('click', function () {
+    var p = digits(phoneEl.value), c = digits(codeEl.value);
+    if (c.length < 4) { show('err', '인증번호를 넣어주세요.'); return; }
+    if (!window.confirm('정말 삭제할까요?\n계정과 서버에 있는 데이터가 모두 지워지고, 되돌릴 수 없습니다.')) return;
+    delBtn.disabled = true; show('ok', '삭제하는 중…');
+    fetch('/api/account/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: p, code: c, customer_phones: [] })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        delBtn.disabled = false;
+        if (!res.ok) { show('err', (res.j && res.j.detail) || '삭제하지 못했어요.'); return; }
+        step2.style.display = 'none';
+        show('ok', '삭제했습니다. 폰에 남아 있는 앱 데이터는 앱을 삭제하시면 함께 지워집니다.');
+      }).catch(function () { delBtn.disabled = false; show('err', '연결에 실패했어요. 잠시 후 다시 시도해주세요.'); });
+  });
+</script>
+</body>
+</html>

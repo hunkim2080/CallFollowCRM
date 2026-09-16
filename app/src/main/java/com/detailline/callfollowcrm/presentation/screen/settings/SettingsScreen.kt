@@ -56,6 +56,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Person
@@ -205,6 +206,8 @@ fun SettingsScreen(
     // 프로토 더보기 = 깔끔한 메뉴만. 진단/기능 카드는 메뉴 탭 시 서브페이지로(자체 라우트 없이 내부 전환).
     //   2026-06-02 사장님 결정("프로토처럼 완전 깔끔하게").
     var subPage by remember { mutableStateOf(initialSubPage) }
+    // 계정 삭제 안내 시트 (2026-09-17 플레이 요건)
+    var showDeleteAccount by remember { mutableStateOf(false) }
     // 문제 신고 / 진단 보내기 다이얼로그 (2026-07-22 사장님) — 크래시 아닌 '이상 동작' 수동 신고.
     var showDiagnostics by remember { mutableStateOf(false) }
     val subTitle = when (subPage) {
@@ -220,6 +223,9 @@ fun SettingsScreen(
     }
     BackHandler(enabled = subPage != null) { subPage = null }
 
+    if (showDeleteAccount) {
+        DeleteAccountSheet(onDismiss = { showDeleteAccount = false })
+    }
     if (showDiagnostics) {
         DiagnosticsDialog(
             onDismiss = { showDiagnostics = false },
@@ -457,6 +463,12 @@ fun SettingsScreen(
                 SettingsGroup("도움말") {
                     // 앱 소개 다시 보기 제거(2026-08-31 사장님 "더보기 정리").
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고. Crashlytics(자동) 의 짝.
+                    // 계정 삭제 — **앱 안 경로**. (2026-09-17 플레이 정책 점검)
+                    //   구글: 앱에서 계정을 만들 수 있으면 "in-app path to delete their app accounts
+                    //   and associated data" + 웹 링크 **둘 다** 있어야 한다.
+                    //   전에는 처리방침에 "앱 내 설정에서 삭제·탈퇴 가능" 이라고 적어놓고 **기능이 없었다.**
+                    LockRow(Icons.Filled.Delete, Color(0xFFFDECEF), Color(0xFFD32F4E), "계정 삭제",
+                        "계정과 서버에 저장된 내 데이터를 지워요", onClick = { showDeleteAccount = true })
                     LockRow(Icons.Filled.BugReport, Color(0xFFFFF1F3), Color(0xFFF0436A), "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
                 }
@@ -2707,6 +2719,95 @@ private fun AutoTextArea(value: String, onChange: (String) -> Unit) {
  * ⚠️ 문구를 고칠 때는 si0in.kr/consent/required 와 처리방침도 같이 맞출 것.
  *    셋 중 하나만 달라지면 그게 '신고 내용과 실제가 다름' 이 된다.
  */
+
+/**
+ * 계정 삭제 — **앱 안 경로**. (2026-09-17 플레이 정책 점검)
+ *
+ * 왜 앱에서 바로 안 지우고 페이지로 보내나:
+ *   삭제는 되돌릴 수 없고 **본인 확인(문자 인증)** 을 거쳐야 한다. 그 흐름이 이미 웹에 있고,
+ *   앱에 또 만들면 두 벌이 되어 한쪽만 고쳐지는 사고가 난다.
+ *   구글 요건은 "앱 안에 **경로**(path)가 있을 것" 이므로, 앱에서 눌러 바로 갈 수 있으면 된다.
+ *   (support.google.com/googleplay/android-developer/answer/13327111)
+ *
+ * 무엇이 지워지는지 **먼저 보여주고** 누르게 한다 — 실수로 눌러 날리는 일이 없게.
+ */
+@Composable
+private fun DeleteAccountSheet(onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    androidx.activity.compose.BackHandler { onDismiss() }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                // 내비바에 버튼이 붙지 않게 아래를 넉넉히. (이 파일엔 인셋 import 가 없어 고정값)
+                .padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 44.dp)
+        ) {
+            Box(Modifier.align(Alignment.CenterHorizontally).width(38.dp).height(4.dp)
+                .clip(RoundedCornerShape(999.dp)).background(Color(0xFFE2E6EC)))
+            Spacer(Modifier.height(14.dp))
+            Text("계정 삭제", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFFDECEF)).padding(14.dp)) {
+                Text(
+                    "지우면 되돌릴 수 없어요.\n먼저 [데이터 내보내기]로 백업해 두세요.",
+                    fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                    color = Color(0xFFD32F4E), lineHeight = 20.sp
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Text("이런 것들이 지워져요", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.height(7.dp))
+            listOf(
+                "회원 정보 — 전화번호·인증 기록·사업자 정보",
+                "서버에 있는 통화 요약과 AI 답변 기록",
+                "서버 백업본·현장 사진·일정 공유 기록",
+                "팀·협업 연결, 웹 로그인 기록"
+            ).forEach {
+                Row(Modifier.padding(bottom = 5.dp)) {
+                    Text("·", fontSize = 13.5.sp, color = TossTextTertiary)
+                    Spacer(Modifier.width(7.dp))
+                    Text(it, fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "폰에 있는 고객·일정은 앱을 지우면 함께 사라져요.\n통화 녹음 파일은 원래 서버에 안 남아 있어요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 17.sp
+            )
+            Spacer(Modifier.height(18.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFD32F4E))
+                    .clickable {
+                        // 본인 확인(문자 인증)은 웹 페이지가 담당 — 흐름을 한 벌로 유지.
+                        com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+                            ctx, com.detailline.callfollowcrm.AppConfig.ACCOUNT_DELETE_URL, "계정 삭제"
+                        )
+                        onDismiss()
+                    }
+                    .padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("계정 삭제하러 가기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                    .clickable { onDismiss() }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("닫기", color = TossTextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 @Composable
 private fun CallSummaryConsentDialog(onAgree: () -> Unit, onDecline: () -> Unit) {
     androidx.compose.ui.window.Dialog(

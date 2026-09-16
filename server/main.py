@@ -12750,6 +12750,21 @@ async def install_page():
     return _INSTALL_HTML_PATH.read_text(encoding="utf-8")
 
 
+@app.get("/account/delete", response_class=HTMLResponse, include_in_schema=False)
+async def account_delete_page():
+    """계정 삭제 요청 페이지 — **플레이 콘솔 데이터 보안 폼의 '계정 삭제 URL'** 이 가리키는 곳. (2026-09-17)
+
+    구글 요건(support.google.com/googleplay/android-developer/answer/13327111):
+      · 앱 안 경로와 **웹 링크 둘 다** 있어야 한다
+      · 페이지는 동작해야 하고, **앱 또는 개발자 이름**이 보여야 하며, 삭제가 눈에 띄어야 한다
+    본인 확인(OTP)을 거쳐야 실제로 지워진다 — 번호만 알면 남의 것을 지울 수 있으면 안 되므로.
+    """
+    path = BASE_DIR / "static" / "account_delete.html"
+    if not path.exists():
+        raise HTTPException(500, "account_delete.html 없음 (server/static/ 확인).")
+    return path.read_text(encoding="utf-8")
+
+
 @app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
 async def privacy_page():
     """개인정보 처리방침 — Google Play Console 7단계(데이터 보안) 의 URL 입력값.
@@ -22911,6 +22926,119 @@ def _session_phone_from_header(authorization: Optional[str]) -> Optional[str]:
     if not authorization or not authorization.startswith("Bearer "):
         return None
     return _verify_session_token(authorization[7:].strip())
+
+
+# ── 계정 삭제 (구글 플레이 요건) ────────────────────────────────────────────
+#   Play: "If your app allows users to create an account from within your app"
+#         → 앱 안 경로 + 웹 링크 **둘 다** 제공. 계정과 **연결된 데이터도 함께 삭제**.
+#   (support.google.com/googleplay/android-developer/answer/13327111)
+#
+#   🔴 본인 확인 필수 — 번호만 대면 남의 데이터를 지울 수 있으면 그게 더 큰 사고다.
+#      기존 OTP(auth/request-code → verify-code)를 그대로 쓴다: 코드를 맞게 넣어야 삭제된다.
+
+# owner_phone 으로 그 사람 것을 특정할 수 있는 표들. (2026-09-17)
+#   ⚠️ 여기 없는 표는 '번호로 주인을 못 가리는' 표다. 남의 행까지 지울 수 있으니 넣지 말 것.
+_DELETE_BY_OWNER = [
+    ("app_backups", "owner_phone"),
+    ("app_backups_history", "owner_phone"),
+    ("app_events", "owner_phone"),
+    ("intake_forms", "owner_phone"),
+    ("laborer_sites", "owner_phone"),
+    ("mirror_codes", "owner_phone"),
+    ("mirror_shares", "owner_phone"),
+    ("mirror_snapshots", "owner_phone"),
+    ("mirror_sources", "owner_phone"),
+    ("shared_owner_events", "owner_phone"),
+    ("team_member_events", "owner_phone"),
+    ("team_member_links", "owner_phone"),
+    ("team_site_photos", "owner_phone"),
+    ("web_customer_content", "owner_phone"),
+    ("web_feed_shares", "owner_phone"),
+    ("web_generated_history", "owner_phone"),
+    ("web_generated_posts", "owner_phone"),
+    ("web_login_tickets", "owner_phone"),
+    ("web_owner_keys", "owner_phone"),
+    ("web_owner_profile", "owner_phone"),
+    ("web_photo_tags", "owner_phone"),
+    ("web_schedule_feed", "owner_phone"),
+    ("web_sessions", "owner_phone"),
+    ("web_tone_library", "owner_phone"),
+    ("web_tone_styles", "owner_phone"),
+    ("web_tone_urls", "owner_phone"),
+    # 본인 번호가 곧 주인인 표들
+    ("push_tokens", "phone"),
+    ("consents", "phone"),
+    ("diagnostics_reports", "phone"),
+    ("subscribers", "phone"),
+    ("beta_signups", "phone"),
+    ("beta_whitelist", "phone"),
+    ("auth_codes", "phone"),
+]
+
+# 고객 번호로만 묶인 캐시 — 주인 칸이 없어서 owner 로는 못 찾는다.
+#   앱이 자기 고객 번호 목록을 보내주면 그걸로 지운다. (캐시라 다시 만들어지므로 손해 없음)
+_DELETE_BY_CUSTOMER = ["suggestions_cache", "summary_cache", "customer_personas"]
+
+
+class AccountDeleteRequest(BaseModel):
+    phone: str
+    code: str
+    customer_phones: list[str] = Field(default_factory=list)
+
+
+@app.post("/api/account/delete")
+async def account_delete(req: AccountDeleteRequest) -> dict:
+    """계정과 그에 딸린 서버 데이터를 지운다. **OTP 확인 필수.**
+
+    입력: { phone, code, customer_phones[] }
+    출력: { ok, deleted: {표이름: 지운 행 수} }
+    """
+    phone = _norm_phone(req.phone or "")
+    code = (req.code or "").strip()
+    if len(phone) < 9:
+        raise HTTPException(400, "전화번호가 올바르지 않음")
+    if not code:
+        raise HTTPException(400, "인증번호가 없음")
+
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT code, expires_at_ms FROM auth_codes WHERE phone = ?", (phone,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(400, "인증번호를 먼저 받아주세요")
+        saved_code, expires = row[0], int(row[1] or 0)
+        if now > expires:
+            raise HTTPException(400, "인증번호가 만료됐어요. 다시 받아주세요")
+        if str(saved_code) != code:
+            raise HTTPException(400, "인증번호가 달라요")
+
+        deleted: dict[str, int] = {}
+        for table, col in _DELETE_BY_OWNER:
+            try:
+                cur = con.execute(f"DELETE FROM {table} WHERE {col} = ?", (phone,))
+                if cur.rowcount:
+                    deleted[table] = cur.rowcount
+            except sqlite3.OperationalError:
+                # 아직 없는 표(구버전 DB) → 지울 것도 없다
+                pass
+
+        # 고객 번호로만 묶인 캐시
+        cust = [_norm_phone(p) for p in (req.customer_phones or [])]
+        cust = [p for p in cust if len(p) >= 8][:2000]
+        if cust:
+            marks = ",".join("?" for _ in cust)
+            for table in _DELETE_BY_CUSTOMER:
+                try:
+                    cur = con.execute(f"DELETE FROM {table} WHERE phone IN ({marks})", cust)
+                    if cur.rowcount:
+                        deleted[table] = deleted.get(table, 0) + cur.rowcount
+                except sqlite3.OperationalError:
+                    pass
+        con.commit()
+
+    print(f"[account/delete] {phone} → {sum(deleted.values())}행 삭제 {deleted}")
+    return {"ok": True, "deleted": deleted}
 
 
 @app.post("/api/auth/verify-code")
