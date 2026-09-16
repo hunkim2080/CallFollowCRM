@@ -240,6 +240,10 @@ object DataBackup {
         restorePrefs(context, root.optJSONObject("prefs"))
         // 첨부 사진 복원 — 파일을 풀고 DB 주소를 새 위치로 갱신(주소만 되돌리면 죽은 주소라 안 보임).
         runCatching { restoreFiles(context, db, root.optJSONObject("files")) }
+        // 일정 장부(jobs) 메우기 — **옛 백업에는 jobs 표가 아예 없다.**
+        //   그대로 두면 고객은 돌아왔는데 일정 탭·달력이 텅 비고, D-1 안내·잔금 알림도 안 나간다
+        //   (둘 다 jobs 를 돈다). 마이그레이션은 복원에는 안 돌아가므로 여기서 한 번 더. (2026-09-17)
+        runCatching { backfillJobsFromCustomers(db) }
         return ImportResult(totalRows, tableCount, customerCount)
     }
 
@@ -410,6 +414,40 @@ object DataBackup {
     }
 
     /** 고객 요약 CSV (엑셀에서 한글 안 깨지게 UTF-8 BOM). */
+    /**
+     * customers 에만 있고 jobs 에 없는 시공일을 jobs 로 옮겨 심는다. (2026-09-17)
+     *
+     * 왜 필요한가: v49 부터 일정 탭·달력·D-1 안내·잔금 알림의 근거는 **jobs** 다.
+     *   옛 백업(= v49 이전)에는 jobs 표가 없어서, 복원하면 고객은 다 돌아오는데
+     *   달력만 텅 빈 채로 남는다. 실제로 그 상태의 폰을 봤다.
+     *
+     * 안전: 넣기만 하고 아무것도 안 지운다. 같은 고객·같은 **날**의 건이 이미 있으면 건너뛴다
+     *   (밀리초로 비교하면 시각이 든 값이 새 줄로 또 들어간다).
+     */
+    private fun backfillJobsFromCustomers(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        if (tableColumns(db, "jobs").isEmpty()) return
+        db.execSQL(
+            """
+            INSERT INTO jobs (customerId, scheduledWorkDate, scheduledWorkMinutes, scheduledWorkDays,
+                              address, totalAmount, depositAmount, depositPaidAt,
+                              balanceAmount, balancePaidAt, workCompletedAt, createdAt, updatedAt)
+            SELECT c.id, c.scheduledWorkDate, c.scheduledWorkMinutes, c.scheduledWorkDays,
+                   c.address, c.totalAmount, c.depositAmount, c.depositPaidAt,
+                   c.balanceAmount, c.balancePaidAt, c.workCompletedAt,
+                   strftime('%s','now') * 1000, strftime('%s','now') * 1000
+            FROM customers c
+            WHERE c.scheduledWorkDate IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM jobs j
+                WHERE j.customerId = c.id
+                  AND j.scheduledWorkDate IS NOT NULL
+                  AND date(j.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                      = date(c.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+              )
+            """.trimIndent()
+        )
+    }
+
     private fun buildCustomerCsv(customers: JSONArray?): ByteArray {
         val sb = StringBuilder()
         sb.append('﻿') // BOM
