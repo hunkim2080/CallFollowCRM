@@ -31445,6 +31445,25 @@ async def app_backup_push(req: AppBackupPush) -> dict:
     if len(data) > _APP_BACKUP_MAX:
         raise HTTPException(413, "백업이 너무 커요 — 사진 제외(텍스트코어)로 보내세요")
     with db_conn() as con:
+        # 🛡️ 덮어쓰기 전에 **직전 백업을 보관**한다. (2026-09-16 사장님)
+        #   app_backups 는 번호당 1개(INSERT OR REPLACE)라, 같은 번호로 로그인한 다른 폰이
+        #   백업을 한 번 누르면 **업무폰 백업이 그 자리에서 사라졌다.**
+        #   테스트용 복사폰을 같은 번호로 붙이면서 실제 위험이 됐다 —
+        #   "이거 때문에 내 업무폰에 피해가지 않도록 해줘".
+        #   이제 직전 것이 히스토리에 남으므로, 잘못 덮어써도 되돌릴 수 있다. 최근 5개만 보관.
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS app_backups_history ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT, owner_phone TEXT NOT NULL, blob BLOB,"
+            " size_bytes INTEGER, fmt INTEGER, updated_at_ms INTEGER, saved_at_ms INTEGER)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_bkhist_owner ON app_backups_history(owner_phone, id DESC)")
+        con.execute(
+            "INSERT INTO app_backups_history (owner_phone, blob, size_bytes, fmt, updated_at_ms, saved_at_ms) "
+            "SELECT owner_phone, blob, size_bytes, fmt, updated_at_ms, ? FROM app_backups WHERE owner_phone = ?",
+            (_now_ms(), owner))
+        con.execute(
+            "DELETE FROM app_backups_history WHERE owner_phone = ? AND id NOT IN "
+            "(SELECT id FROM app_backups_history WHERE owner_phone = ? ORDER BY id DESC LIMIT 5)",
+            (owner, owner))
         con.execute(
             "INSERT OR REPLACE INTO app_backups (owner_phone, blob, size_bytes, fmt, updated_at_ms) "
             "VALUES (?,?,?,?,?)", (owner, data, len(data), int(req.fmt or 1), _now_ms()))
