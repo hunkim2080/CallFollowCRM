@@ -9885,3 +9885,8 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 재방문 Stage B — D-1·잔금 알람 건별 발사 + SettlementCalc 건별 계산
 - 변경: 앱 전용. 알림 dedup 키 형식 변경(d1j:/settlej:)
 - commit: 1b94de82 · 다음=Stage C(B안 탭형 화면)
+
+## 2026-09-17 02:00 · android
+재방문 Stage C — 고객 상세 건(件) 탭 (B안 탭형). '지난 시공 N건' 카드는 탭으로 흡수
+- 변경: 앱 전용
+- commit: 3b5ddb81
