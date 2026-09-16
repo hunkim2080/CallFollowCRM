@@ -115,6 +115,12 @@ fun ScheduleAddScreen(
     var totalManwon by remember { mutableStateOf("") }
     var depositManwon by remember { mutableStateOf("") }
     var depositReceived by remember { mutableStateOf(false) }
+    // 간단 일정(2026-09-16 사장님) — 번호 없이 제목만으로 저장. workMode=false 가 기본.
+    var title by remember { mutableStateOf("") }
+    var simpleMemo by remember { mutableStateOf("") }
+    var workMode by remember { mutableStateOf(false) }
+    var allDay by remember { mutableStateOf(false) }
+    var dateOpen by remember { mutableStateOf(false) }
     // 일정에서 누른 날을 시공일 기본값으로(없으면 오늘). 달력도 그 달로 연다. (2026-06-18 사장님)
     val seedDayMs = remember(initialDayMs) {
         initialDayMs?.takeIf { it > 0L }?.let { DateTimeUtils.startOfDay(it) }
@@ -191,13 +197,87 @@ fun ScheduleAddScreen(
                     .padding(horizontal = 18.dp)
                     .padding(top = 8.dp)
             ) {
-                // 프로토 시트 제목
-                Text("일정 직접 등록", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
+                Text("새 일정", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
                     color = TossTextPrimary, letterSpacing = (-0.4).sp)
+                Spacer(Modifier.height(14.dp))
+            // ── 제목 — 구글 캘린더처럼 맨 위. (2026-09-16 사장님)
+            //   "이 캘린더가 편해서 다른 일정도 입력하는 사람들이 생길 것 같은데… 폰번호 없이도
+            //    그냥 일정에 메모처럼 간단하게 등록하고 싶을 수도 있잖아."
+            //   그래서 **제목이 먼저**다. 번호는 시공일 때만 묻는다.
+            TitleField(title) { title = it }
+            Text(
+                if (workMode) "주소를 넣으면 제목이 자동으로 채워져요."
+                else "제목만 적어도 저장돼요. 전화번호는 안 물어봐요.",
+                fontSize = 11.5.sp, color = TossTextTertiary,
+                modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 14.dp)
+            )
+
+            // ── 날짜 한 줄 (접힘) ── (2026-09-16 사장님)
+            //   "시공일을 찍고 그날 일정을 등록하러 들어왔는데 왜 또 캘린더가 있지?"
+            //   맞는 말이다. 이미 정해진 날이니 **한 줄로 접어두고**, 바꿀 때만 펼친다.
+            FoldRow(
+                icon = "🕘",
+                title = dayLabel(dayMs),
+                sub = buildString {
+                    append(if (allDay) "하루 종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
+                    if (workMode && workDays > 1) append(" · ").append(workDays).append("일")
+                },
+                open = dateOpen,
+                onClick = { dateOpen = !dateOpen }
+            )
+            if (dateOpen) {
+                Spacer(Modifier.height(10.dp))
+                InlineMonthCalendar(
+                    monthAnchor = monthAnchor,
+                    selectedDayMs = dayMs,
+                    onShiftMonth = { monthAnchor = shiftMonth(monthAnchor, it) },
+                    onSelect = { dayMs = it }
+                )
+                if (!allDay) {
+                    Spacer(Modifier.height(12.dp))
+                    FieldLabel(if (workMode) "시공 시간" else "시간")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WORK_TIME_OPTIONS.forEach { (label, mins) ->
+                            SelectChip(label, workMinutes == mins) { workMinutes = mins }
+                        }
+                        val timeCustom = WORK_TIME_OPTIONS.none { it.second == workMinutes }
+                        SelectChip(if (timeCustom) DateTimeUtils.formatWorkMinutes(workMinutes) else "직접", timeCustom) { showTimeCustom = true }
+                    }
+                }
+                if (workMode) {
+                    Spacer(Modifier.height(12.dp))
+                    FieldLabel("시공 기간")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WORK_DAYS_OPTIONS.forEach { (label, days) ->
+                            SelectChip(label, workDays == days) { workDays = days }
+                        }
+                        val daysCustom = WORK_DAYS_OPTIONS.none { it.second == workDays }
+                        SelectChip(if (daysCustom) "${workDays}일" else "직접", daysCustom) { showDaysCustom = true }
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
-                // 프로토 sh-sub
-                Text("전화번호만, 또는 거래처를 탭 한 번으로.", fontSize = 12.5.sp, color = TossTextTertiary,
-                    modifier = Modifier.padding(bottom = 14.dp))
+            }
+
+            if (!workMode) {
+                // 하루 종일 — 시공엔 없는 개념(시공은 늘 시각이 있다). 간단 일정에만.
+                Spacer(Modifier.height(4.dp))
+                SwitchRow(icon = "📅", title = "하루 종일", on = allDay) { allDay = !allDay }
+                Spacer(Modifier.height(12.dp))
+                FieldLabel("메모 (선택)")
+                SheetTextField(simpleMemo, { simpleMemo = it }, placeholder = "예: 케라폭시 20개")
+            }
+
+            Spacer(Modifier.height(14.dp))
+            // ── 시공으로 펼치기 — 번호·주소·금액은 여기 눌렀을 때만 나온다.
+            ExpandRow(
+                open = workMode,
+                title = if (workMode) "시공 정보" else "시공 일정으로 등록하기",
+                sub = if (workMode) "누르면 다시 접혀요 · 간단 일정으로 돌아가기"
+                      else "고객 번호·현장 주소·금액을 함께 기록해요"
+            ) { workMode = !workMode }
+            Spacer(Modifier.height(14.dp))
+
+            if (workMode) {
             // ── 모드 토글 (.fchips) ──
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FChip("내 고객", mode == "mine") { mode = "mine" }
@@ -302,35 +382,6 @@ fun ScheduleAddScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-            FieldLabel("시공일")
-            InlineMonthCalendar(
-                monthAnchor = monthAnchor,
-                selectedDayMs = dayMs,
-                onShiftMonth = { monthAnchor = shiftMonth(monthAnchor, it) },
-                onSelect = { dayMs = it }
-            )
-
-            Spacer(Modifier.height(12.dp))
-            FieldLabel("시공 시간")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WORK_TIME_OPTIONS.forEach { (label, mins) ->
-                    SelectChip(label, workMinutes == mins) { workMinutes = mins }
-                }
-                val timeCustom = WORK_TIME_OPTIONS.none { it.second == workMinutes }
-                SelectChip(if (timeCustom) DateTimeUtils.formatWorkMinutes(workMinutes) else "직접", timeCustom) { showTimeCustom = true }
-            }
-
-            Spacer(Modifier.height(12.dp))
-            FieldLabel("시공 기간")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WORK_DAYS_OPTIONS.forEach { (label, days) ->
-                    SelectChip(label, workDays == days) { workDays = days }
-                }
-                val daysCustom = WORK_DAYS_OPTIONS.none { it.second == workDays }
-                SelectChip(if (daysCustom) "${workDays}일" else "직접", daysCustom) { showDaysCustom = true }
-            }
-
-            Spacer(Modifier.height(12.dp))
             FieldLabel("총 금액 (만원)")
             SheetTextField(totalManwon, { totalManwon = it.filter { c -> c.isDigit() } }, placeholder = "예: 40",
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
@@ -360,6 +411,7 @@ fun ScheduleAddScreen(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
                     visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
             }
+            }   // if (workMode)
 
             // '내가 부른 일당' 배정은 없앴다 (2026-07-17 사장님 "협업만"). 일당은 일정 카드 → 전문가 배정에서 협업으로.
             //   기존 JobCrew 데이터·정산은 그대로 보존(여기서 새로 만들지 않을 뿐).
@@ -370,6 +422,21 @@ fun ScheduleAddScreen(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(if (saving) TossTextTertiary else TossBlue)
                     .clickable(enabled = !saving) {
+                        // 간단 일정 — 제목만 있으면 저장. 번호·주소·금액을 묻지 않는다. (2026-09-16 사장님)
+                        if (!workMode) {
+                            if (title.isBlank()) {
+                                android.widget.Toast.makeText(context, "제목을 적어주세요", android.widget.Toast.LENGTH_SHORT).show()
+                                return@clickable
+                            }
+                            viewModel.submitSimple(
+                                title = title,
+                                dayMs = dayMs,
+                                minutes = if (allDay) null else workMinutes,
+                                memo = simpleMemo,
+                                onDone = onDone
+                            )
+                            return@clickable
+                        }
                         val submitName: String
                         val submitPhone: String
                         if (mode == "partner") {
@@ -393,7 +460,7 @@ fun ScheduleAddScreen(
                     .padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(if (saving) "저장 중..." else "일정 등록", color = Color.White,
+                Text(if (saving) "저장 중..." else if (workMode) "시공 일정 등록" else "일정 등록", color = Color.White,
                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
                 Spacer(Modifier.height(40.dp))
@@ -507,6 +574,101 @@ private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismi
                     }.padding(horizontal = 14.dp, vertical = 10.dp))
             }
         }
+    }
+}
+
+/** "9월 22일 (화)" — 날짜 한 줄에 쓰는 라벨. */
+private fun dayLabel(ms: Long): String =
+    java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(ms))
+
+/**
+ * 제목 입력 — 구글 캘린더처럼 **테두리 없이 큰 글씨**. (2026-09-16 사장님)
+ * 여기가 화면의 첫 칸이라, 상자처럼 보이면 "또 뭘 채우라는 거야" 가 된다. 그냥 쓰면 된다.
+ */
+@Composable
+private fun TitleField(value: String, onChange: (String) -> Unit) {
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        textStyle = androidx.compose.ui.text.TextStyle(
+            fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
+            color = TossTextPrimary, letterSpacing = (-0.4).sp
+        ),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        decorationBox = { inner ->
+            if (value.isEmpty()) {
+                Text("제목 추가", fontSize = 21.sp, fontWeight = FontWeight.Bold,
+                    color = TossDivider, letterSpacing = (-0.4).sp)
+            }
+            inner()
+        }
+    )
+}
+
+/** 접히는 한 줄 (날짜 등). 눌러야 펼쳐진다. */
+@Composable
+private fun FoldRow(icon: String, title: String, sub: String, open: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(icon, fontSize = 15.sp)
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            if (sub.isNotBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(sub, fontSize = 12.5.sp, color = TossTextTertiary)
+            }
+        }
+        Text(if (open) "⌃" else "⌄", fontSize = 15.sp, color = TossTextTertiary)
+    }
+}
+
+/** 켜고 끄는 한 줄 (하루 종일). */
+@Composable
+private fun SwitchRow(icon: String, title: String, on: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(icon, fontSize = 15.sp)
+        Spacer(Modifier.width(11.dp))
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+            modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(
+            checked = on, onCheckedChange = { onToggle() },
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                checkedThumbColor = Color.White, checkedTrackColor = TossBlue,
+                uncheckedThumbColor = Color.White, uncheckedTrackColor = TossDivider,
+                uncheckedBorderColor = TossDivider
+            )
+        )
+    }
+}
+
+/** 시공 정보를 펼치는 줄. 접힌 상태가 기본 = 간단 일정. */
+@Composable
+private fun ExpandRow(open: Boolean, title: String, sub: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(if (open) TossGrayBg else Color(0xFFEEF4FF))
+            .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("🏗️", fontSize = 17.sp)
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold,
+                color = if (open) TossTextPrimary else TossBlueDark)
+            Spacer(Modifier.height(3.dp))
+            Text(sub, fontSize = 12.sp, color = TossTextTertiary)
+        }
+        Text(if (open) "⌃" else "›", fontSize = 16.sp, color = TossTextTertiary)
     }
 }
 

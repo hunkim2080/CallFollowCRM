@@ -25,6 +25,10 @@ interface CalendarSyncStore {
     /** 시공/AS 일정이 있거나, 이미 올려둔 이벤트가 있는(=지울 수도 있는) 고객 전부. */
     suspend fun scheduledCustomers(): List<CustomerEntity>
 
+    /** 간단 일정(번호 없는 메모형) 전부. (2026-09-16 사장님) */
+    suspend fun simpleEvents(): List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity>
+    suspend fun setSimpleEventId(id: Long, eventId: String?)
+
     /**
      * 마지막으로 구글에 올린 **내용의 지문**. 같으면 다시 안 올린다.
      *
@@ -149,7 +153,53 @@ class CalendarSyncManager(
                 return syncAll(retried = true)
             }
         }
-        return customers.size
+        // 간단 일정도 같이 올린다 — 사장님이 "이 캘린더가 편해서 다른 일정도 넣게 될 것 같다"고 한 게
+        //   앱 안에만 있으면 반쪽이라서. 제목 앞 📌 로 시공(🏗️)·A/S(🔧) 와 한눈에 구분된다. (2026-09-16)
+        val simples = store.simpleEvents()
+        for (e in simples) syncSimple(token, cal, e)
+        return customers.size + simples.size
+    }
+
+    /** 간단 일정 한 건 반영. 실패해도 조용히 넘어간다(다음 동기화에서 다시 시도). */
+    private suspend fun syncSimple(
+        token: String, cal: String,
+        e: com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity
+    ) {
+        val body = JSONObject().apply {
+            put("summary", "📌 " + e.title)
+            if (e.memo.isNotBlank()) put("description", e.memo)
+            val start = JSONObject(); val end = JSONObject()
+            val mins = e.minutes
+            if (mins != null) {
+                val startMs = e.dayStartMs + mins * 60_000L
+                start.put("dateTime", rfc3339(startMs)).put("timeZone", "Asia/Seoul")
+                end.put("dateTime", rfc3339(startMs + DEFAULT_BLOCK_MS)).put("timeZone", "Asia/Seoul")
+            } else {
+                start.put("date", dateOnly(e.dayStartMs))
+                end.put("date", dateOnly(e.dayStartMs + DAY_MS))
+            }
+            put("start", start); put("end", end)
+            put(
+                "extendedProperties",
+                JSONObject().put(
+                    "private",
+                    JSONObject().put("app", "sigongmagne").put("simpleId", e.id.toString()).put("type", "simple")
+                )
+            )
+        }
+        val existing = e.calendarEventId
+        if (existing != null) {
+            runCatching { api.updateEvent(token, cal, existing, body) }
+                .onFailure { err ->
+                    // 구글 쪽에서 사라진 이벤트(404/410) → 기억을 지우고 다음 번에 새로 만든다.
+                    if (err is CalendarApi.CalendarApiException && (err.code == 404 || err.code == 410)) {
+                        store.setSimpleEventId(e.id, null)
+                    }
+                }
+        } else {
+            runCatching { api.insertEvent(token, cal, body) }
+                .onSuccess { store.setSimpleEventId(e.id, it) }
+        }
     }
 
     /** 고객 삭제 시 그 고객의 모든 이벤트 정리. */

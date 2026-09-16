@@ -17,6 +17,8 @@ class DefaultCalendarSyncStore(
     private val customerDao: CustomerDao,
     private val issuedDocDao: com.detailline.callfollowcrm.data.local.dao.IssuedDocDao? = null,
     private val intakeEventDao: com.detailline.callfollowcrm.data.local.dao.IntakeEventDao? = null,
+    /** 간단 일정 — 없으면(구버전 배선) 그냥 안 올린다. (2026-09-16) */
+    private val simpleEventDao: com.detailline.callfollowcrm.data.local.dao.SimpleEventDao? = null,
 ) : CalendarSyncStore {
 
     /**
@@ -61,6 +63,16 @@ class DefaultCalendarSyncStore(
 
     override suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?) {
         prefs.setCalendarEventHash(customerId, type.key, hash)
+    }
+
+    override suspend fun simpleEvents(): List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity> =
+        simpleEventDao?.allOnce().orEmpty()
+
+    override suspend fun setSimpleEventId(id: Long, eventId: String?) {
+        val dao = simpleEventDao ?: return
+        val e = dao.findById(id) ?: return
+        if (e.calendarEventId == eventId) return
+        dao.update(e.copy(calendarEventId = eventId))
     }
 
     override suspend fun scheduledCustomers(): List<CustomerEntity> =

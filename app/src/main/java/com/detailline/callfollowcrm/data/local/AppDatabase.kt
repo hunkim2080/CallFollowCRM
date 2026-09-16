@@ -53,6 +53,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         SmsContactCacheEntity::class,
         com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.ManualCashEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobCrewEntity::class,
         com.detailline.callfollowcrm.data.local.entity.RecurringMessageEntity::class,
@@ -66,7 +67,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 50,
+    version = 51,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -86,6 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun smsContactCacheDao(): SmsContactCacheDao
     abstract fun suggestionEventDao(): com.detailline.callfollowcrm.data.local.dao.SuggestionEventDao
     abstract fun manualCashDao(): com.detailline.callfollowcrm.data.local.dao.ManualCashDao
+    abstract fun simpleEventDao(): com.detailline.callfollowcrm.data.local.dao.SimpleEventDao
     abstract fun notebookContactDao(): com.detailline.callfollowcrm.data.local.dao.NotebookContactDao
     abstract fun jobCrewDao(): com.detailline.callfollowcrm.data.local.dao.JobCrewDao
     abstract fun recurringMessageDao(): com.detailline.callfollowcrm.data.local.dao.RecurringMessageDao
@@ -276,7 +278,7 @@ abstract class AppDatabase : RoomDatabase() {
                         phoneNumber TEXT NOT NULL,
                         name TEXT,
                         categoryId INTEGER,
-                        memo TEXT NOT NULL DEFAULT '',
+                        memo TEXT NOT NULL,
                         scheduledWorkDate INTEGER,
                         leadHeat TEXT,
                         depositAmount INTEGER,
@@ -913,6 +915,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v51 — 간단 일정 (2026-09-16 사장님).
+        //   "폰번호 없이도 일정에 메모처럼 간단하게 등록하고 싶을 수도 있잖아."
+        //   고객 표를 건드리지 않는다 — **새 표 하나만 추가**. 기존 데이터는 손도 안 댄다(위험 0).
+        private val MIGRATION_50_51 = object : Migration(50, 51) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS simple_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        title TEXT NOT NULL,
+                        dayStartMs INTEGER NOT NULL,
+                        minutes INTEGER,
+                        memo TEXT NOT NULL DEFAULT '',
+                        calendarEventId TEXT,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                // ⚠️ @Entity 와 **한 글자라도 다르면** 앱이 아예 안 켜진다(파괴적 마이그레이션을 꺼둬서 크래시).
+                //    · 인덱스 이름·컬럼이 @Entity(indices=) 와 같아야 한다
+                //    · SQL 에 DEFAULT 를 쓰지 않는다 — 엔티티(@ColumnInfo(defaultValue=))에 없는 기본값을
+                //      DB 에만 넣으면 스키마가 어긋날 수 있다. memo 는 코드에서 늘 채워 넣는다.
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_simple_events_dayStartMs ON simple_events(dayStartMs)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -931,7 +960,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50
+                    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
+                    MIGRATION_50_51
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

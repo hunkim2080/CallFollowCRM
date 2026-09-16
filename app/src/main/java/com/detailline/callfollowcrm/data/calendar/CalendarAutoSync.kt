@@ -3,7 +3,9 @@ package com.detailline.callfollowcrm.data.calendar
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
+import com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -34,13 +36,14 @@ class CalendarAutoSync(
     private val connected: () -> Boolean,
     private val customers: Flow<List<CustomerEntity>>,
     private val syncAll: suspend () -> Unit,
+    /** 간단 일정도 캘린더에 올라간다 → 여기도 지켜봐야 한다. (2026-09-16) */
+    private val simpleEvents: Flow<List<SimpleEventEntity>>,
 ) {
 
     @OptIn(FlowPreview::class)
     fun start(scope: CoroutineScope) {
         scope.launch {
-            customers
-                .map { calendarFingerprint(it) }
+            combine(customers, simpleEvents) { cs, es -> calendarFingerprint(cs) + simpleFingerprint(es) }
                 .distinctUntilChanged()
                 // 첫 방출은 '지금 상태'일 뿐 변화가 아니다. 앱 시작 동기화가 이미 담당한다.
                 .drop(1)
@@ -63,6 +66,20 @@ class CalendarAutoSync(
          *    그 값을 고쳐도 자동 동기화가 안 돈다. **둘을 같이 고칠 것.**
          *    (제목=금액·지역 / 본문=연락처·시공내용·메모·금액 / 시간=날짜·시각·일수)
          */
+        /** 간단 일정의 지문 — 제목·날짜·시각·메모가 그대로면 안 올린다. */
+        fun simpleFingerprint(list: List<SimpleEventEntity>): String {
+            val sb = StringBuilder(list.size * 16)
+            sb.append('|')
+            for (e in list) {
+                sb.append(e.id).append(':')
+                    .append(e.dayStartMs).append(',')
+                    .append(e.minutes ?: -1).append(',')
+                    .append(e.title).append(',')
+                    .append(e.memo).append(';')
+            }
+            return sb.toString()
+        }
+
         fun calendarFingerprint(list: List<CustomerEntity>): String {
             val sb = StringBuilder(list.size * 24)
             for (c in list) {

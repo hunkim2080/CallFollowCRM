@@ -75,6 +75,23 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    /**
+     * 간단 일정 — 번호 없이 적은 메모형 일정. (2026-09-16 사장님)
+     * 시공·A/S 와 **섞지 않는다**: 돈·D-day·고객이 없는 물건이라 따로 흐른다.
+     */
+    val simpleEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity>> =
+        container.simpleEventRepository.observeAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 간단 일정이 있는 날(startOfDay) — 달력 회색 점. */
+    val simpleDayStarts: StateFlow<Set<Long>> = simpleEvents
+        .map { list -> list.mapTo(HashSet()) { it.dayStartMs } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun deleteSimpleEvent(id: Long) = viewModelScope.launch {
+        container.simpleEventRepository.delete(id)
+    }
+
     private val ownerPhone: String get() = container.preferences.bizPhone.trim()
 
     /** 팀원 목록 (배정 시트용). 비즈니스 미설정/미가입이면 빈 리스트 → 배정 줄 숨김. */

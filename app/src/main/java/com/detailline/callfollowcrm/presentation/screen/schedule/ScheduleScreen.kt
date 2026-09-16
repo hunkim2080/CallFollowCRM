@@ -151,6 +151,8 @@ fun ScheduleScreen(
     val asList by viewModel.asScheduled.collectAsState()           // A/S 예약 고객(시공과 별개 흐름). (DB v43)
     val asDays by viewModel.asDayStarts.collectAsState()           // 캘린더 A/S 주황 점
     val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
+    val simpleEvents by viewModel.simpleEvents.collectAsState()    // 번호 없는 간단 일정 (2026-09-16)
+    val simpleDays by viewModel.simpleDayStarts.collectAsState()   // 캘린더 회색 점
     val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "🤝 이름"
@@ -280,6 +282,12 @@ fun ScheduleScreen(
             val day = selectedDayMs ?: return@remember emptyList()
             pendingCollabSites.filter { DateTimeUtils.startOfDay(it.scheduledAtMs) == day }
         }
+        // 이 날 간단 일정 — 번호도 돈도 없는 메모형. 시공·A/S 와 안 섞는다. (2026-09-16 사장님)
+        val simpleForSelected = remember(selectedDayMs, simpleEvents) {
+            val day = selectedDayMs ?: return@remember emptyList()
+            simpleEvents.filter { it.dayStartMs == day }
+                .sortedBy { it.minutes ?: -1 }   // 하루 종일이 맨 위
+        }
         // 이 날 A/S 예약(무료) — 시공과 별개. A/S만 있는 고객도 여기 뜬다(시공 목록엔 안 뜸). (DB v43)
         val asForSelected = remember(selectedDayMs, asList) {
             val day = selectedDayMs ?: return@remember emptyList<CustomerEntity>()
@@ -346,6 +354,7 @@ fun ScheduleScreen(
                                         collabDays = collabDays,
                                         pendingCollabDays = pendingCollabDays,
                                         asDays = asDays,
+                                        simpleDays = simpleDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
                                     )
@@ -380,6 +389,10 @@ fun ScheduleScreen(
                         Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(Color(0xFFF5920B)))
                         Spacer(Modifier.width(3.dp))
                         Text("🔧A/S", fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+                        // 간단 일정 — 회색 점. '지난'(회색 막대)과 모양이 달라 헷갈리지 않게 📌 로. (2026-09-16)
+                        Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(TossTextTertiary))
+                        Spacer(Modifier.width(3.dp))
+                        Text("📌간단", fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -388,7 +401,7 @@ fun ScheduleScreen(
                 DayLabel(dayMs = selectedDayMs, isToday = selectedDayMs == todayStart)
             }
             if (schedulesForSelected.isEmpty()) {
-                if (collabForSelected.isEmpty() && asForSelected.isEmpty()) {
+                if (collabForSelected.isEmpty() && asForSelected.isEmpty() && simpleForSelected.isEmpty()) {
                     item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
                 }
             } else {
@@ -493,8 +506,26 @@ fun ScheduleScreen(
                     AsDayCard(customer = c, selectedDayMs = selectedDayMs, onClick = { onOpenChat(c.phoneNumber, c.id) })
                 }
             }
+            // 간단 일정 — 맨 아래. 돈·D-day 가 없으니 조용한 회색으로. (2026-09-16 사장님)
+            if (simpleForSelected.isNotEmpty()) {
+                item(key = "simple-label") {
+                    Text(
+                        "📌 이 날 간단 일정 ${simpleForSelected.size}개",
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
+                    )
+                }
+                items(simpleForSelected, key = { "sm-${it.id}" }) { ev ->
+                    SimpleEventCard(
+                        event = ev,
+                        onDelete = { viewModel.deleteSimpleEvent(ev.id) }
+                    )
+                }
+            }
             // "더 추가"는 이미 일정/협업/A-S 가 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
-            if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty() || asForSelected.isNotEmpty()) {
+            if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty() ||
+                asForSelected.isNotEmpty() || simpleForSelected.isNotEmpty()
+            ) {
                 item(key = "day-add") { DayAddButton("이 날 일정 더 추가", { onAddSchedule(selectedDayMs) }) }
             }
             item { Spacer(Modifier.height(12.dp)) }
@@ -636,6 +667,59 @@ private fun PendingCollabDayCard(
 }
 
 /** A/S 예약 카드 — 무료. 시공과 별개(주황). 여러 날 A/S면 'N일 중 M일차'. 탭 → 고객 상세. (DB v43, 2026-08-01 사장님) */
+/**
+ * 간단 일정 카드 — 번호도 돈도 없는 메모형. (2026-09-16 사장님)
+ *
+ * 시공 카드와 **일부러 다르게 조용하다**: 금액·D-day 태그가 없고 색도 회색이다.
+ * 사장님이 한눈에 "이건 돈 버는 일이 아니라 그냥 내 메모" 라고 알아보게.
+ */
+@Composable
+private fun SimpleEventCard(
+    event: com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity,
+    onDelete: () -> Unit
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    TossCard(onClick = { confirmDelete = true }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(9.dp).clip(CircleShape).background(TossTextTertiary))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    event.title,
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                val sub = buildString {
+                    append(event.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "하루 종일")
+                    if (event.memo.isNotBlank()) append(" · ").append(event.memo)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    sub, fontSize = 12.5.sp, color = TossTextTertiary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = { Text(event.title) },
+            text = { Text("이 간단 일정을 지울까요?") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = false; onDelete() }) {
+                    Text("지우기", color = com.detailline.callfollowcrm.presentation.theme.TossError)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) { Text("닫기") }
+            }
+        )
+    }
+}
+
 @Composable
 private fun AsDayCard(
     customer: CustomerEntity,
@@ -768,6 +852,7 @@ private fun CalendarWeekRow(
     collabDays: Set<Long>,
     pendingCollabDays: Set<Long>,
     asDays: Set<Long>,
+    simpleDays: Set<Long>,
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
 ) {
@@ -779,6 +864,7 @@ private fun CalendarWeekRow(
                 isCollab = cell.dayStartMs in collabDays,
                 isPendingCollab = cell.dayStartMs in pendingCollabDays,
                 isAs = cell.dayStartMs in asDays,
+                isSimple = cell.dayStartMs in simpleDays,
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
@@ -795,6 +881,8 @@ private fun CalendarDay(
     isCollab: Boolean = false,
     isPendingCollab: Boolean = false,
     isAs: Boolean = false,
+    /** 간단 일정(번호 없는 메모형)이 있는 날 — 회색 점. (2026-09-16 사장님) */
+    isSimple: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -861,12 +949,16 @@ private fun CalendarDay(
                 }
             }
         }
-        // A/S(무료) — 주황 점(칸 맨 아래). 시공 초록막대·협업 보라막대와 별개. 프로토 목업 adot. (DB v43)
-        if (isAs) {
-            Box(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
-                    .size(6.dp).clip(CircleShape).background(Color(0xFFF5920B))
-            )
+        // 칸 맨 아래 점들 — A/S(주황) · 간단 일정(회색). 시공 초록막대·협업 보라막대와 별개.
+        //   둘 다 있으면 나란히 찍힌다(겹쳐서 하나로 보이면 A/S 를 놓친다).
+        if (isAs || isSimple) {
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                if (isAs) Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFF5920B)))
+                if (isSimple) Box(Modifier.size(6.dp).clip(CircleShape).background(TossTextTertiary))
+            }
         }
     }
 }

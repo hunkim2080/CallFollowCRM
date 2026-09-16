@@ -92,6 +92,7 @@ class AppContainer(context: Context) {
     val journeyEventRepository = com.detailline.callfollowcrm.ai.JourneyEventRepository()
     // 정산 Phase 2 (DB v20) — 직접 현금 기록.
     val manualCashRepository = com.detailline.callfollowcrm.data.repository.ManualCashRepository(db.manualCashDao())
+    val simpleEventRepository = com.detailline.callfollowcrm.data.repository.SimpleEventRepository(db.simpleEventDao())
     // 수첩 (DB v21) — 일당/거래처.
     val notebookRepository = com.detailline.callfollowcrm.data.repository.NotebookRepository(db.notebookContactDao())
     // 일당 배정 (DB v23) — 함께한 현장 + 일당 자동차감.
@@ -207,7 +208,8 @@ class AppContainer(context: Context) {
                 preferences, db.customerDao(),
                 // 캘린더 본문에 시공 내용·주소·고객 메모를 채우는 재료. (2026-09-14 사장님)
                 issuedDocDao = db.issuedDocDao(),
-                intakeEventDao = db.intakeEventDao()
+                intakeEventDao = db.intakeEventDao(),
+                simpleEventDao = db.simpleEventDao()
             )
         )
     }
