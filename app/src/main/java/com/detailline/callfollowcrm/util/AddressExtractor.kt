@@ -111,8 +111,12 @@ object AddressExtractor {
     /** 동·읍·면·로·길. 숫자/한글 혼합 허용. */
     private const val EUPMYEONDONG = "[가-힣\\d]{1,15}(?:동|읍|면|로|길)"
 
-    /** 번지·번 — 숫자 + 옵션 -숫자 + 옵션 번. */
-    private const val BUNJI = "\\d{1,5}(?:-\\d{1,5})?(?:번지?)?"
+    /**
+     * 번지 — "63" · "398-3" · "34번길 63" · "171번길9".
+     *   ⚠️ '번길' 뒤에서만 두 번째 숫자를 받는다. 조건 없이 받으면 "우사단로10길 84 **1**층" 의 1,
+     *      "거모동 1656 **8** 유성사우나" 의 8 을 주워온다. (2026-09-16 사장님 실제 문자에서 확인)
+     */
+    private const val BUNJI = "\\d{1,5}(?:\\s*번?길\\s*\\d{1,5})?(?:-\\d{1,5})?(?:번지)?"
 
     /** 아파트 단지 / 동 / 호 패턴. */
     private const val APT_DONG_HO = "(?:\\d{1,4}동\\s*)?\\d{1,5}호"
@@ -130,7 +134,8 @@ object AddressExtractor {
      *   "강서구 마곡로 27길 30"
      */
     private val pattern2 = Regex(
-        "$SIGUNGU\\s*$EUPMYEONDONG(?:\\s*\\d{1,4}길)?\\s*$BUNJI"
+        // 앞의 "(시/군)" 은 옵션 — "화성시 만세구 새솔동6" 에서 '화성시'가 빠지던 것. (2026-09-16 실측)
+        "(?:$SIGUNGU\\s*)?$SIGUNGU\\s*$EUPMYEONDONG(?:\\s*\\d{1,4}길)?\\s*$BUNJI"
     )
 
     /**
@@ -138,10 +143,19 @@ object AddressExtractor {
      *   "마곡엠밸리 7단지 705동 1203호"
      *   "한강푸르지오 1234호"
      */
+    /**
+     * 브랜드 **앞에 붙는 말** — "동탄역 포레너스 아파트" 처럼 공백으로 떨어진 단어 2개까지 끌어온다.
+     *   단, 한국어 조사·어미로 끝나는 말은 제외 — "**보넸고요** 현대아파트 102동2504호" 에서
+     *   '보넸고요'가 주소에 딸려 들어오던 것. (2026-09-16 사장님 실제 문자에서 확인)
+     */
+    private const val PREFIX_WORD =
+        "(?:[가-힣A-Za-z0-9]{1,15}(?<![요다까죠네음함고서만도은는이가을를에의])\\s+)"
+
     private val pattern3 = Regex(
-        // 앞말은 **있어도 되고 없어도 된다**({0,15}). 전엔 {2,15} 라 "힐스테이트 1502호" 처럼
+        // 앞말은 **있어도 되고 없어도 된다**. 전엔 {2,15} 라 "힐스테이트 1502호" 처럼
         //   브랜드가 문장 맨 앞에 오면 못 잡았다. (2026-09-16 실측)
-        "[가-힣A-Za-z0-9]{0,15}$BRAND(?:\\s*\\d{1,2}차)?(?:\\s*\\d{1,3}단지)?\\s*$APT_DONG_HO"
+        "(?:$PREFIX_WORD){0,2}[가-힣A-Za-z0-9]{0,15}$BRAND" +
+            "(?:\\s*\\d{1,2}차)?(?:\\s*\\d{1,3}단지)?\\s*$APT_DONG_HO"
     )
 
     /**
@@ -161,6 +175,17 @@ object AddressExtractor {
      *   pattern3 (아파트) 는 이미 동호수 포함이라 후속 매칭 시도 안 함 (중복 방지).
      */
     private val DONG_HO_TAIL = Regex("^\\s*(?:\\d{1,4}동\\s*)?\\d{1,5}호")
+
+    /**
+     * 매칭 뒤 40자 **어디에든** 있는 동호수. (2026-09-16 사장님 실제 문자)
+     *   전엔 매칭 **바로 뒤**에만 붙은 걸 찾아서, 사이에 단지명이 끼면 통째로 놓쳤다:
+     *     "서울 영등포구 국제금융로 39 **브라이튼여의도** 103동 1210호" → "…국제금융로 39" 에서 끝.
+     *   실제 문자 25건 중 6건이 이 모양이었다(사장님 고객은 대부분 단지명을 같이 적는다).
+     */
+    private val DONG_HO_ANYWHERE = Regex("(\\d{1,4}동\\s*\\d{1,5}호|\\d{1,4}동(?!\\d)|\\d{1,5}호)")
+
+    /** 사이에 낀 말이 '주소다운 글자'인가 — 문장이 통째로 딸려오는 걸 막는 안전장치. */
+    private val GAP_OK = Regex("^[가-힣A-Za-z0-9\\s,\\-]{0,20}$")
 
     /**
      * 찾은 주소 + **본문에서의 위치**. 위치가 필요한 이유(2026-09-16 사장님):
@@ -234,8 +259,11 @@ object AddressExtractor {
         if (tail.startsWith("호") && base.lastOrNull()?.isDigit() == true) {
             return base + "호"
         }
-        val dongHo = DONG_HO_TAIL.find(tail)?.value?.trim() ?: return base
-        return "$base $dongHo"
+        // 사이에 단지명이 끼어 있어도 동호수까지 끌어온다 — 단, 사이에 낀 말이 주소다울 때만.
+        val m = DONG_HO_ANYWHERE.find(tail) ?: return base
+        val gap = tail.substring(0, m.range.first)
+        if (!GAP_OK.matches(gap)) return base
+        return ("$base " + (gap + m.value).trim()).replace(Regex("\\s+"), " ").trim()
     }
 
     /**
