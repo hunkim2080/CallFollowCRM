@@ -25,7 +25,7 @@ class CallSummaryScanWorker(appContext: Context, params: WorkerParameters) :
     override suspend fun doWork(): Result {
         val app = applicationContext as? CallFollowCrmApplication ?: return Result.success()
         val container = app.container
-        if (!container.preferences.autoSummaryEnabled) return Result.success()
+        if (!container.preferences.callSummaryAllowed) return Result.success()
 
         val ctx = applicationContext
         val textConnected = AdotTextFolderScanner.isConnected(ctx)

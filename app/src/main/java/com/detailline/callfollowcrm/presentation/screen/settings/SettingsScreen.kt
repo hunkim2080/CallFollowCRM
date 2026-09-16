@@ -2188,6 +2188,13 @@ private fun AutoSmsSection(
 
     // ④ 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 녹음/텍스트를 자동 요약(공유 안 눌러도 됨).
     var autoSumOn by remember { mutableStateOf(prefs.autoSummaryEnabled) }
+    // 🔴 녹음을 **서버로 보내는 것**은 고지 + 명시적 동의를 받은 뒤에만. (2026-09-17 플레이 정책 점검)
+    //   전엔 이 토글이 기본 ON 이라, 아무 고지 없이 녹음 파일이 올라갔다. 구글 정책 위반이다:
+    //     "Must be granted by the user **before** your app can begin to collect or access
+    //      the personal and sensitive user data" (Play · User Data policy)
+    //   토글만으로는 안 켜진다 — prefs.callSummaryAllowed = 토글 ON **그리고** 동의 완료.
+    var consented by remember { mutableStateOf(prefs.callSummaryConsented) }
+    var showConsent by remember { mutableStateOf(false) }
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
@@ -2197,10 +2204,44 @@ private fun AutoSmsSection(
                 Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Text("통화가 끝나면 통화 녹음을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
                     fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                if (autoSumOn && !consented) {
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "⚠️ 아직 동의 전이라 요약이 안 돌아요 — 탭해서 내용을 확인해주세요",
+                        fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.clickable { showConsent = true }
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
-            Switch(checked = autoSumOn, onCheckedChange = { autoSumOn = it; prefs.autoSummaryEnabled = it })
+            Switch(
+                checked = autoSumOn && consented,
+                onCheckedChange = { want ->
+                    if (want && !consented) {
+                        // 켜려는데 아직 동의 전 → 고지부터. 여기서 바로 켜지 않는다.
+                        showConsent = true
+                    } else {
+                        autoSumOn = want
+                        prefs.autoSummaryEnabled = want
+                    }
+                }
+            )
         }
+    }
+    if (showConsent) {
+        CallSummaryConsentDialog(
+            onAgree = {
+                prefs.callSummaryConsented = true; consented = true
+                prefs.autoSummaryEnabled = true; autoSumOn = true
+                showConsent = false
+            },
+            onDecline = {
+                prefs.callSummaryConsented = false; consented = false
+                prefs.autoSummaryEnabled = false; autoSumOn = false
+                showConsent = false
+            }
+        )
     }
     Spacer(Modifier.height(8.dp))
 
@@ -2648,6 +2689,87 @@ private fun AutoTextArea(value: String, onChange: (String) -> Unit) {
                 Text("입력하면 자동으로 저장돼요", fontSize = 11.5.sp, color = TossTextTertiary)
             }
         }
+    }
+}
+
+
+/**
+ * 통화 녹음 서버 전송 — **눈에 띄는 고지와 동의**. (2026-09-17 플레이 정책 점검)
+ *
+ * 구글 요건(Play · User Data policy — prominent disclosure & consent)을 그대로 따른다:
+ *   · "Must be within the app itself, not only … on a website"      → 앱 안에서 띄운다
+ *   · "Must describe the data being accessed or collected"          → 녹음 파일이라고 적는다
+ *   · "Must explain how the data will be used and/or shared"        → 서버 전송·받아쓰기·AI·파기까지
+ *   · "Must require affirmative user action"                        → [동의하고 켜기] 를 눌러야만 켜진다
+ *   · "Must not interpret navigation away … as consent"             → 바깥 탭·뒤로가기로 안 닫힌다
+ *   · "Must not use auto-dismissing … messages"                     → 저절로 사라지지 않는다
+ *
+ * ⚠️ 문구를 고칠 때는 si0in.kr/consent/required 와 처리방침도 같이 맞출 것.
+ *    셋 중 하나만 달라지면 그게 '신고 내용과 실제가 다름' 이 된다.
+ */
+@Composable
+private fun CallSummaryConsentDialog(onAgree: () -> Unit, onDecline: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { /* 바깥 탭·뒤로가기로 닫히면 안 된다 — 그건 동의가 아니다 */ },
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White)
+                .padding(22.dp)
+        ) {
+            Text("📞 통화 요약을 켜면", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                color = TossTextPrimary, letterSpacing = (-0.4).sp)
+            Spacer(Modifier.height(14.dp))
+            ConsentLine("폰에 저장된 ", "통화 녹음 파일이 시공막내 서버로 전송", "됩니다.")
+            ConsentLine("서버가 ", "받아쓰기", "한 뒤, 그 글을 AI(Anthropic·Google, 미국)가 요약합니다.")
+            ConsentLine("", "녹음 파일은 받아쓰기 후 바로 지워집니다", " — 서버에 남지 않아요.")
+            ConsentLine("요약에는 ", "고객 이름·주소·금액", "이 들어갈 수 있습니다.")
+            ConsentLine("", "언제든 이 설정에서 끌 수 있습니다", ".")
+            Spacer(Modifier.height(16.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                    .clickable { onAgree() }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("동의하고 켜기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                    .clickable { onDecline() }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("안 할래요", color = TossTextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "안 하셔도 문자·일정·정산은 그대로 쓰실 수 있어요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConsentLine(pre: String, bold: String, post: String) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 9.dp)) {
+        Text("·", fontSize = 14.sp, color = TossTextTertiary)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            androidx.compose.ui.text.buildAnnotatedString {
+                append(pre)
+                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.ExtraBold))
+                append(bold)
+                pop()
+                append(post)
+            },
+            fontSize = 14.sp, color = TossTextSecondary, lineHeight = 21.sp
+        )
     }
 }
 

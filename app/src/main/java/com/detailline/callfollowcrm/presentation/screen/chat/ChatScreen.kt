@@ -5005,7 +5005,18 @@ private fun AddressRegisterSheet(
     // 나머지 하나는 버리지 않고 **회색 참고용**으로 아래 작게. ("2개 주소 다 받아오고 참고용으로")
     val foundAlt = found?.let { if (preferRoad) it.resolved else it.roadAddress }
         ?.takeIf { it.isNotBlank() && it != foundMain }
-    val baseAddr = (if (useFound) foundMain else null) ?: parts.base.ifBlank { detected }
+    // 지도에서 찾은 아파트명(호수공원아파트 등)을 **저장 주소에도** 넣는다. (2026-09-17 사장님)
+    //   "아파트명까지 나온 주소로 찾았지만 이 주소로 등록 누르니까 아파트명은 쏙 빠지던데 의도한 건가?"
+    //   의도한 게 아니었다 — 카드에는 "(호수공원아파트)" 를 보여주면서 저장은 도로명만 했다.
+    //   보이는 것과 저장되는 것이 다르면 그게 버그다. 그리고 아파트명이 있어야
+    //   나중에 목록에서 "아, 거기" 하고 알아본다(고객 이름 자동 표시도 아파트명+호수를 쓴다).
+    //   · 괄호는 뺀다 — 내비에 그대로 붙여넣기 좋게.
+    //   · 이미 주소 안에 들어 있으면 두 번 쓰지 않는다.
+    val foundPlace = found?.placeName
+        ?.trim()
+        ?.takeIf { it.isNotBlank() && foundMain?.contains(it) != true }
+    val baseAddr = (if (useFound) listOfNotNull(foundMain, foundPlace).joinToString(" ").trim().ifBlank { null } else null)
+        ?: parts.base.ifBlank { detected }
     // 최종 주소 = 기준 주소 + 동 + 호 (빈 칸은 빠짐)
     val finalAddr = listOfNotNull(
         baseAddr.trim().takeIf { it.isNotBlank() },

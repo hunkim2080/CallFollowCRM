@@ -312,7 +312,7 @@ class ChatViewModel(
      *   미리 "요약 중…"을 띄워, 정적 '요약하기' 버튼만 보이던 문제를 없앤다. (2026-06-20 사장님)
      */
     val autoSummaryActive: Boolean
-        get() = container.preferences.autoSummaryEnabled &&
+        get() = container.preferences.callSummaryAllowed &&
             com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(container.appContext)
 
     /**

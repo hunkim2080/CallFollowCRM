@@ -123,6 +123,24 @@ class AppPreferences(context: Context) {
     var autoSummaryEnabled: Boolean
         get() = prefs.getBoolean("auto_summary_enabled", true)
         set(value) = prefs.edit().putBoolean("auto_summary_enabled", value).apply()
+
+    /**
+     * 통화 녹음을 **서버로 보내는 것**에 대한 명시적 동의. 기본 **false**. (2026-09-17 플레이 정책 점검)
+     *
+     * 왜 토글과 따로 두나 — [autoSummaryEnabled] 는 기본 ON 이라, 그것만 보면
+     * **아무 고지도 동의도 없이 녹음 파일이 서버로 올라간다.** 구글은 이걸 금지한다:
+     *   "Must be granted by the user **before** your app can begin to collect or access
+     *    the personal and sensitive user data" (Play · User Data policy)
+     * 그래서 실제 업로드는 [callSummaryAllowed] 로만 판단한다.
+     * 기존 사용자도 한 번은 고지를 보고 눌러야 한다(false 로 시작하므로).
+     */
+    var callSummaryConsented: Boolean
+        get() = prefs.getBoolean("call_summary_consented", false)
+        set(value) = prefs.edit().putBoolean("call_summary_consented", value).apply()
+
+    /** 녹음을 서버로 보내도 되는가 — **토글 ON + 동의 완료** 둘 다일 때만. */
+    val callSummaryAllowed: Boolean
+        get() = autoSummaryEnabled && callSummaryConsented
     /** 릴리스에서 민감화면 스크린샷·화면녹화 차단(FLAG_SECURE). 베타엔 버그 캡처가 필요 → 기본 OFF(캡처 허용). (2026-08-20 사장님) */
     var blockScreenCapture: Boolean
         get() = prefs.getBoolean("block_screen_capture", false)
