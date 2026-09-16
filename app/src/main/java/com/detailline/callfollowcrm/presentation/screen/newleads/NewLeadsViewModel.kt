@@ -165,6 +165,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
         val custs = ctx.custs; val cats = ctx.cats; val replied = ctx.replied
         val spamSet = ctx.spam
         val catName = cats.associate { it.id to it.name }
+        val catById = cats.associate { it.id to it }
         val repliedSet = replied.toHashSet()
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
         // summaryBySuffix = SMS 대화요약 + 통화요약 합친 맵 (summaryBySuffixFlow).
@@ -201,6 +202,12 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(a.phone.ifBlank { suf }, spamPrefixes)) return@mapNotNull null
             // 사장님이 '광고/스팸'으로 직접 표시한 번호 제외 — 상담함 '오늘 신규' 카운트와 일치. (2026-06-07)
             if (suf in spamSet) return@mapNotNull null
+            // 대표번호·짧은 번호(114 · 15xx/16xx/18xx)는 **사람이 아니다** → 신규 고객이 아니다. (2026-09-16 사장님 화면 지적)
+            //   실제로 "114 · [Web발신] KT알뜰폰 안내" 가 신규 고객으로 올라와 있었다.
+            //   개인 휴대폰(010…)·집전화(02…)는 0 으로 시작해 11/10자리라 여기 안 걸린다.
+            if (com.detailline.callfollowcrm.domain.inbox.NonCustomerHeuristics
+                    .isNonPersonalSender(a.phone.ifBlank { suf })
+            ) return@mapNotNull null
             val cust = custBySuffix[suf]
             // 2026-06-07 사장님 B안: 계약(시공일 등록)된 고객도 목록에 남기되 "계약완료" 배지로 표시.
             //   (이전엔 시공일 잡히면 목록에서 제외했음 — 사장님이 한눈에 계약 여부 보고 싶다고 변경)
@@ -218,6 +225,9 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             }
             NewLeadUi(
                 customerId = cust?.id ?: 0L,
+                // 분류 태그(택배·일당·거래처…)를 줄에 붙이려면 원본이 필요하다. (2026-09-16 사장님 "여기 태그는?")
+                customer = cust,
+                category = cust?.categoryId?.let { catById[it] },
                 phone = phone,
                 displayName = cust?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone),
                 timeLabel = relativeTime(a.contactMs),
@@ -301,6 +311,9 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
 /** 신규 재연락 한 명. */
 data class NewLeadUi(
     val customerId: Long,
+    /** 태그용 원본 — 없으면(아직 고객 표에 없는 번호) 태그를 안 붙인다. */
+    val customer: com.detailline.callfollowcrm.data.local.entity.CustomerEntity? = null,
+    val category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
     val phone: String,
     val displayName: String,
     val timeLabel: String,

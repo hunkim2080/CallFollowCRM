@@ -273,6 +273,11 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(lead.displayName, color = TossTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                // 분류 태그 — 채팅 상단·고객 목록과 **같은 컴포넌트**를 쓴다. (2026-09-16 사장님 "여기 태그는?")
+                //   "일당인데 고객인 줄 착각할 수 있거든" (2026-09-16) 이 여기도 그대로 해당된다.
+                com.detailline.callfollowcrm.presentation.component.CustomerTags(
+                    c = lead.customer, category = lead.category, gap = 6.dp
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(lead.timeLabel, color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
             }
