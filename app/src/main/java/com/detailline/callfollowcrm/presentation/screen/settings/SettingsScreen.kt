@@ -2777,8 +2777,13 @@ private fun DeleteAccountSheet(onDismiss: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(6.dp))
+            // ⚠️ "앱만 지우면 끝" 이라는 오해를 반드시 깬다. (2026-09-17, 에이닷 처리방침 참고)
+            //   SKT: "앱만을 삭제할 경우 개인정보가 파기되지 않으므로 반드시 별도로 동의를 철회하여야 합니다"
+            //   앞 문장만 두면 "앱 지우면 되겠네" 로 읽힌다 — 서버 데이터는 그대로 남는다.
             Text(
-                "폰에 있는 고객·일정은 앱을 지우면 함께 사라져요.\n통화 녹음 파일은 원래 서버에 안 남아 있어요.",
+                "앱만 지우면 서버에 있는 내 데이터는 그대로 남아요.\n" +
+                    "지우려면 여기서 계정 삭제를 해주세요.\n" +
+                    "폰 안에 있는 고객·일정은 앱을 지우면 함께 사라져요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 17.sp
             )
             Spacer(Modifier.height(18.dp))
