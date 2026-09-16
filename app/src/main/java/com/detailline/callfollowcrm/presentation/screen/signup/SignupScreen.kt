@@ -143,6 +143,23 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
         fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Tag,
         modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
     )
+    // ── 내 번호 자동 채우기 (구글 번호 힌트). 권한 없이, 한 번 탭으로. (2026-09-16 사장님)
+    //   안 되는 폰은 조용히 넘어간다 — 직접 입력이 그대로 있다.
+    val hintCtx = androidx.compose.ui.platform.LocalContext.current
+    val hintLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { res ->
+        com.detailline.callfollowcrm.util.PhoneNumberHint.parse(hintCtx, res.data)?.let { vm.onPhoneChange(it) }
+    }
+    val askHint: () -> Unit = {
+        (hintCtx as? android.app.Activity)?.let {
+            com.detailline.callfollowcrm.util.PhoneNumberHint.request(it, hintLauncher)
+        }
+    }
+    var hintAsked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!hintAsked) { hintAsked = true; askHint() }
+    }
     Spacer(Modifier.height(10.dp))
     com.detailline.callfollowcrm.presentation.component.FormattedTextField(
         value = s.phone,
@@ -150,6 +167,13 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
         format = com.detailline.callfollowcrm.util.PhoneNumberFormatter::formatProgressive,
         placeholder = "010-0000-0000",
         keyboardType = KeyboardType.Phone
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "📱 내 번호 불러오기",
+        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Blue,
+        modifier = Modifier.fillMaxWidth().clickable { askHint() }.padding(4.dp),
+        textAlign = TextAlign.Center
     )
     Spacer(Modifier.height(10.dp))
     PrimaryButton(label = "인증번호 받기", enabled = vm.phoneOk && !s.loading, loading = s.loading) { showConfirm = true }

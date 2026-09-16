@@ -68,6 +68,27 @@ private val SubColor = TossTextSecondary
 fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
     var phone by remember { mutableStateOf("") }
     var showBeta by remember { mutableStateOf(false) }   // 베타 테스터 신청 창
+    // ── 내 번호 자동 채우기 (구글 번호 힌트). (2026-09-16 사장님)
+    //   "당근은 처음 설치하고 들어가니까 번호를 자기가 입력 안 해도 바로 자동입력되네?"
+    //   권한을 안 묻는다 — 사용자가 고른 번호만 앱에 들어온다.
+    //   안 되는 폰(플레이 서비스 없음·번호 미등록)은 **조용히 넘어간다**. 직접 입력이 그대로 있다.
+    val hintCtx = androidx.compose.ui.platform.LocalContext.current
+    val hintLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { res ->
+        com.detailline.callfollowcrm.util.PhoneNumberHint.parse(hintCtx, res.data)?.let { phone = it }
+    }
+    val askHint: () -> Unit = {
+        (hintCtx as? android.app.Activity)?.let {
+            com.detailline.callfollowcrm.util.PhoneNumberHint.request(it, hintLauncher)
+        }
+    }
+    // 들어오자마자 한 번만. 다시 들어와도(회전 등) 또 안 띄운다 — 매번 창이 뜨면 성가시다.
+    var hintAsked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!hintAsked) { hintAsked = true; askHint() }
+    }
+
     // 키보드 올라오면 hero(마스코트/태그라인)를 컴팩트하게 — 안 그러면 위 공간이 줄어 로고가 짓눌려 겹침. 2026-06-30
     val density = androidx.compose.ui.platform.LocalDensity.current
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
@@ -151,6 +172,14 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 format = com.detailline.callfollowcrm.util.PhoneNumberFormatter::formatProgressive,
                 placeholder = "010-0000-0000",
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+            )
+            Spacer(Modifier.height(10.dp))
+            // 자동으로 안 채워졌을 때의 뒷문. 조용한 글씨 하나.
+            Text(
+                "📱 내 번호 불러오기",
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = LoginBlue,
+                modifier = Modifier.fillMaxWidth().clickable { askHint() }.padding(4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(Modifier.height(10.dp))
             val phoneOk = phone.filter { it.isDigit() }.length >= 10
