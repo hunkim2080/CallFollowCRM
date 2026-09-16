@@ -423,6 +423,14 @@ class CallFollowCrmApplication : Application() {
         if (container.preferences.googleCalendarConnected) {
             appScope.launch { runCatching { container.calendarSyncManager.syncAll() } }
         }
+        // 그 뒤로는 **자동**으로 — 일정·메모·금액·주소가 바뀌면 알아서 올라간다. (2026-09-16 사장님)
+        //   "새 일정이 등록되거나 하면 알아서 동기화되어야하는거 아닌가… 내가 눌러주는게 맞나"
+        //   연결 안 돼 있으면 아무것도 안 함. 연결 직후부터는 별도 조작 없이 계속 따라간다.
+        com.detailline.callfollowcrm.data.calendar.CalendarAutoSync(
+            connected = { container.preferences.googleCalendarConnected },
+            customers = container.customerRepository.observeAll(),
+            syncAll = { container.calendarSyncManager.syncAll() },
+        ).start(appScope)
 
         // 현장 도착 지오펜스 — 다가오는 시공 현장 5km 등록(권한·토글 있을 때만).
         appScope.launch {
