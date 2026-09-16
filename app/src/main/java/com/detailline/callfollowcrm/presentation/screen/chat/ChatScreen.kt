@@ -5377,7 +5377,7 @@ private fun EstimateBuilderDialog(
                 //   이어 붙이면 내비바 높이만큼 빈 공간이 생긴다. (2026-07-15 사장님)
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .heightIn(max = 640.dp)
-                .verticalScroll(rememberScrollState())
+                // 스크롤은 아래 안쪽 Column 이 맡는다 — 제목·탭이 같이 밀려 올라가지 않게. (2026-09-16)
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)
         ) {
             SheetGrabber()
@@ -5395,6 +5395,17 @@ private fun EstimateBuilderDialog(
                 EstSegTab("시공접수서", mode == "accept", Modifier.weight(1f)) { mode = "accept" }
                 EstSegTab("견적서", mode == "quote", Modifier.weight(1f)) { mode = "quote" }
             }
+            // ── 여기서부터 스크롤. 제목·탭은 위에 **고정**한다. (2026-09-16 사장님)
+            //   "창에 내용을 올리는데 뭔가 디자인이 깨지는 느낌이랄까?"
+            //   전에는 시트 전체가 한 덩어리로 스크롤돼서, 항목을 내리면 제목과 탭이 같이 밀려 올라갔다.
+            //   → 어느 탭(문자 견적/시공접수서/견적서)에 있는지 알 수 없고,
+            //     시트 맨 위가 잘린 글자로 시작해 화면이 깨져 보였다.
+            //   최대 높이 = 시트 최대(640) - 머리(제목·탭 약 120).
+            Column(
+                Modifier
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
             Spacer(Modifier.height(9.dp))
             Text(help, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 18.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
@@ -5675,6 +5686,7 @@ private fun EstimateBuilderDialog(
             }
             Spacer(Modifier.height(10.dp))
             AiDisclaimer(Modifier.padding(horizontal = 2.dp))
+            }   // ── 스크롤 영역 끝
         }
     }
 }
