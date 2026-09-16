@@ -39,20 +39,57 @@ object SettlementCalc {
             (c.depositAmount ?: 0L) > 0L ||
             (c.balanceAmount ?: 0L) > 0L
 
-    fun rowOf(c: CustomerEntity): SettleRow {
-        val deposit = (c.depositAmount ?: 0L).coerceAtLeast(0L)
-        val depositPaid = c.depositPaidAt != null
-        val balancePaid = c.balancePaidAt != null
+    /**
+     * 고객(대표 건) 기준 정산. 규칙은 [rowOfFields] 하나뿐 — 건(件)과 같은 자를 쓴다.
+     */
+    fun rowOf(c: CustomerEntity): SettleRow = rowOfFields(
+        customerId = c.id,
+        totalAmount = c.totalAmount,
+        depositAmount = c.depositAmount,
+        depositPaidAt = c.depositPaidAt,
+        balanceAmount = c.balanceAmount,
+        balancePaidAt = c.balancePaidAt
+    )
+
+    /**
+     * **건(件) 하나**의 정산. (2026-09-17 재방문 Stage B)
+     *   한 고객이 1차·2차·3차를 받으면 잔금도 건마다 따로 남는다.
+     *   고객 기준으로만 세면 "2차는 다 받았는데 1차 잔금이 남은" 상황을 못 본다.
+     */
+    fun rowOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): SettleRow = rowOfFields(
+        customerId = j.customerId,
+        totalAmount = j.totalAmount,
+        depositAmount = j.depositAmount,
+        depositPaidAt = j.depositPaidAt,
+        balanceAmount = j.balanceAmount,
+        balancePaidAt = j.balancePaidAt
+    )
+
+    /**
+     * 돈 규칙의 **유일한 출처**. 고객이든 건이든 여기로 들어온다.
+     *   규칙이 두 벌이 되는 순간, 화면과 알림의 미수 금액이 갈라진다(예전에 실제로 그랬다).
+     */
+    fun rowOfFields(
+        customerId: Long,
+        totalAmount: Long?,
+        depositAmount: Long?,
+        depositPaidAt: Long?,
+        balanceAmount: Long?,
+        balancePaidAt: Long?
+    ): SettleRow {
+        val deposit = (depositAmount ?: 0L).coerceAtLeast(0L)
+        val depositPaid = depositPaidAt != null
+        val balancePaid = balancePaidAt != null
         // 잔금 규칙 (2026-06-26 사장님 신고: 총 15만인데 잔금 35만으로 뜸 — 옛 45만 시절 balanceAmount 가 stale 로 남음):
         //  - 총액이 있으면 = 항상 (총액 − 계약금). 총액이 헤드라인 진실이므로 저장된 stale balanceAmount 는 무시해
         //    "총액과 잔금이 안 맞는" 모순을 원천 차단. (받음 처리 후에도 동일 — received = 계약금 + 잔금 = 총액 으로 일관)
         //  - 총액이 없으면(계약금/잔금만 박힌 옛 데이터) = 직접 박힌 balanceAmount (없으면 0).
-        val balance = if (c.totalAmount != null) {
-            (c.totalAmount - deposit).coerceAtLeast(0L)
+        val balance = if (totalAmount != null) {
+            (totalAmount - deposit).coerceAtLeast(0L)
         } else {
-            c.balanceAmount?.coerceAtLeast(0L) ?: 0L
+            balanceAmount?.coerceAtLeast(0L) ?: 0L
         }
-        val total = c.totalAmount ?: (deposit + balance)
+        val total = totalAmount ?: (deposit + balance)
         // 잔금(마지막 지불)까지 받았으면 = 전액 받은 것(완납). 계약금 '받음' 표시가 없어도 완납으로 본다.
         //   (완납 원탭이 잔금만 받음처리 → 계약금 10만원이 미수로 남던 버그 fix, 2026-07-15 사장님.
         //    상세화면 allPaid = balPaid 기준과도 일치. 계약금만 받음(잔금 미수)은 그대로 deposit 만 반영.)
@@ -65,7 +102,7 @@ object SettlementCalc {
         val isPaidOff = total > 0L && received >= total
 
         return SettleRow(
-            customerId = c.id,
+            customerId = customerId,
             total = total,
             received = received,
             outstanding = outstanding,

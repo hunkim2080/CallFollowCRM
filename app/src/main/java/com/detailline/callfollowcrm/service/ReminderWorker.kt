@@ -10,6 +10,7 @@ import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.domain.reminder.JobReminderCalc
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
@@ -262,23 +263,31 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         val keys = prefs.reminderNotifiedKeys.toMutableSet()
         var changed = false
 
+        // 🔴 **건(件)별로** 본다. (2026-09-17 재방문 Stage B)
+        //   전에는 고객 표(대표 건)만 봐서, 1차 잔금이 남았는데 2차를 새로 잡으면
+        //   대표 건이 2차로 바뀌며 **1차 미수가 조용히 사라졌다.** 돈이 새는 쪽이다.
+        //   금액 규칙은 그대로 SettlementCalc 단일 출처 — 건에도 같은 자를 쓴다(rowOf(job)).
+        val jobs = runCatching { container.jobRepository.scheduledOnce() }.getOrDefault(emptyList())
         val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
-        for (c in customers) {
-            val total = c.totalAmount ?: 0L
-            if (total <= 0L) continue
-            if (c.balancePaidAt != null) continue // 완납
-            // 미수 금액은 정산 단일 출처(SettlementCalc)로 — 정산탭/홈/알림 금액 불일치 제거. (2026-07-30)
-            val remaining = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding
+        val byId = customers.associateBy { it.id }
+        for (j in jobs) {
+            if (j.balancePaidAt != null) continue // 완납
+            val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
+            if (row.total <= 0L) continue
+            val remaining = row.outstanding
             if (remaining <= 0L) continue
-            val scheduled = c.scheduledWorkDate ?: continue
-            if (DateTimeUtils.startOfDay(scheduled) > threshold) continue // 아직 3일 안 지남(또는 미래)
+            val scheduled = j.scheduledWorkDate ?: continue
+            // 여러 날 공사는 **끝나는 날** 기준 — 3일 공사 첫날부터 세면 사장님이 현장에 있는데 잔금 독촉이 간다.
+            val lastDay = DateTimeUtils.startOfDay(scheduled) +
+                (j.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
+            if (lastDay > threshold) continue // 아직 3일 안 지남(또는 미래)
 
-            // dedup 키에 시공 날짜를 포함(D-1·A/S 와 동일 패턴). 고객 id 만 쓰면 재방문/추가 시공의 새 잔금이
-            //   영영 재알림 안 되던 버그(2026-08-08 stale 감사). 새 시공일 = 새 키 → 다시 알림.
-            val key = "settle:${c.id}:${DateTimeUtils.startOfDay(scheduled)}"
+            val c = byId[j.customerId] ?: continue
+            // dedup 키를 **건 id** 로 — 고객+시공일 키는 같은 날 두 현장을 한 건으로 뭉쳤다.
+            val key = "settlej:${j.id}"
             if (key in keys) continue
             val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
-            val daysSince = ((now - scheduled) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)
+            val daysSince = ((now - lastDay) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)
             NotificationHelper.showBalanceDue(
                 applicationContext, c.id, c.phoneNumber, nm, remaining / 10_000L, daysSince
             )
@@ -301,22 +310,33 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         val keys = prefs.reminderNotifiedKeys.toMutableSet()
         var changed = false
 
+        // 🔴 **건(件)별로** 본다. (2026-09-17 재방문 Stage B)
+        //   전에는 고객 표의 scheduledWorkDate = **대표 건 하나**만 봤다. 그래서 한 고객이
+        //   두 날짜를 잡으면(인테리어 업체 1차·2차) **두 번째 날짜의 D-1 이 아예 안 울렸다.**
+        //   판단은 JobReminderCalc(순수함수 + 단위테스트)가 하고, 여기선 알림만 띄운다.
+        val jobs = runCatching { container.jobRepository.scheduledOnce() }.getOrDefault(emptyList())
         val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
-        for (c in customers) {
-            val scheduled = c.scheduledWorkDate ?: continue
-            val day = DateTimeUtils.startOfDay(scheduled)
-            if (day < tomorrowStart || day >= tomorrowEnd) continue
-            val key = "d1:${c.id}:$tomorrowStart"
-            if (key in keys) continue
-
+        val byId = customers.associateBy { it.id }
+        val due = JobReminderCalc.d1Due(
+            jobs = jobs,
+            tomorrowStart = tomorrowStart,
+            dayMs = DateTimeUtils.DAY_MS,
+            notified = keys,
+            startOfDay = { DateTimeUtils.startOfDay(it) }
+        )
+        for (d in due) {
+            val c = byId[d.job.customerId] ?: continue
+            val scheduled = d.job.scheduledWorkDate ?: continue
             val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
             val dateLabel = SimpleDateFormat("M/d(E)", Locale.KOREA).format(Date(scheduled))
-            val timeLabel = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
-            val address = c.address?.takeIf { it.isNotBlank() } ?: "주소 미입력"
+            val timeLabel = d.job.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
+            // 주소도 그 **건**의 것 — 같은 고객이라도 현장이 다를 수 있다.
+            val address = d.job.address?.takeIf { it.isNotBlank() }
+                ?: c.address?.takeIf { it.isNotBlank() } ?: "주소 미입력"
             NotificationHelper.showInstallD1(
                 applicationContext, c.id, c.phoneNumber, nm, dateLabel, timeLabel, address
             )
-            keys.add(key)
+            keys.add(d.key)
             changed = true
         }
         if (changed) prefs.reminderNotifiedKeys = keys

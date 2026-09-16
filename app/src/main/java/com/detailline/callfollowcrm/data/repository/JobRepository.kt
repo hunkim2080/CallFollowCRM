@@ -93,6 +93,9 @@ class JobRepository(
     /** 시공일 잡힌 모든 건 — 캘린더/일정 화면의 SoT. */
     fun observeScheduled(): Flow<List<JobEntity>> = jobDao.observeScheduled()
 
+    /** 알람용 1회 조회 — 시공일이 잡힌 모든 건. (2026-09-17 재방문 Stage B) */
+    suspend fun scheduledOnce(): List<JobEntity> = jobDao.scheduledOnce()
+
     suspend fun findById(jobId: Long): JobEntity? = jobDao.findById(jobId)
 
     /** 그 고객·그 날의 건 — 일정 카드에서 '어느 건'을 뺄지 특정할 때. */

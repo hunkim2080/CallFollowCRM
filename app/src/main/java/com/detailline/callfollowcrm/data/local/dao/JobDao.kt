@@ -42,6 +42,10 @@ interface JobDao {
     @Query("SELECT * FROM jobs WHERE scheduledWorkDate IS NOT NULL ORDER BY scheduledWorkDate ASC, id ASC")
     fun observeScheduled(): Flow<List<JobEntity>>
 
+    /** 알람(D-1·잔금) 용 1회 조회 — 워커는 Flow 를 못 쓴다. (2026-09-17 재방문 Stage B) */
+    @Query("SELECT * FROM jobs WHERE scheduledWorkDate IS NOT NULL ORDER BY scheduledWorkDate ASC, id ASC")
+    suspend fun scheduledOnce(): List<JobEntity>
+
     /** 한 고객의 '시공일 있는' 건 스냅샷 — 대표 건(미러) 재계산용. */
     @Query("SELECT * FROM jobs WHERE customerId = :customerId AND scheduledWorkDate IS NOT NULL ORDER BY scheduledWorkDate ASC, id ASC")
     suspend fun scheduledByCustomerOnce(customerId: Long): List<JobEntity>
