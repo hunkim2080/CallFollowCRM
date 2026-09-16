@@ -80,6 +80,24 @@ class ChatViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
+     * 이 대화 상대의 분류(카테고리) — 앱바에 태그로 띄운다. (2026-09-16 사장님)
+     *   "문자내용에 카테고리 정한게 안보이네. **일당인데 고객인줄 착각**할 수 있거든."
+     *   홈 목록엔 보라색 태그가 뜨는데 대화방엔 없어서, 들어오는 순간 누구인지 알 수가 없었다.
+     *   자동 분류(시공 대기/완료)는 제외 — 그건 모든 사람에게 붙어서 '일당' 이 안 도드라진다(홈과 같은 규칙).
+     */
+    val category: StateFlow<com.detailline.callfollowcrm.data.local.entity.CategoryEntity?> =
+        kotlinx.coroutines.flow.combine(
+            customer,
+            container.categoryRepository.observeAll()
+        ) { c, cats ->
+            val id = c?.categoryId ?: return@combine null
+            cats.firstOrNull { it.id == id }?.takeUnless {
+                it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
+                    it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
      * 문자함(고객 아님) 대화인가 — GENERAL 분류면 true. (2026-07-12 사장님)
      *   true 면 AI 답변 추천·고객 정보 카드 등 상담 기능을 전부 끄고 순수 문자 송수신만.
      *   반응형 — 사장님이 ⋮로 상담함/문자함 이동하면 즉시 반영.

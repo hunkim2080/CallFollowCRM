@@ -208,6 +208,7 @@ fun ChatScreen(
     }
 
     val customer by viewModel.customer.collectAsState()
+    val chatCategory by viewModel.category.collectAsState()
     val messages by viewModel.messages.collectAsState()
     // 통화 구간 — 메시지와 시간순 병합해 타임라인에 통화 카드로 표시 (loadMessages 무손상, 렌더 레이어 병합).
     val callRecords by viewModel.callRecords.collectAsState()
@@ -602,13 +603,34 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(
-                            displayName,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TossTextPrimary,
-                            maxLines = 1
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                displayName,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TossTextPrimary,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            // 분류 태그(일당 등) — 대화방에 들어온 순간 "이 사람이 누구인지" 알 수 있게.
+                            //   (2026-09-16 사장님: "일당인데 고객인줄 착각할 수 있거든")
+                            //   홈 목록의 태그와 같은 보라색 — 같은 뜻이면 같은 모양이어야 헷갈리지 않는다.
+                            chatCategory?.let { cat ->
+                                Spacer(Modifier.width(7.dp))
+                                Box(
+                                    Modifier.clip(RoundedCornerShape(7.dp))
+                                        .background(Color(0xFFEFEBFF))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
+                                        fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF6D5AE6), maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                         if (customer?.name?.isNotBlank() == true) {
                             // 이름이 따로 있으면 작게 번호 함께 (헷갈리지 않게)
                             Text(
