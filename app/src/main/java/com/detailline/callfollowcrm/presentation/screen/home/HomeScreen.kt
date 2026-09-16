@@ -378,10 +378,14 @@ fun HomeScreen(
                 java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN)
                     .format(java.util.Date())
             }
-            // 프로토 renderAiBadge: "{대표 업종} AI". 업종 미선택 시 "줄눈" fallback.
+            // 프로토 renderAiBadge: "{대표 업종} AI".
+            // 업종 미선택 fallback 을 "줄눈" → "시공" 으로. (2026-09-16 사장님)
+            //   온보딩에서 업종을 안 묻기로 하면서 **대부분이 미선택 상태로 들어온다.**
+            //   그때 타일·도배 사장님 폰에 "줄눈 AI" 가 떠 있으면 남의 앱처럼 보인다.
+            //   모르면 모르는 대로 중립적으로 — 탭하면 업종 선택으로 간다(onOpenTradeSelect).
             val ownerTrade = remember {
                 (context.applicationContext as CallFollowCrmApplication).container.preferences
-                    .ownerTrades.firstOrNull()?.takeIf { it.isNotBlank() } ?: "줄눈"
+                    .ownerTrades.firstOrNull()?.takeIf { it.isNotBlank() } ?: "시공"
             }
             Row(
                 modifier = Modifier

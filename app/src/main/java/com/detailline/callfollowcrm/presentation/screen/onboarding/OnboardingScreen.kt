@@ -102,10 +102,21 @@ private val REGIONS = listOf(
 private data class Slide(val kicker: String, val title: String, val sub: String, val visual: @Composable (active: Boolean) -> Unit)
 
 /**
- * 온보딩 — 프로토타입 `.ob` 4단계 그대로.
- *   0) 스토리텔링 캐러셀(7장) → 1) 업종 선택 → 2) 상호·지역 → 3) 막내 비서 탄생.
- *   선택값은 prefs(ownerTrades / bizName / ownerRegions)에 저장 → AI 답장·가격표·길찾기에 사용.
- *   완료 시 onFinish() (호출부가 hasOnboarded=true 처리 + 권한/홈 이동).
+ * 온보딩 — **캐러셀 → 막내 비서 탄생** 두 단계. (2026-09-16 사장님)
+ *
+ *   "초반에 업종 고르는 거랑 업체명 물어보는 거 그냥 없애줘.
+ *    문자함에 들어와서 먼저 잘 이용하게 만드는 게 우선이야."
+ *
+ * 아직 앱이 뭘 해주는지도 모르는 사람에게 **폼부터 내미는 것**은
+ * 값을 보여주기 전에 대가를 요구하는 것이다. 여기서 이탈하면 그 뒤가 없다.
+ *
+ * 없앤 것과 대체 경로 — **기능은 안 없어졌다. 묻는 시점만 뒤로 갔다.**
+ *   · 업종(ownerTrades) — 안 고르면 AI 답변이 '일반 시공 사장님' 톤. 더보기에서 설정([TradeSelectScreen]).
+ *   · 상호(bizName)     — 비면 견적서에 "상호 미설정". 더보기 > 사업자 정보([BusinessInfoScreen])에서 설정.
+ *   · 활동 지역(ownerRegions) — **읽는 곳이 없다.** 저장만 하고 아무 화면도 안 쓰고 있었다(2026-09-16 확인). 같이 뺌.
+ *
+ * ⚠️ 아래 TradeStep·ProfileStep 은 **지우지 않고 남겨둔다** — 업종을 '자연스러운 순간'에
+ *    다시 묻기로 하면 그대로 재사용한다. 지금은 흐름에서 빠져 있을 뿐.
  */
 @Composable
 fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
@@ -147,7 +158,8 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
                 .padding(top = 16.dp, bottom = 24.dp)
         ) {
             when (step) {
-                0 -> StoryStep(onStart = { step = 1 }, onPageChanged = { storyPage = it })
+                // 캐러셀 → 곧장 '막내 탄생'. 중간의 업종·상호·지역 질문은 뺐다. (2026-09-16 사장님)
+                0 -> StoryStep(onStart = { step = 3 }, onPageChanged = { storyPage = it })
                 1 -> TradeStep(
                     selected = selectedTrades,
                     onBack = { step = 0 },
@@ -453,14 +465,19 @@ private fun ProfileStep(
 
 @Composable
 private fun BornStep(name: String, trades: List<String>, regions: List<String>, onStart: () -> Unit) {
-    val primary = trades.firstOrNull() ?: "시공"
+    // 업종을 안 물어보므로 대개 비어 있다. 비면 **아는 척하지 않는다** —
+    //   "[시공] 전문으로 세팅했어요" 는 아무것도 안 고른 사람에겐 거짓말로 들린다. (2026-09-16)
+    val primary = trades.firstOrNull()
     val extra = if (trades.size > 1) " 외 ${trades.size - 1}개" else ""
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.weight(1f))
         Box(
             Modifier.background(TossBlueSoft, RoundedCornerShape(999.dp)).padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
-            Text("[$primary] 막내 비서 탄생!", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
+            Text(
+                if (primary != null) "[$primary] 막내 비서 탄생!" else "막내 비서 탄생!",
+                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark
+            )
         }
         Spacer(Modifier.height(18.dp))
         Mascot(sizeDp = 120.dp)
@@ -478,9 +495,13 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
         Spacer(Modifier.height(8.dp))
         Text(
             buildAnnotatedString {
-                append((name.ifBlank { "사장님" }) + " · ")
-                withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append("$primary$extra") }
-                append(" 전문으로 세팅했어요\n이제 마지막으로 몇 가지만 연결하면 돼요")
+                if (primary != null) {
+                    append((name.ifBlank { "사장님" }) + " · ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append("$primary$extra") }
+                    append(" 전문으로 세팅했어요\n이제 마지막으로 몇 가지만 연결하면 돼요")
+                } else {
+                    append("사장님 문자를 보면서 옆에서 배울게요\n이제 마지막으로 몇 가지만 연결하면 돼요")
+                }
             },
             fontSize = 14.sp, color = TossTextSecondary, lineHeight = 21.sp, textAlign = TextAlign.Center
         )
