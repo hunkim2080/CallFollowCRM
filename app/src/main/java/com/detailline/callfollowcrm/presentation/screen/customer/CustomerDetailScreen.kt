@@ -129,6 +129,16 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.splitSiteAddress
 import kotlinx.coroutines.launch
 
+/**
+ * 메모를 저장해도 되는가 — 저장 경로가 두 곳(타이핑 debounce / 화면 나갈 때 flush)이라
+ * 규칙을 한 군데로 모은다. 눈에 안 보이는 사고라 단위 테스트로 고정한다.
+ *
+ * 규칙: **사람이 직접 고친 적이 있고**, 저장된 값과 실제로 다를 때만 쓴다.
+ *   dirty 가 빠지면 화면이 아직 빈 상태일 때의 ""가 저장으로 나가 메모를 덮어쓴다.
+ */
+internal fun shouldSaveMemo(dirty: Boolean, input: String, saved: String?): Boolean =
+    dirty && input != saved.orEmpty()
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomerDetailScreen(
@@ -151,6 +161,10 @@ fun CustomerDetailScreen(
     val scope = rememberCoroutineScope()
 
     var memoInput by remember(customer?.id) { mutableStateOf(customer?.memo.orEmpty()) }
+    // 사용자가 이 고객의 메모를 **실제로 고쳤는지**. 저장은 이게 true 일 때만 한다. (2026-09-16)
+    //   이게 없으면 화면이 아직 빈 상태(고객 로딩 전)일 때의 빈 글자가 저장으로 나가 메모를 덮어쓴다.
+    //   아래 DisposableEffect 설명 참고.
+    var memoDirty by remember(customer?.id) { mutableStateOf(false) }
     var datePickerOpen by remember { mutableStateOf(false) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
     var collabRefresh by remember(customer?.id) { mutableStateOf(0) }
@@ -216,15 +230,25 @@ fun CustomerDetailScreen(
     // memoInput 이 바뀔 때마다 이전 effect 가 cancel 되므로 마지막 변경만 저장됨.
     LaunchedEffect(memoInput, customer?.id) {
         val c = customer ?: return@LaunchedEffect
-        if (memoInput == c.memo) return@LaunchedEffect
+        if (!shouldSaveMemo(memoDirty, memoInput, c.memo)) return@LaunchedEffect
         kotlinx.coroutines.delay(400)
         viewModel.updateMemo(memoInput)
     }
     // 화면 떠날 때 마지막 변경분이 아직 debounce 중이면 flush — 저장 못 한 채 닫히지 않게.
+    //
+    // 주의 — memoDirty 가드가 없으면 여기서 **메모가 지워진다.** (2026-09-16 실기에서 발견)
+    //   화면이 열릴 때 customer 는 잠시 null 이라 memoInput 은 "" 로 시작한다.
+    //   고객이 도착하면 remember(customer?.id) 의 키가 null -> id 로 바뀌면서
+    //   **이전 DisposableEffect 가 버려지고 onDispose 가 터진다.**
+    //   그 순간 c.memo = 진짜 메모 / memoInput = ""(옛 상자) 이라 서로 다르다고 판단해
+    //   **빈 글자를 저장**해버렸다. 화면엔 글이 남아 있어서 눈치채기 어렵다.
+    //   (나갈 때 다시 써줘서 대개 복구되지만, 그 사이 앱이 꺼지거나 백업/캘린더 동기화가
+    //    돌면 빈 메모가 진짜가 된다.)
+    //   -> 사람이 직접 고친 적이 있을 때만 저장한다.
     DisposableEffect(customer?.id) {
         onDispose {
             val c = customer
-            if (c != null && memoInput != c.memo) {
+            if (c != null && shouldSaveMemo(memoDirty, memoInput, c.memo)) {
                 viewModel.updateMemo(memoInput)
             }
         }
@@ -794,7 +818,7 @@ fun CustomerDetailScreen(
                         Spacer(Modifier.weight(1f))
                         val savedMemo = c.memo.orEmpty()
                         val (memoStatus, memoStatusColor) = when {
-                            memoInput != savedMemo -> "저장 중…" to TossTextTertiary
+                            shouldSaveMemo(memoDirty, memoInput, savedMemo) -> "저장 중…" to TossTextTertiary
                             memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
                             else -> "자동으로 저장돼요" to TossTextTertiary
                         }
@@ -803,7 +827,7 @@ fun CustomerDetailScreen(
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = memoInput,
-                        onValueChange = { memoInput = it },
+                        onValueChange = { memoInput = it; memoDirty = true },
                         placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
                         modifier = Modifier.fillMaxWidth().height(140.dp).focusRequester(memoFocus),
                         colors = tossFieldColors()
