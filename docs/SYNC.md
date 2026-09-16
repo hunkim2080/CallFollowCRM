@@ -9901,3 +9901,10 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 - 실측: 사장님 받은 문자 1,085통 → 50통 감지, 오탐 0. 테스트 13건(실제 문장)
 - 변경: 앱 전용. 잔금 받음 처리는 기존 updateBalancePaidAt 경로 재사용
 - commit: ce8e28ef(판별기), dd6fe14e(화면)
+
+## 2026-09-17 04:20 · android
+플레이 정책 점검 + 조치 — 통화 녹음 서버 전송에 고지·동의 게이트, 동의서 문구 수정, 주소 아파트명 유지
+- ⚠️ 서버: server/static/consent_required.html 수정됨. **배포 안 함** (사장님 확인 후)
+- 변경: prefs.callSummaryAllowed 로 업로드 게이트. 기존 사용자도 재동의 필요(기본 false)
+- commit: d07fdc9b · 점검 보고서 artifact/2xszdaGaG2ED6AyY5pbFvS
+- 남은 것: 콘솔 데이터 안전에 'Voice or sound recordings' 확인(사장님), READ_CALL_LOG 소명 재제출, CAMERA 제거 검토
