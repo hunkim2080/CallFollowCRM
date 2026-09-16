@@ -439,6 +439,10 @@ fun ChatScreen(
     // 프로토 chat-actions [문구 넣기] → 템플릿 picker 시트.
     var tplPickerOpen by remember { mutableStateOf(false) }
     var confirmDeleteTpl by remember { mutableStateOf<Long?>(null) }   // 자주 쓰는 문구 삭제 확인(앱 기조: 삭제류 확인창). (2026-07-30)
+    // 문구 꾹 누르기 → 액션 시트 / 수정 / 이름 바꾸기. (2026-09-16 사장님 개편)
+    var tplActions by remember { mutableStateOf<MessageTemplateEntity?>(null) }
+    var tplEditBody by remember { mutableStateOf<MessageTemplateEntity?>(null) }
+    var tplEditTitle by remember { mutableStateOf<MessageTemplateEntity?>(null) }
     // ▶ 보내기 확인 다이얼로그 — null 이면 안 떠 있음.
     //   사장님이 ▶ 탭하면 (body, photos) 스냅샷 저장 + 다이얼로그 표시. [보내기] 탭해야 진짜 발송.
     var sendConfirm by remember { mutableStateOf<Pair<String, List<android.net.Uri>>?>(null) }
@@ -1034,6 +1038,8 @@ fun ChatScreen(
                 onOpenEstimate = { triggerActionByType("send_estimate") },
                 onOpenSchedule = { myScheduleOpen = true },
                 onOpenTemplate = { tplPickerOpen = true },
+                // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님 · 2026-09-16 자리 이동)
+                onSaveAsTemplate = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
                 focusRequester = composerFocusRequester,
                 onGenerateReply = {
                     awaitingManualReply = true
@@ -1363,11 +1369,42 @@ fun ChatScreen(
                 }
                 tplPickerOpen = false
             },
-            onDelete = { id -> confirmDeleteTpl = id },
-            // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님)
-            onSaveCurrent = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
-            canSaveCurrent = input.isNotBlank() || attachedPhotos.isNotEmpty(),
+            // 삭제는 꾹 누르기 안으로 들어갔다 — 시트에서 ✕ 를 없앴다. (2026-09-16 사장님 개편)
+            onLongPress = { tpl -> tplActions = tpl },
             onDismiss = { tplPickerOpen = false }
+        )
+    }
+
+    // 문구 꾹 누르기 → [문구 수정] [이름 바꾸기] [삭제]. (2026-09-16 사장님 개편)
+    //   꺼내 쓰는 줄에 ✕ 가 붙어 있으면, 고르려다 손가락이 오른쪽으로 가면 지우게 된다.
+    //   수정은 여기 없어서 설정까지 가야 했다 — 계좌번호 한 자리 고치려고.
+    tplActions?.let { tpl ->
+        TemplateActionSheet(
+            template = tpl,
+            onEdit = { tplEditBody = tpl; tplActions = null },
+            onRename = { tplEditTitle = tpl; tplActions = null },
+            onDelete = { confirmDeleteTpl = tpl.id; tplActions = null },
+            onDismiss = { tplActions = null }
+        )
+    }
+    tplEditBody?.let { tpl ->
+        TemplateTextDialog(
+            title = "문구 수정",
+            label = "문구 내용",
+            initial = tpl.body,
+            multiline = true,
+            onConfirm = { viewModel.updateTemplateBody(tpl.id, it); tplEditBody = null },
+            onDismiss = { tplEditBody = null }
+        )
+    }
+    tplEditTitle?.let { tpl ->
+        TemplateTextDialog(
+            title = "이름 바꾸기",
+            label = "문구 이름",
+            initial = tpl.title,
+            multiline = false,
+            onConfirm = { viewModel.updateTemplateTitle(tpl.id, it); tplEditTitle = null },
+            onDismiss = { tplEditTitle = null }
         )
     }
 
@@ -1558,9 +1595,8 @@ fun ChatScreen(
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
             },
-            onDelete = { id -> confirmDeleteTpl = id },
-            onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
-            canSaveCurrent = input.isNotBlank(),
+            // 삭제는 꾹 누르기 안으로 들어갔다 — 시트에서 ✕ 를 없앴다. (2026-09-16 사장님 개편)
+            onLongPress = { tpl -> tplActions = tpl },
             onDismiss = {
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
@@ -3605,7 +3641,14 @@ private fun ComposerActionMenu(
     onEstimate: () -> Unit,
     onSchedule: () -> Unit,
     onTemplate: () -> Unit,
-    onGenerateReply: () -> Unit
+    onGenerateReply: () -> Unit,
+    /**
+     * 입력창에 쓴 글을 문구로 저장. **글이 있을 때만** 보인다. (2026-09-16 사장님 개편)
+     *   전엔 [문구 넣기] 시트 맨 위에 있었는데, 거기는 '꺼내 쓰는 방'이라 자리가 안 맞았다.
+     *   글을 다 쓴 그 순간, 손가락이 이미 ⊕ 근처에 있는 여기가 맞다.
+     */
+    canSaveText: Boolean = false,
+    onSaveText: () -> Unit = {}
 ) {
     var open by remember { mutableStateOf(false) }
     val rot by androidx.compose.animation.core.animateFloatAsState(
@@ -3669,6 +3712,9 @@ private fun ComposerActionMenu(
                         ActionMenuRow(Icons.Default.DateRange, "내 일정 확인") { open = false; onSchedule() }
                         ActionMenuRow(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { open = false; onTemplate() }
                         ActionMenuRow(Icons.Default.AutoAwesome, "다음 답변 AI 추천") { open = false; onGenerateReply() }
+                        if (canSaveText) {
+                            ActionMenuRow(Icons.Default.Add, "이 글을 문구로 저장") { open = false; onSaveText() }
+                        }
                     }
                 }
             }
@@ -3800,6 +3846,8 @@ private fun Composer(
     onOpenSchedule: () -> Unit = {},
     onOpenTemplate: () -> Unit = {},
     onGenerateReply: () -> Unit = {},   // ⊕ "다음 답변 AI 추천" — 1개 만들어 입력칸에. (2026-08-14)
+    /** ⊕ "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 메뉴에 뜬다. (2026-09-16 사장님 개편) */
+    onSaveAsTemplate: () -> Unit = {},
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null
 ) {
     // 프로토 .composer — 흰 바 + 상단 테두리 + padding 9/14/16.
@@ -3868,7 +3916,9 @@ private fun Composer(
                     onEstimate = onOpenEstimate,
                     onSchedule = onOpenSchedule,
                     onTemplate = onOpenTemplate,
-                    onGenerateReply = onGenerateReply
+                    onGenerateReply = onGenerateReply,
+                    canSaveText = input.isNotBlank() || attachments.isNotEmpty(),
+                    onSaveText = onSaveAsTemplate
                 )
             }
             // field — 회색 알약(radius22) : [📷 왼쪽][textarea][✨ 오른쪽·글 있을 때만]
@@ -4464,9 +4514,14 @@ private fun TemplatePickerDialog(
     category: String,
     templates: List<MessageTemplateEntity>,
     onPick: (MessageTemplateEntity) -> Unit,
-    onDelete: (Long) -> Unit = {},
-    onSaveCurrent: () -> Unit = {},
-    canSaveCurrent: Boolean = false,
+    /**
+     * 꾹 누르기 → 수정·이름 바꾸기·삭제. (2026-09-16 사장님 개편)
+     *
+     * 저장(＋)은 이 시트에서 **뺐다** — 여기는 '꺼내 쓰는 방'이고, 저장은 ⊕ 메뉴로 갔다.
+     * 한 화면에 '꺼내기'와 '집어넣기' 두 동사가 섞이면 제일 좋은 자리를 지금 안 할 일이 차지한다
+     * (입력창이 비면 못 누르는 죽은 줄이 맨 위에 있었다).
+     */
+    onLongPress: (MessageTemplateEntity) -> Unit = {},
     /** 문구ID → 첫 사진 URI. 있으면 목록 행에 썸네일 표시. (2026-07-18 사장님) */
     photoByTemplate: Map<Long, String> = emptyMap(),
     onDismiss: () -> Unit
@@ -4505,45 +4560,23 @@ private fun TemplatePickerDialog(
         ) {
             SheetGrabber()
             Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Spacer(Modifier.height(12.dp))
-                // ＋ 새 문구 — 입력창에 쓴 글을 그대로 문구로 저장(키보드 없이, 채팅 흐름 그대로).
-                val flashing = savedFlash.value
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (flashing) Color(0xFFE6F7EF) else TossBlueSoft)
-                        // 중복 저장 방지: 저장 직후(flashing 1.6초) 재탭 무시 — "누르는 만큼 저장"되던 버그. (2026-07-18 사장님)
-                        .clickable {
-                            if (flashing || !canSaveCurrent) return@clickable
-                            onSaveCurrent()
-                            savedFlash.value = true
-                        }
-                        .padding(horizontal = 12.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(if (flashing) "✓" else "＋", color = if (flashing) TossSuccess else TossBlue, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        when {
-                            flashing -> "문구로 저장됐어요!"
-                            canSaveCurrent -> "지금 입력창에 쓴 글을 문구로 저장"
-                            else -> "입력창에 글을 쓴 뒤 누르면 문구로 저장돼요"
-                        },
-                        color = if (flashing) TossSuccess else TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(5.dp))
+                // 꾹 누르기는 모르면 못 찾는다 → 제목 밑에 조용히 한 줄. (2026-09-16 사장님 개편)
+                Text(
+                    "탭하면 입력창에 들어가요 · 꾹 누르면 수정·삭제",
+                    color = TossTextTertiary, fontSize = 11.5.sp
+                )
+                Spacer(Modifier.height(12.dp))
                 if (filtered.isEmpty()) {
                     Text(
-                        "아직 저장된 문구가 없어요. 위 ＋ 로 바로 추가할 수 있어요.",
+                        "아직 저장된 문구가 없어요. 문자를 쓴 다음 ⊕ 에서 [이 글을 문구로 저장] 을 누르면 여기 쌓여요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextTertiary
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.height(360.dp),
+                        // 내용만큼만 — 고정 높이면 문구가 2개여도 아래가 텅 빈다. (2026-09-16 사장님 스샷)
+                        modifier = Modifier.heightIn(max = 360.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(filtered, key = { it.id }) { tpl ->
@@ -4561,7 +4594,12 @@ private fun TemplatePickerDialog(
                             ) {
                                 Row(
                                     modifier = Modifier.weight(1f)
-                                        .clickable(interactionSource = pickInteraction, indication = null) { onPick(tpl) }
+                                        .combinedClickable(
+                                            interactionSource = pickInteraction,
+                                            indication = null,
+                                            onClick = { onPick(tpl) },
+                                            onLongClick = { onLongPress(tpl) }
+                                        )
                                         .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -4582,17 +4620,11 @@ private fun TemplatePickerDialog(
                                         )
                                         Spacer(Modifier.height(3.dp))
                                         Text(
-                                            tpl.body.ifBlank { "📷 사진" }, color = TossTextTertiary, fontSize = 12.5.sp,  // 프로토 body: --t3 12.5
+                                            // 본문이 흐린 회색이면 "아직 안 쓴 칸"처럼 보인다 — 저장된 내용인데. (2026-09-16 사장님)
+                                            tpl.body.ifBlank { "📷 사진" }, color = TossTextSecondary, fontSize = 12.5.sp,
                                             maxLines = 2, overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                }
-                                // ✕ 삭제 — 그 자리에서 바로. (확인창 없이 toast — 다시 ＋ 로 복구 가능)
-                                Box(
-                                    modifier = Modifier.clickable { onDelete(tpl.id) }
-                                        .padding(horizontal = 14.dp, vertical = 14.dp)
-                                ) {
-                                    Text("✕", color = TossTextTertiary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -4606,6 +4638,109 @@ private fun TemplatePickerDialog(
             ) { Text("닫기", color = TossTextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
         }
     }
+}
+
+/**
+ * 문구 꾹 누르기 → 할 수 있는 일들. (2026-09-16 사장님 개편)
+ *
+ * 왜 시트인가: 꺼내 쓰는 줄에 ✕ 를 붙여두면 **고르려다 지운다.**
+ * 수정도 여기 없어서, 계좌번호 한 자리 고치려고 설정까지 가야 했다.
+ */
+@Composable
+private fun TemplateActionSheet(
+    template: MessageTemplateEntity,
+    onEdit: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    androidx.activity.compose.BackHandler { onDismiss() }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 18.dp)
+        ) {
+            SheetGrabber()
+            Text(template.title, color = TossTextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+            Spacer(Modifier.height(3.dp))
+            Text(
+                template.body.replace("\n", " ").ifBlank { "📷 사진" },
+                color = TossTextTertiary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(12.dp))
+            TemplateActionRow("✏️", "문구 수정", TossTextPrimary, onEdit)
+            TemplateActionRow("🏷️", "이름 바꾸기", TossTextPrimary, onRename)
+            TemplateActionRow("🗑️", "삭제", com.detailline.callfollowcrm.presentation.theme.TossError, onDelete)
+            Spacer(Modifier.height(6.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                    .clickable { onDismiss() }.padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("닫기", color = TossTextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+        }
+    }
+}
+
+@Composable
+private fun TemplateActionRow(emoji: String, label: String, tint: Color, onTap: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .clickable { onTap() }.padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(emoji, fontSize = 15.sp)
+        Spacer(Modifier.width(11.dp))
+        Text(label, color = tint, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 문구 수정 / 이름 바꾸기 공용 입력창. 빈 값으로는 저장 안 한다(실수로 지워지는 것 방지). */
+@Composable
+private fun TemplateTextDialog(
+    title: String,
+    label: String,
+    initial: String,
+    multiline: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
+        title = { Text(title, color = TossTextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp) },
+        text = {
+            Column {
+                Text(label, color = TossTextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(7.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = !multiline,
+                    minLines = if (multiline) 4 else 1,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = text.isNotBlank(),
+                onClick = { onConfirm(text.trim()) }
+            ) { Text("저장", color = if (text.isNotBlank()) TossBlue else TossTextTertiary, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) }
+        }
+    )
 }
 
 private fun categoryLabel(categoryName: String): String =

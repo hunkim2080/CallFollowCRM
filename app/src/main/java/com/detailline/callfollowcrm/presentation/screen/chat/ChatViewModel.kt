@@ -121,6 +121,24 @@ class ChatViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** 문구 넣기 시트에서 바로 문구 삭제 (2026-06-07). */
+    /** 문구 본문 수정 — 꾹 누르기 > [문구 수정]. (2026-09-16 사장님 개편) */
+    fun updateTemplateBody(id: Long, body: String) = viewModelScope.launch {
+        val t = container.messageTemplateRepository.findById(id) ?: return@launch
+        val b = body.trim()
+        if (b.isBlank() || b == t.body) return@launch
+        container.messageTemplateRepository.update(t.copy(body = b))
+        _toast.value = "문구를 고쳤어요"
+    }
+
+    /** 문구 이름 수정 — 꾹 누르기 > [이름 바꾸기]. */
+    fun updateTemplateTitle(id: Long, title: String) = viewModelScope.launch {
+        val t = container.messageTemplateRepository.findById(id) ?: return@launch
+        val n = title.trim()
+        if (n.isBlank() || n == t.title) return@launch
+        container.messageTemplateRepository.update(t.copy(title = n))
+        _toast.value = "이름을 바꿨어요"
+    }
+
     fun deleteTemplate(id: Long) = viewModelScope.launch {
         runCatching { container.messageTemplateRepository.deleteById(id) }
         _toast.value = "문구를 지웠어요"
