@@ -47,12 +47,12 @@ class AddressExtractorTest {
      *           DONG_HO_TAIL 에 `호` 단독 케이스 추가.
      */
     @Test
-    fun `호만 있는 케이스 — 현재 동작 baseline (호 합치기 실패)`() {
+    fun `호만 있는 케이스 — 2026-09-16 해결됨`() {
         val r = AddressExtractor.extractOne("강남구 역삼동 502호 와주세요")
         assertNotNull(r)
-        // 현재 동작: "강남구 역삼동 502" 까지만 매칭, "호" 누락
+        // 2026-09-16 해결: 번지 뒤에 바로 '호' 가 붙으면 이어붙인다 → "강남구 역삼동 502호"
         assertTrue("역삼동까지는 매칭. 실제: $r", r!!.contains("역삼동"))
-        // TODO: r.contains("502호") 가 통과해야 정상. 현재 실패 상태.
+        assertTrue("'호' 가 잘리면 안 된다. 실제: $r", r.contains("502호"))
     }
 
     // ---------- 패턴 3: 아파트 단지 ----------
@@ -72,11 +72,13 @@ class AddressExtractorTest {
      *   해결안: 패턴3 prefix 를 optional 로 하거나 `(?:[가-힣]+\s)?` 분리 처리.
      */
     @Test
-    fun `힐스테이트 단독 + 호 — 현재 미매칭 baseline`() {
+    fun `힐스테이트 단독 + 호 — 2026-09-16 해결됨`() {
+        // 예전엔 pattern3 이 브랜드 **앞말이 붙어 있어야** 매칭돼서(={2,15}) 통째로 놓쳤다.
+        //   앞말을 optional({0,15})로 바꿔 해결. 넉 달간 TODO 로만 적혀 있던 것.
         val r = AddressExtractor.extractOne("동대문구 답십리 힐스테이트 305호")
-        // 현재 동작: pattern1/2/3 전부 매칭 실패 → null
-        // TODO: r != null 이 되어야 정상.
-        assertNull("현재 미매칭. 패치 후 NotNull 로 바꿔야 함", r)
+        assertNotNull("이제 잡혀야 한다", r)
+        assertTrue("힐스테이트와 호수가 들어가야 함. 실제: $r",
+            r!!.contains("힐스테이트") && r.contains("305호"))
     }
 
     @Test

@@ -56,9 +56,20 @@ object AddressExtractor {
 
     /** 광역시·특별시 짧은 이름 — roughSite 가 "구"를 우선 쓸지 판단. */
     private val METRO_CITIES = listOf("서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종")
-    private val BUILDING_RX = Regex(
-        "[가-힣A-Za-z0-9]{1,15}(?:아파트|빌라|오피스텔|타워|팰리스|푸르지오|자이|힐스테이트|엠밸리|파크|캐슬|빌딩)"
-    )
+    /**
+     * 아파트·건물 꼬리말. **한 곳에서만 관리**한다(roughSite 와 추출 패턴이 따로 놀지 않게).
+     *
+     * 2026-09-16 사장님 "주소 캐치를 어떤 방식으로 하길래 이렇게 못하지?" → 실측해보니
+     *   목록에 없는 브랜드(e편한세상·래미안·아이파크·더샵…)면 통째로 못 잡고 있었다.
+     *   사장님 고객은 대부분 "○○아파트 101동 1502호" 로 말하는데 거기가 제일 약했다.
+     */
+    private const val BRAND =
+        "(?:아파트|빌라|연립|맨션|오피스텔|타워|팰리스|푸르지오|자이|힐스테이트|엠밸리|파크|캐슬|" +
+        "리버|뷰|빌딩|e편한세상|이편한세상|래미안|아이파크|더샵|센트레빌|롯데캐슬|해링턴|스카이|" +
+        "베르디움|리슈빌|한라비발디|더휴|데시앙|어울림|꿈에그린|하이페리온|트라팰리스|" +
+        "마을|단지|주공|빌리지|시티|프라자|스퀘어)"
+
+    private val BUILDING_RX = Regex("[가-힣A-Za-z0-9]{1,15}$BRAND")
     private val SI_GUN_RX = Regex("([가-힣]{2,5})(?:시|군)(?=\\s|\\)|$)")
     private val GU_RX = Regex("([가-힣]{1,4})구(?=\\s|\\)|$)")
 
@@ -128,8 +139,19 @@ object AddressExtractor {
      *   "한강푸르지오 1234호"
      */
     private val pattern3 = Regex(
-        "[가-힣A-Za-z]{2,15}(?:아파트|빌라|오피스텔|타워|팰리스|푸르지오|자이|힐스테이트|엠밸리|파크|캐슬|리버|뷰)" +
-        "(?:\\s*\\d{1,3}단지)?\\s*$APT_DONG_HO"
+        // 앞말은 **있어도 되고 없어도 된다**({0,15}). 전엔 {2,15} 라 "힐스테이트 1502호" 처럼
+        //   브랜드가 문장 맨 앞에 오면 못 잡았다. (2026-09-16 실측)
+        "[가-힣A-Za-z0-9]{0,15}$BRAND(?:\\s*\\d{1,2}차)?(?:\\s*\\d{1,3}단지)?\\s*$APT_DONG_HO"
+    )
+
+    /**
+     * 패턴 2b: **번지 숫자가 없는** "지역 + 건물 + 동호수". (2026-09-16 신설)
+     *   "송파구 잠실엘스 101동 1503호" · "천호동 래미안 101동 1502호"
+     *   패턴2 는 번지(숫자)를 **반드시** 요구해서 이런 흔한 형태를 통째로 놓쳤다.
+     *   대신 여기선 "{N}동 {N}호" 를 반드시 요구한다 — 그게 "이건 주소다" 의 증거라 헛다리를 안 짚는다.
+     */
+    private val pattern2b = Regex(
+        "(?:$SIGUNGU|$EUPMYEONDONG)\\s*(?:[가-힣A-Za-z0-9]{1,15}\\s*){0,2}?\\d{1,4}동\\s*\\d{1,5}호"
     )
 
     /**
@@ -153,6 +175,8 @@ object AddressExtractor {
         pattern2.find(body)?.let { m ->
             return appendDongHo(body, m.range, m.value.trim())
         }
+        // 번지 없는 "지역 + 건물 + 동호수" → 그 다음. (2026-09-16)
+        pattern2b.find(body)?.let { return it.value.trim() }
         // 패턴 3 (아파트) 는 이미 동호수 포함이라 그대로 반환.
         pattern3.find(body)?.let { return it.value.trim() }
         return null
@@ -162,6 +186,11 @@ object AddressExtractor {
     private fun appendDongHo(body: String, range: IntRange, base: String): String {
         if (range.last + 1 >= body.length) return base
         val tail = body.substring(range.last + 1).take(40)
+        // "강남구 역삼동 502호" — 502 가 번지로 먼저 먹혀 '호' 만 남던 것. 바로 뒤가 '호' 면 붙인다.
+        //   (2026-05-29 부터 TODO 로 적혀만 있던 것 — 2026-09-16 처리)
+        if (tail.startsWith("호") && base.lastOrNull()?.isDigit() == true) {
+            return base + "호"
+        }
         val dongHo = DONG_HO_TAIL.find(tail)?.value?.trim() ?: return base
         return "$base $dongHo"
     }
