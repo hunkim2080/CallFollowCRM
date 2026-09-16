@@ -285,7 +285,13 @@ fun CustomerDetailScreen(
 
         Column(
             Modifier
-                .padding(inner)
+                // ⬇️ top 만 받는다. inner 를 통짜로 쓰면 **내비게이션 바 자리를 두 번 비운다**.
+                //   이 화면은 하단 탭바(RingTabBar) 위에 여렸고, 그 탭바가 이미 navigationBarsPadding 을 가지고 있다.
+                //   근데 여기 Scaffold 는 bottomBar 가 없어 기본값으로 systemBars 하단 인셋(3버튼 바 ≈ 48dp)을
+                //   또 넘겨줘서, 마지막 카드 밑에 **빈 회색 띄**가 생겼다.
+                //   (2026-09-16 사장님 "여기 여백을 이렇게 남긴 이유가뭐야~?")
+                //   홈·일정·정산·통계 탭은 원래부터 top 만 받고 있었다 — 이 화면만 혼자 달람다.
+                .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 // imePadding() 을 verticalScroll 전에 둬서, 키보드가 올라오면 스크롤 영역이
                 // 자동으로 축소 → 포커스된 인라인 composer 가 키보드 위로 자동 정렬됨.
