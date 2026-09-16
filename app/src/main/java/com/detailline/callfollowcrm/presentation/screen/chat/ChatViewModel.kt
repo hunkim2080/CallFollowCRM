@@ -1664,6 +1664,37 @@ class ChatViewModel(
         _toast.value = "시공일을 등록했어요"
     }
 
+    /**
+     * 문자에서 감지한 주소를 **지도에서 찾아본다.** (2026-09-16 사장님)
+     *   못 찾으면 null — 실패가 아니라 "지도가 모른다"일 뿐이다. 문자에 적힌 그대로 등록하면 된다.
+     *   등록 확인창이 열릴 때 1회만 부른다(사장님이 탭했을 때만 = 비용·트래픽 최소).
+     */
+    suspend fun lookupAddress(
+        detected: String, contextBody: String?
+    ): com.detailline.callfollowcrm.ai.AddressResolveRepository.Resolved? {
+        val parts = com.detailline.callfollowcrm.util.AddressExtractor.splitDongHo(detected)
+        // 동·호수를 뗀 앞부분이 지도 검색에 더 잘 맞는다("래미안 101동 1502호" 보다 "천호동 래미안").
+        val candidates = listOfNotNull(parts.base.takeIf { it.isNotBlank() }, detected)
+        return runCatching {
+            container.addressResolveRepository.resolve(candidates, contextBody)
+        }.getOrNull()
+    }
+
+    /**
+     * 문자 속 주소 링크 → **사장님이 확인한 뒤** 현장 주소로 등록. (2026-09-16 사장님)
+     *   ⚠️ 자동 저장 아님. 확인창에서 [이 주소로 등록]을 눌러야만 여기 온다.
+     *      (예전엔 감지되면 확인 없이 저장되고 협업 사장에게까지 전파됐다 — 그걸 없앴다)
+     */
+    fun setSiteAddress(address: String) = viewModelScope.launch {
+        val clean = address.trim()
+        if (clean.isBlank()) return@launch
+        val id = ensureCustomerId()
+        withContext(Dispatchers.IO + NonCancellable) {
+            runCatching { container.customerRepository.updateAddress(id, clean) }
+        }
+        _toast.value = "현장 주소를 등록했어요"
+    }
+
     /** 문자 속 날짜 링크 → A/S 예약일 등록(하루). Customer 없으면 upsert 후. (2026-08-04 사장님) */
     fun setAsScheduleDate(timestampMs: Long) = viewModelScope.launch {
         val id = ensureCustomerId()

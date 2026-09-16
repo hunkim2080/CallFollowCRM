@@ -91,6 +91,8 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
@@ -830,6 +832,8 @@ fun ChatScreen(
                                                 val parts = value.split("|", limit = 2)
                                                 parts[0].toLongOrNull()?.let { LinkTapAction.DateHit(it, parts.getOrNull(1).orEmpty()) }
                                             }
+                                            // 주소 — 원문 전체도 같이 넘긴다(지도가 못 찾으면 서버 AI 가 읽는다).
+                                            "ADDR" -> LinkTapAction.Address(value, msg.body)
                                             else -> null
                                         }
                                     }
@@ -1156,7 +1160,8 @@ fun ChatScreen(
     }
 
     // 문자 속 전화/날짜 링크 탭 → 액션 시트. (2026-08-04 사장님)
-    linkActionTarget?.let { target ->
+    //   주소(Address)는 입력칸이 있어 아래 인라인 오버레이가 맡는다 → 여기선 제외.
+    linkActionTarget?.takeIf { it !is LinkTapAction.Address }?.let { target ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val clipboard = LocalClipboardManager.current
         ModalBottomSheet(
@@ -1183,6 +1188,10 @@ fun ChatScreen(
                             clipboard.setText(AnnotatedString(pretty)); linkActionTarget = null
                         })
                     }
+                    // 주소는 아래 별도 오버레이가 담당 — 여기선 아무것도 안 그린다.
+                    //   (동/호수 **입력칸**이 있어서 ModalBottomSheet 를 쓰면 갤S9 에서 키보드가 통째로 가린다.
+                    //    시트는 별도 윈도우라 imePadding 이 안 먹음 → 액티비티 창 인라인 오버레이로 뺐다.)
+                    is LinkTapAction.Address -> Unit
                     is LinkTapAction.DateHit -> {
                         val label = java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(target.epochMs))
                         // '화요일'·'내일' 같은 말은 여기서 이미 '진짜 날짜'로 바뀌어 제목에 뜬다 → 무엇으로 등록되는지 명확.
@@ -1222,6 +1231,17 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    // 문자 속 주소 탭 → "이 주소로 등록할까요?" (2026-09-16 사장님)
+    (linkActionTarget as? LinkTapAction.Address)?.let { target ->
+        AddressRegisterSheet(
+            detected = target.raw,
+            currentAddress = customer?.address,
+            onLookup = { viewModel.lookupAddress(target.raw, target.body) },
+            onConfirm = { full -> viewModel.setSiteAddress(full); linkActionTarget = null },
+            onDismiss = { linkActionTarget = null }
+        )
     }
 
     // 말풍선 꾹 누름 → [🔖 저장 / 📋 복사] BottomSheet.
@@ -3085,6 +3105,11 @@ private fun playMmsVideo(context: android.content.Context, partUri: android.net.
 /** 문자 속 링크 탭 대상 — 전화(숫자) / 날짜(자정 epoch). (2026-08-04 사장님) */
 private sealed interface LinkTapAction {
     data class Phone(val digits: String) : LinkTapAction
+    /**
+     * 문자에서 감지한 현장 주소. (2026-09-16 사장님)
+     * @param raw 문자에 적힌 그대로 / @param body 그 문자 전체(지도가 못 찾을 때 서버 AI 가 읽을 재료)
+     */
+    data class Address(val raw: String, val body: String) : LinkTapAction
     /** @param raw 문자에 실제로 쓰인 표현("화요일"·"내일" 등) — 시트에 "왜 이 날짜인지" 설명용. */
     data class DateHit(val epochMs: Long, val raw: String) : LinkTapAction
 }
@@ -3116,6 +3141,9 @@ private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): Annotated
                 spans.add(Span(h.start, h.end, "PHONE", h.phoneDigits ?: h.raw))
             com.detailline.callfollowcrm.util.MessageEntities.Type.DATE ->
                 spans.add(Span(h.start, h.end, "DATE", "${h.epochMs ?: 0L}|${h.raw}"))
+            // 주소도 전화·날짜와 똑같이 파란 밑줄 → 탭하면 등록 확인창. (2026-09-16 사장님)
+            com.detailline.callfollowcrm.util.MessageEntities.Type.ADDRESS ->
+                spans.add(Span(h.start, h.end, "ADDR", h.raw))
         }
     }
     if (spans.isEmpty()) return AnnotatedString(body)
@@ -4581,6 +4609,231 @@ private fun DepositFollowupDialog(
         },
         containerColor = Color.White
     )
+}
+
+/**
+ * 문자 속 주소 탭 → **등록 확인창**. (2026-09-16 사장님 설계 그대로)
+ *
+ * 사장님 말: "클릭하면 '이 주소로 등록하시겠습니까?' … 상세 주소를 검색되게 만들고 맞는지 확인 받고
+ *            동 호수 적도록. 상대방이 동호수를 적어서 보냈다면 자동으로 기입. **최종 확인은 사용자가.**"
+ *
+ * 🔴 왜 확인을 받나 — 예전엔 문자에서 주소가 감지되면 **묻지도 않고 저장**됐고, 협업 중이면
+ *    상대 사장님 폰까지 그 주소가 전파됐다. 잘못 잡으면 사장님이 엉뚱한 곳으로 간다.
+ *    그래서 저장은 오직 여기서 [이 주소로 등록]을 눌렀을 때만 일어난다.
+ *
+ * ⚠️ ModalBottomSheet 가 아니라 **액티비티 창 인라인 오버레이**다 — 동/호수 입력칸이 있어서.
+ *    시트는 별도 윈도우라 imePadding 이 안 먹어 갤S9 에서 키보드가 통째로 가린다(이 파일의 다른 입력 시트와 같은 이유).
+ *
+ * @param detected 문자에 적힌 그대로의 주소
+ * @param onLookup 지도에서 찾아보기(서버). 못 찾으면 null — 실패가 아니라 "지도가 모른다"
+ */
+@Composable
+private fun AddressRegisterSheet(
+    detected: String,
+    currentAddress: String?,
+    onLookup: suspend () -> com.detailline.callfollowcrm.ai.AddressResolveRepository.Resolved?,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    // 고객이 동·호수까지 적어 보냈으면 칸이 이미 채워진 채로 열린다. 안 적었으면 빈 칸.
+    val parts = remember(detected) { com.detailline.callfollowcrm.util.AddressExtractor.splitDongHo(detected) }
+    var dong by remember(detected) { mutableStateOf(parts.dong.orEmpty()) }
+    var ho by remember(detected) { mutableStateOf(parts.ho.orEmpty()) }
+
+    // 지도 검색 — 창이 열릴 때 딱 한 번. (사장님이 탭했을 때만 = 서버 호출 최소)
+    var looking by remember(detected) { mutableStateOf(true) }
+    var found by remember(detected) {
+        mutableStateOf<com.detailline.callfollowcrm.ai.AddressResolveRepository.Resolved?>(null)
+    }
+    // 지도가 찾아준 주소를 쓸지, 문자에 적힌 그대로 쓸지 — 사장님이 고른다. 기본은 지도(정확해서).
+    var useFound by remember(detected) { mutableStateOf(true) }
+    LaunchedEffect(detected) {
+        found = onLookup()
+        looking = false
+    }
+
+    val baseAddr = (if (useFound) found?.resolved else null) ?: parts.base.ifBlank { detected }
+    // 최종 주소 = 기준 주소 + 동 + 호 (빈 칸은 빠짐)
+    val finalAddr = listOfNotNull(
+        baseAddr.trim().takeIf { it.isNotBlank() },
+        dong.trim().takeIf { it.isNotBlank() }?.let { "${it}동" },
+        ho.trim().takeIf { it.isNotBlank() }?.let { "${it}호" }
+    ).joinToString(" ")
+
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    androidx.activity.compose.BackHandler { onDismiss() }
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                // 더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .heightIn(max = 620.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp).padding(top = 6.dp, bottom = 22.dp)
+        ) {
+            SheetGrabber()
+            Text("\uD83D\uDCCD 이 주소로 등록할까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+                color = TossTextPrimary)
+            Spacer(Modifier.height(3.dp))
+            Text("등록을 눌러야만 저장돼요.", fontSize = 12.sp, color = TossTextTertiary)
+
+            // ── 문자에 적힌 그대로 ──
+            Spacer(Modifier.height(14.dp))
+            AddrChoiceCard(
+                label = "문자에 적힌 주소",
+                value = detected,
+                selected = !useFound || found == null,
+                onClick = { useFound = false }
+            )
+
+            // ── 지도에서 찾은 것 ──
+            Spacer(Modifier.height(8.dp))
+            when {
+                looking -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = TossBlue
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("지도에서 찾는 중…", fontSize = 12.sp, color = TossTextTertiary)
+                }
+                found != null -> {
+                    AddrChoiceCard(
+                        label = "\uD83D\uDD0E 지도에서 찾은 주소",
+                        value = listOfNotNull(
+                            found!!.roadAddress ?: found!!.resolved,
+                            found!!.placeName?.let { "($it)" }
+                        ).joinToString(" "),
+                        selected = useFound,
+                        onClick = { useFound = true }
+                    )
+                    // AI 가 뽑아낸 건 지도가 확인 못 한 것일 수 있다 → 사장님이 한 번 더 보게 표시.
+                    if (found!!.confidence < 0.7) {
+                        Spacer(Modifier.height(4.dp))
+                        Text("\u26A0\uFE0F 지도에서 확인은 못 했어요 — 맞는지 봐주세요",
+                            fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold)
+                    }
+                }
+                else -> Text("지도에서는 못 찾았어요 — 문자에 적힌 대로 등록돼요.",
+                    fontSize = 12.sp, color = TossTextTertiary)
+            }
+
+            // ── 동 / 호수 ──
+            Spacer(Modifier.height(16.dp))
+            Text("동 · 호수", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            if (parts.dong != null || parts.ho != null) {
+                Spacer(Modifier.height(2.dp))
+                Text("고객이 문자에 적어둔 걸 채웠어요", fontSize = 11.sp, color = TossSuccess)
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = dong, onValueChange = { dong = it.filter { c -> c.isDigit() }.take(4) },
+                    placeholder = { Text("101", color = TossTextTertiary) },
+                    suffix = { Text("동", color = TossTextSecondary) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                    colors = tossFieldColors(),
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(10.dp))
+                OutlinedTextField(
+                    value = ho, onValueChange = { ho = it.filter { c -> c.isDigit() }.take(5) },
+                    placeholder = { Text("1502", color = TossTextTertiary) },
+                    suffix = { Text("호", color = TossTextSecondary) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                    colors = tossFieldColors(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // ── 최종 확인 ──
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(12.dp)) {
+                Column {
+                    Text("이렇게 등록돼요", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                    Spacer(Modifier.height(3.dp))
+                    Text(finalAddr.ifBlank { "—" }, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = TossTextPrimary, lineHeight = 20.sp)
+                }
+            }
+            // 이미 주소가 있으면 덮어쓰는 것임을 분명히 — 모르고 바꾸는 사고 방지.
+            if (!currentAddress.isNullOrBlank() && currentAddress.trim() != finalAddr) {
+                Spacer(Modifier.height(8.dp))
+                Text("기존 주소를 바꿔요\n현재: ${currentAddress.trim()}",
+                    fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold, lineHeight = 16.sp)
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(TossGrayBg)
+                        .clickable { onDismiss() }.padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("취소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.weight(2f).clip(RoundedCornerShape(13.dp))
+                        .background(if (finalAddr.isBlank()) TossTextTertiary else TossBlue)
+                        .clickable(enabled = finalAddr.isNotBlank()) { onConfirm(finalAddr) }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("이 주소로 등록", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            }
+        }
+    }
+}
+
+/**
+ * 입력칸 색 — 토스 스타일. (CustomerDetailScreen·FollowUpScreen·TemplateEditScreen 과 같은 값)
+ *   ⚠️ 이 코드베이스는 화면마다 private 으로 각자 두고 있다. 네 번째 사본이라 언젠간 공용으로 빼야 한다.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = TossBlue,
+    unfocusedBorderColor = TossDivider,
+    focusedTextColor = TossTextPrimary,
+    unfocusedTextColor = TossTextPrimary,
+    cursorColor = TossBlue,
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White
+)
+
+/** 등록 확인창의 '주소 후보' 한 칸 — 고르면 파란 테두리. */
+@Composable
+private fun AddrChoiceCard(label: String, value: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Color(0xFFEAF2FE) else TossGrayBg)
+            .border(
+                width = if (selected) 1.5.dp else 0.dp,
+                color = if (selected) TossBlue else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Column {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = if (selected) TossBlue else TossTextTertiary)
+            Spacer(Modifier.height(3.dp))
+            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold,
+                color = TossTextPrimary, lineHeight = 19.sp)
+        }
+    }
 }
 
 /**

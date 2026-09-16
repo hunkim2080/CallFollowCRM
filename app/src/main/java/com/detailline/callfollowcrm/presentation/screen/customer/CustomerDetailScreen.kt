@@ -367,15 +367,18 @@ fun CustomerDetailScreen(
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             val ctx = LocalContext.current
             val manualAddress = c.address?.takeIf { it.isNotBlank() }
-            val displayAddr = manualAddress ?: extractedAddress
-            // 메시지에서 자동 인식한 주소를 '저장값'으로 굳힘 — 일정·D-1알림·전문가배정도 같은 주소를 쓰게.
-            //   (2026-06-18 사장님: 고객상세엔 주소 보이는데 일정엔 "주소 미입력". 감지만 하고 저장은 안 돼 생긴 불일치.)
-            //   저장 후엔 보통 주소처럼 표시되고, 탭하면 수정 가능. composable LaunchedEffect 라 init 순서 영향 없음.
-            LaunchedEffect(c.id, manualAddress, extractedAddress) {
-                if (manualAddress == null && !extractedAddress.isNullOrBlank()) {
-                    viewModel.updateManualAddress(extractedAddress)
-                }
-            }
+            // 🔴 표시는 **사장님이 확인해 저장한 주소만**. (2026-09-16 사장님 "끄기로 해줘")
+            //   예전엔 `manualAddress ?: extractedAddress` 였고, 아래 LaunchedEffect 가 감지된 주소를
+            //   **묻지도 않고 저장**까지 했다. 협업 중이면 그 주소가 상대 사장님 폰에까지 전파됐다.
+            //   주소를 잘못 잡으면 사장님이 엉뚱한 현장으로 간다 → 확인 없는 저장은 위험하다.
+            //
+            //   ⚠️ 그렇다고 그냥 지우면 옛 문제가 되살아난다(2026-06-18: 고객상세엔 주소가 보이는데
+            //      일정엔 "주소 미입력" — 감지만 하고 저장은 안 돼 생긴 불일치).
+            //   → 감지된 주소는 **제안 카드**로 보여주고, 사장님이 [이 주소로 등록]을 눌러야 저장된다.
+            //      그러면 보이는 것과 저장된 것이 항상 같다.
+            val displayAddr = manualAddress
+            // 제안을 이번 화면에서 닫았는지(고객별). "아니에요" 누르면 이 화면에선 다시 안 보인다.
+            var addrSuggestDismissed by remember(c.id) { mutableStateOf(false) }
             var showAddressDialog by remember { mutableStateOf(false) }
 
             if (displayAddr != null) {
@@ -426,6 +429,39 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.width(7.dp))
                             Text("길찾기 시작", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+            } else if (!extractedAddress.isNullOrBlank() && !addrSuggestDismissed) {
+                // 문자에서 주소를 봤을 때 — **제안만** 한다. 누르기 전엔 저장 안 됨. (2026-09-16 사장님)
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("📍", fontSize = 18.sp)
+                            Spacer(Modifier.width(7.dp))
+                            Text("문자에서 이런 주소를 봤어요", fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(extractedAddress!!, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            color = TossTextPrimary, lineHeight = 21.sp)
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossGrayBg)
+                                    .clickable { addrSuggestDismissed = true }.padding(vertical = 11.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) { Text("아니에요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                            Spacer(Modifier.width(9.dp))
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(2f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
+                                    .clickable { viewModel.updateManualAddress(extractedAddress) }
+                                    .padding(vertical = 11.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) { Text("이 주소로 등록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text("직접 고치려면 여기를 탭하세요", fontSize = 11.sp, color = TossTextTertiary,
+                            modifier = Modifier.clickable { showAddressDialog = true })
                     }
                 }
             } else {

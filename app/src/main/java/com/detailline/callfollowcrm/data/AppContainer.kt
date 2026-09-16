@@ -178,6 +178,8 @@ class AppContainer(context: Context) {
 
     // 2026-06-08 협업 현장(사장↔사장) — 공유 요청/수락/진행/입금. 서버 endpoint 대기(SERVER_HANDOFF_collab_sites.md).
     val sharedSiteRepository = com.detailline.callfollowcrm.ai.SharedSiteRepository()
+    /** 문자에서 감지한 주소를 지도에서 확인 — 등록 확인창이 쓴다. (2026-09-16 사장님) */
+    val addressResolveRepository = com.detailline.callfollowcrm.ai.AddressResolveRepository()
 
     // 2026-07-13 본폰 미러 링크 — 업무폰 일정을 본폰에서 읽기전용으로. 서버 완료(docs/ANDROID_HANDOFF_mirror_app.md).
     val mirrorRepository = com.detailline.callfollowcrm.ai.MirrorRepository()

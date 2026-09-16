@@ -163,23 +163,66 @@ object AddressExtractor {
     private val DONG_HO_TAIL = Regex("^\\s*(?:\\d{1,4}동\\s*)?\\d{1,5}호")
 
     /**
-     * 본문에서 가장 그럴듯한 주소 1개 추출. 없으면 null.
-     * 패턴 1 > 2 > 3 순으로 시도.
+     * 찾은 주소 + **본문에서의 위치**. 위치가 필요한 이유(2026-09-16 사장님):
+     *   채팅 말풍선에서 그 부분만 **파란 밑줄**로 칠하고, 탭하면 "이 주소로 등록할까요?" 를 띄운다.
+     *   (전화번호·날짜가 이미 그렇게 동작 중 — 주소만 한 종류 더 얹는 것)
      */
-    fun extractOne(body: String): String? {
+    data class Found(val text: String, val start: Int, val end: Int)
+
+    /**
+     * 본문에서 가장 그럴듯한 주소 1개 추출. 없으면 null.
+     * 패턴 1 > 2 > 2b > 3 순으로 시도.
+     */
+    fun extractOne(body: String): String? = findOne(body)?.text
+
+    /** [extractOne] 과 같은 규칙이되 **위치까지** 준다. */
+    fun findOne(body: String): Found? {
         if (body.length < 5) return null
         // 패턴 1·2 매칭 시 매칭 뒤 동호수 자동 합치기 (사장님 #6 통점).
-        pattern1.find(body)?.let { m ->
-            return appendDongHo(body, m.range, m.value.trim())
-        }
-        pattern2.find(body)?.let { m ->
-            return appendDongHo(body, m.range, m.value.trim())
+        for (p in listOf(pattern1, pattern2)) {
+            p.find(body)?.let { m ->
+                val base = m.value.trim()
+                val merged = appendDongHo(body, m.range, base)
+                // 동호수를 이어붙였으면 끝 위치도 그만큼 늘어난다(밑줄이 주소 전체를 덮게).
+                val end = if (merged.length > base.length) {
+                    val extra = merged.length - base.length
+                    (m.range.last + 1 + extra).coerceAtMost(body.length)
+                } else m.range.last + 1
+                return Found(merged, m.range.first, end)
+            }
         }
         // 번지 없는 "지역 + 건물 + 동호수" → 그 다음. (2026-09-16)
-        pattern2b.find(body)?.let { return it.value.trim() }
+        pattern2b.find(body)?.let {
+            return Found(it.value.trim(), it.range.first, it.range.last + 1)
+        }
         // 패턴 3 (아파트) 는 이미 동호수 포함이라 그대로 반환.
-        pattern3.find(body)?.let { return it.value.trim() }
+        pattern3.find(body)?.let {
+            return Found(it.value.trim(), it.range.first, it.range.last + 1)
+        }
         return null
+    }
+
+    /** 주소를 "앞부분 / 동 / 호" 로 쪼갠 것. 등록 시트가 칸을 자동으로 채우는 데 쓴다. */
+    data class Parts(val base: String, val dong: String?, val ho: String?)
+
+    private val DONG_RX = Regex("(\\d{1,4})동")
+    private val HO_RX = Regex("(\\d{1,5})호")
+
+    /**
+     * 고객이 동·호수까지 적어 보냈으면 그걸 따로 뽑는다. (2026-09-16 사장님)
+     *   "천호동 래미안 101동 1502호" → base="천호동 래미안", dong="101", ho="1502"
+     *   ⚠️ "천호동" 처럼 숫자 없는 행정동은 동으로 치지 않는다(숫자+동 만).
+     *   안 적어 보냈으면 null → 시트에서 사장님이 직접 넣는다.
+     */
+    fun splitDongHo(raw: String?): Parts {
+        val s = tidyAddress(raw)
+        if (s.isBlank()) return Parts("", null, null)
+        val dong = DONG_RX.find(s)?.groupValues?.get(1)
+        val ho = HO_RX.find(s)?.groupValues?.get(1)
+        var base = s
+        if (dong != null) base = base.replace(Regex("\\s*" + dong + "동"), "")
+        if (ho != null) base = base.replace(Regex("\\s*" + ho + "호"), "")
+        return Parts(base.trim().trim(','), dong, ho)
     }
 
     /** 매칭 뒤 40자 안에 동호수 있으면 본문 주소에 이어붙임. */

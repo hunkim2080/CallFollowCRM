@@ -14,7 +14,7 @@ import java.util.Calendar
  */
 object MessageEntities {
 
-    enum class Type { PHONE, DATE }
+    enum class Type { PHONE, DATE, ADDRESS }
 
     /**
      * @param start 본문 내 시작 인덱스(포함) / @param end 끝(제외)
@@ -47,6 +47,12 @@ object MessageEntities {
             }
         }
         detectDates(text, baseMs).forEach { hits.add(it) }
+        // 주소 — 문자에 주소가 보이면 파란 밑줄로 짚어주고, 탭하면 등록 확인창을 띄운다. (2026-09-16 사장님)
+        //   판단은 AddressExtractor 한 곳에만 있다(화면마다 따로 만들면 규칙이 갈라진다).
+        //   그 규칙은 **오탐 0** 으로 맞춰져 있어(금액·시간·개수 문장은 안 잡음) 여기서 그대로 믿어도 된다.
+        AddressExtractor.findOne(text)?.let { f ->
+            hits.add(Hit(f.start, f.end, Type.ADDRESS, f.text))
+        }
         // 위치순 + 겹침 제거(먼저 시작한 것 우선)
         hits.sortBy { it.start }
         val out = ArrayList<Hit>()
