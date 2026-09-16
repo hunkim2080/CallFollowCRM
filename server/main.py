@@ -13706,6 +13706,22 @@ async def next_action_suggest(ctx: ConversationContext) -> dict:
 # log_llm_usage 도 호출 (model="kakao-local", 단가 0) — endpoint 호출수 모니터링용.
 # ============================================================================
 
+ADDRESS_EXTRACT_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
+고객이 보낸 한국어 문자에서 **시공하러 갈 현장 주소**만 뽑아낸다.
+
+규칙:
+- 본문에 실제로 적힌 글자만 쓴다. **없는 주소를 지어내지 마라.** 지역을 추측해 붙이지도 마라.
+- 주소가 없거나 애매하면 반드시 null. (틀린 주소는 사장님이 엉뚱한 곳으로 가게 만든다)
+- 아파트/빌라면 단지명과 동·호수까지 포함한다. 예: "개포동 주공 5단지", "e편한세상 103동 1004호"
+- 안내어·어미는 뺀다. "주소는 ○○입니다" → "○○"
+- 금액(250만원)·시간(3시)·개수(2개)·기간(3일)은 주소가 아니다.
+
+답 형식 — 반드시 지켜라:
+- 응답 첫 글자는 '{' 로 시작. 다른 텍스트 일체 X.
+- 형식: {"address": "..."} 또는 {"address": null}
+"""
+
+
 class AddressResolveRequest(BaseModel):
     candidate_keywords: list[str] = Field(default_factory=list)
     context_text: Optional[str] = None
@@ -13734,6 +13750,50 @@ async def _search_kakao_local(query: str) -> Optional[dict]:
         return None
 
 
+async def _extract_address_by_llm(context_text: str) -> Optional[str]:
+    """정규식(앱)·카카오 검색이 둘 다 실패했을 때만 부르는 마지막 수단. 실패하면 None.
+
+    2026-09-16 사장님: 앱 정규식 적중률 실측 95%. 남은 5%(번지도 동호수도 없는
+      "개포동 주공 5단지" 같은 형태)는 정규식을 더 기우지 않고 여기로 넘긴다.
+      계속 기우면 새 형태가 나올 때마다 또 놓치기 때문(= 증상만 누르기).
+    비용: Haiku, 문장 하나 수준이라 건당 극소. 호출은 '정규식이 놓쳤을 때'만.
+    """
+    text = (context_text or "").strip()
+    if len(text) < 5 or not CLAUDE_API_KEY:
+        return None
+    try:
+        parsed, response = await call_claude_json(
+            system_prompt=ADDRESS_EXTRACT_SYSTEM,
+            user_msg=text[:2000],
+            max_tokens=200,
+            model=HAIKU_MODEL,
+        )
+    except Exception as e:
+        print(f"[address-resolve] llm error: {type(e).__name__}: {e}")
+        return None
+    log_llm_usage(
+        endpoint="address-resolve-llm",
+        model=getattr(response, "model", None) or HAIKU_MODEL,
+        prompt_tokens=getattr(response.usage, "input_tokens", 0) or 0,
+        completion_tokens=getattr(response.usage, "output_tokens", 0) or 0,
+        cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+        cache_write_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+    )
+    addr = (parsed or {}).get("address")
+    if not isinstance(addr, str):
+        return None
+    addr = addr.strip()
+    if not addr or addr.lower() in ("null", "none", "없음"):
+        return None
+    # 🔒 지어내기 방어 — 뽑았다는 주소의 핵심 조각이 원문에 실제로 있어야 인정한다.
+    #   (LLM 이 "서울시" 같은 걸 상상해 붙이는 사고를 막는다)
+    core = max(addr.split(), key=len) if addr.split() else addr
+    if len(core) >= 2 and core not in text:
+        print(f"[address-resolve] llm 결과가 원문에 없음 → 버림: {addr!r}")
+        return None
+    return addr
+
+
 def _log_address_resolve_call() -> None:
     """endpoint 호출 카운트만 잡고 비용은 0 (kakao-local 단가 0)."""
     log_llm_usage(
@@ -13754,34 +13814,58 @@ async def address_resolve(req: AddressResolveRequest) -> dict:
     출력 (성공): { resolved, road_address, place_name, lat, lng, confidence }
     출력 (실패): { resolved: null, confidence: 0.0 }
     """
-    # 1) 키 미설정 시 — 검증 §13 #2 ("키 없을 때 null") 케이스
-    if not KAKAO_REST_API_KEY:
-        print("[address-resolve] KAKAO_REST_API_KEY 미설정 — resolved=null 반환")
-        _log_address_resolve_call()
-        return {"resolved": None, "confidence": 0.0}
+    # 1) 카카오 키워드 검색 — 후보(아파트명 등) 별 순차, 첫 hit 사용.
+    #    키가 없으면 이 단계는 건너뛰고 바로 LLM 으로 간다. (전엔 여기서 곧장 null 이었다)
+    if KAKAO_REST_API_KEY:
+        for kw in (req.candidate_keywords or []):
+            kw_clean = (kw or "").strip()
+            if not kw_clean:
+                continue
+            hit = await _search_kakao_local(kw_clean)
+            if hit:
+                _log_address_resolve_call()
+                return {
+                    "resolved":      hit.get("address_name"),
+                    "road_address":  hit.get("road_address_name"),
+                    "place_name":    hit.get("place_name"),
+                    "lat":           float(hit.get("y") or 0),
+                    "lng":           float(hit.get("x") or 0),
+                    "confidence":    0.9,
+                    "source":        "kakao",
+                }
+    else:
+        print("[address-resolve] KAKAO_REST_API_KEY 미설정 — 카카오 검색 건너뜀")
 
-    # 2) 후보 keyword 별 순차 검색 — 첫 hit 사용
-    for kw in (req.candidate_keywords or []):
-        kw_clean = (kw or "").strip()
-        if not kw_clean:
-            continue
-        hit = await _search_kakao_local(kw_clean)
+    # 2) 마지막 수단 — 본문을 AI 가 읽고 주소를 뽑는다. (2026-09-16 사장님)
+    #    앱 정규식(적중률 95%)이 놓쳤을 때만 여기까지 온다.
+    llm_addr = await _extract_address_by_llm(req.context_text or "")
+    if llm_addr:
+        # AI 가 뽑은 건 사람이 쓴 그대로라 표기가 제각각 → 카카오로 한 번 더 정규화해 본다.
+        #   되면 도로명·좌표까지 얻고, 안 되면 AI 가 뽑은 문자열을 그대로 쓴다(그것만으로도 충분히 쓸모 있음).
+        hit = await _search_kakao_local(llm_addr) if KAKAO_REST_API_KEY else None
+        _log_address_resolve_call()
         if hit:
-            _log_address_resolve_call()
             return {
                 "resolved":      hit.get("address_name"),
                 "road_address":  hit.get("road_address_name"),
                 "place_name":    hit.get("place_name"),
                 "lat":           float(hit.get("y") or 0),
                 "lng":           float(hit.get("x") or 0),
-                "confidence":    0.9,
+                "confidence":    0.8,
+                "source":        "llm+kakao",
             }
+        return {
+            "resolved":   llm_addr,
+            "road_address": None,
+            "place_name": None,
+            "lat": 0.0, "lng": 0.0,
+            "confidence": 0.6,     # 지도 확인은 못 했다 = 사장님이 한 번 봐야 한다
+            "source":     "llm",
+        }
 
-    # 3) 모든 후보 실패 — context_text LLM fallback 은 사양서 §13.2 에서 "옵션" 으로
-    #    표기되어 있고 비용/지연 trade-off 가 있어 일단 미구현. 미래 sprint 에서 추가.
-    print(f"[address-resolve] all candidates failed: {req.candidate_keywords}")
+    print(f"[address-resolve] 전부 실패: candidates={req.candidate_keywords}")
     _log_address_resolve_call()
-    return {"resolved": None, "confidence": 0.0}
+    return {"resolved": None, "confidence": 0.0, "source": None}
 
 
 # ============================================================================
