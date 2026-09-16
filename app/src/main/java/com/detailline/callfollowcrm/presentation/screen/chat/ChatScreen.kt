@@ -444,6 +444,13 @@ fun ChatScreen(
     //   이 화면은 입력창이 Scaffold 의 bottomBar 가 아니라 본문 안에 있다 →
     //   스낵바가 화면 맨 아래에 떠서 입력창 위로 올라앉는다. 입력창 높이만큼 올려준다.
     var composerHeightPx by remember { mutableStateOf(0) }
+    // ✨ 다듬기 **되돌리기** — 다듬기 직전의 원문. (2026-09-17 사장님)
+    //   "다듬기를 했는데 마음에 안 드는 거야. 그래서 전으로 돌아가고 싶은데
+    //    이미 내용이 바뀌어서 못 돌아가더라고."
+    //   맞는 말이다. 다듬기는 **원문을 덮어쓰고 끝**이었다. 사장님이 공들여 쓴 글이 한 번에 사라진다.
+    //   스낵바 4초짜리 '되돌리기'로는 부족하다 — 읽어보고 "음, 별로네" 하는 데 4초보다 오래 걸린다.
+    //   그래서 **직접 고치거나 보낼 때까지** 되돌리기 버튼을 띄워둔다.
+    var polishUndoText by remember { mutableStateOf<String?>(null) }
     // 문구 꾹 누르기 → 액션 시트 / 수정 / 이름 바꾸기. (2026-09-16 사장님 개편)
     var tplActions by remember { mutableStateOf<MessageTemplateEntity?>(null) }
     var tplEditBody by remember { mutableStateOf<MessageTemplateEntity?>(null) }
@@ -1017,11 +1024,38 @@ fun ChatScreen(
                 }
             }
             // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
+            // ↩︎ 다듬기 전으로 — 다듬은 직후에만. 직접 고치거나 보내면 사라진다.
+            // 보내고 나면 입력칸이 비는데(setInput("")) 그건 onChange 를 안 거친다 →
+            //   되돌리기 줄만 남아, 누르면 방금 보낸 글이 되살아난다. 빈 칸이면 아예 안 그린다.
+            polishUndoText?.takeIf { input.isNotBlank() }?.let { before ->
+                Row(
+                    Modifier.fillMaxWidth().background(Color.White)
+                        .padding(start = 14.dp, end = 14.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("✨ 다듬었어요", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "↩︎ 다듬기 전으로",
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(TossBlueSoft)
+                            .clickable { setInput(before); polishUndoText = null }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    )
+                }
+            }
             Composer(
                 modifier = Modifier.onSizeChanged { composerHeightPx = it.height },
                 input = input,
                 selection = inputSelection,
-                onChange = { input = it },
+                onChange = {
+                    // 사람이 직접 한 글자라도 고치면 '되돌리기'를 접는다 —
+                    //   그 뒤엔 '원래대로'가 어디로 돌아가는 건지 애매해진다.
+                    if (polishUndoText != null && it != input) polishUndoText = null
+                    input = it
+                },
                 onSelectionChange = { inputSelection = it },
                 isPolishing = polishing,
                 onAiPolish = {
@@ -1902,7 +1936,11 @@ fun ChatScreen(
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     showPolishConfirm = false
-                    viewModel.aiPolish(input) { polished -> setInput(polished) }
+                    val before = input                     // 덮어쓰기 전에 원문을 잡아둔다
+                    viewModel.aiPolish(input) { polished ->
+                        setInput(polished)
+                        polishUndoText = before
+                    }
                 }) { Text("다듬기 ✨", color = TossBlue, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
