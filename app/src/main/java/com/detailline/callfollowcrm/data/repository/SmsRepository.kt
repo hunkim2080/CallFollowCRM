@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.net.Uri
+import com.detailline.callfollowcrm.util.TradeGuesser
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -866,6 +867,39 @@ class SmsRepository(
      * 너무 짧은 메시지 (5자 미만) 는 톤 학습 가치 낮아 제외.
      * 고객 번호 공급자가 비어있지 않으면 "고객에게 보낸 문자"만 (가족·인증·광고 제외). 필터로 줄어드는 만큼 더 넓게 조회.
      */
+    /**
+     * 업종 추측용 문자 읽기 — (보낸 것, 받은 것). (2026-09-16 사장님)
+     *   "어차피 앱을 설치하는 순간 그간의 문자를 한번 훑잖아. 어떤 업종인지 대강 사이즈가 나오잖아."
+     *
+     * 본문 그대로가 아니라 **보낸 사람 번호까지 같이** 넘긴다 — 대표번호에서 온 건
+     * [com.detailline.callfollowcrm.util.TradeGuesser] 가 본문을 읽지도 않고 버린다.
+     * 한 번만 돌리고 결과를 기억하므로(호출부) 비용은 앱 생애 1회.
+     */
+    fun queryForTradeGuess(limitEach: Int = 400): Pair<List<TradeGuesser.Msg>, List<TradeGuesser.Msg>> {
+        if (!hasReadPermission()) return emptyList<TradeGuesser.Msg>() to emptyList()
+        fun read(path: String): List<TradeGuesser.Msg> {
+            val cursor = runCatching {
+                context.contentResolver.query(
+                    Uri.parse(path), arrayOf(COL_BODY, COL_ADDRESS), dateDescSortArgs(limitEach), null
+                )
+            }.getOrNull() ?: return emptyList()
+            return cursor.use { c ->
+                val bodyIdx = c.getColumnIndex(COL_BODY)
+                val addrIdx = c.getColumnIndex(COL_ADDRESS)
+                if (bodyIdx < 0) return@use emptyList()
+                val out = ArrayList<TradeGuesser.Msg>(limitEach)
+                while (c.moveToNext() && out.size < limitEach) {
+                    val body = c.getString(bodyIdx).orEmpty()
+                    if (body.isBlank()) continue
+                    val addr = if (addrIdx >= 0) c.getString(addrIdx) else null
+                    out.add(TradeGuesser.Msg(addr, body))
+                }
+                out
+            }
+        }
+        return read("content://sms/sent") to read("content://sms/inbox")
+    }
+
     fun querySentMessages(limit: Int = 50): List<String> {
         if (!hasReadPermission()) return emptyList()
         val allowed = runCatching { customerSuffixProvider() }.getOrDefault(emptySet())

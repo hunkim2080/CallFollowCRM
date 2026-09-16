@@ -416,7 +416,8 @@ fun AppNavHost(
                 onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
                 editIssuedId = editIssuedId,
                 // 통화녹음 미연결 통화카드 "연결 설정하러 가기" → 자동 문자/녹음 설정. (2026-07-12 사장님)
-                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
+                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
             )
         }
 

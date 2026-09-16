@@ -839,6 +839,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_OWNER_TRADES, "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
         set(value) = prefs.edit().putString(KEY_OWNER_TRADES, value.take(3).joinToString("|")).apply()
 
+    /**
+     * 추천답변 위 '어느 쪽 일 하세요?' 를 사장님이 ✕ 로 닫았는지. (2026-09-16 사장님)
+     * 한 번 닫으면 다시 안 묻는다 — 필요하면 상단 [○ 시공 AI] 칩으로 언제든 고를 수 있다.
+     */
+    var tradeAskDismissed: Boolean
+        get() = prefs.getBoolean("trade_ask_dismissed", false)
+        set(value) = prefs.edit().putBoolean("trade_ask_dismissed", value).apply()
+
     /** 수첩 일당/거래처용 자주 쓰는 문구. 구분자  (SMS 본문에 안 나오는 제어문자). */
     /**
      * 오늘 시공 히어로 카드 수동 순서 (고객 ID). 사장님이 꾹 눌러 트렐로식으로 끌어 바꾼 순서.

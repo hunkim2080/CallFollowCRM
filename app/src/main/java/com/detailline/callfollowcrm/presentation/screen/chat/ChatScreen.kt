@@ -178,7 +178,9 @@ fun ChatScreen(
     /** >0 이면 그 발행 이력(접수서)을 "수정하기"로 EstSheet 재오픈. 고객상세 발행이력 수정에서 넘어옴. (2026-07-10 사장님) */
     editIssuedId: Long = -1L,
     /** 통화녹음 미연결 시 통화카드 "연결 설정하러 가기" → 설정(자동 문자/녹음) 열기. (2026-07-12 사장님) */
-    onOpenRecordingSettings: () -> Unit = {}
+    onOpenRecordingSettings: () -> Unit = {},
+    /** 추천답변 위 '어느 쪽 일 하세요?' 에서 [다른 업종] → 업종 선택 화면. (2026-09-16 사장님) */
+    onOpenTradeSelect: () -> Unit = {}
 ) {
     val context = LocalContext.current
     // 통화녹음 폴더/자동찾기 연결 여부 — 미연결이면 통화카드가 '요약하기' 대신 '연결하기' 안내. (2026-07-12 사장님)
@@ -938,6 +940,18 @@ fun ChatScreen(
                 val inputNonBlank = input.isNotBlank()
                 LaunchedEffect(inputNonBlank) {
                     if (inputNonBlank) suggestionsExpanded = false   // 타이핑 시작하면 접힘(자동 펼침 X)
+                }
+                // 업종 물어보기 — 추천답변 **바로 위**. 왜 묻는지가 화면에 이미 있는 자리. (2026-09-16 사장님)
+                val tradeAskVisible by viewModel.tradeAskVisible.collectAsState()
+                val tradeGuesses by viewModel.tradeGuesses.collectAsState()
+                LaunchedEffect(tradeAskVisible) { if (tradeAskVisible) viewModel.ensureTradeGuess() }
+                androidx.compose.animation.AnimatedVisibility(visible = controlsVisible && tradeAskVisible) {
+                    TradeAskCard(
+                        guesses = tradeGuesses,
+                        onPick = { viewModel.pickTrade(it) },
+                        onOther = onOpenTradeSelect,
+                        onDismiss = { viewModel.dismissTradeAsk() }
+                    )
                 }
                 // 스크롤 자동 숨김 — 추천도 칩과 함께 숨고/나타남.
                 androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
@@ -3167,6 +3181,68 @@ private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): Annotated
  *   - expanded = false → 헤더만 (1줄). 헤더 탭하면 펼침.
  *   - 사장님이 타이핑 시작 (input.isNotBlank) → 호출부에서 expanded=false 로 자동 접힘.
  */
+/**
+ * "어느 쪽 일 하세요?" — 추천답변 바로 위 한 줄. (2026-09-16 사장님)
+ *
+ * 온보딩에서 업종을 묻지 않기로 하면서(문자함부터 쓰게), 대신 **답이 달라지는 그 순간**에 묻는다.
+ *   · [guesses] 는 사장님 문자에서 추측한 것 — 실측으로 줄눈 884 : 타일 270 : 실리콘 132 처럼 갈린다.
+ *   · 못 맞히면 빈 리스트로 온다. 그럼 **추측한 척하지 않고** '직접 고르기'만 보여준다.
+ *     (사장님: "추측 못하겠으면 안 하면 되는 거야. 물어보면 되는 거지.")
+ *   · ✕ 로 닫으면 다시 안 묻는다. 상단 [○ 시공 AI] 칩으로 언제든 고를 수 있다.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TradeAskCard(
+    guesses: List<String>,
+    onPick: (String) -> Unit,
+    onOther: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFF1F3FE))
+            .padding(horizontal = 15.dp, vertical = 13.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (guesses.isEmpty()) "어느 쪽 일 하세요?" else "혹시 이 중에 사장님 일이 있나요?",
+                fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                "✕", fontSize = 13.sp, color = TossTextTertiary,
+                modifier = Modifier.clickable(onClick = onDismiss).padding(start = 8.dp, end = 2.dp)
+            )
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            "알려주시면 막내가 그 일에 맞게 답을 써요.",
+            fontSize = 11.5.sp, color = TossTextTertiary
+        )
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            guesses.forEach { t ->
+                Text(
+                    t,
+                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlue)
+                        .clickable { onPick(t) }.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            }
+            Text(
+                if (guesses.isEmpty()) "업종 고르기" else "다른 업종",
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark,
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                    .clickable(onClick = onOther).padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun SuggestionArea(
     suggestion: ReplySuggestions?,

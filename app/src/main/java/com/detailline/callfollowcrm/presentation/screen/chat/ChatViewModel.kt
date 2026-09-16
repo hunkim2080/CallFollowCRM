@@ -532,6 +532,54 @@ class ChatViewModel(
     // 추천 생성 취소용 Job — '작성 중' 띠 탭 시 멈춤. 다듬기(polishJob·cancelPolish)와 동일 UX. (2026-08-15 UX감사#1)
     private var suggestionJob: kotlinx.coroutines.Job? = null
     /** '작성 중' 띠 탭 → 추천 생성 취소(스피너 멈춤). 서버는 이미 시작했을 수 있어 그 비용은 나감 — 화면 취소만. */
+    // ── 업종 물어보기 (2026-09-16 사장님) ────────────────────────────────
+    //   "자연스럽게 자기 업종을 선택하게 만드는 방법… 추천답변을 처음 눌렀을 때
+    //    추측되는 업종을 몇 개 보여주는 거지. 선택하라고."
+    //   업종은 지금 **AI 답변의 말투**를 바꾼다(서버가 "{업종} 사장님 비서"로 역할을 잡음).
+    //   그러니 묻기 가장 자연스러운 자리가 **답변을 만들려는 바로 그 순간**이다.
+    //   온보딩에서 물으면 "이걸 왜 묻지?" 지만, 여기선 왜 묻는지가 화면에 이미 있다.
+
+    /** 물어볼까? (업종 미설정 + 아직 ✕ 로 닫지 않음) */
+    private val _tradeAskVisible = MutableStateFlow(
+        container.preferences.ownerTrades.isEmpty() && !container.preferences.tradeAskDismissed
+    )
+    val tradeAskVisible = _tradeAskVisible.asStateFlow()
+
+    /** 문자로 추측한 업종 후보(최대 3). 비면 화면이 '직접 고르기'만 보여준다. */
+    private val _tradeGuesses = MutableStateFlow<List<String>>(emptyList())
+    val tradeGuesses = _tradeGuesses.asStateFlow()
+
+    private var tradeGuessStarted = false
+
+    /**
+     * 문자를 훑어 업종을 추측한다. **앱 생애 한 번**만 돈다(화면 들어올 때마다 1,800통을 다시 읽지 않게).
+     * 못 맞히면 빈 리스트 — 사장님 말대로 "추측 못 하겠으면 안 하면 되는 거야. 물어보면 되는 거지."
+     */
+    fun ensureTradeGuess() {
+        if (tradeGuessStarted || !_tradeAskVisible.value) return
+        tradeGuessStarted = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val guesses = runCatching {
+                val (sent, received) = container.smsRepository.queryForTradeGuess()
+                com.detailline.callfollowcrm.util.TradeGuesser.guess(sent, received).map { it.trade }
+            }.getOrDefault(emptyList())
+            _tradeGuesses.value = guesses
+        }
+    }
+
+    /** 후보를 골랐다 → 저장하고, 그 자리에서 답변을 다시 만든다(고른 보상이 눈앞에 보이게). */
+    fun pickTrade(trade: String) {
+        container.preferences.ownerTrades = listOf(trade)
+        _tradeAskVisible.value = false
+        regenerateSuggestions()
+    }
+
+    /** ✕ — 다시 안 묻는다. 상단 [○ 시공 AI] 칩으로 언제든 고를 수 있다. */
+    fun dismissTradeAsk() {
+        container.preferences.tradeAskDismissed = true
+        _tradeAskVisible.value = false
+    }
+
     fun cancelSuggestions() {
         suggestionJob?.cancel()
         suggestionJob = null
