@@ -9820,3 +9820,11 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 구글 캘린더 '지금 동기화' 46초 → 안 바뀐 일정 건너뛰기 (실패가 아니라 느린 것이었음)
 - 변경: 앱 내부만(지문 캐시). 서버·API 인터페이스 무관.
 - 근거: 갤S9+ 실측 로그 — 탭 08:41:01 → 완료 08:41:47, 인증은 성공
+
+## 2026-09-16 · android (서버 영역 직접 수정 — 사장님 승인)
+문자 속 주소: 파란 밑줄 → 탭 → 등록 확인창 / 자동 저장 제거 / 서버 AI 주소추출
+- 변경(서버): POST /api/address-resolve 응답에 `source` 추가(kakao|llm+kakao|llm).
+  카카오 실패 시 Haiku 로 context_text 에서 주소 추출. 라이브 반영·검증 완료.
+- 변경(앱): MessageEntities.Type.ADDRESS 신설, AddressResolveRepository 추가.
+  고객상세의 '감지 주소 자동 저장' 제거 → 제안 카드(확인 후 저장).
+- ⚠️ 카카오 403 (OPEN_MAP_AND_LOCAL disabled) — 사장님이 카카오 콘솔에서 켜야 함.
