@@ -9908,3 +9908,10 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 - 변경: prefs.callSummaryAllowed 로 업로드 게이트. 기존 사용자도 재동의 필요(기본 false)
 - commit: d07fdc9b · 점검 보고서 artifact/2xszdaGaG2ED6AyY5pbFvS
 - 남은 것: 콘솔 데이터 안전에 'Voice or sound recordings' 확인(사장님), READ_CALL_LOG 소명 재제출, CAMERA 제거 검토
+
+## 2026-09-17 05:10 · android (⚠️ server 영역 포함)
+계정 삭제 — POST /api/account/delete (OTP 필수) + GET /account/delete 페이지 + 앱 [계정 삭제]
+- ⚠️ server/main.py 수정됨. **배포 안 함** (사장님 확인 후). Python 3.9.6 py_compile 통과 확인
+- 지우는 표 33개(owner_phone 기준) + 고객번호 캐시 3개(앱이 목록 전달)
+- commit: e55881d9
+- 다음: 콘솔 데이터 보안에 삭제 URL 등록 + '데이터 삭제 지원'으로 변경
