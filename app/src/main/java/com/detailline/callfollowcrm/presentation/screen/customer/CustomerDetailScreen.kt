@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -166,6 +167,8 @@ fun CustomerDetailScreen(
     //   아래 DisposableEffect 설명 참고.
     var memoDirty by remember(customer?.id) { mutableStateOf(false) }
     var datePickerOpen by remember { mutableStateOf(false) }
+    // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
+    var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
     var collabRefresh by remember(customer?.id) { mutableStateOf(0) }
     var callsExpanded by remember(customer?.id) { mutableStateOf(false) }
@@ -626,9 +629,31 @@ fun CustomerDetailScreen(
 
             // 1.5 (제거) AI 대화 요약 — 챗스크린에 이미 있어 중복이라 고객 상세에선 뺌. (2026-07-18 사장님)
 
+            // 2-0. 건(件) 탭 — 한 고객의 시공이 여러 번일 때. (2026-09-17 사장님 "B안이 괜찮다")
+            //   프로토 artifact/KKMyncpHy1Ni7GK6dygMRY 의 B안(탭형). 크롬 새 탭처럼 건을 옆으로 늘어놓는다.
+            //   한 번에 **한 건만** 보여준다 → 화면이 짧다. `＋` 는 이 고객으로 새 시공 잡기.
+            //   건이 하나뿐이면 탭을 안 띄운다 — 있으나 마나 한 줄이 자리만 먹는다.
+            val pastJobsForTabs by viewModel.pastJobs.collectAsState()
+            val selectedPastJob = pastJobsForTabs.firstOrNull { it.id == selectedPastJobId }
+            if (detailTab == 0 && pastJobsForTabs.isNotEmpty()) {
+                JobTabsRow(
+                    pastJobs = pastJobsForTabs,
+                    current = c,
+                    selectedPastJobId = selectedPastJobId,
+                    onSelect = { selectedPastJobId = it },
+                    onAddNew = { selectedPastJobId = null; datePickerOpen = true }
+                )
+            }
+            // 2-1. 지난 건을 고른 상태 — 그 건의 기록만 보여준다(읽기 전용).
+            //   지난 건은 이미 끝난 일이라 여기서 고칠 게 없다. 고칠 일이 생기면 그때 붙인다.
+            if (detailTab == 0 && selectedPastJob != null) {
+                PastJobPanel(selectedPastJob)
+            }
+
             // 2. 프로토 "일정 · 정산" 카드 (사장님 결정 2026-06-02: 프로토 단순화). · [일정·정산] 탭 (2026-07-18)
             //    데이터(예약일·금액·계약금/잔금)는 그대로, UI 만 프로토 단순형(시공예약+총금액+계약금/잔금 상태+확인).
-            if (detailTab == 0) run {
+            //    지난 건을 보는 중이면 숨긴다 — 탭은 **한 번에 한 건**이 규칙이다.
+            if (detailTab == 0 && selectedPastJob == null) run {
                 val scheduled = c.scheduledWorkDate
                 val totalWon = c.totalAmount ?: 0L
                 val depositWon = c.depositAmount ?: 0L
@@ -967,54 +992,9 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 6.52 지난 시공 이력 (2026-07-20 사장님 — 재방문/추가 시공) · [일정·정산] 탭.
-            //   완료한 시공에 새 일정을 잡으면 완료 건이 여기로 보관됨(jobs, DB v42) → 첫 시공이 유실되지 않음.
-            val pastJobs by viewModel.pastJobs.collectAsState()
-            if (detailTab == 0 && pastJobs.isNotEmpty()) {
-                TossCard {
-                    Column {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("🧾", fontSize = 13.sp)
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "지난 시공 ${pastJobs.size}건",
-                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "이전에 완료한 시공이에요. 새 시공을 잡아도 이 기록은 남아요.",
-                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        pastJobs.forEachIndexed { idx, job ->
-                            if (idx > 0) Spacer(Modifier.height(10.dp))
-                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Text(
-                                    job.scheduledWorkDate?.let {
-                                        DateTimeUtils.formatKoreanDate(it) +
-                                            DateTimeUtils.workPeriodSuffix(it, job.scheduledWorkDays)
-                                    } ?: "날짜 미상",
-                                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
-                                )
-                                Spacer(Modifier.weight(1f))
-                                val won = job.totalAmount ?: 0L
-                                if (won > 0L) Text(
-                                    "총 ${manwonLabel(won)}",
-                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TossTextSecondary
-                                )
-                            }
-                            if (!job.address.isNullOrBlank()) {
-                                Spacer(Modifier.height(3.dp))
-                                Text(
-                                    "📍 ${job.address}",
-                                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            // 6.52 지난 시공 이력 — **건 탭(2-0)으로 옮겼다.** (2026-09-17 B안)
+            //   전에는 맨 아래에 "지난 시공 N건" 목록이 따로 있었는데,
+            //   그러면 '지금 건'과 '지난 건'이 화면의 다른 층에 흩어져 한 고객의 이력이 안 보였다.
 
             // 6.6 팀원 현장 메모 — 직원이 링크 화면에서 보낸 특이사항(2026-06-06). 있을 때만 카드.
             if (teamNotes.isNotEmpty()) {
@@ -3861,3 +3841,145 @@ private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.
         }
     }
 }
+
+/**
+ * 건(件) 탭 — 한 고객의 시공을 크롬 새 탭처럼 옆으로. (2026-09-17 사장님 "B안이 괜찮다")
+ *
+ * 왜 탭인가: 한 번에 **한 건만** 보여주면 화면이 짧다.
+ *   (같이 본 A안 = 카드를 위아래로 쌓는 목록형. 사장님이 B안을 골랐다.)
+ *
+ * 차수는 **오래된 것이 1차**다. 지난 건들 다음이 지금 건.
+ * 건이 하나뿐이면 호출부에서 아예 안 그린다 — 탭 한 줄이 자리만 먹는다.
+ */
+@Composable
+private fun JobTabsRow(
+    pastJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
+    current: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
+    selectedPastJobId: Long?,
+    onSelect: (Long?) -> Unit,
+    onAddNew: () -> Unit
+) {
+    // 오래된 순으로 1차, 2차 … 마지막이 지금 건.
+    val ordered = remember(pastJobs) { pastJobs.sortedBy { it.scheduledWorkDate ?: 0L } }
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth()
+            .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
+    ) {
+        ordered.forEachIndexed { idx, job ->
+            JobTab(
+                nth = "${idx + 1}차 · 완료",
+                sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미상",
+                on = selectedPastJobId == job.id,
+                onClick = { onSelect(job.id) }
+            )
+        }
+        // 지금 건 — 예약이 남았으면 D-day, 아니면 '진행 중'.
+        val label: String? = com.detailline.callfollowcrm.presentation.component.scheduleTagLabel(current)
+        val nowLabel = label?.removePrefix("시공 ")?.takeIf { t -> t.isNotBlank() } ?: "진행"
+        JobTab(
+            nth = "${ordered.size + 1}차 · " + nowLabel,
+            sub = current.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정",
+            on = selectedPastJobId == null,
+            onClick = { onSelect(null) }
+        )
+        JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, onClick = onAddNew)
+    }
+    Spacer(Modifier.height(2.dp))
+}
+
+@Composable
+private fun JobTab(
+    nth: String,
+    sub: String,
+    on: Boolean,
+    dashed: Boolean = false,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
+    Column(
+        Modifier
+            .clip(shape)
+            .background(if (on) Color.White else TossGrayBg)
+            .then(
+                if (on) Modifier.border(1.5.dp, TossBlue, shape)
+                else if (dashed) Modifier.border(1.dp, TossBlue.copy(alpha = 0.45f), shape)
+                else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 9.dp)
+    ) {
+        Text(
+            nth,
+            fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+            color = when {
+                dashed -> TossBlue
+                on -> TossTextPrimary
+                else -> TossTextTertiary
+            }
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+    }
+}
+
+/**
+ * 지난 건 하나의 기록 — 읽기 전용. (2026-09-17 B안)
+ * 끝난 일이라 여기서 고칠 게 없다. 고칠 일이 생기면 그때 붙인다.
+ */
+@Composable
+private fun PastJobPanel(job: com.detailline.callfollowcrm.data.local.entity.JobEntity) {
+    val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(job)
+    TossCard {
+        Column {
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("🧾", fontSize = 13.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("끝난 시공", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                job.scheduledWorkDate?.let {
+                    DateTimeUtils.formatKoreanDate(it) +
+                        DateTimeUtils.workPeriodSuffix(it, job.scheduledWorkDays)
+                } ?: "날짜 미상",
+                fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+            )
+            if (!job.address.isNullOrBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text("📍 ${job.address}", fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 17.sp)
+            }
+            if (settle.total > 0L) {
+                Spacer(Modifier.height(12.dp))
+                PastJobKv("총 금액", manwonLabel(settle.total), TossTextPrimary)
+                if (settle.depositAmount > 0L) {
+                    PastJobKv("계약금", manwonLabel(settle.depositAmount), TossTextSecondary)
+                }
+                PastJobKv(
+                    if (settle.isPaidOff) "잔금" else "남은 돈",
+                    if (settle.isPaidOff) "전액 완납" else manwonLabel(settle.outstanding),
+                    if (settle.isPaidOff) TossSuccess else com.detailline.callfollowcrm.presentation.theme.TossError
+                )
+            }
+            if (job.memo.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text("메모", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                Spacer(Modifier.height(4.dp))
+                Text(job.memo, fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PastJobKv(k: String, v: String, vColor: Color) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Text(k, fontSize = 13.5.sp, color = TossTextTertiary)
+        Spacer(Modifier.weight(1f))
+        Text(v, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = vColor)
+    }
+}
+
