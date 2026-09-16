@@ -618,19 +618,15 @@ fun ChatScreen(
                             // 분류 태그(일당 등) — 대화방에 들어온 순간 "이 사람이 누구인지" 알 수 있게.
                             //   (2026-09-16 사장님: "일당인데 고객인줄 착각할 수 있거든")
                             //   홈 목록의 태그와 같은 보라색 — 같은 뜻이면 같은 모양이어야 헷갈리지 않는다.
-                            chatCategory?.let { cat ->
+                            // 태그 두 종류를 **둘 다**. (2026-09-16 사장님: "그래서 둘다 쓰면 되지 않나")
+                            //   ① 분류(일당 등)  ② 날짜(시공 D-3·잔금미수…). 색·모양은 공용 한 벌.
+                            if (chatCategory != null) {
                                 Spacer(Modifier.width(7.dp))
-                                Box(
-                                    Modifier.clip(RoundedCornerShape(7.dp))
-                                        .background(Color(0xFFEFEBFF))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
-                                        fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF6D5AE6), maxLines = 1
-                                    )
-                                }
+                                com.detailline.callfollowcrm.presentation.component.CategoryTag(chatCategory)
+                            }
+                            customer?.let {
+                                Spacer(Modifier.width(6.dp))
+                                com.detailline.callfollowcrm.presentation.component.ScheduleTag(it)
                             }
                         }
                         if (customer?.name?.isNotBlank() == true) {

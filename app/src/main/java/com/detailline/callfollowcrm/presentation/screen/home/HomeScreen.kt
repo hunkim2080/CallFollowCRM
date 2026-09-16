@@ -3520,26 +3520,20 @@ private fun WaitingCard(
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
-            category?.let { cat ->
-                // 그룹 태그 — 사장님이 만든 분류(일당 등). 카드가 훑기용이라 분류가 한눈에. (2026-09-02 사장님: 카드 정리)
+            // ① 분류 태그(일당 등) — 색·모양은 공용(CustomerStatusTag.kt). 화면에서 색을 적지 않는다.
+            //   여기만 #7C5CFC 라 홈 목록(#6D5AE6)과 미묘하게 다른 보라였다. (2026-09-16 사장님이 발견)
+            if (category != null) {
                 Spacer(Modifier.width(7.dp))
-                Box(Modifier.background(Color(0xFFEDE9FE), RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                    Text(
-                        (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
-                        fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC),
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
+                com.detailline.callfollowcrm.presentation.component.CategoryTag(category)
             }
             // 상태 태그 — 시공 D-N / D-DAY / 계약금 / 완료. (2026-09-16 사장님: "예약고객은 기다려요에 태그가 안붙나?")
             //   최근 대화 줄엔 이미 붙던 것인데 여기엔 없었다. 이 고객은 분류가 '시공 대기'(자동 분류)라
             //   분류 태그도 일부러 숨겨져(모두에게 붙어서 '일당' 같은 진짜 분류가 안 도드라짐) **아무것도 안 붙었다.**
             //   답장을 기다리는 사람이 '오늘 시공 가는 집'인지 아닌지는 답장 내용이 완전히 달라지는 정보다.
-            recentStatusTag(item.customer)?.let { tag ->
+            // ② 날짜 태그 — 시공 D-N / 잔금미수 / 완료. 계산·색 모두 공용 한 벌.
+            if (item.customer != null) {
                 Spacer(Modifier.width(7.dp))
-                Box(Modifier.background(tag.bg, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                    Text(tag.text, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = tag.fg, maxLines = 1)
-                }
+                com.detailline.callfollowcrm.presentation.component.ScheduleTag(item.customer)
             }
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
@@ -3700,20 +3694,15 @@ private fun RecentRow(
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     // 그룹 태그 (사장님 분류: '일당' 등) — 한눈에 어떤 묶음인지. (2026-08-04 사장님) 보라색으로 상태태그와 구분.
-                    category?.let { cat ->
+                    // ① 분류 태그 — 공용. (2026-09-16 색 통일)
+                    if (category != null) {
                         Spacer(Modifier.width(7.dp))
-                        Box(Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFEFEBFF)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                            Text(
-                                (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
-                                fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D5AE6), maxLines = 1
-                            )
-                        }
+                        com.detailline.callfollowcrm.presentation.component.CategoryTag(category)
                     }
-                    if (tag != null) {
+                    // ② 날짜 태그 — 공용. 말·색이 고객정보/고객관리와 같아진다. (2026-09-16)
+                    if (item.customer != null) {
                         Spacer(Modifier.width(7.dp))
-                        Box(Modifier.clip(RoundedCornerShape(7.dp)).background(tag.bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                            Text(tag.text, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = tag.fg)
-                        }
+                        com.detailline.callfollowcrm.presentation.component.ScheduleTag(item.customer)
                     }
                 }
                 Spacer(Modifier.width(6.dp))
