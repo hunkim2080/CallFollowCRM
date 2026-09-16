@@ -3520,21 +3520,13 @@ private fun WaitingCard(
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
-            // ① 분류 태그(일당 등) — 색·모양은 공용(CustomerStatusTag.kt). 화면에서 색을 적지 않는다.
-            //   여기만 #7C5CFC 라 홈 목록(#6D5AE6)과 미묘하게 다른 보라였다. (2026-09-16 사장님이 발견)
-            if (category != null) {
-                Spacer(Modifier.width(7.dp))
-                com.detailline.callfollowcrm.presentation.component.CategoryTag(category)
-            }
+            // 태그 두 종류 — 규칙은 공용 한 곳에만(CustomerStatusTag.kt). (2026-09-16 사장님)
+            com.detailline.callfollowcrm.presentation.component.CustomerTags(item.customer, category)
             // 상태 태그 — 시공 D-N / D-DAY / 계약금 / 완료. (2026-09-16 사장님: "예약고객은 기다려요에 태그가 안붙나?")
             //   최근 대화 줄엔 이미 붙던 것인데 여기엔 없었다. 이 고객은 분류가 '시공 대기'(자동 분류)라
             //   분류 태그도 일부러 숨겨져(모두에게 붙어서 '일당' 같은 진짜 분류가 안 도드라짐) **아무것도 안 붙었다.**
             //   답장을 기다리는 사람이 '오늘 시공 가는 집'인지 아닌지는 답장 내용이 완전히 달라지는 정보다.
-            // ② 날짜 태그 — 시공 D-N / 잔금미수 / 완료. 계산·색 모두 공용 한 벌.
-            if (item.customer != null) {
-                Spacer(Modifier.width(7.dp))
-                com.detailline.callfollowcrm.presentation.component.ScheduleTag(item.customer)
-            }
+
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.background(TossBlueSoft, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
@@ -3694,16 +3686,9 @@ private fun RecentRow(
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     // 그룹 태그 (사장님 분류: '일당' 등) — 한눈에 어떤 묶음인지. (2026-08-04 사장님) 보라색으로 상태태그와 구분.
-                    // ① 분류 태그 — 공용. (2026-09-16 색 통일)
-                    if (category != null) {
-                        Spacer(Modifier.width(7.dp))
-                        com.detailline.callfollowcrm.presentation.component.CategoryTag(category)
-                    }
-                    // ② 날짜 태그 — 공용. 말·색이 고객정보/고객관리와 같아진다. (2026-09-16)
-                    if (item.customer != null) {
-                        Spacer(Modifier.width(7.dp))
-                        com.detailline.callfollowcrm.presentation.component.ScheduleTag(item.customer)
-                    }
+                    // 태그 두 종류 — 규칙은 공용 한 곳에만. (2026-09-16)
+                    com.detailline.callfollowcrm.presentation.component.CustomerTags(item.customer, category)
+
                 }
                 Spacer(Modifier.width(6.dp))
                 Text(recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)

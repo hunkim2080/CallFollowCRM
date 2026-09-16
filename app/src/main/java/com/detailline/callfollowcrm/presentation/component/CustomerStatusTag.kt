@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -87,18 +88,23 @@ private val CATEGORY_BG = Color(0xFFEFEBFF)
 /**
  * ① 분류 태그 — 사장님이 직접 만든 묶음.
  *
- * @param includeAuto 자동 분류('시공 대기'·'시공 완료')도 보여줄지.
- *   기본 false — 그건 시공일이 잡히면 **모두에게 자동으로** 붙어서, 켜두면 거의 모든 줄에 달려
- *   정작 '일당' 같은 진짜 묶음이 파묻힌다. 게다가 옆의 날짜 태그가 이미 같은 말을 한다.
- *   (2026-08-04 에 제가 정한 규칙인데 말씀을 안 드려 사장님이 "그런게 있었어?" 하셨다 — 2026-09-16)
+ * @param hideIfDuplicate 자동 분류('시공 대기'·'시공 완료')를 **날짜 태그와 겹칠 때만** 숨긴다.
+ *
+ *   🔴 규칙이 바뀐 내력 (2026-09-16 사장님):
+ *     처음엔 자동 분류를 **항상** 숨겼다. 제가 댄 이유는 "모든 줄에 붙어서 '일당'이 파묻힌다" 였는데
+ *     **틀린 이유였다** — 한 사람은 분류를 하나만 가지므로 일당 사장은 '일당', 고객은 '시공 대기'로
+ *     **서로 다른 줄**에 뜬다. 가릴 일이 없었다. 사장님 지적: "어차피 고객한테만 대기·완료가 오고
+ *     일당들한텐 안 오잖아."
+ *     진짜 문제는 **같은 말을 두 번** 하는 것뿐이었다 → "[시공 대기] [시공 D-DAY]".
+ *     그래서 사장님 지시대로 **겹칠 때만** 숨긴다: "시공 디데이만 나오는거야 예외적으로."
  */
 @Composable
 fun CategoryTag(
     category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity?,
-    includeAuto: Boolean = false
+    hideIfDuplicate: Boolean = false
 ) {
     val cat = category ?: return
-    if (!includeAuto) {
+    if (hideIfDuplicate) {
         val auto = com.detailline.callfollowcrm.data.local.seed.DefaultCategories
         if (cat.name == auto.NAME_PENDING_WORK || cat.name == auto.NAME_DONE_WORK) return
     }
@@ -110,6 +116,32 @@ fun CategoryTag(
             (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
             fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = CATEGORY_FG, maxLines = 1
         )
+    }
+}
+
+/**
+ * 이 고객의 태그 **두 종류를 규칙대로 한 번에** 그린다. (2026-09-16 사장님)
+ *   화면마다 규칙을 다시 쓰면 또 어긋나므로, 호출부는 이것만 부른다. Row 안에서 쓸 것.
+ *
+ *   순서: [분류] [날짜]
+ *   규칙: 날짜 태그가 "시공 D-…" 면 자동 분류(시공 대기/완료)는 생략 — 같은 말 두 번이라서.
+ */
+@Composable
+fun CustomerTags(
+    c: CustomerEntity?,
+    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity?,
+    gap: androidx.compose.ui.unit.Dp = 7.dp
+) {
+    val scheduleLabel = c?.let { scheduleTagLabel(it) }
+    val showsDday = scheduleLabel?.startsWith("시공 D") == true
+    val hiddenLabel = scheduleLabel == null || scheduleLabel == "미전환" || scheduleLabel == "신규"
+    if (category != null) {
+        androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
+        CategoryTag(category, hideIfDuplicate = showsDday)
+    }
+    if (c != null && !hiddenLabel) {
+        androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
+        ScheduleTag(c)
     }
 }
 
@@ -134,14 +166,21 @@ fun scheduleTagLabel(
 /**
  * ② 날짜 태그 — 시공이 며칠 남았나 / 돈 받을 게 남았나.
  *
- * @param hideDormant '미전환'(14일간 조용한 고객)은 기본으로 숨긴다 — 목록 대부분이 여기 해당해서
- *   켜두면 거의 모든 줄에 회색 딱지가 붙어 시선만 흐린다. 고객관리처럼 상태가 중요한 화면은 false.
+ * @param listMode 목록용(기본) — 여기선 '미전환'과 '신규'를 숨긴다.
+ *
+ *   🔴 '신규'를 왜 빼나 (2026-09-16 사장님: "신규는 계속 떠있던데 착각하게되더라"):
+ *     '신규'가 **두 뜻**으로 쓰이고 있었다 —
+ *       · 기다려요 카드의 파란 「신규」 = **오늘 처음 연락 온 사람** (진짜 신규)
+ *       · 날짜 태그의 노란 「신규」   = 시공일만 안 잡힌 사람 → **14일 내내** 붙는다
+ *     그래서 열흘째 얘기 중인 고객도 새로 온 사람처럼 보였다.
+ *     → 목록에선 날짜 태그의 '신규'를 뺀다. '신규'라는 말은 **오늘 온 사람**에게만 남긴다.
+ *     고객관리처럼 상태 자체가 중요한 화면은 listMode=false 로 그대로 본다.
  */
 @Composable
-fun ScheduleTag(c: CustomerEntity?, hideDormant: Boolean = true) {
+fun ScheduleTag(c: CustomerEntity?, listMode: Boolean = true) {
     val customer = c ?: return
     val label = scheduleTagLabel(customer)
-    if (hideDormant && label == "미전환") return
+    if (listMode && (label == "미전환" || label == "신규")) return
     // 색은 상태 기준(= D-N 도 '예약'의 파랑). 모든 화면에서 같은 색.
     val (fg, bg) = statusColors(if (label.startsWith("시공 D")) "예약" else label)
     Box(
