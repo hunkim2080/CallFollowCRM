@@ -47,8 +47,9 @@ class CallStateReceiver : BroadcastReceiver() {
                 val incoming = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
                 IncomingCallOverlay.onRinging(context, incoming)
             }
-            TelephonyManager.EXTRA_STATE_OFFHOOK, TelephonyManager.EXTRA_STATE_IDLE ->
-                IncomingCallOverlay.onCallGone(context)
+            // 받았다고 내리지 않는다 — 통화하면서 주소·잔금을 봐야 한다. (2026-09-17 사장님)
+            TelephonyManager.EXTRA_STATE_OFFHOOK -> IncomingCallOverlay.onAnswered(context)
+            TelephonyManager.EXTRA_STATE_IDLE -> IncomingCallOverlay.onCallGone(context)
         }
 
         // 통화 종료 시점 판정:

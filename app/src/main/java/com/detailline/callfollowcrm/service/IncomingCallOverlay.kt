@@ -13,6 +13,9 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import kotlinx.coroutines.flow.first
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -115,6 +118,29 @@ object IncomingCallOverlay {
 
     private const val TAG = "IncomingCallCard"
 
+    /**
+     * 미리보기 — 전화를 기다리지 않고 카드를 지금 띄운다. (2026-09-17)
+     *   오버레이는 실제 통화에서만 보여서, 만들고도 눈으로 확인할 방법이 없었다.
+     *   **가장 최근에 시공일이 잡힌 손님**의 진짜 정보로 띄운다(가짜 데이터로 보면 의미가 없다).
+     *   8초 뒤 알아서 사라진다.
+     */
+    fun showPreview(context: Context) {
+        val appCtx = context.applicationContext
+        val app = appCtx as? CallFollowCrmApplication ?: return
+        if (!PermissionHelper.hasOverlay(appCtx)) return
+        ioScope.launch {
+            val c = runCatching {
+                app.container.customerRepository.observeScheduled().first().firstOrNull()
+            }.getOrNull()
+            val number = c?.phoneNumber?.takeIf { it.isNotBlank() } ?: "010-0000-0000"
+            main.post {
+                currentNumber = number
+                if (currentView == null) actuallyShow(appCtx)
+            }
+            onRinging(appCtx, number)
+        }
+    }
+
     /** 벨 울림 — 이 번호의 상대 정보 카드를 띄운다. 권한/토글 없으면 조용히 무시. */
     fun onRinging(context: Context, rawNumber: String?) {
         val appCtx = context.applicationContext
@@ -171,6 +197,15 @@ object IncomingCallOverlay {
                     .reversed()
             }.getOrDefault(emptyList())
 
+            // 지난 통화 요약 — 카드에서 "지난번에 뭐라 했더라"를 바로 풀어준다. (2026-09-17 사장님)
+            val lastSum = runCatching {
+                container.callSummaryRepository
+                    .observeByPhoneSuffix(digits.takeLast(8)).first().firstOrNull()
+            }.getOrNull()
+            val lastSumText = lastSum?.summaryText?.trim()?.takeIf { it.isNotBlank() }
+                ?: lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
+            val lastSumWhen = lastSum?.recordedAt?.takeIf { it > 0L }?.let { monthDay(it) }
+
             // 저장 이름 없으면 기기 연락처(삼성)에서 조회 — "저장돼 있으면 그대로 반영". (2026-07-21 사장님)
             val name = customer?.name?.takeIf { it.isNotBlank() }
                 ?: com.detailline.callfollowcrm.util.ContactNameResolver.lookup(container.appContext, number)
@@ -200,13 +235,26 @@ object IncomingCallOverlay {
                     messages = if (locked) emptyList() else msgs,
                     customerId = customer?.id,
                     loading = false,
-                    status = status
+                    status = status,
+                    lastSummary = if (locked) null else lastSumText,
+                    lastSummaryWhen = if (locked) null else lastSumWhen
                 )
             }
         }
     }
 
-    /** 통화 응답/종료 — 카드 제거. */
+    /**
+     * 전화를 **받았을 때** — 카드를 내리지 않는다. (2026-09-17 사장님: "통화내내 사라지지않았으면")
+     *   통화하면서 주소·잔금을 보고 말해야 하기 때문. 표시만 '통화 중'으로 바꾼다.
+     *   ⚠️ 삼성 최신 폰은 통화 중 오버레이를 막을 수 있다(Auto Blocker). 막히면 그냥 안 보일 뿐,
+     *     앱이 깨지지는 않는다 — 실기로 확인하고 안 되면 '벨 울릴 때만'으로 되돌린다.
+     */
+    fun onAnswered(@Suppress("UNUSED_PARAMETER") context: Context) {
+        safetyJob?.cancel(); safetyJob = null   // 통화 중엔 좀비 타이머로 사라지면 안 된다
+        _state.update { it?.copy(talking = true) }
+    }
+
+    /** 통화 종료 — 카드 제거. */
     fun onCallGone(@Suppress("UNUSED_PARAMETER") context: Context) {
         currentNumber = null
         main.post { actuallyHide() }
@@ -294,26 +342,23 @@ object IncomingCallOverlay {
         // ⚠️ Compose 오버레이는 이 창(수동 lifecycle)에서 렌더가 안 됐음 — 창은 맨 위(z-order #7)인데
         //   화면캡처 결과 테두리가 하나도 안 그려짐(2026-08-31 실측). → 그냥 커스텀 View 로 Canvas 에 직접
         //   테두리를 그린다(뷰 시스템이 onDraw 를 확실히 호출). (사장님 — 최신폰 대응)
-        val view = EdgeOverlayView(appContext).apply {
-            state.value?.let { setStatus(it.status, it.loading) }
+        val view = CallerCardView(appContext) { onOpenRecord() }.apply {
+            state.value?.let { bind(it) }
         }
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,   // 전체화면 — 테두리를 화면 가장자리에 두름
+            WindowManager.LayoutParams.WRAP_CONTENT,   // 카드 높이만 — 아래(받기·거절)는 아예 안 덮는다
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // 테두리만 얹고 아무것도 안 막는다: 모든 터치 통과(NOT_TOUCHABLE — 받기/거절 그대로) +
-            //   포커스 안 뺏음 + 잠금화면 위에도 + 화면 끝(상태바·내비바)까지 그려 진짜 가장자리에.
+            // 카드만 만질 수 있고(탭하면 그 손님 대화로), 창이 카드 높이뿐이라 받기·거절은 원래대로 눌린다.
+            //   NOT_TOUCHABLE 을 빼는 게 위험했던 건 '전체화면' 창일 때다 — 지금은 위쪽 띠만 차지한다.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            // ⚠️ FLAG_LAYOUT_NO_LIMITS 는 넣지 말 것 — 크기제약이 무제한이 돼 fillMaxSize()가 0×0 으로
-            //   측정되어 아무것도 안 그려진다(2026-08-31 로그로 확인). IN_SCREEN(전체화면 바운드)만.
             PixelFormat.TRANSLUCENT
         ).apply {
-            // 전체화면이라 y offset 불필요. 테두리는 가장자리라 삼성 InCallUI(중앙)와 덜 겹침.
             gravity = Gravity.TOP
+            y = (appContext.resources.displayMetrics.density * 34f).toInt()   // 상태바 아래
         }
 
         runCatching { wm.addView(view, params) }
@@ -323,7 +368,7 @@ object IncomingCallOverlay {
                 // 상태(loading→확정) 반영 — _state 관찰해 색 갱신.
                 colorJob?.cancel()
                 colorJob = ioScope.launch {
-                    state.collect { s -> if (s != null) main.post { (currentView as? EdgeOverlayView)?.setStatus(s.status, s.loading) } }
+                    state.collect { s -> if (s != null) main.post { (currentView as? CallerCardView)?.bind(s) } }
                 }
             }
             .onFailure {
@@ -372,7 +417,13 @@ object IncomingCallOverlay {
         val messages: List<MsgPreview>,
         val customerId: Long?,
         val loading: Boolean,
-        val status: CallerStatus = CallerStatus.EXISTING
+        val status: CallerStatus = CallerStatus.EXISTING,
+        /** 지난 통화 요약 한 줄 — "지난번에 뭐라 했더라"를 바로 푼다. (2026-09-17 사장님) */
+        val lastSummary: String? = null,
+        /** 그 요약이 언제 통화 건지 ("9월 13일"). */
+        val lastSummaryWhen: String? = null,
+        /** 받은 뒤(통화 중)인지 — 카드를 안 내리고 표시만 바꾼다. */
+        val talking: Boolean = false
     )
 
     data class MsgPreview(val body: String, val sent: Boolean)
@@ -403,52 +454,195 @@ private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = 
     IncomingCallOverlay.CallerStatus.EXISTING -> NeutralPalette
 }
 
-// 테두리 상태색 (프로토 확정값, 2026-08-31 사장님) — 신규=노랑(뛰어가 받기)·예정=초록·완료=빨강·기존=파랑.
 /**
- * 전화 오는 순간 화면 '테두리'에 상태색만 — 바깥 진하고 안쪽으로 연해지는 그라데이션.
- *   Compose 대신 커스텀 View 로 Canvas 에 직접 그린다 — 수동 lifecycle 오버레이 창에선 Compose 가
- *   렌더되지 않았음(창은 맨 위였는데 화면캡처에 테두리가 아예 안 나옴, 2026-08-31 실측). View.onDraw 는 확실히 호출됨.
- *   전화화면은 안 가림(창이 전체화면 투명+터치통과). 신규=노랑·예정=초록·완료=빨강·기존=파랑. (사장님 — 최신폰 대응)
+ * 전화 미리보기 카드 — 프로토 확정안(2026-09-17 사장님: "b랑 c 안을 좀 복합", "통화내내 사라지지않았으면",
+ * "신규인지 구분도 확실해야함"). 검은 유리 카드에 B안 내용을 담는다.
+ *
+ * ⚠️ 왜 Compose 가 아니라 옛날 View 인가 — 이 오버레이 창(수동 lifecycle)에서는 **Compose 가 안 그려졌다**.
+ *   창은 맨 위인데 화면캡처에 아무것도 안 나왔다(2026-08-31 실측). View.onDraw 는 확실히 호출된다.
+ *   같은 실수를 다시 하지 말 것.
+ *
+ * 신규 구분: 색만으로 하지 않는다(햇빛·색약). **띠 색 + 칩 + "처음 걸려온 번호예요" 상자**로 글자까지 말해준다.
  */
-private class EdgeOverlayView(context: Context) : View(context) {
-    private var argb: Int = 0xFFAEB6C2.toInt()   // 조회 전 중립 흰빛
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 4f * context.resources.displayMetrics.density
+private class CallerCardView(
+    context: Context,
+    private val onTap: () -> Unit
+) : LinearLayout(context) {
+
+    private val dm = context.resources.displayMetrics
+    private fun dp(v: Float): Int = (v * dm.density + 0.5f).toInt()
+
+    private val strip = View(context)
+    private val nameTv = mkText(17f, 0xFFFFFFFF.toInt(), bold = true)
+    private val chipTv = mkText(10.5f, 0xFFFFFFFF.toInt(), bold = true)
+    private val subTv = mkText(11.5f, 0xFF8E9BAC.toInt())
+    private val addrTv = mkText(12.5f, 0xFFC3CDDA.toInt())
+    private val moneyTv = mkText(12.5f, 0xFFC3CDDA.toInt())
+    private val newTitleTv = mkText(12.5f, 0xFFFFC24D.toInt(), bold = true)
+    private val newDescTv = mkText(11.5f, 0xFFE3D3B4.toInt())
+    private val newBox = LinearLayout(context)
+    private val sumLabelTv = mkText(9.5f, 0xFF8E9BAC.toInt(), bold = true)
+    private val sumTextTv = mkText(11.5f, 0xFFD5DDE7.toInt())
+    private val sumBox = LinearLayout(context)
+    private val msgLabelTv = mkText(9.5f, 0xFF8E9BAC.toInt(), bold = true)
+    private val msgTextTv = mkText(11.5f, 0xFFD5DDE7.toInt())
+    private val msgBox = LinearLayout(context)
+    private val divider = View(context)
+    private val footTv = mkText(10.5f, 0xFF8E9BAC.toInt())
+
+    private fun mkText(sp: Float, color: Int, bold: Boolean = false) = TextView(context).apply {
+        textSize = sp
+        setTextColor(color)
+        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setLineSpacing(0f, 1.25f)
     }
 
-    fun setStatus(status: IncomingCallOverlay.CallerStatus, loading: Boolean) {
-        argb = if (loading) 0xFFAEB6C2.toInt() else when (status) {
-            IncomingCallOverlay.CallerStatus.NEW -> 0xFFFF9F0A.toInt()
-            IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF12C06A.toInt()
-            IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFF0436A.toInt()
-            IncomingCallOverlay.CallerStatus.EXISTING -> 0xFF3A86FF.toInt()
+    private fun roundBg(color: Int, radius: Float, strokeColor: Int = 0, strokeDp: Float = 0f) =
+        android.graphics.drawable.GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+            if (strokeColor != 0) setStroke(dp(strokeDp), strokeColor)
         }
-        invalidate()
+
+    init {
+        orientation = VERTICAL
+        setPadding(dp(10f), 0, dp(10f), 0)
+
+        val card = LinearLayout(context).apply {
+            orientation = VERTICAL
+            background = roundBg(0xEE0F141C.toInt(), 17f, 0x22FFFFFF, 1f)
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            elevation = dp(8f).toFloat()
+            isClickable = true
+            setOnClickListener { onTap() }
+        }
+        card.addView(strip, LayoutParams(LayoutParams.MATCH_PARENT, dp(4f)))
+
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(13f), dp(11f), dp(13f), dp(12f))
+        }
+
+        val head = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        head.addView(nameTv)
+        chipTv.setPadding(dp(8f), dp(2f), dp(8f), dp(2f))
+        head.addView(chipTv, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+            leftMargin = dp(7f)
+        })
+        body.addView(head)
+        body.addView(subTv, rowLp(2f))
+        body.addView(addrTv, rowLp(6f))
+        body.addView(moneyTv, rowLp(2f))
+
+        // 신규 상자 — 색이 아니라 **글자로** 신규임을 말한다.
+        newBox.orientation = VERTICAL
+        newBox.background = roundBg(0x24F59F0B, 12f, 0x52F59F0B, 1f)
+        newBox.setPadding(dp(11f), dp(9f), dp(11f), dp(10f))
+        newBox.addView(newTitleTv)
+        newBox.addView(newDescTv, rowLp(2f))
+        body.addView(newBox, rowLp(9f))
+
+        body.addView(panel(sumBox, sumLabelTv, sumTextTv), rowLp(9f))
+        body.addView(panel(msgBox, msgLabelTv, msgTextTv), rowLp(7f))
+
+        divider.setBackgroundColor(0x1FFFFFFF)
+        body.addView(divider, LayoutParams(LayoutParams.MATCH_PARENT, dp(1f)).apply { topMargin = dp(9f) })
+        body.addView(footTv, rowLp(7f))
+
+        card.addView(body)
+        addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
-    override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat(); val h = height.toFloat()
-        if (w <= 0f || h <= 0f) return
-        val depth = minOf(w, h) * 0.17f
-        val edge = (argb and 0x00FFFFFF) or (0xD9 shl 24)   // 바깥 진하게(~85%)
-        val clear = argb and 0x00FFFFFF                      // 안쪽 투명(0%)
-        // 위/아래/왼/오 네 가장자리 그라데이션 (바깥 진함 → 안쪽 투명)
-        fill.shader = LinearGradient(0f, 0f, 0f, depth, edge, clear, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, w, depth, fill)
-        fill.shader = LinearGradient(0f, h - depth, 0f, h, clear, edge, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, h - depth, w, h, fill)
-        fill.shader = LinearGradient(0f, 0f, depth, 0f, edge, clear, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, depth, h, fill)
-        fill.shader = LinearGradient(w - depth, 0f, w, 0f, clear, edge, Shader.TileMode.CLAMP)
-        canvas.drawRect(w - depth, 0f, w, h, fill)
-        // 바깥 또렷한 선
-        stroke.shader = null
-        stroke.color = (argb and 0x00FFFFFF) or (0xFF shl 24)
-        canvas.drawRect(0f, 0f, w, h, stroke)
+    private fun rowLp(topDp: Float) =
+        LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(topDp) }
+
+    private fun panel(box: LinearLayout, label: TextView, text: TextView): LinearLayout {
+        box.orientation = VERTICAL
+        box.background = roundBg(0x12FFFFFF, 11f)
+        box.setPadding(dp(10f), dp(8f), dp(10f), dp(9f))
+        box.addView(label)
+        box.addView(text, rowLp(2f))
+        return box
+    }
+
+    /** 상태 색 — 신규=노랑, 예정=초록, 완료=빨강, 그 외 기존=파랑. 조회 중엔 회색. */
+    private fun stripColor(st: IncomingCallOverlay.CallerState): Int = when {
+        st.loading -> 0xFFAEB6C2.toInt()
+        st.status == IncomingCallOverlay.CallerStatus.NEW -> 0xFFF59F0B.toInt()
+        st.status == IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF12B886.toInt()
+        st.status == IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFF0436A.toInt()
+        else -> 0xFF3182F6.toInt()
+    }
+
+    private fun chipTextColor(st: IncomingCallOverlay.CallerState): Int = when (st.status) {
+        IncomingCallOverlay.CallerStatus.NEW -> 0xFFFFC24D.toInt()
+        IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF3FE0AE.toInt()
+        IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFFF8FA9.toInt()
+        else -> 0xFF7FB4FF.toInt()
+    }
+
+    fun bind(st: IncomingCallOverlay.CallerState) {
+        val isNew = !st.loading && st.status == IncomingCallOverlay.CallerStatus.NEW
+        strip.setBackgroundColor(stripColor(st))
+
+        nameTv.text = st.displayName
+        nameTv.textSize = if (isNew) 19f else 17f
+
+        val chipLabel = when {
+            st.loading -> "찾는 중…"
+            isNew -> "✨ 신규"
+            st.scheduleLabel != null -> st.scheduleLabel
+            st.status == IncomingCallOverlay.CallerStatus.COMPLETED -> "✅ 시공 완료"
+            else -> "기존 손님"
+        }
+        chipTv.text = chipLabel
+        chipTv.setTextColor(chipTextColor(st))
+        chipTv.background = roundBg((stripColor(st) and 0x00FFFFFF) or (0x38 shl 24), 999f)
+
+        // 이름이 번호 그대로면 아래 번호줄은 중복이라 안 띄운다.
+        val formatted = PhoneNumberFormatter.format(st.phoneNumber)
+        subTv.text = if (st.displayName == formatted) "저장 안 된 번호" else formatted
+        subTv.visibility = View.VISIBLE
+
+        show(addrTv, st.address?.let { "📍  $it" })
+        show(moneyTv, st.moneyLabel?.let { "💰  $it" })
+
+        newBox.visibility = if (isNew) View.VISIBLE else View.GONE
+        if (isNew) {
+            newTitleTv.text = "처음 걸려온 번호예요"
+            newDescTv.text = "주고받은 문자도, 지난 통화도 없어요.\n새 문의일 가능성이 높아요."
+        }
+
+        val hasSum = !st.lastSummary.isNullOrBlank()
+        sumBox.visibility = if (hasSum) View.VISIBLE else View.GONE
+        if (hasSum) {
+            sumLabelTv.text = "지난 통화 요약" + (st.lastSummaryWhen?.let { " · $it" } ?: "")
+            sumTextTv.text = st.lastSummary
+        }
+
+        val lastMsg = st.messages.lastOrNull()
+        msgBox.visibility = if (lastMsg != null) View.VISIBLE else View.GONE
+        if (lastMsg != null) {
+            msgLabelTv.text = if (lastMsg.sent) "내가 보낸 마지막 문자" else "마지막 받은 문자"
+            msgTextTv.text = lastMsg.body.take(90)
+        }
+
+        footTv.text = when {
+            st.talking -> "📌 통화 중 · 끊을 때까지 남아 있어요"
+            isNew -> "탭하면 열려요 · 끊으면 바로 손님 등록"
+            else -> "탭하면 이 손님 대화로"
+        }
+    }
+
+    private fun show(tv: TextView, text: String?) {
+        if (text.isNullOrBlank()) { tv.visibility = View.GONE } else { tv.visibility = View.VISIBLE; tv.text = text }
     }
 }
+
 
 @Composable
 private fun IncomingCallCard(

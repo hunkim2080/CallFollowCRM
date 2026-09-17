@@ -2308,7 +2308,7 @@ private fun AutoSmsSection(
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text("전화가 오면 화면 테두리에 색이 둘러져, 받기 전에 신규·시공예정·기존·완료를 한눈에 (전화 화면은 그대로 · 신규=노랑)",
+                    Text("전화가 오면 손님 카드가 떠요 — 현장 주소·돈·지난 통화 요약·마지막 문자. 받은 뒤에도 통화 내내 남아요 (전화 화면은 안 가림 · 신규는 노란 띠)",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
                 }
                 Spacer(Modifier.width(8.dp))
@@ -2356,8 +2356,23 @@ private fun AutoSmsSection(
                     Column {
                         Text("⚠️ '다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
                             fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
-                        Text("여기를 눌러 허용하면 전화 올 때 테두리 색이 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
+                        Text("여기를 눌러 허용하면 전화 올 때 손님 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
                     }
+                }
+            }
+            // 미리보기 — 전화를 기다리지 않고 카드를 바로 확인. (2026-09-17)
+            //   오버레이는 실제 전화가 와야만 볼 수 있어서 만들고도 확인이 어려웠다.
+            if (callerCardOn && overlayGranted) {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossBlueSoft)
+                        .clickable {
+                            com.detailline.callfollowcrm.service.IncomingCallOverlay.showPreview(ctx)
+                        }
+                        .padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("👀 카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
             }
         }
