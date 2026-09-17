@@ -383,6 +383,40 @@ fun CustomerDetailScreen(
                         androidx.compose.material3.Icon(Icons.Default.Phone, "전화", tint = TossTextSecondary, modifier = Modifier.size(17.dp))
                     }
                 }
+
+                // ── 이 사람은 고객인가 — 채팅에서 물어본 그 답을 **여기서 바꾼다**. (2026-09-17 사장님 C안)
+                //   왜 대화방이 아니라 여기인가: 대화방에 상태 띠를 계속 띄우면 화면만 먹는다
+                //   ("계속 고객아님으로 해두셨어요가 나오면 사용성과 ui를 헤치는거아닌가").
+                //   분류·주소·금액이 다 모인 이 카드가 '이 사람 설정' 자리다.
+                //   전엔 한 번 [고객 아님] 을 누르면 질문이 다시 안 떠서 **바꿀 방법이 아예 없었다.**
+                val headerPrefs = remember(headerCtx) {
+                    (headerCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
+                        .container.preferences
+                }
+                var nonCustomer by remember(c.id) { mutableStateOf(headerPrefs.isNonCustomer(c.phoneNumber)) }
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().padding(top = 11.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text("이 사람은", fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
+                    CustomerKindPill("고객 아님", on = nonCustomer) {
+                        nonCustomer = true
+                        headerPrefs.answerCustomerAsk(c.phoneNumber, true)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    CustomerKindPill("고객", on = !nonCustomer) {
+                        nonCustomer = false
+                        headerPrefs.answerCustomerAsk(c.phoneNumber, false)
+                    }
+                }
+                if (nonCustomer) {
+                    Text(
+                        "추천 답변·고객 분석·주소 물어보기를 안 해요 (통화 요약은 그대로)",
+                        fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
             }
 
             // 1.2 고객 페르소나 — 숨김 (2026-09-01 사장님 "많이 안 씀, 일단 숨김"). 재노출하려면 아래 2줄 주석 해제.
@@ -3883,6 +3917,22 @@ private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.
  * 차수는 **오래된 것이 1차**다. 지난 건들 다음이 지금 건.
  * 건이 하나뿐이어도 그린다 — 「＋ 새 시공」이 이 줄에만 있어서, 안 그리면 2번째 시공을 잡을 길이 없다. (2026-09-17)
  */
+/** '이 사람은 [고객 아님][고객]' 알약 하나. 고른 쪽만 파랗게. (2026-09-17) */
+@Composable
+private fun CustomerKindPill(text: String, on: Boolean, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Box(
+        Modifier.clip(RoundedCornerShape(999.dp))
+            .background(if (on) TossBlue else TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 13.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+            color = if (on) Color.White else TossTextSecondary
+        )
+    }
+}
+
 @Composable
 private fun JobTabsRow(
     pastJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
