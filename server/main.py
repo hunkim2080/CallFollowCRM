@@ -14226,11 +14226,28 @@ async def refine_endpoint(req: RefineRequest) -> dict:
     system_prompt = _build_refine_system_prompt(req.owner_tone_samples or [])
     user_msg = _build_refine_user_message(req)
 
-    try:
-        polished, usage_meta = await _call_gemini_refine(system_prompt, user_msg)
-    except Exception as e:
-        print(f"[refine] Gemini 호출 실패: {type(e).__name__}: {e}")
-        raise HTTPException(502, f"Gemini 호출 실패: {type(e).__name__}")
+    # 구글이 "지금 붐빈다"(503 UNAVAILABLE) 고 돌려보내는 일이 잦다. 구글 안내문에도
+    #   "Spikes in demand are usually temporary. Please try again later." 라고 적혀 온다.
+    #   그런데 우리는 한 번 실패하면 바로 502 로 넘겨서, 사장님 눈엔 **다듬기가 그냥 안 되는 것**으로 보였다.
+    #   → 잠깐 쉬었다 두 번 더 해본다. (2026-09-17 사장님: "현재 다듬기가 왜 안되는거지")
+    polished = None
+    usage_meta = {}
+    last_err = None
+    for attempt in range(3):
+        try:
+            polished, usage_meta = await _call_gemini_refine(system_prompt, user_msg)
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            transient = ("503" in msg) or ("429" in msg) or ("500" in msg) or ("UNAVAILABLE" in msg)
+            print(f"[refine] Gemini 호출 실패({attempt + 1}/3): {type(e).__name__}: {msg[:160]}")
+            if not transient or attempt == 2:
+                break
+            await asyncio.sleep(1.2 * (attempt + 1))   # 1.2초 → 2.4초
+    if last_err is not None:
+        raise HTTPException(502, f"Gemini 호출 실패: {type(last_err).__name__}")
 
     # log_llm_usage — endpoint 카운트 + 비용 계산 (단가 dict 의 gemini-2.5-flash)
     prompt_tokens = int(usage_meta.get("promptTokenCount", 0) or 0)
@@ -14966,6 +14983,11 @@ async def _split_audio_to_chunks(
     return chunks
 
 
+# 청크 하나당 기다려줄 시간 / 동시에 돌릴 개수. (2026-09-17 — 26분 통화가 120초에서 잘렸다)
+STT_CHUNK_TIMEOUT_SEC = 900.0
+STT_CHUNK_CONCURRENCY = 2
+
+
 async def _run_stt_one_subprocess(audio_path: str, label: str = "") -> str:
     """단일 audio (또는 chunk) STT subprocess 호출. 실패 시 raise."""
     worker_script = BASE_DIR / "whisper_worker.py"
@@ -14980,8 +15002,11 @@ async def _run_stt_one_subprocess(audio_path: str, label: str = "") -> str:
         stderr=asyncio.subprocess.PIPE,
     )
     try:
+        # 120초는 **26분 통화에서 실제로 터졌다** (STT timeout 1/5, 2026-09-17).
+        #   청크 5개를 동시에 돌리니 맥미니 CPU 를 서로 뺏어 한 조각이 2분을 넘긴 것.
+        #   이제 긴 통화는 요청을 붙잡지 않으므로(비동기 경로) 넉넉히 기다려도 된다.
         stdout_b, stderr_b = await asyncio.wait_for(
-            proc.communicate(), timeout=120.0
+            proc.communicate(), timeout=STT_CHUNK_TIMEOUT_SEC
         )
     except asyncio.TimeoutError:
         proc.kill()
@@ -15020,10 +15045,18 @@ async def _run_stt_with_chunking(audio_path: str):
     # 병렬 STT
     n = len(chunks)
     print(f"[chunk] 병렬 STT 시작 {n}개 청크")
+    # 동시에 다 돌리면 맥미니 CPU 를 서로 뺏어 **조각마다 더 느려진다**(타임아웃의 진짜 원인).
+    #   총 걸리는 시간은 거의 같으면서 각 조각은 제 속도로 끝난다.
+    _sem = asyncio.Semaphore(STT_CHUNK_CONCURRENCY)
+
+    async def _one(cp: str, label: str) -> str:
+        async with _sem:
+            return await _run_stt_one_subprocess(cp, label=label)
+
     try:
         transcripts = await asyncio.gather(
             *[
-                _run_stt_one_subprocess(cp, label=f"{i+1}/{n}")
+                _one(cp, f"{i+1}/{n}")
                 for i, (cp, _, _) in enumerate(chunks)
             ]
         )
