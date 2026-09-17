@@ -70,6 +70,41 @@ class CustomerDetailViewModel(
         container.jobRepository.observeCompletedByCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * 이 고객의 **모든 시공 건** — 지난 것도, 앞으로 잡힌 것도. 건 탭이 읽는다. (2026-09-17)
+     *   전엔 완료된 건(pastJobs)만 봐서, 예정 건을 두 개 잡아도 탭에 한 개만 보였다.
+     */
+    val allJobs: kotlinx.coroutines.flow.StateFlow<List<com.detailline.callfollowcrm.data.local.entity.JobEntity>> =
+        container.jobRepository.observeByCustomer(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 새 시공 건 추가 — **기존 건은 그대로 두고** 한 줄 더 쌓는다. (2026-09-17 사장님:
+     * "새시공 눌러서 뭔가해보려는데 날짜부터 체크하는데 저장이안되네? 새탭이 안생겨")
+     *   전엔 [＋ 새 시공] 이 날짜 고르기만 열고, 고른 날짜를 **지금 건에 덮어썼다.**
+     *   1차 시공 날짜가 조용히 바뀌는 셈이라 더 나빴다.
+     */
+    fun addNewJob(startMs: Long, days: Int, onDone: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val day = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(startMs)
+            val id = runCatching {
+                container.jobRepository.addJob(
+                    customerId = customerId,
+                    scheduledWorkDate = day,
+                    scheduledWorkMinutes = null,
+                    scheduledWorkDays = days.coerceAtLeast(1),
+                    address = null,          // 현장이 다를 수 있으니 안 물려준다 — 건마다 따로 적는다
+                    totalAmount = null,
+                    depositAmount = null,
+                    depositPaidAt = null,
+                    now = now
+                )
+            }.getOrDefault(0L)
+            onDone(id)
+        }
+    }
+
     /** 발행 이력 1건 삭제(잘못 발행/정리용). */
     fun deleteIssuedDoc(id: Long) {
         viewModelScope.launch { runCatching { container.issuedDocRepository.delete(id) } }

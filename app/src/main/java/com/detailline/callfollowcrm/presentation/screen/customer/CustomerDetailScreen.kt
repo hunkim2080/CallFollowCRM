@@ -167,6 +167,8 @@ fun CustomerDetailScreen(
     //   아래 DisposableEffect 설명 참고.
     var memoDirty by remember(customer?.id) { mutableStateOf(false) }
     var datePickerOpen by remember { mutableStateOf(false) }
+    /** 날짜 고르기가 '새 건 만들기' 로 열렸나. false = 지금 건의 날짜를 고치는 것. (2026-09-17) */
+    var addingNewJob by remember { mutableStateOf(false) }
     // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
     var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
@@ -695,19 +697,28 @@ fun CustomerDetailScreen(
             //   프로토 artifact/KKMyncpHy1Ni7GK6dygMRY 의 B안(탭형). 크롬 새 탭처럼 건을 옆으로 늘어놓는다.
             //   한 번에 **한 건만** 보여준다 → 화면이 짧다. `＋` 는 이 고객으로 새 시공 잡기.
             //   건이 하나뿐이면 탭을 안 띄운다 — 있으나 마나 한 줄이 자리만 먹는다.
-            val pastJobsForTabs by viewModel.pastJobs.collectAsState()
-            val selectedPastJob = pastJobsForTabs.firstOrNull { it.id == selectedPastJobId }
+            // 탭은 이 고객의 **모든 건**을 보여준다 — 지난 것도, 앞으로 잡힌 것도. (2026-09-17)
+            //   전엔 완료된 건만 봐서 예정 건을 둘 잡아도 탭이 하나였다.
+            val allJobsForTabs by viewModel.allJobs.collectAsState()
+            val repDay = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
+            // 대표 건 = 고객 카드가 지금 보여주고 있는 그 건(같은 날짜). 이건 '지금 건' 탭으로 따로 그린다.
+            val repJobId = allJobsForTabs.firstOrNull { j ->
+                j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } == repDay && repDay != null
+            }?.id
+            val otherJobs = allJobsForTabs.filter { it.id != repJobId }
+            val selectedPastJob = otherJobs.firstOrNull { it.id == selectedPastJobId }
             // 시공이 **1건일 때도** 띄운다. (2026-09-17 사장님 지시)
             //   전엔 '지난 시공이 있어야' 띄웠는데, 「＋ 새 시공」이 이 줄 안에 있어서
             //   시공 1건짜리 고객은 **두 번째 시공을 잡을 입구가 아예 없었다.**
             //   (사장님이 원래 물어본 게 정확히 그거였다 — "2번째 시공을 등록할땐 어떻게해?")
-            if (detailTab == 0 && (pastJobsForTabs.isNotEmpty() || c.scheduledWorkDate != null)) {
+            if (detailTab == 0 && (otherJobs.isNotEmpty() || c.scheduledWorkDate != null)) {
                 JobTabsRow(
-                    pastJobs = pastJobsForTabs,
+                    pastJobs = otherJobs,
                     current = c,
                     selectedPastJobId = selectedPastJobId,
                     onSelect = { selectedPastJobId = it },
-                    onAddNew = { selectedPastJobId = null; datePickerOpen = true }
+                    // ＋ 는 **새 건을 만든다.** 전엔 날짜 고르기만 열고 그 날짜를 지금 건에 덮어썼다. (2026-09-17)
+                    onAddNew = { selectedPastJobId = null; addingNewJob = true; datePickerOpen = true }
                 )
             }
             // 2-1. 지난 건을 고른 상태 — 그 건의 기록만 보여준다(읽기 전용).
@@ -1245,7 +1256,7 @@ fun CustomerDetailScreen(
             initialSelectedEndDateMillis = initEnd?.let(toUtcMidnight)
         )
         Dialog(
-            onDismissRequest = { datePickerOpen = false },
+            onDismissRequest = { addingNewJob = false; datePickerOpen = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             androidx.compose.foundation.layout.Box(
@@ -1304,7 +1315,7 @@ fun CustomerDetailScreen(
                             androidx.compose.foundation.layout.Row(
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                TextButton(onClick = { datePickerOpen = false }) {
+                                TextButton(onClick = { addingNewJob = false; datePickerOpen = false }) {
                                     Text("취소", color = TossTextSecondary)
                                 }
                                 TextButton(
@@ -1314,12 +1325,24 @@ fun CustomerDetailScreen(
                                             val end = rangeState.selectedEndDateMillis
                                             val days = if (end != null && end > start)
                                                 ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
-                                            // 날짜(시작) + 기간(며칠) 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
-                                            pendingCelebrate = customer?.scheduledWorkDate == null
-                                            pendingWorkDays = days.coerceAtLeast(1)
-                                            viewModel.updateScheduledWorkDate(start)
-                                            workTimePickerOpen = true
+                                            if (addingNewJob) {
+                                                // 새 건 — 지금 건은 **손대지 않는다.** 한 줄 더 쌓는다. (2026-09-17)
+                                                viewModel.addNewJob(start, days) { id ->
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        if (id > 0L) "새 시공을 추가했어요" else "그 날짜엔 이미 시공이 있어요",
+                                                        android.widget.Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            } else {
+                                                // 날짜(시작) + 기간(며칠) 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
+                                                pendingCelebrate = customer?.scheduledWorkDate == null
+                                                pendingWorkDays = days.coerceAtLeast(1)
+                                                viewModel.updateScheduledWorkDate(start)
+                                                workTimePickerOpen = true
+                                            }
                                         }
+                                        addingNewJob = false
                                         datePickerOpen = false
                                     }
                                 ) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
@@ -3949,8 +3972,11 @@ private fun JobTabsRow(
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
     ) {
         ordered.forEachIndexed { idx, job ->
+            // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
+            val done = job.workCompletedAt != null
+            val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
             JobTab(
-                nth = "${idx + 1}차 · 완료",
+                nth = "${idx + 1}차 · " + if (done) "완료" else (dd ?: "예정"),
                 sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미상",
                 on = selectedPastJobId == job.id,
                 onClick = { onSelect(job.id) }
@@ -4015,9 +4041,13 @@ private fun PastJobPanel(job: com.detailline.callfollowcrm.data.local.entity.Job
     TossCard {
         Column {
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("🧾", fontSize = 13.sp)
+                Text(if (job.workCompletedAt != null) "🧾" else "🔨", fontSize = 13.sp)
                 Spacer(Modifier.width(6.dp))
-                Text("끝난 시공", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                // 예정 건도 이 칸에 들어온다 — '끝난 시공' 이라고 쓰면 거짓말. (2026-09-17)
+                Text(
+                    if (job.workCompletedAt != null) "끝난 시공" else "앞으로 잡힌 시공",
+                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                )
             }
             Spacer(Modifier.height(10.dp))
             Text(
