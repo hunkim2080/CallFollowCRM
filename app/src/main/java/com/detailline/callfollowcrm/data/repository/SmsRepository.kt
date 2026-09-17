@@ -804,6 +804,8 @@ class SmsRepository(
     ) {
         val mmsUri = Uri.parse("content://mms")
         val proj = arrayOf("_id", "date", "msg_box")
+        // 각 대화에서 '가장 최근'으로 뽑힌 MMS 의 id — 아래에서 **한 번의 IN 쿼리**로 본문을 채운다.
+        val newestMmsIdBySuffix = HashMap<String, Long>()
         val cursor = runCatching {
             context.contentResolver.query(mmsUri, proj, dateDescSortArgs(mmsScanLimit), null)
         }.getOrNull() ?: return
@@ -846,9 +848,11 @@ class SmsRepository(
                         hasOwnerReply = isSent,
                         firstDateMsInScan = dateMs
                     )
+                    newestMmsIdBySuffix[suffix] = mmsId
                 } else {
                     // MMS dateMs 가 SMS lastDateMs 보다 더 최신이면 본문/방향 갱신.
                     val isNewer = dateMs > existing.lastDateMs
+                    if (isNewer) newestMmsIdBySuffix[suffix] = mmsId
                     seen[suffix] = existing.copy(
                         lastBody = if (isNewer) MMS_PLACEHOLDER_BODY else existing.lastBody,
                         lastDateMs = maxOf(existing.lastDateMs, dateMs),
@@ -858,6 +862,51 @@ class SmsRepository(
                     )
                 }
             }
+        }
+        fillMmsBodies(seen, newestMmsIdBySuffix)
+    }
+
+    /**
+     * placeholder("📎 사진/첨부 메시지")로 덮인 자리에 **진짜 본문**을 채운다. (2026-09-17 사장님:
+     * "mms면 내용도 안보여주고 사진/첨부메시지라고 나오네")
+     *
+     * 왜 원래 placeholder 였나: MMS 본문은 part 테이블에 따로 있어서, 대화마다 한 번씩 읽으면
+     *   조회가 폭주한다(2026-09-15 실제로 5.9초 멈춤 → 앱 종료). 그래서 표시용 자리표시자를 뒀다.
+     * 어떻게 피하나: **대화마다가 아니라 통째로 한 번.** 각 대화의 '가장 최근 MMS' id 만 모아
+     *   `mid IN (...)` 한 방으로 읽는다 → 조회 횟수는 대화 수와 무관하게 +1.
+     *   (searchMmsByBody 가 쓰는 것과 같은 방식)
+     * 사진만 있고 글이 없는 MMS 는 그대로 placeholder — 그게 맞는 표시다.
+     */
+    private fun fillMmsBodies(seen: LinkedHashMap<String, SmsContact>, newestMmsIdBySuffix: Map<String, Long>) {
+        if (newestMmsIdBySuffix.isEmpty()) return
+        val targets = newestMmsIdBySuffix.filterKeys { seen[it]?.lastBody == MMS_PLACEHOLDER_BODY }
+        if (targets.isEmpty()) return
+        val ids = targets.values.distinct()
+        // mid 는 Long 이라 문자열로 이어붙여도 인젝션 위험 없음(기존 searchMmsByBody 와 동일한 관례).
+        val textByMid = HashMap<Long, String>(ids.size)
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://mms/part"),
+                arrayOf("mid", "ct", "text"),
+                "ct=? AND mid IN (${ids.joinToString(",")})",
+                arrayOf("text/plain"),
+                null
+            )
+        }.getOrNull()?.use { c ->
+            val midIdx = c.getColumnIndex("mid")
+            val textIdx = c.getColumnIndex("text")
+            if (midIdx < 0 || textIdx < 0) return@use
+            while (c.moveToNext()) {
+                val mid = c.getLong(midIdx)
+                if (textByMid.containsKey(mid)) continue   // 한 MMS 에 글 파트가 여럿이면 첫 것
+                val t = c.getString(textIdx).orEmpty().trim()
+                if (t.isNotBlank()) textByMid[mid] = t
+            }
+        }
+        for ((suffix, mmsId) in targets) {
+            val body = textByMid[mmsId] ?: continue
+            val cur = seen[suffix] ?: continue
+            seen[suffix] = cur.copy(lastBody = body)
         }
     }
 
