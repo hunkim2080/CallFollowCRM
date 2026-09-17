@@ -138,6 +138,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("call_summary_consented", false)
         set(value) = prefs.edit().putBoolean("call_summary_consented", value).apply()
 
+    /** '통화 요약이 꺼져 있어요' 알림을 마지막으로 띄운 시각 — 하루 한 번만. (2026-09-17) */
+    var callSummaryConsentPromptedAt: Long
+        get() = prefs.getLong("call_summary_consent_prompted_at", 0L)
+        set(value) = prefs.edit().putLong("call_summary_consent_prompted_at", value).apply()
+
     /** 녹음을 서버로 보내도 되는가 — **토글 ON + 동의 완료** 둘 다일 때만. */
     val callSummaryAllowed: Boolean
         get() = autoSummaryEnabled && callSummaryConsented

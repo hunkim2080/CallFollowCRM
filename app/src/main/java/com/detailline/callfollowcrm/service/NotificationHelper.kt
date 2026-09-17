@@ -606,6 +606,26 @@ object NotificationHelper {
         )
     }
 
+    /**
+     * 통화 요약이 '동의 전'이라 멈춰 있을 때 한 번 알린다. (2026-09-17 사장님:
+     * "26분 통화한게 있는데 요약정리나 내용이 하나도 안보여")
+     *
+     * 왜 필요한가: 같은 날 넣은 동의 절차(플레이 정책) 때문에 **기존 사용자도 동의 전 상태**가 된다.
+     *   그런데 아무 표시 없이 요약만 멈추니 "앱이 고장났다"로 보인다. 실제로 그렇게 보고받았다.
+     *   동의를 안 받고 올리는 건 정책 위반이라 **자동으로 켤 수는 없다** → 대신 조용히 실패하지 않게 알린다.
+     * 하루 한 번만 — 통화할 때마다 뜨면 그게 더 성가시다.
+     */
+    fun showCallSummaryConsentNeeded(context: Context) {
+        val pending = appOpenPending(context, CALL_SUMMARY_CONSENT_ID)
+        showProtoPush(
+            context, CALL_SUMMARY_CONSENT_ID, CHANNEL_REMINDER, ACCENT_PINK,
+            title = "통화 요약이 꺼져 있어요",
+            msg = "더보기 → 자동 문자 → '통화 자동 요약'을 켜면 다시 요약해드려요 (한 번만 확인하면 됩니다)",
+            contentIntent = pending,
+            actions = listOf(PushAction("켜러 가기", pending))
+        )
+    }
+
     private fun appOpenPending(context: Context, id: Int, action: String? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             action?.let { this.action = it }   // 있으면 그 딥링크 화면으로 (없으면 앱 홈). (2026-08-13)
@@ -1584,6 +1604,7 @@ object NotificationHelper {
     private const val CALL_SUMMARY_GROUP = "call_summary_group"
     /** 묶음 머리(요약) 알림 ID. */
     internal const val CALL_SUMMARY_GROUP_ID = FAM_SINGLE * ID_BAND + 7
+    internal const val CALL_SUMMARY_CONSENT_ID = FAM_SINGLE * ID_BAND + 8
 
     /**
      * 지금 알림창에 살아있는 통화요약 알림들을 모아 '머리' 알림 한 개를 갱신.

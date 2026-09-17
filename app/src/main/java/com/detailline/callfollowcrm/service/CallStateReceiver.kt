@@ -64,6 +64,16 @@ class CallStateReceiver : BroadcastReceiver() {
             // 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 폴더(녹음/텍스트) 스캔해 자동 요약.
             //   에이닷이 파일 쓰는 데 시간이 걸려 ~15초 지연 후 워커 실행. prefs OFF/폴더 미연결이면 워커가 no-op.
             //   REPLACE: 연달아 통화하면 마지막 통화 기준 15초 뒤 한 번만 스캔(폴더 전체를 훑어 다 챙김).
+            // 토글은 켜져 있는데 **동의만 안 된** 상태면 조용히 멈추지 말고 알린다. (2026-09-17)
+            //   자동으로 켜면 정책 위반(동의 전 수집 금지)이라 알리기만 한다. 하루 한 번.
+            val prefs0 = app.container.preferences
+            if (prefs0.autoSummaryEnabled && !prefs0.callSummaryConsented) {
+                val now0 = System.currentTimeMillis()
+                if (now0 - prefs0.callSummaryConsentPromptedAt > 24L * 60 * 60 * 1000) {
+                    prefs0.callSummaryConsentPromptedAt = now0
+                    runCatching { NotificationHelper.showCallSummaryConsentNeeded(context) }
+                }
+            }
             if (app.container.preferences.callSummaryAllowed) {
                 runCatching {
                     val req = androidx.work.OneTimeWorkRequestBuilder<CallSummaryScanWorker>()
