@@ -251,7 +251,9 @@ private fun GeneralRow(
                 Text("⋮", fontSize = 18.sp, color = TossTextTertiary)
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(if (pinned) "고정 해제" else "맨 위에 고정") }, onClick = { menu = false; onTogglePin() })
-                    DropdownMenuItem(text = { Text("상담함으로 옮기기") }, onClick = { menu = false; onMoveToConsult() })
+                    // 말 통일 — 처음엔 "이 사람 고객인가요?" 라고 물어놓고 되돌릴 땐 "상담함으로" 라고 하면
+                    //   같은 일인 줄 모른다. (2026-09-17 사장님: "헷갈리겠다 싶지않아?")
+                    DropdownMenuItem(text = { Text("고객이에요 · 상담함으로") }, onClick = { menu = false; onMoveToConsult() })
                     DropdownMenuItem(text = { Text("스팸으로") }, onClick = { menu = false; onMoveToSpam() })
                 }
             }

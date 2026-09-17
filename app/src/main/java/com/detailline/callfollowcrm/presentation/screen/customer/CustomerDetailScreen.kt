@@ -429,9 +429,12 @@ fun CustomerDetailScreen(
             //   카테고리(택배·일당 같은 이름표)로 판단하지 않는다 — 새 손님은 아직 이름표가 없다.
             var isGeneralThread by remember(c.id) { mutableStateOf(false) }
             LaunchedEffect(c.id, c.phoneNumber) {
+                val app0 = context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication
                 isGeneralThread = runCatching {
-                    (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
-                        .container.threadBucketRepository.isGeneral(c.phoneNumber)
+                    // ① 사장님이 채팅에서 "고객 아님" 이라고 **답한** 번호 (사장님이 말한 바로 그것)
+                    app0.container.preferences.isNonCustomer(c.phoneNumber) ||
+                        // ② 문자함(택배·광고·알림)으로 갈린 번호
+                        app0.container.threadBucketRepository.isGeneral(c.phoneNumber)
                 }.getOrDefault(false)
             }
             var showAddressDialog by remember { mutableStateOf(false) }

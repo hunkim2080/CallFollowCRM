@@ -978,6 +978,29 @@ fun ChatScreen(
                     ) { Text("고객 아님", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                 }
             }
+            // 되돌리기 — **물어봤던 그 자리**에 그대로. (2026-09-17 사장님:
+            //   "고객인데 고객아님으로 잘못누른경우 어떻게 다시변경해야해?")
+            //   전엔 한 번 누르면 질문이 사라지고 끝이라 바꿀 방법이 없었다.
+            //   딴 데(설정·메뉴)에 두면 고른 자리와 고치는 자리가 달라 또 헷갈린다.
+            val markedNonCustomer by viewModel.markedNonCustomer.collectAsState()
+            if (!showCustomerAsk && markedNonCustomer) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(Color(0xFFF2F4F6))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("고객 아님으로 해두셨어요", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                        color = TossTextSecondary, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                            .clickable { viewModel.undoNonCustomer() }
+                            .padding(horizontal = 13.dp, vertical = 6.dp)
+                    ) {
+                        Text("고객으로 되돌리기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    }
+                }
+            }
 
             // AI 추천 답변 영역 — 가장 최신 메시지가 고객이 보낸 것일 때만 표시.
             // SmsReceiver 가 백그라운드에서 서버에 prepare 트리거 → ChatScreen 진입 시 fetch.

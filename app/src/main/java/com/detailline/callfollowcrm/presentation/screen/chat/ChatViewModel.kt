@@ -268,10 +268,26 @@ class ChatViewModel(
     fun answerCustomerAsk(isNonCustomer: Boolean) {
         container.preferences.answerCustomerAsk(phoneNumber, isNonCustomer)
         _customerAskDismissed.value = true
+        _markedNonCustomer.value = isNonCustomer
         if (isNonCustomer) { _suggestions.value = null; _suggestionsLoading.value = false }
         _toast.value = if (isNonCustomer)
             "고객 아님으로 표시했어요 — 추천 답변·고객 분석은 안 만들어요 (통화 요약은 그대로)"
         else "고객으로 뒀어요"
+    }
+
+    /**
+     * 지금 이 번호가 '고객 아님' 으로 표시돼 있나. (2026-09-17 사장님:
+     * "고객인데 고객아님으로 잘못누른경우 어떻게 다시변경해야해?")
+     *   전엔 한 번 누르면 질문이 다시 안 떠서 **되돌릴 길이 아예 없었다.**
+     */
+    private val _markedNonCustomer = MutableStateFlow(container.preferences.isNonCustomer(phoneNumber))
+    val markedNonCustomer: StateFlow<Boolean> = _markedNonCustomer.asStateFlow()
+
+    /** '고객 아님' 을 풀고 고객으로 되돌린다. */
+    fun undoNonCustomer() {
+        container.preferences.answerCustomerAsk(phoneNumber, false)
+        _markedNonCustomer.value = false
+        _toast.value = "고객으로 되돌렸어요"
     }
 
     /** 통화 녹음 첨부 (2026-06-16) — 통화 카드에 재생 플레이어를 띄우기 위함. suffix 매칭. */
