@@ -129,8 +129,13 @@ object IncomingCallOverlay {
         val app = appCtx as? CallFollowCrmApplication ?: return
         if (!PermissionHelper.hasOverlay(appCtx)) return
         ioScope.launch {
+            // 가장 **가까운 다음 시공** 손님으로 — 정보가 제일 많이 차 있는 게 그 손님이라
+            //   미리보기에서 카드가 어떻게 보이는지 제대로 확인된다. (옛 손님을 고르면 빈 카드가 뜬다)
             val c = runCatching {
-                app.container.customerRepository.observeScheduled().first().firstOrNull()
+                val all = app.container.customerRepository.observeScheduled().first()
+                val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+                all.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today }
+                    ?: all.maxByOrNull { it.scheduledWorkDate ?: 0L }
             }.getOrNull()
             val number = c?.phoneNumber?.takeIf { it.isNotBlank() } ?: "010-0000-0000"
             main.post {
