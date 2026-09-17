@@ -422,6 +422,18 @@ fun CustomerDetailScreen(
                     extractedAddress?.let { detailPrefs.isAddressSuggestDismissed(c.id, it) } ?: false
                 )
             }
+            // 주소 추천은 **고객한테만.** (2026-09-17 사장님:
+            //   "첫문자때 사용자한테 묻잖아 이사람이 고객이냐 아니냐. 고객이면 발동하라는거야")
+            //   첫 문자 때 이미 상담함(고객) / 문자함(택배·광고·알림)으로 갈라둔 게 있으니 그걸 쓴다.
+            //   택배 문자에서 뽑은 배송지를 시공 현장으로 물어보던 게 이걸로 없어진다.
+            //   카테고리(택배·일당 같은 이름표)로 판단하지 않는다 — 새 손님은 아직 이름표가 없다.
+            var isGeneralThread by remember(c.id) { mutableStateOf(false) }
+            LaunchedEffect(c.id, c.phoneNumber) {
+                isGeneralThread = runCatching {
+                    (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
+                        .container.threadBucketRepository.isGeneral(c.phoneNumber)
+                }.getOrDefault(false)
+            }
             var showAddressDialog by remember { mutableStateOf(false) }
 
             if (displayAddr != null) {
@@ -474,7 +486,7 @@ fun CustomerDetailScreen(
                         }
                     }
                 }
-            } else if (!extractedAddress.isNullOrBlank() && !addrSuggestDismissed) {
+            } else if (!extractedAddress.isNullOrBlank() && !addrSuggestDismissed && !isGeneralThread) {
                 // 문자에서 주소를 봤을 때 — **제안만** 한다. 누르기 전엔 저장 안 됨. (2026-09-16 사장님)
                 TossCard {
                     Column {
