@@ -15307,6 +15307,159 @@ async def call_audio_summary_endpoint(
 
 
 # ============================================================================
+# §26-b — 긴 통화 요약: 접수하고 바로 대답, 처리는 뒤에서 (2026-09-17 사장님 지시)
+# ─────────────────────────────────────────────────────────────────────────────
+# 왜 만들었나 (실측 근거):
+#   26분 통화 = 녹음 24,815KB. 로그에 "STT 시작"이 **6번** 찍히고 완료가 한 번도 없다.
+#   Cloudflare 가 100초에서 먼저 끊어(504) 앱이 실패로 보고 또 보내고, 서버는 같은 24MB 를
+#   처음부터 다시 갈았다. 게다가 _whisper_lock 때문에 **다른 사장님 요약까지 뒤에서 밀렸다.**
+#
+# 무엇이 바뀌나:
+#   POST /api/call-audio-summary/start   → 파일만 받아두고 즉시 {"status":"processing"} 응답.
+#                                          실제 처리는 요청과 끊어진 작업으로 계속 돈다.
+#   GET  /api/call-audio-summary/result  → 다 됐으면 요약, 아직이면 processing, 실패면 error.
+#
+# 결과 보관은 **기존 캐시 그대로**(summary_cache, key = phone + started_at_ms).
+#   따로 저장소를 만들지 않는다 — 두 벌이 되면 한쪽만 고쳐지는 사고가 난다.
+#
+# 기존 POST /api/call-audio-summary 는 **한 글자도 안 건드린다**(옛 앱이 그대로 쓴다).
+# ============================================================================
+
+class _BytesUpload:
+    """끊어진 작업에 넘길 최소 업로드 객체 — 요약 코드가 쓰는 건 .filename 과 await .read() 뿐."""
+
+    def __init__(self, data: bytes, filename: str = "call.m4a"):
+        self._data = data
+        self.filename = filename
+
+    async def read(self, *_args, **_kwargs) -> bytes:
+        return self._data
+
+
+# (phone, started_at_ms) → {"state": "processing"|"error", "at_ms": int, "detail": str}
+_CALL_SUMMARY_JOBS = {}
+# 작업 객체를 붙들어 둔다 — 참조가 없으면 파이썬이 중간에 치워버릴 수 있다.
+_CALL_SUMMARY_TASKS = {}
+
+
+def _call_summary_job_key(phone_digits: str, started_at_ms: int) -> str:
+    return phone_digits + ":" + str(started_at_ms or 0)
+
+
+@app.post("/api/call-audio-summary/start")
+async def call_audio_summary_start(
+    file: UploadFile = File(...),
+    phone: str = Form(...),
+    started_at_ms: int = Form(...),
+    direction: str = Form("incoming"),
+    duration_sec: int = Form(0),
+    customer_name: Optional[str] = Form(None),
+    customer_memo: Optional[str] = Form(None),
+    owner_tone_samples: Optional[str] = Form(None),
+    force_refresh: bool = Form(False),
+    owner_phone: Optional[str] = Form(None),
+    owner_trade: Optional[str] = Form(None),
+) -> dict:
+    """접수만 하고 바로 대답. 긴 통화가 게이트웨이 시간 제한에 걸려 죽는 걸 막는다."""
+    if not phone:
+        raise HTTPException(400, "phone 필수")
+    phone_digits = "".join(ch for ch in phone if ch.isdigit())
+    if not phone_digits:
+        raise HTTPException(400, "phone 형식 오류")
+    cache_ts = started_at_ms or 0
+    key = _call_summary_job_key(phone_digits, cache_ts)
+
+    # 파일은 **지금** 다 읽는다 — 응답을 보내고 나면 요청이 닫혀 못 읽는다.
+    audio_data = await file.read()
+    if not audio_data:
+        raise HTTPException(400, "오디오 파일 비어있음")
+    if len(audio_data) > 50 * 1024 * 1024:
+        raise HTTPException(413, "오디오 파일 너무 큼 (50MB 이하)")
+    filename = getattr(file, "filename", None) or "call.m4a"
+
+    # 이미 해둔 게 있으면 STT 를 또 돌릴 이유가 없다.
+    if not force_refresh:
+        cached = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
+        if cached is not None:
+            print("[call-audio-summary/start] " + phone_digits + " -> already cached")
+            out = dict(cached)
+            out["status"] = "ready"
+            out["cached"] = True
+            out["_cache_hit"] = True
+            out.setdefault("tags", [])
+            out.setdefault("transcript_segments", [])
+            out.setdefault("transcript_raw", out.get("transcript", ""))
+            return out
+
+    # 같은 통화가 이미 돌고 있으면 **또 시작하지 않는다.** (6번 갈던 그 문제)
+    job = _CALL_SUMMARY_JOBS.get(key)
+    if job is not None and job.get("state") == "processing":
+        print("[call-audio-summary/start] " + phone_digits + " -> already processing (dup blocked)")
+        return {"status": "processing", "since_ms": job.get("at_ms", 0)}
+
+    _CALL_SUMMARY_JOBS[key] = {"state": "processing", "at_ms": _now_ms(), "detail": ""}
+    print(
+        "[call-audio-summary/start] " + phone_digits
+        + " accepted audio=" + str(len(audio_data) // 1024) + "KB -> background"
+    )
+
+    async def _run() -> None:
+        try:
+            await call_audio_summary_endpoint(
+                file=_BytesUpload(audio_data, filename),
+                phone=phone,
+                started_at_ms=started_at_ms,
+                direction=direction,
+                duration_sec=duration_sec,
+                customer_name=customer_name,
+                customer_memo=customer_memo,
+                owner_tone_samples=owner_tone_samples,
+                force_refresh=force_refresh,
+                owner_phone=owner_phone,
+                owner_trade=owner_trade,
+            )
+            _CALL_SUMMARY_JOBS.pop(key, None)   # 결과는 캐시에 들어갔다
+            print("[call-audio-summary/start] " + phone_digits + " -> done")
+        except Exception as exc:  # noqa: BLE001 — 뒤에서 도는 작업이라 무조건 삼키고 기록만
+            _CALL_SUMMARY_JOBS[key] = {
+                "state": "error", "at_ms": _now_ms(), "detail": str(exc)[:300],
+            }
+            print("[call-audio-summary/start] " + phone_digits + " -> failed: " + str(exc)[:300])
+        finally:
+            _CALL_SUMMARY_TASKS.pop(key, None)
+
+    _CALL_SUMMARY_TASKS[key] = asyncio.create_task(_run())
+    return {"status": "processing", "since_ms": _CALL_SUMMARY_JOBS[key]["at_ms"]}
+
+
+@app.get("/api/call-audio-summary/result")
+async def call_audio_summary_result(phone: str, started_at_ms: int = 0) -> dict:
+    """다 됐는지 물어보는 곳. ready / processing / error / none."""
+    phone_digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    if not phone_digits:
+        raise HTTPException(400, "phone 형식 오류")
+    cache_ts = started_at_ms or 0
+
+    cached = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
+    if cached is not None:
+        out = dict(cached)
+        out["status"] = "ready"
+        out["cached"] = True
+        out["_cache_hit"] = True
+        out.setdefault("tags", [])
+        out.setdefault("transcript_segments", [])
+        out.setdefault("transcript_raw", out.get("transcript", ""))
+        return out
+
+    job = _CALL_SUMMARY_JOBS.get(_call_summary_job_key(phone_digits, cache_ts))
+    if job is None:
+        return {"status": "none"}
+    if job.get("state") == "error":
+        return {"status": "error", "detail": job.get("detail", "")}
+    return {"status": "processing", "since_ms": job.get("at_ms", 0)}
+
+
+# ============================================================================
 # §27 — 협업 현장 (사장 ↔ 사장 공유, 안드로이드 SERVER_HANDOFF 2026-06-08)
 # ─────────────────────────────────────────────────────────────────────────────
 # A(현장 주인) 가 B(협업 사장) 에게 현장 1건을 공유. 둘 다 RING-GO 가입 사장.
