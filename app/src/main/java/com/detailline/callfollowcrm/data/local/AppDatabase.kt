@@ -951,16 +951,21 @@ abstract class AppDatabase : RoomDatabase() {
         //         (ReminderWorker, Stage B) 모레 시공인데 하루 전 문자가 안 나간다.
         //   무엇을 하나: v49 와 **같은 SQL 을 한 번 더** 돌린다. 이미 있는 건은 NOT EXISTS 로 건너뛰므로
         //         중복이 안 생기고, 지우는 것도 없다(위험 0).
+        //   ⚠️ 2026-09-17 사고: memo 를 안 채워 앱이 아예 안 켜졌다(NOT NULL constraint failed: jobs.memo).
+        //      새로 까는 폰은 jobs.memo 에 DEFAULT 가 없다(ALTER 로 붙인 폰에만 있었다).
+        //      → NOT NULL 칸은 **전부 직접 채운다.** 그리고 되살리기는 '있으면 좋은' 일이니
+        //      앱이 켜지는 것보다 중요하지 않다 — 실패해도 앱은 켜지게 감싼다.
         private val MIGRATION_51_52 = object : Migration(51, 52) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
+                runCatching { db.execSQL(
                     """
                     INSERT INTO jobs (customerId, scheduledWorkDate, scheduledWorkMinutes, scheduledWorkDays,
                                       address, totalAmount, depositAmount, depositPaidAt,
-                                      balanceAmount, balancePaidAt, workCompletedAt, createdAt, updatedAt)
+                                      balanceAmount, balancePaidAt, workCompletedAt, memo, createdAt, updatedAt)
                     SELECT c.id, c.scheduledWorkDate, c.scheduledWorkMinutes, c.scheduledWorkDays,
                            c.address, c.totalAmount, c.depositAmount, c.depositPaidAt,
                            c.balanceAmount, c.balancePaidAt, c.workCompletedAt,
+                           COALESCE(c.memo, ''),
                            strftime('%s','now') * 1000, strftime('%s','now') * 1000
                     FROM customers c
                     WHERE c.scheduledWorkDate IS NOT NULL
@@ -974,7 +979,7 @@ abstract class AppDatabase : RoomDatabase() {
                               = date(c.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
                       )
                     """.trimIndent()
-                )
+                ) }
             }
         }
 

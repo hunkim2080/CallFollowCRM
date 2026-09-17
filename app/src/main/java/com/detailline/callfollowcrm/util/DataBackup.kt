@@ -430,10 +430,11 @@ object DataBackup {
             """
             INSERT INTO jobs (customerId, scheduledWorkDate, scheduledWorkMinutes, scheduledWorkDays,
                               address, totalAmount, depositAmount, depositPaidAt,
-                              balanceAmount, balancePaidAt, workCompletedAt, createdAt, updatedAt)
+                              balanceAmount, balancePaidAt, workCompletedAt, memo, createdAt, updatedAt)
             SELECT c.id, c.scheduledWorkDate, c.scheduledWorkMinutes, c.scheduledWorkDays,
                    c.address, c.totalAmount, c.depositAmount, c.depositPaidAt,
                    c.balanceAmount, c.balancePaidAt, c.workCompletedAt,
+                   COALESCE(c.memo, ''),
                    strftime('%s','now') * 1000, strftime('%s','now') * 1000
             FROM customers c
             WHERE c.scheduledWorkDate IS NOT NULL
