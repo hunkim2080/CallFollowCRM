@@ -411,7 +411,17 @@ fun CustomerDetailScreen(
             //      그러면 보이는 것과 저장된 것이 항상 같다.
             val displayAddr = manualAddress
             // 제안을 이번 화면에서 닫았는지(고객별). "아니에요" 누르면 이 화면에선 다시 안 보인다.
-            var addrSuggestDismissed by remember(c.id) { mutableStateOf(false) }
+            // "아니에요" 는 **폰에 적어둔다.** 화면 안에서만 기억하면 채팅 갔다 오는 순간 잊어버려
+            //   같은 주소가 또 뜬다. (2026-09-17 사장님 보고)
+            val detailPrefs = remember(context) {
+                (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
+                    .container.preferences
+            }
+            var addrSuggestDismissed by remember(c.id, extractedAddress) {
+                mutableStateOf(
+                    extractedAddress?.let { detailPrefs.isAddressSuggestDismissed(c.id, it) } ?: false
+                )
+            }
             var showAddressDialog by remember { mutableStateOf(false) }
 
             if (displayAddr != null) {
@@ -481,7 +491,10 @@ fun CustomerDetailScreen(
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             androidx.compose.foundation.layout.Box(
                                 Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossGrayBg)
-                                    .clickable { addrSuggestDismissed = true }.padding(vertical = 11.dp),
+                                    .clickable {
+                                        addrSuggestDismissed = true
+                                        extractedAddress?.let { detailPrefs.dismissAddressSuggest(c.id, it) }
+                                    }.padding(vertical = 11.dp),
                                 contentAlignment = androidx.compose.ui.Alignment.Center
                             ) { Text("아니에요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                             Spacer(Modifier.width(9.dp))

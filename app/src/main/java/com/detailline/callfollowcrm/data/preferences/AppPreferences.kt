@@ -889,6 +889,25 @@ class AppPreferences(context: Context) {
         prefs.edit().putStringSet("payclaim_dismissed", trimmed.toSet()).apply()
     }
 
+    /**
+     * 사장님이 "아니에요" 한 **주소 추천** — 다시 안 띄우려고 보관. (2026-09-17 사장님 보고)
+     *   전엔 화면 안에서만 기억해서, 채팅 갔다 돌아오면 그 주소가 또 떴다.
+     *   고객 하나에 문자가 여러 개면 추천 주소도 여러 개일 수 있으니 (고객, 주소) 짝으로 기억한다.
+     */
+    fun isAddressSuggestDismissed(customerId: Long, address: String): Boolean {
+        val key = customerId.toString() + ":" + address.trim()
+        return prefs.getStringSet("addr_suggest_dismissed", emptySet()).orEmpty().contains(key)
+    }
+
+    fun dismissAddressSuggest(customerId: Long, address: String) {
+        val key = customerId.toString() + ":" + address.trim()
+        val cur = prefs.getStringSet("addr_suggest_dismissed", emptySet()).orEmpty().toMutableList()
+        if (key in cur) return
+        cur.add(key)
+        val trimmed = if (cur.size > 300) cur.takeLast(300) else cur
+        prefs.edit().putStringSet("addr_suggest_dismissed", trimmed.toSet()).apply()
+    }
+
     /** 수첩 일당/거래처용 자주 쓰는 문구. 구분자  (SMS 본문에 안 나오는 제어문자). */
     /**
      * 오늘 시공 히어로 카드 수동 순서 (고객 ID). 사장님이 꾹 눌러 트렐로식으로 끌어 바꾼 순서.
