@@ -122,6 +122,28 @@ object AddressExtractor {
     private const val APT_DONG_HO = "(?:\\d{1,4}동\\s*)?\\d{1,5}호"
 
     /**
+     * 도로명의 **가지 이름** — "동탄산척로2다길" · "테헤란로4번길" · "마곡로 27길".
+     *
+     * 한국 도로명은 큰 길에서 갈라진 작은 길에 <숫자><한글 한 글자>길 을 붙인다
+     *   (가길·나길·다길… / N번길). 즉 숫자가 **주소의 일부**지 건물번호가 아니다.
+     *
+     * 🔴 왜 따로 두나 (2026-09-17 사장님 실제 문자: "화성시 동탄구 동탄산척로2다길")
+     *   기존 규칙은 "동탄산척로" 까지만 길로 보고, 뒤의 **"2" 를 건물번호로 집어가** "다길" 을 버렸다.
+     *   → "화성시 동탄구 동탄산척로2" 라는 **있지도 않은 주소**가 됐다.
+     *   이 조각을 **먼저** 맞춰보면 숫자를 뺏길 일이 없다.
+     */
+    private const val ROAD_BRANCH = "[가-힣\\d]{1,15}(?:대로|로)\\s*\\d{1,4}[가-힣]?길"
+
+    /**
+     * 패턴 0: (광역시도) + (시군구) + 시군구 + 가지 도로명 + 옵션 건물번호
+     *   "화성시 동탄구 동탄산척로2다길" · "서울 강남구 테헤란로4번길 15"
+     *   건물번호는 **옵션** — 가지 도로명 자체가 이미 "이건 주소다" 의 충분한 증거다.
+     */
+    private val pattern0 = Regex(
+        "(?:$SIDO\\s*)?(?:$SIGUNGU\\s*)?$SIGUNGU\\s*$ROAD_BRANCH(?:\\s*$BUNJI)?"
+    )
+
+    /**
      * 패턴 1: 광역시도 + 시군구 + 동/로/길 + 옵션 번지
      *   "서울 강서구 마곡동 740"
      */
@@ -196,7 +218,7 @@ object AddressExtractor {
 
     /**
      * 본문에서 가장 그럴듯한 주소 1개 추출. 없으면 null.
-     * 패턴 1 > 2 > 2b > 3 순으로 시도.
+     * 패턴 0(가지 도로명) > 1 > 2 > 2b > 3 순으로 시도.
      */
     fun extractOne(body: String): String? = findOne(body)?.text
 
@@ -204,7 +226,7 @@ object AddressExtractor {
     fun findOne(body: String): Found? {
         if (body.length < 5) return null
         // 패턴 1·2 매칭 시 매칭 뒤 동호수 자동 합치기 (사장님 #6 통점).
-        for (p in listOf(pattern1, pattern2)) {
+        for (p in listOf(pattern0, pattern1, pattern2)) {
             p.find(body)?.let { m ->
                 val base = m.value.trim()
                 val merged = appendDongHo(body, m.range, base)
