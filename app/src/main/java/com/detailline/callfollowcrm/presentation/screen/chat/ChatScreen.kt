@@ -184,6 +184,25 @@ fun ChatScreen(
     onOpenTradeSelect: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val prefs = remember(context) {
+        (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
+    }
+    // 통화 요약 동의를 아직 안 했을 때, 눌린 통화를 들고 있다가 동의 직후 이어서 요약한다. (2026-09-17)
+    var pendingSummarizeRecord by remember {
+        mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity?>(null)
+    }
+    pendingSummarizeRecord?.let { rec ->
+        com.detailline.callfollowcrm.presentation.component.CallSummaryConsentDialog(
+            onAgree = {
+                prefs.callSummaryConsented = true
+                prefs.autoSummaryEnabled = true          // 동의했으면 자동 요약도 같이 켠다
+                pendingSummarizeRecord = null
+                viewModel.summarizeCall(rec, context)    // 누른 그 통화를 이어서 바로 요약
+            },
+            onDecline = { pendingSummarizeRecord = null }
+        )
+    }
+
     // 통화녹음 폴더/자동찾기 연결 여부 — 미연결이면 통화카드가 '요약하기' 대신 '연결하기' 안내. (2026-07-12 사장님)
     val recordingConnected = remember { com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(context) }
     val scope = rememberCoroutineScope()
@@ -884,7 +903,12 @@ fun ChatScreen(
                                             runCatching { composerFocusRequester.requestFocus() }
                                         }
                                     },
-                                    onSummarizeCall = { viewModel.summarizeCall(ti.record, context) },
+                                    onSummarizeCall = {
+                                        // 동의 전이면 **여기서 바로** 묻는다 — 설정까지 찾아가게 하지 않는다.
+                                        //   (2026-09-17 사장님: "이 통화요약 하기 눌러도 그 동의 창이 나왔으면 더 전환이 빠르겠다")
+                                        if (prefs.callSummaryConsented) viewModel.summarizeCall(ti.record, context)
+                                        else pendingSummarizeRecord = ti.record
+                                    },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
                                     recordingConnected = recordingConnected,
                                     onConnectRecording = onOpenRecordingSettings,

@@ -635,7 +635,11 @@ fun CustomerDetailScreen(
             //   건이 하나뿐이면 탭을 안 띄운다 — 있으나 마나 한 줄이 자리만 먹는다.
             val pastJobsForTabs by viewModel.pastJobs.collectAsState()
             val selectedPastJob = pastJobsForTabs.firstOrNull { it.id == selectedPastJobId }
-            if (detailTab == 0 && pastJobsForTabs.isNotEmpty()) {
+            // 시공이 **1건일 때도** 띄운다. (2026-09-17 사장님 지시)
+            //   전엔 '지난 시공이 있어야' 띄웠는데, 「＋ 새 시공」이 이 줄 안에 있어서
+            //   시공 1건짜리 고객은 **두 번째 시공을 잡을 입구가 아예 없었다.**
+            //   (사장님이 원래 물어본 게 정확히 그거였다 — "2번째 시공을 등록할땐 어떻게해?")
+            if (detailTab == 0 && (pastJobsForTabs.isNotEmpty() || c.scheduledWorkDate != null)) {
                 JobTabsRow(
                     pastJobs = pastJobsForTabs,
                     current = c,
@@ -3849,7 +3853,7 @@ private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.
  *   (같이 본 A안 = 카드를 위아래로 쌓는 목록형. 사장님이 B안을 골랐다.)
  *
  * 차수는 **오래된 것이 1차**다. 지난 건들 다음이 지금 건.
- * 건이 하나뿐이면 호출부에서 아예 안 그린다 — 탭 한 줄이 자리만 먹는다.
+ * 건이 하나뿐이어도 그린다 — 「＋ 새 시공」이 이 줄에만 있어서, 안 그리면 2번째 시공을 잡을 길이 없다. (2026-09-17)
  */
 @Composable
 private fun JobTabsRow(

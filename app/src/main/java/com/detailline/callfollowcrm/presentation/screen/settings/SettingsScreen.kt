@@ -110,6 +110,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.component.SectionLabel
+import com.detailline.callfollowcrm.presentation.component.CallSummaryConsentDialog
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.component.pressScale
@@ -2814,72 +2815,6 @@ private fun DeleteAccountSheet(onDismiss: () -> Unit) {
                 Text("닫기", color = TossTextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
-    }
-}
-
-@Composable
-private fun CallSummaryConsentDialog(onAgree: () -> Unit, onDecline: () -> Unit) {
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = { /* 바깥 탭·뒤로가기로 닫히면 안 된다 — 그건 동의가 아니다 */ },
-        properties = androidx.compose.ui.window.DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
-        )
-    ) {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White)
-                .padding(22.dp)
-        ) {
-            Text("📞 통화 요약을 켜면", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
-                color = TossTextPrimary, letterSpacing = (-0.4).sp)
-            Spacer(Modifier.height(14.dp))
-            ConsentLine("폰에 저장된 ", "통화 녹음 파일이 시공막내 서버로 전송", "됩니다.")
-            ConsentLine("서버가 ", "받아쓰기", "한 뒤, 그 글을 AI(Anthropic·Google, 미국)가 요약합니다.")
-            ConsentLine("", "녹음 파일은 받아쓰기 후 바로 지워집니다", " — 서버에 남지 않아요.")
-            ConsentLine("요약에는 ", "고객 이름·주소·금액", "이 들어갈 수 있습니다.")
-            ConsentLine("", "언제든 이 설정에서 끌 수 있습니다", ".")
-            Spacer(Modifier.height(16.dp))
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlue)
-                    .clickable { onAgree() }.padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("동의하고 켜기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-            }
-            Spacer(Modifier.height(8.dp))
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                    .clickable { onDecline() }.padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("안 할래요", color = TossTextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "안 하셔도 문자·일정·정산은 그대로 쓰실 수 있어요.",
-                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-private fun ConsentLine(pre: String, bold: String, post: String) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 9.dp)) {
-        Text("·", fontSize = 14.sp, color = TossTextTertiary)
-        Spacer(Modifier.width(8.dp))
-        Text(
-            androidx.compose.ui.text.buildAnnotatedString {
-                append(pre)
-                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.ExtraBold))
-                append(bold)
-                pop()
-                append(post)
-            },
-            fontSize = 14.sp, color = TossTextSecondary, lineHeight = 21.sp
-        )
     }
 }
 
