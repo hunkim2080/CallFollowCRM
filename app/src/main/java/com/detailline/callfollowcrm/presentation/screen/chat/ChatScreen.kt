@@ -895,7 +895,15 @@ fun ChatScreen(
                                     audioUri = callRec?.fileUri,
                                     audioDurationMs = callRec?.duration,
                                     onUseAsDraft = { msg ->
-                                        setInput(if (input.isBlank()) msg else input + "\n" + msg)
+                                        // 이미 들어와 있으면 또 붙이지 않는다 — 눌러도 반응이 없어 보여
+                                        //   두 번 누르면 같은 글이 두 번 들어가던 것. (2026-09-17)
+                                        setInput(
+                                            when {
+                                                input.isBlank() -> msg
+                                                input.contains(msg) -> input
+                                                else -> input + "\n" + msg
+                                            }
+                                        )
                                         // 요약 카드(위)에서 눌러도 입력칸(맨 아래)으로 쫙 내려가 '여기 썼구나' 바로 보이게.
                                         //   reverseLayout=true → index 0 = 맨 아래(최신·입력칸). 어색한 토스트 대신 실제 이동+포커스로. (2026-09-01 사장님)
                                         scope.launch {
@@ -2419,6 +2427,20 @@ private fun CallSegment(
                     Text("✏️ 요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
+            // 후속 문자 — **요약 바로 아래**에도 둔다. (2026-09-17 사장님: "ux가 좀 이상한거같은데")
+            //   원래는 통화 전문·플레이어 **뒤**에만 있었다. 26분 통화는 전문이 400줄이라
+            //   정작 쓰려는 버튼까지 한참 내려가야 했다. 읽는 건 전문이 아니라 요약이다.
+            summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
+                Box(
+                    Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0A7D72))
+                        .clickable { sheetOpen = false; onUseAsDraft(draft) }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✍️ 이 통화로 후속 문자 쓰기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
         }
         // 🗣️ 통화 전문 — 프로토(08352d6e): 녹음 대화록 느낌. trans박스(#FAFCFC)+나/손님 범례+작은 말풍선(나=티얼bg·손님=흰).
         //   탭 재생(문장별 시각)은 서버가 start_ms 붙이면 Phase 3. (2026-08-15 1:1)
@@ -2492,7 +2514,7 @@ private fun CallSegment(
         summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
             Box(
                 Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(8.dp))
-                    .clickable { onUseAsDraft(draft) }.padding(vertical = 6.dp),
+                    .clickable { sheetOpen = false; onUseAsDraft(draft) }.padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text("✍️ 이 통화로 후속 문자 쓰기", color = teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
