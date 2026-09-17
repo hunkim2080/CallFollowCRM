@@ -15,7 +15,9 @@ class CustomerRepository(
     // 새 Customer 가 만들어질 때 같은 번호의 orphan 첨부/요약을 자동 연결하기 위해 주입.
     // 테스트 편의를 위해 nullable 로 두고, 운영 코드(AppContainer)에서는 항상 채워준다.
     private val recordingDao: RecordingAttachmentDao? = null,
-    private val callSummaryDao: CallSummaryDao? = null
+    private val callSummaryDao: CallSummaryDao? = null,
+    // 돈(총액·계약금·잔금)을 고치면 **그 고객의 '건'** 에도 같이 찍어야 한다. 아래 mutate 주석 참고.
+    private val jobDao: com.detailline.callfollowcrm.data.local.dao.JobDao? = null
 ) {
 
     // 한 고객 행의 읽기-수정-쓰기(findById→copy→update)를 직렬화하는 잠금. (2026-08-11 돈 정확성 감사)
@@ -30,11 +32,55 @@ class CustomerRepository(
      *   - updatedAt 은 여기서 일괄 스탬프하므로 transform 안에서는 건드리지 않는다.
      */
     private suspend fun mutate(id: Long, transform: (CustomerEntity) -> CustomerEntity?) {
+        var moneyChanged = false
         writeMutex.withLock {
             val c = dao.findById(id) ?: return@withLock
             val updated = transform(c) ?: return@withLock
-            dao.update(updated.copy(updatedAt = System.currentTimeMillis()))
+            val saved = updated.copy(updatedAt = System.currentTimeMillis())
+            dao.update(saved)
+            moneyChanged = moneyOf(c) != moneyOf(saved)
         }
+        // 잠금 밖에서 — 고객 잠금과 건 갱신을 겹치지 않게.
+        if (moneyChanged) runCatching { mirrorMoneyToRepresentativeJob(id) }
+    }
+
+    /** 돈 5칸 묶음 — 이 중 하나라도 바뀌면 '건'에도 옮겨 적어야 한다. */
+    private fun moneyOf(c: CustomerEntity) = listOf(
+        c.totalAmount, c.depositAmount, c.depositPaidAt, c.balanceAmount, c.balancePaidAt
+    )
+
+    /**
+     * 고객 카드의 **돈**을 그 고객의 대표 건(jobs)에 밀어넣는다.
+     *
+     * 🔴 왜 필요한가 (2026-09-17 사장님: "잔금 다 받았다고 눌렀는데 못 받았다고 알람이 오네")
+     *   Stage A 주석에 이렇게 적혀 있었다 — "일정 필드만 미러링한다. 돈은 기존처럼 고객 단위 유지.
+     *   건별 정산은 Stage B." 그런데 Stage B 에서 **알람(D-1·잔금)만 jobs 로 옮기고 돈은 안 옮겼다.**
+     *   → 고객 카드엔 '받음'인데 건에는 안 받은 채로 남아 **잘못된 미수 알람**이 나갔다.
+     *   [[reference_room_entity_index_must_match_migration]] 과 같은 뿌리: 출처를 옮길 땐 **딸린 값도 같이** 옮긴다.
+     *
+     * 대표 건 = recomputeMirror 와 **같은 규칙**(오늘 이후 가장 가까운 건, 없으면 가장 최근 건)이라야
+     * 고객 카드가 보여주는 그 건에 찍힌다.
+     * 지난(아카이브된) 건의 돈은 안 건드린다 — 그건 그 시절 값이다.
+     */
+    private suspend fun mirrorMoneyToRepresentativeJob(customerId: Long) {
+        val dao2 = jobDao ?: return
+        val c = dao.findById(customerId) ?: return
+        val jobs = dao2.scheduledByCustomerOnce(customerId)
+        if (jobs.isEmpty()) return
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
+        if (moneyOf(c) == listOf(rep.totalAmount, rep.depositAmount, rep.depositPaidAt,
+                                 rep.balanceAmount, rep.balancePaidAt)) return
+        dao2.update(
+            rep.copy(
+                totalAmount = c.totalAmount,
+                depositAmount = c.depositAmount,
+                depositPaidAt = c.depositPaidAt,
+                balanceAmount = c.balanceAmount,
+                balancePaidAt = c.balancePaidAt,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
     }
 
     fun observeAll(): Flow<List<CustomerEntity>> = dao.observeAll()

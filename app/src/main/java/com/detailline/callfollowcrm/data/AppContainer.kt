@@ -41,7 +41,8 @@ class AppContainer(context: Context) {
     val customerRepository = CustomerRepository(
         db.customerDao(),
         recordingDao = db.recordingAttachmentDao(),
-        callSummaryDao = db.callSummaryDao()
+        callSummaryDao = db.callSummaryDao(),
+        jobDao = db.jobDao()
     )
     val callRecordRepository = CallRecordRepository(db.callRecordDao())
     val messageTemplateRepository = MessageTemplateRepository(db.messageTemplateDao())

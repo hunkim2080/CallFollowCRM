@@ -67,7 +67,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 52,
+    version = 53,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -983,6 +983,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v53 — 이미 어긋나 있는 '건'의 돈을 고객 카드와 맞춘다. (2026-09-17 사장님:
+        //   "잔금 다 받았다고 눌렀는데 돈 못 받았다고 알람이 오네")
+        //   원인: Stage B 에서 알람만 jobs 로 옮기고 **돈은 customers 에만 남겨뒀다.**
+        //   앞으로는 CustomerRepository.mutate 가 바뀔 때마다 건에 찍는다(같은 날 수정).
+        //   여기선 **이미 벌어진 어긋남**만 한 번 맞춘다.
+        //   대상: 고객 카드가 가리키는 그 건(= 같은 날짜) 하나. 지난(아카이브) 건은 안 건드린다.
+        private val MIGRATION_52_53 = object : Migration(52, 53) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                runCatching {
+                db.execSQL(
+                    """
+                    UPDATE jobs SET
+                      totalAmount    = (SELECT c.totalAmount    FROM customers c WHERE c.id = jobs.customerId),
+                      depositAmount  = (SELECT c.depositAmount  FROM customers c WHERE c.id = jobs.customerId),
+                      depositPaidAt  = (SELECT c.depositPaidAt  FROM customers c WHERE c.id = jobs.customerId),
+                      balanceAmount  = (SELECT c.balanceAmount  FROM customers c WHERE c.id = jobs.customerId),
+                      balancePaidAt  = (SELECT c.balancePaidAt  FROM customers c WHERE c.id = jobs.customerId),
+                      updatedAt      = strftime('%s','now') * 1000
+                    WHERE jobs.scheduledWorkDate IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1 FROM customers c
+                        WHERE c.id = jobs.customerId
+                          AND c.scheduledWorkDate IS NOT NULL
+                          AND date(c.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                              = date(jobs.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                      )
+                    """.trimIndent()
+                )
+                }
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -1002,7 +1034,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
-                    MIGRATION_50_51, MIGRATION_51_52
+                    MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.
