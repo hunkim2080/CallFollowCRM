@@ -75,9 +75,26 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     private suspend fun checkAutoBackup(container: AppContainer) {
         val ctx = applicationContext
         val now = System.currentTimeMillis()
-        if (now - DataBackup.lastBackupAt(ctx) < 20L * 60 * 60 * 1000) return
+        val myLast = DataBackup.lastBackupAt(ctx)
+        if (now - myLast < 20L * 60 * 60 * 1000) return
         if (container.preferences.bizPhone.filter { it.isDigit() }.length < 9) return
         if (DataBackup.isLedgerEmpty(ctx)) return
+
+        // 🛡️ **같은 번호를 쓰는 다른 폰(테스트용 복사폰)이 주인이면 자동 백업은 비킨다.** (2026-09-18)
+        //   서버의 백업 칸은 번호당 하나다. 전엔 [서버에 백업]을 눌러야만 덮어써서 사람이 조심하면 됐는데,
+        //   자동으로 만드는 순간 복사폰이 **매일 조용히 업무폰 백업을 덮어쓰게** 된다.
+        //   (서버에도 같은 경고가 적혀 있다 — 사장님 "내 업무폰에 피해가지 않도록 해줘" 2026-09-16)
+        //   규칙: 서버 것이 내가 올린 것보다 새것이면 = 다른 폰이 쓰고 있다 → 자동은 쉰다.
+        //         단 사흘 넘게 아무도 안 올렸으면 = 주인이 없다 → 내가 이어받는다(폰 바꿨을 때).
+        //   [서버에 백업] 손버튼은 그대로 — 누르면 언제든 주인이 바뀐다.
+        val remote = container.backupRepository.status()
+        if (remote != null && remote.has && remote.updatedAtMs > myLast) {
+            val quietFor = now - remote.updatedAtMs
+            if (quietFor < 3L * 24 * 60 * 60 * 1000) {
+                android.util.Log.i("AutoBackup", "다른 폰이 백업 주인 — 이번엔 건너뜀")
+                return
+            }
+        }
 
         val bytes = try {
             DataBackup.serverBlobBytes(ctx)
