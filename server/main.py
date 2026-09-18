@@ -14146,7 +14146,7 @@ async def _call_gemini_refine(
 
     if resp.status_code != 200:
         raise RuntimeError(
-            f"Gemini API status {resp.status_code}: {resp.text[:300]}"
+            f"Gemini API status {resp.status_code}: {resp.text[:1200]}"
         )
 
     data = resp.json()
@@ -14298,6 +14298,23 @@ async def refine_endpoint(req: RefineRequest) -> dict:
                 break
             await asyncio.sleep(1.2 * (attempt + 1))   # 1.2초 → 2.4초
     if last_err is not None:
+        # 무료 한도(429)는 "고장"이 아니다 — 앱이 이유를 그대로 말할 수 있게 502 가 아닌 429 로,
+        #   하루치 소진(PerDay)인지 순간 몰림(PerMinute)인지도 나눠서 준다.
+        #   전엔 둘 다 502 라 앱에 "실패했어요" 만 떠서 고장으로 오해했다. (2026-09-18 사장님)
+        emsg = str(last_err)
+        if ("429" in emsg) or ("RESOURCE_EXHAUSTED" in emsg):
+            per_day = ("PerDay" in emsg) or ("per day" in emsg.lower())
+            raise HTTPException(
+                429,
+                detail={
+                    "code": "quota_day" if per_day else "quota_minute",
+                    "message": (
+                        "오늘 다듬기 무료 한도를 다 썼어요. 내일 다시 됩니다."
+                        if per_day else
+                        "지금 다듬기 요청이 몰렸어요. 잠시 뒤 다시 해보세요."
+                    ),
+                },
+            )
         raise HTTPException(502, f"Gemini 호출 실패: {type(last_err).__name__}")
 
     # log_llm_usage — endpoint 카운트 + 비용 계산 (단가 dict 의 gemini-2.5-flash)

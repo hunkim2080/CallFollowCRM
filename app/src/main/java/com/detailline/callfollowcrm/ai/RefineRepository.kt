@@ -12,6 +12,17 @@ package com.detailline.callfollowcrm.ai
  *
  * Rollback: [OllamaRefineRepository] (gpt-oss:20b) — 코드 유지, 미사용.
  */
+/**
+ * 다듬기가 **구글 무료 한도**에 걸렸을 때. 고장이 아니라 "오늘 몫을 다 쓴 것".
+ *   전엔 이것도 그냥 실패로 뭉뚱그려 "다듬기에 실패했어요" 만 떠서 고장으로 오해했다.
+ *   (2026-09-18 사장님: "실패함이 아니라 무료 한도 끝 이러던지, 안내가 달라야 당황을 안 한다")
+ *
+ * @param daily true = 오늘 하루치 소진(내일 풀림) · false = 순간 몰림(잠시 뒤 됨)
+ */
+class RefineQuotaException(val daily: Boolean) : java.io.IOException(
+    if (daily) "오늘 다듬기 한도를 다 썼어요" else "지금 다듬기가 몰려요"
+)
+
 interface RefineRepository {
     /**
      * 다듬기 호출. 실패 시 Result.failure.

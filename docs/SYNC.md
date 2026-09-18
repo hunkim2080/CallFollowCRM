@@ -9989,3 +9989,15 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
 - 전체 단위시험 391개 통과. 마이그레이션 SQL 은 배포 전 로컬 sqlite 로 경우별 검증(아침 v52 사고 재발 방지).
 - 다음: Step 3 나머지(브리핑·일정 카드 표시·통계) → Step 4 사진(서버 먼저) → Step 5 캘린더 → Step 6 화면.
 - 프로토(확정): 고객 정보 재설계 artifact/4ZvDfUfxDAQU8uNNvQQ1h1
+
+## 2026-09-18 14:30 · android (+ 서버 직접 핫픽스)
+다듬기 ✨ 가 안 될 때 **이유를 말해준다** — "실패했어요" → "오늘 무료 한도를 다 썼어요"
+- 원인: 구글 Gemini 무료 하루 한도 소진(키 2개 모두 429). 오늘 87회 성공 후 38회 502.
+- 변경(서버 `/api/refine`): 429/RESOURCE_EXHAUSTED 는 502 대신 **429 + detail{code,message}**
+  (`quota_day` / `quota_minute`). quotaId 를 보려고 에러 본문 절단 `[:300]`→`[:1200]`.
+- 변경(앱): `RefineQuotaException(daily)` 추가, `RemoteRefineRepository` 가 429 를 그것으로,
+  `ChatViewModel.aiPolish` 가 사유별 토스트.
+- 라이브 배포: 맥미니 main.py 그 블록만 직접 패치(백업 `main.py.bak.20260918-141755`),
+  venv py_compile 통과, kickstart, `curl /api/refine` → **429 `{"code":"quota_day"}`** 확인.
+- ⚠️ 앱 쪽은 테스트폰에 설치 못 함(설치된 사본과 서명 불일치 — 지우면 데이터 소실). 폰 검증 미완.
+- 다음 액션(사장님): 구글 AI Studio 에 결제수단 등록하면 하루 한도 사라짐(다듬기 1회 1원 미만).

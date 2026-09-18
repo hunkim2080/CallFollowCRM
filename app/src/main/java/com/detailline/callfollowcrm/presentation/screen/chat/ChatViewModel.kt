@@ -1333,7 +1333,17 @@ class ChatViewModel(
                 val result = container.refineRepository.refine(rawBody, ctx)
                 result.fold(
                     onSuccess = { polished -> onPolished(polished) },
-                    onFailure = { _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요" }
+                    onFailure = { e ->
+                        // 왜 안 되는지를 말해준다 — "실패" 한 마디면 고장으로 오해한다. (2026-09-18 사장님)
+                        _toast.value = when {
+                            e is com.detailline.callfollowcrm.ai.RefineQuotaException && e.daily ->
+                                "오늘 다듬기 한도를 다 썼어요 — 내일 다시 됩니다"
+                            e is com.detailline.callfollowcrm.ai.RefineQuotaException ->
+                                "다듬기가 잠깐 몰렸어요 — 1분 뒤 다시 해보세요"
+                            else ->
+                                "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
+                        }
+                    }
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e   // 사장님이 취소한 거면 조용히(실패 아님)

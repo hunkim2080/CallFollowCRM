@@ -75,10 +75,14 @@ class RemoteRefineRepository(
                     .build()
 
                 client.newCall(req).execute().use { resp ->
+                    val bodyStr = resp.body?.string().orEmpty()
                     if (!resp.isSuccessful) {
+                        // 429 = 구글 무료 한도. 고장이 아니므로 화면에 이유를 그대로 말해준다.
+                        //   서버가 detail.code 로 quota_day(오늘 몫 끝) / quota_minute(순간 몰림) 을 준다.
+                        if (resp.code == 429) throw RefineQuotaException(bodyStr.contains("quota_day"))
                         throw IOException("HTTP ${resp.code}: ${resp.message}")
                     }
-                    val bodyStr = resp.body?.string() ?: throw IOException("빈 응답")
+                    if (bodyStr.isEmpty()) throw IOException("빈 응답")
                     JSONObject(bodyStr).optString("polished").trim().ifEmpty {
                         throw IOException("polished 필드 비어있음")
                     }
