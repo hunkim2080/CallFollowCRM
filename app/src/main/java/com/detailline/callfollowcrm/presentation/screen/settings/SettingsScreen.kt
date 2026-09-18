@@ -3815,8 +3815,9 @@ private fun DataBackupSection(
         ) {
             Text(if (recent) "✅" else "⚠️", fontSize = 15.sp)
             Text(
-                if (recent) "최근에 서버에 백업했어요. 폰을 바꾸거나 앱을 지워도 되살릴 수 있어요."
-                else "고객·돈 장부는 이 폰에만 저장돼요. 폰을 바꾸거나 앱을 지우면 되살릴 수 없어요. 가끔 아래 [서버에 백업]을 눌러두세요.",
+                // 2026-09-18 — 하루 한 번 자동으로 올라간다. 눌러야만 되던 시절 문구를 고침.
+                if (recent) "하루 한 번 알아서 서버에 저장하고 있어요. 폰을 바꾸거나 앱을 지워도 되살릴 수 있어요."
+                else "아직 서버에 저장된 게 없어요. 하루 한 번 알아서 올라가지만, 지금 바로 챙기려면 아래 [서버에 백업]을 눌러주세요.",
                 color = if (recent) Color(0xFF0E9F56) else Color(0xFFB8780A),
                 fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp,
                 modifier = Modifier.weight(1f)

@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.domain.reminder.JobReminderCalc
+import com.detailline.callfollowcrm.util.DataBackup
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
@@ -40,6 +41,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { checkBalanceDue(app.container) }
         runCatching { checkDailyBrief(app.container) }
         runCatching { checkRecurringDue(app.container) }
+        // ☁️ 하루 한 번 서버 백업 — 눌러야만 되던 걸 앱이 알아서. (2026-09-18 사장님)
+        runCatching { checkAutoBackup(app.container) }
         // 팀원 출발 이벤트 — 앱 꺼져 있어도 주기 워커가 새 출발을 잡아 알림 (사장님 요청 2026-06-06).
         runCatching { app.container.teamEventCenter.poll(applicationContext) }
         // 협업 현장 진행 이벤트 — 서버 owner-events 준비 후 앱 종료 상태에서도 알림.
@@ -54,6 +57,41 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         // 본폰 미러 v2 — 새 공유 신청 폴 → 알림(앱 꺼져 있어도). (2026-07-14)
         runCatching { app.container.mirrorSyncManager.pollShareRequests(applicationContext) }
         return Result.success()
+    }
+
+    /**
+     * ☁️ 자동 서버 백업 — 하루 한 번. (2026-09-18 사장님)
+     *
+     * 왜 넣었나: 전엔 더보기에서 [서버에 백업]을 **눌러야만** 올라갔다.
+     *   업무폰 앱이 통째로 지워진 날, 살아난 건 사장님이 오후에 눌러두신 덕분이었다.
+     *   사람 손에 기대는 안전장치는 안전장치가 아니다.
+     *
+     * 지키는 것 세 가지:
+     *   · 하루 한 번만 (20시간 간격 — 워커가 ~3시간마다 도니 하루에 한 번만 걸린다)
+     *   · 로그인(사업자 번호) 돼 있을 때만
+     *   · **빈 장부는 안 올린다** — 앱을 막 깐 빈 상태가 서버의 멀쩡한 백업을 덮으면 최악이다.
+     *     (실제로 그럴 뻔했다.) 새로 시작한 사장님은 손님이 한 명 생기는 순간부터 올라간다.
+     */
+    private suspend fun checkAutoBackup(container: AppContainer) {
+        val ctx = applicationContext
+        val now = System.currentTimeMillis()
+        if (now - DataBackup.lastBackupAt(ctx) < 20L * 60 * 60 * 1000) return
+        if (container.preferences.bizPhone.filter { it.isDigit() }.length < 9) return
+        if (DataBackup.isLedgerEmpty(ctx)) return
+
+        val bytes = try {
+            DataBackup.serverBlobBytes(ctx)
+        } catch (e: Throwable) {
+            // OutOfMemoryError 까지 잡는다 — 백업 하나 때문에 앱이 꺼지면 안 된다. (2026-09-15 전례)
+            android.util.Log.w("AutoBackup", "백업 만들기 실패", e)
+            return
+        }
+        val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        if (container.backupRepository.push(b64)) {
+            DataBackup.markBackedUpNow(ctx)
+            android.util.Log.i("AutoBackup", "자동 백업 완료 ${bytes.size / 1024}KB")
+        }
+        // 실패하면 시각을 안 남긴다 → 3시간 뒤 워커가 다시 시도.
     }
 
     /** 마감 브리핑 — 저녁 9시경, 하루 1회. 확실한 데이터(새 고객·입금·내일 시공). */

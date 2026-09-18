@@ -128,8 +128,12 @@ object DataBackup {
     }
 
     /**
-     * 서버 백업용 — 전 테이블 덤프 JSON(raw, zip 아님) 바이트. (사진은 filePath=텍스트라 작음.)
-     * 복원은 importBytes 가 raw json 도 읽음. (데이터 안전 2단계, 2026-08-21 사장님)
+     * 서버 백업용 — 전 테이블 덤프. (사진은 filePath=텍스트라 작음.)
+     *
+     * **zip 으로 압축해서 올린다.** (2026-09-18) 실측 4.08MB → 0.65MB(6분의 1).
+     *   하루 한 번 자동으로 올리게 되면서 데이터 요금이 아까우면 안 되기 때문.
+     *   복원 쪽 [extractBackupJson] 이 원래부터 zip 을 읽으므로 새 위험이 없고,
+     *   예전에 올려둔 압축 안 된 백업도 그대로 복원된다.
      */
     fun serverBlobBytes(context: Context): ByteArray {
         val db = AppDatabase.getInstance(context.applicationContext).openHelper.writableDatabase
@@ -168,14 +172,38 @@ object DataBackup {
         }
         // 사진까지 담아보고, 메모리가 모자라면 **사진 없이** 다시 만든다.
         //   백업이 아예 안 되는 것보다 사진만 빠지는 게 낫다. (2026-09-15 사장님 크래시)
-        return try {
+        val json = try {
             build(true)
         } catch (e: OutOfMemoryError) {
             android.util.Log.w("DataBackup", "사진 포함 백업이 메모리 부족 → 사진 빼고 재시도", e)
             System.gc()
             build(false)
         }
+        return zipOf(json)
     }
+
+    /** 백업 JSON 한 덩이를 zip 봉투에 넣는다 — 복원은 [extractBackupJson] 이 그대로 푼다. */
+    private fun zipOf(json: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream(json.size / 4)
+        ZipOutputStream(out).use { zos ->
+            zos.putNextEntry(ZipEntry(BACKUP_JSON))
+            zos.write(json)
+            zos.closeEntry()
+        }
+        return out.toByteArray()
+    }
+
+    /** 이 장부가 **비어 있나** — 자동 백업이 멀쩡한 서버 백업을 빈 걸로 덮지 않게. (2026-09-18) */
+    fun isLedgerEmpty(context: Context): Boolean {
+        val db = AppDatabase.getInstance(context.applicationContext).openHelper.writableDatabase
+        fun count(table: String): Int = runCatching {
+            db.query("SELECT COUNT(*) FROM `$table`").use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        }.getOrDefault(0)
+        return count("customers") == 0 && count("jobs") == 0
+    }
+
+    /** 방금 백업했다고 기록 — 자동 백업(워커)이 부른다. */
+    fun markBackedUpNow(context: Context) = setLastBackupAt(context, System.currentTimeMillis())
 
     // ─────────────────────────── 가져오기(복원) ───────────────────────────
 
