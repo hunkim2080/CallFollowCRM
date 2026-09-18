@@ -32,6 +32,13 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
     //   buildState/buildTrend 에서 매번 현재 기준으로 계산하고, 월 집계 쿼리도 반응형으로. (2026-08-13 stale fix)
     private val customers = container.customerRepository.observeAll()
     private val categories = container.categoryRepository.observeAll()
+    /**
+     * 시공 **건**들 — '현장 수'는 건으로 센다. (2026-09-18)
+     *   전엔 고객 표만 봐서 한 손님에게 1·2·3차를 해도 '1곳'이었다.
+     *   ⚠️ **전환율은 손님 기준 그대로** — 문의 한 건이 시공으로 이어졌나를 보는 값이라
+     *      건으로 세면 100%를 넘는다.
+     */
+    private val jobsFlow = container.jobRepository.observeAll()
     private val sentThisMonth = customers.flatMapLatest {
         val ms = monthStartOf(System.currentTimeMillis())
         container.messageHistoryRepository.observeSentCountBetween(ms, shiftMonth(ms, +1))
@@ -47,8 +54,8 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
     fun setPeriod(p: StatPeriod) { period.value = p }
 
     val state: StateFlow<StatsUiState> =
-        combine(customers, categories, sentThisMonth) { cs, cats, sent ->
-            buildState(cs, cats, sent)
+        combine(customers, categories, sentThisMonth, jobsFlow) { cs, cats, sent, js ->
+            buildState(cs, cats, sent, js)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 
     val trend: StateFlow<StatsTrendState> =
@@ -56,16 +63,30 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsTrendState())
 
     // ── 이번 달 고정 집계 ────────────────────────────────────────────
-    private fun buildState(cs: List<CustomerEntity>, cats: List<CategoryEntity>, sent: Int): StatsUiState {
+    private fun buildState(
+        cs: List<CustomerEntity>,
+        cats: List<CategoryEntity>,
+        sent: Int,
+        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity> = emptyList()
+    ): StatsUiState {
         val now = System.currentTimeMillis()   // 매번 현재 기준 (stale-month fix)
         val monthStart = monthStartOf(now)
         val monthEnd = shiftMonth(monthStart, +1)
         val lastMonthStart = shiftMonth(monthStart, -1)
         val lastYearStart = shiftMonth(monthStart, -12)
         val lastYearEnd = shiftMonth(monthEnd, -12)
-        val jobs = cs.count { it.scheduledWorkDate?.let { d -> d in monthStart until monthEnd } == true }
+        // 현장 수 = **건** 기준. 건이 하나도 없는 옛 고객만 고객 표로 센다.
+        val hasAnyJob = js.map { it.customerId }.toHashSet()
+        fun inMonth(d: Long?) = d != null && d >= monthStart && d < monthEnd
+        val jobs = js.count { inMonth(it.scheduledWorkDate) } +
+            cs.count { it.id !in hasAnyJob && inMonth(it.scheduledWorkDate) }
         val inquiries = cs.count { it.createdAt in monthStart until monthEnd }
-        val conversion = if (inquiries > 0) Math.round(jobs * 100.0 / inquiries).toInt() else 0
+        // 전환율은 **손님** 기준 — 문의한 사람 중 몇 명이 시공으로 이어졌나. 건으로 세면 100%를 넘는다.
+        val convertedCustomers = (
+            js.filter { inMonth(it.scheduledWorkDate) }.map { it.customerId }.toSet() +
+                cs.filter { it.id !in hasAnyJob && inMonth(it.scheduledWorkDate) }.map { it.id }
+            ).size
+        val conversion = if (inquiries > 0) Math.round(convertedCustomers * 100.0 / inquiries).toInt() else 0
 
         // 작년 동월 — 앱을 작년에 썼을 때만(그 시점 이전 데이터 존재) 비교 노출.
         val lyJobs = cs.count { it.scheduledWorkDate?.let { d -> d in lastYearStart until lastYearEnd } == true }

@@ -32,19 +32,25 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
     // '이번 달/오늘' 경계는 필드로 굳히지 않고 monthJobs/build 에서 매번 계산 — 달/자정 넘겨 켜둬도 정확. (2026-08-13 stale fix)
     private val smsRepository = container.smsRepository
     private val customers = container.customerRepository.observeAll()
+    /**
+     * 시공 **건**들. (2026-09-18 실기에서 발견해 고침)
+     *   전엔 고객 표만 봐서 **손님당 한 곳**만 셌다 — 한 손님에게 1·2·3차를 해도
+     *   '다녀온 현장 1곳', 매출도 대표 건 금액 하나뿐이었다.
+     */
+    private val jobsFlow = container.jobRepository.observeAll()
 
     /** customerId → 문자에서 추출한 주소("" = 스캔했지만 못 찾음). 키 존재 = 스캔 완료. */
     private val extractedAddr = MutableStateFlow<Map<Long, String>>(emptyMap())
 
     val state: StateFlow<VisitedState> =
-        combine(customers, extractedAddr) { cs, extra -> build(cs, extra) }
+        combine(customers, jobsFlow, extractedAddr) { cs, js, extra -> build(cs, js, extra) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VisitedState())
 
     init {
         // 직접 주소 없는 현장만 골라 백그라운드에서 한 번에 하나씩 주소 추출 → state 점진 갱신.
         viewModelScope.launch(Dispatchers.IO) {
-            customers
-                .map { cs -> monthJobs(cs).filter { it.address.isNullOrBlank() } }
+            combine(customers, jobsFlow) { cs, js -> monthUnits(cs, js) }
+                .map { units -> units.filter { it.address.isNullOrBlank() } }
                 .distinctUntilChanged { a, b -> a.map { it.id }.toSet() == b.map { it.id }.toSet() }
                 .collect { needAddr ->
                     for (c in needAddr) {
@@ -62,17 +68,49 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
         }
     }
 
-    private fun monthJobs(cs: List<CustomerEntity>): List<CustomerEntity> {
+    /**
+     * 이번 달 **현장 한 곳 = 건 하나**. 건이 하나도 없는 옛 고객만 고객 표로 센다.
+     *   건 값을 채운 CustomerEntity 복사본을 돌려준다 — 아래 계산이 그대로 돌아간다.
+     */
+    private fun monthUnits(
+        cs: List<CustomerEntity>,
+        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
+    ): List<CustomerEntity> {
         val ms = monthStartOf(System.currentTimeMillis())
         val me = shiftMonth(ms, +1)
-        return cs.filter { it.scheduledWorkDate?.let { d -> d in ms until me } == true }
+        val byId = cs.associateBy { it.id }
+        val fromJobs = js.mapNotNull { j ->
+            val d = j.scheduledWorkDate ?: return@mapNotNull null
+            if (d < ms || d >= me) return@mapNotNull null
+            val c = byId[j.customerId] ?: return@mapNotNull null
+            c.copy(
+                scheduledWorkDate = d,
+                scheduledWorkMinutes = j.scheduledWorkMinutes,
+                address = j.address?.takeIf { it.isNotBlank() } ?: c.address,
+                totalAmount = j.totalAmount,
+                depositAmount = j.depositAmount,
+                depositPaidAt = j.depositPaidAt,
+                balanceAmount = j.balanceAmount,
+                balancePaidAt = j.balancePaidAt,
+                workCompletedAt = j.workCompletedAt
+            )
+        }
+        val hasAnyJob = js.map { it.customerId }.toHashSet()
+        val legacy = cs.filter {
+            it.id !in hasAnyJob && it.scheduledWorkDate?.let { d -> d in ms until me } == true
+        }
+        return fromJobs + legacy
     }
 
-    private fun build(cs: List<CustomerEntity>, extra: Map<Long, String>): VisitedState {
+    private fun build(
+        cs: List<CustomerEntity>,
+        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
+        extra: Map<Long, String>
+    ): VisitedState {
         val now = System.currentTimeMillis()   // 매번 현재 기준 (stale fix)
         val todayStart = DateTimeUtils.startOfDay(now)
         val monthStart = monthStartOf(now)
-        val jobs = monthJobs(cs)
+        val jobs = monthUnits(cs, js)
 
         fun toRow(c: CustomerEntity): VisitedRow {
             val manual = c.address?.takeIf { it.isNotBlank() }

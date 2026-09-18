@@ -1858,6 +1858,19 @@ MODEL_PRICING_USD_PER_M = {
         "cache_write": 0.075,
         "output":      0.30,
     },
+    # §14b — Google Gemini 3.5 Flash (현행 ✨ 다듬기 모델). 2026-09-18 추가.
+    #   ⚠️ 이게 없으면 _resolve_pricing 이 매칭에 실패해 **Sonnet 단가**로 찍혔다
+    #      → 대시보드의 다듬기 비용이 실제의 약 2배로 부풀려짐(15.4원 vs 8.1원/회).
+    #   출처: https://ai.google.dev/gemini-api/docs/pricing (2026-09-18 확인)
+    #   · input          $1.50 / 1M
+    #   · output         $9.00 / 1M  (thinking 토큰 포함해 과금)
+    #   · cached input   $0.15 / 1M  (+ 저장료 $1.00/1M/시간은 여기 미반영)
+    "gemini-3.5-flash": {
+        "input":       1.50,
+        "cache_read":  0.15,
+        "cache_write": 1.50,
+        "output":      9.00,
+    },
 }
 
 
