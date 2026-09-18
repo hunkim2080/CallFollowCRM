@@ -225,4 +225,66 @@ class JobRepository(
             )
         )
     }
+
+    /**
+     * 이 **건 하나만** 취소 — 날짜와 돈을 그 전표에서만 지운다. (2026-09-18)
+     *
+     * 🔴 왜 필요한가 (연결부 점검에서 발견)
+     *   전엔 취소가 고객 카드의 돈을 지웠다. 그런데 날짜를 비우는 순간 미러가 **다음 건**을
+     *   대표로 잡기 때문에, 그 "백지" 가 **다음 건(예: 1차) 전표에 찍혔다.**
+     *   → 2차를 취소했는데 1차 잔금 기록이 사라지는 구조였다.
+     *   그래서 취소는 **건을 지목해서** 해야 한다.
+     *
+     * 사장님 규칙(2026-08-28): "취소하면 금액도 다 없어져야" — 그 건의 돈만 백지로.
+     */
+    suspend fun cancelJob(jobId: Long, now: Long) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(
+            j.copy(
+                scheduledWorkDate = null,
+                totalAmount = null,
+                depositAmount = null,
+                depositPaidAt = null,
+                balanceAmount = null,
+                balancePaidAt = null,
+                updatedAt = now
+            )
+        )
+        recomputeMirror(j.customerId, now)
+        syncMoneyFromRepresentative(j.customerId, now)
+    }
+
+    /**
+     * 고객 카드의 돈을 **남은 대표 건**의 돈으로 맞춘다. 지금은 '건 취소' 직후에만 쓴다.
+     *
+     * 왜 recomputeMirror 안에 안 넣었나: 정산 **목록**이 아직 고객 카드(customers)를 읽는다.
+     *   미러가 항상 돈을 덮으면, 금액이 안 적힌 2차가 대표가 되는 순간 **1차 미수가 정산 목록에서 사라진다.**
+     *   (`JobRepositoryStageATest '미러는 돈을 건드리지 않는다 - 정산 보호'` 가 이걸 지키고 있다.)
+     *   정산 목록을 건 단위로 바꾼 뒤에 recomputeMirror 로 합칠 것 — docs/PLAN_job_centric_migration.md §4.
+     *
+     * 취소 직후에만 필요한 이유: 취소하면 대표가 **다른 건으로 바뀌는데**, 고객 카드엔 방금 취소한
+     *   건의 돈이 그대로 남아 "취소했는데 금액이 남아 있다" 가 된다. 남은 건이 없으면 손대지 않는다
+     *   (호출부가 '완전 백지' 를 따로 처리한다).
+     */
+    private suspend fun syncMoneyFromRepresentative(customerId: Long, now: Long) {
+        val c = customerDao.findById(customerId) ?: return
+        val jobs = jobDao.scheduledByCustomerOnce(customerId)
+        if (jobs.isEmpty()) return
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
+        customerDao.update(
+            c.copy(
+                totalAmount = rep.totalAmount,
+                depositAmount = rep.depositAmount,
+                depositPaidAt = rep.depositPaidAt,
+                balanceAmount = rep.balanceAmount,
+                balancePaidAt = rep.balancePaidAt,
+                updatedAt = now
+            )
+        )
+    }
+
+    /** 이 고객에게 시공일이 잡힌 건이 하나라도 남아 있나. 취소 후 '고객 카드도 백지로 할지' 판단용. */
+    suspend fun hasScheduledJob(customerId: Long): Boolean =
+        jobDao.scheduledByCustomerOnce(customerId).isNotEmpty()
 }

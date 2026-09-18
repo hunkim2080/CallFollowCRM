@@ -1528,7 +1528,17 @@ class ChatViewModel(
         if (_suggestionsLoading.value) return
         _suggestionsLoading.value = true
         _suggestionsFailed.value = false   // 새 시도 시작 — 실패 표시 초기화
-        suggestionJob = viewModelScope.launch {
+        // 🔴 화면을 나가도 **만들던 건 끝까지 만든다.** (2026-09-18 사장님:
+        //   "추천답변 클릭하고 너무 기다려야해서 뒤로가기 누르고 다른 고객 상대하다가
+        //    다시 들어가서 완료됐나 봤는데 취소가 된거같더라고.. 토큰만 날린느낌인데")
+        //   전엔 viewModelScope 라 대화방을 나가는 순간 취소됐다. 서버는 이미 돈을 들여 만들기
+        //   시작했는데 앱이 연결을 끊어 **결과를 버리는** 셈이었다.
+        //   앱 전체 수명 스코프로 돌리면, 나갔다 들어와도 서버 캐시에서 완성된 답이 바로 뜬다
+        //   (진입 시 fetch 가 READY 면 그대로 보여줌 — :1407 참고).
+        //   사장님이 직접 [✕ 중지] 를 누르면 그때는 cancelSuggestions 가 취소한다.
+        val liveScope = (container.appContext.applicationContext
+            as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.applicationScope ?: viewModelScope
+        suggestionJob = liveScope.launch {
             try {
                 val history = _messages.value
                     .take(20)

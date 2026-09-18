@@ -518,14 +518,31 @@ class CustomerDetailViewModel(
             if (normalized != null) {
                 container.jobRepository.archiveCompletedBeforeNewSchedule(customerId, System.currentTimeMillis())
             }
-            container.customerRepository.updateScheduledWorkDate(customerId, normalized)
-            // jobs 까지 같이 옮긴다 — 일정 탭·달력의 출처가 jobs 라 이걸 안 하면 화면이 안 바뀐다.
-            //   (2026-09-15 사장님: "일정을 싹 바꿨는데 캘린더가 안 변해")
-            runCatching { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
+            if (normalized == null) {
+                // 🔴 취소는 **그 건 하나만** 지운다. (2026-09-18 연결부 점검)
+                //   전엔 고객 카드의 날짜·돈을 지웠는데, 날짜를 비우는 순간 미러가 **다음 건**을
+                //   대표로 잡아서 그 "백지" 가 다음 건(예: 1차) 전표에 찍혔다.
+                //   → 2차를 취소했는데 1차 잔금 기록이 사라지던 것.
+                val cancelDay = oldDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+                val target = cancelDay?.let { runCatching { container.jobRepository.jobAt(customerId, it) }.getOrNull() }
+                if (target != null) {
+                    container.jobRepository.cancelJob(target.id, System.currentTimeMillis())
+                } else {
+                    // 건 행이 없는 옛 데이터 — 기존 방식으로
+                    container.customerRepository.updateScheduledWorkDate(customerId, null)
+                }
+            } else {
+                container.customerRepository.updateScheduledWorkDate(customerId, normalized)
+                // jobs 까지 같이 옮긴다 — 일정 탭·달력의 출처가 jobs 라 이걸 안 하면 화면이 안 바뀐다.
+                //   (2026-09-15 사장님: "일정을 싹 바꿨는데 캘린더가 안 변해")
+                runCatching { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
+            }
             markTodayCallsAsHandled()
             // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
             if (normalized == null) {
-                container.teamAssignmentRepository.deleteForCustomer(customerId)
+                // 배정은 **그 시공일 것만** 지운다 — deleteForCustomer 는 다른 건의 배정까지 지웠다. (2026-09-18)
+                oldDate?.let { d -> container.teamAssignmentRepository.deleteForCustomerAndDay(customerId, d) }
+                    ?: container.teamAssignmentRepository.deleteForCustomer(customerId)
                 // 일당(자동지출)도 정리 — 단 '취소하는 그 시공일'의 일당만. 예전엔 deleteByCustomer 로 모든 날짜를 지워
                 //   재방문 고객의 과거(이미 지급한) 일당 지출까지 소거돼 그 달 순이익이 부풀던 것. (2026-08-11 돈 감사 rank5)
                 oldDate?.let { d -> container.jobCrewRepository.deleteByCustomerAndDay(customerId, d) }
@@ -533,13 +550,17 @@ class CustomerDetailViewModel(
                 val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
                 if (after.size != before.size) container.preferences.collabAssignments = after
                 // 예약 취소 = 완전 백지 (사장님 2026-08-28 결정): 총액·계약금·잔금·받음표시 전부 삭제.
-                //   (이전엔 '받은 돈은 보존'이었으나, 사장님이 "취소하면 금액도 다 없어져야" 로 명시 변경.
-                //    정산은 SettlementCalc 단일 출처라 금액을 지우면 정산 화면도 자동 연동돼 0 이 됨.)
-                container.customerRepository.updateBalancePaidAt(customerId, null)
-                container.customerRepository.updateDepositPaidAt(customerId, null)
-                container.customerRepository.updateTotalAmount(customerId, null)
-                container.customerRepository.updateDepositAmount(customerId, null)
-                container.customerRepository.updateBalanceAmount(customerId, null)
+                //   그 건의 돈은 이미 cancelJob 이 지웠다. 여기서 고객 카드까지 백지로 만드는 건
+                //   **남은 건이 하나도 없을 때만.** 다른 건이 남아 있으면 recomputeMirror 가
+                //   그 건의 돈을 고객 카드에 넣어둔 상태라, 여기서 지우면 남은 건 돈이 날아간다. (2026-09-18)
+                val stillHasJob = runCatching { container.jobRepository.hasScheduledJob(customerId) }.getOrDefault(false)
+                if (!stillHasJob) {
+                    container.customerRepository.updateBalancePaidAt(customerId, null)
+                    container.customerRepository.updateDepositPaidAt(customerId, null)
+                    container.customerRepository.updateTotalAmount(customerId, null)
+                    container.customerRepository.updateDepositAmount(customerId, null)
+                    container.customerRepository.updateBalanceAmount(customerId, null)
+                }
             }
             // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)
             container.autoCategoryClassifier.reclassify(customerId)
