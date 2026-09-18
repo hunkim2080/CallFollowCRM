@@ -3,7 +3,9 @@ name: Play 배포 (AAB 자동 빌드·업로드)
 # 무엇: AAB 를 빌드해서 Google Play 에 자동 업로드 (수동 업로드 끝).
 # 언제:
 #  · [Run workflow] 버튼(workflow_dispatch) — 트랙 골라서 배포. 정식(production) 낼 때 이걸 씀.
-#  · main 에 app 코드 push — 자동으로 '내부 테스트(internal)' 트랙에 올림(심사 없음·빠름).
+#  · main 에 app 코드 push — **플레이엔 안 올림**. si0in.kr APK 만 갱신한다.
+#    (2026-09-18 사장님: 검증 안 된 빌드가 내부테스트에 쌓여 사장님이 병목이 됐다.
+#     테스트폰은 adb 로 직접 설치 → 시험 통과하면 그때 [Run workflow] 로 플레이에 올림)
 # 준비물(1회): GitHub 저장소 Settings > Secrets 에 아래 6개 등록 — docs/PLAY_AUTO_DEPLOY_SETUP.md 참고.
 #   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD / GOOGLE_SERVICES_JSON / PLAY_SERVICE_ACCOUNT_JSON
 # versionCode: CI 는 git 커밋수+1 로 자동 산출(현재 커밋수 1179 > 마지막 1157 이라 안전). fetch-depth:0 필수.
@@ -86,7 +88,13 @@ jobs:
           f=$(ls app/build/outputs/bundle/release/*.aab | head -1)
           echo "AAB = $f"
 
+      # 플레이(내부테스트 포함)에는 **시험을 통과한 것만** 올린다. (2026-09-18 사장님)
+      #   전엔 push 마다 자동으로 내부테스트에 올라가서, 아직 검증 안 된 빌드를
+      #   사장님이 받아 눌러줘야 다음 작업이 진행됐다 — 사장님이 병목이 됐다.
+      #   이제 push 는 si0in.kr APK 만 올리고(테스트폰은 adb 로 직접 설치),
+      #   플레이 업로드는 [Run workflow] 를 눌렀을 때만 돈다.
       - name: Play 업로드
+        if: github.event_name == 'workflow_dispatch'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

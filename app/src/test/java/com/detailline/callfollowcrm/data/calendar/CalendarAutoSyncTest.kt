@@ -107,4 +107,43 @@ class CalendarAutoSyncTest {
     @Test
     fun `고객이 늘면 지문이 바뀐다`() =
         assertNotEquals(fp(c(id = 1L)), fp(c(id = 1L), c(id = 2L)))
+
+    // ── 건(件) 지문 — 취소했을 때 동기화가 **깨어나는지** ─────────────────────────
+    //   2026-09-18 실기: 건을 취소했는데 구글 캘린더에 일정이 그대로 남았다.
+    //   지우는 코드는 고쳤지만, **지문이 안 바뀌면 동기화 자체가 안 돌아** 영영 안 지워진다.
+    //   그래서 "취소 = 지문이 바뀐다" 를 여기서 못 박는다.
+
+    private fun j(
+        id: Long = 10L,
+        day: Long? = 1_760_000_000_000L,
+        eventId: String? = "ev-1"
+    ) = com.detailline.callfollowcrm.data.local.entity.JobEntity(
+        id = id,
+        customerId = 1L,
+        scheduledWorkDate = day,
+        scheduledWorkDays = 1,
+        calendarEventId = eventId,
+        createdAt = 0L,
+        updatedAt = 0L
+    )
+
+    private fun jfp(vararg js: com.detailline.callfollowcrm.data.local.entity.JobEntity) =
+        CalendarAutoSync.jobFingerprint(js.toList())
+
+    @Test
+    fun `건을 취소하면(날짜만 비움) 지문이 바뀐다 - 그래야 구글에서 지우러 간다`() {
+        val 예약됨 = j(day = 1_760_000_000_000L, eventId = "ev-1")
+        val 취소됨 = j(day = null, eventId = "ev-1")   // 취소해도 일정 번호는 남아 있다
+        assertNotEquals("취소가 지문을 안 흔들면 동기화가 안 돌아 일정이 영영 남는다", jfp(예약됨), jfp(취소됨))
+    }
+
+    @Test
+    fun `날짜도 일정번호도 없는 건은 지문에서 무시한다`() {
+        val 빈건 = j(id = 99L, day = null, eventId = null)
+        assertEquals("올린 적도 없는 건이 지문을 흔들면 헛요청만 쌓인다", jfp(j()), jfp(j(), 빈건))
+    }
+
+    @Test
+    fun `건 날짜를 옮기면 지문이 바뀐다`() =
+        assertNotEquals(jfp(j(day = 1_760_000_000_000L)), jfp(j(day = 1_760_604_800_000L)))
 }

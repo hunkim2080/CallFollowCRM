@@ -125,6 +125,15 @@ STATS_EXCLUDE_PHONES = set(
 FREE_TRIAL_DAYS = int(os.environ.get("FREE_TRIAL_DAYS", "60"))    # 무료 체험 기간 (2개월)
 AUTH_CODE_TTL_SEC = 300           # 인증번호 유효 5분
 AUTH_CODE_MAX_PER_DAY = 5         # 번호당 하루 발송 한도 (문자폭탄 방지)
+
+# ── 시험용 마스터 로그인 (2026-09-18 사장님) ────────────────────────────────
+#   테스트폰에 앱을 새로 깔 때마다 문자 인증을 기다려야 해서 개발이 막혔다.
+#   **번호와 코드를 둘 다** 맞춰야 통과한다. 값은 **깃에 없다** — launchd plist 의
+#   환경변수로만 넣는다(AUTH_MASTER_PHONES / AUTH_MASTER_CODE).
+#   둘 중 하나라도 비어 있으면 기능 자체가 꺼진 것과 같다.
+#   ⚠️ 정식 출시 전에 반드시 지우거나 코드를 갈 것.
+AUTH_MASTER_PHONES_RAW = os.environ.get("AUTH_MASTER_PHONES", "")
+AUTH_MASTER_CODE = (os.environ.get("AUTH_MASTER_CODE") or "").strip()
 AUTH_CODE_MIN_INTERVAL_SEC = 60   # 재발송 최소 간격
 AUTH_CODE_GLOBAL_PER_DAY = 500    # 전체 하루 발송 한도 (비용 방파제)
 # SOLAPI (문자 발송) — plist EnvironmentVariables 에 박아야 활성화
@@ -23312,25 +23321,38 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
     if not phone or not code:
         raise HTTPException(400, "phone/code 필수")
     now = _now_ms()
+    # 시험용 마스터 — 문자 없이 통과. 번호·코드를 **둘 다** 알아야 한다. (2026-09-18 사장님)
+    import hmac as _hm_master
+    _master_phones = {
+        _norm_phone(p) for p in AUTH_MASTER_PHONES_RAW.split(",") if p.strip()
+    }
+    master_ok = bool(
+        AUTH_MASTER_CODE
+        and phone in _master_phones
+        and _hm_master.compare_digest(code, AUTH_MASTER_CODE)
+    )
+    if master_ok:
+        print(f"[auth/verify] {phone} → 마스터 로그인(문자 생략)")
     with db_conn() as con:
-        row = con.execute(
-            "SELECT code, expires_at_ms, attempts FROM auth_codes WHERE phone = ?",
-            (phone,),
-        ).fetchone()
-        if not row:
-            raise HTTPException(400, "인증번호를 먼저 요청해주세요")
-        real_code, expires, attempts = row
-        if now > expires:
-            raise HTTPException(400, "인증번호가 만료됐어요. 다시 요청해주세요")
-        if attempts >= 5:
-            raise HTTPException(429, "시도 횟수 초과 — 인증번호를 다시 요청해주세요")
-        if code != real_code:
-            con.execute(
-                "UPDATE auth_codes SET attempts = attempts + 1 WHERE phone = ?", (phone,))
-            con.commit()
-            raise HTTPException(400, "인증번호가 틀렸어요")
-        # 성공 — 코드 폐기 (재사용 방지)
-        con.execute("DELETE FROM auth_codes WHERE phone = ?", (phone,))
+        if not master_ok:
+            row = con.execute(
+                "SELECT code, expires_at_ms, attempts FROM auth_codes WHERE phone = ?",
+                (phone,),
+            ).fetchone()
+            if not row:
+                raise HTTPException(400, "인증번호를 먼저 요청해주세요")
+            real_code, expires, attempts = row
+            if now > expires:
+                raise HTTPException(400, "인증번호가 만료됐어요. 다시 요청해주세요")
+            if attempts >= 5:
+                raise HTTPException(429, "시도 횟수 초과 — 인증번호를 다시 요청해주세요")
+            if code != real_code:
+                con.execute(
+                    "UPDATE auth_codes SET attempts = attempts + 1 WHERE phone = ?", (phone,))
+                con.commit()
+                raise HTTPException(400, "인증번호가 틀렸어요")
+            # 성공 — 코드 폐기 (재사용 방지)
+            con.execute("DELETE FROM auth_codes WHERE phone = ?", (phone,))
 
         # ── 자동 등업 로직 ──
         wl = con.execute(
