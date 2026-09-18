@@ -199,4 +199,43 @@ class JobMoneyPerJobTest {
             assertEquals(day1, allValues.last().scheduledWorkDate)
         }
     }
+
+    // ── 취소한 건 규칙 (2026-09-18 사장님 "1차가 잡히지도 않았는데 2차 3차 등록도 가능하네") ──
+    //   취소는 기록을 남기려고 날짜만 비운다 → 날짜 없는 건이 '아직 날짜 안 정한 새 건'과
+    //   구별이 안 돼 탭에서 차수를 차지했다. cancelledAt 으로 가른다.
+    @Test
+    fun `취소하면 취소한 시각이 찍힌다`() = runTest {
+        val jobDao = mock<JobDao> {
+            onBlocking { findById(20L) } doReturn secondJob()
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(firstJob())
+        }
+        val customerDao = mock<CustomerDao> { onBlocking { findById(1L) } doReturn customer() }
+        val repo = JobRepository(jobDao, customerDao)
+
+        repo.cancelJob(20L, now)
+
+        argumentCaptor<JobEntity>().apply {
+            verifyBlocking(jobDao) { update(capture()) }
+            assertEquals(now, firstValue.cancelledAt)
+        }
+    }
+
+    @Test
+    fun `날짜를 다시 잡으면 취소 표시가 지워진다`() = runTest {
+        val cancelled = secondJob().copy(scheduledWorkDate = null, cancelledAt = now - 1000L)
+        val jobDao = mock<JobDao> {
+            onBlocking { findById(20L) } doReturn cancelled
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(firstJob())
+        }
+        val customerDao = mock<CustomerDao> { onBlocking { findById(1L) } doReturn customer() }
+        val repo = JobRepository(jobDao, customerDao)
+
+        repo.rescheduleJob(20L, day7, now)
+
+        argumentCaptor<JobEntity>().apply {
+            verifyBlocking(jobDao) { update(capture()) }
+            assertEquals(day7, firstValue.scheduledWorkDate)
+            assertNull("되살렸으면 취소 표시는 없어야 한다", firstValue.cancelledAt)
+        }
+    }
 }

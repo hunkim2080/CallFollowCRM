@@ -769,7 +769,7 @@ fun CustomerDetailScreen(
                     it.address?.trim() == caught.trim()
                 } || (caught != null && c.address?.trim() == caught.trim())
                 val fillTarget = allJobsForTabs
-                    .filter { !jobClosed(it) && it.address.isNullOrBlank() }
+                    .filter { !jobFolded(it) && it.address.isNullOrBlank() }
                     .minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
                 val show = detailTab == 0 && caught != null && !addrSuggestDismissed &&
                     !isGeneralThread && closedJobs.isNotEmpty() && !alreadyUsed
@@ -833,25 +833,41 @@ fun CustomerDetailScreen(
                     pastJobs = otherJobs,
                     current = c,
                     selectedPastJobId = selectedPastJobId,
-                    closedCount = otherJobs.count { jobClosed(it) },
+                    closedCount = otherJobs.count { jobFolded(it) },
                     pastOpen = pastOpen,
                     onTogglePast = { pastOpen = !pastOpen },
                     onSelect = { selectedPastJobId = it },
                     // ＋ 는 **새 건을 만든다.** 전엔 날짜 고르기만 열고 그 날짜를 지금 건에 덮어썼다. (2026-09-17)
-                    onAddNew = { selectedPastJobId = null; addingNewJob = true; datePickerOpen = true }
+                    onAddNew = {
+                        // ② 날짜를 아직 안 정한 건이 있으면 새로 만들지 않는다. (2026-09-18 사장님)
+                        //    그 건으로 데려가 날짜부터 넣게 한다 — 날짜 없는 건이 줄줄이 생기는 걸 막는다.
+                        //    ※ 1차에 날짜가 있는데 2차를 미리 잡는 건 그대로 열어둔다.
+                        val pending = allJobsForTabs.firstOrNull {
+                            it.scheduledWorkDate == null && !jobFolded(it)
+                        }
+                        if (pending != null) {
+                            selectedPastJobId = pending.id.takeIf { it != repJobId }
+                            android.widget.Toast.makeText(
+                                ctx, "날짜를 아직 안 정한 시공이 있어요. 그 날짜부터 넣어주세요",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            selectedPastJobId = null; addingNewJob = true; datePickerOpen = true
+                        }
+                    }
                 )
             }
             // 2-0-b. '지난 건'을 펼쳤을 때 — 마무리된 건 목록. (2026-09-18 프로토 `.past-list`)
             //   "펼치면 목록이 나오고, 고르면 그 건이 열려요."
             if (detailTab == 0 && showJobBar && pastOpen) {
                 val closedJobs = remember(otherJobs) {
-                    otherJobs.filter { jobClosed(it) }.sortedBy { it.scheduledWorkDate ?: 0L }
+                    otherJobs.filter { jobFolded(it) }.sortedBy { it.scheduledWorkDate ?: 0L }
                 }
                 if (closedJobs.isNotEmpty()) {
                     TossCard {
                         Column {
                             Text(
-                                "마무리된 건 · 고르면 열려요",
+                                "마무리·취소한 건 · 고르면 열려요",
                                 fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
                             )
                             Spacer(Modifier.height(4.dp))
@@ -874,7 +890,11 @@ fun CustomerDetailScreen(
                                             listOfNotNull(
                                                 j.address?.takeIf { it.isNotBlank() } ?: "주소 없음",
                                                 j.totalAmount?.let { com.detailline.callfollowcrm.util.MoneyFormatter.won(it) },
-                                                if (j.balancePaidAt != null) "잔금 받음" else "완료"
+                                                when {
+                                                    jobCancelled(j) -> "예약 취소함"
+                                                    j.balancePaidAt != null -> "잔금 받음"
+                                                    else -> "완료"
+                                                }
                                             ).joinToString(" · "),
                                             fontSize = 11.5.sp, color = TossTextTertiary, maxLines = 1
                                         )
@@ -4197,6 +4217,18 @@ private fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntit
     j.balancePaidAt != null || (j.workCompletedAt != null && (j.balanceAmount ?: 0L) <= 0L)
 
 /**
+ * **취소한 건.** (2026-09-18 사장님 "1차 시공이 잡히지도 않았는데 2차 3차 등록도 가능하네")
+ *   취소는 기록을 남기려고 날짜만 비운다 → 그 건이 '날짜 미정'으로 탭에 남아 차수를 차지했다.
+ *   앞줄에서 빼고 '지난 건'으로 접는다. 지우는 게 아니라 접는 거라 되살릴 수 있다.
+ */
+private fun jobCancelled(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+    j.cancelledAt != null
+
+/** 앞줄(탭)에서 빼고 접어둘 건 — 마무리됐거나 취소한 것. */
+private fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+    jobClosed(j) || jobCancelled(j)
+
+/**
  * 이 건이 몇 차인가 — **날짜순**. 탭 줄(JobTabsRow)과 같은 규칙이라 화면 어디서나 숫자가 같다.
  *   (2026-09-18: 메모·사진 제목의 "N차" 가 탭 숫자와 어긋나면 안 된다)
  */
@@ -4244,7 +4276,7 @@ private fun JobTabsRow(
         remember(pastJobs, current.scheduledWorkDate, selectedPastJobId) {
             val xs = ArrayList<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
             for (j in pastJobs) {
-                if (jobClosed(j) && j.id != selectedPastJobId) continue
+                if (jobFolded(j) && j.id != selectedPastJobId) continue
                 xs.add((j.scheduledWorkDate ?: 0L) to j)
             }
             xs.add((current.scheduledWorkDate ?: Long.MAX_VALUE) to null)

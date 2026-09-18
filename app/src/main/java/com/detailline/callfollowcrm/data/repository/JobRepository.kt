@@ -166,6 +166,7 @@ class JobRepository(
             rep != null -> jobDao.update(
                 rep.copy(
                     scheduledWorkDate = day,
+                    cancelledAt = null,   // 날짜를 다시 잡았으면 취소가 아니다. (2026-09-18)
                     scheduledWorkMinutes = c.scheduledWorkMinutes,
                     scheduledWorkDays = c.scheduledWorkDays.coerceAtLeast(1),
                     address = c.address?.takeIf { it.isNotBlank() } ?: rep.address,
@@ -198,10 +199,10 @@ class JobRepository(
         recomputeMirror(j.customerId, now)
     }
 
-    /** 되돌리기 — 뺀 건의 시공일 복구. */
+    /** 되돌리기 — 뺀 건의 시공일 복구. 날짜가 다시 생기면 '취소' 표시도 지운다. */
     suspend fun rescheduleJob(jobId: Long, dayMs: Long, now: Long) {
         val j = jobDao.findById(jobId) ?: return
-        jobDao.update(j.copy(scheduledWorkDate = dayMs, updatedAt = now))
+        jobDao.update(j.copy(scheduledWorkDate = dayMs, cancelledAt = null, updatedAt = now))
         recomputeMirror(j.customerId, now)
     }
 
@@ -249,6 +250,8 @@ class JobRepository(
                 depositPaidAt = null,
                 balanceAmount = null,
                 balancePaidAt = null,
+                // 취소했다고 적어둔다 — 안 적으면 '아직 날짜를 안 정한 새 건'과 구별이 안 된다. (2026-09-18)
+                cancelledAt = now,
                 updatedAt = now
             )
         )

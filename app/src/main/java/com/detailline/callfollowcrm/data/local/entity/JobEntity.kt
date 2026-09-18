@@ -43,6 +43,13 @@ data class JobEntity(
      *   **1차 일정이 2차 날짜로 옮겨졌다**(새 일정이 안 생김). 건마다 따로 들고 있어야 한다.
      */
     val calendarEventId: String? = null,
+    /**
+     * 예약을 **취소한 시각**. (v57, 2026-09-18 사장님)
+     *   취소는 기록을 남기려고 날짜만 비운다 → 날짜 없는 건이 '아직 날짜를 안 정한 새 건'과
+     *   구별이 안 돼, 취소한 건이 탭에서 차수를 차지했다. 이 칸으로 둘을 가른다.
+     *   다시 날짜를 잡으면 null 로 돌아간다(되살리기).
+     */
+    val cancelledAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long
 )
