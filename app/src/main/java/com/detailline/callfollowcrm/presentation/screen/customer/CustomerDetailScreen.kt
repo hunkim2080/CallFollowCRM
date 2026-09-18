@@ -842,11 +842,13 @@ fun CustomerDetailScreen(
                         // ② 날짜를 아직 안 정한 건이 있으면 새로 만들지 않는다. (2026-09-18 사장님)
                         //    그 건으로 데려가 날짜부터 넣게 한다 — 날짜 없는 건이 줄줄이 생기는 걸 막는다.
                         //    ※ 1차에 날짜가 있는데 2차를 미리 잡는 건 그대로 열어둔다.
+                        //   '지금 자리'가 이미 날짜 미정이면 그것도 빈 자리다 — 취소 직후가 그렇다. (2026-09-18 실기)
                         val pending = allJobsForTabs.firstOrNull {
                             it.scheduledWorkDate == null && !jobFolded(it)
                         }
-                        if (pending != null) {
-                            selectedPastJobId = pending.id.takeIf { it != repJobId }
+                        val currentDateless = customer?.scheduledWorkDate == null
+                        if (pending != null || currentDateless) {
+                            selectedPastJobId = pending?.id?.takeIf { it != repJobId }
                             android.widget.Toast.makeText(
                                 ctx, "날짜를 아직 안 정한 시공이 있어요. 그 날짜부터 넣어주세요",
                                 android.widget.Toast.LENGTH_SHORT
@@ -4283,8 +4285,11 @@ private fun JobTabsRow(
             xs.sortedBy { it.first }
         }
     // 차수는 **숨겨진 지난 건까지 포함한 날짜순**. 접었다 폈다 해도 "2차"가 "1차"로 바뀌지 않는다.
+    //   단 **취소한 건은 차수를 차지하지 않는다.** (2026-09-18 실기에서 발견)
+    //   1차를 취소했더니 빈 자리가 "2차 · 신규" 라고 떴다 — 한 번도 안 한 시공이 2차일 수는 없다.
     val allDays: List<Long> = remember(pastJobs, current.scheduledWorkDate) {
-        (pastJobs.map { it.scheduledWorkDate ?: 0L } + (current.scheduledWorkDate ?: Long.MAX_VALUE)).sorted()
+        (pastJobs.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate ?: 0L } +
+            (current.scheduledWorkDate ?: Long.MAX_VALUE)).sorted()
     }
     fun nthOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Int =
         allDays.indexOf(j.scheduledWorkDate ?: 0L).let { if (it < 0) 1 else it + 1 }
@@ -4301,8 +4306,11 @@ private fun JobTabsRow(
                 val done = job.workCompletedAt != null
                 val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
                 JobTab(
-                    nth = "${nthOf(job)}차 · " + if (done) "완료" else (dd ?: "예정"),
-                    sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미상",
+                    // 취소한 건은 차수를 안 준다 — 안 한 시공에 번호를 붙이면 뒤가 다 밀린다. (2026-09-18)
+                    nth = if (jobCancelled(job)) "취소한 건"
+                          else "${nthOf(job)}차 · " + if (done) "완료" else (dd ?: "예정"),
+                    sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) }
+                        ?: if (jobCancelled(job)) "예약 취소함" else "날짜 미상",
                     on = selectedPastJobId == job.id,
                     onClick = { onSelect(job.id) }
                 )
