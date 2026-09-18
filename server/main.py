@@ -419,10 +419,48 @@ def db_init() -> None:
                 completed       INTEGER DEFAULT 0,
                 memo            TEXT,            -- 고객 메모(글만들기·페르소나 재료) — android 159992d
                 updated_at_ms   INTEGER NOT NULL,
-                PRIMARY KEY (owner_phone, customer_digits)
+                -- 한 손님이 시공을 여러 번 받으면 **건마다 한 줄**이어야 한다. (2026-09-18 사장님)
+                --   전엔 (사장님, 손님) 이라 손님당 한 줄뿐 → 2차 날짜가 아예 안 올라갔고,
+                --   PC 달력·현장 목록에도 한 날짜만 보였다.
+                PRIMARY KEY (owner_phone, customer_digits, work_date)
             )
             """
         )
+        # ── 옛 DB 옮겨 담기: 키가 (사장님, 손님) 이면 (사장님, 손님, 시공일) 로. (2026-09-18)
+        #   SQLite 는 기본키를 못 바꾼다 → 새 표를 만들고 옮겨 담은 뒤 이름을 바꾼다.
+        #   옛 행은 손님당 하나뿐이라 옮겨도 충돌이 없다. 실패해도 앱이 다음 push 로 다시 채운다.
+        try:
+            pk_cols = [r[1] for r in con.execute("PRAGMA table_info(web_schedule_feed)").fetchall() if r[5]]
+            if pk_cols and "work_date" not in pk_cols:
+                con.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS web_schedule_feed_v2 (
+                        owner_phone     TEXT NOT NULL,
+                        customer_digits TEXT NOT NULL,
+                        name            TEXT,
+                        apartment       TEXT,
+                        dong_ho         TEXT,
+                        work_date       TEXT,
+                        category        TEXT,
+                        completed       INTEGER DEFAULT 0,
+                        memo            TEXT,
+                        updated_at_ms   INTEGER NOT NULL,
+                        PRIMARY KEY (owner_phone, customer_digits, work_date)
+                    )
+                    """
+                )
+                con.execute(
+                    "INSERT OR REPLACE INTO web_schedule_feed_v2 "
+                    "(owner_phone, customer_digits, name, apartment, dong_ho, work_date, "
+                    " category, completed, memo, updated_at_ms) "
+                    "SELECT owner_phone, customer_digits, name, apartment, dong_ho, work_date, "
+                    "       category, completed, memo, updated_at_ms FROM web_schedule_feed"
+                )
+                con.execute("DROP TABLE web_schedule_feed")
+                con.execute("ALTER TABLE web_schedule_feed_v2 RENAME TO web_schedule_feed")
+                print("[web_feed] PRIMARY KEY 를 (owner, customer, work_date) 로 옮겨 담음")
+        except sqlite3.OperationalError as _e:
+            print(f"[web_feed] 키 이관 건너뜀: {_e}")
         # 기존 DB 마이그레이션 — memo 컬럼 없으면 추가
         try:
             con.execute("ALTER TABLE web_schedule_feed ADD COLUMN memo TEXT")
@@ -28308,7 +28346,9 @@ async def web_calendar(request: Request, month: str):
             continue
         d = days.setdefault(wd, {"date": wd, "jobCount": 0, "hasPhoto": False})
         d["jobCount"] += 1
-        if _web_pkey(cd) in bucket:
+        # 그 **날짜(건)** 사진이 있는지로 본다. 옛 사진(날짜 없음)은 그 손님 아무 날에나 붙어 보이게. (2026-09-18)
+        _ps = bucket.get(_web_pkey(cd), [])
+        if any((p.get("work_date") or wd) == wd for p in _ps):
             d["hasPhoto"] = True
     return {"month": m, "days": sorted(days.values(), key=lambda x: x["date"])}
 
@@ -28337,7 +28377,13 @@ async def web_sites(request: Request, month: str):
         sites.append({
             "customer_digits": cd, "name": name or "", "apartment": apt or "",
             "dong_ho": dh or "", "work_date": wd or "", "category": cat or "",
-            "completed": bool(comp), "photo_count": len(bucket.get(_web_pkey(cd), [])),
+            "completed": bool(comp),
+            # 그 **건**의 사진 수. 날짜가 안 붙은 옛 사진은 어느 건에도 안 세지 않게 그 손님 첫 건에만…
+            #   이 아니라, 섞임을 막는 게 목적이므로 '그 날짜 것 + 날짜 없는 것' 으로 센다. (2026-09-18)
+            "photo_count": sum(
+                1 for p in bucket.get(_web_pkey(cd), [])
+                if (p.get("work_date") or (wd or "")) == (wd or "")
+            ),
             "has_post": _webre.sub(r"[^0-9]", "", cd or "") in posted,
         })
     return {"month": m, "sites": sites}
@@ -28358,11 +28404,15 @@ async def web_site(request: Request, customer_digits: str, work_date: Optional[s
     req_d = _webre.sub(r"[^0-9]", "", customer_digits or "")
     crow = None
     crow_suffix = None  # 감사#9: 끝8 충돌 대비 — 전체번호 정확일치 우선, 없으면 suffix 폴백
+    wd_req = (work_date or "").strip()
     with db_conn() as con:
+        # 한 손님에 건이 여러 개면 여러 줄이 온다. work_date 를 주면 그 건, 안 주면 **가장 최근 건**. (2026-09-18)
         for r in con.execute(
             "SELECT customer_digits, name, apartment, dong_ho, work_date, category, completed "
-            "FROM web_schedule_feed WHERE owner_phone = ?", (owner,)).fetchall():
+            "FROM web_schedule_feed WHERE owner_phone = ? ORDER BY work_date DESC", (owner,)).fetchall():
             rd = _webre.sub(r"[^0-9]", "", r[0] or "")
+            if wd_req and (r[4] or "") != wd_req:
+                continue
             if rd == req_d:
                 crow = r[1:]
                 break
@@ -28372,9 +28422,9 @@ async def web_site(request: Request, customer_digits: str, work_date: Optional[s
         crow = crow_suffix
     photos_raw = _web_photo_bucket(owner).get(key, [])
     # 건(시공일)을 지정하면 그 건 사진만. 1차·2차가 섞이면 '시공 전/후' 자동 추정도 무의미해진다.
-    wd = (work_date or "").strip()
-    if wd:
-        photos_raw = [p for p in photos_raw if (p.get("work_date") or "") == wd]
+    if wd_req:
+        # 그 건 사진 + 아직 건이 안 붙은 옛 사진. (옛 사진이 통째로 사라지지 않게)
+        photos_raw = [p for p in photos_raw if (p.get("work_date") or wd_req) == wd_req]
     n = len(photos_raw)
     # 서버에 저장된 사진 태그(부위·시공전후) — 어느 PC서든 유지
     tagmap: dict = {}

@@ -27,6 +27,7 @@ class WebFeedSyncManager(
     private val repo: WebFeedRepository,
     private val prefs: AppPreferences,
     private val customerRepository: CustomerRepository,
+    private val jobRepository: com.detailline.callfollowcrm.data.repository.JobRepository,
     private val categoryRepository: CategoryRepository,
     private val cachedMessageRepository: CachedMessageRepository,
     private val callSummaryRepository: CallSummaryRepository
@@ -72,24 +73,51 @@ class WebFeedSyncManager(
             }.groupBy({ it.first }, { it.second })
         }.getOrDefault(emptyMap())
 
-        val items = customers
-            .filter { (it.scheduledWorkDate ?: 0L) > 0L }
+        // 🔴 **건마다 한 줄**로 보낸다. (2026-09-18 · 서버 피드 키가 (사장님,손님,시공일) 로 바뀜)
+        //   전엔 고객당 한 줄이라 **2차 날짜가 서버에 아예 안 갔다** → PC 달력에 1차만 보였다.
+        //   건이 하나도 없는 고객(옛 데이터)은 지금처럼 고객 카드로 한 줄.
+        val jobsAll = runCatching { jobRepository.allOnce() }.getOrDefault(emptyList())
+        val custById = customers.associateBy { it.id }
+        val idsWithJobs = jobsAll.map { it.customerId }.toHashSet()
+
+        val fromJobs = jobsAll.mapNotNull { j ->
+            val c = custById[j.customerId] ?: return@mapNotNull null
+            val day = j.scheduledWorkDate?.takeIf { it > 0L } ?: return@mapNotNull null
+            val digits = c.phoneNumber.filter { ch -> ch.isDigit() }
+            if (digits.length < 9) return@mapNotNull null   // 조인 키(전화) 없으면 제외(사진과 못 이음)
+            WebFeedRepository.FeedItem(
+                customerDigits = digits,
+                name = c.name?.takeIf { it.isNotBlank() } ?: "현장",
+                apartment = j.address?.takeIf { it.isNotBlank() }
+                    ?: c.address?.takeIf { it.isNotBlank() } ?: "",   // 건마다 현장이 다르다
+                dongHo = "",   // 앱엔 동/호 분리 필드 없음 — 주소에 포함(§0: 지어내지 않음)
+                workDate = dateFmt.format(Date(DateTimeUtils.startOfDay(day))),
+                category = c.categoryId?.let { catNames[it] } ?: "",
+                // 잔금 받으면 = 완료 (사장님 통일 2026-08-18). 건 기준으로 본다.
+                completed = j.balancePaidAt != null || j.workCompletedAt != null,
+                shareIds = shareIdsByCustomer[c.id]?.distinct() ?: emptyList(),
+                memo = j.memo.takeIf { it.isNotBlank() } ?: c.memo   // 글 만들기 재료
+            )
+        }
+        val fromCustomers = customers
+            .filter { it.id !in idsWithJobs && (it.scheduledWorkDate ?: 0L) > 0L }
             .mapNotNull { c ->
                 val digits = c.phoneNumber.filter { ch -> ch.isDigit() }
-                if (digits.length < 9) return@mapNotNull null   // 조인 키(전화) 없으면 제외(사진과 못 이음)
+                if (digits.length < 9) return@mapNotNull null
                 val day = DateTimeUtils.startOfDay(c.scheduledWorkDate!!)
                 WebFeedRepository.FeedItem(
                     customerDigits = digits,
                     name = c.name?.takeIf { it.isNotBlank() } ?: "현장",
                     apartment = c.address?.takeIf { it.isNotBlank() } ?: "",
-                    dongHo = "",   // 앱엔 동/호 분리 필드 없음 — 주소에 포함(§0: 지어내지 않음)
+                    dongHo = "",
                     workDate = dateFmt.format(Date(day)),
                     category = c.categoryId?.let { catNames[it] } ?: "",
-                    completed = c.isWorkDone,   // 잔금 받으면=완료 (사장님 통일 2026-08-18) — 웹 '진행중' 오표기 + 블로그 재료 미전송 해결
+                    completed = c.isWorkDone,
                     shareIds = shareIdsByCustomer[c.id]?.distinct() ?: emptyList(),
-                    memo = c.memo   // 웹 '글 만들기' 재료 — 메모 저장 시 observeAll→자동 push (2026-08-15)
+                    memo = c.memo
                 )
             }
+        val items = fromJobs + fromCustomers
 
         val hash = items.joinToString("|") {
             "${it.customerDigits},${it.workDate},${it.completed},${it.category},${it.apartment},${it.name},${it.shareIds.sorted().joinToString(":")},${it.memo}"
