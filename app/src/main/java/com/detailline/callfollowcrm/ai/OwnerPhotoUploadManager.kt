@@ -25,6 +25,7 @@ class OwnerPhotoUploadManager(
     private val context: Context,
     private val sitePhotoDao: SitePhotoDao,
     private val customerRepository: CustomerRepository,
+    private val jobRepository: com.detailline.callfollowcrm.data.repository.JobRepository,
     private val serverRepo: SitePhotoServerRepository,
     private val prefs: AppPreferences
 ) {
@@ -48,6 +49,12 @@ class OwnerPhotoUploadManager(
         val phoneById = runCatching {
             customerRepository.allOnce().associate { it.id to it.phoneNumber }
         }.getOrDefault(emptyMap())
+        // 건 id → 그 건의 시공일('YYYY-MM-DD'). 이게 있어야 PC 에서 1차·2차 사진이 갈린다. (2026-09-18)
+        val workDateByJob = runCatching {
+            jobRepository.allOnce().mapNotNull { j ->
+                j.scheduledWorkDate?.let { d -> j.id to com.detailline.callfollowcrm.util.DateTimeUtils.isoDate(d) }
+            }.toMap()
+        }.getOrDefault(emptyMap())
 
         var uploaded = 0
         for (p in pending) {
@@ -63,7 +70,10 @@ class OwnerPhotoUploadManager(
             val dataUrl = "data:image/jpeg;base64,$b64"
             if (dataUrl.length > 1_400_000) continue   // 압축해도 1MB 초과면 이번엔 skip
 
-            val res = serverRepo.uploadOwnerPhoto(ownerPhone, custPhone, dataUrl, p.label ?: "시공 사진")
+            val res = serverRepo.uploadOwnerPhoto(
+                ownerPhone, custPhone, dataUrl, p.label ?: "시공 사진",
+                workDate = p.jobId?.let { workDateByJob[it] }
+            )
             if (res.isSuccess) {
                 sitePhotoDao.markUploaded(p.id, System.currentTimeMillis())
                 uploaded++

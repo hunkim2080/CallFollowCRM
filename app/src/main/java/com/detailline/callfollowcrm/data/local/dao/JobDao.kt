@@ -31,6 +31,10 @@ interface JobDao {
     @Query("SELECT * FROM jobs")
     fun observeAll(): Flow<List<JobEntity>>
 
+    /** 전체 스냅샷 1회 — 사진 업로드가 '어느 건의 시공일인지' 붙일 때. (2026-09-18) */
+    @Query("SELECT * FROM jobs")
+    suspend fun allOnce(): List<JobEntity>
+
     // ── Phase 2 Stage A (DB v49) — jobs 가 '예정 건'까지 들고 있는 일정 SoT 가 됨.
     //    (한 고객이 여러 날짜에 시공받는 인테리어 업체 케이스. 2026-09-11 사장님)
 

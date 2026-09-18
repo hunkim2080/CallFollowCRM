@@ -150,7 +150,7 @@ class CustomerDetailViewModel(
     }
 
     /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). 한 현장 최대 [sitePhotoMax]장(로컬+서버 합산). */
-    fun addSitePhotos(uris: List<android.net.Uri>) = viewModelScope.launch {
+    fun addSitePhotos(uris: List<android.net.Uri>, jobId: Long? = null) = viewModelScope.launch {
         if (uris.isEmpty()) return@launch
         val current = sitePhotos.value.size + _teamPhotos.value.size
         val room = (sitePhotoMax - current).coerceAtLeast(0)
@@ -161,7 +161,12 @@ class CustomerDetailViewModel(
         val toAdd = uris.take(room)
         var ok = 0
         withContext(NonCancellable) {
-            toAdd.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it)) ok++ }
+            // 🔴 **어느 건의 사진인지** 붙인다. 안 붙이면 1차·2차 사진이 안 갈린다.
+            //   지금 보고 있는 건(없으면 대표 건). (2026-09-18 사장님: "현장사진도 1차 2차 개별로")
+            val jid = jobId ?: runCatching {
+                container.jobRepository.representativeJobId(customerId)
+            }.getOrNull()
+            toAdd.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it, jid)) ok++ }
         }
         // 웹 로그인 상태면 방금 추가한 사진을 서버로도 바로 올림(PC 웹에 즉시 반영). 아니면 매니저가 조용히 skip.
         if (ok > 0) container.ownerPhotoUploadManager.kick(viewModelScope)

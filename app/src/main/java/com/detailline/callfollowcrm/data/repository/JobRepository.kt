@@ -26,6 +26,8 @@ class JobRepository(
     /** 모든 지난 시공(이력) 구독 — 매출 집계가 현재 건(CustomerEntity)과 함께 합산. (2026-08-11 돈감사 rank1) */
     fun observeAll(): Flow<List<JobEntity>> = jobDao.observeAll()
 
+    suspend fun allOnce(): List<JobEntity> = jobDao.allOnce()
+
     suspend fun byCustomerOnce(customerId: Long): List<JobEntity> = jobDao.byCustomerOnce(customerId)
 
     /**

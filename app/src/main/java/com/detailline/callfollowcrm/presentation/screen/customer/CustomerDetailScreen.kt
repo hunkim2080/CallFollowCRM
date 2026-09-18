@@ -939,7 +939,17 @@ fun CustomerDetailScreen(
 
             // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
             //   ※ 팀원↔사장님 공유는 서버(team_site_photos) 보강 후 별도 연동 — docs/SERVER_HANDOFF 참조.
-            val sitePhotos by viewModel.sitePhotos.collectAsState()
+            val allSitePhotos by viewModel.sitePhotos.collectAsState()
+            // 🔴 사진도 **그 건 것만.** 1차 사진이 2차 탭에 보이면 안 된다.
+            //   (2026-09-18 사장님: "현장사진도 1차 2차 개별로 들어가야해")
+            //   어느 건인지 안 붙은 옛 사진(jobId=null)은 **대표 건**에 붙여 보여준다 — 안 그러면
+            //   지금까지 올린 사진이 통째로 안 보이게 된다.
+            val shownJobId = selectedPastJobId ?: repJobId
+            val sitePhotos = remember(allSitePhotos, shownJobId, repJobId) {
+                allSitePhotos.filter { p ->
+                    p.jobId == shownJobId || (p.jobId == null && shownJobId == repJobId)
+                }
+            }
             // 카톡식 사진 첨부 시트(아래→위) — 기존 시스템 "내 파일" 피커는 권한 거부/구형 fallback 으로만 유지. (2026-06-11)
             var showPhotoPicker by remember { mutableStateOf(false) }
             // 사진 첨부 = 시스템 Photo Picker(권한 없음, Play 정책 + 사진 우선 화면).
@@ -948,7 +958,7 @@ fun CustomerDetailScreen(
             val photoPicker = rememberLauncherForActivityResult(
                 // 2026-08-24 사장님: 본인 현장 사진도 한 번에 10 → 20장 (협업과 통일, 총량 sitePhotoMax=20).
                 ActivityResultContracts.PickMultipleVisualMedia(20)
-            ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris) }
+            ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris, selectedPastJobId ?: repJobId) }
             val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
             val photoTotal = sitePhotos.size + teamPhotos.size

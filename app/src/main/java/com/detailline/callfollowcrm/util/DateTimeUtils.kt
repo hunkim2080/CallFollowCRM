@@ -81,6 +81,17 @@ object DateTimeUtils {
      *   미래 -> "D-N"  (N일 남음)
      *   과거 -> "D+N"  (N일 지남)
      */
+    /** 'YYYY-MM-DD' (로컬 기준). 서버에 '어느 시공일 것인지' 보낼 때. (2026-09-18) */
+    fun isoDate(epochMs: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMs }
+        return String.format(
+            java.util.Locale.US, "%04d-%02d-%02d",
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    }
+
     fun dDayLabel(targetEpoch: Long, now: Long = System.currentTimeMillis()): String {
         val today = startOfDay(now)
         val target = startOfDay(targetEpoch)

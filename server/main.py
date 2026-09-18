@@ -1130,6 +1130,19 @@ def db_init() -> None:
             con.execute("ALTER TABLE team_site_photos ADD COLUMN share_id TEXT")
         except sqlite3.OperationalError:
             pass  # already exists
+        # 건(件)별 사진 — "어느 시공일 것인지". (2026-09-18 사장님: "현장사진도 1차 2차 개별로")
+        #   한 고객이 1차·2차를 받으면 현장도 날짜도 다르다. 지금까지는 고객 번호로만 묶어서
+        #   PC 에서 1차·2차 사진이 한 통에 섞였다(시공 전/후 자동 추정도 같이 깨짐).
+        #   nullable — 옛 사진과 옛 앱은 그대로 동작한다("미분류").
+        #   형식: 'YYYY-MM-DD' (앱이 그 건의 시공일을 로컬 날짜로 보냄).
+        try:
+            con.execute("ALTER TABLE team_site_photos ADD COLUMN work_date TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_customer_date "
+            "ON team_site_photos(owner_phone, customer_phone, work_date)"
+        )
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_team_photos_share "
             "ON team_site_photos(share_id, uploaded_at_ms DESC)"
@@ -20602,6 +20615,9 @@ class OwnerSitePhotoRequest(BaseModel):
     label: Optional[str] = None
     note: Optional[str] = None
     share_id: Optional[str] = None             # §F: 협업 현장 사진 (shared_sites.share_id)
+    # 어느 시공일(건) 사진인지. 'YYYY-MM-DD'. 없으면 '미분류' — 옛 앱 호환. (2026-09-18)
+    #   ⚠️ Python 3.9 — `str | None` 쓰면 502. Optional[str] 로.
+    work_date: Optional[str] = None
 
 
 # ─── API 1: 팀원 초대 (이름 + 전화 + URL 발급) ───
@@ -21452,8 +21468,8 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
             """
             INSERT INTO team_site_photos
                 (token, member_id, owner_phone, label, image_data_url, image_path,
-                 note, uploaded_at_ms, customer_phone, share_id)
-            VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?, ?)
+                 note, uploaded_at_ms, customer_phone, share_id, work_date)
+            VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?, ?, ?)
             """,
             (
                 owner_phone,
@@ -21463,6 +21479,7 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
                 now,
                 customer_phone or None,
                 share_id or None,
+                (req.work_date or "").strip() or None,
             ),
         )
         photo_id = cur.lastrowid
@@ -28027,7 +28044,7 @@ def _web_photo_bucket(owner: str) -> dict:
     with db_conn() as con:
         # (A) 고객번호로 묶인 사진
         rows = con.execute(
-            "SELECT photo_id, customer_phone, member_id, label, uploaded_at_ms "
+            "SELECT photo_id, customer_phone, member_id, label, uploaded_at_ms, work_date "
             "FROM team_site_photos WHERE " + _WEB_OWNER_NORM + " = ? "
             "AND customer_phone IS NOT NULL",
             (owner,),
@@ -28036,6 +28053,8 @@ def _web_photo_bucket(owner: str) -> dict:
             _add(_web_pkey(r[1]), {
                 "photo_id": r[0], "member_id": r[2] or "", "label": r[3] or "",
                 "uploaded_at_ms": r[4], "customer_phone": r[1],
+                # 어느 시공일(건) 사진인지. 없으면 옛 사진 = '미분류'. (2026-09-18)
+                "work_date": r[5] or None,
             })
         # (B) 협업 share 사진 — share_id → 고객(customer_digits) 매핑으로 같은 버킷에 합침
         shmap = {}
@@ -28046,7 +28065,7 @@ def _web_photo_bucket(owner: str) -> dict:
             shmap[sr[0]] = sr[1]
         share_ids = [s for s in shmap.keys() if s]
         if share_ids:
-            q = ("SELECT photo_id, share_id, member_id, label, uploaded_at_ms "
+            q = ("SELECT photo_id, share_id, member_id, label, uploaded_at_ms, work_date "
                  "FROM team_site_photos WHERE share_id IN (%s)"
                  % ",".join("?" * len(share_ids)))
             for r in con.execute(q, share_ids).fetchall():
@@ -28056,6 +28075,7 @@ def _web_photo_bucket(owner: str) -> dict:
                 _add(_web_pkey(cd), {
                     "photo_id": r[0], "member_id": r[2] or "", "label": r[3] or "",
                     "uploaded_at_ms": r[4], "customer_phone": cd,
+                    "work_date": r[5] or None,
                 })
     for k in out:
         out[k].sort(key=lambda x: x["uploaded_at_ms"])
@@ -28324,7 +28344,12 @@ async def web_sites(request: Request, month: str):
 
 
 @app.get("/api/web/site/{customer_digits}")
-async def web_site(request: Request, customer_digits: str):
+async def web_site(request: Request, customer_digits: str, work_date: Optional[str] = None):
+    """현장 상세. work_date 를 주면 **그 시공일(건) 사진만** 보여준다. (2026-09-18)
+
+    안 주면 지금까지처럼 그 고객 사진 전부 — 옛 PC 화면·북마크가 그대로 동작한다.
+    옛 사진(work_date 없음)은 어느 건에도 안 붙어 있으므로, 건을 지정하면 빠진다.
+    """
     from fastapi.responses import JSONResponse
     owner = _web_owner_from_request(request)
     if not owner:
@@ -28346,6 +28371,10 @@ async def web_site(request: Request, customer_digits: str):
     if crow is None:
         crow = crow_suffix
     photos_raw = _web_photo_bucket(owner).get(key, [])
+    # 건(시공일)을 지정하면 그 건 사진만. 1차·2차가 섞이면 '시공 전/후' 자동 추정도 무의미해진다.
+    wd = (work_date or "").strip()
+    if wd:
+        photos_raw = [p for p in photos_raw if (p.get("work_date") or "") == wd]
     n = len(photos_raw)
     # 서버에 저장된 사진 태그(부위·시공전후) — 어느 PC서든 유지
     tagmap: dict = {}

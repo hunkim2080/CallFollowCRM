@@ -23,7 +23,12 @@ class SitePhotoRepository(
     private fun photoDir(): File = File(context.filesDir, "site_photos").apply { mkdirs() }
 
     /** 갤러리 등에서 고른 URI 를 내부 저장소로 복사 + DB 기록. 성공 시 true. */
-    suspend fun addFromUri(customerId: Long, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * @param jobId 어느 시공 건의 사진인지. null 이면 '미분류'.
+     *   🔴 전엔 이 값이 **항상 null** 이라, 건 탭을 만들어도 1차·2차 사진이 안 갈렸다.
+     *   (2026-09-18 사장님: "현장사진도 1차 2차 개별로 들어가야해")
+     */
+    suspend fun addFromUri(customerId: Long, uri: Uri, jobId: Long? = null): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val nowMs = System.currentTimeMillis()
             val file = File(photoDir(), "${customerId}_${nowMs}_${System.nanoTime()}.jpg")
@@ -36,7 +41,10 @@ class SitePhotoRepository(
                 return@runCatching false
             }
             dao.insert(
-                SitePhotoEntity(customerId = customerId, filePath = file.absolutePath, createdAt = nowMs)
+                SitePhotoEntity(
+                    customerId = customerId, jobId = jobId,
+                    filePath = file.absolutePath, createdAt = nowMs
+                )
             )
             true
         }.getOrDefault(false)
