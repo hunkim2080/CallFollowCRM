@@ -356,7 +356,11 @@ class JobRepository(
         val filled = if (at != null && j.balanceAmount == null) {
             ((j.totalAmount ?: 0L) - (j.depositAmount ?: 0L)).coerceAtLeast(0L).takeIf { it > 0L }
         } else j.balanceAmount
-        jobDao.update(j.copy(balancePaidAt = at, balanceAmount = filled, updatedAt = now))
+        // **잔금을 받으면 그 건은 마무리.** (2026-09-18 사장님 확정 · 프로토)
+        //   "잔금 받으면 완료 처리는 자동." 이미 완료일이 있으면 존중(안 덮음).
+        //   되돌릴 땐(at=null) 완료는 안 건드린다 — 시공 완료는 따로 되돌리는 자리가 있다.
+        val done = if (at != null) (j.workCompletedAt ?: at) else j.workCompletedAt
+        jobDao.update(j.copy(balancePaidAt = at, balanceAmount = filled, workCompletedAt = done, updatedAt = now))
     }
 
     /** 그 고객의 **대표 건**(고객 카드가 지금 보여주는 건) id. 없으면 null. */

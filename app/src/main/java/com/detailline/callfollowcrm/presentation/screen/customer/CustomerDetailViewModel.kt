@@ -367,10 +367,17 @@ class CustomerDetailViewModel(
 
     fun setBalancePaid(paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateBalancePaidAt(
-                customerId,
-                if (paid) System.currentTimeMillis() else null
-            )
+            val at = if (paid) System.currentTimeMillis() else null
+            container.customerRepository.updateBalancePaidAt(customerId, at)
+            // 대표 **건 전표**에도 같은 처리 — 고객 카드만 찍히면 건 탭의 '완료' 표시가 틀린다.
+            //   돈 미러는 mutate 가 맡지만 완료일은 미러 대상이 아니라서 여기서 직접. (2026-09-18)
+            if (paid) {
+                runCatching {
+                    container.jobRepository.representativeJobId(customerId)?.let { jid ->
+                        container.jobRepository.setBalancePaid(jid, at)
+                    }
+                }
+            }
             container.autoCategoryClassifier.reclassify(customerId)
         }
         // 잔금 받음 처리 = 그 시점을 챗 타임라인에 카드로. 취소(false)면 그 카드도 삭제 — 실수 처리 후 '받음' 잔상 방지. (2026-06-30 / 2026-08-28 사장님)

@@ -169,6 +169,8 @@ fun CustomerDetailScreen(
     var datePickerOpen by remember { mutableStateOf(false) }
     /** 날짜 고르기가 '새 건 만들기' 로 열렸나. false = 지금 건의 날짜를 고치는 것. (2026-09-17) */
     var addingNewJob by remember { mutableStateOf(false) }
+    /** '지난 건' 묶음을 폈는지. (2026-09-18 프로토) */
+    var pastOpen by remember { mutableStateOf(false) }
     // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
     var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
@@ -756,11 +758,60 @@ fun CustomerDetailScreen(
                     pastJobs = otherJobs,
                     current = c,
                     selectedPastJobId = selectedPastJobId,
+                    closedCount = otherJobs.count { jobClosed(it) },
+                    pastOpen = pastOpen,
+                    onTogglePast = { pastOpen = !pastOpen },
                     onSelect = { selectedPastJobId = it },
                     // ＋ 는 **새 건을 만든다.** 전엔 날짜 고르기만 열고 그 날짜를 지금 건에 덮어썼다. (2026-09-17)
                     onAddNew = { selectedPastJobId = null; addingNewJob = true; datePickerOpen = true }
                 )
             }
+            // 2-0-b. '지난 건'을 펼쳤을 때 — 마무리된 건 목록. (2026-09-18 프로토 `.past-list`)
+            //   "펼치면 목록이 나오고, 고르면 그 건이 열려요."
+            if (detailTab == 0 && showJobBar && pastOpen) {
+                val closedJobs = remember(otherJobs) {
+                    otherJobs.filter { jobClosed(it) }.sortedBy { it.scheduledWorkDate ?: 0L }
+                }
+                if (closedJobs.isNotEmpty()) {
+                    TossCard {
+                        Column {
+                            Text(
+                                "마무리된 건 · 고르면 열려요",
+                                fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            closedJobs.forEach { j ->
+                                androidx.compose.foundation.layout.Row(
+                                    Modifier.fillMaxWidth()
+                                        .clickable { selectedPastJobId = j.id }
+                                        .padding(vertical = 10.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            "${jobNthOf(allJobsForTabs, j)}차 · " +
+                                                (j.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정"),
+                                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                            color = if (selectedPastJobId == j.id) TossBlue else TossTextPrimary
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            listOfNotNull(
+                                                j.address?.takeIf { it.isNotBlank() } ?: "주소 없음",
+                                                j.totalAmount?.let { com.detailline.callfollowcrm.util.MoneyFormatter.won(it) },
+                                                if (j.balancePaidAt != null) "잔금 받음" else "완료"
+                                            ).joinToString(" · "),
+                                            fontSize = 11.5.sp, color = TossTextTertiary, maxLines = 1
+                                        )
+                                    }
+                                    Text("›", fontSize = 18.sp, color = TossTextTertiary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // 2-1. 지난 건을 고른 상태 — 그 건의 기록만 보여준다(읽기 전용).
             //   지난 건은 이미 끝난 일이라 여기서 고칠 게 없다. 고칠 일이 생기면 그때 붙인다.
             if (detailTab == 0 && selectedPastJob != null) {
@@ -4034,6 +4085,13 @@ private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.
  * 건이 하나뿐이어도 그린다 — 「＋ 새 시공」이 이 줄에만 있어서, 안 그리면 2번째 시공을 잡을 길이 없다. (2026-09-17)
  */
 /**
+ * 이 건은 **마무리됐나** — 잔금을 받았으면 마무리. (2026-09-18 사장님 확정 · 프로토 `closed()`)
+ *   잔금이 애초에 없는 건은 완료 표시만으로 마무리로 본다.
+ */
+private fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+    j.balancePaidAt != null || (j.workCompletedAt != null && (j.balanceAmount ?: 0L) <= 0L)
+
+/**
  * 이 건이 몇 차인가 — **날짜순**. 탭 줄(JobTabsRow)과 같은 규칙이라 화면 어디서나 숫자가 같다.
  *   (2026-09-18: 메모·사진 제목의 "N차" 가 탭 숫자와 어긋나면 안 된다)
  */
@@ -4064,32 +4122,49 @@ private fun JobTabsRow(
     current: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
     selectedPastJobId: Long?,
     onSelect: (Long?) -> Unit,
-    onAddNew: () -> Unit
+    onAddNew: () -> Unit,
+    /** 마무리(잔금 받음)된 건 수 — 탭에서 빠져 '지난 건'으로 묶인다. (2026-09-18) */
+    closedCount: Int = 0,
+    pastOpen: Boolean = false,
+    onTogglePast: () -> Unit = {}
 ) {
     // 차수는 **날짜순**이다 — 먼저 한 날이 1차. (2026-09-18 실기에서 발견해 고침)
     //   전엔 '지난 건들' 을 먼저 그리고 '지금 건' 을 **항상 맨 뒤**에 붙였다.
     //   그런데 '지금 건'(대표) = 오늘 이후 **가장 가까운** 건이라, 2차를 더 뒤 날짜로 잡으면
     //   [1차 11/10][2차 10/27] 처럼 **순서와 차수가 뒤집혀** 보였다.
     //   지금 건도 날짜를 가진 한 칸으로 같이 줄 세운다. 날짜 없는 지금 건은 맨 뒤.
+    // 마무리(잔금 받음)된 건은 탭에서 뺀다 — 아래 '지난 건'으로 묶인다. (2026-09-18 프로토)
+    //   다만 **지금 고른 건**은 마무리됐어도 남겨야 화면이 비지 않는다.
     val slots: List<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>> =
-        remember(pastJobs, current.scheduledWorkDate) {
+        remember(pastJobs, current.scheduledWorkDate, selectedPastJobId) {
             val xs = ArrayList<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
-            for (j in pastJobs) xs.add((j.scheduledWorkDate ?: 0L) to j)
+            for (j in pastJobs) {
+                if (jobClosed(j) && j.id != selectedPastJobId) continue
+                xs.add((j.scheduledWorkDate ?: 0L) to j)
+            }
             xs.add((current.scheduledWorkDate ?: Long.MAX_VALUE) to null)
             xs.sortedBy { it.first }
         }
+    // 차수는 **숨겨진 지난 건까지 포함한 날짜순**. 접었다 폈다 해도 "2차"가 "1차"로 바뀌지 않는다.
+    val allDays: List<Long> = remember(pastJobs, current.scheduledWorkDate) {
+        (pastJobs.map { it.scheduledWorkDate ?: 0L } + (current.scheduledWorkDate ?: Long.MAX_VALUE)).sorted()
+    }
+    fun nthOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Int =
+        allDays.indexOf(j.scheduledWorkDate ?: 0L).let { if (it < 0) 1 else it + 1 }
+    val curNth = allDays.indexOf(current.scheduledWorkDate ?: Long.MAX_VALUE).let { if (it < 0) 1 else it + 1 }
     androidx.compose.foundation.layout.Row(
         Modifier.fillMaxWidth()
             .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
     ) {
+        @Suppress("UNUSED_PARAMETER")
         slots.forEachIndexed { idx, (_, job) ->
             if (job != null) {
                 // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
                 val done = job.workCompletedAt != null
                 val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
                 JobTab(
-                    nth = "${idx + 1}차 · " + if (done) "완료" else (dd ?: "예정"),
+                    nth = "${nthOf(job)}차 · " + if (done) "완료" else (dd ?: "예정"),
                     sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미상",
                     on = selectedPastJobId == job.id,
                     onClick = { onSelect(job.id) }
@@ -4099,7 +4174,7 @@ private fun JobTabsRow(
                 val label: String? = com.detailline.callfollowcrm.presentation.component.scheduleTagLabel(current)
                 val nowLabel = label?.removePrefix("시공 ")?.takeIf { t -> t.isNotBlank() } ?: "진행"
                 JobTab(
-                    nth = "${idx + 1}차 · " + nowLabel,
+                    nth = "${curNth}차 · " + nowLabel,
                     sub = current.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정",
                     on = selectedPastJobId == null,
                     onClick = { onSelect(null) }
@@ -4107,6 +4182,14 @@ private fun JobTabsRow(
             }
         }
         JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, onClick = onAddNew)
+        // 마무리된 건은 탭에서 빼고 여기 묶는다. (2026-09-18 확정 프로토 `.chip.past`)
+        //   "잔금 받으면 그 건은 마무리. 마무리된 건은 탭에서 빠지고 **지난 건 (N)** 으로 접혀요."
+        if (closedCount > 0) {
+            JobTab(
+                nth = "지난 건", sub = "${closedCount}건",
+                on = pastOpen, muted = true, onClick = onTogglePast
+            )
+        }
     }
     Spacer(Modifier.height(2.dp))
 }
@@ -4117,15 +4200,23 @@ private fun JobTab(
     sub: String,
     on: Boolean,
     dashed: Boolean = false,
+    /** '지난 건' 묶음 — 진행 중인 건과 구분되게 회색으로. (2026-09-18 프로토 `.chip.past`) */
+    muted: Boolean = false,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
     Column(
         Modifier
             .clip(shape)
-            .background(if (on) Color.White else TossGrayBg)
+            .background(
+                when {
+                    muted && on -> Color(0xFF4E5968)
+                    on -> Color.White
+                    else -> TossGrayBg
+                }
+            )
             .then(
-                if (on) Modifier.border(1.5.dp, TossBlue, shape)
+                if (on && !muted) Modifier.border(1.5.dp, TossBlue, shape)
                 else if (dashed) Modifier.border(1.dp, TossBlue.copy(alpha = 0.45f), shape)
                 else Modifier
             )
@@ -4136,13 +4227,17 @@ private fun JobTab(
             nth,
             fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
             color = when {
+                muted && on -> Color.White
                 dashed -> TossBlue
                 on -> TossTextPrimary
                 else -> TossTextTertiary
             }
         )
         Spacer(Modifier.height(2.dp))
-        Text(sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+        Text(
+            sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+            color = if (muted && on) Color(0xFFD6DBE1) else TossTextTertiary
+        )
     }
 }
 
