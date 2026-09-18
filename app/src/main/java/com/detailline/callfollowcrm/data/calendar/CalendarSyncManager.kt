@@ -26,6 +26,13 @@ interface CalendarSyncStore {
 
     /** 시공일이 잡힌 **건**들 — (건 id, 그 건 값을 채운 고객 복사본). (2026-09-18) */
     suspend fun scheduledWorkJobs(): List<Pair<Long, CustomerEntity>> = emptyList()
+
+    /**
+     * **취소돼 날짜가 사라졌는데 구글 일정 번호는 남아 있는 건**들. (2026-09-18 실기에서 발견)
+     *   동기화는 '날짜가 있는 건'만 훑기 때문에, 취소한 건은 아무도 지우러 가지 않아
+     *   **구글 캘린더에 일정이 그대로 남았다.** 이 목록을 따로 돌며 지운다.
+     */
+    suspend fun unscheduledWorkJobsWithEvent(): List<Pair<Long, CustomerEntity>> = emptyList()
     /** 시공/AS 일정이 있거나, 이미 올려둔 이벤트가 있는(=지울 수도 있는) 고객 전부. */
     suspend fun scheduledCustomers(): List<CustomerEntity>
 
@@ -164,6 +171,12 @@ class CalendarSyncManager(
                 resetCalendar()
                 return syncAll(retried = true)
             }
+        }
+        // 취소된 건의 일정은 여기서 지운다 — 위 줄은 '날짜 있는 건'만 보기 때문에
+        //   취소한 건은 영영 안 들러 구글에 그대로 남아 있었다. (2026-09-18)
+        //   날짜를 비운 복사본을 주면 buildEvent 가 null → syncOne 의 기존 삭제 경로를 그대로 탄다.
+        for ((jid, jc) in runCatching { store.unscheduledWorkJobsWithEvent() }.getOrDefault(emptyList())) {
+            syncOne(token, cal, jc, ScheduleType.WORK, jid)
         }
         for (c in customers) {
             var broken = syncOne(token, cal, c, ScheduleType.AS)

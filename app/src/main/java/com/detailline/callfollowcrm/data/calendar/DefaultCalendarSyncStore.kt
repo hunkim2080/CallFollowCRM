@@ -81,6 +81,28 @@ class DefaultCalendarSyncStore(
      *   흘려보내면 기존 이벤트 만들기 코드가 **건 단위로 그대로 동작**한다.
      *   돈·완료도 건 것을 넣는다 — 캘린더 본문에 금액이 들어가기 때문.
      */
+    /**
+     * 취소돼 날짜가 사라졌는데 일정 번호는 남은 건들 — 날짜를 비운 복사본으로 돌려준다.
+     *   받는 쪽(syncOne)이 "일정이 사라졌다"고 보고 구글에서 지운다. (2026-09-18)
+     */
+    override suspend fun unscheduledWorkJobsWithEvent(): List<Pair<Long, CustomerEntity>> {
+        val dao = jobDao ?: return emptyList()
+        val jobs = runCatching { dao.allOnce() }.getOrDefault(emptyList())
+            .filter { it.scheduledWorkDate == null && !it.calendarEventId.isNullOrBlank() }
+        if (jobs.isEmpty()) return emptyList()
+        val byId = runCatching { customerDao.allOnce() }.getOrDefault(emptyList()).associateBy { it.id }
+        return jobs.mapNotNull { j ->
+            val c = byId[j.customerId] ?: return@mapNotNull null
+            j.id to c.copy(
+                scheduledWorkDate = null,
+                scheduledWorkMinutes = null,
+                // A/S 는 이 경로로 안 건드린다.
+                asScheduledDate = null,
+                asCalendarEventId = null
+            )
+        }
+    }
+
     override suspend fun scheduledWorkJobs(): List<Pair<Long, CustomerEntity>> {
         val dao = jobDao ?: return emptyList()
         val jobs = runCatching { dao.scheduledOnce() }.getOrDefault(emptyList())

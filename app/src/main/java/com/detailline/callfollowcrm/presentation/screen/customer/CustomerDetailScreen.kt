@@ -3980,33 +3980,46 @@ private fun JobTabsRow(
     onSelect: (Long?) -> Unit,
     onAddNew: () -> Unit
 ) {
-    // 오래된 순으로 1차, 2차 … 마지막이 지금 건.
-    val ordered = remember(pastJobs) { pastJobs.sortedBy { it.scheduledWorkDate ?: 0L } }
+    // 차수는 **날짜순**이다 — 먼저 한 날이 1차. (2026-09-18 실기에서 발견해 고침)
+    //   전엔 '지난 건들' 을 먼저 그리고 '지금 건' 을 **항상 맨 뒤**에 붙였다.
+    //   그런데 '지금 건'(대표) = 오늘 이후 **가장 가까운** 건이라, 2차를 더 뒤 날짜로 잡으면
+    //   [1차 11/10][2차 10/27] 처럼 **순서와 차수가 뒤집혀** 보였다.
+    //   지금 건도 날짜를 가진 한 칸으로 같이 줄 세운다. 날짜 없는 지금 건은 맨 뒤.
+    val slots: List<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>> =
+        remember(pastJobs, current.scheduledWorkDate) {
+            val xs = ArrayList<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
+            for (j in pastJobs) xs.add((j.scheduledWorkDate ?: 0L) to j)
+            xs.add((current.scheduledWorkDate ?: Long.MAX_VALUE) to null)
+            xs.sortedBy { it.first }
+        }
     androidx.compose.foundation.layout.Row(
         Modifier.fillMaxWidth()
             .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
     ) {
-        ordered.forEachIndexed { idx, job ->
-            // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
-            val done = job.workCompletedAt != null
-            val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
-            JobTab(
-                nth = "${idx + 1}차 · " + if (done) "완료" else (dd ?: "예정"),
-                sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미상",
-                on = selectedPastJobId == job.id,
-                onClick = { onSelect(job.id) }
-            )
+        slots.forEachIndexed { idx, (_, job) ->
+            if (job != null) {
+                // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
+                val done = job.workCompletedAt != null
+                val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
+                JobTab(
+                    nth = "${idx + 1}차 · " + if (done) "완료" else (dd ?: "예정"),
+                    sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미상",
+                    on = selectedPastJobId == job.id,
+                    onClick = { onSelect(job.id) }
+                )
+            } else {
+                // 지금 건 — 예약이 남았으면 D-day, 아니면 '진행 중'.
+                val label: String? = com.detailline.callfollowcrm.presentation.component.scheduleTagLabel(current)
+                val nowLabel = label?.removePrefix("시공 ")?.takeIf { t -> t.isNotBlank() } ?: "진행"
+                JobTab(
+                    nth = "${idx + 1}차 · " + nowLabel,
+                    sub = current.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정",
+                    on = selectedPastJobId == null,
+                    onClick = { onSelect(null) }
+                )
+            }
         }
-        // 지금 건 — 예약이 남았으면 D-day, 아니면 '진행 중'.
-        val label: String? = com.detailline.callfollowcrm.presentation.component.scheduleTagLabel(current)
-        val nowLabel = label?.removePrefix("시공 ")?.takeIf { t -> t.isNotBlank() } ?: "진행"
-        JobTab(
-            nth = "${ordered.size + 1}차 · " + nowLabel,
-            sub = current.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정",
-            on = selectedPastJobId == null,
-            onClick = { onSelect(null) }
-        )
         JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, onClick = onAddNew)
     }
     Spacer(Modifier.height(2.dp))
