@@ -84,6 +84,16 @@ class CustomerDetailViewModel(
      *   전엔 [＋ 새 시공] 이 날짜 고르기만 열고, 고른 날짜를 **지금 건에 덮어썼다.**
      *   1차 시공 날짜가 조용히 바뀌는 셈이라 더 나빴다.
      */
+    /**
+     * 이 **건**의 현장 메모. (2026-09-18 확정 프로토 — 👤손님 메모 / 📍현장 메모 분리)
+     *   손님 메모(customers.memo)와 달리 현장이 바뀌면 같이 바뀐다.
+     */
+    fun updateJobMemo(jobId: Long, memo: String) {
+        viewModelScope.launch {
+            runCatching { container.jobRepository.updateMemo(jobId, memo) }
+        }
+    }
+
     fun addNewJob(startMs: Long, days: Int, onDone: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()

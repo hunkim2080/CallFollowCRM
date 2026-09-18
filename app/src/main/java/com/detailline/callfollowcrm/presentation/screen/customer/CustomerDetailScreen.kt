@@ -475,6 +475,42 @@ fun CustomerDetailScreen(
             }
             var showAddressDialog by remember { mutableStateOf(false) }
 
+            // 👤 이 손님 메모 — **현장이 바뀌어도 그대로인 것.** (2026-09-18 확정 프로토)
+            //   "성향, 계좌, 통화 편한 시간". 현장별 메모(📍)는 건 안쪽에 따로 있다.
+            val custMemoFocus = remember { FocusRequester() }
+            TossCard {
+                Column {
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { runCatching { custMemoFocus.requestFocus() } }
+                    ) {
+                        Text("👤", fontSize = 13.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("이 손님 메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                        Spacer(Modifier.weight(1f))
+                        val savedMemo = c.memo.orEmpty()
+                        val (st, stColor) = when {
+                            shouldSaveMemo(memoDirty, memoInput, savedMemo) -> "저장 중…" to TossTextTertiary
+                            memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
+                            else -> "자동으로 저장돼요" to TossTextTertiary
+                        }
+                        Text(st, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = stColor)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text("현장이 바뀌어도 그대로인 것 · 성향, 계좌, 통화 편한 시간",
+                        fontSize = 11.5.sp, color = TossTextTertiary)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = memoInput,
+                        onValueChange = { memoInput = it; memoDirty = true },
+                        placeholder = { Text("예) 계좌이체 선호, 오후 3시 이후 통화", color = TossTextTertiary) },
+                        modifier = Modifier.fillMaxWidth().height(84.dp).focusRequester(custMemoFocus),
+                        colors = tossFieldColors()
+                    )
+                }
+            }
+
+
             if (displayAddr != null) {
                 // 프로토 .addr-card — 그라데이션 + 주소 + [길찾기 시작] 큰 파란 버튼.
                 val addrInteraction = remember { MutableInteractionSource() }
@@ -707,11 +743,15 @@ fun CustomerDetailScreen(
             }?.id
             val otherJobs = allJobsForTabs.filter { it.id != repJobId }
             val selectedPastJob = otherJobs.firstOrNull { it.id == selectedPastJobId }
-            // 시공이 **1건일 때도** 띄운다. (2026-09-17 사장님 지시)
-            //   전엔 '지난 시공이 있어야' 띄웠는데, 「＋ 새 시공」이 이 줄 안에 있어서
-            //   시공 1건짜리 고객은 **두 번째 시공을 잡을 입구가 아예 없었다.**
-            //   (사장님이 원래 물어본 게 정확히 그거였다 — "2번째 시공을 등록할땐 어떻게해?")
-            if (detailTab == 0 && (otherJobs.isNotEmpty() || c.scheduledWorkDate != null)) {
+            // 지금 보고 있는 건 — 메모·사진이 이걸 따라간다. (2026-09-18 프로토)
+            val shownJobId = selectedPastJobId ?: repJobId
+            val shownJob = allJobsForTabs.firstOrNull { it.id == shownJobId }
+            // 건 줄은 **시공이 둘 이상일 때만** 띄운다. (2026-09-18 확정 프로토 artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
+            //   "보통 손님은 시공을 한 번만 받는다. 그런 손님 화면에 '1차'라는 말과 탭 줄을 넣으면
+            //    100명 중 95명한테 쓸데없는 줄 하나를 얹는 것" — 그게 '지저분하다'의 정체.
+            //   1건일 때의 두 번째 시공 입구는 **맨 아래 조용한 링크**(＋ 시공 하나 더 잡기)로 옮겼다.
+            val showJobBar = otherJobs.isNotEmpty()
+            if (detailTab == 0 && showJobBar) {
                 JobTabsRow(
                     pastJobs = otherJobs,
                     current = c,
@@ -906,34 +946,53 @@ fun CustomerDetailScreen(
                 DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
             }
 
-            // 메모 카드 — 현장 사진 바로 위. (2026-09-15 사장님: "메모란 밑에 현장사진, 주소 아래는 탭이 바로 나와야")
+            // 📍 이 현장 메모 — **그 건에서만.** 손님 메모(👤)와 분리. (2026-09-18 확정 프로토)
+            //   "메모는 두 곳. 👤 이 손님 메모(현장이 바뀌어도 그대로인 것)와
+            //    📍 이 현장 메모(그 건에서만). 이름 앞에 사람/장소 표시를 붙여 헷갈리지 않게."
+            //   ⚠️ remember(key) 가 바뀔 때 빈 값이 저장되는 사고를 막으려고
+            //     손님 메모와 **같은 dirty 가드**(shouldSaveMemo)를 쓴다.
             val memoFocus = remember { FocusRequester() }
-            TossCard {
-                Column {
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
-                    ) {
-                        Text("📝", fontSize = 13.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Text("메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                        Spacer(Modifier.weight(1f))
-                        val savedMemo = c.memo.orEmpty()
-                        val (memoStatus, memoStatusColor) = when {
-                            shouldSaveMemo(memoDirty, memoInput, savedMemo) -> "저장 중…" to TossTextTertiary
-                            memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
-                            else -> "자동으로 저장돼요" to TossTextTertiary
+            val jobMemoSaved = shownJob?.memo.orEmpty()
+            var jobMemoInput by remember(shownJobId) { mutableStateOf(jobMemoSaved) }
+            var jobMemoDirty by remember(shownJobId) { mutableStateOf(false) }
+            LaunchedEffect(jobMemoInput, shownJobId) {
+                val jid = shownJobId ?: return@LaunchedEffect
+                if (!shouldSaveMemo(jobMemoDirty, jobMemoInput, jobMemoSaved)) return@LaunchedEffect
+                kotlinx.coroutines.delay(600)
+                viewModel.updateJobMemo(jid, jobMemoInput)
+            }
+            if (shownJobId != null) {
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
+                        ) {
+                            Text("📍", fontSize = 13.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (showJobBar && shownJob != null) "${jobNthOf(allJobsForTabs, shownJob)}차 현장 메모" else "이 현장 메모",
+                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            )
+                            Spacer(Modifier.weight(1f))
+                            val (memoStatus, memoStatusColor) = when {
+                                shouldSaveMemo(jobMemoDirty, jobMemoInput, jobMemoSaved) -> "저장 중…" to TossTextTertiary
+                                jobMemoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
+                                else -> "자동으로 저장돼요" to TossTextTertiary
+                            }
+                            Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
                         }
-                        Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
+                        Spacer(Modifier.height(4.dp))
+                        Text("이 현장에서만 · 주차, 열쇠, 자재", fontSize = 11.5.sp, color = TossTextTertiary)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = jobMemoInput,
+                            onValueChange = { jobMemoInput = it; jobMemoDirty = true },
+                            placeholder = { Text("이 현장에서 기억할 것", color = TossTextTertiary) },
+                            modifier = Modifier.fillMaxWidth().height(120.dp).focusRequester(memoFocus),
+                            colors = tossFieldColors()
+                        )
                     }
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = memoInput,
-                        onValueChange = { memoInput = it; memoDirty = true },
-                        placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(140.dp).focusRequester(memoFocus),
-                        colors = tossFieldColors()
-                    )
                 }
             }
 
@@ -944,7 +1003,6 @@ fun CustomerDetailScreen(
             //   (2026-09-18 사장님: "현장사진도 1차 2차 개별로 들어가야해")
             //   어느 건인지 안 붙은 옛 사진(jobId=null)은 **대표 건**에 붙여 보여준다 — 안 그러면
             //   지금까지 올린 사진이 통째로 안 보이게 된다.
-            val shownJobId = selectedPastJobId ?: repJobId
             val sitePhotos = remember(allSitePhotos, shownJobId, repJobId) {
                 allSitePhotos.filter { p ->
                     p.jobId == shownJobId || (p.jobId == null && shownJobId == repJobId)
@@ -1233,6 +1291,25 @@ fun CustomerDetailScreen(
                     "비즈니스", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFF7C5CFC)).padding(horizontal = 10.dp, vertical = 4.dp)
                 )
+            }
+
+            // 1건일 때의 **조용한 입구** — 프로토 `.more-job` (artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
+            //   "1건일 때 큰 '새 시공' 버튼을 두면 보통 손님 화면이 또 어수선해져요.
+            //    그래서 맨 아래 '지난 문자 보기' 위에 작은 글씨로 뒀어요."
+            //   프로토 값: 회색(#8B95A1) · 14sp · 밑줄 · 높이 44 · 가운데.
+            if (detailTab == 0 && !showJobBar && c.scheduledWorkDate != null) {
+                Text(
+                    "＋ 시공 하나 더 잡기",
+                    color = Color(0xFF8B95A1),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { selectedPastJobId = null; addingNewJob = true; datePickerOpen = true }
+                        .padding(vertical = 12.dp)
+                )
+                Spacer(Modifier.height(6.dp))
             }
 
             val lastMsgInteraction = remember { MutableInteractionSource() }
@@ -3956,6 +4033,15 @@ private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.
  * 차수는 **오래된 것이 1차**다. 지난 건들 다음이 지금 건.
  * 건이 하나뿐이어도 그린다 — 「＋ 새 시공」이 이 줄에만 있어서, 안 그리면 2번째 시공을 잡을 길이 없다. (2026-09-17)
  */
+/**
+ * 이 건이 몇 차인가 — **날짜순**. 탭 줄(JobTabsRow)과 같은 규칙이라 화면 어디서나 숫자가 같다.
+ *   (2026-09-18: 메모·사진 제목의 "N차" 가 탭 숫자와 어긋나면 안 된다)
+ */
+private fun jobNthOf(
+    all: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
+    job: com.detailline.callfollowcrm.data.local.entity.JobEntity
+): Int = all.sortedBy { it.scheduledWorkDate ?: 0L }.indexOfFirst { it.id == job.id } + 1
+
 /** '이 사람은 [고객 아님][고객]' 알약 하나. 고른 쪽만 파랗게. (2026-09-17) */
 @Composable
 private fun CustomerKindPill(text: String, on: Boolean, onClick: () -> Unit) {
