@@ -234,15 +234,15 @@ fun ScheduleAddScreen(
                     onSelect = { dayMs = it }
                 )
                 if (!allDay) {
+                    // 05 — 칩 아홉 개를 한 줄로 접었다. (2026-09-18 사장님 "전부 클릭으로 해야 하나,
+                    //   지저분하고 산만해 보인다") 대부분 오전 9시로 시작하시는데 그 하나를 고르자고
+                    //   아홉 칸이 화면을 차지했다. 표면엔 한 줄, 누를 때만 펼친다.
                     Spacer(Modifier.height(12.dp))
-                    FieldLabel(if (workMode) "시공 시간" else "시간")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WORK_TIME_OPTIONS.forEach { (label, mins) ->
-                            SelectChip(label, workMinutes == mins) { workMinutes = mins }
-                        }
-                        val timeCustom = WORK_TIME_OPTIONS.none { it.second == workMinutes }
-                        SelectChip(if (timeCustom) DateTimeUtils.formatWorkMinutes(workMinutes) else "직접", timeCustom) { showTimeCustom = true }
-                    }
+                    FieldLabel(if (workMode) "🕘 시공 시간" else "🕘 시간")
+                    PickerRow(
+                        value = DateTimeUtils.formatWorkMinutes(workMinutes),
+                        hint = "누르면 시간을 고르는 창이 열려요 · 안 건드리면 오전 9시"
+                    ) { showTimeCustom = true }
                 }
                 if (workMode) {
                     Spacer(Modifier.height(12.dp))
@@ -279,6 +279,9 @@ fun ScheduleAddScreen(
 
             if (workMode) {
             // ── 모드 토글 (.fchips) ──
+            // 06 — 무엇을 고르는 스위치인지 이름이 없어 처음 보면 모른다. (2026-09-18)
+            //   고객 정보 화면의 "이 사람은 [고객 아님][고객]" 과 같은 꼴로 맞춘다.
+            FieldLabel("이 일은")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FChip("내 고객", mode == "mine") { mode = "mine" }
                 FChip("거래처 일감", mode == "partner") { mode = "partner" }
@@ -287,18 +290,20 @@ fun ScheduleAddScreen(
 
             if (mode == "mine") {
                 // 순서: 전화번호 → 이름 → (주소·시공일). "저장된"→"한번이라도 연락했던"으로 풀어씀. (2026-06-21 사장님)
+                // 01 — 칸 위 두 줄과 칸 안 안내가 같은 얘기였다. 설명은 칸 **아래** 한 줄로. (2026-09-18)
                 FieldLabel("고객 전화번호")
-                Text("한번이라도 연락했던 고객은 번호 일부만(뒷 4자리·중간) 쳐도 떠요. 탭하면 채워져요.",
-                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 SheetTextField(
                     value = phoneField,
                     onValueChange = { tfv ->
                         val f = PhoneNumberFormatter.formatProgressive(tfv.text)
                         phoneField = androidx.compose.ui.text.input.TextFieldValue(f, selection = androidx.compose.ui.text.TextRange(f.length))
                     },
-                    placeholder = "번호 입력 · 일부만 쳐도 찾아져요",
+                    placeholder = "번호 일부만 쳐도 찾아져요",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
                 )
+                Text("뒷 4자리만 쳐도 돼요",
+                    fontSize = 11.5.sp, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp, top = 6.dp))
                 // 번호 일부(중간·뒷자리)만 쳐도 저장된 고객을 바로 찾아 보여줌 → 탭하면 채워짐. (2026-06-20 사장님)
                 //   "불러오기" 목록은 안 쓰고 외운 뒷번호/중간번호로 치는 사장님 흐름에 맞춤.
                 val typedDigits = phoneField.text.filter { it.isDigit() }
@@ -520,16 +525,25 @@ fun ScheduleAddScreen(
 
 /** 프로토 schedTimeCustom — 시간 직접 입력 (HH:MM). */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun TimeCustomDialog(initialMinutes: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
     var txt by remember { mutableStateOf("${initialMinutes / 60}:${(initialMinutes % 60).toString().padStart(2, '0')}") }
     var err by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(20.dp)) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-            Text("시간 직접 입력", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Spacer(Modifier.height(4.dp))
-            Text("24시 기준 · 예: 14:30", fontSize = 12.sp, color = TossTextTertiary)
-            Spacer(Modifier.height(12.dp))
+            Text("시공 시간", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(10.dp))
+            // 자주 쓰는 셋 먼저 — 대부분 여기서 끝난다. (2026-09-18 프로토 05번)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QUICK_TIME_OPTIONS.forEach { (label, mins) ->
+                    SelectChip(label, initialMinutes == mins) { onConfirm(mins) }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text("다른 시간이면 직접 적어주세요 · 24시 기준, 예: 14:30",
+                fontSize = 12.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(8.dp))
             SheetTextField(txt, { txt = it; err = false }, placeholder = "HH:MM")
             if (err) {
                 Spacer(Modifier.height(4.dp))
@@ -724,6 +738,30 @@ private fun OrDivider(text: String) {
         Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
             modifier = Modifier.padding(horizontal = 10.dp))
         Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
+    }
+}
+
+/**
+ * 한 줄짜리 고르기 행 — `오전 9시 ›` 처럼 지금 값만 보여주고, 누르면 고르는 창이 열린다.
+ *   칩을 잔뜩 깔지 않기 위한 것. (2026-09-18 사장님 "지저분하고 산만해 보인다")
+ */
+@Composable
+private fun PickerRow(value: String, hint: String, onClick: () -> Unit) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(TossGrayBg)
+                .clickable { onClick() }
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(value, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                modifier = Modifier.weight(1f))
+            Text("›", fontSize = 17.sp, color = TossTextTertiary)
+        }
+        Text(hint, fontSize = 11.5.sp, color = TossTextTertiary,
+            modifier = Modifier.padding(start = 2.dp, top = 6.dp))
     }
 }
 
@@ -948,6 +986,11 @@ private fun buildSelectCells(monthAnchor: Long, todayStart: Long): List<SelCell>
 }
 
 /** 시공 시작 시각 빠른 선택 (라벨 → 자정부터 분). */
+/** 시간 창 맨 위 '자주 쓰는 셋'. 프로토 05번 — 오전 9시가 기본이라 그 둘레만. (2026-09-18) */
+private val QUICK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
+    "오전 9시" to 9 * 60, "오전 8시" to 8 * 60, "오전 10시" to 10 * 60
+)
+
 private val WORK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
     "오전 8시" to 8 * 60, "오전 9시" to 9 * 60, "오전 10시" to 10 * 60, "오전 11시" to 11 * 60,
     "오후 1시" to 13 * 60, "오후 2시" to 14 * 60, "오후 3시" to 15 * 60, "오후 4시" to 16 * 60
