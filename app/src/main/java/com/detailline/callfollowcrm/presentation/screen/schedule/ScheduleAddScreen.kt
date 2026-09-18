@@ -416,8 +416,28 @@ fun ScheduleAddScreen(
             // '내가 부른 일당' 배정은 없앴다 (2026-07-17 사장님 "협업만"). 일당은 일정 카드 → 전문가 배정에서 협업으로.
             //   기존 JobCrew 데이터·정산은 그대로 보존(여기서 새로 만들지 않을 뿐).
 
-            // .sheet-cta — 일정 등록
+            // 저장 버튼 바로 위 **한 줄 확인** — 무슨 날로 저장되는지. (2026-09-18 사장님 A안, UX 02번)
+            //   날짜는 지금처럼 오늘이 자동으로 잡힌다. 다만 한참 내려와 버튼을 누를 땐
+            //   그 자리에 날짜가 안 보여서 "무슨 날로 저장되는지 모르고" 누르게 됐다
+            //   (사장님이 실제로 헷갈리심). 막지 말고 **보여주는** 쪽으로.
             Spacer(Modifier.height(20.dp))
+            Text(
+                buildString {
+                    append(DateTimeUtils.formatScheduledDate(dayMs))
+                    if (allDay) append(" 종일")
+                    else { append(' '); append(DateTimeUtils.formatWorkMinutes(workMinutes)) }
+                    if (workMode) append(if (workDays > 1) " · ${workDays}일" else " · 하루")
+                },
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1B64DA),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFEEF4FF))
+                    .padding(horizontal = 11.dp, vertical = 9.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+
+            // .sheet-cta — 일정 등록
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(if (saving) TossTextTertiary else TossBlue)
