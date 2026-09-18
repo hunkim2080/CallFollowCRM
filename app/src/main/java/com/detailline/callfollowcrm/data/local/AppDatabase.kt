@@ -67,7 +67,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 55,
+    version = 56,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1075,6 +1075,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v56 — **같은 메모가 두 곳에 보이던 것.** (2026-09-18 사장님 "그렇게 하자")
+         *   9/14(v50)에 건마다 메모를 만들면서 손님 메모를 건 메모로 **복사**해 뒀다.
+         *   그땐 화면에 한 곳만 보여 문제가 없었는데, 9/18 화면 재편으로
+         *   👤 이 손님 메모 / 📍 이 현장 메모 로 나누자 **같은 글이 양쪽에 떴다.**
+         *   → 사장님 결정: **옛 메모는 '현장' 것으로 보고 손님 메모 칸만 비운다.**
+         *      (글은 jobs.memo 에 그대로 남는다 — 사라지지 않는다)
+         *   ⚠️ **복사본이 실제로 있는 손님만** 비운다(= 같은 글을 가진 건이 있는 경우).
+         *      건이 없거나 글이 다르면 손대지 않는다.
+         */
+        private val MIGRATION_55_56 = object : Migration(55, 56) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                runCatching {
+                    db.execSQL(
+                        """
+                        UPDATE customers SET
+                          memo = '',
+                          updatedAt = strftime('%s','now') * 1000
+                        WHERE memo <> ''
+                          AND EXISTS (
+                            SELECT 1 FROM jobs j
+                            WHERE j.customerId = customers.id AND j.memo = customers.memo
+                          )
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -1095,7 +1124,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
                     MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54,
-                    MIGRATION_54_55
+                    MIGRATION_54_55, MIGRATION_55_56
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.
