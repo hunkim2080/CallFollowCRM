@@ -174,7 +174,7 @@ fun NotebookContent(
             val noteText = if (tab == NotebookTab.WORKER)
                 "필요할 때 부르는 일당·알바를 모아두는 곳이에요. 분류로 등록해두면 필요한 사람만 골라 부르기 쉬워요."
             else
-                "자재·협력·장비 등 자주 거래하는 곳을 모아두세요. 일정 등록 때 탭 한 번이면 번호가 자동 연결돼요."
+                "자재·협력·장비 등 자주 거래하는 곳을 모아두세요. 일정 등록 때 한 번만 누르면 번호가 자동 연결돼요."
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 0.dp)
                     .clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)

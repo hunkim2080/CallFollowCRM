@@ -661,7 +661,7 @@ private fun PendingCollabDayCard(
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(6.dp))
-            Text("탭해서 수락/거절하기 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
+            Text("눌러서 수락/거절하기 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
         }
     }
 }
@@ -1517,7 +1517,7 @@ private fun AssignTeamSheet(
             )
             Text("전문가 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
-            Text("${siteTitle}에 누구를 부를까요?  탭하면 선택, 다시 탭하면 취소예요.",
+            Text("${siteTitle}에 누구를 부를까요?  누르면 선택, 다시 누르면 취소예요.",
                 fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
             Spacer(Modifier.height(18.dp))
 
@@ -1573,7 +1573,7 @@ private fun AssignTeamSheet(
             // ── 🤝 일당사장(= 협업 사장) ──
             Text("🤝 일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-            Text("탭하면 부를 사장님 선택, 다시 탭하면 취소. 고객 번호·대화는 안 보내요.",
+            Text("누르면 부를 사장님 선택, 다시 누르면 취소. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

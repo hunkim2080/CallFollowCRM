@@ -252,7 +252,7 @@ fun PricingItemsScreen(
                         Text("✨", fontSize = 13.sp)
                         Spacer(Modifier.width(7.dp))
                         Text(
-                            "AI 견적이 이 단가로 자동 계산돼요. 항목을 탭하면 정액/평당과 금액을 수정할 수 있어요.",
+                            "AI 견적이 이 단가로 자동 계산돼요. 항목을 누르면 정액/평당과 금액을 수정할 수 있어요.",
                             fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Medium, lineHeight = 17.sp
                         )
                     }

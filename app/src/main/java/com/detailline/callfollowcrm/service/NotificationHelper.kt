@@ -1572,7 +1572,7 @@ object NotificationHelper {
         val title = "✨ 통화요약 완료!"
         val summaryLine = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() }
         val body = if (summaryLine != null) "$summaryLine · ${who}님"
-                   else "${who}님 통화 요약이 준비됐어요 · 탭해서 확인"
+                   else "${who}님 통화 요약이 준비됐어요 · 눌러서 확인"
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_CALL_SUMMARY))
             .setSmallIcon(R.drawable.ic_notification)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 통화요약 가림
@@ -1732,7 +1732,7 @@ object NotificationHelper {
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_GREEN,
             title = "부재중 전화 — 막내가 대신 답장했어요",
             msg = "${formatPhone(phoneNumber)} 님께 자동으로 답장을 보냈어요.",
-            note = "탭하면 보낸 내용을 볼 수 있어요.",
+            note = "누르면 보낸 내용을 볼 수 있어요.",
             contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId)),
             timeoutMs = 8_000L
         )
@@ -1751,7 +1751,7 @@ object NotificationHelper {
         showProtoPush(
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_PINK,
             title = "⚠️ 자동 응답 발송 실패",
-            msg = "${formatPhone(phoneNumber)} — 탭해서 직접 보내주세요.",
+            msg = "${formatPhone(phoneNumber)} — 눌러서 직접 보내주세요.",
             contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId))
         )
     }
@@ -1766,7 +1766,7 @@ object NotificationHelper {
         showProtoPush(
             context, id, CHANNEL_AUTO_REPLY, ACCENT_PINK,
             title = "⚠️ 사진이 안 보내졌어요",
-            msg = "${formatPhone(phoneNumber)} — 신호 확인 후 탭해서 다시 보내주세요.",
+            msg = "${formatPhone(phoneNumber)} — 신호 확인 후 눌러서 다시 보내주세요.",
             contentIntent = chatPending(context, phoneNumber, id)
         )
     }

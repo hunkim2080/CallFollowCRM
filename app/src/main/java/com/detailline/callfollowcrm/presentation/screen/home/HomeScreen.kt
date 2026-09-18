@@ -1742,7 +1742,7 @@ private fun TodayHeroJobCard(
             Icon(Icons.Default.Place, null, tint = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(6.dp))
             Text(
-                c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",
+                c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 눌러서 등록",
                 color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
@@ -3002,7 +3002,7 @@ private fun NavAppPickerDialog(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "선택한 앱이 다음부터 1탭으로 열려요. 설정 → 기본 네비 앱 에서 언제든 변경 가능.",
+                    "선택한 앱이 다음부터 한 번에 열려요. 설정 → 기본 네비 앱 에서 언제든 변경 가능.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossTextSecondary
                 )

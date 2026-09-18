@@ -2224,7 +2224,7 @@ private fun AutoSmsSection(
                 if (autoSumOn && !consented) {
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "⚠️ 아직 동의 전이라 요약이 안 돌아요 — 탭해서 내용을 확인해주세요",
+                        "⚠️ 아직 동의 전이라 요약이 안 돌아요 — 눌러서 내용을 확인해주세요",
                         fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold,
                         lineHeight = 16.sp,
                         modifier = Modifier.clickable { showConsent = true }
@@ -2896,7 +2896,7 @@ private fun AfterCallCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "통화 종료 알림(시공막내 캐치)의 액션 버튼 3개. 탭하면 해당 템플릿 자동 선택된 채로 문자 화면 열림.",
+                    "통화 종료 알림(시공막내 캐치)의 액션 버튼 3개. 누르면 해당 템플릿 자동 선택된 채로 문자 화면 열림.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossTextSecondary
                 )
@@ -3367,7 +3367,7 @@ private fun NavAppPreferenceCard(
             if (selectedKey == null) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "아직 미선택 — 첫 길찾기 탭하면 같은 선택지가 떠요.",
+                    "아직 미선택 — 첫 길찾기 누르면 같은 선택지가 떠요.",
                     style = MaterialTheme.typography.labelSmall,
                     color = TossTextTertiary
                 )

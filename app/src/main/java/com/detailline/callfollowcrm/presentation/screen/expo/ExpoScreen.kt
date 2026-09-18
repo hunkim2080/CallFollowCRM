@@ -793,7 +793,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                 }
             }
             if (!isTpl) {
-            item { Text("상품·서비스 (탭해서 선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2) }
+            item { Text("상품·서비스 (눌러서 선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2) }
             items(catalog) { p ->
                 val q = qty[p.productId] ?: 0
                 val sel = q > 0
@@ -2180,7 +2180,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                     modifier = Modifier.clickable(enabled = fullPhone.isNotBlank()) { dialPhone(ctx, fullPhone) })
                                 Text("계약자 ${s.agentName.ifBlank { "-" }} · 시공자 ${s.assignedName ?: "미배정"} · ${won(s.finalAmount)}",
                                     fontSize = 11.5.sp, color = T3, modifier = Modifier.padding(top = 3.dp))
-                                Text("탭해서 계약서 보기 ›", fontSize = 12.sp, color = AccentBlue, fontWeight = FontWeight.Medium,
+                                Text("눌러서 계약서 보기 ›", fontSize = 12.sp, color = AccentBlue, fontWeight = FontWeight.Medium,
                                     modifier = Modifier.padding(top = 4.dp))
                             }
                             if (i < dayItems.size - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))

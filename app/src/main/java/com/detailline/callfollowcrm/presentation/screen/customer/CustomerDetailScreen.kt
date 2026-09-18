@@ -433,7 +433,7 @@ fun CustomerDetailScreen(
             // 1.3 현장 주소 — 표시 우선순위 (2026-05-28 사장님 결정):
             //   1) customer.address (사장님 수동 등록, DB v15) — 신뢰 최우선
             //   2) extractedAddress (메시지 자동 추출) — fallback
-            //   3) 빈 상태 — "탭해서 등록" 안내
+            //   3) 빈 상태 — "눌러서 등록" 안내
             //   탭 동작: 어느 상태든 AddressEditDialog 띄움 (입력/수정 가능).
             //   탭 길게 누름 = 복사 (기존 UX 보존) — 추후 BottomSheet 로 전환 가능.
             val extractedAddress by viewModel.extractedAddress.collectAsState()
@@ -551,7 +551,7 @@ fun CustomerDetailScreen(
                     Text(displayAddr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
                     if (manualAddress == null) {
                         Spacer(Modifier.height(3.dp))
-                        Text("메시지에서 자동 인식 · 탭해서 확정/수정", fontSize = 11.sp, color = TossTextTertiary)
+                        Text("메시지에서 자동 인식 · 눌러서 확정/수정", fontSize = 11.sp, color = TossTextTertiary)
                     }
                     androidx.compose.foundation.layout.Box(
                         Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(13.dp))
@@ -597,7 +597,7 @@ fun CustomerDetailScreen(
                             ) { Text("이 주소로 등록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text("직접 고치려면 여기를 탭하세요", fontSize = 11.sp, color = TossTextTertiary,
+                        Text("직접 고치려면 여기를 누르세요", fontSize = 11.sp, color = TossTextTertiary,
                             modifier = Modifier.clickable { showAddressDialog = true })
                     }
                 }
@@ -611,7 +611,7 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.height(2.dp))
                             Text("아직 주소가 없어요 · 상담 단계예요", style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary)
                             Spacer(Modifier.height(2.dp))
-                            Text("탭해서 직접 등록하거나, 고객 메시지에 주소가 있으면 자동 채워져요.",
+                            Text("눌러서 직접 등록하거나, 고객 메시지에 주소가 있으면 자동 채워져요.",
                                 style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
                         }
                         Text("＋", fontSize = 16.sp, color = TossBlue)
@@ -960,7 +960,7 @@ fun CustomerDetailScreen(
                                     DateTimeUtils.formatKoreanDate(scheduled) +
                                         (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") +
                                         DateTimeUtils.workPeriodSuffix(scheduled, c.scheduledWorkDays)
-                                else "아직 예약 안 됨 · 탭해서 설정",
+                                else "아직 예약 안 됨 · 눌러서 설정",
                                 valueColor = if (scheduled != null) TossBlue else TossTextTertiary,
                                 onClick = { datePickerOpen = true }
                             )
@@ -969,7 +969,7 @@ fun CustomerDetailScreen(
                                 "🔧 A/S 예약",
                                 if (c.asScheduledDate != null)
                                     DateTimeUtils.formatKoreanDate(c.asScheduledDate!!) + (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료"
-                                else "아직 없음 · 탭해서 잡기",
+                                else "아직 없음 · 눌러서 잡기",
                                 valueColor = if (c.asScheduledDate != null) Color(0xFFF5920B) else TossTextTertiary,
                                 onClick = { asPickerOpen = true }
                             )
@@ -1089,7 +1089,7 @@ fun CustomerDetailScreen(
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "보낸 견적서·시공접수서예요. 탭하면 다시 볼 수 있어요.",
+                            "보낸 견적서·시공접수서예요. 누르면 다시 볼 수 있어요.",
                             fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                         )
                         Spacer(Modifier.height(10.dp))
@@ -2876,7 +2876,7 @@ private fun PaymentRow(
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        "탭해서 수정",
+                                        "눌러서 수정",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = TossTextTertiary
                                     )

@@ -883,7 +883,7 @@ private fun MySharedArea(
                 }
                 Spacer(Modifier.height(9.dp))
             }
-            Text("탭하면 현장 상세·한마디, 밀면 '삭제'로 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
+            Text("누르면 현장 상세·한마디, 밀면 '삭제'로 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
                 fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }

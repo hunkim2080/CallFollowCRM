@@ -339,7 +339,7 @@ fun ScheduleAddScreen(
                                 if (i < matches.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White))
                             }
                         }
-                        Text("번호 일부(중간·뒷자리)만 쳐도 찾아드려요. 탭하면 채워져요.",
+                        Text("번호 일부(중간·뒷자리)만 쳐도 찾아드려요. 누르면 채워져요.",
                             fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
                     }
                 }
@@ -355,7 +355,7 @@ fun ScheduleAddScreen(
                     FChip("+ 새 거래처", false) { showNewVendor = true }
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("탭 한 번이면 번호·정산처가 자동 연결돼요.",
+                Text("한 번만 누르면 번호·정산처가 자동 연결돼요.",
                     fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
             }
 
@@ -375,7 +375,7 @@ fun ScheduleAddScreen(
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    address.ifBlank { "주소 검색 (탭)" },
+                    address.ifBlank { "눌러서 주소 찾기" },
                     fontSize = 15.sp, color = if (address.isBlank()) TossTextTertiary else TossTextPrimary
                 )
             }
@@ -510,6 +510,7 @@ fun ScheduleAddScreen(
     if (showTimeCustom) {
         TimeCustomDialog(
             initialMinutes = workMinutes,
+            title = if (workMode) "시공 시간" else "시간",
             onConfirm = { workMinutes = it; showTimeCustom = false },
             onDismiss = { showTimeCustom = false }
         )
@@ -526,13 +527,13 @@ fun ScheduleAddScreen(
 /** 프로토 schedTimeCustom — 시간 직접 입력 (HH:MM). */
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
-private fun TimeCustomDialog(initialMinutes: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+private fun TimeCustomDialog(initialMinutes: Int, title: String, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
     var txt by remember { mutableStateOf("${initialMinutes / 60}:${(initialMinutes % 60).toString().padStart(2, '0')}") }
     var err by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(20.dp)) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-            Text("시공 시간", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(10.dp))
             // 자주 쓰는 셋 먼저 — 대부분 여기서 끝난다. (2026-09-18 프로토 05번)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

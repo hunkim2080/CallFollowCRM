@@ -638,8 +638,8 @@ private class CallerCardView(
 
         footTv.text = when {
             st.talking -> "📌 통화 중 · 끊을 때까지 남아 있어요"
-            isNew -> "탭하면 열려요 · 끊으면 바로 손님 등록"
-            else -> "탭하면 이 손님 대화로"
+            isNew -> "누르면 열려요 · 끊으면 바로 손님 등록"
+            else -> "누르면 이 손님 대화로"
         }
     }
 

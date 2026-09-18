@@ -1855,7 +1855,7 @@ fun ChatScreen(
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)
                     )
                     Text(
-                        "날짜를 탭하면 메시지 입력란에 자동으로 박혀요. 검토 후 ▶ 전송하세요.",
+                        "날짜를 누르면 메시지 입력란에 자동으로 박혀요. 검토 후 ▶ 전송하세요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextSecondary,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp)
@@ -2961,7 +2961,7 @@ private fun IssuedDocSegment(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                if (isQuote) "탭하면 견적서 다시 보기 >" else "탭하면 접수 링크 열기 >",
+                if (isQuote) "누르면 견적서 다시 보기 >" else "누르면 접수 링크 열기 >",
                 fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold
             )
             // 이미 보낸 접수서 수정하기 — intake 만. 카드 바깥 clickable 에 안 먹히게 별도 clickable. (2026-07-10 사장님)
@@ -4065,7 +4065,7 @@ private fun Composer(
                     ) {
                         AsyncImage(
                             model = uri,
-                            contentDescription = "첨부 사진 — 탭하면 크게",
+                            contentDescription = "첨부 사진 — 누르면 크게",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -4758,7 +4758,7 @@ private fun TemplatePickerDialog(
                 Spacer(Modifier.height(5.dp))
                 // 꾹 누르기는 모르면 못 찾는다 → 제목 밑에 조용히 한 줄. (2026-09-16 사장님 개편)
                 Text(
-                    "탭하면 입력창에 들어가요 · 꾹 누르면 수정·삭제",
+                    "누르면 입력창에 들어가요 · 꾹 누르면 수정·삭제",
                     color = TossTextTertiary, fontSize = 11.5.sp
                 )
                 Spacer(Modifier.height(12.dp))
@@ -5307,7 +5307,7 @@ private fun SendConfirmDialog(
             )
             Spacer(Modifier.height(14.dp))
             if (body.isNotBlank()) {
-                Text("✏️ 여기서 바로 고칠 수 있어요 (탭)", fontSize = 11.sp, color = TossTextTertiary,
+                Text("✏️ 여기서 바로 고칠 수 있어요", fontSize = 11.sp, color = TossTextTertiary,
                     modifier = Modifier.padding(bottom = 5.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
