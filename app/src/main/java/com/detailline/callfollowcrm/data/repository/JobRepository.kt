@@ -335,6 +335,21 @@ class JobRepository(
         jobDao.update(j.copy(memo = memo, updatedAt = now))
     }
 
+    /** 이 건의 계약금 받음/안받음. (2026-09-18) */
+    suspend fun setDepositPaid(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(depositPaidAt = at, updatedAt = now))
+    }
+
+    /** 이 건의 잔금 받음/안받음. 잔금 액수가 비어 있으면 (총액-계약금)으로 채운다. */
+    suspend fun setBalancePaid(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
+        val j = jobDao.findById(jobId) ?: return
+        val filled = if (at != null && j.balanceAmount == null) {
+            ((j.totalAmount ?: 0L) - (j.depositAmount ?: 0L)).coerceAtLeast(0L).takeIf { it > 0L }
+        } else j.balanceAmount
+        jobDao.update(j.copy(balancePaidAt = at, balanceAmount = filled, updatedAt = now))
+    }
+
     /** 그 고객의 **대표 건**(고객 카드가 지금 보여주는 건) id. 없으면 null. */
     suspend fun representativeJobId(customerId: Long, now: Long = System.currentTimeMillis()): Long? {
         val jobs = jobDao.scheduledByCustomerOnce(customerId)

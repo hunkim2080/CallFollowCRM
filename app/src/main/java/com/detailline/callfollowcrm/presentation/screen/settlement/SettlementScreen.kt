@@ -180,7 +180,7 @@ fun SettlementScreen(
                 onOpenScheduleAtDay = onOpenScheduleAtDay,
                 onConfirmDeposit = { confirmDeposit = it },
                 onConfirmBalance = { confirmPayOff = it },
-                onUndoPaid = { viewModel.setBalancePaid(it.customerId, false) }
+                onUndoPaid = { viewModel.setBalancePaid(it.customerId, false, it.jobId) }
             )
             item(key = "tail") { Spacer(Modifier.height(12.dp)) }
         }
@@ -199,7 +199,7 @@ fun SettlementScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.setBalancePaid(item.customerId, true)
+                    viewModel.setBalancePaid(item.customerId, true, item.jobId)
                     confirmPayOff = null
                 }) { Text("네, 완납", color = TossBlue, fontWeight = FontWeight.Bold) }
             },
@@ -224,7 +224,7 @@ fun SettlementScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.setDepositPaid(item.customerId, true)
+                    viewModel.setDepositPaid(item.customerId, true, item.jobId)
                     confirmDeposit = null
                 }) { Text("네, 받았어요", color = TossBlue, fontWeight = FontWeight.Bold) }
             },
@@ -470,7 +470,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
     }
 
     activeShown.forEachIndexed { idx, item ->
-        item(key = "active-${item.customerId}") {
+        item(key = "active-${item.customerId}-${item.jobId ?: 0L}") {
             SettleRow(
                 item = item, index = idx,
                 onOpenCustomer = { onOpenCustomer(item.customerId) },
@@ -493,7 +493,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
             }
         }
         doneShown.forEachIndexed { idx, item ->
-            item(key = "done-${item.customerId}") {
+            item(key = "done-${item.customerId}-${item.jobId ?: 0L}") {
                 SettleDoneRow(item = item, index = idx)
                 Spacer(Modifier.height(8.dp))
             }

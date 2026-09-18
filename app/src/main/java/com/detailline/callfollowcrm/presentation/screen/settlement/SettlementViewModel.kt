@@ -41,28 +41,52 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     // 재방문으로 jobs(지난 시공 이력)로 옮겨진 완료 건도 '이번 달 받은 돈' 집계에 포함(안 그러면 그 매출 증발). (2026-08-11 돈감사 rank1)
     private val jobsFlow = container.jobRepository.observeAll()
 
-    /** 돈 정보 있는 고객만 → 미수 큰 순 정렬. */
+    /**
+     * 돈 있는 **건**마다 한 줄. (2026-09-18 · docs/PLAN_job_centric_migration.md Step 3-①)
+     *
+     * 🔴 전엔 **고객당 한 줄**(고객 카드 금액)이었다. 그래서 한 고객이 1차·2차를 받으면
+     *   고객 카드에 마지막으로 써진 값 하나만 보여서 **1차 미수가 정산에서 아예 안 보였다.**
+     *   이제 건마다 한 줄이라 1차 미수·2차 완납이 따로 뜬다.
+     *   건이 하나도 없는 고객(돈은 넣었는데 시공일 안 잡음)은 지금처럼 고객 카드로 한 줄.
+     */
     private val rows: StateFlow<List<SettleItem>> =
-        customersFlow
-            .map { list ->
-                list.filter { SettlementCalc.hasMoney(it) }
-                    .map { c ->
-                        SettleItem(
-                            customerId = c.id,
-                            name = c.name?.takeIf { it.isNotBlank() },
-                            phone = c.phoneNumber,
-                            calc = SettlementCalc.rowOf(c),
-                            scheduledWorkDate = c.scheduledWorkDate,
-                            address = c.address
-                        )
-                    }
+        combine(customersFlow, jobsFlow) { list, jobs ->
+            val byId = list.associateBy { it.id }
+            val idsWithJobs = jobs.map { it.customerId }.toHashSet()
+            val fromJobs = jobs.mapNotNull { j ->
+                val c = byId[j.customerId] ?: return@mapNotNull null
+                val calc = SettlementCalc.rowOf(j)
+                if (calc.total <= 0L && calc.received <= 0L) return@mapNotNull null
+                SettleItem(
+                    customerId = c.id,
+                    jobId = j.id,
+                    name = c.name?.takeIf { it.isNotBlank() },
+                    phone = c.phoneNumber,
+                    calc = calc,
+                    scheduledWorkDate = j.scheduledWorkDate,
+                    address = j.address?.takeIf { it.isNotBlank() } ?: c.address
+                )
+            }
+            val fromCustomers = list.filter { it.id !in idsWithJobs && SettlementCalc.hasMoney(it) }
+                .map { c ->
+                    SettleItem(
+                        customerId = c.id,
+                        jobId = null,
+                        name = c.name?.takeIf { it.isNotBlank() },
+                        phone = c.phoneNumber,
+                        calc = SettlementCalc.rowOf(c),
+                        scheduledWorkDate = c.scheduledWorkDate,
+                        address = c.address
+                    )
+                }
+            (fromJobs + fromCustomers)
                     // 시공일 오름차순(낮은 날짜부터) — 사장님 요청 2026-06-04. 날짜 없으면 맨 뒤,
                     //   동일 날짜는 미수 큰 순. (미수/완료 목록 모두 이 순서를 따름)
                     .sortedWith(
                         compareBy<SettleItem> { it.scheduledWorkDate ?: Long.MAX_VALUE }
                             .thenByDescending { it.calc.outstanding }
                     )
-            }
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val state: StateFlow<SettlementUiState> = combine(rows, filter) { all, f ->
@@ -239,13 +263,21 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setFilter(f: SettleFilter) { filter.value = f }
 
-    /** 계약금 받음/안받음 토글. "지금" 받은 시각으로 기록, 끄면 null. */
-    fun setDepositPaid(customerId: Long, paid: Boolean) = viewModelScope.launch {
+    /** 계약금 받음/안받음 토글. "지금" 받은 시각으로 기록, 끄면 null.
+     *   jobId 가 있으면 **그 건에만** 찍는다 — 옆 건 돈을 건드리면 안 된다. (2026-09-18) */
+    fun setDepositPaid(customerId: Long, paid: Boolean, jobId: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             runCatching {
-                container.customerRepository.updateDepositPaidAt(
-                    customerId, if (paid) System.currentTimeMillis() else null
-                )
+                val at = if (paid) System.currentTimeMillis() else null
+                if (jobId != null) {
+                    container.jobRepository.setDepositPaid(jobId, at)
+                    // 대표 건이면 고객 카드도 맞춰둔다 — 아직 고객 카드를 읽는 화면들이 있다(Step 3 진행 중).
+                    if (container.jobRepository.representativeJobId(customerId) == jobId) {
+                        container.customerRepository.updateDepositPaidAt(customerId, at)
+                    }
+                } else {
+                    container.customerRepository.updateDepositPaidAt(customerId, at)
+                }
             }.onSuccess {
                 if (paid) _toast.value = "받았어요 ✓"
             }.onFailure {
@@ -256,13 +288,20 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 잔금 받음/안받음 토글. 잔금까지 받으면 완납. 끄면 = 완납 취소. */
-    fun setBalancePaid(customerId: Long, paid: Boolean) = viewModelScope.launch {
+    /** 잔금 받음/안받음 토글. 잔금까지 받으면 완납. 끄면 = 완납 취소.
+     *   jobId 가 있으면 **그 건에만**. (2026-09-18) */
+    fun setBalancePaid(customerId: Long, paid: Boolean, jobId: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             runCatching {
-                container.customerRepository.updateBalancePaidAt(
-                    customerId, if (paid) System.currentTimeMillis() else null
-                )
+                val at = if (paid) System.currentTimeMillis() else null
+                if (jobId != null) {
+                    container.jobRepository.setBalancePaid(jobId, at)
+                    if (container.jobRepository.representativeJobId(customerId) == jobId) {
+                        container.customerRepository.updateBalancePaidAt(customerId, at)
+                    }
+                } else {
+                    container.customerRepository.updateBalancePaidAt(customerId, at)
+                }
             }.onSuccess {
                 if (paid) _toast.value = "잔금을 받았어요 ✓"
             }.onFailure {
@@ -300,6 +339,8 @@ enum class SettleFilter(val label: String) {
 
 data class SettleItem(
     val customerId: Long,
+    /** 어느 건인지. null = 건이 없는 고객(돈만 있고 시공일 없음). (2026-09-18) */
+    val jobId: Long? = null,
     val name: String?,
     val phone: String,
     val calc: SettleRow,
