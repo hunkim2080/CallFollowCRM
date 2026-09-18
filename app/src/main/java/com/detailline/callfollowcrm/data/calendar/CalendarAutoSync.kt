@@ -38,12 +38,17 @@ class CalendarAutoSync(
     private val syncAll: suspend () -> Unit,
     /** 간단 일정도 캘린더에 올라간다 → 여기도 지켜봐야 한다. (2026-09-16) */
     private val simpleEvents: Flow<List<SimpleEventEntity>>,
+    /** 시공 일정은 **건(jobs)** 이 원본이다 → 건이 바뀌면 올려야 한다. (2026-09-18)
+     *   이걸 안 보면 2차 날짜를 고쳐도 캘린더가 안 바뀐다. */
+    private val jobs: Flow<List<com.detailline.callfollowcrm.data.local.entity.JobEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
 ) {
 
     @OptIn(FlowPreview::class)
     fun start(scope: CoroutineScope) {
         scope.launch {
-            combine(customers, simpleEvents) { cs, es -> calendarFingerprint(cs) + simpleFingerprint(es) }
+            combine(customers, simpleEvents, jobs) { cs, es, js ->
+                calendarFingerprint(cs) + simpleFingerprint(es) + jobFingerprint(js)
+            }
                 .distinctUntilChanged()
                 // 첫 방출은 '지금 상태'일 뿐 변화가 아니다. 앱 시작 동기화가 이미 담당한다.
                 .drop(1)
@@ -76,6 +81,27 @@ class CalendarAutoSync(
                     .append(e.minutes ?: -1).append(',')
                     .append(e.title).append(',')
                     .append(e.memo).append(';')
+            }
+            return sb.toString()
+        }
+
+        /** 건에서 캘린더로 들어가는 값만. 바뀌면 그 건 일정을 다시 올린다. (2026-09-18) */
+        fun jobFingerprint(list: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>): String {
+            val sb = StringBuilder(list.size * 24)
+            sb.append('#')
+            for (j in list) {
+                if (j.scheduledWorkDate == null && j.calendarEventId == null) continue
+                sb.append(j.id).append(':')
+                    .append(j.scheduledWorkDate ?: 0).append(',')
+                    .append(j.scheduledWorkMinutes ?: -1).append(',')
+                    .append(j.scheduledWorkDays).append(',')
+                    .append(j.address.orEmpty()).append(',')
+                    .append(j.memo).append(',')
+                    .append(j.totalAmount ?: 0).append(',')
+                    .append(j.depositAmount ?: 0).append(',')
+                    .append(j.balanceAmount ?: 0).append(',')
+                    .append(j.balancePaidAt ?: 0).append(',')
+                    .append(j.workCompletedAt ?: 0).append(';')
             }
             return sb.toString()
         }

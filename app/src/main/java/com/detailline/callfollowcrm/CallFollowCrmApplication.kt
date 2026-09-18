@@ -431,6 +431,7 @@ class CallFollowCrmApplication : Application() {
             customers = container.customerRepository.observeAll(),
             syncAll = { container.calendarSyncManager.syncAll() },
             simpleEvents = container.simpleEventRepository.observeAll(),
+            jobs = container.jobRepository.observeAll(),
         ).start(appScope)
 
         // 현장 도착 지오펜스 — 다가오는 시공 현장 5km 등록(권한·토글 있을 때만).

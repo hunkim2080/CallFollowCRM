@@ -210,7 +210,8 @@ class AppContainer(context: Context) {
                 // 캘린더 본문에 시공 내용·주소·고객 메모를 채우는 재료. (2026-09-14 사장님)
                 issuedDocDao = db.issuedDocDao(),
                 intakeEventDao = db.intakeEventDao(),
-                simpleEventDao = db.simpleEventDao()
+                simpleEventDao = db.simpleEventDao(),
+                jobDao = db.jobDao()
             )
         )
     }

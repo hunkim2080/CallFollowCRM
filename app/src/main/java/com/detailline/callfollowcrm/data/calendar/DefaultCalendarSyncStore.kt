@@ -19,6 +19,8 @@ class DefaultCalendarSyncStore(
     private val intakeEventDao: com.detailline.callfollowcrm.data.local.dao.IntakeEventDao? = null,
     /** 간단 일정 — 없으면(구버전 배선) 그냥 안 올린다. (2026-09-16) */
     private val simpleEventDao: com.detailline.callfollowcrm.data.local.dao.SimpleEventDao? = null,
+    /** 건별 일정 번호 — 없으면(구버전 배선) 고객 표로 폴백. (2026-09-18) */
+    private val jobDao: com.detailline.callfollowcrm.data.local.dao.JobDao? = null,
 ) : CalendarSyncStore {
 
     /**
@@ -42,12 +44,28 @@ class DefaultCalendarSyncStore(
     override suspend fun getCalendarId(): String? = prefs.googleCalendarId
     override suspend fun setCalendarId(id: String?) { prefs.googleCalendarId = id }
 
-    override suspend fun eventId(customerId: Long, type: ScheduleType): String? {
+    /**
+     * 일정 번호 읽기. **시공(WORK)은 건 전표에서** — 건마다 일정이 따로다. (2026-09-18)
+     *   전엔 고객 표에 칸이 하나라, 2차를 잡으면 1차 일정이 2차 날짜로 옮겨졌다.
+     *   jobId 가 없으면(A/S, 또는 건 없는 옛 데이터) 지금까지처럼 고객 표.
+     */
+    override suspend fun eventId(customerId: Long, type: ScheduleType, jobId: Long?): String? {
+        if (type == ScheduleType.WORK && jobId != null) {
+            return runCatching { jobDao?.findById(jobId)?.calendarEventId }.getOrNull()
+        }
         val c = customerDao.findById(customerId) ?: return null
         return if (type == ScheduleType.WORK) c.workCalendarEventId else c.asCalendarEventId
     }
 
-    override suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?) {
+    override suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?, jobId: Long?) {
+        if (type == ScheduleType.WORK && jobId != null) {
+            runCatching {
+                jobDao?.findById(jobId)?.let { j ->
+                    jobDao.update(j.copy(calendarEventId = eventId, updatedAt = System.currentTimeMillis()))
+                }
+            }
+            return
+        }
         val c = customerDao.findById(customerId) ?: return
         val updated = if (type == ScheduleType.WORK) {
             c.copy(workCalendarEventId = eventId)
@@ -57,13 +75,50 @@ class DefaultCalendarSyncStore(
         customerDao.update(updated)
     }
 
-    /** 지문은 prefs 에 (고객,종류) 별로. DB 마이그레이션 없이 붙이려고 — 지워져도 다시 올릴 뿐 손해 없음. */
-    override suspend fun eventHash(customerId: Long, type: ScheduleType): String? =
-        prefs.calendarEventHash(customerId, type.key)
-
-    override suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?) {
-        prefs.setCalendarEventHash(customerId, type.key, hash)
+    /**
+     * 시공일이 잡힌 **건**들 — (건 id, 그 건 값을 채운 고객 복사본).
+     *   일정 탭(ScheduleViewModel)이 쓰는 것과 같은 방식: 건별 값을 채운 CustomerEntity 복사본을
+     *   흘려보내면 기존 이벤트 만들기 코드가 **건 단위로 그대로 동작**한다.
+     *   돈·완료도 건 것을 넣는다 — 캘린더 본문에 금액이 들어가기 때문.
+     */
+    override suspend fun scheduledWorkJobs(): List<Pair<Long, CustomerEntity>> {
+        val dao = jobDao ?: return emptyList()
+        val jobs = runCatching { dao.scheduledOnce() }.getOrDefault(emptyList())
+        if (jobs.isEmpty()) return emptyList()
+        val byId = runCatching { customerDao.allOnce() }.getOrDefault(emptyList()).associateBy { it.id }
+        return jobs.mapNotNull { j ->
+            val c = byId[j.customerId] ?: return@mapNotNull null
+            val day = j.scheduledWorkDate ?: return@mapNotNull null
+            j.id to c.copy(
+                scheduledWorkDate = day,
+                scheduledWorkMinutes = j.scheduledWorkMinutes,
+                scheduledWorkDays = j.scheduledWorkDays.coerceAtLeast(1),
+                address = j.address?.takeIf { it.isNotBlank() } ?: c.address,
+                totalAmount = j.totalAmount,
+                depositAmount = j.depositAmount,
+                depositPaidAt = j.depositPaidAt,
+                balanceAmount = j.balanceAmount,
+                balancePaidAt = j.balancePaidAt,
+                workCompletedAt = j.workCompletedAt,
+                memo = j.memo.takeIf { it.isNotBlank() } ?: c.memo,
+                // A/S 는 이 경로로 안 올린다 — 건 복사본에 A/S 를 남기면 같은 A/S 가 건 수만큼 올라간다.
+                asScheduledDate = null,
+                asCalendarEventId = null
+            )
+        }
     }
+
+    /** 지문은 prefs 에 (고객,종류[,건]) 별로. DB 마이그레이션 없이 붙이려고 — 지워져도 다시 올릴 뿐 손해 없음. */
+    override suspend fun eventHash(customerId: Long, type: ScheduleType, jobId: Long?): String? =
+        prefs.calendarEventHash(customerId, hashKey(type, jobId))
+
+    override suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?, jobId: Long?) {
+        prefs.setCalendarEventHash(customerId, hashKey(type, jobId), hash)
+    }
+
+    /** 건마다 다른 지문 칸. 안 나누면 2차를 올린 뒤 1차가 '안 바뀜'으로 오해돼 안 올라간다. (2026-09-18) */
+    private fun hashKey(type: ScheduleType, jobId: Long?): String =
+        if (type == ScheduleType.WORK && jobId != null) type.key + ":" + jobId else type.key
 
     override suspend fun simpleEvents(): List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity> =
         simpleEventDao?.allOnce().orEmpty()

@@ -37,6 +37,12 @@ data class JobEntity(
     val workCompletedAt: Long? = null,
     /** 이 건 전용 메모 — 고객 공통이 아니라 **현장마다** 따로. (v50, 2026-09-14 사장님) */
     val memo: String = "",
+    /**
+     * 이 건의 구글 캘린더 일정 번호. (v55, 2026-09-18)
+     *   전엔 고객 표에 칸이 하나뿐(`customers.workCalendarEventId`)이라, 2차를 잡으면
+     *   **1차 일정이 2차 날짜로 옮겨졌다**(새 일정이 안 생김). 건마다 따로 들고 있어야 한다.
+     */
+    val calendarEventId: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

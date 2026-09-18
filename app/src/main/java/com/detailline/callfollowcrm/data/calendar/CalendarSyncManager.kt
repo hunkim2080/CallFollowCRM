@@ -20,8 +20,12 @@ enum class ScheduleType(val key: String) { WORK("work"), AS("as") }
 interface CalendarSyncStore {
     suspend fun getCalendarId(): String?
     suspend fun setCalendarId(id: String?)
-    suspend fun eventId(customerId: Long, type: ScheduleType): String?
-    suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?)
+    /** jobId 가 있으면 **그 건**의 일정 번호. 시공(WORK)은 건마다 따로다. (2026-09-18) */
+    suspend fun eventId(customerId: Long, type: ScheduleType, jobId: Long? = null): String?
+    suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?, jobId: Long? = null)
+
+    /** 시공일이 잡힌 **건**들 — (건 id, 그 건 값을 채운 고객 복사본). (2026-09-18) */
+    suspend fun scheduledWorkJobs(): List<Pair<Long, CustomerEntity>> = emptyList()
     /** 시공/AS 일정이 있거나, 이미 올려둔 이벤트가 있는(=지울 수도 있는) 고객 전부. */
     suspend fun scheduledCustomers(): List<CustomerEntity>
 
@@ -38,8 +42,8 @@ interface CalendarSyncStore {
      *   지문이 같으면 건너뛰면, 두 번째부터는 **바뀐 일정만** 올리게 된다.
      *   구현 안 한 곳(테스트 등)은 null 이라 예전처럼 전부 올린다.
      */
-    suspend fun eventHash(customerId: Long, type: ScheduleType): String? = null
-    suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?) {}
+    suspend fun eventHash(customerId: Long, type: ScheduleType, jobId: Long? = null): String? = null
+    suspend fun setEventHash(customerId: Long, type: ScheduleType, hash: String?, jobId: Long? = null) {}
 
     /**
      * 캘린더 본문에 채울 시공 상세 — **접수서/견적서에 이미 다 있는데 안 쓰고 있었다.** (2026-09-14 사장님)
@@ -122,13 +126,23 @@ class CalendarSyncManager(
                 store.setEventHash(c.id, type, null)   // 새 캘린더엔 아무것도 없다 → 전부 다시 올려야 함
             }
         }
+        // 건별로 들고 있는 시공 일정 번호도 전부 비운다 — 안 비우면 새 캘린더에 없는 번호로
+        //   갱신을 시도해 조용히 실패한다. (2026-09-18)
+        for ((jid, jc) in runCatching { store.scheduledWorkJobs() }.getOrDefault(emptyList())) {
+            store.setEventId(jc.id, ScheduleType.WORK, null, jid)
+            store.setEventHash(jc.id, ScheduleType.WORK, null, jid)
+        }
     }
 
     /** 한 고객의 시공·A/S 일정을 캘린더에 반영. 미연결이면 조용히 넘어감(나중에 재시도). */
     suspend fun syncCustomer(c: CustomerEntity, retried: Boolean = false) {
         val token = connection.getTokenSilently() ?: return
         val cal = ensureCalendar(token) ?: return
-        var broken = syncOne(token, cal, c, ScheduleType.WORK)
+        // 이 고객의 **모든 건**을 반영(시공). A/S 는 고객 단위 그대로. (2026-09-18)
+        var broken = false
+        for ((jid, jc) in store.scheduledWorkJobs()) {
+            if (jc.id == c.id) broken = syncOne(token, cal, jc, ScheduleType.WORK, jid) || broken
+        }
         broken = syncOne(token, cal, c, ScheduleType.AS) || broken
         if (broken && !retried) {
             resetCalendar()
@@ -144,9 +158,15 @@ class CalendarSyncManager(
         val token = connection.getTokenSilently() ?: return -1
         val cal = ensureCalendar(token) ?: return -1
         val customers = store.scheduledCustomers()
+        // 시공(WORK)은 **건마다** 한 일정. 전엔 고객마다 하나라 2차를 잡으면 1차 일정이 옮겨졌다. (2026-09-18)
+        for ((jid, jc) in store.scheduledWorkJobs()) {
+            if (syncOne(token, cal, jc, ScheduleType.WORK, jid) && !retried) {
+                resetCalendar()
+                return syncAll(retried = true)
+            }
+        }
         for (c in customers) {
-            var broken = syncOne(token, cal, c, ScheduleType.WORK)
-            broken = syncOne(token, cal, c, ScheduleType.AS) || broken
+            var broken = syncOne(token, cal, c, ScheduleType.AS)
             // 첫 건에서 캘린더가 못 쓰는 걸 알면 나머지를 헛돌리지 말고 바로 갈아끼우고 처음부터.
             if (broken && !retried) {
                 resetCalendar()
@@ -217,9 +237,9 @@ class CalendarSyncManager(
     // ── 한 종류(시공/AS) 반영 ────────────────────────────────
     /** @return true = 캘린더 자체를 못 쓴다(갈아끼워야 함). false = 정상이거나 일시적 실패. */
     private suspend fun syncOne(
-        token: String, cal: String, c: CustomerEntity, type: ScheduleType
+        token: String, cal: String, c: CustomerEntity, type: ScheduleType, jobId: Long? = null
     ): Boolean {
-        val existing = store.eventId(c.id, type)
+        val existing = store.eventId(c.id, type, jobId)
         // 접수서/견적에 있는 시공 내용·주소·고객 메모까지 본문에 채운다. 못 가져와도 그냥 진행.
         val detail = runCatching { store.workDetail(c) }.getOrNull()
         val event = buildEvent(c, type, detail)
@@ -236,23 +256,23 @@ class CalendarSyncManager(
 
         // 지난번에 올린 내용과 똑같으면 구글에 안 물어본다 — 수백 번의 왕복이 여기서 사라진다.
         val hash = eventHash(event)
-        if (canSkipUpload(existing, store.eventHash(c.id, type), hash)) return false
+        if (canSkipUpload(existing, store.eventHash(c.id, type, jobId), hash)) return false
 
         try {
             if (existing == null) {
-                store.setEventId(c.id, type, api.insertEvent(token, cal, event))
+                store.setEventId(c.id, type, api.insertEvent(token, cal, event), jobId)
             } else {
                 try {
                     api.updateEvent(token, cal, existing, event)
                 } catch (e: CalendarApi.CalendarApiException) {
                     // 캘린더에서 지워진 이벤트(404/410) → 새로 만든다
                     if (e.code == 404 || e.code == 410) {
-                        store.setEventId(c.id, type, api.insertEvent(token, cal, event))
+                        store.setEventId(c.id, type, api.insertEvent(token, cal, event), jobId)
                     } else throw e
                 }
             }
             // 여기까지 왔으면 이 내용이 구글에 올라가 있다 — 다음엔 건너뛸 수 있게 지문 저장.
-            store.setEventHash(c.id, type, hash)
+            store.setEventHash(c.id, type, hash, jobId)
         } catch (e: CalendarApi.CalendarApiException) {
             // 새 이벤트조차 못 만든다 = 이벤트가 아니라 **캘린더**가 문제(권한 없음/삭제됨).
             //   호출측이 캘린더를 갈아끼우고 한 번 다시 시도하게 알린다.
