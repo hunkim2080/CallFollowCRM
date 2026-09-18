@@ -1091,7 +1091,8 @@ fun ChatScreen(
             polishUndoText?.takeIf { input.isNotBlank() }?.let { before ->
                 Row(
                     Modifier.fillMaxWidth().background(Color.White)
-                        .padding(start = 14.dp, end = 14.dp, top = 8.dp),
+                        // 아래 입력칸과 붙어 보여 살짝 띄운다. (2026-09-18 사장님)
+                        .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("✨ 다듬었어요", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
@@ -4097,7 +4098,10 @@ private fun Composer(
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            // 여러 줄이 되면 버튼을 **바닥선**에 붙인다. (2026-09-18 사장님 "정렬과 여백이 어색")
+            //   전엔 가운데 정렬이라, 다듬기로 글이 네 줄쯤 되면 ⊕·📷·✨·보내기가
+            //   글 한가운데 높이로 떠서 붕 뜬 것처럼 보였다. 한 줄일 땐 지금과 똑같다.
+            verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // ⊕ 액션 메뉴 (왼쪽) — 견적/일정/문구 풍선 팝업. 문자함이면 숨김.
@@ -4118,7 +4122,8 @@ private fun Composer(
                     .clip(RoundedCornerShape(22.dp))
                     .background(TossGrayBg)
                     .padding(horizontal = 8.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                // 알약 안(📷·글·✨)도 같은 이유로 바닥 정렬. (2026-09-18)
+                verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // 📷 사진 첨부 (왼쪽) — 터치영역 44dp (거친 손가락).
