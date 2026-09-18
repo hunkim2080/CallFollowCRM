@@ -521,6 +521,11 @@ object DataBackup {
         //   → 앱은 "연결됨"이라고 하는데 실제 인증은 없어서 [동기화]가 계속 실패했다.
         //   (사장님 재설치 직후 겪음. 표시가 거짓말을 하면 원인을 못 찾는다)
         if (lk.startsWith("google_calendar") || lk.contains("calendar_connected")) return true
+        // 🔴 '통화기록 첫 가져오기 끝냄' 표시를 되돌리면 **새 폰에서 7일치를 영영 안 가져온다.** (2026-09-18)
+        //   실제 사고: 9/14 재설치 후 이 표시가 복원돼 가져오기가 건너뛰어졌고, 권한도 안 켜져 있어
+        //   9/15~9/18 통화·요약이 **하나도 안 쌓였다**(사장님 "통화요약됐던 것도 다 날아가는 듯").
+        //   이건 '이 폰에서 했나'를 적은 표시라 옮기면 안 된다. 깨끗이 지워 새로 가져오게 둔다.
+        if (lk == "initial_call_log_imported") return true
         return lk.contains("token") || lk.contains("fcm") || lk.contains("gcm") || lk.contains("folder")
     }
 
