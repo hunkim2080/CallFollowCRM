@@ -94,6 +94,65 @@ class CustomerDetailViewModel(
         }
     }
 
+    // ── 고른 **건**에 직접 쓰기 (2026-09-18 확정 프로토 ④) ─────────────────────
+    //   지난 건을 골라도 금액·계약금·잔금·주소를 고칠 수 있어야 한다.
+    //   jobId 가 null 이면 '지금 건'(=고객 카드 경로)이라 기존 함수를 그대로 쓴다.
+
+    fun setJobTotalAmount(jobId: Long, won: Long?) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            runCatching {
+                val j = container.jobRepository.findById(jobId) ?: return@runCatching
+                container.jobRepository.updateMoney(
+                    jobId = jobId,
+                    totalAmount = won,
+                    depositAmount = j.depositAmount,
+                    depositPaidAt = j.depositPaidAt,
+                    balanceAmount = null,          // 총액이 바뀌면 잔금은 다시 계산되게 비운다
+                    balancePaidAt = j.balancePaidAt
+                )
+            }
+        }
+    }
+
+    fun setJobDepositAmount(jobId: Long, won: Long?) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            runCatching {
+                val j = container.jobRepository.findById(jobId) ?: return@runCatching
+                container.jobRepository.updateMoney(
+                    jobId = jobId,
+                    totalAmount = j.totalAmount,
+                    depositAmount = won,
+                    depositPaidAt = j.depositPaidAt,
+                    balanceAmount = null,
+                    balancePaidAt = j.balancePaidAt
+                )
+            }
+        }
+    }
+
+    fun setJobDepositPaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            runCatching {
+                container.jobRepository.setDepositPaid(jobId, if (paid) System.currentTimeMillis() else null)
+            }
+        }
+    }
+
+    /** 잔금 받음 — **완료도 자동**(JobRepository.setBalancePaid 안에서). */
+    fun setJobBalancePaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            runCatching {
+                container.jobRepository.setBalancePaid(jobId, if (paid) System.currentTimeMillis() else null)
+            }
+        }
+    }
+
+    fun setJobAddress(jobId: Long, address: String?) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            runCatching { container.jobRepository.updateAddress(jobId, address) }
+        }
+    }
+
     fun addNewJob(startMs: Long, days: Int, onDone: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()

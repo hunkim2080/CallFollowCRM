@@ -181,6 +181,8 @@ fun CustomerDetailScreen(
     var categoryDialogOpen by remember { mutableStateOf(false) }
     // 일정·정산 카드 금액 편집 다이얼로그 — "total"(총금액) / "deposit"(계약금) / null(닫힘).
     var amountEditField by remember { mutableStateOf<String?>(null) }
+    /** 금액 수정 창이 **어느 건**을 고치는지. null = 지금 건(고객 카드). (2026-09-18) */
+    var amountEditJobId by remember { mutableStateOf<Long?>(null) }
     var cancelBookingConfirm by remember { mutableStateOf(false) }  // 예약 취소 확인창 (2026-08-28 사장님)
     // 시공금액 변경 시 이유 입력 다이얼로그 (oldWon, newWon). null = 닫힘. (2026-06-30 사장님)
     var amountChangeReason by remember { mutableStateOf<Pair<Long, Long>?>(null) }
@@ -814,24 +816,40 @@ fun CustomerDetailScreen(
 
             // 2-1. 지난 건을 고른 상태 — 그 건의 기록만 보여준다(읽기 전용).
             //   지난 건은 이미 끝난 일이라 여기서 고칠 게 없다. 고칠 일이 생기면 그때 붙인다.
-            if (detailTab == 0 && selectedPastJob != null) {
-                PastJobPanel(selectedPastJob)
-            }
+            // (제거) 지난 건 읽기 전용 패널 — 이제 아래 정산 카드가 **고른 건 값으로** 바뀌고
+            //   그 건에 바로 쓴다. 따로 읽기 전용 카드를 겹쳐 보여줄 이유가 없다. (2026-09-18 프로토 ④)
 
             // 2. 프로토 "일정 · 정산" 카드 (사장님 결정 2026-06-02: 프로토 단순화). · [일정·정산] 탭 (2026-07-18)
             //    데이터(예약일·금액·계약금/잔금)는 그대로, UI 만 프로토 단순형(시공예약+총금액+계약금/잔금 상태+확인).
             //    지난 건을 보는 중이면 숨긴다 — 탭은 **한 번에 한 건**이 규칙이다.
-            if (detailTab == 0 && selectedPastJob == null) run {
-                val scheduled = c.scheduledWorkDate
-                val totalWon = c.totalAmount ?: 0L
-                val depositWon = c.depositAmount ?: 0L
+            if (detailTab == 0) run {
+                // 어느 건을 골랐든 **그 건의 값**을 보여주고, 그 건에 쓴다. (2026-09-18 확정 프로토 ④)
+                //   전엔 지난 건을 고르면 이 카드를 숨기고 읽기 전용 패널만 보여줬다.
+                //   editJobId = null 이면 '지금 건'(고객 카드 경로), 아니면 그 건에 직접 쓴다.
+                val editJobId: Long? = selectedPastJob?.id
+                val cShown = selectedPastJob?.let { j ->
+                    c.copy(
+                        scheduledWorkDate = j.scheduledWorkDate,
+                        scheduledWorkMinutes = j.scheduledWorkMinutes,
+                        scheduledWorkDays = j.scheduledWorkDays.coerceAtLeast(1),
+                        totalAmount = j.totalAmount,
+                        depositAmount = j.depositAmount,
+                        depositPaidAt = j.depositPaidAt,
+                        balanceAmount = j.balanceAmount,
+                        balancePaidAt = j.balancePaidAt,
+                        workCompletedAt = j.workCompletedAt
+                    )
+                } ?: c
+                val scheduled = cShown.scheduledWorkDate
+                val totalWon = cShown.totalAmount ?: 0L
+                val depositWon = cShown.depositAmount ?: 0L
                 // 총금액 또는 계약금 중 하나라도 입력되면 정산 영역을 펼친다(계약금만 따로 넣는 경우 포함).
                 val hasAmount = totalWon > 0L || depositWon > 0L
                 // 잔금·완납은 정산 단일 출처(SettlementCalc)로 — 화면마다 잔금이 다르던 버그 통일. (2026-07-30)
-                val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
+                val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(cShown)
                 val balanceWon = settle.balanceAmount
-                val depPaid = c.depositPaidAt != null
-                val balPaid = c.balancePaidAt != null
+                val depPaid = cShown.depositPaidAt != null
+                val balPaid = cShown.balancePaidAt != null
                 val allPaid = settle.isPaidOff
                 TossCard {
                     Column {
@@ -871,7 +889,7 @@ fun CustomerDetailScreen(
                                     else
                                         Text("총금액 미입력", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                                     Spacer(Modifier.weight(1f))
-                                    MoneyEditPill(if (totalWon > 0L) "금액 수정" else "총금액 입력") { amountEditField = "total" }
+                                    MoneyEditPill(if (totalWon > 0L) "금액 수정" else "총금액 입력") { amountEditJobId = editJobId; amountEditField = "total" }
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 // 계약금 행 — 총금액과 별개로 따로 입력/수정 (2026-06-11 사장님: 계약금을 따로 넣어야 함).
@@ -881,7 +899,7 @@ fun CustomerDetailScreen(
                                     else
                                         Text("계약금 미설정", fontSize = 14.sp, color = TossTextTertiary)
                                     Spacer(Modifier.weight(1f))
-                                    MoneyEditPill(if (depositWon > 0L) "계약금 수정" else "계약금 입력") { amountEditField = "deposit" }
+                                    MoneyEditPill(if (depositWon > 0L) "계약금 수정" else "계약금 입력") { amountEditJobId = editJobId; amountEditField = "deposit" }
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(
@@ -890,18 +908,30 @@ fun CustomerDetailScreen(
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 if (allPaid) {
-                                    TossSecondaryButton(text = "완납 취소", onClick = { viewModel.setBalancePaid(false) })
+                                    TossSecondaryButton(text = "완납 취소", onClick = {
+                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
+                                        else viewModel.setBalancePaid(false)
+                                    })
                                 } else if (depositWon > 0L && !depPaid) {
-                                    TossPrimaryButton(text = "계약금 확인", onClick = { viewModel.setDepositPaid(true) })
+                                    TossPrimaryButton(text = "계약금 확인", onClick = {
+                                        if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true)
+                                        else viewModel.setDepositPaid(true)
+                                    })
                                 } else if (depositWon > 0L) {
                                     TossPrimaryButton(text = "잔금 확인", onClick = {
-                                        if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
-                                        viewModel.setBalancePaid(true)
+                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true)
+                                        else {
+                                            if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
+                                            viewModel.setBalancePaid(true)
+                                        }
                                     })
                                 } else {
                                     TossPrimaryButton(text = "전액 확인", onClick = {
-                                        if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
-                                        viewModel.setBalancePaid(true)
+                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true)
+                                        else {
+                                            if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
+                                            viewModel.setBalancePaid(true)
+                                        }
                                     })
                                 }
                             } else {
@@ -1731,14 +1761,16 @@ fun CustomerDetailScreen(
             title = if (field == "total") "총금액" else "계약금",
             initialWon = if (field == "total") (customer?.totalAmount ?: 0L) else (customer?.depositAmount ?: 0L),
             onSave = { won ->
+                val jid = amountEditJobId
                 if (field == "total") {
                     val old = customer?.totalAmount ?: 0L
-                    viewModel.setTotalAmount(won)
+                    if (jid != null) viewModel.setJobTotalAmount(jid, won) else viewModel.setTotalAmount(won)
                     // 시공금액이 "바뀌면"(첫 설정 제외) 이유 입력 띄움. 변경 이력 카드는 거기서 기록. (2026-06-30 사장님)
-                    if (won != old && old > 0L) amountChangeReason = old to won
+                    if (jid == null && won != old && old > 0L) amountChangeReason = old to won
                 } else {
-                    viewModel.setDepositAmount(won)
+                    if (jid != null) viewModel.setJobDepositAmount(jid, won) else viewModel.setDepositAmount(won)
                 }
+                amountEditJobId = null
                 amountEditField = null
             },
             onDismiss = { amountEditField = null }
