@@ -152,9 +152,18 @@ object SettlementCalc {
      *   기준일 = 완료일(workCompletedAt) 우선, 없으면 시공 예약일(scheduledWorkDate). 둘 다 없으면 null(날짜 모름).
      *   N>=1 일 때만 값(=하루라도 지남) → "1일 경과한 미수만 상담함에" (사장님 결정 2026-06-23).
      */
-    fun overdueDays(c: CustomerEntity, todayStartMs: Long): Int? {
-        if (rowOf(c).outstanding <= 0L) return null
-        val base = c.workCompletedAt ?: c.scheduledWorkDate ?: return null
+    fun overdueDays(c: CustomerEntity, todayStartMs: Long): Int? =
+        overdueDays(c.workCompletedAt, c.scheduledWorkDate, rowOf(c).outstanding, todayStartMs)
+
+    /** 건(job)에도 그대로 쓰는 버전 — 기준은 같다. (2026-09-18) */
+    fun overdueDays(j: com.detailline.callfollowcrm.data.local.entity.JobEntity, todayStartMs: Long): Int? =
+        overdueDays(j.workCompletedAt, j.scheduledWorkDate, rowOf(j).outstanding, todayStartMs)
+
+    private fun overdueDays(
+        workCompletedAt: Long?, scheduledWorkDate: Long?, outstanding: Long, todayStartMs: Long
+    ): Int? {
+        if (outstanding <= 0L) return null
+        val base = workCompletedAt ?: scheduledWorkDate ?: return null
         val days = ((todayStartMs - DateTimeUtils.startOfDay(base)) / DateTimeUtils.DAY_MS).toInt()
         return if (days >= 1) days else null
     }

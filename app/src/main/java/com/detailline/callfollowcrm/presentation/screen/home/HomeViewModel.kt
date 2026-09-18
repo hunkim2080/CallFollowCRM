@@ -613,17 +613,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 안 들어온 잔금(미수) — 받을 돈 남았고 시공 후 1일+ 지난 고객. 상담함에 고객마다 카드. (사장님 2026-06-23)
      *   기준/경과일 = [SettlementCalc.overdueDays]. 오래 지난 것부터 위로. "받았어요" 하면 미수 0 → 사라짐.
      */
-    val balanceDues: StateFlow<List<HomeBalanceDueUi>> = combine(customers, todayStartFlow) { list, ts ->
-        list.filter { SettlementCalc.hasMoney(it) }
-            .mapNotNull { c ->
-                val days = SettlementCalc.overdueDays(c, ts) ?: return@mapNotNull null
-                val won = SettlementCalc.rowOf(c).outstanding
+    val balanceDues: StateFlow<List<HomeBalanceDueUi>> =
+        combine(customers, container.jobRepository.observeAll(), todayStartFlow) { list, jobs, ts ->
+            // 🔴 **건마다** 따진다. (2026-09-18 · docs/PLAN_job_centric_migration.md Step 3-②)
+            //   전엔 고객 카드 하나만 봐서, 1차가 미수인데 2차가 '지금 건'이 되면
+            //   고객 카드엔 2차 금액이 들어가 **1차 미수 카드가 아예 안 떴다.** 정산 목록과 같은 병.
+            //   건이 하나도 없는 고객(돈만 있고 시공일 없음)은 지금처럼 고객 카드로.
+            val byId = list.associateBy { it.id }
+            val idsWithJobs = jobs.map { it.customerId }.toHashSet()
+
+            fun ui(c: CustomerEntity, jobId: Long?, days: Int, won: Long, addr: String?): HomeBalanceDueUi {
                 val realName = c.name?.takeIf { it.isNotBlank() }
                 // 카드엔 번호 대신 아주 짧은 현장("수원 대동아파트"). 없으면 이름, 그것도 없으면 잔금만. (사장님 2026-06-23)
-                val shortAddr = com.detailline.callfollowcrm.util.AddressExtractor.roughSite(c.address)
+                val shortAddr = com.detailline.callfollowcrm.util.AddressExtractor.roughSite(addr)
                     .takeIf { it.isNotBlank() }
-                HomeBalanceDueUi(
+                return HomeBalanceDueUi(
                     customerId = c.id,
+                    jobId = jobId,
                     phone = c.phoneNumber,
                     name = realName ?: PhoneNumberFormatter.format(c.phoneNumber),
                     whereLabel = shortAddr ?: realName,
@@ -632,8 +638,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     body = balanceRequestBody(realName, won)
                 )
             }
-            .sortedByDescending { it.daysSince }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+            val fromJobs = jobs.mapNotNull { j ->
+                val c = byId[j.customerId] ?: return@mapNotNull null
+                val days = SettlementCalc.overdueDays(j, ts) ?: return@mapNotNull null
+                val won = SettlementCalc.rowOf(j).outstanding
+                if (won <= 0L) return@mapNotNull null
+                ui(c, j.id, days, won, j.address?.takeIf { it.isNotBlank() } ?: c.address)
+            }
+            val fromCustomers = list.filter { it.id !in idsWithJobs && SettlementCalc.hasMoney(it) }
+                .mapNotNull { c ->
+                    val days = SettlementCalc.overdueDays(c, ts) ?: return@mapNotNull null
+                    ui(c, null, days, SettlementCalc.rowOf(c).outstanding, c.address)
+                }
+            (fromJobs + fromCustomers).sortedByDescending { it.daysSince }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 잔금 요청 문자 본문 — 이름 + 미수액. (계좌는 prefs 미보유 → 금액만, 완료 흐름과 동일) */
     private fun balanceRequestBody(name: String?, outstandingWon: Long): String {
@@ -1156,9 +1175,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 상담함 미수 카드 [받았어요] — 잔금 받음 처리. 완료일(workCompletedAt)은 안 건드림(이미 끝난 시공).
      *   balanceAmount 비어 있으면 (총액-계약금)으로 채우고 balancePaidAt=now → 미수 0 → 카드 사라짐. (2026-06-23 사장님)
      */
-    fun markBalanceReceived(customerId: Long) = viewModelScope.launch {
+    fun markBalanceReceived(customerId: Long, jobId: Long? = null) = viewModelScope.launch {
         runCatching {
             val now = System.currentTimeMillis()
+            if (jobId != null) {
+                // 🔴 **그 건에만** 찍는다 — 옆 건 돈을 건드리면 안 된다. (2026-09-18)
+                container.jobRepository.setBalancePaid(jobId, now, now)
+                if (container.jobRepository.representativeJobId(customerId, now) == jobId) {
+                    container.customerRepository.updateBalancePaidAt(customerId, now)
+                }
+                return@runCatching
+            }
             val c = container.customerRepository.findById(customerId) ?: return@runCatching
             val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
             if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)
@@ -1167,8 +1194,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 미수 카드 받음 처리 되돌리기(스낵바 '되돌리기') — 잔금 다시 미수로. */
-    fun undoBalanceReceived(customerId: Long) = viewModelScope.launch {
-        runCatching { container.customerRepository.updateBalancePaidAt(customerId, null) }
+    fun undoBalanceReceived(customerId: Long, jobId: Long? = null) = viewModelScope.launch {
+        runCatching {
+            if (jobId != null) {
+                val now = System.currentTimeMillis()
+                container.jobRepository.setBalancePaid(jobId, null, now)
+                if (container.jobRepository.representativeJobId(customerId, now) == jobId) {
+                    container.customerRepository.updateBalancePaidAt(customerId, null)
+                }
+            } else {
+                container.customerRepository.updateBalancePaidAt(customerId, null)
+            }
+        }
     }
 
     /**
@@ -1625,6 +1662,8 @@ data class HomeReminderUi(
 /** 상담함 "안 들어온 잔금" 미수 카드 모델 — 프로토 settle 푸시를 카드화. (2026-06-23 사장님) */
 data class HomeBalanceDueUi(
     val customerId: Long,
+    /** 어느 건의 미수인지. null = 건이 없는 고객. (2026-09-18) */
+    val jobId: Long? = null,
     val phone: String,
     /** 스낵바용 — 이름 없으면 하이픈 번호. */
     val name: String,

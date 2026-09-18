@@ -990,7 +990,7 @@ fun HomeScreen(
                 // 안 들어온 잔금(미수 1일+ 경과) — 협업 요청과 같은 InboxAlert 컴팩트 카드. 고객마다 1개. (2026-06-23 사장님)
                 //   탭 = 그 고객 채팅(잔금 요청 보내러) · 꾹 누름 = 받음 처리(되돌리기 가능).
                 balanceDues.forEach { due ->
-                    item(key = "balancedue-${due.customerId}") {
+                    item(key = "balancedue-${due.customerId}-${due.jobId ?: 0L}") {
                         InboxAlert(
                             accent = Color(0xFFF0436A),
                             accentTint = Color(0xFFFDE7EC),
@@ -1002,14 +1002,14 @@ fun HomeScreen(
                             goLabel = "잔금 요청",
                             onClick = { onOpenChat(due.phone, due.customerId) },
                             onLongClick = {
-                                viewModel.markBalanceReceived(due.customerId)
+                                viewModel.markBalanceReceived(due.customerId, due.jobId)
                                 scope.launch {
                                     val r = snackbarHostState.showSnackbar(
                                         message = "${due.name} 잔금 받음 처리 ✓",
                                         actionLabel = "되돌리기",
                                         duration = SnackbarDuration.Short
                                     )
-                                    if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId)
+                                    if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId, due.jobId)
                                 }
                             }
                         )
