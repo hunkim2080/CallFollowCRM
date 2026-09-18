@@ -1258,8 +1258,12 @@ fun CustomerDetailScreen(
         // 항공권식 기간 선택 — 시작일 → 끝날 탭하면 기간. 하루면 시작일만. (2026-08-01 사장님)
         // DateRangePicker 는 밀리초를 UTC 로 해석 → 저장된 KST 자정을 그대로 주면 하루 일찍 보임. 로컬 오프셋 더해 보정. (2026-08-01)
         val toUtcMidnight = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
-        val initStart = customer?.scheduledWorkDate
-        val initDays = (customer?.scheduledWorkDays ?: 1).coerceAtLeast(1)
+        // 「＋ 새 시공」으로 연 창은 **빈 달력**으로 시작한다. (2026-09-18 실기에서 발견)
+        //   전엔 지금 건 날짜가 미리 찍힌 채로 열려서, 다른 날을 누르면 그게 '끝날'이 되어
+        //   기간(10/6~10/20)이 잡혔다. 그대로 저장하면 시작일이 여전히 옛 날짜 → 같은 날 중복 가드에 걸려
+        //   "그 날짜엔 이미 시공이 있어요" 만 뜨고 **2차가 아예 안 만들어졌다.**
+        val initStart = if (addingNewJob) null else customer?.scheduledWorkDate
+        val initDays = if (addingNewJob) 1 else (customer?.scheduledWorkDays ?: 1).coerceAtLeast(1)
         val initEnd = initStart?.takeIf { initDays > 1 }?.let { it + (initDays - 1) * DateTimeUtils.DAY_MS }
         val rangeState = androidx.compose.material3.rememberDateRangePickerState(
             initialSelectedStartDateMillis = initStart?.let(toUtcMidnight),
@@ -1297,7 +1301,9 @@ fun CustomerDetailScreen(
                             ),
                             title = {
                                 Text(
-                                    "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
+                                    // 새 건을 잡는 중이면 그렇다고 말해준다 — 지금 건을 고치는 걸로 오해하지 않게. (2026-09-18)
+                                    if (addingNewJob) "새 시공 — 시작일 → 끝날 (하루면 시작일만)"
+                                    else "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
                                     fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
                                 )
