@@ -755,6 +755,79 @@ fun CustomerDetailScreen(
             //    100명 중 95명한테 쓸데없는 줄 하나를 얹는 것" — 그게 '지저분하다'의 정체.
             //   1건일 때의 두 번째 시공 입구는 **맨 아래 조용한 링크**(＋ 시공 하나 더 잡기)로 옮겼다.
             val showJobBar = otherJobs.isNotEmpty()
+
+            // ⑤ **마무리 뒤에 문자에서 주소가 잡히면 다음 현장 것으로 묻는다.** (2026-09-18 확정 프로토 `.catch`)
+            //   "1차 현장이 잔금 확인이 됐으면 마무리로 봄. 그 이후 대화에서 주소가 나오면
+            //    2차 현장의 주소로 캐치 묻기" — 사장님 9/17.
+            //   · 주소가 **빈 진행 중 건**이 있으면 그 건 주소인지 묻고
+            //   · 없으면 "새 현장 주소인가요?" → 수락하면 **새 건**이 생기며 주소가 들어간다.
+            //   이미 어느 건이 그 주소를 갖고 있으면 묻지 않는다(중복 질문 방지).
+            run {
+                val caught = extractedAddress?.takeIf { it.isNotBlank() }
+                val closedJobs = allJobsForTabs.filter { jobClosed(it) }
+                val alreadyUsed = caught != null && allJobsForTabs.any {
+                    it.address?.trim() == caught.trim()
+                } || (caught != null && c.address?.trim() == caught.trim())
+                val fillTarget = allJobsForTabs
+                    .filter { !jobClosed(it) && it.address.isNullOrBlank() }
+                    .minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
+                val show = detailTab == 0 && caught != null && !addrSuggestDismissed &&
+                    !isGeneralThread && closedJobs.isNotEmpty() && !alreadyUsed
+                if (show && caught != null) {
+                    val whyText = if (showJobBar)
+                        closedJobs.joinToString("·") { "${jobNthOf(allJobsForTabs, it)}차" } + "는 잔금까지 받아서 마무리됐어요."
+                    else "이번 시공은 잔금까지 받아서 마무리됐어요."
+                    val askText = if (fillTarget != null)
+                        "진행 중인 ${jobNthOf(allJobsForTabs, fillTarget)}차 현장 주소인가요?"
+                    else "새 현장 주소인가요?"
+                    val yesText = if (fillTarget != null)
+                        "${jobNthOf(allJobsForTabs, fillTarget)}차 주소로 등록" else "새 시공으로 잡기"
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .tossCardShadow(RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White)
+                            .border(1.5.dp, TossBlue, RoundedCornerShape(18.dp))
+                            .padding(16.dp)
+                    ) {
+                        Text("📩 방금 문자에서 이런 주소를 봤어요",
+                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                        Spacer(Modifier.height(6.dp))
+                        Text(caught, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            color = TossTextPrimary, lineHeight = 21.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("$whyText $askText", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossGrayBg)
+                                    .clickable {
+                                        addrSuggestDismissed = true
+                                        detailPrefs.dismissAddressSuggest(c.id, caught)
+                                    }.padding(vertical = 11.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) { Text("아니에요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                            Spacer(Modifier.width(9.dp))
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(1.4f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
+                                    .clickable {
+                                        if (fillTarget != null) {
+                                            viewModel.setJobAddress(fillTarget.id, caught)
+                                            selectedPastJobId = fillTarget.id
+                                        } else {
+                                            viewModel.addJobWithAddress(caught) { id ->
+                                                if (id > 0L) selectedPastJobId = id
+                                            }
+                                        }
+                                    }.padding(vertical = 11.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) { Text(yesText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+            }
+
             if (detailTab == 0 && showJobBar) {
                 JobTabsRow(
                     pastJobs = otherJobs,

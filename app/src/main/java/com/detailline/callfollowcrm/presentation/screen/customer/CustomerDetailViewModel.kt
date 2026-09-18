@@ -153,6 +153,14 @@ class CustomerDetailViewModel(
         }
     }
 
+    /** 문자에서 잡힌 주소로 **새 건**을 만든다(날짜 미정). (2026-09-18 프로토 ⑤) */
+    fun addJobWithAddress(address: String, onDone: (Long) -> Unit = {}) = viewModelScope.launch {
+        val id = withContext(NonCancellable) {
+            runCatching { container.jobRepository.addDraftJob(customerId, address) }.getOrDefault(0L)
+        }
+        onDone(id)
+    }
+
     fun addNewJob(startMs: Long, days: Int, onDone: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()

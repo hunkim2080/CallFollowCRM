@@ -332,6 +332,25 @@ class JobRepository(
     }
 
     /** 이 **건 하나**의 현장 주소. 건마다 현장이 다르다(1차 수원 / 2차 강남). */
+    /**
+     * **주소만 든 새 건**(날짜 미정). (2026-09-18 확정 프로토 ⑤)
+     *   마무리된 건 뒤에 문자에서 새 주소가 잡혔을 때 "새 시공으로 잡기" 가 부르는 것.
+     *   날짜는 사장님이 나중에 잡는다 — 그래서 같은 날 중복 가드가 필요 없다.
+     */
+    suspend fun addDraftJob(customerId: Long, address: String?, now: Long = System.currentTimeMillis()): Long {
+        val id = jobDao.insert(
+            JobEntity(
+                customerId = customerId,
+                scheduledWorkDate = null,
+                address = address?.takeIf { it.isNotBlank() },
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        recomputeMirror(customerId, now)
+        return id
+    }
+
     suspend fun updateAddress(jobId: Long, address: String?, now: Long = System.currentTimeMillis()) {
         val j = jobDao.findById(jobId) ?: return
         jobDao.update(j.copy(address = address?.trim()?.takeIf { it.isNotBlank() }, updatedAt = now))
