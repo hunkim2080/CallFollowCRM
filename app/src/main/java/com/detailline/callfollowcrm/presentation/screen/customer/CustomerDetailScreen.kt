@@ -893,7 +893,8 @@ fun CustomerDetailScreen(
                                                 j.address?.takeIf { it.isNotBlank() } ?: "주소 없음",
                                                 j.totalAmount?.let { com.detailline.callfollowcrm.util.MoneyFormatter.won(it) },
                                                 when {
-                                                    jobCancelled(j) -> "예약 취소함"
+                                                    j.cancelledAt != null -> "예약 취소함"
+                                                    jobBlank(j) -> "비어 있던 건"
                                                     j.balancePaidAt != null -> "잔금 받음"
                                                     else -> "완료"
                                                 }
@@ -2621,7 +2622,40 @@ private fun MoneyEditPill(label: String, onClick: () -> Unit) {
 @Composable
 private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(if (initialWon > 0L) (initialWon / 10000L).toString() else "") }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    // 🔴 적어둔 금액을 **조용히 버리지 않는다.** (2026-09-18 사장님 "금액 수정까지 했었거든? 근데 날아갔네")
+    //   숫자를 치면 키보드가 올라오면서 [저장] 버튼이 위로 밀린다. 원래 자리를 누르면 키보드가 눌리고,
+    //   바깥을 누르거나 뒤로 가면 **입력한 값이 그냥 사라졌다**(안내도 없음). 돈에서 이러면 안 된다.
+    //   → 값을 바꿔놓고 닫으려 하면 한 번 되묻는다.
+    val changed = (text.toLongOrNull() ?: 0L) != (if (initialWon > 0L) initialWon / 10000L else 0L)
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val tryDismiss = { if (changed) confirmDiscard = true else onDismiss() }
+    if (confirmDiscard) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = { Text("적어둔 금액을 버릴까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = {
+                Text(
+                    "${text.ifBlank { "0" }}만원을 적어두셨어요. 저장하지 않고 닫으면 사라져요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val enteredMan = text.toLongOrNull() ?: 0L
+                    onSave(if (enteredMan == initialWon / 10000L) initialWon else enteredMan * 10000L)
+                    confirmDiscard = false
+                }) { Text("저장할게요", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false; onDismiss() }) {
+                    Text("버리기", color = TossError, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        )
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = tryDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
             Text("$title 입력", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
@@ -2638,7 +2672,7 @@ private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) ->
             )
             Spacer(Modifier.height(14.dp))
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TossSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.weight(1f))
+                TossSecondaryButton(text = "취소", onClick = tryDismiss, modifier = Modifier.weight(1f))
                 TossPrimaryButton(text = "저장", onClick = {
                     val enteredMan = text.toLongOrNull() ?: 0L
                     // 표시 만원을 안 바꿨으면 원본 '원' 값 그대로 유지(만원 미만 절삭 방지: 375,000원을 안 건드려도 370,000 되던 것).
@@ -4219,12 +4253,25 @@ private fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntit
     j.balancePaidAt != null || (j.workCompletedAt != null && (j.balanceAmount ?: 0L) <= 0L)
 
 /**
- * **취소한 건.** (2026-09-18 사장님 "1차 시공이 잡히지도 않았는데 2차 3차 등록도 가능하네")
+ * **빈 건** — 날짜도 금액도 주소도 없는 껍데기. (2026-09-18 사장님)
+ *   "1차가 날짜도 없고 금액도 없는데 2차 3차가 있다는 게 말이 안 돼. 만들어지지도 말아야지"
+ *   예약을 취소하거나 날짜를 풀면 이런 껍데기가 남는데, 그게 앞줄에서 **차수를 차지**하는 바람에
+ *   [1차 날짜미상][2차 날짜미상][3차 신규] 처럼 빈 칸이 줄줄이 늘어섰다.
+ *   돈이나 주소가 하나라도 적혀 있으면 빈 건이 아니다 — 그건 살려둬야 할 기록이다.
+ */
+private fun jobBlank(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+    j.scheduledWorkDate == null && j.workCompletedAt == null &&
+        j.totalAmount == null && j.depositAmount == null && j.balanceAmount == null &&
+        j.depositPaidAt == null && j.balancePaidAt == null && j.address.isNullOrBlank()
+
+/**
+ * **취소한 건 / 빈 건.** (2026-09-18 사장님 "1차 시공이 잡히지도 않았는데 2차 3차 등록도 가능하네")
  *   취소는 기록을 남기려고 날짜만 비운다 → 그 건이 '날짜 미정'으로 탭에 남아 차수를 차지했다.
+ *   `cancelledAt` 이 안 찍힌 옛 껍데기(일정만 푼 건)도 같이 접는다 — 사장님 눈엔 똑같은 빈 칸이다.
  *   앞줄에서 빼고 '지난 건'으로 접는다. 지우는 게 아니라 접는 거라 되살릴 수 있다.
  */
 private fun jobCancelled(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
-    j.cancelledAt != null
+    j.cancelledAt != null || jobBlank(j)
 
 /** 앞줄(탭)에서 빼고 접어둘 건 — 마무리됐거나 취소한 것. */
 private fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
@@ -4307,10 +4354,10 @@ private fun JobTabsRow(
                 val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
                 JobTab(
                     // 취소한 건은 차수를 안 준다 — 안 한 시공에 번호를 붙이면 뒤가 다 밀린다. (2026-09-18)
-                    nth = if (jobCancelled(job)) "취소한 건"
+                    nth = if (jobCancelled(job)) (if (job.cancelledAt != null) "취소한 건" else "빈 건")
                           else "${nthOf(job)}차 · " + if (done) "완료" else (dd ?: "예정"),
                     sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) }
-                        ?: if (jobCancelled(job)) "예약 취소함" else "날짜 미상",
+                        ?: if (job.cancelledAt != null) "예약 취소함" else "날짜 미정",
                     on = selectedPastJobId == job.id,
                     onClick = { onSelect(job.id) }
                 )

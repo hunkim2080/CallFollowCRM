@@ -518,7 +518,10 @@ fun ScheduleScreen(
                 items(simpleForSelected, key = { "sm-${it.id}" }) { ev ->
                     SimpleEventCard(
                         event = ev,
-                        onDelete = { viewModel.deleteSimpleEvent(ev.id) }
+                        onDelete = { viewModel.deleteSimpleEvent(ev.id) },
+                        onSave = { title, dayMs, minutes, memo ->
+                            viewModel.editSimpleEvent(ev.id, title, dayMs, minutes, memo)
+                        }
                     )
                 }
             }
@@ -676,10 +679,14 @@ private fun PendingCollabDayCard(
 @Composable
 private fun SimpleEventCard(
     event: com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    /** 제목·날짜·시간·메모를 고쳐 저장. (2026-09-18 사장님) */
+    onSave: (title: String, dayMs: Long, minutes: Int?, memo: String) -> Unit = { _, _, _, _ -> }
 ) {
+    // 카드를 누르면 **고치기** 창. 전엔 "지울까요?" 만 물어서 고칠 길이 아예 없었다. (2026-09-18 사장님)
+    var editing by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    TossCard(onClick = { confirmDelete = true }) {
+    TossCard(onClick = { editing = true }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(TossTextTertiary))
             Spacer(Modifier.width(10.dp))
@@ -701,6 +708,14 @@ private fun SimpleEventCard(
             }
         }
     }
+    if (editing) {
+        SimpleEventEditDialog(
+            event = event,
+            onSave = { t, d, m, memo -> editing = false; onSave(t, d, m, memo) },
+            onAskDelete = { editing = false; confirmDelete = true },
+            onDismiss = { editing = false }
+        )
+    }
     if (confirmDelete) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -717,6 +732,155 @@ private fun SimpleEventCard(
                 androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) { Text("닫기") }
             }
         )
+    }
+}
+
+/**
+ * 간단 일정 고치기 창 — 제목 · 날짜 · 시간 · 메모. (2026-09-18 사장님)
+ *   등록 화면(ScheduleAddScreen)과 같은 순서·같은 말로 맞춘다. 지우기는 맨 아래 조용히.
+ */
+@OptIn(
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class
+)
+@Composable
+private fun SimpleEventEditDialog(
+    event: com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity,
+    onSave: (title: String, dayMs: Long, minutes: Int?, memo: String) -> Unit,
+    onAskDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var title by remember { mutableStateOf(event.title) }
+    var memo by remember { mutableStateOf(event.memo) }
+    var dayMs by remember { mutableLongStateOf(event.dayStartMs) }
+    var minutes by remember { mutableStateOf(event.minutes) }
+    var datePickerOpen by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)
+        ) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+            Text("간단 일정 고치기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(14.dp))
+
+            Text("제목", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            Spacer(Modifier.height(5.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = title, onValueChange = { title = it },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("예: 자재 받는 날") }
+            )
+
+            Spacer(Modifier.height(12.dp))
+            Text("날짜", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            Spacer(Modifier.height(5.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                    .clickable { datePickerOpen = true }.padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    DateTimeUtils.formatScheduledDate(dayMs),
+                    fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text("\u203A", fontSize = 17.sp, color = TossTextTertiary)
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Text("시간", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            Spacer(Modifier.height(5.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf<Pair<String, Int?>>(
+                    "하루 종일" to null, "오전 8시" to 8 * 60, "오전 9시" to 9 * 60,
+                    "오전 10시" to 10 * 60, "오후 1시" to 13 * 60, "오후 3시" to 15 * 60
+                ).forEach { (label, m) ->
+                    val on = minutes == m
+                    Box(
+                        Modifier.clip(RoundedCornerShape(999.dp))
+                            .background(if (on) TossBlue else TossGrayBg)
+                            .clickable { minutes = m }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                            color = if (on) Color.White else TossTextSecondary
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Text("메모 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            Spacer(Modifier.height(5.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = memo, onValueChange = { memo = it },
+                modifier = Modifier.fillMaxWidth(), minLines = 2,
+                placeholder = { Text("예: 케라폭시 20개") }
+            )
+
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                        .clickable { onDismiss() }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("취소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                Box(
+                    Modifier.weight(1.4f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                        .clickable {
+                            val t = title.trim()
+                            if (t.isBlank()) {
+                                android.widget.Toast.makeText(ctx, "제목을 적어주세요", android.widget.Toast.LENGTH_SHORT).show()
+                            } else onSave(t, dayMs, minutes, memo.trim())
+                        }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("저장", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "\uD83D\uDDD1 이 일정 지우기",
+                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+                color = com.detailline.callfollowcrm.presentation.theme.TossError,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .clickable { onAskDelete() }.padding(vertical = 8.dp)
+            )
+        }
+    }
+
+    if (datePickerOpen) {
+        val toUtcMidnight = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
+        val state = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = toUtcMidnight(dayMs)
+        )
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { datePickerOpen = false },
+            colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = Color.White),
+            tonalElevation = 0.dp,
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    state.selectedDateMillis?.let { dayMs = DateTimeUtils.startOfDay(it - java.util.TimeZone.getDefault().getOffset(it)) }
+                    datePickerOpen = false
+                }) { Text("확인", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { datePickerOpen = false }) { Text("취소") }
+            }
+        ) {
+            androidx.compose.material3.DatePicker(
+                state = state,
+                colors = androidx.compose.material3.DatePickerDefaults.colors(
+                    containerColor = Color.White,
+                    selectedDayContainerColor = TossBlue,
+                    selectedDayContentColor = Color.White,
+                    todayDateBorderColor = TossBlue,
+                    todayContentColor = TossBlue
+                )
+            )
+        }
     }
 }
 

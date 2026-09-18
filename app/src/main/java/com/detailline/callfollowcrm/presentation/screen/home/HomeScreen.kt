@@ -763,6 +763,7 @@ fun HomeScreen(
                         onOpenCollabSite = onOpenCollabSiteDetail,
                         onGoSchedule = onOpenSchedule,
                         onOpenScheduleAtDay = onOpenScheduleAtDay,
+                        onOpenChat = { phone, cid -> onOpenChat(phone, cid) },
                         onAddSchedule = onAddSchedule,
                         onComplete = { c -> completeTarget = c },
                         onCompleteCollabSite = { s -> viewModel.completeCollabSite(s) },
@@ -1919,6 +1920,8 @@ private fun TodayHeroCard(
     onOpenCollabSite: (String) -> Unit = {},
     onGoSchedule: () -> Unit,
     onOpenScheduleAtDay: (Long) -> Unit,
+    /** '다음 시공' 을 누르면 그 손님 문자로. (2026-09-18 사장님) */
+    onOpenChat: (phone: String, customerId: Long?) -> Unit = { _, _ -> },
     onAddSchedule: () -> Unit,
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
     onCompleteCollabSite: (com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) -> Unit = {},
@@ -1980,8 +1983,15 @@ private fun TodayHeroCard(
                     .clip(RoundedCornerShape(14.dp))
                     .background(TossGrayBg)
                     .clickable {
+                        // 한 곳이면 **그 손님 문자로**. 여러 곳이면 줄마다 따로 받으므로 일정 탭으로.
+                        //   (2026-09-18 사장님 "클릭했을때는 고객 문자내용으로 넘어가게")
+                        val one = nextJobs.singleOrNull()
                         val day = nextJobs.firstOrNull()?.scheduledWorkDate
-                        if (day != null) onOpenScheduleAtDay(day) else onGoSchedule()
+                        when {
+                            one != null -> onOpenChat(one.phoneNumber, one.id)
+                            day != null -> onOpenScheduleAtDay(day)
+                            else -> onGoSchedule()
+                        }
                     }
                     .padding(horizontal = 13.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -2004,23 +2014,34 @@ private fun TodayHeroCard(
                             val time = j.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
                             // nx-when (11.5px w800 blue)
                             Text("다음 시공 · $word$time", color = TossBlue, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
-                            // nx-name (14px w700 t1)
+                            // nx-name — **주소가 먼저다.** 번호는 어디로 가는지 못 알려준다.
+                            //   (2026-09-18 사장님 "번호를 봐도 뭐 어쩌라고..? 이런 느낌")
+                            //   이름이 있으면 주소 뒤에 작게 붙인다. 주소가 없을 때만 이름·번호로 대신한다.
                             Text(
-                                (j.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(j.phoneNumber)) +
-                                    " · " + shortAddr(j.address),
+                                nextJobHeadline(j),
                                 color = TossTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
+                            nextJobWho(j)?.let { who ->
+                                Text(
+                                    who, color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
+                                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
+                            }
                         } else {
                             Text(
                                 "다음 시공 · $word · ${n}곳",
                                 color = TossBlue, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold
                             )
                             nextJobs.forEach { j ->
-                                // nx-line (13px w700) — nx-t 시간칩 + 이름·주소
+                                // nx-line (13px w700) — nx-t 시간칩 + 주소. 줄을 누르면 그 손님 문자로. (2026-09-18)
                                 Row(
-                                    Modifier.padding(top = 4.dp),
+                                    Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onOpenChat(j.phoneNumber, j.id) }
+                                        .padding(top = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     j.scheduledWorkMinutes?.let { mins ->
@@ -2034,8 +2055,7 @@ private fun TodayHeroCard(
                                         Spacer(Modifier.width(7.dp))
                                     }
                                     Text(
-                                        (j.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(j.phoneNumber)) +
-                                            " · " + shortAddr(j.address),
+                                        nextJobHeadline(j),
                                         color = TossTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
@@ -2224,6 +2244,23 @@ private fun CollabSettleCard(
 }
 
 /** 프로토 shortAddr — 주소에서 "구/시" + "동" 만 추려 짧게. 없으면 "주소 미입력". */
+/**
+ * '다음 시공' 한 줄 — **어디로 가는지**를 먼저 말한다. (2026-09-18 사장님)
+ *   주소가 있으면 주소(동·호수까지), 없으면 그때만 이름·번호로 대신한다.
+ *   `shortAddr`(구·동만) 는 오늘 시공 다크 카드용이라 여기선 안 쓴다 — "화성시" 만 봐선 어딘지 모른다.
+ */
+private fun nextJobHeadline(j: com.detailline.callfollowcrm.data.local.entity.CustomerEntity): String {
+    val addr = j.address?.trim()?.takeIf { it.isNotBlank() }
+    if (addr != null) return addr.removePrefix("경기 ").removePrefix("서울 ").removePrefix("인천 ")
+    return j.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(j.phoneNumber)
+}
+
+/** 주소를 크게 쓴 줄 아래 작게 붙는 '누구' — 주소가 없으면(이미 이름을 썼으면) 안 붙인다. */
+private fun nextJobWho(j: com.detailline.callfollowcrm.data.local.entity.CustomerEntity): String? {
+    if (j.address.isNullOrBlank()) return null
+    return j.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(j.phoneNumber)
+}
+
 private fun shortAddr(a: String?): String {
     if (a.isNullOrBlank()) return "주소 미입력"
     val gu = Regex("([가-힣]+[구시])").find(a)?.value

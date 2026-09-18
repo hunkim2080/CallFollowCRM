@@ -92,6 +92,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         container.simpleEventRepository.delete(id)
     }
 
+    /** 간단 일정 고치기 — 제목·날짜·시간·메모. (2026-09-18 사장님 "수정할 수도 있는 건데") */
+    fun editSimpleEvent(id: Long, title: String, dayMs: Long, minutes: Int?, memo: String) =
+        viewModelScope.launch {
+            container.simpleEventRepository.edit(id, title, dayMs, minutes, memo)
+        }
+
     private val ownerPhone: String get() = container.preferences.bizPhone.trim()
 
     /** 팀원 목록 (배정 시트용). 비즈니스 미설정/미가입이면 빈 리스트 → 배정 줄 숨김. */
