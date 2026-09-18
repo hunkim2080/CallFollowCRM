@@ -23,6 +23,19 @@ interface CustomerDao {
     @Query("SELECT * FROM customers WHERE phoneNumber = :phoneNumber LIMIT 1")
     suspend fun findByPhone(phoneNumber: String): CustomerEntity?
 
+    /**
+     * 끝 8자리로 찾기 — **같은 사람이 두 명으로 갈리는 것**을 막는다. (2026-09-18 실기에서 발견)
+     *   저장된 번호는 "01034045247"(문자 수신), 일정 등록 화면은 "010-3404-5247"(하이픈) 을 넘겨
+     *   위의 정확히-같은지 비교가 빗나가 **고객이 하나 더 만들어졌다**(225→226명).
+     *   앱의 다른 곳(SmsSender·CallLogHelper)도 이미 끝 8자리를 사람 식별 키로 쓴다.
+     */
+    @Query(
+        "SELECT * FROM customers WHERE " +
+            "REPLACE(REPLACE(REPLACE(REPLACE(phoneNumber,'-',''),' ',''),'(',''),')','') " +
+            "LIKE '%' || :last8 LIMIT 1"
+    )
+    suspend fun findByDigitsSuffix(last8: String): CustomerEntity?
+
     @Query("SELECT * FROM customers WHERE id = :id LIMIT 1")
     suspend fun findById(id: Long): CustomerEntity?
 

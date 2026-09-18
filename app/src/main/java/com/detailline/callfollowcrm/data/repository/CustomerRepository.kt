@@ -150,7 +150,12 @@ class CustomerRepository(
         leadHeat: LeadHeat? = null
     ): CustomerEntity = writeMutex.withLock {
         val now = System.currentTimeMillis()
-        val existing = dao.findByPhone(phoneNumber)
+        // 하이픈/공백 때문에 같은 사람을 못 알아보고 **고객을 하나 더 만들던 것**. (2026-09-18)
+        //   정확히 같은 문자열로 먼저 찾고, 없으면 끝 8자리로 한 번 더.
+        val existing = dao.findByPhone(phoneNumber) ?: run {
+            val d = phoneNumber.filter { it.isDigit() }
+            if (d.length >= 8) runCatching { dao.findByDigitsSuffix(d.takeLast(8)) }.getOrNull() else null
+        }
         if (existing == null) {
             val entity = CustomerEntity(
                 phoneNumber = phoneNumber,
