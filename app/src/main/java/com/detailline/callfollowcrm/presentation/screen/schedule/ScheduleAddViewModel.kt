@@ -129,11 +129,13 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                     depositPaidAt = depositPaidAtMs,
                     now = nowMs
                 )
-                // 돈(총액·계약금)은 Stage A 에선 기존대로 고객에도 기록 — 정산·미수금 계산이 그대로 맞게. (건별 정산은 Stage B)
                 if (address.isNotBlank()) container.customerRepository.updateAddress(id, address)
-                if (totalAmount != null) container.customerRepository.updateTotalAmount(id, totalAmount)
-                if (depositAmount != null) container.customerRepository.updateDepositAmount(id, depositAmount)
-                if (depositPaidAtMs != null) container.customerRepository.updateDepositPaidAt(id, depositPaidAtMs)
+                // 돈은 **addJob 이 새 건에 이미 넣었다.** 여기서 고객 카드에 또 쓰면,
+                //   그 값이 '대표 건'(=오늘 이후 가장 가까운 건) 전표로 미러링돼
+                //   **엉뚱한 건의 금액을 덮어쓴다.** (2026-09-18 실기에서 확인:
+                //   2차 11/17·90만을 등록했더니 1차 10/20 의 50만이 90만으로 바뀜)
+                //   대신 고객 카드를 **대표 건 값으로** 맞춘다 — 방향은 언제나 jobs → customers.
+                container.jobRepository.syncMoneyFromRepresentative(id, nowMs)
                 // 일당 배정 — 일정↔정산 연결(자동 차감) + 함께한 현장 기록.
                 if (crewWorkers.isNotEmpty() && crewWage > 0L) {
                     for (w in crewWorkers) {

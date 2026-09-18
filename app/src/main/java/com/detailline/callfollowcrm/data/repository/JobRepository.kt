@@ -268,7 +268,14 @@ class JobRepository(
      *   건의 돈이 그대로 남아 "취소했는데 금액이 남아 있다" 가 된다. 남은 건이 없으면 손대지 않는다
      *   (호출부가 '완전 백지' 를 따로 처리한다).
      */
-    private suspend fun syncMoneyFromRepresentative(customerId: Long, now: Long) {
+    /**
+     * 고객 카드의 돈을 **대표 건 값으로** 맞춘다 (jobs → customers, 한 방향).
+     *   반대 방향(customers → 대표 건)으로 쓰면 **엉뚱한 건의 돈을 덮는다.**
+     *   실제 사고(2026-09-18): 일정 등록으로 2차(11/17·90만)를 넣었더니
+     *   고객 카드에 90만이 써졌고, 그게 대표 건인 **1차(10/20)** 전표로 미러링돼
+     *   1차 금액 50만이 90만으로 바뀌었다.
+     */
+    suspend fun syncMoneyFromRepresentative(customerId: Long, now: Long) {
         val c = customerDao.findById(customerId) ?: return
         val jobs = jobDao.scheduledByCustomerOnce(customerId)
         if (jobs.isEmpty()) return

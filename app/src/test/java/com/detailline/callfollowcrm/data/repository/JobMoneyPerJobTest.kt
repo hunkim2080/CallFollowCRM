@@ -139,6 +139,30 @@ class JobMoneyPerJobTest {
         }
     }
 
+    // ── 일정 등록 경로 (2026-09-18 실기에서 터진 자리) ──────────────────────────
+    @Test
+    fun `대표 건이 아닌 새 건을 등록해도 대표 건 돈은 그대로다`() = runTest {
+        // 1차(내일·100만)가 대표. 2차를 일주일 뒤로 80만에 등록한 직후 상태.
+        val jobDao = mock<JobDao> {
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(firstJob(), secondJob())
+        }
+        val customerDao = mock<CustomerDao> {
+            onBlocking { findById(1L) } doReturn customer()
+        }
+        val repo = JobRepository(jobDao, customerDao)
+
+        // 등록 화면이 하는 일 = 고객 카드를 **대표 건 값으로** 맞추기 (반대 방향 금지)
+        repo.syncMoneyFromRepresentative(1L, now)
+
+        argumentCaptor<CustomerEntity>().apply {
+            verifyBlocking(customerDao, atLeastOnce()) { update(capture()) }
+            val last = allValues.last()
+            assertEquals("고객 카드는 대표 건(1차) 금액이어야 한다", 1_000_000L, last.totalAmount)
+        }
+        // 전표는 아무것도 안 건드린다 — 2차 금액이 1차로 흘러들면 안 된다
+        verifyBlocking(jobDao, never()) { update(any()) }
+    }
+
     // ── CASE 2-6 ────────────────────────────────────────────────────────────────
     @Test
     fun `1차보다 앞 날짜로 현장을 더 잡아도 1차 전표는 안 건드린다`() = runTest {
