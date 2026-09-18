@@ -48,6 +48,62 @@ class CashFlowCalcTest {
         label: String = ""
     ) = ManualCashEntity(id, day, amount, income, done, label, 0L, 0L)
 
+    private fun job(
+        id: Long = 1,
+        customerId: Long = 1,
+        total: Long? = null,
+        deposit: Long? = null,
+        depositPaidAt: Long? = null,
+        balance: Long? = null,
+        balancePaidAt: Long? = null,
+        scheduled: Long? = null
+    ) = com.detailline.callfollowcrm.data.local.entity.JobEntity(
+        id = id,
+        customerId = customerId,
+        scheduledWorkDate = scheduled,
+        totalAmount = total,
+        depositAmount = deposit,
+        depositPaidAt = depositPaidAt,
+        balanceAmount = balance,
+        balancePaidAt = balancePaidAt,
+        createdAt = 0L,
+        updatedAt = 0L
+    )
+
+    // ── 돈 이중 합산 (2026-09-18 연결부 점검에서 발견) ─────────────────────────
+    //   v49 부터 고객 카드의 돈이 '건 장부(jobs)' 에도 **똑같이** 들어간다
+    //   (v49 복사 · v52/v53 보정 · CustomerRepository.mutate 미러).
+    //   그런데 달력은 customers 와 jobs 를 **그냥 더해서**, 계약금 20만원이 40만원으로 잡혔다.
+    //   규칙: **건이 하나라도 있는 고객은 건 장부만 센다.** 건이 없는 고객만 고객 카드로 센다.
+
+    @Test fun `같은 입금이 고객카드와 건장부 양쪽에 있어도 한 번만 센다`() {
+        val c = customer(id = 1, total = 1_000_000, deposit = 200_000, depositPaidAt = day1,
+                         balance = 800_000, balancePaidAt = day2, scheduled = day2)
+        val j = job(id = 10, customerId = 1, total = 1_000_000, deposit = 200_000, depositPaidAt = day1,
+                    balance = 800_000, balancePaidAt = day2, scheduled = day2)
+        val items = CashFlowCalc.buildItems(listOf(c), emptyList(), emptyList(), 0L, listOf(j))
+        val income = items.filter { it.isIncome && it.isDone }.sumOf { it.amount }
+        assertEquals("계약금 20만 + 잔금 80만 = 100만. 두 번 세면 200만이 된다", 1_000_000L, income)
+    }
+
+    @Test fun `건이 두 개면 각 건의 돈을 따로 센다`() {
+        val c = customer(id = 1, total = 600_000, deposit = 200_000, depositPaidAt = day1, scheduled = day2)
+        val j1 = job(id = 10, customerId = 1, total = 600_000, deposit = 200_000, depositPaidAt = day1, scheduled = day2)
+        val j2 = job(id = 11, customerId = 1, total = 900_000, deposit = 300_000, depositPaidAt = day2,
+                     scheduled = day2 + 7L * 24 * 3600 * 1000)
+        val items = CashFlowCalc.buildItems(listOf(c), emptyList(), emptyList(), 0L, listOf(j1, j2))
+        val income = items.filter { it.isIncome && it.isDone }.sumOf { it.amount }
+        assertEquals("1차 계약금 20만 + 2차 계약금 30만 = 50만", 500_000L, income)
+    }
+
+    @Test fun `건 장부가 아예 없는 고객은 고객카드로 센다`() {
+        // 돈은 넣었는데 시공일을 안 잡은 고객 — 건 행이 안 만들어진다. 이 돈이 사라지면 안 된다.
+        val c = customer(id = 1, total = 500_000, deposit = 150_000, depositPaidAt = day1)
+        val items = CashFlowCalc.buildItems(listOf(c), emptyList(), emptyList(), 0L, emptyList())
+        val income = items.filter { it.isIncome && it.isDone }.sumOf { it.amount }
+        assertEquals(150_000L, income)
+    }
+
     @Test fun `계약금 받음은 그날 확정수입`() {
         val items = CashFlowCalc.buildItems(
             listOf(customer(total = 1_000_000, deposit = 300_000, depositPaidAt = day1, balance = 700_000, scheduled = day2)),

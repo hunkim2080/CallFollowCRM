@@ -79,15 +79,21 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
         var revenue = 0L; var prevRevenue = 0L; var jobs = 0; var newCustomers = 0
         // 2) 미수 (현재 시점).
         var outstandingNow = 0L; var moneyCust = 0; var paidOffNow = 0
+        // 🔴 건이 있는 고객의 '번 돈' 은 아래 건 장부 루프에서 센다 — 여기서 또 더하면 두 번 잡힌다. (2026-09-18)
+        //   v49 부터 고객 카드 돈이 건 장부에도 똑같이 들어간다. 정산·브리핑·달력과 같은 규칙.
+        //   ※ 미수(outstandingNow)·고객 수는 고객 단위 집계라 그대로 둔다.
+        val idsWithJobs = jobHistory.map { it.customerId }.toHashSet()
         for (c in customers) {
             val row = SettlementCalc.rowOf(c)
-            c.depositPaidAt?.let {
-                if (it in from until to) revenue += row.depositAmount
-                if (it in prevFrom until prevTo) prevRevenue += row.depositAmount
-            }
-            c.balancePaidAt?.let {
-                if (it in from until to) revenue += row.balanceAmount
-                if (it in prevFrom until prevTo) prevRevenue += row.balanceAmount
+            if (c.id !in idsWithJobs) {
+                c.depositPaidAt?.let {
+                    if (it in from until to) revenue += row.depositAmount
+                    if (it in prevFrom until prevTo) prevRevenue += row.depositAmount
+                }
+                c.balancePaidAt?.let {
+                    if (it in from until to) revenue += row.balanceAmount
+                    if (it in prevFrom until prevTo) prevRevenue += row.balanceAmount
+                }
             }
             c.scheduledWorkDate?.let { if (it in from until to) jobs++ }
             if (c.createdAt in from until to) newCustomers++

@@ -185,7 +185,8 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         )
     }
 
-    /** 그 달에 받은 돈(원) = 계약금/잔금 중 paidAt 이 [start,end) 인 것 합. 현재 건(customers) + 재방문 이력(jobs) 모두.
+    /** 그 달에 받은 돈(원) = 계약금/잔금 중 paidAt 이 [start,end) 인 것 합.
+     *   건이 있는 고객은 건 장부(jobs)만, 건이 없는 고객만 customers 로 — **두 번 세지 않기 위해.** (2026-09-18)
      *   jobs 를 빼먹으면 재방문 시 이관된 완료 건의 매출이 증발한다(돈감사 rank1). 귀속 규칙은 SettlementCalc.receivedInRange 로 통일. */
     private fun receivedInMonth(
         customers: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
@@ -193,8 +194,11 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         start: Long,
         end: Long
     ): Long {
+        // 🔴 건이 있는 고객은 **건 장부만** 센다 — 안 그러면 같은 입금이 두 번 잡힌다. (2026-09-18)
+        //   (v49 부터 고객 카드 돈이 건 장부에도 똑같이 들어간다. CashFlowCalc 와 같은 규칙.)
+        val idsWithJobs = jobs.map { it.customerId }.toHashSet()
         var sum = 0L
-        customers.forEach { c -> sum += SettlementCalc.receivedInRange(c, start, end) }
+        customers.forEach { c -> if (c.id !in idsWithJobs) sum += SettlementCalc.receivedInRange(c, start, end) }
         jobs.forEach { j ->
             sum += SettlementCalc.receivedInRange(j.totalAmount, j.depositAmount, j.depositPaidAt, j.balanceAmount, j.balancePaidAt, start, end)
         }

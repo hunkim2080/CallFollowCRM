@@ -69,7 +69,15 @@ object CashFlowCalc {
         jobs: List<JobEntity> = emptyList()   // 재방문으로 이관된 지난 시공 이력 — 그 입금도 확정 수입으로. (2026-08-11 돈감사 rank1)
     ): List<CashItem> {
         val out = ArrayList<CashItem>()
+        // 🔴 같은 입금을 두 번 세지 않는다. (2026-09-18 연결부 점검에서 발견)
+        //   v49 부터 고객 카드의 돈이 '건 장부(jobs)' 에도 **똑같이** 들어간다
+        //   (v49 복사 · v52/v53 보정 · CustomerRepository.mutate 미러).
+        //   그런데 아래 두 반복문이 그냥 더해서, 계약금 20만원이 40만원으로 잡혔다.
+        //   규칙: **건이 하나라도 있는 고객은 건 장부만 센다.** 건이 없는 고객만 고객 카드로 센다
+        //         (돈은 넣었는데 시공일을 안 잡아 건 행이 없는 경우 — 그 돈이 사라지면 안 된다).
+        val customerIdsWithJobs = jobs.map { it.customerId }.toHashSet()
         for (c in customers) {
+            if (c.id in customerIdsWithJobs) continue
             if (!SettlementCalc.hasMoney(c)) continue
             val row = SettlementCalc.rowOf(c)
             val hasName = c.name?.isNotBlank() == true

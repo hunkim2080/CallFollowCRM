@@ -223,7 +223,15 @@ object AddressExtractor {
     fun extractOne(body: String): String? = findOne(body)?.text
 
     /** [extractOne] 과 같은 규칙이되 **위치까지** 준다. */
-    fun findOne(body: String): Found? {
+    fun findOne(body: String): Found? = findOneRaw(body)?.let { f ->
+        // 문자에서 주소가 **두 줄로 쪼개져** 오는 일이 흔하다(택배 안내 등).
+        //   그대로 저장하면 주소 안에 줄바꿈이 남아 내비·표시가 이상해진다 → 한 칸 띄어쓰기로 편다.
+        //   위치(start/end)는 원문 기준이라 그대로 둔다 — 채팅 파란 밑줄이 어긋나면 안 된다. (2026-09-18)
+        val flat = f.text.replace(Regex("\\s+"), " ").trim()
+        if (flat == f.text) f else f.copy(text = flat)
+    }
+
+    private fun findOneRaw(body: String): Found? {
         if (body.length < 5) return null
         // 패턴 1·2 매칭 시 매칭 뒤 동호수 자동 합치기 (사장님 #6 통점).
         for (p in listOf(pattern0, pattern1, pattern2)) {
