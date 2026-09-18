@@ -284,6 +284,65 @@ class JobRepository(
         )
     }
 
+    /**
+     * 이 **건 하나**의 돈을 고친다. (2026-09-18 · docs/PLAN_job_centric_migration.md Step 2)
+     *   null 을 넘기면 "안 바꿈"이 아니라 **그 값으로 지정**이다(지우려면 null).
+     *   고객 카드(미러)는 대표 건일 때만 따라간다 — recomputeMirror 가 일정만 옮기므로
+     *   돈은 호출부가 필요할 때 CustomerRepository 로 같이 쓴다(Step 3 에서 한 방향으로 정리).
+     */
+    suspend fun updateMoney(
+        jobId: Long,
+        totalAmount: Long?,
+        depositAmount: Long?,
+        depositPaidAt: Long?,
+        balanceAmount: Long?,
+        balancePaidAt: Long?,
+        now: Long = System.currentTimeMillis()
+    ) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(
+            j.copy(
+                totalAmount = totalAmount,
+                depositAmount = depositAmount,
+                depositPaidAt = depositPaidAt,
+                balanceAmount = balanceAmount,
+                balancePaidAt = balancePaidAt,
+                updatedAt = now
+            )
+        )
+    }
+
+    /**
+     * 이 **건 하나**를 완료 처리(또는 되돌리기). (2026-09-18)
+     *   전엔 완료가 고객 카드에만 찍혀서, 건 탭의 "완료" 표시가 틀릴 수 있었다
+     *   (jobs.workCompletedAt 은 마이그레이션·아카이브 때만 채워졌다).
+     */
+    suspend fun setWorkCompleted(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(workCompletedAt = at, updatedAt = now))
+    }
+
+    /** 이 **건 하나**의 현장 주소. 건마다 현장이 다르다(1차 수원 / 2차 강남). */
+    suspend fun updateAddress(jobId: Long, address: String?, now: Long = System.currentTimeMillis()) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(address = address?.trim()?.takeIf { it.isNotBlank() }, updatedAt = now))
+        recomputeMirror(j.customerId, now)
+    }
+
+    /** 이 **건 하나**의 메모. 고객 전체 메모(customers.memo)와 다른 것 — 주차·열쇠·자재처럼 현장 것. */
+    suspend fun updateMemo(jobId: Long, memo: String, now: Long = System.currentTimeMillis()) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(memo = memo, updatedAt = now))
+    }
+
+    /** 그 고객의 **대표 건**(고객 카드가 지금 보여주는 건) id. 없으면 null. */
+    suspend fun representativeJobId(customerId: Long, now: Long = System.currentTimeMillis()): Long? {
+        val jobs = jobDao.scheduledByCustomerOnce(customerId)
+        if (jobs.isEmpty()) return null
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        return (jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()).id
+    }
+
     /** 이 고객에게 시공일이 잡힌 건이 하나라도 남아 있나. 취소 후 '고객 카드도 백지로 할지' 판단용. */
     suspend fun hasScheduledJob(customerId: Long): Boolean =
         jobDao.scheduledByCustomerOnce(customerId).isNotEmpty()

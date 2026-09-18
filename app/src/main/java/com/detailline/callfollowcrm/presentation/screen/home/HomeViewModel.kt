@@ -1114,11 +1114,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 오늘 시공 히어로 [완료] → 완료처리. 그 현장을 오늘 히어로에서 제외(완료 반영). (2026-06-08 #2) */
     fun markJobCompleted(customerId: Long) = viewModelScope.launch {
-        runCatching { container.customerRepository.updateWorkCompletedAt(customerId, System.currentTimeMillis()) }
+        runCatching {
+            val now = System.currentTimeMillis()
+            container.customerRepository.updateWorkCompletedAt(customerId, now)
+            // 🔴 **건에도 찍는다.** 전엔 고객 카드에만 찍혀서 건 탭의 '완료' 표시가 틀렸다.
+            //   (jobs.workCompletedAt 은 마이그레이션·아카이브 때만 채워졌다. 2026-09-18 연결부 점검)
+            container.jobRepository.representativeJobId(customerId, now)
+                ?.let { container.jobRepository.setWorkCompleted(it, now, now) }
+        }
     }
     /** 완료 처리 되돌리기 (스낵바 '되돌리기'). */
     fun undoJobCompleted(customerId: Long) = viewModelScope.launch {
-        runCatching { container.customerRepository.updateWorkCompletedAt(customerId, null) }
+        runCatching {
+            val now = System.currentTimeMillis()
+            container.customerRepository.updateWorkCompletedAt(customerId, null)
+            container.jobRepository.representativeJobId(customerId, now)
+                ?.let { container.jobRepository.setWorkCompleted(it, null, now) }
+        }
     }
 
     /**
@@ -1130,6 +1142,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             val now = System.currentTimeMillis()
             val c = container.customerRepository.findById(customerId)
             container.customerRepository.updateWorkCompletedAt(customerId, now)
+            container.jobRepository.representativeJobId(customerId, now)
+                ?.let { container.jobRepository.setWorkCompleted(it, now, now) }   // 건에도 (2026-09-18)
             if (c != null) {
                 val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
                 if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)

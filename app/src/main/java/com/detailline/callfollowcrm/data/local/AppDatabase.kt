@@ -67,7 +67,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 53,
+    version = 54,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1015,6 +1015,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v54 — 완료 표시를 건 전표에도. (2026-09-18 연결부 점검)
+        //   완료 처리는 지금까지 **고객 카드에만** 찍혔다(홈 히어로 [완료] → customers.workCompletedAt).
+        //   그래서 건 탭의 '완료' 표시가 틀릴 수 있었다. 앞으로는 둘 다 찍고(HomeViewModel),
+        //   여기선 **이미 완료해둔 옛 건**을 한 번 맞춘다.
+        //   넣기만 하고 지우지 않는다. 이미 찍힌 건은 건드리지 않는다(사장님이 건별로 고쳤을 수 있다).
+        private val MIGRATION_53_54 = object : Migration(53, 54) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                runCatching {
+                db.execSQL(
+                    """
+                    UPDATE jobs SET
+                      workCompletedAt = (SELECT c.workCompletedAt FROM customers c WHERE c.id = jobs.customerId),
+                      updatedAt = strftime('%s','now') * 1000
+                    WHERE jobs.workCompletedAt IS NULL
+                      AND jobs.scheduledWorkDate IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1 FROM customers c
+                        WHERE c.id = jobs.customerId
+                          AND c.workCompletedAt IS NOT NULL
+                          AND c.scheduledWorkDate IS NOT NULL
+                          AND date(c.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                              = date(jobs.scheduledWorkDate / 1000, 'unixepoch', 'localtime')
+                      )
+                    """.trimIndent()
+                )
+                }
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -1034,7 +1063,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
-                    MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53
+                    MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.
