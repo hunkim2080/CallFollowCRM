@@ -10001,3 +10001,16 @@ Play 인앱 업데이트 도입 — 앱 켜면 Play 시트 자동 표시
   venv py_compile 통과, kickstart, `curl /api/refine` → **429 `{"code":"quota_day"}`** 확인.
 - ⚠️ 앱 쪽은 테스트폰에 설치 못 함(설치된 사본과 서명 불일치 — 지우면 데이터 소실). 폰 검증 미완.
 - 다음 액션(사장님): 구글 AI Studio 에 결제수단 등록하면 하루 한도 사라짐(다듬기 1회 1원 미만).
+
+## 2026-09-18 15:20 · android (+ 서버 직접 핫픽스)
+배포 안내 글자 깨짐 + 건별 돈 회귀 테스트 3건
+- 서버 `/internal/upload-apk`: `X-Release-Notes` 한글이 mojibake 였다. HTTP 헤더는 latin-1 로
+  디코드되는데 CI 가 UTF-8 로 보냄 → `notes.encode("latin-1").decode("utf-8")` 로 되돌림.
+  앱 업데이트 배너에 깨진 글자가 그대로 떴던 원인. 라이브 적용·재시작·health 200 확인.
+  (백업 main.py.bak3.*)
+- 앱 테스트 추가 `JobMoneyPerJobTest` — 폰에 설치를 못 해(플레이 서명) 코드로 못 박음:
+  CASE 2-2(2차 금액이 1차를 안 덮음) · 4-1(2차 취소해도 1차 돈 보존) · 2-6(앞 날짜 건 추가).
+  전체 유닛테스트 통과.
+- ⚠️ 테스트폰 = 사장님 S9+(SM-G965N), 설치 출처 com.android.vending = **플레이 비공개테스트**,
+  현재 versionCode **1792**. si0in.kr APK(1812)는 서명이 달라 덮어쓰기 불가 →
+  사장님이 플레이에서 업데이트해야 이번 건 단위 변경을 실제로 쓰게 됨.

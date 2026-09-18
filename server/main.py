@@ -12559,6 +12559,12 @@ async def internal_upload_apk(request: Request):
         vc, vn = 0, "?"
     # 변경내역(선택) — X-Release-Notes 헤더로 오면 APK 옆에 저장 → 업데이트 배너에 표시
     notes = request.headers.get("x-release-notes", "")
+    # HTTP 헤더는 latin-1 로 디코드된다 → UTF-8 한글이 mojibake 로 들어온다.
+    #   되돌려서 제대로 읽는다. 실패하면(원래 ASCII 등) 받은 그대로. (2026-09-18)
+    try:
+        notes = notes.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
     if notes.strip():
         try:
             (_APK_DIR / "release_notes.txt").write_text(
