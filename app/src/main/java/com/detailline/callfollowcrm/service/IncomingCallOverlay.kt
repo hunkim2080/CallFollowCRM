@@ -192,6 +192,12 @@ object IncomingCallOverlay {
             }.getOrNull()
 
             val schedule = scheduleLabelOf(customer)
+            // 칩 우선순위를 정하려고 — **아직 안 끝난 예약이 있으면** 그게 제일 급한 말이다.
+            //   ⚠️ 날짜가 남아 있다고 '다음 시공'이 아니다. 끝낸 건도 예약 날짜는 그대로 남는다
+            //     (실제 자료: 6/11 시공 완료인데 예약일도 6/11 → 칩이 "1번 시공" 으로 안 바뀌었다. 2026-09-19)
+            val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
+            val upcoming = customer?.workCompletedAt == null &&
+                (customer?.scheduledWorkDate ?: 0L) >= todayStart
             val addr = customer?.address?.trim()?.takeIf { it.isNotBlank() }
             val money = moneyLabelOf(customer)
 
@@ -212,6 +218,37 @@ object IncomingCallOverlay {
                 ?: lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
             val lastSumWhen = lastSum?.recordedAt?.takeIf { it > 0L }?.let { monthDay(it) }
 
+            // 🧾 **지난 시공** — 사장님: "기존고객은 언제 시공했었는지.. 얼마를 받았었는지.."
+            //   A/S 든 추가 시공이든 이 두 개를 모르면 통화가 안 된다.
+            val pastJobs = runCatching {
+                customer?.id?.let { cid ->
+                    container.jobRepository.byCustomerOnce(cid)
+                        .filter { it.workCompletedAt != null && it.cancelledAt == null }
+                        .sortedByDescending { it.workCompletedAt ?: 0L }
+                } ?: emptyList()
+            }.getOrDefault(emptyList())
+            val doneCount = pastJobs.size
+            val pastLines = pastJobs.take(2).map { j ->
+                // 돈은 정산 코드를 **그대로** 쓴다. 규칙을 다시 짜면 틀린다.
+                val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
+                // ⚠️ 건 메모를 '부위'로 쓰면 안 된다. 실제 사장님 메모는 **견적 내역**("모서리 2줄 4만원")
+                //   이라 "6월 11일 · 모서리 2줄 4만원 · 54만원 받음" 처럼 **금액이 두 번** 나왔다.
+                //   (2026-09-19 실제 자료로 확인) 사장님이 원한 건 "언제 · 얼마 받았나" 둘뿐이다.
+                buildString {
+                    append(monthDay(j.workCompletedAt ?: 0L))
+                    if (row.received > 0L) { append(" · "); append(wonText(row.received)); append(" 받음") }
+                    else { append(" · 받은 돈 없음") }
+                }
+            }
+
+            // 🔁 **몇 번째 통화인가** — 계약 전인데 또 거는 사람을 가려내려고. (2026-09-19 사장님)
+            //   지금 통화는 아직 기록에 없으니 **지난 기록 + 1** 이 이번 통화 번호다.
+            val records = runCatching {
+                container.callRecordRepository.observeByPhoneSuffix(digits.takeLast(8)).first()
+            }.getOrDefault(emptyList())
+            val callNo = records.size + 1
+            val firstAt = records.mapNotNull { it.startedAt ?: it.endedAt }.minOrNull()
+
             // 📅 **2주 일정** — 사장님: "전화와서 언제 스케줄되냐 가장 많이 물어보거든?" (2026-09-19)
             //   전화받은 그 자리에서 "언제 되냐"에 답하려고. 실패해도 카드는 떠야 하니 통째로 감싼다.
             val twoWeeks = runCatching { loadTwoWeeks(container) }.getOrDefault(emptyList())
@@ -226,6 +263,9 @@ object IncomingCallOverlay {
                 !known -> CallerStatus.NEW
                 customer?.workCompletedAt != null -> CallerStatus.COMPLETED
                 (customer?.scheduledWorkDate ?: 0L) > 0L -> CallerStatus.SCHEDULED
+                // 🔁 시공을 한 적도, 잡은 적도 없는데 **또 건다** = 사려는 사람.
+                //   (시공을 잡았으면 위에서 SCHEDULED 로 빠진다 — 그쪽이 할 말이 더 많다)
+                callNo >= 2 -> CallerStatus.REPEAT
                 else -> CallerStatus.EXISTING
             }
 
@@ -249,7 +289,12 @@ object IncomingCallOverlay {
                     lastSummary = if (locked) null else lastSumText,
                     lastSummaryWhen = if (locked) null else lastSumWhen,
                     // 잠금화면에선 일정도 가린다 — 돈·문자와 같은 이유(옆 사람 노출).
-                    schedule = if (locked) emptyList() else twoWeeks
+                    schedule = if (locked) emptyList() else twoWeeks,
+                    callNo = callNo,
+                    firstContactAt = firstAt,
+                    doneCount = doneCount,
+                    scheduleUpcoming = upcoming,
+                    pastJobLines = if (locked) emptyList() else pastLines
                 )
             }
         }
@@ -481,7 +526,7 @@ object IncomingCallOverlay {
     // ----- data -----
 
     /** 카드 색·라벨을 정하는 고객 상태(2026-07-02 사장님). 멀리서도 알아보게 상태별 색. */
-    enum class CallerStatus { NEW, SCHEDULED, COMPLETED, EXISTING }
+    enum class CallerStatus { NEW, REPEAT, SCHEDULED, COMPLETED, EXISTING }
 
     data class CallerState(
         val phoneNumber: String,
@@ -504,7 +549,17 @@ object IncomingCallOverlay {
          * 오늘부터 2주 일정. "언제 되냐"에 전화받은 자리에서 답하려고. (2026-09-19 사장님)
          * 잠금화면에선 비어 있다.
          */
-        val schedule: List<TwoWeekSchedule.Day> = emptyList()
+        val schedule: List<TwoWeekSchedule.Day> = emptyList(),
+        /** 이번이 몇 번째 통화인지(지난 기록 + 1). 계약 전인데 또 거는 사람을 가려낸다. */
+        val callNo: Int = 1,
+        /** 이 번호와 처음 통화한 때 — "9월 8일부터 문의 중". */
+        val firstContactAt: Long? = null,
+        /** 끝낸 시공이 몇 번인지 — 칩이 "기존 손님" 대신 "2번 시공" 이 된다. */
+        val doneCount: Int = 0,
+        /** 다음 시공이 잡혀 있는지. 잡혀 있으면 그 날짜가 칩에서 제일 급한 말이다. */
+        val scheduleUpcoming: Boolean = false,
+        /** 지난 시공 최대 2줄 — "6월 12일 · 거실·주방 · 180만원 받음". 잠금화면에선 비어 있다. */
+        val pastJobLines: List<String> = emptyList()
     )
 
     data class MsgPreview(val body: String, val sent: Boolean)
@@ -530,6 +585,7 @@ private val CompletedPalette = CardPalette(Color(0xFFFBDEDE), Color(0xFFF5C4C6),
 
 private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = when (status) {
     IncomingCallOverlay.CallerStatus.NEW -> NewPalette
+    IncomingCallOverlay.CallerStatus.REPEAT -> NewPalette
     IncomingCallOverlay.CallerStatus.SCHEDULED -> ScheduledPalette
     IncomingCallOverlay.CallerStatus.COMPLETED -> CompletedPalette
     IncomingCallOverlay.CallerStatus.EXISTING -> NeutralPalette
@@ -570,6 +626,12 @@ private class CallerCardView(
     private val msgBox = LinearLayout(context)
     private val divider = View(context)
     private val footTv = mkText(10.5f, 0xFF8E9BAC.toInt())
+
+    // ── 🧾 지난 시공 (2026-09-19) ──
+    private val pastBox = LinearLayout(context)
+    private val pastLabelTv = mkText(9.5f, 0xFF7FB4FF.toInt(), bold = true)
+    private val pastBigTv = mkText(12.5f, 0xFFFFFFFF.toInt(), bold = true)
+    private val pastSmallTv = mkText(10.5f, 0xFF9FB4D0.toInt())
 
     // ── 📅 2주 일정 (2026-09-19) ──
     private val schedBox = LinearLayout(context)
@@ -647,6 +709,15 @@ private class CallerCardView(
         newBox.addView(newTitleTv)
         newBox.addView(newDescTv, rowLp(2f))
         body.addView(newBox, rowLp(9f))
+
+        // 🧾 지난 시공 — 요약·문자보다 **위**에. 이걸 모르면 통화가 안 된다. (2026-09-19 사장님)
+        pastBox.orientation = VERTICAL
+        pastBox.background = roundBg(0x213182F6, 11f, 0x4D3182F6, 1f)
+        pastBox.setPadding(dp(10f), dp(8f), dp(10f), dp(9f))
+        pastBox.addView(pastLabelTv)
+        pastBox.addView(pastBigTv, rowLp(3f))
+        pastBox.addView(pastSmallTv, rowLp(2f))
+        body.addView(pastBox, rowLp(8f))
 
         body.addView(panel(sumBox, sumLabelTv, sumTextTv), rowLp(9f))
         body.addView(panel(msgBox, msgLabelTv, msgTextTv), rowLp(7f))
@@ -875,6 +946,22 @@ private class CallerCardView(
         return row
     }
 
+    /**
+     * "9월 8일" — 언제부터 문의 중인지. 해가 다르면 **연도를 말한다.**
+     *   작년 11월 건이 그냥 "11월 8일" 로 나와 **미래처럼 읽혔다**(실제 자료, 2026-09-20).
+     */
+    private fun monthDayOf(ms: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+        val nowY = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        val y = cal.get(java.util.Calendar.YEAR)
+        val md = "${cal.get(java.util.Calendar.MONTH) + 1}월 ${cal.get(java.util.Calendar.DAY_OF_MONTH)}일"
+        return when {
+            y == nowY -> md
+            y == nowY - 1 -> "작년 $md"
+            else -> "${y}년 $md"
+        }
+    }
+
     private fun monthOfDay(ms: Long): String {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
         return "${cal.get(java.util.Calendar.MONTH) + 1}월"
@@ -896,6 +983,8 @@ private class CallerCardView(
     private fun stripColor(st: IncomingCallOverlay.CallerState): Int = when {
         st.loading -> 0xFFAEB6C2.toInt()
         st.status == IncomingCallOverlay.CallerStatus.NEW -> 0xFFF59F0B.toInt()
+        // 🔁 또 거는 사람 = 보라. 신규(노랑)도 기존(파랑)도 아닌 **그 사이**라 색도 따로.
+        st.status == IncomingCallOverlay.CallerStatus.REPEAT -> 0xFF8B5CF6.toInt()
         st.status == IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF12B886.toInt()
         st.status == IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFF0436A.toInt()
         else -> 0xFF3182F6.toInt()
@@ -903,6 +992,7 @@ private class CallerCardView(
 
     private fun chipTextColor(st: IncomingCallOverlay.CallerState): Int = when (st.status) {
         IncomingCallOverlay.CallerStatus.NEW -> 0xFFFFC24D.toInt()
+        IncomingCallOverlay.CallerStatus.REPEAT -> 0xFFC4AFFF.toInt()
         IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF3FE0AE.toInt()
         IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFFF8FA9.toInt()
         else -> 0xFF7FB4FF.toInt()
@@ -915,9 +1005,17 @@ private class CallerCardView(
         nameTv.text = st.displayName
         nameTv.textSize = if (isNew) 19f else 17f
 
+        val isRepeat = !st.loading && st.status == IncomingCallOverlay.CallerStatus.REPEAT
         val chipLabel = when {
             st.loading -> "찾는 중…"
             isNew -> "✨ 신규"
+            // 🔁 **그 숫자 자체가 신호**다 — 세 번 거는 사람은 사려는 사람.
+            isRepeat -> "🔁 ${st.callNo}번째 통화"
+            // 다음 시공이 잡혀 있으면 그 날짜가 제일 급하다.
+            st.scheduleUpcoming && st.scheduleLabel != null -> st.scheduleLabel
+            // 아니면 **"2번 시공"** — "기존 손님" 보다 훨씬 많은 말을 한다. (2026-09-19 사장님)
+            //   언제 했는지는 바로 밑 '지난 시공' 줄에 있으니 칩에서 또 말하지 않는다.
+            st.doneCount > 0 -> "${st.doneCount}번 시공"
             st.scheduleLabel != null -> st.scheduleLabel
             st.status == IncomingCallOverlay.CallerStatus.COMPLETED -> "✅ 시공 완료"
             else -> "기존 손님"
@@ -928,7 +1026,12 @@ private class CallerCardView(
 
         // 이름이 번호 그대로면 아래 번호줄은 중복이라 안 띄운다.
         val formatted = PhoneNumberFormatter.format(st.phoneNumber)
-        subTv.text = if (st.displayName == formatted) "저장 안 된 번호" else formatted
+        val base = if (st.displayName == formatted) "저장 안 된 번호" else formatted
+        subTv.text = if (isRepeat) {
+            // 언제부터 재고 중인지 — 오래 재고 있으면 이번엔 밀어붙일 때다.
+            val since = st.firstContactAt?.let { " · ${monthDayOf(it)}부터 문의 중" } ?: ""
+            "아직 시공 전$since"
+        } else base
         subTv.visibility = View.VISIBLE
 
         show(addrTv, st.address?.let { "📍  $it" })
@@ -944,8 +1047,19 @@ private class CallerCardView(
 
         // 📅 처음 거는 사람은 보여줄 과거가 없으니 **일정을 바로 펼친다.**
         //   시공했던 손님은 기억(요약·문자)이 먼저라 버튼으로 접어 둔다.
-        schedAlwaysOpen = isNew
+        // 처음 거는 사람은 보여줄 과거가 없어서, **또 거는 사람은 사려는 사람**이라 바로 펼친다.
+        schedAlwaysOpen = isNew || isRepeat
         bindSchedule(st.schedule)
+
+        // 🧾 지난 시공 — 없으면 아예 안 띄운다.
+        pastBox.visibility = if (st.pastJobLines.isEmpty()) View.GONE else View.VISIBLE
+        if (st.pastJobLines.isNotEmpty()) {
+            pastLabelTv.text = "지난 시공"
+            pastBigTv.text = st.pastJobLines[0]
+            val more = st.pastJobLines.getOrNull(1)
+            pastSmallTv.visibility = if (more == null) View.GONE else View.VISIBLE
+            if (more != null) pastSmallTv.text = "그 전 — $more"
+        }
 
         val hasSum = !st.lastSummary.isNullOrBlank()
         sumBox.visibility = if (hasSum) View.VISIBLE else View.GONE
