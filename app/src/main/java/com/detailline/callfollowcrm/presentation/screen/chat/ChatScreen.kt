@@ -4105,7 +4105,10 @@ private fun Composer(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // ⊕ 액션 메뉴 (왼쪽) — 견적/일정/문구 풍선 팝업. 문자함이면 숨김.
+            //   ⚠️ 바닥 정렬이라 **알약 안쪽 여백(5dp)만큼 같이 띄워야** 📷 와 높이가 맞는다.
+            //     안 그러면 ⊕ 만 5dp 아래로 처져 보인다. (2026-09-19 사장님 "+ 버튼이 좀 아래 배치된 거 같은데")
             if (showActions) {
+                androidx.compose.foundation.layout.Box(Modifier.padding(bottom = 5.dp)) {
                 ComposerActionMenu(
                     onEstimate = onOpenEstimate,
                     onSchedule = onOpenSchedule,
@@ -4114,6 +4117,7 @@ private fun Composer(
                     canSaveText = input.isNotBlank() || attachments.isNotEmpty(),
                     onSaveText = onSaveAsTemplate
                 )
+                }
             }
             // field — 회색 알약(radius22) : [📷 왼쪽][textarea][✨ 오른쪽·글 있을 때만]
             Row(
@@ -4212,6 +4216,9 @@ private fun Composer(
                 val sendInteraction = remember { MutableInteractionSource() }
                 Surface(
                     modifier = Modifier
+                        // 보내기는 40dp(알약 속 아이콘 44dp보다 4 작다) → 여백 5 + 그 절반 2 = 7dp 라야
+                        //   가운데 높이가 📷·✨ 과 맞는다. (2026-09-19 사장님)
+                        .padding(bottom = 7.dp)
                         .size(40.dp)
                         .pressScale(sendInteraction)   // 눌림 '쏙'
                         .shadow(8.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = TossBlue, spotColor = TossBlue),
