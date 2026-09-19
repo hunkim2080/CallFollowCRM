@@ -75,6 +75,7 @@ import com.detailline.callfollowcrm.MainActivity
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PermissionHelper
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.util.TwoWeekSchedule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -211,6 +212,10 @@ object IncomingCallOverlay {
                 ?: lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
             val lastSumWhen = lastSum?.recordedAt?.takeIf { it > 0L }?.let { monthDay(it) }
 
+            // 📅 **2주 일정** — 사장님: "전화와서 언제 스케줄되냐 가장 많이 물어보거든?" (2026-09-19)
+            //   전화받은 그 자리에서 "언제 되냐"에 답하려고. 실패해도 카드는 떠야 하니 통째로 감싼다.
+            val twoWeeks = runCatching { loadTwoWeeks(container) }.getOrDefault(emptyList())
+
             // 저장 이름 없으면 기기 연락처(삼성)에서 조회 — "저장돼 있으면 그대로 반영". (2026-07-21 사장님)
             val name = customer?.name?.takeIf { it.isNotBlank() }
                 ?: com.detailline.callfollowcrm.util.ContactNameResolver.lookup(container.appContext, number)
@@ -242,10 +247,76 @@ object IncomingCallOverlay {
                     loading = false,
                     status = status,
                     lastSummary = if (locked) null else lastSumText,
-                    lastSummaryWhen = if (locked) null else lastSumWhen
+                    lastSummaryWhen = if (locked) null else lastSumWhen,
+                    // 잠금화면에선 일정도 가린다 — 돈·문자와 같은 이유(옆 사람 노출).
+                    schedule = if (locked) emptyList() else twoWeeks
                 )
             }
         }
+    }
+
+    /**
+     * 오늘부터 2주치 일정을 모은다 — **시공(건) + A/S + 시공막내 간단 일정**.
+     *
+     * ⚠️ **구글 캘린더는 안 읽는다.** 사장님: *"시공막내 캘린더만 읽자. 그래야 시공막내를
+     *   더 열심히 사용하지 ㅎ"* (2026-09-19). 개인·가족 일정이 통화 카드에 안 뜨는 것도 덤이다.
+     *
+     * 규칙은 전부 [TwoWeekSchedule] 에 있다 — 여기선 DB 모양만 맞춰 넘긴다.
+     */
+    private suspend fun loadTwoWeeks(
+        container: com.detailline.callfollowcrm.data.AppContainer
+    ): List<TwoWeekSchedule.Day> {
+        val customers = container.customerRepository.allOnce()
+        val nameOf = HashMap<Long, String>(customers.size)
+        val addrOf = HashMap<Long, String>(customers.size)
+        for (c in customers) {
+            nameOf[c.id] = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
+            c.address?.trim()?.takeIf { it.isNotBlank() }?.let { addrOf[c.id] = it }
+        }
+
+        val src = ArrayList<TwoWeekSchedule.Source>()
+
+        // 시공 — **건(jobs)이 일정의 주인**이다. 취소한 건은 뺀다(cancelledAt).
+        for (j in container.jobRepository.allOnce()) {
+            val day = j.scheduledWorkDate ?: continue
+            if (j.cancelledAt != null) continue
+            src += TwoWeekSchedule.Source(
+                tone = TwoWeekSchedule.Tone.JOB,
+                dayStartMs = day,
+                days = j.scheduledWorkDays,
+                minutes = j.scheduledWorkMinutes,
+                who = nameOf[j.customerId] ?: "손님",
+                // 건에 주소가 없으면 고객 주소를 쓴다 — 1차는 고객 쪽에만 있는 경우가 있다.
+                detail = j.address?.trim()?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId].orEmpty()
+            )
+        }
+
+        // A/S — 고객 표에 붙어 있고 주소는 고객 주소를 쓴다(A/S 전용 주소 칸이 없다).
+        for (c in customers) {
+            val day = c.asScheduledDate ?: continue
+            src += TwoWeekSchedule.Source(
+                tone = TwoWeekSchedule.Tone.AS,
+                dayStartMs = day,
+                days = c.asScheduledDays,
+                minutes = null,
+                who = nameOf[c.id] ?: "손님",
+                detail = addrOf[c.id].orEmpty()
+            )
+        }
+
+        // 내 일정 — 장모님댁·병원 같은 것. 사장님: "지역이 아니어도 보이면 좋을듯."
+        for (e in container.simpleEventRepository.allOnce()) {
+            src += TwoWeekSchedule.Source(
+                tone = TwoWeekSchedule.Tone.EVENT,
+                dayStartMs = e.dayStartMs,
+                days = 1,
+                minutes = e.minutes,
+                who = e.title,
+                detail = e.memo
+            )
+        }
+
+        return TwoWeekSchedule.days(src)
     }
 
     /**
@@ -428,7 +499,12 @@ object IncomingCallOverlay {
         /** 그 요약이 언제 통화 건지 ("9월 13일"). */
         val lastSummaryWhen: String? = null,
         /** 받은 뒤(통화 중)인지 — 카드를 안 내리고 표시만 바꾼다. */
-        val talking: Boolean = false
+        val talking: Boolean = false,
+        /**
+         * 오늘부터 2주 일정. "언제 되냐"에 전화받은 자리에서 답하려고. (2026-09-19 사장님)
+         * 잠금화면에선 비어 있다.
+         */
+        val schedule: List<TwoWeekSchedule.Day> = emptyList()
     )
 
     data class MsgPreview(val body: String, val sent: Boolean)
@@ -495,6 +571,27 @@ private class CallerCardView(
     private val divider = View(context)
     private val footTv = mkText(10.5f, 0xFF8E9BAC.toInt())
 
+    // ── 📅 2주 일정 (2026-09-19) ──
+    private val schedBox = LinearLayout(context)
+    private val schedLabelTv = mkText(9.5f, 0xFF5FD9B2.toInt(), bold = true)
+    private val schedFreeTv = mkText(12f, 0xFFFFFFFF.toInt(), bold = true)
+    private val schedHintTv = mkText(9.5f, 0xFF7FB4FF.toInt(), bold = true)
+    private val weekHeadRow = LinearLayout(context)
+    private val weekRow1 = LinearLayout(context)
+    private val weekRow2 = LinearLayout(context)
+    private val dayDetailBox = LinearLayout(context)
+    private val dayDetailTitleTv = mkText(11.5f, 0xFFFFFFFF.toInt(), bold = true)
+    private val dayDetailBody = LinearLayout(context)
+    /** 칸 14개 — 한 번 만들고 다시 칠한다. */
+    private val dayCells = ArrayList<DayCell>(14)
+    /** 접었다 폈다 하는 버튼 — 시공했던 손님은 기억이 먼저라 일정을 접어 둔다. */
+    private val schedToggleTv = mkText(11.5f, 0xFFCFE0FF.toInt(), bold = true)
+    private var schedExpanded = false
+    /** 신규는 접기 버튼 없이 항상 펼친다 — 볼 게 일정밖에 없다. */
+    private var schedAlwaysOpen = false
+    private var selectedDay = -1L
+    private var lastDays: List<TwoWeekSchedule.Day> = emptyList()
+
     private fun mkText(sp: Float, color: Int, bold: Boolean = false) = TextView(context).apply {
         textSize = sp
         setTextColor(color)
@@ -554,12 +651,233 @@ private class CallerCardView(
         body.addView(panel(sumBox, sumLabelTv, sumTextTv), rowLp(9f))
         body.addView(panel(msgBox, msgLabelTv, msgTextTv), rowLp(7f))
 
+        // 📅 2주 일정 — 접기 버튼 + 달력. (2026-09-19 사장님)
+        schedToggleTv.gravity = android.view.Gravity.CENTER
+        schedToggleTv.background = roundBg(0x17FFFFFF, 11f, 0x29FFFFFF, 1f)
+        schedToggleTv.setPadding(0, dp(9f), 0, dp(9f))
+        schedToggleTv.isClickable = true
+        schedToggleTv.setOnClickListener {
+            schedExpanded = !schedExpanded
+            applySchedVisibility()
+        }
+        body.addView(schedToggleTv, rowLp(9f))
+        body.addView(buildSchedBox(), rowLp(9f))
+
         divider.setBackgroundColor(0x1FFFFFFF)
         body.addView(divider, LayoutParams(LayoutParams.MATCH_PARENT, dp(1f)).apply { topMargin = dp(9f) })
         body.addView(footTv, rowLp(7f))
 
         card.addView(body)
         addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    /** 칸 하나 — 날짜 + 최대 두 줄. 누르면 그날이 펴진다. */
+    private inner class DayCell(context: Context) {
+        val root = LinearLayout(context)
+        val dayTv = mkText(11f, 0xFFB6C2D0.toInt(), bold = true)
+        val line1 = mkText(8f, 0xFF8E9BAC.toInt(), bold = true)
+        val line2 = mkText(8f, 0xFF8E9BAC.toInt(), bold = true)
+
+        init {
+            root.orientation = VERTICAL
+            root.gravity = android.view.Gravity.CENTER_HORIZONTAL
+            root.minimumHeight = dp(46f)
+            root.setPadding(dp(2f), dp(4f), dp(2f), dp(5f))
+            root.isClickable = true
+            for (tv in listOf(dayTv, line1, line2)) {
+                tv.gravity = android.view.Gravity.CENTER
+                tv.maxLines = 1
+                tv.ellipsize = android.text.TextUtils.TruncateAt.END
+                tv.setLineSpacing(0f, 1.0f)
+            }
+            root.addView(dayTv)
+            root.addView(line1)
+            root.addView(line2)
+        }
+    }
+
+    /**
+     * 📅 2주 달력. **칸 색은 둘뿐** — 비었음(초록) / 그 외(회색).
+     *   ⚠️ 일 있는 날을 빨갛게 칠하지 않는다. "받지 마라"는 말이 되기 때문. (2026-09-19 사장님)
+     */
+    private fun buildSchedBox(): LinearLayout {
+        schedBox.orientation = VERTICAL
+        schedBox.background = roundBg(0x1712B886, 12f, 0x4212B886, 1f)
+        schedBox.setPadding(dp(9f), dp(9f), dp(9f), dp(10f))
+        schedBox.addView(schedLabelTv)
+        schedBox.addView(schedFreeTv, rowLp(4f))
+
+        for (row in listOf(weekHeadRow, weekRow1, weekRow2)) {
+            row.orientation = HORIZONTAL
+        }
+        for (i in 0 until 7) {
+            val h = mkText(8.5f, 0xFF6C7888.toInt(), bold = true)
+            h.gravity = android.view.Gravity.CENTER
+            weekHeadRow.addView(h, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        }
+        schedBox.addView(weekHeadRow, rowLp(8f))
+
+        for (i in 0 until 14) {
+            val cell = DayCell(context)
+            dayCells.add(cell)
+            val lp = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = dp(1.5f); rightMargin = dp(1.5f)
+            }
+            (if (i < 7) weekRow1 else weekRow2).addView(cell.root, lp)
+        }
+        schedBox.addView(weekRow1, rowLp(2f))
+        schedBox.addView(weekRow2, rowLp(3f))
+
+        schedHintTv.gravity = android.view.Gravity.CENTER
+        schedBox.addView(schedHintTv, rowLp(7f))
+
+        // 누른 날 상세 — 통화 중이라 **딴 화면으로 안 나간다.** 카드 안에서 편다.
+        dayDetailBox.orientation = VERTICAL
+        dayDetailBox.background = roundBg(0x59000000, 11f, 0x24FFFFFF, 1f)
+        dayDetailBox.setPadding(dp(11f), dp(9f), dp(11f), dp(10f))
+        dayDetailBody.orientation = VERTICAL
+        dayDetailBox.addView(dayDetailTitleTv)
+        dayDetailBox.addView(dayDetailBody, rowLp(6f))
+        dayDetailBox.visibility = View.GONE
+        schedBox.addView(dayDetailBox, rowLp(8f))
+        return schedBox
+    }
+
+    private fun applySchedVisibility() {
+        schedBox.visibility = if (schedExpanded) View.VISIBLE else View.GONE
+        schedToggleTv.text = if (schedExpanded) "📅  일정 접기" else schedToggleLabel()
+        if (!schedExpanded) hideDayDetail()
+    }
+
+    private fun schedToggleLabel(): String {
+        val free = lastDays.count { it.isFree }
+        return if (free > 0) "📅  내 일정 보기 · 2주 안에 빈 날 $free" else "📅  내 일정 보기"
+    }
+
+    private fun hideDayDetail() {
+        selectedDay = -1L
+        dayDetailBox.visibility = View.GONE
+        paintCells()
+    }
+
+    private fun bindSchedule(days: List<TwoWeekSchedule.Day>) {
+        lastDays = days
+        if (days.isEmpty()) {
+            schedToggleTv.visibility = View.GONE
+            schedBox.visibility = View.GONE
+            return
+        }
+        schedToggleTv.visibility = if (schedAlwaysOpen) View.GONE else View.VISIBLE
+        if (schedAlwaysOpen) schedExpanded = true
+
+        schedLabelTv.text = "내 일정 · 2주"
+        val free = TwoWeekSchedule.freeDaysLabel(days)
+        schedFreeTv.text = if (free != null) "빈 날 — $free" else "2주가 꽉 찼어요"
+        schedFreeTv.setTextColor(if (free != null) 0xFFFFFFFF.toInt() else 0xFFFFC24D.toInt())
+        schedHintTv.text = "칸을 누르면 그날이 열려요"
+
+        for (i in 0 until 7) {
+            (weekHeadRow.getChildAt(i) as TextView).text = days.getOrNull(i)?.weekday ?: ""
+        }
+        for (i in dayCells.indices) {
+            val day = days.getOrNull(i) ?: continue
+            val cell = dayCells[i]
+            cell.dayTv.text = day.dayOfMonth.toString()
+            val lines = TwoWeekSchedule.cellLines(day)
+            bindLine(cell.line1, lines.getOrNull(0))
+            bindLine(cell.line2, lines.getOrNull(1))
+            cell.root.setOnClickListener { onDayTap(day) }
+        }
+        paintCells()
+        applySchedVisibility()
+    }
+
+    private fun bindLine(
+        tv: TextView,
+        line: TwoWeekSchedule.Line?
+    ) {
+        if (line == null) { tv.visibility = View.GONE; return }
+        tv.visibility = View.VISIBLE
+        tv.text = line.text
+        tv.setTextColor(toneColor(line.tone))
+    }
+
+    /** 시공=회색 · A/S=주황 · 내 일정=보라 · 비었음=초록. 색이 셋이라 안 헷갈린다. */
+    private fun toneColor(tone: TwoWeekSchedule.Tone): Int = when (tone) {
+        TwoWeekSchedule.Tone.JOB -> 0xFF8E9BAC.toInt()
+        TwoWeekSchedule.Tone.AS -> 0xFFFFC24D.toInt()
+        TwoWeekSchedule.Tone.EVENT -> 0xFFC4AFFF.toInt()
+        TwoWeekSchedule.Tone.EMPTY -> 0xFF3FE0AE.toInt()
+    }
+
+    private fun paintCells() {
+        for (i in dayCells.indices) {
+            val day = lastDays.getOrNull(i) ?: continue
+            val cell = dayCells[i]
+            val picked = day.dayStartMs == selectedDay
+            cell.root.background = when {
+                picked -> roundBg(0x38FFFFFF, 8f, 0x99FFFFFF.toInt(), 1f)
+                day.isFree -> roundBg(0x3D12B886, 8f, 0x733FE0AE, 1f)
+                day.isToday -> roundBg(0x0DFFFFFF, 8f, 0x66FFFFFF, 1.5f)
+                else -> roundBg(0x0DFFFFFF, 8f)
+            }
+            cell.dayTv.setTextColor(
+                if (picked || day.isFree || day.isToday) 0xFFFFFFFF.toInt() else 0xFFB6C2D0.toInt()
+            )
+        }
+    }
+
+    /** 칸을 누르면 그날이 펴진다. 같은 칸을 또 누르면 접힌다. */
+    private fun onDayTap(day: TwoWeekSchedule.Day) {
+        if (selectedDay == day.dayStartMs) { hideDayDetail(); return }
+        selectedDay = day.dayStartMs
+        dayDetailTitleTv.text = "${monthOfDay(day.dayStartMs)} ${day.dayOfMonth}일 (${day.weekday})"
+        dayDetailBody.removeAllViews()
+        if (day.isFree) {
+            val tv = mkText(11f, 0xFF8E9BAC.toInt())
+            tv.text = "아무것도 없어요. 이 날 받으시면 됩니다."
+            dayDetailBody.addView(tv)
+        } else {
+            for ((n, item) in day.items.withIndex()) {
+                dayDetailBody.addView(detailRow(item), rowLp(if (n == 0) 0f else 7f))
+            }
+        }
+        dayDetailBox.visibility = View.VISIBLE
+        paintCells()
+    }
+
+    private fun detailRow(
+        item: TwoWeekSchedule.Item
+    ): LinearLayout {
+        // 왼쪽에 색 막대 하나 — 종류(시공/A/S/내 일정)를 색으로 말한다.
+        //   setStroke 는 네 면을 다 그려서 상자가 된다. 막대를 따로 세워야 한다.
+        val row = LinearLayout(context).apply { orientation = HORIZONTAL }
+        val bar = View(context).apply { setBackgroundColor(toneColor(item.tone)) }
+        row.addView(bar, LayoutParams(dp(2f), LayoutParams.MATCH_PARENT))
+
+        val texts = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(9f), 0, 0, 0)
+        }
+        val head = mkText(11f, 0xFFFFFFFF.toInt(), bold = true)
+        val mark = if (item.tone == TwoWeekSchedule.Tone.AS) "🔧 A/S · " else ""
+        head.text = mark + item.time + " · " + item.who
+        texts.addView(head)
+        val detail = item.detail.trim()
+        if (detail.isNotEmpty()) {
+            val sub = mkText(10f, 0xFF8E9BAC.toInt())
+            sub.text = detail
+            sub.maxLines = 2
+            sub.ellipsize = android.text.TextUtils.TruncateAt.END
+            texts.addView(sub, rowLp(1f))
+        }
+        row.addView(texts, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        return row
+    }
+
+    private fun monthOfDay(ms: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+        return "${cal.get(java.util.Calendar.MONTH) + 1}월"
     }
 
     private fun rowLp(topDp: Float) =
@@ -618,9 +936,16 @@ private class CallerCardView(
 
         newBox.visibility = if (isNew) View.VISIBLE else View.GONE
         if (isNew) {
-            newTitleTv.text = "처음 걸려온 번호예요"
-            newDescTv.text = "주고받은 문자도, 지난 통화도 없어요.\n새 문의일 가능성이 높아요."
+            newTitleTv.text = "처음 걸려온 번호예요 · 새 문의"
+            // "주고받은 문자도, 지난 통화도 없어요"는 뺐다 — **이미 아는 얘기**라 자리만 먹는다.
+            //   그 자리에 2주 일정이 들어간다. (2026-09-19 사장님)
+            newDescTv.visibility = View.GONE
         }
+
+        // 📅 처음 거는 사람은 보여줄 과거가 없으니 **일정을 바로 펼친다.**
+        //   시공했던 손님은 기억(요약·문자)이 먼저라 버튼으로 접어 둔다.
+        schedAlwaysOpen = isNew
+        bindSchedule(st.schedule)
 
         val hasSum = !st.lastSummary.isNullOrBlank()
         sumBox.visibility = if (hasSum) View.VISIBLE else View.GONE
