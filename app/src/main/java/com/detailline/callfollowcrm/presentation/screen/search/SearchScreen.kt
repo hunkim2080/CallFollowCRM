@@ -295,12 +295,22 @@ private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) 
                 title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            // 주소가 있으면 번호 밑에 **작게 한 줄**. (2026-09-19 사장님 "지저분할까?")
+            //   번호는 누군지 못 알려준다 — 시공은 현장으로 기억한다.
+            //   한 줄·회색·말줄임이라 훑는 데 방해되지 않는다.
+            r.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    addr, fontSize = 12.sp, color = TossTextTertiary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            }
             // 걸린 문장을 **여러 개** 보여준다 — 통화 안에서 몇 번 걸렸는지가 눈에 보여야
             //   "안까지 다 뒤졌다"는 게 전달된다. (2026-09-19 사장님)
             val lines = r.sentences.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.snippet?.takeIf { it.isNotBlank() })
             if (lines.isNotEmpty()) {
                 Spacer(Modifier.height(5.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) { SourceChip(r.source) }
+                Row(verticalAlignment = Alignment.CenterVertically) { SourceChip(r.source, r.fromSummary) }
                 lines.forEachIndexed { i, line ->
                     Spacer(Modifier.height(if (i == 0) 4.dp else 4.dp))
                     Box(
@@ -398,9 +408,13 @@ private fun highlighted(text: String, q: String): androidx.compose.ui.text.Annot
 
 /** 검색 결과가 '어디서 걸렸는지' 배지 — 📞통화 / 💬문자 / 📝메모. 이름·전화 매칭(CUSTOMER)은 배지 없음. (2026-09-02 사장님) */
 @Composable
-private fun SourceChip(source: SearchSource) {
+private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
     val chip = when (source) {
-        SearchSource.CALL -> Triple("📞 통화", Color(0xFFE7F8EE), Color(0xFF16A765))
+        // 진짜 말이 아니라 AI 가 정리한 글에서 걸렸으면 **그렇다고 밝힌다.** (2026-09-19 사장님)
+        SearchSource.CALL -> Triple(
+            if (fromSummary) "📞 통화 요약" else "📞 통화",
+            Color(0xFFE7F8EE), Color(0xFF16A765)
+        )
         SearchSource.MESSAGE -> Triple("💬 문자", Color(0xFFE7F0FE), Color(0xFF3182F6))
         SearchSource.MEMO -> Triple("📝 메모", Color(0xFFEDE9FE), Color(0xFF7C5CFC))
         SearchSource.CUSTOMER -> null

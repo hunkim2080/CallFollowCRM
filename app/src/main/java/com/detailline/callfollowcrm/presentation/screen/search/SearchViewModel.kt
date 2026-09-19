@@ -182,12 +182,17 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                 val suf = suffixOf(phone)
                 if (suf.length < 7) continue
                 if (!callHits.containsKey(suf)) {
-                    val matched = listOfNotNull(
-                        cs.summaryText, cs.transcriptText, cs.customerNeed, cs.problem, cs.nextAction, cs.title
+                    // 🔴 **진짜 말(전사)을 맨 앞에.** (2026-09-19 사장님)
+                    //   전엔 AI 요약(summaryText)을 먼저 봐서, 같은 말이 둘 다 있으면 **요약이 잡혔다.**
+                    //   사장님이 찾는 건 "그때 실제로 뭐라 했나" 다.
+                    val spoken = cs.transcriptText?.takeIf { it.contains(q, ignoreCase = true) }
+                    val fromAi = if (spoken != null) null else listOfNotNull(
+                        cs.summaryText, cs.customerNeed, cs.problem, cs.nextAction, cs.title
                     ).firstOrNull { it.contains(q, ignoreCase = true) }
-                        ?: cs.summaryText ?: cs.transcriptText ?: cs.tagsJson ?: ""
+                    val matched = spoken ?: fromAi
+                        ?: cs.transcriptText ?: cs.summaryText ?: cs.tagsJson ?: ""
                     val (sents, more) = matchedSentences(matched, q)
-                    callHits[suf] = CallHit(phone, sents.firstOrNull() ?: "", sents, more)
+                    callHits[suf] = CallHit(phone, sents.firstOrNull() ?: "", sents, more, fromSummary = spoken == null)
                 }
             }
         }
@@ -222,7 +227,9 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                     snippet = snip,
                     source = src,
                     sentences = sents,
-                    moreCount = more
+                    moreCount = more,
+                    fromSummary = src == SearchSource.CALL && callHit?.fromSummary == true,
+                    address = c.address?.takeIf { it.isNotBlank() }
                 )
             }
         }
@@ -253,7 +260,8 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                     snippet = snip,
                     source = src,
                     sentences = sents,
-                    moreCount = more
+                    moreCount = more,
+                    fromSummary = src == SearchSource.CALL && callHit?.fromSummary == true
                 )
             }
         }
@@ -272,7 +280,8 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             out[suf] = SearchResult(
                 phone = hit.address, customerId = null, name = null,
                 snippet = hit.snippet, source = SearchSource.CALL,
-                sentences = hit.sentences, moreCount = hit.moreCount
+                sentences = hit.sentences, moreCount = hit.moreCount,
+                fromSummary = hit.fromSummary
             )
         }
 
@@ -321,7 +330,9 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         val address: String,
         val snippet: String,
         val sentences: List<String> = emptyList(),
-        val moreCount: Int = 0
+        val moreCount: Int = 0,
+        /** 진짜 말이 아니라 **AI 요약**에서 걸렸나 — 화면에 그렇다고 밝힌다. (2026-09-19 사장님) */
+        val fromSummary: Boolean = false
     )
 }
 
@@ -343,7 +354,11 @@ data class SearchResult(
     val snippet: String?,
     val source: SearchSource = SearchSource.CUSTOMER,
     val sentences: List<String> = emptyList(),
-    val moreCount: Int = 0
+    val moreCount: Int = 0,
+    /** 통화 결과가 **AI 요약**에서 걸렸으면 true — "📞 통화 요약" 으로 밝힌다. (2026-09-19 사장님) */
+    val fromSummary: Boolean = false,
+    /** 현장 주소 — 번호 밑에 작게. 번호는 누군지 못 알려준다. (2026-09-19 사장님) */
+    val address: String? = null
 )
 
 /** 한 결과에서 펼칠 문장 수. 더 있으면 "N곳 더" 로 접는다. (2026-09-19 사장님 기본값) */
