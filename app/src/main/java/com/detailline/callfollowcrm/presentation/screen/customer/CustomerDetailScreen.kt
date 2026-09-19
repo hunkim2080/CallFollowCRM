@@ -1818,15 +1818,17 @@ fun CustomerDetailScreen(
 
     if (categoryDialogOpen && customer != null) {
         val categories by viewModel.categories.collectAsState()
+        val categoryCounts by viewModel.categoryCounts.collectAsState()
         CategoryPickerDialog(
             categories = categories,
+            counts = categoryCounts,
             selectedId = customer?.categoryId,
             onPick = { id ->
                 viewModel.setCategory(id)
                 categoryDialogOpen = false
             },
-            onAddNew = { name ->
-                viewModel.addCategoryAndAssign(name)
+            onAddNew = { name, emoji ->
+                viewModel.addCategoryAndAssign(name, emoji)
                 categoryDialogOpen = false
             },
             onDismiss = { categoryDialogOpen = false }
@@ -3314,64 +3316,119 @@ private fun CategoryPill(label: String, assigned: Boolean, onClick: () -> Unit) 
     }
 }
 
+/** 분류 타일 한 칸 — 큰 이모지 + 이름(두 줄까지) + 몇 명. (2026-09-19 사장님) */
+@Composable
+private fun CategoryTile(
+    emoji: String,
+    name: String,
+    count: Int,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) TossBlueSoft else Color.White)
+            .border(
+                if (selected) 1.5.dp else 1.dp,
+                if (selected) TossBlue else TossDivider,
+                RoundedCornerShape(14.dp)
+            )
+            .clickable { onClick() }
+            .padding(vertical = 13.dp, horizontal = 9.dp),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+    ) {
+        Text(emoji, fontSize = 21.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(
+            name, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
+            color = if (selected) TossBlueDark else TossTextPrimary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            // 두 줄까지 — "인테리어 업체" 가 잘리면 타일의 의미가 없다.
+            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            lineHeight = 17.sp
+        )
+        if (count > 0) {
+            Spacer(Modifier.height(2.dp))
+            Text("${count}명", fontSize = 11.sp, color = TossTextTertiary)
+        }
+    }
+}
+
 /**
- * 사장님 정의 카테고리 중 1개 선택. 빈 상태든 아니든 [+ 새 카테고리] 칩 항상 존재.
- * 2026-05-25: "홈에서 추가하세요" 안내문 제거 — 사장님이 여기서 바로 추가 가능.
+ * 이 손님을 어느 **분류**에 둘지 — 큰 타일 2열. (2026-09-19 사장님 · 프로토 3mV1wfJu 의 '다')
+ *
+ * 전엔 알약 칩이 두 줄로 흐르고 [닫기]를 또 눌러야 했다. 사장님 손님들은 손가락이 거칠고
+ * 연세도 있으셔서 **격자로 크게** 잡는 편이 누르기 쉽다.
+ *   · 고르면 **바로 닫힌다** (실수해도 다시 열어 바꾸면 된다)
+ *   · 이모지는 [CategoryEmoji] 가 이름 보고 붙인다 — 사장님이 고른 건 그대로 둔다
+ *   · **몇 명인지** 같이 보여준다
+ *   · ⚠️ 이름은 **두 줄까지** — "인테리어 업체" 가 잘리면 타일의 의미가 없다
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryPickerDialog(
     categories: List<com.detailline.callfollowcrm.data.local.entity.CategoryEntity>,
+    counts: Map<Long?, Int>,
     selectedId: Long?,
     onPick: (Long?) -> Unit,
-    onAddNew: (String) -> Unit,
+    onAddNew: (String, String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var addDialogOpen by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("카테고리 선택", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)
+        ) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+            Text("이 손님은 어디에 둘까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("나중에 묶어 보거나 찾을 때 써요", fontSize = 12.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(14.dp))
+
+            // 미분류 + 사장님 분류들. 2열 격자 — 홀수면 마지막 칸은 비운다(줄이 안 깨지게).
+            val cells: List<Pair<Long?, String>> =
+                listOf<Pair<Long?, String>>(null to "미분류") + categories.map { it.id as Long? to it.name }
+            cells.chunked(2).forEach { row ->
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().padding(bottom = 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    CategoryChoiceChip(
-                        label = "미분류",
-                        selected = selectedId == null,
-                        onClick = { onPick(null) }
-                    )
-                    categories.forEach { c ->
-                        val txt = if (c.emoji != null) "${c.emoji} ${c.name}" else c.name
-                        CategoryChoiceChip(
-                            label = txt,
-                            selected = selectedId == c.id,
-                            onClick = { onPick(c.id) }
-                        )
+                    row.forEach { (id, name) ->
+                        val emoji = if (id == null) com.detailline.callfollowcrm.util.CategoryEmoji.forName("미분류")
+                        else categories.firstOrNull { it.id == id }?.emoji
+                            ?: com.detailline.callfollowcrm.util.CategoryEmoji.forName(name)
+                        CategoryTile(
+                            emoji = emoji,
+                            name = name,
+                            count = counts[id] ?: 0,
+                            selected = selectedId == id,
+                            modifier = Modifier.weight(1f)
+                        ) { onPick(id) }
                     }
-                    // 항상 표시 — 빈 상태든 카테고리 N개든 사장님이 여기서 바로 추가.
-                    CategoryChoiceChip(
-                        label = "+ 새 카테고리",
-                        selected = false,
-                        onClick = { addDialogOpen = true }
-                    )
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("닫기", color = TossTextSecondary)
+
+            Spacer(Modifier.height(3.dp))
+            // ＋ 만들기는 타일 **밖**으로 — 고르는 것과 만드는 것은 다른 일이다.
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(13.dp))
+                    .border(1.dp, TossDivider, RoundedCornerShape(13.dp))
+                    .clickable { addDialogOpen = true }
+                    .padding(vertical = 13.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Text("＋ 새 분류 만들기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
             }
-        },
-        containerColor = Color.White
-    )
+        }
+    }
     if (addDialogOpen) {
         CategoryNameInputDialog(
             onDismiss = { addDialogOpen = false },
-            onConfirm = { name ->
-                onAddNew(name)
+            onConfirm = { name, emoji ->
+                onAddNew(name, emoji)
                 addDialogOpen = false
             }
         )
@@ -3385,12 +3442,18 @@ private fun CategoryPickerDialog(
 @Composable
 private fun CategoryNameInputDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String, String?) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
+    // 이름을 치면 앱이 이모지를 하나 골라준다. 마음에 안 들면 옆에서 바꾼다. (2026-09-19 사장님)
+    //   "틀려도 손해가 없고, 맞으면 한 손 덜어진다" — 그래서 AI 대신 앱 안 표로 한다.
+    var pickedEmoji by remember { mutableStateOf<String?>(null) }
+    val suggested = remember(name) { com.detailline.callfollowcrm.util.CategoryEmoji.forName(name) }
+    val emoji = pickedEmoji ?: suggested
+    val candidates = remember(name) { com.detailline.callfollowcrm.util.CategoryEmoji.candidatesFor(name) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("카테고리 추가", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
+        title = { Text("새 분류 만들기", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
@@ -3402,16 +3465,39 @@ private fun CategoryNameInputDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("예: AS 고객, 일당, 아르바이트", color = TossTextTertiary) },
+                    placeholder = { Text("예: AS 고객, 일당, 친구", color = TossTextTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = tossFieldColors()
                 )
+                if (name.isNotBlank()) {
+                    Text("그림", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        candidates.forEach { e ->
+                            val on = e == emoji
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (on) TossBlueSoft else TossGrayBg)
+                                    .border(
+                                        if (on) 1.5.dp else 0.dp,
+                                        if (on) TossBlue else Color.Transparent,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { pickedEmoji = e },
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) { Text(e, fontSize = 19.sp) }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                if (name.isNotBlank()) onConfirm(name.trim())
+                if (name.isNotBlank()) onConfirm(name.trim(), emoji)
             }) { Text("추가", color = TossBlue, fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = {

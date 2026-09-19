@@ -369,11 +369,15 @@ class CustomerDetailViewModel(
      * CustomerDetail picker 에서 "+ 새 카테고리" 누름 → 이름 받아서 생성 + 이 고객에게 즉시 할당.
      * 같은 이름이 이미 있으면 그 카테고리에 박음 (upsert idempotent).
      */
-    fun addCategoryAndAssign(name: String) = viewModelScope.launch {
+    fun addCategoryAndAssign(name: String, emoji: String? = null) = viewModelScope.launch {
         if (name.isBlank()) return@launch
         withContext(NonCancellable) {
             val entity = runCatching {
-                container.categoryRepository.upsert(name.trim())
+                // 이모지는 만들 때 고른 것(없으면 이름 보고 앱이 붙인 것). (2026-09-19 사장님)
+                container.categoryRepository.upsert(
+                    name.trim(),
+                    emoji ?: com.detailline.callfollowcrm.util.CategoryEmoji.forName(name)
+                )
             }.getOrNull() ?: return@withContext
             container.categoryRepository.assignCustomer(customerId, entity.id)
             markTodayCallsAsHandled()
@@ -383,6 +387,15 @@ class CustomerDetailViewModel(
     /** 카테고리 목록 — pill 선택 다이얼로그 표시. */
     val categories = container.categoryRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 분류마다 손님이 몇 명인지 — 고르는 창 타일에 같이 보여준다. (2026-09-19 사장님)
+     *   null 키 = 미분류. "거래처가 몇이나 됐지?" 를 그 자리에서 알 수 있다.
+     */
+    val categoryCounts: kotlinx.coroutines.flow.StateFlow<Map<Long?, Int>> =
+        container.customerRepository.observeAll()
+            .map { list -> list.groupingBy { it.categoryId }.eachCount() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun updateMemo(memo: String) = viewModelScope.launch {
         withContext(NonCancellable) {
