@@ -778,22 +778,16 @@ fun HomeScreen(
                     val collabTodaySites = collabUpcoming.filter {
                         it.scheduledAtMs > 0L && DateTimeUtils.startOfDay(it.scheduledAtMs) == todayDayStart
                     }
-                    TodayHeroCard(
+                    // 🔨 **오늘 시공 띠** — 카드 더미를 한 줄로. (2026-09-20 사장님 · 프로토 CitTfr44)
+                    //   옛 TodayHeroCard 는 아래에 그대로 남겨뒀다 — 되돌릴 때 이 호출만 바꾸면 된다.
+                    TodayBand(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
-                        collabTodaySites = collabTodaySites,
-                        onOpenCustomer = onOpenCustomerDetail,
-                        onNavigate = { phone -> launchNavigationFor(phone) },
-                        onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
-                        onCall = { phone -> dialHome(context, phone) },
-                        onOpenCollabSite = onOpenCollabSiteDetail,
-                        onGoSchedule = onOpenSchedule,
-                        onOpenScheduleAtDay = onOpenScheduleAtDay,
+                        collabTodayCount = collabTodaySites.size,
                         onOpenChat = { phone, cid -> onOpenChat(phone, cid) },
-                        onAddSchedule = onAddSchedule,
+                        onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
                         onComplete = { c -> completeTarget = c },
-                        onCompleteCollabSite = { s -> viewModel.completeCollabSite(s) },
-                        onReorder = { ids -> viewModel.reorderTodayJobs(ids) }
+                        onAddSchedule = onAddSchedule
                     )
                 }
 
@@ -1931,8 +1925,144 @@ private fun CollabHeroJobCard(
 }
 
 /**
+ * 🔨 **오늘 시공 띠** — 홈 맨 위 한 줄. (2026-09-20 사장님 · 프로토 artifact/CitTfr44fUSaY6W8avpQrF)
+ *
+ * 왜 띠인가: 오늘 어디 가는지는 **안 눌러도 알아야 하는 것**이라 칩(눌러야 보임)으로 만들면 안 된다.
+ * 그런데 카드로 두면 160dp 를 먹어 목록을 화면 밖으로 밀어낸다. → **52dp 한 줄**.
+ *
+ * 규칙 (프로토 03):
+ *  - 띠에 뜨는 건 **오늘 것 중 아직 완료 안 된 첫 번째**. 완료하면 다음 현장으로 바뀐다.
+ *  - **시각이 지났다고 끝난 걸로 안 친다.** "(지났어요)" 라고 사실만 적고 버튼만 [완료] 로.
+ *  - 색은 **일이 있을 때만**. 없는 날을 초록으로 칠하면 거짓말이 된다.
+ *  - 두 곳 이상이면 이름 뒤에 **(1/2)** — 곳수는 절대 안 잘리게 **첫 줄**에 둔다.
+ */
+@Composable
+private fun TodayBand(
+    todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    collabTodayCount: Int,
+    onOpenChat: (phone: String, customerId: Long?) -> Unit,
+    onNavigateAddr: (String?) -> Unit,
+    onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
+    onAddSchedule: () -> Unit
+) {
+    val now = System.currentTimeMillis()
+    val dayStart = DateTimeUtils.startOfDay(now)
+    // 시간 정해진 것 먼저, 그 안에서 이른 순. 시간 없는 건 뒤로.
+    val ordered = todayJobs.sortedBy { it.scheduledWorkMinutes ?: 1_440 }
+    val total = ordered.size + collabTodayCount
+    val target = ordered.firstOrNull()
+
+    if (target != null) {
+        val mins = target.scheduledWorkMinutes
+        val timeText = mins?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "시간 미정"
+        val passed = mins != null && now > dayStart + mins * 60_000L
+        val who = target.name?.takeIf { it.isNotBlank() }
+            ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(target.phoneNumber)
+        val addr = target.address?.trim()?.takeIf { it.isNotBlank() }
+        BandShell(
+            bg = Color(0xFF0B7C5E), fg = Color.White, subFg = Color(0xFFA8E6CE),
+            icon = "🔨",
+            line1 = buildString {
+                append(timeText)
+                if (passed) append(" (지났어요)")
+                append(" · "); append(who)
+                if (total > 1) append("  (1/").append(total).append(")")
+            },
+            line2 = addr ?: "주소 아직 없어요",
+            action = if (passed) "완료" else if (addr != null) "길찾기" else null,
+            onAction = {
+                if (passed) onComplete(target) else onNavigateAddr(addr)
+            },
+            onTap = { onOpenChat(target.phoneNumber, target.id) }
+        )
+    } else {
+        // 오늘 것이 없다 — 다음 시공을 말해준다. 색은 안 쓴다(할 일이 없는 날을 초록으로 칠하면 거짓말).
+        val next = nextJobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= dayStart }
+        val doneToday = todayJobs.isEmpty() && nextJobs.any {
+            (it.scheduledWorkDate ?: 0L) == dayStart && it.workCompletedAt != null
+        }
+        if (doneToday) {
+            BandShell(
+                bg = Color(0xFFE3F8EF), fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
+                icon = "✅", border = Color(0xFFA8E6C9),
+                line1 = "오늘 시공 끝났어요",
+                line2 = next?.let { nextLine(it) } ?: "다음 시공은 아직 없어요",
+                action = null, onAction = {}, onTap = onAddSchedule
+            )
+        } else {
+            BandShell(
+                bg = Color.White, fg = TossTextPrimary, subFg = TossTextTertiary,
+                icon = "📅", border = TossDivider,
+                line1 = if (next != null) "오늘은 시공이 없어요" else "잡힌 시공이 없어요",
+                line2 = next?.let { nextLine(it) } ?: "밀린 상담·견적 챙기기 좋은 날이에요",
+                action = "일정 추가", onAction = onAddSchedule,
+                onTap = { next?.let { onOpenChat(it.phoneNumber, it.id) } ?: onAddSchedule() }
+            )
+        }
+    }
+}
+
+/** "다음 · 9/28(월) 오후 1시 · 동대문" — 띠 둘째 줄. */
+private fun nextLine(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity): String {
+    val d = c.scheduledWorkDate ?: return "다음 시공"
+    val when0 = DateTimeUtils.formatScheduledDate(d)
+    val t = c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
+    val region = com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address)
+    return "다음 · " + when0 + t + (region?.let { " · $it" } ?: "")
+}
+
+/** 띠 껍데기 — 아이콘 칸 + 두 줄 + 오른쪽 버튼. 색만 갈아 끼운다. */
+@Composable
+private fun BandShell(
+    bg: Color, fg: Color, subFg: Color, icon: String,
+    line1: String, line2: String,
+    action: String?, onAction: () -> Unit, onTap: () -> Unit,
+    border: Color? = null
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .then(if (border != null) Modifier.border(1.dp, border, RoundedCornerShape(14.dp)) else Modifier)
+            .background(bg)
+            .clickable { onTap() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.width(44.dp).height(52.dp)
+                .background(if (border != null) Color(0x0D000000) else Color(0x1AFFFFFF)),
+            contentAlignment = Alignment.Center
+        ) { Text(icon, fontSize = 17.sp) }
+        Column(Modifier.weight(1f).padding(start = 11.dp, top = 9.dp, bottom = 10.dp, end = 4.dp)) {
+            Text(line1, color = fg, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
+            Text(line2, color = subFg, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        if (action != null) {
+            Text(
+                action,
+                color = if (border != null) TossTextSecondary else Color.White,
+                fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier
+                    .padding(end = 11.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (border != null) TossGrayBg else Color(0x29FFFFFF))
+                    .clickable { onAction() }
+                    .padding(horizontal = 10.dp, vertical = 7.dp)
+            )
+        } else {
+            Spacer(Modifier.width(13.dp))
+        }
+    }
+}
+
+/**
  * 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(고객·주소·길찾기).
  *   없으면 "다음 시공" 미리보기(1~3곳) 또는 "오늘 없음" 긍정 카드. 2026-06-01.
+ *   ⚠️ 2026-09-20 부터 홈은 [TodayBand] 를 쓴다. 이건 되돌릴 때를 위해 남겨둔 것.
  */
 @Composable
 private fun TodayHeroCard(
