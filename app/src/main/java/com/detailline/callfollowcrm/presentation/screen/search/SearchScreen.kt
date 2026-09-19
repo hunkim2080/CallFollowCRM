@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,8 +71,10 @@ fun SearchScreen(
     val results by viewModel.results.collectAsState()
     val recent by viewModel.recent.collectAsState()
     val todayCallers by viewModel.todayCallers.collectAsState()
+    val sites by viewModel.siteResults.collectAsState()
     // 02 — 접은 묶음. 화면을 떠나기 전까진 기억한다. (2026-09-19 사장님)
     val folded = remember { mutableStateListOf<SearchSource>() }
+    val siteOpen = remember { mutableStateOf(true) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -168,13 +171,50 @@ fun SearchScreen(
             }
             // 프로토 doSearch 빈 쿼리 안내문 verbatim.
             query.isBlank() -> CenterHint("이름·전화·문자, 그리고 통화 내용까지\n뭐든 찾아보세요")
-            results.isEmpty() -> CenterHint("검색 결과가 없어요")
+            results.isEmpty() && sites.isEmpty() -> CenterHint("검색 결과가 없어요")
             // 02 — 손님 → 통화 → 문자 → 메모 로 묶는다. 제목을 누르면 접힌다. (2026-09-19 사장님)
             //   사람 찾는 경우가 제일 많아 손님이 맨 위.
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
             ) {
+                // 📍 현장 — 주소로 찾은 것. 말(통화·문자)보다 **위**에 둔다.
+                //   "동탄" 을 칠 땐 동탄에서 한 현장이 먼저 보여야 한다. (2026-09-19 사장님 1순위)
+                if (sites.isNotEmpty()) {
+                    val openSite = siteOpen.value
+                    item(key = "h-site") {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .clickable { siteOpen.value = !siteOpen.value }
+                                .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📍 현장", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                            Spacer(Modifier.size(7.dp))
+                            Box(
+                                Modifier.background(Color.White, RoundedCornerShape(999.dp))
+                                    .padding(horizontal = 7.dp, vertical = 1.dp)
+                            ) {
+                                Text("${sites.size}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            Text(if (openSite) "⌃" else "⌄", fontSize = 13.sp, color = TossTextTertiary)
+                        }
+                    }
+                    if (openSite) item(key = "b-site") {
+                        Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))) {
+                            sites.forEachIndexed { i, s ->
+                                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                                SiteRow(s, query) {
+                                    keyboard?.hide()
+                                    viewModel.rememberQuery(query)
+                                    onOpenChat(s.phone, s.customerId)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                    }
+                }
                 val order = listOf(
                     SearchSource.CUSTOMER, SearchSource.CALL, SearchSource.MESSAGE, SearchSource.MEMO
                 )
@@ -284,6 +324,41 @@ private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) 
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * 📍 현장 한 줄 — 주소(찾는 말 색칠) + 손님 + 언제·얼마. (2026-09-19 사장님)
+ *   말에서 찾은 결과와 달리 **장부에서 나온 것**이라 날짜·돈이 같이 붙는다.
+ */
+@Composable
+private fun SiteRow(s: SiteHit, query: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(44.dp).background(Color(0xFFFEF3E0), CircleShape),
+            contentAlignment = Alignment.Center
+        ) { Text("📍", fontSize = 17.sp) }
+        Spacer(Modifier.size(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                highlighted(s.address, query),
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                listOfNotNull(
+                    s.name ?: PhoneNumberFormatter.format(s.phone),
+                    s.dayMs?.let { com.detailline.callfollowcrm.util.DateTimeUtils.formatDateLabel(it) + " 시공" },
+                    s.money
+                ).joinToString(" · "),
+                fontSize = 12.sp, color = TossTextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

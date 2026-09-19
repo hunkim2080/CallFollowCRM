@@ -50,6 +50,72 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         _recent.value = emptyList()
     }
 
+    /**
+     * 📍 **주소·아파트로 현장 찾기.** (2026-09-19 사장님 "제일 자주 쓰일 것 같은 건 주소나 아파트로 찾기")
+     *
+     * "동탄" 을 치면 그 글자가 든 문자만 나오던 것 → **동탄에서 했던 현장들**(언제·얼마)을 보여준다.
+     *   · 자료는 이미 있다 — 건(jobs)의 주소·시공일·금액, 그리고 건이 없는 손님은 고객 카드 주소.
+     *   · 최근 시공일 순. 같은 손님의 여러 건은 **건마다 한 줄**(1차·2차가 다른 현장일 수 있다).
+     */
+    val siteResults: StateFlow<List<SiteHit>> = combine(
+        container.customerRepository.observeAll(),
+        container.jobRepository.observeAll(),
+        query.debounce(220)
+    ) { customers, jobs, qRaw ->
+        val q = qRaw.trim()
+        if (q.length < 2) return@combine emptyList()
+        val byId = customers.associateBy { it.id }
+        val out = ArrayList<SiteHit>()
+        val seen = HashSet<String>()
+
+        for (j in jobs) {
+            val addr = j.address?.trim().orEmpty()
+            if (addr.isEmpty() || !addr.contains(q, ignoreCase = true)) continue
+            val c = byId[j.customerId] ?: continue
+            if (!seen.add("j" + j.id)) continue
+            out.add(
+                SiteHit(
+                    phone = c.phoneNumber,
+                    customerId = c.id,
+                    name = c.name?.takeIf { it.isNotBlank() },
+                    address = addr,
+                    dayMs = j.scheduledWorkDate ?: j.workCompletedAt,
+                    money = moneyLabel(j.totalAmount, j.balanceAmount, j.balancePaidAt, j.workCompletedAt)
+                )
+            )
+        }
+        // 건이 아직 없는 손님 — 고객 카드 주소로. (상담만 하고 일정은 안 잡은 현장)
+        for (c in customers) {
+            val addr = c.address?.trim().orEmpty()
+            if (addr.isEmpty() || !addr.contains(q, ignoreCase = true)) continue
+            if (jobs.any { it.customerId == c.id && !it.address.isNullOrBlank() }) continue
+            if (!seen.add("c" + c.id)) continue
+            out.add(
+                SiteHit(
+                    phone = c.phoneNumber,
+                    customerId = c.id,
+                    name = c.name?.takeIf { it.isNotBlank() },
+                    address = addr,
+                    dayMs = c.scheduledWorkDate ?: c.workCompletedAt,
+                    money = moneyLabel(c.totalAmount, c.balanceAmount, c.balancePaidAt, c.workCompletedAt)
+                )
+            )
+        }
+        out.sortedByDescending { it.dayMs ?: 0L }.take(30)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 현장 한 줄 오른쪽에 붙는 돈 상태 — 완납 / 잔금 N만 / N만원 / (없으면 null). */
+    private fun moneyLabel(total: Long?, balance: Long?, balancePaidAt: Long?, doneAt: Long?): String? {
+        val man = { won: Long -> "${won / 10000}만" }
+        return when {
+            balancePaidAt != null -> "완납"
+            (balance ?: 0L) > 0L -> "잔금 " + man(balance!!)
+            (total ?: 0L) > 0L -> man(total!!) + "원"
+            doneAt != null -> "완료"
+            else -> null
+        }
+    }
+
     /** 오늘 통화한 손님 — 검색창을 열자마자 누를 게 있도록. (2026-09-19 사장님) */
     val todayCallers: StateFlow<List<SearchResult>> = combine(
         container.customerRepository.observeAll(),
@@ -282,3 +348,16 @@ data class SearchResult(
 
 /** 한 결과에서 펼칠 문장 수. 더 있으면 "N곳 더" 로 접는다. (2026-09-19 사장님 기본값) */
 const val MAX_SENTENCES = 3
+
+/**
+ * 📍 주소로 찾은 **현장** 한 줄. (2026-09-19 사장님)
+ *   말이 아니라 **장부**에서 나온 결과다 — 언제 했고 얼마였는지가 같이 붙는다.
+ */
+data class SiteHit(
+    val phone: String,
+    val customerId: Long?,
+    val name: String?,
+    val address: String,
+    val dayMs: Long?,
+    val money: String?
+)
