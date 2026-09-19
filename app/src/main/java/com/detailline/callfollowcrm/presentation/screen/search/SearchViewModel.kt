@@ -229,7 +229,10 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         if (monthCount > 0) out.add(BaitChip("📅 ${thisM}월 시공 ${monthCount}곳", "${thisM}월"))
 
         // ③ 📍 제일 많이 일한 동네
-        val region = topRegion(jobs.mapNotNull { it.address } + customers.mapNotNull { it.address })
+        val region = topRegion(
+            jobs.map { (it.address ?: "") to (it.scheduledWorkDate ?: it.workCompletedAt ?: 0L) } +
+                customers.map { (it.address ?: "") to (it.scheduledWorkDate ?: it.workCompletedAt ?: 0L) }
+        )
         if (region != null) out.add(BaitChip("📍 ${region.first} ${region.second}곳", region.first))
 
         out.take(3)
@@ -239,14 +242,26 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
      * 주소들에서 **제일 많이 나온 동네**를 뽑는다. 두 곳 이상 걸릴 때만 — 한 곳이면 미끼가 안 된다.
      *   "…화성시 동탄구 동탄대로24길" → 동탄구 / "옥길동 한신더휴" → 옥길동
      */
-    private fun topRegion(addresses: List<String>): Pair<String, Int>? {
+    private fun topRegion(addressAndDay: List<Pair<String, Long>>): Pair<String, Int>? {
         val re = Regex("[가-힣]{2,4}(동|읍|면|구)")
         val count = HashMap<String, Int>()
-        for (a in addresses) {
+        val latest = HashMap<String, Long>()
+        for ((a, day) in addressAndDay) {
+            if (a.isBlank()) continue
             val seen = HashSet<String>()
-            for (m in re.findAll(a)) if (seen.add(m.value)) count[m.value] = (count[m.value] ?: 0) + 1
+            for (m in re.findAll(a)) if (seen.add(m.value)) {
+                count[m.value] = (count[m.value] ?: 0) + 1
+                latest[m.value] = maxOf(latest[m.value] ?: 0L, day)
+            }
         }
-        val best = count.maxByOrNull { it.value } ?: return null
+        // 🔴 **동점이 흔하다.** 사장님 자료에서 4곳짜리 동네가 여섯 군데였다(2026-09-19 검산).
+        //   maxByOrNull 은 동점이면 아무거나 집어서 앱을 켤 때마다 다른 동네가 떴다.
+        //   같으면 **최근에 일한 동네**로 — 지금 머릿속에 있는 현장이라야 누른다.
+        val best = count.entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }
+                .thenByDescending { latest[it.key] ?: 0L }
+                .thenBy { it.key })
+            .firstOrNull() ?: return null
         return if (best.value >= 2) best.key to best.value else null
     }
 
