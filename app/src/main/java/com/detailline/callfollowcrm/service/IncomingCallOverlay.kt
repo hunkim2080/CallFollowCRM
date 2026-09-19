@@ -775,11 +775,19 @@ private class CallerCardView(
         schedBox.orientation = VERTICAL
         schedBox.background = roundBg(0x1712B886, 12f, 0x4212B886, 1f)
         schedBox.setPadding(dp(9f), dp(9f), dp(9f), dp(10f))
+        // 🛑 **달력 안을 누른 건 카드를 누른 게 아니다.**
+        //   칸 사이 빈 곳을 누르면 카드 전체 클릭으로 새어나가 대화가 열리고 **카드가 닫혔다.**
+        //   (2026-09-20 사장님: "일정을 누르고 다른데 누르니까 꺼져버려서")
+        //   달력이 들어오면서 잘못 누를 자리가 훨씬 넓어졌다. 여기서 다 삼킨다.
+        schedBox.isClickable = true
+        schedBox.setOnClickListener { }
         schedBox.addView(schedLabelTv)
         schedBox.addView(schedFreeTv, rowLp(4f))
 
         for (row in listOf(weekHeadRow, weekRow1, weekRow2)) {
             row.orientation = HORIZONTAL
+            row.isClickable = true
+            row.setOnClickListener { }
         }
         for (i in 0 until 7) {
             val h = mkText(8.5f, 0xFF6C7888.toInt(), bold = true)
@@ -804,6 +812,8 @@ private class CallerCardView(
 
         // 누른 날 상세 — 통화 중이라 **딴 화면으로 안 나간다.** 카드 안에서 편다.
         dayDetailBox.orientation = VERTICAL
+        dayDetailBox.isClickable = true
+        dayDetailBox.setOnClickListener { }
         dayDetailBox.background = roundBg(0x59000000, 11f, 0x24FFFFFF, 1f)
         dayDetailBox.setPadding(dp(11f), dp(9f), dp(11f), dp(10f))
         dayDetailBody.orientation = VERTICAL
