@@ -392,6 +392,31 @@ class AppPreferences(context: Context) {
 
     /** 사장님이 '맨 위에 고정'한 거래처 번호(끝 8자리) 집합 — 카톡식 상단 고정. (2026-08-24 사장님)
      *   commit: 직접 큐레이션한 목록이라 유실 방지. 키명이 백업 denylist(token/fcm/folder) 밖이라 설정칸 백업에 자동 포함 → 재설치해도 살아남. */
+    /**
+     * 최근 검색어 — 최신이 앞. 최대 8개. (2026-09-19 사장님)
+     *   현장 가는 길에 같은 손님을 하루에도 몇 번씩 찾는데 검색창이 매번 백지였다.
+     *   Set 이 아니라 **순서 있는 문자열**로 둔다(Set 은 순서가 안 지켜진다).
+     */
+    var recentSearches: List<String>
+        get() = prefs.getString("recent_searches", "").orEmpty()
+            .split("\u001F").map { it.trim() }.filter { it.isNotEmpty() }
+        set(value) {
+            prefs.edit().putString("recent_searches", value.take(8).joinToString("\u001F")).apply()
+        }
+
+    /** 검색어 하나를 최근 목록 맨 앞으로. 같은 말은 위로 올라오고 중복되지 않는다. */
+    fun pushRecentSearch(q: String) {
+        val t = q.trim()
+        if (t.length < 2) return
+        recentSearches = (listOf(t) + recentSearches.filterNot { it.equals(t, ignoreCase = true) }).take(8)
+    }
+
+    fun removeRecentSearch(q: String) {
+        recentSearches = recentSearches.filterNot { it.equals(q.trim(), ignoreCase = true) }
+    }
+
+    fun clearRecentSearches() { recentSearches = emptyList() }
+
     var pinnedSuffixes: Set<String>
         get() = prefs.getStringSet("pinned_suffixes", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("pinned_suffixes", value).commit() }

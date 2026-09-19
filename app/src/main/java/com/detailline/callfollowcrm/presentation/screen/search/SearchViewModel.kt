@@ -30,6 +30,53 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     val queryState: StateFlow<String> = query
     fun setQuery(q: String) { query.value = q }
 
+    // ── 03 최근 검색 — 검색창이 매번 백지이던 것. (2026-09-19 사장님) ──
+    private val _recent = MutableStateFlow(container.preferences.recentSearches)
+    val recent: StateFlow<List<String>> = _recent
+
+    /** 결과를 눌러 들어갈 때만 '쓸모 있던 검색' 으로 보고 저장한다. 치는 족족 쌓지 않는다. */
+    fun rememberQuery(q: String) {
+        container.preferences.pushRecentSearch(q)
+        _recent.value = container.preferences.recentSearches
+    }
+
+    fun dropRecent(q: String) {
+        container.preferences.removeRecentSearch(q)
+        _recent.value = container.preferences.recentSearches
+    }
+
+    fun clearRecent() {
+        container.preferences.clearRecentSearches()
+        _recent.value = emptyList()
+    }
+
+    /** 오늘 통화한 손님 — 검색창을 열자마자 누를 게 있도록. (2026-09-19 사장님) */
+    val todayCallers: StateFlow<List<SearchResult>> = combine(
+        container.customerRepository.observeAll(),
+        container.callRecordRepository.observeRecent(60)
+    ) { customers, calls ->
+        val todayStart = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+        val seen = LinkedHashSet<String>()
+        val out = ArrayList<SearchResult>()
+        for (c in calls.sortedByDescending { it.startedAt ?: 0L }) {
+            if ((c.startedAt ?: 0L) < todayStart) break
+            val suf = suffixOf(c.phoneNumber)
+            if (suf.length < 7 || !seen.add(suf)) continue
+            val cust = customers.firstOrNull { suffixOf(it.phoneNumber) == suf }
+            out.add(
+                SearchResult(
+                    phone = cust?.phoneNumber ?: c.phoneNumber,
+                    customerId = cust?.id,
+                    name = cust?.name?.takeIf { it.isNotBlank() },
+                    snippet = null,
+                    source = SearchSource.CUSTOMER
+                )
+            )
+            if (out.size >= 5) break
+        }
+        out.toList()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val results: StateFlow<List<SearchResult>> = combine(
         container.customerRepository.observeAll(),
         container.smsContactCacheRepository.observeAll(500),
@@ -40,7 +87,11 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         val q = qRaw.trim()
         if (q.isEmpty()) return@mapLatest emptyList()
         val qLower = q.lowercase()
-        val qDigits = q.filter { it.isDigit() }
+        // 🔴 번호 매칭은 **4자리 이상**일 때만. (2026-09-19 실기에서 발견)
+        //   "35" 를 치면 번호에 35 가 든 손님이 15명 우르르 올라와, 정작 찾던
+        //   "35만원" 통화·문자를 아래로 밀어냈다. 두세 자리 숫자는 번호가 아니라 **금액**이다.
+        //   번호 뒷자리로 찾을 땐 어차피 네 자리를 친다.
+        val qDigits = q.filter { it.isDigit() }.takeIf { it.length >= 4 } ?: ""
 
         // 대화 전체 본문 검색(폰 SMS/MMS) — IO. suffix 별 '가장 최근 매칭' 한 건만(list 는 date DESC).
         val bodyHits = LinkedHashMap<String, SmsHit>()

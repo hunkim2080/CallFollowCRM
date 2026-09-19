@@ -3,6 +3,11 @@ package com.detailline.callfollowcrm.presentation.screen.search
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +59,7 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
  * 검색 화면 (프로토 s-search) — 앱바에 검색 입력칸, 아래 결과 목록.
  *   결과 탭 = 채팅으로. 진입 시 자동 키보드 포커스.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
@@ -62,6 +68,10 @@ fun SearchScreen(
 ) {
     val query by viewModel.queryState.collectAsState()
     val results by viewModel.results.collectAsState()
+    val recent by viewModel.recent.collectAsState()
+    val todayCallers by viewModel.todayCallers.collectAsState()
+    // 02 — 접은 묶음. 화면을 떠나기 전까진 기억한다. (2026-09-19 사장님)
+    val folded = remember { mutableStateListOf<SearchSource>() }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -110,29 +120,100 @@ fun SearchScreen(
         }
 
         when {
+            // 03 — 빈 검색창이면 **최근 검색 + 오늘 통화한 손님**. 열자마자 누를 게 있게. (2026-09-19 사장님)
+            query.isBlank() && (recent.isNotEmpty() || todayCallers.isNotEmpty()) -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
+            ) {
+                if (recent.isNotEmpty()) item {
+                    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("최근 검색", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Spacer(Modifier.weight(1f))
+                        Text("전체 지우기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                .clickable { viewModel.clearRecent() }.padding(horizontal = 6.dp, vertical = 3.dp))
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        recent.forEach { word ->
+                            Row(
+                                Modifier.padding(bottom = 7.dp)
+                                    .background(Color.White, RoundedCornerShape(999.dp))
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .clickable { viewModel.setQuery(word) }
+                                    .padding(start = 12.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(word, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                Spacer(Modifier.size(5.dp))
+                                Icon(
+                                    Icons.Filled.Close, "지우기", tint = TossTextTertiary,
+                                    modifier = Modifier.size(14.dp).clickable { viewModel.dropRecent(word) }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
+                if (todayCallers.isNotEmpty()) item {
+                    Text("오늘 통화한 손님", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+                        color = TossTextTertiary, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+                    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))) {
+                        todayCallers.forEachIndexed { i, r ->
+                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                            SearchRow(r, "") { keyboard?.hide(); onOpenChat(r.phone, r.customerId) }
+                        }
+                    }
+                }
+            }
             // 프로토 doSearch 빈 쿼리 안내문 verbatim.
             query.isBlank() -> CenterHint("이름·전화·문자, 그리고 통화 내용까지\n뭐든 찾아보세요")
             results.isEmpty() -> CenterHint("검색 결과가 없어요")
-            // 프로토: box.className='recent' → 흰 카드 하나 + recent-row 들.
+            // 02 — 손님 → 통화 → 문자 → 메모 로 묶는다. 제목을 누르면 접힌다. (2026-09-19 사장님)
+            //   사람 찾는 경우가 제일 많아 손님이 맨 위.
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
             ) {
-                item {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(Color.White, RoundedCornerShape(18.dp))
-                    ) {
-                        results.forEachIndexed { idx, r ->
-                            if (idx > 0) {
-                                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                val order = listOf(
+                    SearchSource.CUSTOMER, SearchSource.CALL, SearchSource.MESSAGE, SearchSource.MEMO
+                )
+                for (src in order) {
+                    val rows = results.filter { it.source == src }
+                    if (rows.isEmpty()) continue
+                    val open = src !in folded
+                    item(key = "h-" + src.name) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { if (open) folded.add(src) else folded.remove(src) }
+                                .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(groupTitle(src), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                            Spacer(Modifier.size(7.dp))
+                            Box(
+                                Modifier.background(Color.White, RoundedCornerShape(999.dp))
+                                    .padding(horizontal = 7.dp, vertical = 1.dp)
+                            ) {
+                                Text("${rows.size}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                             }
-                            SearchRow(r, query) {
-                                keyboard?.hide()
-                                onOpenChat(r.phone, r.customerId)
+                            Spacer(Modifier.weight(1f))
+                            Text(if (open) "⌃" else "⌄", fontSize = 13.sp, color = TossTextTertiary)
+                        }
+                    }
+                    if (open) item(key = "b-" + src.name) {
+                        Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))) {
+                            rows.forEachIndexed { idx, r ->
+                                if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                                SearchRow(r, query) {
+                                    keyboard?.hide()
+                                    viewModel.rememberQuery(query)
+                                    onOpenChat(r.phone, r.customerId)
+                                }
                             }
                         }
+                        Spacer(Modifier.height(14.dp))
                     }
                 }
             }
@@ -205,6 +286,14 @@ private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) 
             }
         }
     }
+}
+
+/** 02 묶음 제목 — 손님 → 통화 → 문자 → 메모. (2026-09-19 사장님) */
+private fun groupTitle(src: SearchSource): String = when (src) {
+    SearchSource.CUSTOMER -> "👤 손님"
+    SearchSource.CALL -> "📞 통화"
+    SearchSource.MESSAGE -> "💬 문자"
+    SearchSource.MEMO -> "📝 메모"
 }
 
 /**
