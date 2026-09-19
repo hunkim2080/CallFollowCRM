@@ -263,10 +263,16 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
             .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // nl-dot — 계약완료=초록, 미답장=빨강, 답장함=회색
-        Box(Modifier.size(8.dp).clip(CircleShape).background(
-            when { lead.contracted -> TossSuccess; lead.replied -> TossDivider; else -> TossError }
-        ))
+        // nl-dot — **아직 답 안 한 것에만** 점. (2026-09-20 사장님 "어색한 것 찾아봐")
+        //   전엔 초록·회색·빨강 셋이었는데 **색으로만** 말했다. 햇빛 아래 8dp 점은 색이 안 갈린다.
+        //   앱 다른 데(전화 카드)는 색 + 칩 + 글자까지 쓰는데 여기만 색 혼자였다.
+        //   → 점 하나 = 안 읽음. **있냐 없냐**로 읽히면 색약이든 햇빛이든 상관없다.
+        //   자리는 비워 둔다 — 줄이 들쭉날쭉하면 훑는 맛이 사라진다.
+        if (!lead.replied && !lead.contracted) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(TossError))
+        } else {
+            Spacer(Modifier.size(8.dp))
+        }
         Spacer(Modifier.width(11.dp))
         // nl-b
         Column(Modifier.weight(1f)) {
@@ -278,8 +284,6 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
                 com.detailline.callfollowcrm.presentation.component.CustomerTags(
                     c = lead.customer, category = lead.category, gap = 6.dp
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(lead.timeLabel, color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
             }
             // "어떻게 끝났는지" 한 줄 — ✨AI 요약(파랑) / 💬 마지막 문자 / 📞 통화. 없으면 memo.
             if (lead.summaryLine != null) {
@@ -310,32 +314,41 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
             }
         }
         Spacer(Modifier.width(11.dp))
-        // right — 계약완료 배지 / 답장함 태그 / 재연락 버튼
-        if (lead.contracted) {
+        /*
+         * 오른쪽 고정 칸 — **시각이 늘 같은 자리**에 온다. (2026-09-20 사장님 "어색한 것 찾아봐")
+         *
+         * 전엔 시각이 이름 줄 안에 있어서 **분류 태그가 많으면 자리가 밀렸고**,
+         * 배지 폭(답장함/계약완료/재연락)이 제각각이라 **세로줄이 안 맞았다.**
+         * 목록은 눈으로 훑는 자리라 **같은 것은 같은 x 에** 있어야 한다.
+         *
+         * 그리고 **버튼은 버튼처럼, 상태는 글자로.**
+         *   전엔 셋 다 같은 알약이라 처음 쓰는 사람은 "답장함"을 누른다.
+         *   실제로 눌리는 건 [재연락] 하나뿐인데. → 채운 버튼은 그것만 남기고
+         *   "답장함·계약완료"는 **배경 없는 글자**로 내렸다. 한 줄의 색도 그만큼 줄어든다.
+         */
+        Column(
+            modifier = Modifier.widthIn(min = 62.dp),
+            horizontalAlignment = Alignment.End
+        ) {
             Text(
-                "계약완료",
-                color = Color(0xFF0E9F56), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp)).background(Color(0xFFE5F8EE))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                lead.timeLabel, color = TossTextTertiary,
+                fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
             )
-        } else if (lead.replied) {
-            Text(
-                "답장함",
-                color = TossTextTertiary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-            )
-        } else {
-            Text(
-                "재연락",
-                color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp)).background(TossBlue)
-                    .clickable { onReContact() }
-                    .padding(horizontal = 14.dp, vertical = 9.dp)
-            )
+            Spacer(Modifier.height(5.dp))
+            if (lead.contracted) {
+                Text("계약완료", color = Color(0xFF0E9F56), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            } else if (lead.replied) {
+                Text("답장함", color = TossTextTertiary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            } else {
+                Text(
+                    "재연락",
+                    color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp)).background(TossBlue)
+                        .clickable { onReContact() }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }
