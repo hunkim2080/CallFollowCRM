@@ -4150,27 +4150,36 @@ private fun Composer(
                         )
                     )
                 }
-                BasicTextField(
-                    value = tfv,
-                    onValueChange = { v ->
-                        tfv = v                       // IME 조합영역 보존(핵심) — 한글 자모가 합쳐짐
-                        onChange(v.text)
-                        onSelectionChange(v.selection)
-                    },
-                    textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
-                    cursorBrush = SolidColor(TossBlue),
-                    maxLines = 5,
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                        .onFocusChanged { state -> onFocusChange(state.isFocused) },
-                    decorationBox = { inner ->
-                        if (input.isEmpty()) {
-                            Text("메시지 입력...", color = TossTextTertiary, fontSize = 14.sp)
+                // 글칸은 **📷 와 같은 44dp 를 최소 높이로** 잡고 그 안에서 가운데. (2026-09-19 사장님)
+                //   전엔 최소 높이가 없어, 바닥 정렬하면 한 줄짜리 글이 📷 보다 11dp 쯤 아래로 처졌다.
+                //   ("+ 는 정렬됐는데 이번엔 메시지입력 텍스트가..")
+                //   dp 로 밀어 맞추지 않고 높이를 맞춘 이유: 글자 크기를 키운 폰에서도 안 어긋난다.
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    BasicTextField(
+                        value = tfv,
+                        onValueChange = { v ->
+                            tfv = v                       // IME 조합영역 보존(핵심) — 한글 자모가 합쳐짐
+                            onChange(v.text)
+                            onSelectionChange(v.selection)
+                        },
+                        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
+                        cursorBrush = SolidColor(TossBlue),
+                        maxLines = 5,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                            .onFocusChanged { state -> onFocusChange(state.isFocused) },
+                        decorationBox = { inner ->
+                            if (input.isEmpty()) {
+                                Text("메시지 입력...", color = TossTextTertiary, fontSize = 14.sp)
+                            }
+                            inner()
                         }
-                        inner()
-                    }
-                )
+                    )
+                }
                 // ✨ AI 다듬기 (오른쪽) — 글 있을 때만 톡 등장(⊕에 안 묻음, 킬러기능). 44dp + 다듬는 중 로딩·탭취소. (2026-08-14 사장님)
                 if (showAiPolish) androidx.compose.animation.AnimatedVisibility(
                     visible = input.isNotBlank(),
