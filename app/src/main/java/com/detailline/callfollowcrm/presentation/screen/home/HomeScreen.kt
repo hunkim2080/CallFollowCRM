@@ -254,6 +254,10 @@ fun HomeScreen(
     // 광고 자동감지 — "이건 광고 아냐" 예외 목록 + 광고함 펼침 상태. (2026-07-08 사장님)
     val adAllowlist by viewModel.adAllowlist.collectAsState()
     var adBoxExpanded by rememberSaveable { mutableStateOf(false) }
+    // 🏷️ 상담함 칩 (2026-09-20 사장님 "거르기로 가자") — 탭 두 개를 칩 한 줄로.
+    //   왼쪽은 오늘 할 일, 오른쪽은 사람 찾기. "msg" 만 본문이 문자함으로 바뀌고 나머지는 **같은 목록을 거른다.**
+    var inboxChip by rememberSaveable { mutableStateOf("all") }
+
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
     val generalUnread by viewModel.generalUnreadCount.collectAsState()
@@ -284,6 +288,17 @@ fun HomeScreen(
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val balanceDues by viewModel.balanceDues.collectAsState()
+    // 🏷️ 칩에 붙는 숫자 — **할 일만** 센다. "시공 끝남" 이 40명이어도 빨갛게 쓰지 않는다(할 일이 아니니까).
+    val inboxChipCounts = remember(timeline, balanceDues) {
+        val dues = balanceDues.mapNotNull { it.customerId }.toHashSet()
+        val all = timeline.flatMap { g -> g.items }
+            .distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+        mapOf(
+            "today" to all.count { it.isNewToday },
+            "unhandled" to all.count { it.isUnconfirmed },
+            "owe" to all.count { it.customer?.id in dues }
+        )
+    }
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
     val estimateFollowupDismissed by viewModel.estimateFollowupDismissed.collectAsState()
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
@@ -505,7 +520,14 @@ fun HomeScreen(
             // 상담함 | 문자함 폴더 탭 (크롬 탭식 전환) — 2026-07-11 사장님.
             //   ⚠️ 본문 전환은 아래 Box(nestedScroll)를 if/else 로 감싼다. Composable 안에서 early return@Column 하면
             //      슬롯테이블 group 이 어긋나 recompose 시 크래시(Stack.pop AIOOBE) — 반드시 if/else 로. (2026-07-12)
-            InboxFolderTabs(selected = inboxTab, onSelect = { inboxTab = it }, consultBadge = consultUnread, generalBadge = generalUnread)
+            // 🏷️ 칩 한 줄 — 탭 두 개가 쓰던 자리. (2026-09-20 · 프로토 6qoXfXjd)
+            //   ⚠️ 옛 InboxFolderTabs 는 안 지웠다. 되돌릴 땐 이 줄만 바꾸면 된다.
+            InboxChips(
+                selected = inboxChip,
+                onSelect = { key -> inboxChip = key; inboxTab = if (key == "msg") 1 else 0 },
+                counts = inboxChipCounts,
+                generalBadge = generalUnread
+            )
 
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
             //   "처음엔 옛 통화만, 잠시 후 SMS 카드 스르륵 추가" 깜빡임 인지.
@@ -766,14 +788,18 @@ fun HomeScreen(
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 프로토 today-new-slot — 맨 위. "오늘 신규 문의 N통 / 새 번호 기준 · 어제 M통" + ▲▼.
-                item(key = "today-new") {
-                    TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenNewLeads)
+                // 프로토 today-new-slot — "오늘 신규 문의 N통 / 어제 M통".
+                //   2026-09-20: **[오늘 신규] 칩 안에서만** 보여준다. 전체 화면에선 칩에 숫자가 이미 있다.
+                //   어제와 비교하는 말은 칩이 못 하니 카드로 남긴다.
+                if (inboxChip == "today") {
+                    item(key = "today-new") {
+                        TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenNewLeads)
+                    }
                 }
 
                 // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.
                 //   오늘 협업 현장도 여기에 보라색 카드로 함께 표시. (2026-06-24 사장님)
-                item(key = "today-hero") {
+                if (inboxChip == "all") item(key = "today-hero") {
                     val todayDayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
                     val collabTodaySites = collabUpcoming.filter {
                         it.scheduledAtMs > 0L && DateTimeUtils.startOfDay(it.scheduledAtMs) == todayDayStart
@@ -1010,7 +1036,9 @@ fun HomeScreen(
 
                 // 안 들어온 잔금(미수 1일+ 경과) — 협업 요청과 같은 InboxAlert 컴팩트 카드. 고객마다 1개. (2026-06-23 사장님)
                 //   탭 = 그 고객 채팅(잔금 요청 보내러) · 꾹 누름 = 받음 처리(되돌리기 가능).
-                balanceDues.forEach { due ->
+                // 2026-09-20: **[미수] 칩 안에서만.** 전에는 전체 화면에 넉 장씩 쌓여 목록을 밀어냈다.
+                //   미수 칩에선 목록 대신 이 카드를 보여준다 — [잔금 요청] 버튼이 여기 있기 때문.
+                if (inboxChip == "owe") balanceDues.forEach { due ->
                     item(key = "balancedue-${due.customerId}-${due.jobId ?: 0L}") {
                         InboxAlert(
                             accent = Color(0xFFF0436A),
@@ -1043,7 +1071,20 @@ fun HomeScreen(
                 val dedupItems = flatItems.distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
                 // 자동 광고 분류 — 매우 보수적(오탐 방지 3중 가드): 저장 안 된 낯선 번호 + 내가 답장 안 함 +
                 //   "광고 아냐" 예외 아님 + 내용이 뻔한 광고(isLikelyAd). 하나라도 아니면 상담함에 그대로 남김. (2026-07-08 사장님)
-                val ads = dedupItems.filter { row ->
+                // 🏷️ **칩으로 한 번 거른다.** 이 아래 '지금 답장 기다려요'·'최근 대화' 는 손 안 댄다 —
+                //   거른 목록을 그대로 받으니 렌더가 통째로 재사용된다. (2026-09-20)
+                val dueIds = balanceDues.mapNotNull { it.customerId }.toHashSet()
+                val chipItems = when (inboxChip) {
+                    "today" -> dedupItems.filter { it.isNewToday }
+                    "unhandled" -> dedupItems.filter { it.isUnconfirmed }
+                    "owe" -> dedupItems.filter { it.customer?.id in dueIds }
+                    "newnum" -> dedupItems.filter { it.customer == null }
+                    "done" -> dedupItems.filter { it.customer?.workCompletedAt != null }
+                    else -> dedupItems
+                }
+                val chipOn = inboxChip != "all"
+
+                val ads = chipItems.filter { row ->
                     val suffix = row.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
                     row.customer == null && row.lastSent != true && suffix !in adAllowlist &&
                         com.detailline.callfollowcrm.util.isLikelyAd(row.lastBody ?: "", row.record.phoneNumber)
@@ -1051,17 +1092,23 @@ fun HomeScreen(
                 val adSuffixes = ads.mapTo(HashSet()) { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
                 fun notAd(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
                     it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in adSuffixes
-                val waiting = dedupItems.filter { it.isUnconfirmed && notAd(it) }
+                val waiting = chipItems.filter { it.isUnconfirmed && notAd(it) }
                 // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
                 //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
                 // 고정 거래처는 최근 대화에서 빼서 '고정' 칸으로만 보여준다. 나머지는 그대로. (2026-08-24 사장님)
-                val recent = dedupItems.filter { !it.isUnconfirmed && notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in pinnedSuffixes }
-                val pinned = dedupItems.filter { notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) in pinnedSuffixes }
+                val recent = chipItems.filter { !it.isUnconfirmed && notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in pinnedSuffixes }
+                val pinned = chipItems.filter { notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) in pinnedSuffixes }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
-                item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
-                if (waiting.isEmpty()) {
-                    item(key = "waiting-empty") { WaitingEmptyMascot(newUser = recent.isEmpty()) }
+                // [미수] 칩은 위 잔금 카드가 본문이다. 아래 대화 목록까지 띄우면 **같은 사람이 두 번** 나온다.
+                val hideThreads = inboxChip == "owe"
+                // 칩을 켄 채 대기가 비면 머리글·막내를 안 띄운다 — "시공 끝남" 을 보는데
+                //   "지금 답장 기다려요 0 / 다 챙기셨네요" 가 나오면 딴소리다. (2026-09-20)
+                if (!hideThreads && !(chipOn && waiting.isEmpty())) {
+                    item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
+                }
+                if (waiting.isEmpty() || hideThreads) {
+                    if (!chipOn) item(key = "waiting-empty") { WaitingEmptyMascot(newUser = recent.isEmpty()) }
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
                         val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
@@ -1173,8 +1220,15 @@ fun HomeScreen(
                 }
 
                 // 최근 대화 — 프로토 recent-row: 한 흰 카드 안 줄들 + 구분선(낱개 카드 X).
-                if (recent.isNotEmpty()) {
-                    item(key = "recent-head") { SecSub("최근 대화") }
+                if (!hideThreads && chipOn && waiting.isEmpty() && recent.isEmpty() && pinned.isEmpty()) {
+                    item(key = "chip-empty") {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                            Text("여기 아무도 없어요", fontSize = 13.sp, color = TossTextTertiary)
+                        }
+                    }
+                }
+                if (recent.isNotEmpty() && !hideThreads) {
+                    item(key = "recent-head") { SecSub(if (chipOn) "" else "최근 대화") }
                     item(key = "recent-card") {
                         val shownRecent = recent.take(recentShown)
                         // 프로토 renderRecent 1:1 — 대화 3개마다 팁 하나. 단, 팁이 실제로 끼일 때만 카드를 끊고(flush),
@@ -2064,6 +2118,80 @@ private fun BandShell(
  *   없으면 "다음 시공" 미리보기(1~3곳) 또는 "오늘 없음" 긍정 카드. 2026-06-01.
  *   ⚠️ 2026-09-20 부터 홈은 [TodayBand] 를 쓴다. 이건 되돌릴 때를 위해 남겨둔 것.
  */
+/**
+ * 🏷️ 상담함 칩 한 줄. (2026-09-20 사장님 "거르기로 가자" · 프로토 artifact/6qoXfXjd4uxrL4ZNpN3rHU)
+ *
+ * 카톡 칩은 **"지금 뭘 할 건가"**(안읽음)를 세고, 사장님이 말씀하신 칩은 **"이 사람이 누구인가"**를 나눈다.
+ * 둘 다 필요해서 **한 줄 안에서 자리를 갈랐다** — 왼쪽은 오늘 할 일, 구분선, 오른쪽은 사람 찾기.
+ * 아침엔 왼쪽만 보면 되고, 통화 중엔 오른쪽으로 민다.
+ *
+ * **빨간 숫자는 왼쪽에만.** "시공 끝남" 이 40명이어도 할 일이 아니라서 숫자를 안 쓴다.
+ */
+@Composable
+private fun InboxChips(
+    selected: String,
+    onSelect: (String) -> Unit,
+    counts: Map<String, Int>,
+    generalBadge: Int
+) {
+    val work = listOf("today" to "오늘 신규", "unhandled" to "안 챙긴", "owe" to "미수")
+    val who = listOf("newnum" to "새 번호", "done" to "시공 끝남")
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        item { ChipPill("전체", null, selected == "all") { onSelect("all") } }
+        items(work.size) { i ->
+            val (k, label) = work[i]
+            ChipPill(label, counts[k]?.takeIf { it > 0 }, selected == k) { onSelect(k) }
+        }
+        // 할 일 / 사람 찾기 사이 — 얇은 금
+        item {
+            Box(Modifier.padding(horizontal = 3.dp).width(1.dp).height(18.dp).background(TossDivider))
+        }
+        items(who.size) { i ->
+            val (k, label) = who[i]
+            ChipPill(label, null, selected == k) { onSelect(k) }
+        }
+        item { ChipPill("문자함", generalBadge.takeIf { it > 0 }, selected == "msg") { onSelect("msg") } }
+    }
+}
+
+/** 칩 하나 — 고른 건 파랑(앱 색), 숫자만 빨강. 검정은 남의 앱 색이라 안 쓴다. */
+@Composable
+private fun ChipPill(label: String, count: Int?, on: Boolean, onClick: () -> Unit) {
+    // ⚠️ 안 고른 칩을 TossGrayBg 로 했더니 **화면 배경과 같은 회색이라 안 보였다**(2026-09-20 실기).
+    //   칩이 아니라 그냥 글자로 보인다. 흰 바탕 + 얇은 테두리라야 "누를 수 있는 것"으로 읽힌다.
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (on) TossBlue else Color.White)
+            .then(
+                if (on) Modifier
+                else Modifier.border(1.dp, TossDivider, RoundedCornerShape(999.dp))
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 13.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            color = if (on) Color.White else TossTextSecondary,
+            fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1
+        )
+        if (count != null) {
+            Spacer(Modifier.width(5.dp))
+            Text(
+                count.toString(),
+                color = if (on) Color.White else TossError,
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
+            )
+        }
+    }
+}
+
 @Composable
 private fun TodayHeroCard(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
