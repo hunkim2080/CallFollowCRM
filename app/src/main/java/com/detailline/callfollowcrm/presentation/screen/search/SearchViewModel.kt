@@ -190,6 +190,66 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * 🪝 **내 숫자로 만든 미끼 칩.** (2026-09-19 사장님 · 프로토 Wb1zoMZT)
+     *   검색창을 열었을 때 "이렇게도 찾아요" 로 깔린다. 누르면 그 검색이 바로 돌아간다.
+     *   설명("미수로 찾기")이 아니라 **내 숫자**("미수 4건")라야 누른다.
+     *   0건이면 그 칩은 안 만든다 — 빈 약속을 하지 않는다.
+     */
+    val baitChips: StateFlow<List<BaitChip>> = combine(
+        container.customerRepository.observeAll(),
+        container.jobRepository.observeAll()
+    ) { customers, jobs ->
+        val out = ArrayList<BaitChip>()
+        val byId = customers.associateBy { it.id }
+
+        // ① 💰 못 받은 돈
+        var unpaid = 0
+        val covered = HashSet<Long>()
+        for (j in jobs) {
+            if (com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j).outstanding <= 0L) continue
+            if (byId[j.customerId] == null) continue
+            covered.add(j.customerId); unpaid++
+        }
+        for (c in customers) {
+            if (c.id in covered || jobs.any { it.customerId == c.id }) continue
+            if (com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding > 0L) unpaid++
+        }
+        if (unpaid > 0) out.add(BaitChip("💰 미수 ${unpaid}건", "미수"))
+
+        // ② 📅 이번 달 시공
+        val cal = java.util.Calendar.getInstance()
+        val thisY = cal.get(java.util.Calendar.YEAR)
+        val thisM = cal.get(java.util.Calendar.MONTH) + 1
+        val monthCount = jobs.count { j ->
+            val d = j.scheduledWorkDate ?: j.workCompletedAt ?: return@count false
+            cal.timeInMillis = d
+            cal.get(java.util.Calendar.YEAR) == thisY && cal.get(java.util.Calendar.MONTH) + 1 == thisM
+        }
+        if (monthCount > 0) out.add(BaitChip("📅 ${thisM}월 시공 ${monthCount}곳", "${thisM}월"))
+
+        // ③ 📍 제일 많이 일한 동네
+        val region = topRegion(jobs.mapNotNull { it.address } + customers.mapNotNull { it.address })
+        if (region != null) out.add(BaitChip("📍 ${region.first} ${region.second}곳", region.first))
+
+        out.take(3)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 주소들에서 **제일 많이 나온 동네**를 뽑는다. 두 곳 이상 걸릴 때만 — 한 곳이면 미끼가 안 된다.
+     *   "…화성시 동탄구 동탄대로24길" → 동탄구 / "옥길동 한신더휴" → 옥길동
+     */
+    private fun topRegion(addresses: List<String>): Pair<String, Int>? {
+        val re = Regex("[가-힣]{2,4}(동|읍|면|구)")
+        val count = HashMap<String, Int>()
+        for (a in addresses) {
+            val seen = HashSet<String>()
+            for (m in re.findAll(a)) if (seen.add(m.value)) count[m.value] = (count[m.value] ?: 0) + 1
+        }
+        val best = count.maxByOrNull { it.value } ?: return null
+        return if (best.value >= 2) best.key to best.value else null
+    }
+
     /** 오늘 통화한 손님 — 검색창을 열자마자 누를 게 있도록. (2026-09-19 사장님) */
     val todayCallers: StateFlow<List<SearchResult>> = combine(
         container.customerRepository.observeAll(),
@@ -443,6 +503,12 @@ val UNPAID_WORDS = listOf("미수", "못받은", "못 받은", "잔금")
 
 /** 한 결과에서 펼칠 문장 수. 더 있으면 "N곳 더" 로 접는다. (2026-09-19 사장님 기본값) */
 const val MAX_SENTENCES = 3
+
+/**
+ * 🪝 미끼 칩 하나 — 보이는 글자와, 누르면 돌아갈 검색어. (2026-09-19 사장님)
+ *   label 엔 **내 숫자**가 들어간다("💰 미수 4건"). 그래야 누른다.
+ */
+data class BaitChip(val label: String, val query: String)
 
 /**
  * 📍 주소로 찾은 **현장** 한 줄. (2026-09-19 사장님)

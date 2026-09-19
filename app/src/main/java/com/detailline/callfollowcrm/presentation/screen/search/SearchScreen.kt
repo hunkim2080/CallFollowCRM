@@ -71,6 +71,7 @@ fun SearchScreen(
     val results by viewModel.results.collectAsState()
     val recent by viewModel.recent.collectAsState()
     val todayCallers by viewModel.todayCallers.collectAsState()
+    val bait by viewModel.baitChips.collectAsState()
     val sites by viewModel.siteResults.collectAsState()
     val unpaid by viewModel.unpaidResults.collectAsState()
     val period by viewModel.periodResults.collectAsState()
@@ -110,7 +111,8 @@ fun SearchScreen(
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (query.isEmpty()) {
-                    Text("이름·전화·문자·통화 내용 검색", fontSize = 15.sp, color = TossTextTertiary)
+                    // 홈 검색창과 **같은 말**로. (2026-09-19 — 홈만 바꾸고 여기를 안 바꿔 두 말이 달랐다)
+                    Text("이름·주소·금액·통화 내용까지", fontSize = 15.sp, color = TossTextTertiary)
                 }
                 BasicTextField(
                     value = query,
@@ -130,7 +132,7 @@ fun SearchScreen(
 
         when {
             // 03 — 빈 검색창이면 **최근 검색 + 오늘 통화한 손님**. 열자마자 누를 게 있게. (2026-09-19 사장님)
-            query.isBlank() && (recent.isNotEmpty() || todayCallers.isNotEmpty()) -> LazyColumn(
+            query.isBlank() && (recent.isNotEmpty() || todayCallers.isNotEmpty() || bait.isNotEmpty()) -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
             ) {
@@ -159,6 +161,26 @@ fun SearchScreen(
                                     Icons.Filled.Close, "지우기", tint = TossTextTertiary,
                                     modifier = Modifier.size(14.dp).clickable { viewModel.dropRecent(word) }
                                 )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
+                // 🪝 "이렇게도 찾아요" — 설명이 아니라 **내 숫자**. 누르면 그 검색이 바로 돌아간다.
+                //   (2026-09-19 사장님 · 통화 전문 검색을 9/2 에 넣었는데 오늘에야 아신 게 계기)
+                if (bait.isNotEmpty()) item {
+                    Text("이렇게도 찾아요", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+                        color = TossTextTertiary, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        bait.forEach { chip ->
+                            Box(
+                                Modifier.padding(bottom = 7.dp)
+                                    .background(Color.White, RoundedCornerShape(999.dp))
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .clickable { viewModel.setQuery(chip.query) }
+                                    .padding(horizontal = 13.dp, vertical = 9.dp)
+                            ) {
+                                Text(chip.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                             }
                         }
                     }

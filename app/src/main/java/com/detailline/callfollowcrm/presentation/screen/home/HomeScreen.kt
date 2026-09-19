@@ -367,6 +367,9 @@ fun HomeScreen(
     var waitingSendReply by remember { mutableStateOf<String?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
+    // 목록 스크롤 위치 — **앱바가 알아야** 검색창을 접을 수 있어 Scaffold 밖으로 올렸다. (2026-09-19)
+    val listState = rememberLazyListState()
+
     // Scaffold 를 Box 로 감싸 그 위(홈 콘텐츠 전체를 덮는 z-레벨)에 업데이트 시트를 오버레이. (2026-07-18 사장님)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     Scaffold(
@@ -387,10 +390,10 @@ fun HomeScreen(
                 (context.applicationContext as CallFollowCrmApplication).container.preferences
                     .ownerTrades.firstOrNull()?.takeIf { it.isNotBlank() } ?: "시공"
             }
+            Column(Modifier.fillMaxWidth().background(TossGrayBg)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(TossGrayBg)
                     .statusBarsPadding()
                     // top 여백 ↑ — 엣지투엣지 OFF 라 statusBarsPadding=0, 제목이 상태바에 붙던 것 완화(2026-06-04).
                     .padding(start = 18.dp, end = 18.dp, top = 28.dp, bottom = 10.dp),
@@ -419,17 +422,6 @@ fun HomeScreen(
                     Icon(Icons.Default.Person, "고객", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(6.dp))
-                Box(
-                    Modifier
-                        .size(38.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(Color.White)
-                        .clickable { onOpenSearch() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Search, "검색", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(6.dp))
                 // PC 웹 QR 빠른 로그인 — 어디서든 한 탭에 스캐너. (2026-08-31 사장님)
                 Box(
                     Modifier
@@ -441,6 +433,41 @@ fun HomeScreen(
                 ) {
                     Icon(Icons.Default.QrCodeScanner, "PC 웹 QR", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
                 }
+            }
+            // 🔍 **검색창** — 돋보기 아이콘을 창으로 승격. (2026-09-19 사장님 · 프로토 Wb1zoMZT)
+            //   창 안 글자가 곧 안내문이다. 에이닷이 잘한 게 그거였다.
+            //   목록을 내리면 접는다 — 맨 위에서만 보인다. ("정리는 스크롤 자동 숨김으로")
+            val atTop by remember {
+                derivedStateOf {
+                    listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 40
+                }
+            }
+            androidx.compose.animation.AnimatedVisibility(visible = atTop) {
+                // 두 문장을 번갈아 — 한 줄에 다 넣으면 길어서 안 읽힌다.
+                val hints = listOf("이름·주소·금액·통화 내용까지", "\"동탄\" · \"미수\" · \"9월\" 도 찾아져요")
+                var hintIdx by remember { mutableStateOf(0) }
+                LaunchedEffect(Unit) {
+                    while (true) { kotlinx.coroutines.delay(4000); hintIdx = (hintIdx + 1) % hints.size }
+                }
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(start = 18.dp, end = 18.dp, bottom = 10.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White)
+                        .clickable { onOpenSearch() }
+                        .padding(horizontal = 15.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Search, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(9.dp))
+                    androidx.compose.animation.Crossfade(targetState = hintIdx, label = "hint") { i ->
+                        Text(
+                            hints[i], fontSize = 13.5.sp, color = TossTextTertiary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
             }
         },
         // 프로토 상담함엔 수동 입력 FAB 없음 — 2026-06-02 사장님 요청으로 제거.
@@ -504,7 +531,6 @@ fun HomeScreen(
             val flatItems = remember(timeline) {
                 timeline.flatMap { it.items }
             }
-            val listState = rememberLazyListState()
             // 최근 대화 스크롤 버벅임 fix: 한 카드에 전체를 한 프레임에 그리면 끊김 → 기본 일부만, 나머지는 "더 보기".
             // rememberSaveable — 대화 다녀와도 '이전 대화 더 보기' 펼침·스크롤 위치 유지(리셋 방지). (2026-09-01 사장님)
             //
