@@ -72,9 +72,15 @@ fun SearchScreen(
     val recent by viewModel.recent.collectAsState()
     val todayCallers by viewModel.todayCallers.collectAsState()
     val sites by viewModel.siteResults.collectAsState()
+    val unpaid by viewModel.unpaidResults.collectAsState()
+    val period by viewModel.periodResults.collectAsState()
     // 02 — 접은 묶음. 화면을 떠나기 전까진 기억한다. (2026-09-19 사장님)
     val folded = remember { mutableStateListOf<SearchSource>() }
+    /** 10건 넘어 처음엔 접힌 묶음 중, 사장님이 펼친 것. */
+    val opened = remember { mutableStateListOf<SearchSource>() }
     val siteOpen = remember { mutableStateOf(true) }
+    val unpaidOpen = remember { mutableStateOf(true) }
+    val periodOpen = remember { mutableStateOf(true) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -171,13 +177,20 @@ fun SearchScreen(
             }
             // 프로토 doSearch 빈 쿼리 안내문 verbatim.
             query.isBlank() -> CenterHint("이름·전화·문자, 그리고 통화 내용까지\n뭐든 찾아보세요")
-            results.isEmpty() && sites.isEmpty() -> CenterHint("검색 결과가 없어요")
+            results.isEmpty() && sites.isEmpty() && unpaid.isEmpty() && period.isEmpty() ->
+                CenterHint("검색 결과가 없어요")
             // 02 — 손님 → 통화 → 문자 → 메모 로 묶는다. 제목을 누르면 접힌다. (2026-09-19 사장님)
             //   사람 찾는 경우가 제일 많아 손님이 맨 위.
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
             ) {
+                // 💰 못 받은 돈 · 📅 그달 시공 — **장부에서 나온 것**이라 말보다 위. (2026-09-19 사장님)
+                val pick: (SiteHit) -> Unit = { s ->
+                    keyboard?.hide(); viewModel.rememberQuery(query); onOpenChat(s.phone, s.customerId)
+                }
+                siteGroup("💰 못 받은 돈", unpaid, unpaidOpen, query, pick)
+                siteGroup("📅 그달 시공", period, periodOpen, query, pick)
                 // 📍 현장 — 주소로 찾은 것. 말(통화·문자)보다 **위**에 둔다.
                 //   "동탄" 을 칠 땐 동탄에서 한 현장이 먼저 보여야 한다. (2026-09-19 사장님 1순위)
                 if (sites.isNotEmpty()) {
@@ -221,12 +234,20 @@ fun SearchScreen(
                 for (src in order) {
                     val rows = results.filter { it.source == src }
                     if (rows.isEmpty()) continue
-                    val open = src !in folded
+                    // 10건 넘는 묶음은 **접힌 채로** 시작. "9월" 처럼 문자에 흔한 말이면
+                    //   수십 건이 걸려 장부 묶음이 화면 밖으로 밀린다. (2026-09-19 사장님)
+                    val open = if (rows.size > 10) src in opened else src !in folded
                     item(key = "h-" + src.name) {
                         Row(
                             Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { if (open) folded.add(src) else folded.remove(src) }
+                                .clickable {
+                                    if (rows.size > 10) {
+                                        if (open) opened.remove(src) else opened.add(src)
+                                    } else {
+                                        if (open) folded.add(src) else folded.remove(src)
+                                    }
+                                }
                                 .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -335,6 +356,48 @@ private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) 
                 }
             }
         }
+    }
+}
+
+/**
+ * 장부에서 나온 묶음 하나 — 💰 못 받은 돈 · 📅 그달 시공 · 📍 현장 이 같은 모양을 쓴다.
+ *   말(통화·문자)에서 찾은 묶음과 생김새를 맞춰 눈이 헷갈리지 않게. (2026-09-19 사장님)
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.siteGroup(
+    title: String,
+    rows: List<SiteHit>,
+    open: androidx.compose.runtime.MutableState<Boolean>,
+    query: String,
+    onPick: (SiteHit) -> Unit
+) {
+    if (rows.isEmpty()) return
+    item(key = "h-" + title) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .clickable { open.value = !open.value }
+                .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.size(7.dp))
+            Box(
+                Modifier.background(Color.White, RoundedCornerShape(999.dp))
+                    .padding(horizontal = 7.dp, vertical = 1.dp)
+            ) {
+                Text("${rows.size}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(if (open.value) "⌃" else "⌄", fontSize = 13.sp, color = TossTextTertiary)
+        }
+    }
+    if (open.value) item(key = "b-" + title) {
+        Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))) {
+            rows.forEachIndexed { i, s ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                SiteRow(s, query) { onPick(s) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
     }
 }
 

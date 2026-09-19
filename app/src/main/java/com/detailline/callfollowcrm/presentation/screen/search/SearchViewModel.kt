@@ -104,6 +104,80 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         out.sortedByDescending { it.dayMs ?: 0L }.take(30)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * 💰 **못 받은 돈** — "미수 / 못받은 / 잔금 / 미수금" 중 뭘 쳐도 같은 목록. (2026-09-19 사장님)
+     *   '미수' 는 단어가 아니라 **상태**다. 문자에 그 글자가 있는 것과 따로 묶어 위에 둔다.
+     *   돈 계산은 정산 화면과 **같은 SettlementCalc** 을 쓴다 — 검색이 다른 숫자를 말하면 더 큰 사고다.
+     */
+    val unpaidResults: StateFlow<List<SiteHit>> = combine(
+        container.customerRepository.observeAll(),
+        container.jobRepository.observeAll(),
+        query.debounce(220)
+    ) { customers, jobs, qRaw ->
+        val q = qRaw.trim()
+        if (!UNPAID_WORDS.any { q.contains(it) }) return@combine emptyList()
+        val byId = customers.associateBy { it.id }
+        val out = ArrayList<SiteHit>()
+        val covered = HashSet<Long>()
+        for (j in jobs) {
+            val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
+            if (row.outstanding <= 0L) continue
+            val c = byId[j.customerId] ?: continue
+            covered.add(c.id)
+            out.add(hitOf(c, j.address ?: c.address, j.scheduledWorkDate ?: j.workCompletedAt,
+                "미수 ${row.outstanding / 10000}만"))
+        }
+        // 건이 없는 옛 손님 — 고객 카드로.
+        for (c in customers) {
+            if (c.id in covered) continue
+            if (jobs.any { it.customerId == c.id }) continue
+            val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
+            if (row.outstanding <= 0L) continue
+            out.add(hitOf(c, c.address, c.scheduledWorkDate ?: c.workCompletedAt,
+                "미수 ${row.outstanding / 10000}만"))
+        }
+        out.sortedByDescending { it.dayMs ?: 0L }.take(40)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 📅 **그달 시공** — "9월", "9월달", "지난달", "이번달" 을 알아듣는다. (2026-09-19 사장님) */
+    val periodResults: StateFlow<List<SiteHit>> = combine(
+        container.customerRepository.observeAll(),
+        container.jobRepository.observeAll(),
+        query.debounce(220)
+    ) { customers, jobs, qRaw ->
+        val month = SearchQueryParse.monthOf(qRaw.trim()) ?: return@combine emptyList()
+        val byId = customers.associateBy { it.id }
+        val cal = java.util.Calendar.getInstance()
+        fun inMonth(ms: Long?): Boolean {
+            if (ms == null || ms <= 0L) return false
+            cal.timeInMillis = ms
+            return cal.get(java.util.Calendar.YEAR) == month.first &&
+                cal.get(java.util.Calendar.MONTH) + 1 == month.second
+        }
+        val out = ArrayList<SiteHit>()
+        for (j in jobs) {
+            val day = j.scheduledWorkDate ?: j.workCompletedAt
+            if (!inMonth(day)) continue
+            val c = byId[j.customerId] ?: continue
+            val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
+            out.add(hitOf(c, j.address ?: c.address, day,
+                moneyLabel(j.totalAmount, row.outstanding, j.balancePaidAt, j.workCompletedAt)))
+        }
+        out.sortedByDescending { it.dayMs ?: 0L }.take(40)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private fun hitOf(
+        c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
+        address: String?, dayMs: Long?, money: String?
+    ) = SiteHit(
+        phone = c.phoneNumber,
+        customerId = c.id,
+        name = c.name?.takeIf { it.isNotBlank() },
+        address = address?.takeIf { it.isNotBlank() } ?: "주소 없음",
+        dayMs = dayMs,
+        money = money
+    )
+
     /** 현장 한 줄 오른쪽에 붙는 돈 상태 — 완납 / 잔금 N만 / N만원 / (없으면 null). */
     private fun moneyLabel(total: Long?, balance: Long?, balancePaidAt: Long?, doneAt: Long?): String? {
         val man = { won: Long -> "${won / 10000}만" }
@@ -361,6 +435,12 @@ data class SearchResult(
     val address: String? = null
 )
 
+/**
+ * '못 받은 돈' 을 뜻하는 말들 — 뭘 쳐도 같은 목록이 나온다. (2026-09-19 사장님)
+ *   사장님마다 부르는 말이 다르다: 미수 · 못받은 · 잔금 · 미수금.
+ */
+val UNPAID_WORDS = listOf("미수", "못받은", "못 받은", "잔금")
+
 /** 한 결과에서 펼칠 문장 수. 더 있으면 "N곳 더" 로 접는다. (2026-09-19 사장님 기본값) */
 const val MAX_SENTENCES = 3
 
@@ -376,3 +456,28 @@ data class SiteHit(
     val dayMs: Long?,
     val money: String?
 )
+
+/**
+ * 검색어 해석 — **여기서만** 판단한다. 단위 테스트로 못 박는다.
+ *   (2026-09-19 사장님 — "9월", "지난달" 같은 말을 알아듣게)
+ *   한글은 adb 로 못 쳐서 폰에서 눌러볼 수 없다 → 테스트로 확인하는 게 유일한 검증이다.
+ */
+object SearchQueryParse {
+    /** 검색어에서 '몇 년 몇 월' 을 읽는다. 못 읽으면 null. */
+    fun monthOf(q: String, nowMs: Long = System.currentTimeMillis()): Pair<Int, Int>? {
+        val now = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
+        val y = now.get(java.util.Calendar.YEAR)
+        val m = now.get(java.util.Calendar.MONTH) + 1
+        when {
+            q.contains("지난달") || q.contains("저번달") ->
+                return if (m == 1) (y - 1) to 12 else y to (m - 1)
+            q.contains("이번달") || q.contains("이번 달") -> return y to m
+            q.contains("다음달") -> return if (m == 12) (y + 1) to 1 else y to (m + 1)
+        }
+        // "9월", "09월", "9월달", "2026년 9월"
+        val mm = Regex("(\\d{1,2})\\s*월").find(q)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        if (mm !in 1..12) return null
+        val yy = Regex("(20\\d{2})\\s*년").find(q)?.groupValues?.get(1)?.toIntOrNull() ?: y
+        return yy to mm
+    }
+}
