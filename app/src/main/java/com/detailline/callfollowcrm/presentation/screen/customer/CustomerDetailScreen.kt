@@ -755,6 +755,10 @@ fun CustomerDetailScreen(
             //    100명 중 95명한테 쓸데없는 줄 하나를 얹는 것" — 그게 '지저분하다'의 정체.
             //   1건일 때의 두 번째 시공 입구는 **맨 아래 조용한 링크**(＋ 시공 하나 더 잡기)로 옮겼다.
             val showJobBar = otherJobs.isNotEmpty()
+            // 지금 고른 건의 **차수 꼬리표**("2차 "). 시공이 하나뿐이면 빈 문자열.
+            //   메모·사진 제목이 각자 만들다가 번호가 어긋났다 → 한 곳에서 만든다. (2026-09-19 사장님)
+            val jobNthPrefix = if (showJobBar && shownJob != null)
+                "${jobNthOf(allJobsForTabs, shownJob)}차 " else ""
 
             // ⑤ **마무리 뒤에 문자에서 주소가 잡히면 다음 현장 것으로 묻는다.** (2026-09-18 확정 프로토 `.catch`)
             //   "1차 현장이 잔금 확인이 됐으면 마무리로 봄. 그 이후 대화에서 주소가 나오면
@@ -882,7 +886,8 @@ fun CustomerDetailScreen(
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(
-                                            "${jobNthOf(allJobsForTabs, j)}차 · " +
+                                            (if (jobCancelled(j)) (if (j.cancelledAt != null) "취소한 건" else "빈 건")
+                                             else "${jobNthOf(allJobsForTabs, j)}차") + " · " +
                                                 (j.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정"),
                                             fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                             color = if (selectedPastJobId == j.id) TossBlue else TossTextPrimary
@@ -1148,7 +1153,7 @@ fun CustomerDetailScreen(
                             Text("📍", fontSize = 13.sp)
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                if (showJobBar && shownJob != null) "${jobNthOf(allJobsForTabs, shownJob)}차 현장 메모" else "이 현장 메모",
+                                if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 메모" else "이 현장 메모",
                                 fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
                             )
                             Spacer(Modifier.weight(1f))
@@ -1209,7 +1214,9 @@ fun CustomerDetailScreen(
                         Text("📷", fontSize = 13.sp)
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            if (photoTotal == 0) "현장 사진" else "현장 사진 ${photoTotal}장 / ${photoMax}",
+                            // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
+                            (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
+                                (if (photoTotal == 0) "" else " ${photoTotal}장 / ${photoMax}"),
                             fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
                         )
                     }
@@ -4281,10 +4288,23 @@ private fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntit
  * 이 건이 몇 차인가 — **날짜순**. 탭 줄(JobTabsRow)과 같은 규칙이라 화면 어디서나 숫자가 같다.
  *   (2026-09-18: 메모·사진 제목의 "N차" 가 탭 숫자와 어긋나면 안 된다)
  */
+/**
+ * 이 건이 **몇 차**인가 — 탭이 매기는 차수와 **똑같은 규칙**이어야 한다.
+ *   · 취소한 건·빈 건은 세지 않는다 (탭에서 뺐으니 번호도 안 준다)
+ *   · 날짜순, 날짜 없는 건은 맨 앞
+ *
+ * 🔴 2026-09-19 사장님: "1차를 고르면 2차 현장메모가 나오고 2차를 고르면 3차 메모가 나오네"
+ *   탭은 취소·빈 건을 빼고 세는데 여기선 다 세고 있어서 **번호가 하나씩 밀렸다.**
+ *   같은 규칙을 두 군데 따로 적으면 또 어긋난다 — 셈은 여기 하나로 모은다.
+ */
 private fun jobNthOf(
     all: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
     job: com.detailline.callfollowcrm.data.local.entity.JobEntity
-): Int = all.sortedBy { it.scheduledWorkDate ?: 0L }.indexOfFirst { it.id == job.id } + 1
+): Int {
+    val ordered = all.filterNot { jobCancelled(it) }.sortedBy { it.scheduledWorkDate ?: 0L }
+    val i = ordered.indexOfFirst { it.id == job.id }
+    return if (i < 0) ordered.size + 1 else i + 1
+}
 
 /** '이 사람은 [고객 아님][고객]' 알약 하나. 고른 쪽만 파랗게. (2026-09-17) */
 @Composable
