@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.search
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -127,7 +128,7 @@ fun SearchScreen(
                             if (idx > 0) {
                                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                             }
-                            SearchRow(r) {
+                            SearchRow(r, query) {
                                 keyboard?.hide()
                                 onOpenChat(r.phone, r.customerId)
                             }
@@ -141,7 +142,7 @@ fun SearchScreen(
 
 /** 프로토 doSearch 결과 .recent-row — 아바타 + (이름 / 메시지 요약). */
 @Composable
-private fun SearchRow(r: SearchResult, onClick: () -> Unit) {
+private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) {
     val hasName = r.name?.isNotBlank() == true
     val title = r.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(r.phone)
     val tintIdx = (((r.customerId ?: r.phone.hashCode().toLong()) % AV_TINTS.size + AV_TINTS.size) % AV_TINTS.size).toInt()
@@ -173,14 +174,61 @@ private fun SearchRow(r: SearchResult, onClick: () -> Unit) {
                 title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
-            if (!r.snippet.isNullOrBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SourceChip(r.source)
-                    Text(r.snippet, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // 걸린 문장을 **여러 개** 보여준다 — 통화 안에서 몇 번 걸렸는지가 눈에 보여야
+            //   "안까지 다 뒤졌다"는 게 전달된다. (2026-09-19 사장님)
+            val lines = r.sentences.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.snippet?.takeIf { it.isNotBlank() })
+            if (lines.isNotEmpty()) {
+                Spacer(Modifier.height(5.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) { SourceChip(r.source) }
+                lines.forEachIndexed { i, line ->
+                    Spacer(Modifier.height(if (i == 0) 4.dp else 4.dp))
+                    Box(
+                        Modifier
+                            .background(TossGrayBg, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 9.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            highlighted(line, query),
+                            fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 18.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                if (r.moreCount > 0) {
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        (if (r.source == SearchSource.CALL) "이 통화에서 " else "이 대화에서 ") +
+                            "${r.moreCount}곳 더 ›",
+                        fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * 찾는 말을 **파랗게 칠한다.** (2026-09-19 사장님 — 에이닷 초록 하이라이트를 보고)
+ *   눈이 바로 그 단어로 간다. 글자가 많을수록 이게 있고 없고가 크다.
+ */
+private fun highlighted(text: String, q: String): androidx.compose.ui.text.AnnotatedString {
+    val query = q.trim()
+    if (query.isEmpty()) return androidx.compose.ui.text.AnnotatedString(text)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        var i = 0
+        while (i <= text.length - query.length) {
+            val at = text.indexOf(query, i, ignoreCase = true)
+            if (at < 0) break
+            append(text.substring(i, at))
+            withStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    color = TossBlue, fontWeight = FontWeight.ExtraBold,
+                    background = Color(0x1F3182F6)
+                )
+            ) { append(text.substring(at, at + query.length)) }
+            i = at + query.length
+        }
+        if (i < text.length) append(text.substring(i))
     }
 }
 
