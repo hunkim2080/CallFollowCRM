@@ -921,8 +921,7 @@ fun ChatScreen(
                                     },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
                                     recordingConnected = recordingConnected,
-                                    onConnectRecording = onOpenRecordingSettings,
-                                    onMessageTap = { runCatching { composerFocusRequester.requestFocus() } }   // 부재중 문자하기 → 입력칸 (2026-08-15)
+                                    onConnectRecording = onOpenRecordingSettings
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
@@ -2169,8 +2168,7 @@ private fun CallSegment(
     onSummarizeCall: () -> Unit = {},
     onEditSummary: (String) -> Unit = {},
     recordingConnected: Boolean = true,
-    onConnectRecording: () -> Unit = {},
-    onMessageTap: () -> Unit = {}   // 부재중 '문자하기' — 놓친 전화에 바로 문자 (프로토). (2026-08-15)
+    onConnectRecording: () -> Unit = {}
 ) {
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
@@ -2267,16 +2265,10 @@ private fun CallSegment(
                 // 프로토 .chev = '›' (새 시트 열림 신호). 인라인 펼침 아님.
                 Text("›", color = AppTheme.colors.textHint, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 6.dp))
-            } else if (isMissed) {
-                // 프로토: 부재중 = '문자하기' 코랄 pill (녹음·요약 없음 → 놓친 전화에 바로 문자). (2026-08-15)
-                Box(
-                    Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.unpaidBg)
-                        .border(1.dp, Color(0xFFF0CFC9), RoundedCornerShape(999.dp))
-                        .clickable { onMessageTap() }.padding(horizontal = 13.dp, vertical = 5.dp)
-                ) {
-                    Text("문자하기", color = coral, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
-                }
             }
+            // 부재중에 있던 [문자하기] 버튼은 뺐다. (2026-09-20 사장님)
+            //   하던 일 = 입력칸에 커서 놓기. 그 입력칸은 같은 화면 맨 아래에 늘 떠 있어서
+            //   **손으로 이미 되는 일**이었다. 부재중 카드는 "이때 전화 놓쳤음" 표시로만 둔다.
         }
         // (태그는 위 제목 아래로 옮겼다 — 아이콘 옆 글자 블록 안. 2026-09-20)
         // 탭하면 아래에서 통화상세 '시트'가 올라옴 — 프로토 08352d6e .sheet(bottom sheet). (2026-08-15 재수정)
