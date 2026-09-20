@@ -91,10 +91,8 @@ class ChatViewModel(
             container.categoryRepository.observeAll()
         ) { c, cats ->
             val id = c?.categoryId ?: return@combine null
-            cats.firstOrNull { it.id == id }?.takeUnless {
-                it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
-                    it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
-            }
+            // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
+            cats.firstOrNull { it.id == id }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**

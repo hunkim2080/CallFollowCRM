@@ -23,9 +23,17 @@ object DefaultCategories {
     const val NAME_DONE_WORK = "시공 완료"
     const val EMOJI_DONE_WORK = "✅"
 
+    /**
+     * ❌ **더 이상 안 만든다.** (2026-09-20 사장님 "시공대기와 시공완료는 카테고리에서 없애는게 맞는거같아")
+     *
+     * 이 둘은 앱이 **일정·돈만 보면 알 수 있는 것**이라 상담함 칩과 상태 딱지가 이미 말하고 있었다.
+     * 카테고리로 또 만들어 놓으니 같은 사람을 세 이름으로 부르게 됐고, 결국 화면 네 곳에서
+     * **안 보이게 숨기는 코드**를 달아야 했다.
+     *
+     * 이름 상수는 남긴다 — 이미 깔린 폰에서 **지워내는 데** 쓴다([AutoCategoryClassifier.removeAutoCategories]).
+     */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun seedIfMissing(repo: CategoryRepository) {
-        // CategoryRepository.upsert 가 같은 이름 존재 시 기존 반환 (idempotent).
-        repo.upsert(name = NAME_PENDING_WORK, emoji = EMOJI_PENDING_WORK)
-        repo.upsert(name = NAME_DONE_WORK, emoji = EMOJI_DONE_WORK)
+        // 의도적으로 아무것도 안 함.
     }
 }

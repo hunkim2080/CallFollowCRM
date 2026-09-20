@@ -33,6 +33,35 @@ class AutoCategoryClassifier(
     }
 
     /**
+     * 🧹 **자동 카테고리 두 개를 지워낸다.** 1회. (2026-09-20 사장님 확정)
+     *
+     * ⚠️ **사장님이 직접 만든 분류는 한 개도 안 건드린다.**
+     *    이름이 정확히 "시공 대기"·"시공 완료" 인 **그 두 줄**과, 거기 묶인 연결만 푼다.
+     *    (사장님이 우연히 같은 이름으로 만드셨더라도 뜻이 같으니 지워도 손해가 없다.)
+     *
+     * 순서가 중요하다 — **연결을 먼저 풀고** 카테고리를 지운다. 반대로 하면
+     * 고객이 없는 카테고리를 가리키는 채로 남아 이름이 안 뜨는 유령 딱지가 된다.
+     *
+     * @return 분류를 뗀 고객 수
+     */
+    suspend fun removeAutoCategories(): Int {
+        val ids = listOfNotNull(
+            categoryRepository.findByName(DefaultCategories.NAME_PENDING_WORK)?.id,
+            categoryRepository.findByName(DefaultCategories.NAME_DONE_WORK)?.id
+        )
+        if (ids.isEmpty()) return 0
+        var count = 0
+        for (c in customerRepository.allOnce()) {
+            if (c.categoryId in ids) {
+                categoryRepository.assignCustomer(c.id, null)
+                count++
+            }
+        }
+        for (id in ids) categoryRepository.delete(id)
+        return count
+    }
+
+    /**
      * Application 첫 진입 시 사장님 옛 고객들 일괄 분류 (이미 입금 됐던 케이스).
      * preferences flag (autoCategorySeeded) 로 1회만 실행.
      * @return 영향 받은 고객 수
@@ -73,6 +102,9 @@ class AutoCategoryClassifier(
      * @return 새 categoryId (null = 미분류). 변경 안 함 결정 시 = 현재 customer.categoryId 반환.
      */
     suspend fun resolveCategoryId(customer: CustomerEntity): Long? {
+        // ❌ **자동 분류 중단.** (2026-09-20) 두 카테고리가 사라졌으므로 찾아도 null 이고,
+        //    아래 when 은 `else -> customer.categoryId` 로 떨어져 **아무것도 안 바꾼다.**
+        //    코드를 남겨둔 건 되돌릴 때를 위해서다 — 지금은 사실상 no-op.
         val pendingId = categoryRepository.findByName(DefaultCategories.NAME_PENDING_WORK)?.id
         val doneId = categoryRepository.findByName(DefaultCategories.NAME_DONE_WORK)?.id
 

@@ -73,25 +73,16 @@ class CallFollowCrmApplication : Application() {
             // 2026-06-17 멀티업종: 줄눈 기본 가격표 자동 시드 중단. 새 사장님(어느 업종이든)은 빈 가격표로
             //   시작해 직접 입력 → 서버 AI 가 그 가격을 씀. (기존 사장님 폰은 이미 입력돼 있어 영향 없음)
             // DefaultPricingItems.seedIfEmpty(container.pricingItemRepository)  // 줄눈 전용이라 비활성
-            // 2026-05-30 #7 — 기본 카테고리 seed + 옛 고객 1회 자동 분류.
-            com.detailline.callfollowcrm.data.local.seed.DefaultCategories.seedIfMissing(
-                container.categoryRepository
-            )
-            if (!container.preferences.autoCategoryBackfilled) {
-                runCatching { container.autoCategoryClassifier.backfillAll() }
-                container.preferences.autoCategoryBackfilled = true
-            }
-            // 2026-06-07 — 카테고리 규칙 수정(날짜 등록=시공대기, 상담만=미분류) 후 1회 재정리.
-            if (!container.preferences.autoCategoryRebuiltV2) {
-                runCatching { container.autoCategoryClassifier.backfillAll() }
-                container.preferences.autoCategoryRebuiltV2 = true
-            }
-            // 2026-08-31 — '완료' 판정 버그(잔금 액수 balanceAmount>0를 '잔금 받음'으로 착각) 수정 후 1회 재정리.
-            //   계약금만 넣은 시공-예정 고객이 '시공 완료'로 오분류돼 있던 걸 새 규칙(isWorkDone)으로 되돌림. (사장님 신고)
-            if (!container.preferences.autoCategoryRebuiltV3) {
-                runCatching { container.autoCategoryClassifier.backfillAll() }
-                container.preferences.autoCategoryRebuiltV3 = true
-            }
+            // 🧹 자동 카테고리(🔨시공 대기 · ✅시공 완료) 지워내기 — 1회. (2026-09-20 사장님 확정)
+            //   앱이 일정·돈만 보면 아는 것이라 칩·상태딱지가 이미 말하고 있었다. 세 군데서 다른 이름으로
+            //   부르다 보니 화면 네 곳에 '안 보이게 숨기는' 코드까지 달려 있었다.
+            //   ⚠️ 사장님이 직접 만든 분류(일당·인테리어 등)는 한 개도 안 건드린다.
+            //   (옛 backfill 세 번은 이제 안 돈다 — 카테고리 자체가 없어지므로 할 일이 없다.)
+            //   ⚠️ **1회가 아니라 켤 때마다.** 카테고리는 [서버에서 복원] 으로 되돌아온다
+            //      ("🏷️ 카테고리·태그만 복원"). 1회 플래그로 막아두면 옛 백업을 복원했을 때
+            //      두 카테고리가 되살아나고, 이젠 숨기는 코드도 없어서 **보라 딱지로 튀어나온다.**
+            //      지울 게 없으면 조회 두 번에 끝나므로 켤 때마다 돌려도 싸다.
+            runCatching { container.autoCategoryClassifier.removeAutoCategories() }
             // 2026-06-07 — 견적 기록 버그 수정 전(6/6 이전) 잘못 쌓인 "견적 회신 챙기기" 데이터 1회 정리.
             if (!container.preferences.estimateSentLegacyCleaned) {
                 // DELETE 성공했을 때만 플래그 세우기 — 중간 실패 시 다음 실행에 재시도(영영 안 지워지는 것 방지). (2026-08-11 데이터안전 감사)

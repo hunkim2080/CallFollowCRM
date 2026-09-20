@@ -88,7 +88,7 @@ private val CATEGORY_BG = Color(0xFFEFEBFF)
 /**
  * ① 분류 태그 — 사장님이 직접 만든 묶음.
  *
- * @param hideIfDuplicate 자동 분류('시공 대기'·'시공 완료')를 **날짜 태그와 겹칠 때만** 숨긴다.
+ * @param hideIfDuplicate (쓰이지 않음) 자동 분류를 없앤 뒤로 겹칠 것이 없다. 호출부 호환용으로만 남김.
  *
  *   🔴 규칙이 바뀐 내력 (2026-09-16 사장님):
  *     처음엔 자동 분류를 **항상** 숨겼다. 제가 댄 이유는 "모든 줄에 붙어서 '일당'이 파묻힌다" 였는데
@@ -104,10 +104,9 @@ fun CategoryTag(
     hideIfDuplicate: Boolean = false
 ) {
     val cat = category ?: return
-    if (hideIfDuplicate) {
-        val auto = com.detailline.callfollowcrm.data.local.seed.DefaultCategories
-        if (cat.name == auto.NAME_PENDING_WORK || cat.name == auto.NAME_DONE_WORK) return
-    }
+    // 자동 카테고리('시공 대기'·'시공 완료')는 2026-09-20 에 없앴다 → 겹칠 일이 없어 숨길 것도 없다.
+    //   ⚠️ 이름으로 걸러내던 코드였다. 사장님이 우연히 같은 이름으로 분류를 만드시면
+    //      그 분류까지 안 보이게 되던 자리다.
     Box(
         Modifier.clip(RoundedCornerShape(7.dp)).background(CATEGORY_BG)
             .padding(horizontal = 8.dp, vertical = 3.dp)

@@ -560,6 +560,7 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("auto_category_rebuilt_v3", false)
         set(value) = prefs.edit().putBoolean("auto_category_rebuilt_v3", value).apply()
 
+
     /**
      * 2026-06-16 — 첫 실행 시 최근 7일 통화기록 1회 "따라잡기" 완료 여부.
      *   새 사장님이 깔면 상담함이 텅 비어 보이는 문제(전화로만 연락한 고객 누락) 보완.

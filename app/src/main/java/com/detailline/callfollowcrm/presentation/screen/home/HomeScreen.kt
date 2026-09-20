@@ -1260,12 +1260,8 @@ fun HomeScreen(
                                 WaitingCard(
                                     item = item,
                                     aiSummary = aiCardSummaries[suffix],
-                                    category = item.customer?.categoryId?.let { cid ->
-                                        categoryById[cid]
-                                    }?.takeUnless {
-                                        it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
-                                            it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
-                                    },
+                                    // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
+                                    category = item.customer?.categoryId?.let { cid -> categoryById[cid] },
                                     replyChoices = choices,
                                     aiPrepEnabled = prefs.aiReplyPrepEnabled,
                                     onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
@@ -1302,12 +1298,8 @@ fun HomeScreen(
                                         index = j,
                                         unread = unread,
                                         aiSummary = aiCardSummaries[suffix],
-                                        category = rItem.customer?.categoryId?.let { cid ->
-                                            categoryById[cid]
-                                        }?.takeUnless {
-                                            it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
-                                                it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
-                                        },
+                                        // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
+                                        category = rItem.customer?.categoryId?.let { cid -> categoryById[cid] },
                                         onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
                                         onLongClick = { pinTarget = rItem }
                                     )
@@ -1418,12 +1410,8 @@ fun HomeScreen(
                                                             aiSummary = aiCardSummaries[suffix],
                                                             // 그룹 태그 — 사장님이 만든 분류(일당 등)만. 자동 시스템 카테고리(시공 대기/완료)는
                                                             //   상태 태그와 중복이라 태그로 안 띄움(그럼 모든 행에 붙어 '일당' 이 안 도드라짐). (2026-08-04)
-                                                            category = rItem.customer?.categoryId?.let { cid ->
-                                                                categoryById[cid]
-                                                            }?.takeUnless {
-                                                                it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
-                                                                    it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
-                                                            },
+                                                            // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
+                                                            category = rItem.customer?.categoryId?.let { cid -> categoryById[cid] },
                                                             onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
                                                             onLongClick = { pinTarget = rItem }
                                                         )

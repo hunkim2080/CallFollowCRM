@@ -175,12 +175,9 @@ fun CustomersScreen(
                             if (idx > 0) {
                                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                             }
-                            // 분류 딱지(일당·인테리어 등) — 시스템 상태분류(시공대기/완료) 제외, 사장님이 만든 것만.
+                            // 분류 딱지 = **사장님이 만든 것**(일당·인테리어 등)뿐이다.
+                            // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
                             val cat = c.categoryId?.let { cid -> categories.firstOrNull { it.id == cid } }
-                                ?.takeUnless {
-                                    it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
-                                        it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
-                                }
                             CustomerRow(c, status, cat) { onOpenCustomerDetail(c.id) }
                         }
                     }
