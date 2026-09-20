@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.customers
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -139,7 +141,7 @@ fun CustomersScreen(
                 val total = list.sumOf { com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(it.first).balanceAmount }
                 Column(
                     Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp).fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF0E1)).padding(14.dp)
+                        .clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.cautionBg).padding(14.dp)
                 ) {
                     Text("아직 ${total / 10000}만원 못 받았어요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB5470A))
                     Text("시공 끝났는데 잔금 안 준 고객 ${list.size}명", fontSize = 12.sp, color = TossTextSecondary, modifier = Modifier.padding(top = 3.dp))
@@ -274,7 +276,7 @@ private fun CustomerRow(c: CustomerEntity, status: String, category: com.detaill
 private fun StatusTag(status: String) {
     val (fg, bg) = custTag(status)
     Box(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
+        Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(status, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = fg)
     }
@@ -284,11 +286,11 @@ private fun StatusTag(status: String) {
 @Composable
 private fun CategoryTagChip(cat: com.detailline.callfollowcrm.data.local.entity.CategoryEntity) {
     Box(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFEDE9FE)).padding(horizontal = 8.dp, vertical = 3.dp)
+        Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg).padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
             (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
-            fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C5CFC), maxLines = 1
+            fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.category, maxLines = 1
         )
     }
 }
@@ -298,23 +300,23 @@ private val CUST_STATUSES = listOf("전체", "신규", "미전환", "예약", "�
 
 // AV_TINTS — 프로토 avatarHtml 틴트 5색 [bg, fg].
 private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to Color(0xFF3182F6),
-    Color(0xFFE7F8EE) to Color(0xFF16A765),
-    Color(0xFFFDEAEF) to Color(0xFFF0436A),
-    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
-    Color(0xFFFEF3E0) to Color(0xFFE0920C)
+    Color(0xFFE6EFFF) to LightColors.primary,
+    LightColors.doneBg to Color(0xFF16A765),
+    LightColors.unpaidBg to LightColors.unpaid,
+    LightColors.categoryBg to LightColors.category,
+    LightColors.cautionBg to Color(0xFFE0920C)
 )
 
 /** 프로토 custTag — 상태별 태그 색 (fg, bg). */
 private fun custTag(s: String): Pair<Color, Color> = when (s) {
-    "완료" -> Color(0xFF0E9F56) to Color(0xFFE5F8EE)   // green
-    "단골" -> Color(0xFF6B4FD8) to Color(0xFFF1ECFE)   // purple
-    "신규" -> Color(0xFFB7791F) to Color(0xFFFEF3E0)   // amber
-    "거래처" -> Color(0xFF4F5BD8) to Color(0xFFECEEFE) // indigo
-    "AS" -> Color(0xFFF0436A) to Color(0xFFFDEAEF)     // red
-    "미전환" -> Color(0xFF9AA3AF) to Color(0xFFF4F5F7) // gray
-    "잔금미수" -> Color(0xFFE0620D) to Color(0xFFFFF0E1) // orange (돈 받을 것) (2026-09-03 사장님)
-    else -> Color(0xFF3182F6) to Color(0xFFEAF2FE)     // blue (예약/상담)
+    "완료" -> Color(0xFF0E9F56) to LightColors.doneBg   // green
+    "단골" -> Color(0xFF6B4FD8) to LightColors.categoryBg   // purple
+    "신규" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber
+    "거래처" -> Color(0xFF4F5BD8) to LightColors.categoryBg // indigo
+    "AS" -> LightColors.unpaid to LightColors.unpaidBg     // red
+    "미전환" -> LightColors.textHint to LightColors.bg // gray
+    "잔금미수" -> Color(0xFFE0620D) to LightColors.cautionBg // orange (돈 받을 것) (2026-09-03 사장님)
+    else -> LightColors.primary to LightColors.primaryBg     // blue (예약/상담)
 }
 
 /** 프로토 initial() — 공백·괄호 제거 후 첫 글자. */

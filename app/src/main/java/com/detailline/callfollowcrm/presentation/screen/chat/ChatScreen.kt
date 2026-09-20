@@ -2,6 +2,8 @@
 
 package com.detailline.callfollowcrm.presentation.screen.chat
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -973,7 +975,7 @@ fun ChatScreen(
                         .clickable { viewModel.answerCustomerAsk(false) }.padding(horizontal = 13.dp, vertical = 6.dp)
                     ) { Text("고객", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue) }
                     Spacer(Modifier.width(6.dp))
-                    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFEEF0F3))
+                    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.surfaceMuted)
                         .clickable { viewModel.answerCustomerAsk(true) }.padding(horizontal = 13.dp, vertical = 6.dp)
                     ) { Text("고객 아님", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                 }
@@ -2004,7 +2006,7 @@ fun ChatScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     showPolishCancel = false
                     viewModel.cancelPolish()
-                }) { Text("취소하기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+                }) { Text("취소하기", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showPolishCancel = false }) {
@@ -2049,7 +2051,7 @@ fun ChatScreen(
 
 /** 통화 구간 카드 색 — 문자(파랑)와 구분되는 청록. 프로토 .chat-call (#0E9E90/#EAF4F1). */
 private val CallTeal = Color(0xFF0E9E90)
-private val CallTealSoft = Color(0xFFEAF4F1)
+private val CallTealSoft = LightColors.doneBg
 
 /**
  * 채팅 타임라인 한 항목 — 문자(Msg) 또는 통화(Call). 2026-06-01.
@@ -2178,7 +2180,7 @@ private fun CallSegment(
     }.getOrNull()
     // 통화 = 딥 티얼(답한통화)/코랄(부재중), 메시지 파랑과 색 구분. 컴팩트 기본·탭하면 상세 펼침. (2026-08-14 사장님·Gemini)
     val teal = Color(0xFF1E6E6A); val tealDark = Color(0xFF154D4A)
-    val tealBg = Color(0xFFF0F6F5); val tealLine = Color(0xFFD6E6E4); val tealChip = Color(0xFFE7F1F0)
+    val tealBg = AppTheme.colors.bg; val tealLine = Color(0xFFD6E6E4); val tealChip = AppTheme.colors.surfacePressed
     val coral = Color(0xFFC0574B)
     val label = when (type) {
         com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화"
@@ -2240,7 +2242,7 @@ private fun CallSegment(
             } else if (isMissed) {
                 // 프로토: 부재중 = '문자하기' 코랄 pill (녹음·요약 없음 → 놓친 전화에 바로 문자). (2026-08-15)
                 Box(
-                    Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFCEBE8))
+                    Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.unpaidBg)
                         .border(1.dp, Color(0xFFF0CFC9), RoundedCornerShape(999.dp))
                         .clickable { onMessageTap() }.padding(horizontal = 13.dp, vertical = 5.dp)
                 ) {
@@ -2333,7 +2335,7 @@ private fun CallSegment(
                 summarizable -> {
                     Column(
                         Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFF3F5F9)).padding(12.dp)
+                            .background(AppTheme.colors.bg).padding(12.dp)
                     ) {
                         Text("🎙️ 통화 녹음을 연결하면 요약된 내용을 확인할 수 있어요!",
                             color = TossTextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
@@ -2440,15 +2442,15 @@ private fun CallSegment(
                 Spacer(Modifier.height(6.dp))
                 if (callSegments.isNotEmpty()) {
                     Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFCFC))
-                            .border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(12.dp)).padding(9.dp)
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surface)
+                            .border(1.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(12.dp)).padding(9.dp)
                     ) {
                         // 범례 — 나(티얼) / 손님(흰)
                         Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(tealBg).border(1.dp, Color(0xFFD6E6E6), RoundedCornerShape(3.dp)))
                             Spacer(Modifier.width(4.dp)); Text("나", fontSize = 9.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(13.dp))
-                            Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(Color.White).border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(3.dp)))
+                            Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(Color.White).border(1.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(3.dp)))
                             Spacer(Modifier.width(4.dp)); Text("손님", fontSize = 9.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
                         }
                         if (callSegments.any { it.third != null }) {
@@ -2467,7 +2469,7 @@ private fun CallSegment(
                                     Box(
                                         Modifier.widthIn(max = 250.dp).clip(shape)
                                             .background(if (mine) tealBg else Color.White)
-                                            .border(1.dp, if (mine) tealLine else Color(0xFFE6EFEF), shape)
+                                            .border(1.dp, if (mine) tealLine else AppTheme.colors.surfacePressed, shape)
                                             .let { m -> if (startMs != null) m.clickable { seekReqMs = startMs.toInt(); seekReqTick++ } else m }
                                             .padding(start = 9.dp, end = 9.dp, top = 5.dp, bottom = 4.dp)
                                     ) {
@@ -2480,8 +2482,8 @@ private fun CallSegment(
                     }
                 } else if (transcript != null) {
                     Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFCFC))
-                            .border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(12.dp)).padding(11.dp)
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surface)
+                            .border(1.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(12.dp)).padding(11.dp)
                     ) {
                         Text(transcript, fontSize = 11.5.sp, color = Color(0xFF3A4A4A), lineHeight = 17.sp)
                     }
@@ -2633,7 +2635,7 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null, 
     // 프로토 08352d6e .player — 한 줄: ▶ + 진행바 + 1:05/3:12 + [1.5×] 칩. (2026-08-15 1:1)
     Row(
         Modifier.fillMaxWidth().padding(top = 13.dp).clip(RoundedCornerShape(11.dp))
-            .background(Color(0xFFF0F6F5)).padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(AppTheme.colors.bg).padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (error) {
@@ -2667,7 +2669,7 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null, 
             Spacer(Modifier.width(7.dp))
             val spLabel = when { speed >= 1.9f -> "2×"; speed >= 1.4f -> "1.5×"; else -> "1×" }
             Box(
-                Modifier.clip(RoundedCornerShape(7.dp)).background(Color.White)
+                Modifier.clip(RoundedCornerShape(8.dp)).background(Color.White)
                     .clickable { cycleSpeed() }.padding(horizontal = 8.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -2842,8 +2844,8 @@ private fun TimelineEventSegment(
     event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity
 ) {
     val (emoji, title, accent) = when (event.type) {
-        "schedule" -> Triple("📅", if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", Color(0xFF3182F6))
-        "amount" -> Triple("💰", if (event.oldValue == null) "시공금액 등록" else "시공금액 변경", Color(0xFFF59E0B))
+        "schedule" -> Triple("📅", if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", AppTheme.colors.primary)
+        "amount" -> Triple("💰", if (event.oldValue == null) "시공금액 등록" else "시공금액 변경", AppTheme.colors.caution)
         "balance_paid" -> Triple("💵", "잔금 받음 처리", TossSuccess)
         else -> Triple("📝", "변경", TossTextSecondary)
     }
@@ -2860,7 +2862,7 @@ private fun TimelineEventSegment(
             .padding(vertical = 4.dp)
             .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF7F8FA))
+            .background(AppTheme.colors.bg)
             .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
             .padding(horizontal = 11.dp, vertical = 9.dp)
     ) {
@@ -2895,7 +2897,7 @@ private fun IssuedDocSegment(
     val isQuote = doc.kind == "quote"
     val emoji = if (isQuote) "📜" else "📋"
     val title = if (isQuote) "견적서 발행" else "시공접수서 발행"
-    val accent = if (isQuote) Color(0xFF3182F6) else TossSuccess
+    val accent = if (isQuote) AppTheme.colors.primary else TossSuccess
     val issuedInteraction = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
@@ -2904,7 +2906,7 @@ private fun IssuedDocSegment(
             .pressScale(issuedInteraction)
             .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF7F8FA))
+            .background(AppTheme.colors.bg)
             .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
             .clickable(interactionSource = issuedInteraction, indication = null) { onOpen() }
             .padding(horizontal = 11.dp, vertical = 9.dp)
@@ -2971,7 +2973,7 @@ private fun EventNotifyConfirmDialog(body: String, onSend: () -> Unit, onDismiss
             Column {
                 Text("아래 내용이 고객에게 문자로 발송돼요.", fontSize = 12.5.sp, color = TossTextTertiary)
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFFF2F4F6), shape = RoundedCornerShape(12.dp)) {
+                Surface(color = AppTheme.colors.bg, shape = RoundedCornerShape(12.dp)) {
                     Text(
                         body, fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp,
                         modifier = Modifier.fillMaxWidth().padding(12.dp)
@@ -3384,7 +3386,7 @@ private fun TradeAskCard(
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF1F3FE))
+            .background(AppTheme.colors.primaryBg)
             .padding(horizontal = 15.dp, vertical = 13.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3451,7 +3453,7 @@ private fun PayClaimCard(
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFE7F8F0))
+            .background(AppTheme.colors.doneBg)
             .padding(horizontal = 15.dp, vertical = 13.dp)
     ) {
         Text(
@@ -3524,7 +3526,7 @@ private fun SuggestionArea(
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp)
                 .clip(RoundedCornerShape(topStart = corner, topEnd = corner))
-                .background(if (open) Color.White else Color(0xFFF1F3FE))   // 닫힘=연한 AI톤 · 열림=흰 시트
+                .background(if (open) Color.White else AppTheme.colors.primaryBg)   // 닫힘=연한 AI톤 · 열림=흰 시트
                 .drawBehind {
                     if (!open) {
                         val s = 1.dp.toPx()
@@ -3614,8 +3616,8 @@ private fun SuggestionCardWide(label: String?, text: String, onTap: () -> Unit) 
             .fillMaxWidth()
             .pressScale(ci)
             .clip(shape)
-            .background(Color(0xFFF7F9FC))
-            .border(1.dp, Color(0xFFECEFF3), shape)
+            .background(AppTheme.colors.bg)
+            .border(1.dp, AppTheme.colors.surfaceMuted, shape)
             .clickable(interactionSource = ci, indication = null) { onTap() }
             .padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -3712,8 +3714,8 @@ private fun PrincipleDiscoveryCard(
     onDismiss: () -> Unit
 ) {
     val blueDeep = Color(0xFF1B64DA)
-    val blueSoft = Color(0xFFE8F1FE)
-    val lineColor = Color(0xFFEAEDF0)
+    val blueSoft = AppTheme.colors.primaryBg
+    val lineColor = AppTheme.colors.surfacePressed
 
     if (discovery.resolved != null) {
         // 결과 메시지 — 잠깐 보여주고 자동 해제. (프로토 .resolved)
@@ -3723,11 +3725,11 @@ private fun PrincipleDiscoveryCard(
         }
         val style = when (discovery.resolved) {
             PrincipleResolved.OK -> ResolvedStyle("✅", "기억했어요! 막내가 사장님을 하나 더 알게 됐어요 🌱",
-                Color(0xFFE7F5F3), Color(0xFF0A7D72), Color(0xFFBFE7E1))
+                AppTheme.colors.doneBg, Color(0xFF0A7D72), Color(0xFFBFE7E1))
             PrincipleResolved.NO -> ResolvedStyle("🙇", "알겠어요, 잊을게요. 더 지켜보고 다시 배울게요.",
-                Color(0xFFF7F8FA), TossTextSecondary, lineColor)
+                AppTheme.colors.bg, TossTextSecondary, lineColor)
             PrincipleResolved.LATER -> ResolvedStyle("⏭️", "다음에 또 보이면 그때 여쭤볼게요.",
-                Color(0xFFF7F8FA), TossTextSecondary, lineColor)
+                AppTheme.colors.bg, TossTextSecondary, lineColor)
         }
         Row(
             modifier = Modifier
@@ -4333,7 +4335,7 @@ private fun SummaryLoadingPlaceholder(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable { onToggleCollapsed() }
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -4508,7 +4510,7 @@ private fun UnifiedSummaryCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable { onCollapse() }
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -4672,8 +4674,8 @@ private fun NextActionBox(json: String?, onAction: (NextAction) -> Unit) {
         else -> TossBlue
     }
     val bg = when (action.urgency) {
-        "high" -> Color(0xFFFDEAEF)
-        "medium" -> Color(0xFFFFF3DF)
+        "high" -> AppTheme.colors.unpaidBg
+        "medium" -> AppTheme.colors.cautionBg
         else -> TossBlueSoft
     }
     Row(
@@ -5286,7 +5288,7 @@ private fun AddrChoiceCard(label: String, value: String, selected: Boolean, onCl
     Box(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) Color(0xFFEAF2FE) else TossGrayBg)
+            .background(if (selected) AppTheme.colors.primaryBg else TossGrayBg)
             .border(
                 width = if (selected) 1.5.dp else 0.dp,
                 color = if (selected) TossBlue else Color.Transparent,
@@ -6141,7 +6143,7 @@ private fun EstimateItemRow(
 private fun StepperButton(label: String, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.size(24.dp),
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(8.dp),
         color = Color.White,
         border = androidx.compose.foundation.BorderStroke(1.dp, TossDivider),
         onClick = onClick

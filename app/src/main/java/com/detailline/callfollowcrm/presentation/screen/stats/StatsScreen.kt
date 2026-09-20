@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.stats
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -392,8 +393,8 @@ private fun WtRow(t: StatTypeRow, max: Int) {
             if (t.delta != 0) {
                 val up = t.delta > 0
                 Box(
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                        .background(if (up) Color(0xFFE5F8EE) else Color(0xFFFDEAEF))
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .background(if (up) AppTheme.colors.doneBg else AppTheme.colors.unpaidBg)
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
                     Text(

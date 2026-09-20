@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.notebook
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -420,11 +422,11 @@ private fun PhraseSheet(
 }
 
 private val AV_TINTS = listOf(
-    Color(0xFFE8F0FE) to Color(0xFF3182F6),
-    Color(0xFFE6F7EE) to Color(0xFF12B886),
+    LightColors.primaryBg to LightColors.primary,
+    LightColors.doneBg to Color(0xFF12B886),
     Color(0xFFFFF1E6) to Color(0xFFFB8C00),
-    Color(0xFFF3ECFF) to Color(0xFF7C5CFC),
-    Color(0xFFFFE9EF) to Color(0xFFF0436A),
+    LightColors.categoryBg to LightColors.category,
+    LightColors.unpaidBg to LightColors.unpaid,
 )
 
 @Composable
@@ -455,7 +457,7 @@ private fun ContactCard(
                             color = TossTextPrimary, fontWeight = FontWeight.Bold)
                         if (c.tag.isNotBlank()) {
                             Spacer(Modifier.width(6.dp))
-                            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3DF))
+                            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.cautionBg)
                                 .padding(horizontal = 8.dp, vertical = 2.dp)) {
                                 Text(c.tag, style = MaterialTheme.typography.labelSmall,
                                     color = Color(0xFFB8780A), fontWeight = FontWeight.Bold)

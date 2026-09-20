@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.signup
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -52,9 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.component.Mascot
 
-private val Bg = Color(0xFFFBFCFE)
-private val Ink = Color(0xFF0B0F19)
-private val Blue = Color(0xFF3182F6)
+private val Bg = LightColors.surface
+private val Ink = LightColors.text
+private val Blue = LightColors.primary
 private val Disabled = Color(0xFFE2E6EC)
 private val Tag = Color(0xFF3A4250)
 private val Sub = Color(0xFF8A93A2)
@@ -96,7 +98,7 @@ fun SignupScreen(
         Box(
             Modifier.fillMaxSize().background(
                 Brush.radialGradient(
-                    colors = listOf(Color(0xFFE7F0FF), Color(0x00FBFCFE)),
+                    colors = listOf(AppTheme.colors.primaryBg, Color(0x00FBFCFE)),
                     center = Offset(540f, -120f), radius = 1100f
                 )
             )
@@ -220,7 +222,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
         Text("개인정보 수집·이용", fontSize = 11.sp, color = Blue, fontWeight = FontWeight.Bold,
             textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
             modifier = Modifier.clickable { openDoc(com.detailline.callfollowcrm.AppConfig.CONSENT_REQUIRED_URL) }.padding(4.dp))
-        Text("·", fontSize = 11.sp, color = Color(0xFF9AA3AF), modifier = Modifier.padding(horizontal = 2.dp))
+        Text("·", fontSize = 11.sp, color = AppTheme.colors.textHint, modifier = Modifier.padding(horizontal = 2.dp))
         Text("개인정보처리방침", fontSize = 11.sp, color = Blue, fontWeight = FontWeight.Bold,
             textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
             modifier = Modifier.clickable { openDoc(com.detailline.callfollowcrm.AppConfig.PRIVACY_POLICY_URL) }.padding(4.dp))
@@ -228,7 +230,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
     Spacer(Modifier.height(4.dp))
     Text(
         "가입하면 위 내용에 동의하는 것으로 봐요",
-        fontSize = 11.sp, color = Color(0xFF9AA3AF), fontWeight = FontWeight.Medium, lineHeight = 18.sp,
+        fontSize = 11.sp, color = AppTheme.colors.textHint, fontWeight = FontWeight.Medium, lineHeight = 18.sp,
         modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
     )
 }

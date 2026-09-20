@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.sharedsite
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -83,10 +85,10 @@ import java.util.Locale
  *   내 고객 목록과 분리된 별도 영역. 고객 전화번호·상대 다른 고객은 절대 안 보임(벽).
  *   서버 endpoint(/api/shared/…) 대기 동안엔 목록 비어 "공유받은 현장 없음" 안내.
  */
-private val CollabPurple = Color(0xFF7C5CFC)
-private val CollabPurpleSoft = Color(0xFFF1ECFE)
-private val ProtoBlue = Color(0xFF3182F6)
-private val ProtoSuccess = Color(0xFF16C172)
+private val CollabPurple = LightColors.category
+private val CollabPurpleSoft = LightColors.categoryBg
+private val ProtoBlue = LightColors.primary
+private val ProtoSuccess = LightColors.done
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -519,7 +521,7 @@ fun SharedSiteScreen(
                         viewModel.leaveCollab(s)
                     }
                     if (selectedId == s.shareId) selectedId = null
-                }) { Text(if (done) "정리" else "그만하기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+                }) { Text(if (done) "정리" else "그만하기", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmRemoveSite = null }) {
@@ -544,7 +546,7 @@ fun SharedSiteScreen(
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     val site = s; confirmCancelMine = null; viewModel.cancelMyShared(site)
-                }) { Text(if (pending) "취소하기" else "내리기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+                }) { Text(if (pending) "취소하기" else "내리기", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmCancelMine = null }) {
@@ -586,7 +588,7 @@ fun SharedSiteScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     viewModel.deletePhoto(sid, photo.photoId)
                     confirmDeletePhoto = null
-                }) { Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+                }) { Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmDeletePhoto = null }) {
@@ -727,7 +729,7 @@ private fun ListArea(
 @Composable
 private fun SegTabs(current: String, onSelect: (String) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEEF0F3)).padding(3.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surfaceMuted).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         listOf("date" to "현장순", "biz" to "업체별").forEach { (key, label) ->
@@ -749,7 +751,7 @@ private fun SegTabs(current: String, onSelect: (String) -> Unit) {
 @Composable
 private fun CollabTopTabs(current: String, onSelect: (String) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEEF0F3)).padding(3.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surfaceMuted).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         listOf("received" to "공유받은 현장", "shared" to "내가 공유한 현장").forEach { (key, label) ->
@@ -901,7 +903,7 @@ private fun MySharedSwipeBox(onDelete: () -> Unit, content: @Composable () -> Un
 private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).clickable { onOpen() }.padding(13.dp),
+            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp)).clickable { onOpen() }.padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
@@ -916,11 +918,11 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Uni
                 Spacer(Modifier.width(6.dp))
                 // A측 상태: 완료 / 출발·도착(진행) / 수락 대기 / 예정
                 val (stTxt, stBg, stFg) = when {
-                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", Color(0xFFE5F8EE), Color(0xFF0E9F56))
-                    site.status == "pending" -> Triple("수락 대기", Color(0xFFF1ECFE), CollabPurple)
-                    site.progress == SharedSiteRepository.Progress.DEPARTED -> Triple("출발", Color(0xFFEAF1FF), ProtoBlue)
-                    site.progress == SharedSiteRepository.Progress.ARRIVED -> Triple("도착", Color(0xFFEAF1FF), ProtoBlue)
-                    else -> Triple("예정", Color(0xFFEAF1FF), ProtoBlue)
+                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", AppTheme.colors.doneBg, Color(0xFF0E9F56))
+                    site.status == "pending" -> Triple("수락 대기", AppTheme.colors.categoryBg, CollabPurple)
+                    site.progress == SharedSiteRepository.Progress.DEPARTED -> Triple("출발", AppTheme.colors.primaryBg, ProtoBlue)
+                    site.progress == SharedSiteRepository.Progress.ARRIVED -> Triple("도착", AppTheme.colors.primaryBg, ProtoBlue)
+                    else -> Triple("예정", AppTheme.colors.primaryBg, ProtoBlue)
                 }
                 Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
                     Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
@@ -948,7 +950,7 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Uni
 private fun PartnerRow(g: PartnerGroup, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
+            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
             .clickable { onClick() }.padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1021,7 +1023,7 @@ private fun TrashView(
         trashedSites.forEach { site ->
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-                    .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(13.dp),
+                    .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp)).padding(13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f).clickable { onOpen(site) }) {
@@ -1045,7 +1047,7 @@ private fun TrashView(
 private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
+            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
             .clickable { onClick() }.padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1061,9 +1063,9 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
                 Spacer(Modifier.width(6.dp))
                 // 상태 태그 — 완료 / 예정 / 수락 대기. (2026-06-14 사장님)
                 val (stTxt, stBg, stFg) = when {
-                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", Color(0xFFE5F8EE), Color(0xFF0E9F56))
-                    site.status == "pending" -> Triple("수락 대기", Color(0xFFF1ECFE), CollabPurple)
-                    else -> Triple("예정", Color(0xFFEAF1FF), Color(0xFF3182F6))
+                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", AppTheme.colors.doneBg, Color(0xFF0E9F56))
+                    site.status == "pending" -> Triple("수락 대기", AppTheme.colors.categoryBg, CollabPurple)
+                    else -> Triple("예정", AppTheme.colors.primaryBg, AppTheme.colors.primary)
                 }
                 Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
                     Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
@@ -1127,7 +1129,7 @@ private fun DetailBody(
         Spacer(Modifier.height(10.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFFFFF3DF)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+                .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
             Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
@@ -1170,7 +1172,7 @@ private fun DetailBody(
                 // 수락 유효시간(12h) 경과 — 수락 막고 "지났어요" 안내. 거절(지우기)만 열어둠.
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFFFF1F1)).border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(10.dp))
+                        .background(AppTheme.colors.unpaidBg).border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 11.dp)
                 ) {
                     Text("⏰ 수락 시간이 지났어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = com.detailline.callfollowcrm.presentation.theme.TossError)
@@ -1278,7 +1280,7 @@ private fun DetailBody(
         Spacer(Modifier.height(16.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFE9F9F1)).border(1.dp, Color(0xFFBFEBD4), RoundedCornerShape(16.dp)).padding(15.dp)
+                .background(AppTheme.colors.doneBg).border(1.dp, Color(0xFFBFEBD4), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("💰 이 현장 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A8C63))
@@ -1304,7 +1306,7 @@ private fun DetailBody(
         Spacer(Modifier.height(16.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFF5F9FF)).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
+                .background(AppTheme.colors.primaryBg).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
@@ -1334,7 +1336,7 @@ private fun DetailBody(
     SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFFFF3DF)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+            .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
     ) {
         Text("📌 왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
         Spacer(Modifier.height(5.dp))
@@ -1393,7 +1395,7 @@ private fun OwnerSharedDetail(
         Spacer(Modifier.height(10.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFFFFF3DF)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+                .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
             Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
@@ -1460,7 +1462,7 @@ private fun PhotoGrid(
             val bmp = p.bitmap
             val mine = myKind.isNotBlank() && p.uploaderKind == myKind   // 내가 올린 사진만 삭제 가능
             if (bmp != null) {
-                Box(cellMod.background(Color(0xFFEDEFF3)).clickable { onView(bmp) }, contentAlignment = Alignment.BottomStart) {
+                Box(cellMod.background(AppTheme.colors.surfaceMuted).clickable { onView(bmp) }, contentAlignment = Alignment.BottomStart) {
                     androidx.compose.foundation.Image(
                         bitmap = bmp.asImageBitmap(), contentDescription = p.label ?: "현장 사진",
                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
@@ -1470,7 +1472,7 @@ private fun PhotoGrid(
                     Text(
                         if (p.uploaderKind == "owner") "주인" else "나",
                         fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(6.dp))
+                        modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(8.dp))
                             .background(Color(0x99000000)).padding(horizontal = 5.dp, vertical = 1.dp)
                     )
                     // 내가 올린 사진이면 우상단 ✕ 삭제 (탭하면 확인 다이얼로그)
@@ -1484,7 +1486,7 @@ private fun PhotoGrid(
                     }
                 }
             } else {
-                Box(cellMod.background(Color(0xFFEDEFF3)), contentAlignment = Alignment.Center) {
+                Box(cellMod.background(AppTheme.colors.surfaceMuted), contentAlignment = Alignment.Center) {
                     Text("🖼️", fontSize = 20.sp)
                 }
             }
@@ -1504,7 +1506,7 @@ private fun PhotoGrid(
 // ── 작은 컴포넌트들 ──
 @Composable private fun Card(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
-        .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(16.dp)).padding(15.dp), content = content)
+        .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp)).padding(15.dp), content = content)
 }
 
 @Composable private fun InfoRow(label: String, value: String) {
@@ -1521,7 +1523,7 @@ private fun PhotoGrid(
 }
 
 @Composable private fun Pill(text: String) {
-    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFEF3E0)).padding(horizontal = 9.dp, vertical = 3.dp)) {
+    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 9.dp, vertical = 3.dp)) {
         Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
     }
 }
@@ -1547,7 +1549,7 @@ private fun CollabPayoutAccountSection(
     var editing by remember(registered) { mutableStateOf(!registered) }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFF6F3FF)).border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
+            .background(AppTheme.colors.primaryBg).border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
             .padding(14.dp)
     ) {
         Text("💰 일이 끝난 후 일당 지급계좌를 확인해주세요!", fontSize = 13.5.sp,
@@ -1660,7 +1662,7 @@ private fun CollabPayoutAccountSection(
 @Composable private fun EmptyCard(title: String, sub: String) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
-            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(16.dp)).padding(20.dp),
+            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp)).padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("🤝", fontSize = 30.sp)
@@ -1823,7 +1825,7 @@ private fun DeclineReasonSheet(
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF2F4F6)).clickable { etcMode = false }.padding(vertical = 12.dp),
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.bg).clickable { etcMode = false }.padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) { Text("뒤로", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                     val canSend = memo.isNotBlank()
@@ -1842,7 +1844,7 @@ private fun DeclineReasonSheet(
 @Composable
 private fun ReasonRow(text: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F3FF)).clickable { onClick() }.padding(14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.primaryBg).clickable { onClick() }.padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("· $text", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3E7A), modifier = Modifier.weight(1f))

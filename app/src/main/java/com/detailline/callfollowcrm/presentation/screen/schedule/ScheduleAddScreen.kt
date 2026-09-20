@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -402,9 +403,9 @@ fun ScheduleAddScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    Modifier.size(22.dp).clip(RoundedCornerShape(7.dp))
+                    Modifier.size(22.dp).clip(RoundedCornerShape(8.dp))
                         .background(if (depositReceived) TossBlue else TossGrayBg)
-                        .border(2.dp, if (depositReceived) TossBlue else TossDivider, RoundedCornerShape(7.dp)),
+                        .border(2.dp, if (depositReceived) TossBlue else TossDivider, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) { if (depositReceived) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(13.dp)) }
                 Spacer(Modifier.width(9.dp))
@@ -437,7 +438,7 @@ fun ScheduleAddScreen(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFEEF4FF))
+                    .background(AppTheme.colors.primaryBg)
                     .padding(horizontal = 11.dp, vertical = 9.dp)
             )
             Spacer(Modifier.height(8.dp))
@@ -691,7 +692,7 @@ private fun SwitchRow(icon: String, title: String, on: Boolean, onToggle: () -> 
 private fun ExpandRow(open: Boolean, title: String, sub: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(if (open) TossGrayBg else Color(0xFFEEF4FF))
+            .background(if (open) TossGrayBg else AppTheme.colors.primaryBg)
             .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

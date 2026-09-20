@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.customer
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.util.copyToClip
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -523,7 +525,7 @@ fun CustomerDetailScreen(
                         .pressScale(addrInteraction)
                         .tossCardShadow(RoundedCornerShape(18.dp))
                         .clip(RoundedCornerShape(18.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xFFF5F9FF), Color.White)))
+                        .background(Brush.linearGradient(listOf(AppTheme.colors.primaryBg, Color.White)))
                         .border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(18.dp))
                         .clickable(interactionSource = addrInteraction, indication = null) { showAddressDialog = true }
                         .padding(17.dp)
@@ -686,7 +688,7 @@ fun CustomerDetailScreen(
                     //   협업 사장 전용 간단 시트(CollabShareSheet, 이미 구현됨) 재연결. 팀원 배정은 일정에 그대로.
                     val showCollabShare = remember(c.id) { mutableStateOf(false) }
                     Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF1ECFE))
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.categoryBg)
                             .clickable { showCollabShare.value = true }.padding(vertical = 13.dp),
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
@@ -1275,7 +1277,7 @@ fun CustomerDetailScreen(
                                             // 업로더 이름표 — 팀원=파랑, 사장님=회색 (프로토: 팀원 사진 파란 이름표).
                                             androidx.compose.foundation.layout.Box(
                                                 Modifier.align(androidx.compose.ui.Alignment.BottomStart).padding(4.dp)
-                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clip(RoundedCornerShape(8.dp))
                                                     .background(if (cell.isOwner) Color.Black.copy(alpha = 0.5f) else TossBlue)
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
@@ -1342,7 +1344,7 @@ fun CustomerDetailScreen(
                             if (idx > 0) Spacer(Modifier.height(8.dp))
                             androidx.compose.foundation.layout.Box(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFFFF3DF)).padding(12.dp)
+                                    .background(AppTheme.colors.cautionBg).padding(12.dp)
                             ) {
                                 Column {
                                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1373,7 +1375,7 @@ fun CustomerDetailScreen(
                                                     Text("↳ 내 답글", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                                                     Spacer(Modifier.weight(1f))
                                                     Text("수정", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                                                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
                                                             .clickable { reply = note.replyText.orEmpty(); editing = true }
                                                             .padding(horizontal = 6.dp, vertical = 2.dp))
                                                 }
@@ -1460,10 +1462,10 @@ fun CustomerDetailScreen(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 androidx.compose.foundation.layout.Box(
-                    Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFF1ECFF)),
+                    Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(AppTheme.colors.categoryBg),
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-                    androidx.compose.material3.Icon(Icons.Filled.AutoAwesome, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(21.dp))
+                    androidx.compose.material3.Icon(Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(21.dp))
                 }
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {
@@ -1473,7 +1475,7 @@ fun CustomerDetailScreen(
                 }
                 Text(
                     "비즈니스", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFF7C5CFC)).padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.category).padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }
 
@@ -1666,7 +1668,7 @@ fun CustomerDetailScreen(
                                 selectedDayContentColor = Color.White,
                                 todayDateBorderColor = Color(0xFFF5920B),
                                 todayContentColor = Color(0xFFF5920B),
-                                dayInSelectionRangeContainerColor = Color(0xFFFEF0DC),
+                                dayInSelectionRangeContainerColor = AppTheme.colors.cautionBg,
                                 dayInSelectionRangeContentColor = TossTextPrimary
                             ),
                             title = {
@@ -1899,7 +1901,7 @@ fun CustomerDetailScreen(
             text = { Text("이 현장 사진을 지웁니다. 되돌릴 수 없어요.") },
             confirmButton = {
                 TextButton(onClick = { viewModel.deleteSitePhoto(id); photoToDelete = null }) {
-                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                    Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1916,7 +1918,7 @@ fun CustomerDetailScreen(
             text = { Text("팀원이 올린 현장 사진을 지웁니다. 팀원 화면에서도 사라지고 되돌릴 수 없어요.") },
             confirmButton = {
                 TextButton(onClick = { viewModel.deleteTeamPhoto(pid); teamPhotoToDelete = null }) {
-                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                    Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1960,7 +1962,7 @@ fun CustomerDetailScreen(
             text = { Text("이 발행 기록을 목록에서 지워요. 고객에게 이미 보낸 문서는 영향 없어요.") },
             confirmButton = {
                 TextButton(onClick = { viewModel.deleteIssuedDoc(doc.id); issuedDocToDelete = null }) {
-                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                    Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1987,7 +1989,7 @@ private fun IssuedDocRow(
         java.text.SimpleDateFormat("M월 d일 HH:mm", java.util.Locale.KOREA).format(java.util.Date(doc.issuedAtMs))
     }
     androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F7FB))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.bg)
             .clickable { onOpen() }.padding(12.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
     ) {
@@ -2217,7 +2219,7 @@ private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona
         Modifier.fillMaxWidth()
             .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFFF5F9FF), Color.White)))
+            .background(Brush.verticalGradient(listOf(AppTheme.colors.primaryBg, Color.White)))
             .border(1.dp, Color(0xFFE6EEFB), RoundedCornerShape(18.dp))
             .padding(17.dp)
     ) {
@@ -2241,7 +2243,7 @@ private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona
                 Spacer(Modifier.weight(1f))
                 Text(
                     "AI 분석", color = TossBlue, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFEEF4FF)).padding(horizontal = 8.dp, vertical = 2.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.primaryBg).padding(horizontal = 8.dp, vertical = 2.dp)
                 )
             }
             Spacer(Modifier.height(10.dp))
@@ -2418,7 +2420,7 @@ private fun MessageRowView(m: MessageRow, onImageTap: (android.net.Uri) -> Unit 
             modifier = Modifier
                 .background(
                     color = badgeColor.copy(alpha = 0.12f),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                 )
                 .padding(horizontal = 8.dp, vertical = 3.dp)
         ) {
@@ -2581,10 +2583,10 @@ private fun CallIconButton(phoneNumber: String) {
 
 /** 프로토 .hd heat 점 색 — hot=빨강/warm=앰버/cold=회색/그 외(미분류=신규)=파랑. */
 private fun heatDotColor(heat: String?): Color = when (heat?.uppercase()) {
-    "HOT" -> Color(0xFFF0436A)
-    "WARM" -> Color(0xFFF6A609)
+    "HOT" -> LightColors.unpaid
+    "WARM" -> LightColors.caution
     "COLD" -> Color(0xFFC2C9D2)
-    else -> Color(0xFF3182F6)
+    else -> LightColors.primary
 }
 
 /** 프로토 .kv — 라벨(왼쪽 t2) + 값(오른쪽 w700). 탭 가능. */
@@ -3299,7 +3301,7 @@ private fun playRecording(context: android.content.Context, fileUri: String) {
 private fun CategoryPill(label: String, assigned: Boolean, onClick: () -> Unit) {
     val fg = if (assigned) TossBlue else TossTextSecondary
     val bg = if (assigned) com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
-        else Color(0xFFF1F3F5)
+        else AppTheme.colors.bg
     androidx.compose.foundation.layout.Row(
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         modifier = Modifier
@@ -3720,7 +3722,7 @@ private fun CollabAfterCard(
 ) {
     val context = LocalContext.current
     val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
-    val purpleSoft = Color(0xFFF1ECFE)
+    val purpleSoft = AppTheme.colors.categoryBg
 
     // 서버 진행 이벤트(있으면) — 같은 현장 제목으로 매칭. 없으면 배정 단계만(graceful).
     var step by remember(siteTitle, partnerName) { mutableStateOf<String?>(null) }
@@ -3793,7 +3795,7 @@ private fun CollabAfterCard(
                 Text("🤝 ${partnerName} 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3DF)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 10.dp, vertical = 4.dp)) {
                     Text("수락 대기중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
                 }
             }
@@ -3812,7 +3814,7 @@ private fun CollabAfterCard(
                 text = { Text("${partnerName}님께 보낸 협업 요청을 취소해요. 나중에 다시 보낼 수 있어요.") },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = { confirmRelease = false; onRelease() }) {
-                        Text("요청 취소", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                        Text("요청 취소", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
@@ -3833,7 +3835,7 @@ private fun CollabAfterCard(
             // 제목 = 업체명(협업 사장 이름) — 2명 이상일 때 한눈에 구분(사장님 2026-08-09). 상태는 오른쪽 알약에.
             Text("🤝 $partnerName", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, maxLines = 1)
             Spacer(Modifier.weight(1f))
-            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(if (completed) Color(0xFFE5F8EE) else purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
+            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(if (completed) AppTheme.colors.doneBg else purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
                 Text(if (completed) "협업 완료" else "협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else Color(0xFF6B4FD8))
             }
         }
@@ -3849,11 +3851,11 @@ private fun CollabAfterCard(
         if (completed) {
             // 완료 = 배정~완료 다 끝남. 큰 4단 stepper 는 접고 초록 한 줄로. (2026-07-04 사장님)
             androidx.compose.foundation.layout.Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFE9F9F1))
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.doneBg)
                     .padding(horizontal = 13.dp, vertical = 11.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                Box(Modifier.size(22.dp).clip(RoundedCornerShape(999.dp)).background(Color(0xFF16C172)),
+                Box(Modifier.size(22.dp).clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.done),
                     contentAlignment = androidx.compose.ui.Alignment.Center) {
                     Text("✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                 }
@@ -3869,7 +3871,7 @@ private fun CollabAfterCard(
                 listOf("배정", "출발", "도착", "완료").forEachIndexed { i, label ->
                     Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                         val done = i < curIdx; val cur = i == curIdx
-                        val bg = when { done -> Color(0xFF16C172); cur -> Color(0xFF3182F6); else -> TossGrayBg }
+                        val bg = when { done -> AppTheme.colors.done; cur -> AppTheme.colors.primary; else -> TossGrayBg }
                         val fg = if (done || cur) Color.White else TossTextTertiary
                         Box(Modifier.size(28.dp).clip(RoundedCornerShape(999.dp)).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
                             Text(if (done) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = fg)
@@ -3901,7 +3903,7 @@ private fun CollabAfterCard(
                 photos.forEach { p ->
                     val bmp = p.bitmap
                     androidx.compose.foundation.layout.Box(
-                        Modifier.size(92.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFEDEFF3))
+                        Modifier.size(92.dp).clip(RoundedCornerShape(11.dp)).background(AppTheme.colors.surfaceMuted)
                             .then(if (bmp != null) Modifier.clickable { viewerIdx = bmps.indexOf(bmp).coerceAtLeast(0) } else Modifier),
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
@@ -3960,7 +3962,7 @@ private fun CollabAfterCard(
             text = { Text("${partnerName}님께 '협업이 해제됐어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남고, 나중에 다시 요청할 수 있어요.") },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmRelease = false; onRelease() }) {
-                    Text("해제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                    Text("해제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -4205,7 +4207,7 @@ private fun CollabShareSheet(
                         val selected = startHour == h
                         Box(
                             Modifier.clip(RoundedCornerShape(999.dp))
-                                .background(if (selected) Color(0xFF7C5CFC) else TossGrayBg)
+                                .background(if (selected) AppTheme.colors.category else TossGrayBg)
                                 .clickable { startHour = if (selected) -1 else h }
                                 .padding(horizontal = 13.dp, vertical = 8.dp)
                         ) {
@@ -4244,12 +4246,12 @@ private fun CollabShareSheet(
                     Spacer(Modifier.height(6.dp))
                     Text("• 날짜·시간·주소·시공 범위\n• 전달 메모·사진·출발/도착/완료", fontSize = 12.5.sp, color = Color(0xFF3A4A66), lineHeight = 19.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text("✕ 고객 전화번호·대화·다른 고객은 안 보여요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF0436A))
+                    Text("✕ 고객 전화번호·대화·다른 고객은 안 보여요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.unpaid)
                 }
                 } // ── 스크롤 영역 끝, 아래(보내기·취소)는 하단 고정 ──
                 Spacer(Modifier.height(16.dp))
                 androidx.compose.foundation.layout.Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF7C5CFC))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.category)
                         .clickable(enabled = !sending) { send() }.padding(vertical = 15.dp),
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
@@ -4288,7 +4290,7 @@ private fun CollabPhoneChip(label: String, onClick: () -> Unit) {
 @Composable
 private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage) {
     val sent = msg.sent
-    val bgColor = if (sent) TossBlueSoft else Color(0xFFF3F4F6)
+    val bgColor = if (sent) TossBlueSoft else AppTheme.colors.bg
     val labelText = if (sent) "보냄" else "받음"
     val labelColor = if (sent) TossBlue else TossTextSecondary
 

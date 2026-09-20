@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.onboarding
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,12 +83,12 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.presentation.theme.TossWarning
 
-private val ObBg = Color(0xFFFBFCFE)
+private val ObBg = LightColors.surface
 private val ObAccent = TossBlue
 // 프로토 OB_ACCENTS — 인트로 캐러셀 슬라이드별 악센트(분홍·파랑·초록·앰버·보라·주황·파랑).
 private val ObAccents = listOf(
-    Color(0xFFF0436A), Color(0xFF3182F6), Color(0xFF16C172), Color(0xFFF6A609),
-    Color(0xFF7C5CFC), Color(0xFFFF7847), Color(0xFF3182F6)
+    LightColors.unpaid, LightColors.primary, LightColors.done, LightColors.caution,
+    LightColors.category, Color(0xFFFF7847), LightColors.primary
 )
 
 private val TRADES = listOf(
@@ -278,7 +280,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
                         .shadow(10.dp, RoundedCornerShape(24.dp), spotColor = Color(0x26141A1F))
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color.White)
-                        .border(1.dp, Color(0xFFEDEFF3), RoundedCornerShape(24.dp))
+                        .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(24.dp))
                 ) {
                     Box(Modifier.matchParentSize().padding(18.dp), contentAlignment = Alignment.Center) { s.visual(active) }
                     Sheen(active)
@@ -343,7 +345,7 @@ private fun TradeStep(
         Box(
             Modifier
                 .fillMaxWidth()
-                .border(1.5.dp, Color(0xFFE5E8EE), RoundedCornerShape(14.dp))
+                .border(1.5.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(14.dp))
                 .padding(vertical = 14.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -385,8 +387,8 @@ private fun TradeStep(
 private fun TradeCell(label: String, on: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier = modifier
-            .background(if (!enabled) Color(0xFFF2F4F6) else if (on) TossBlueSoft else Color.White, RoundedCornerShape(14.dp))
-            .border(1.5.dp, if (on) TossBlue else Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
+            .background(if (!enabled) AppTheme.colors.bg else if (on) TossBlueSoft else Color.White, RoundedCornerShape(14.dp))
+            .border(1.5.dp, if (on) TossBlue else AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 15.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -395,8 +397,8 @@ private fun TradeCell(label: String, on: Boolean, enabled: Boolean = true, modif
             color = if (!enabled) TossTextTertiary else if (on) TossBlueDark else TossTextPrimary,
             modifier = Modifier.weight(1f))
         Box(
-            Modifier.size(18.dp).background(if (on) TossBlue else Color.Transparent, RoundedCornerShape(6.dp))
-                .border(2.dp, if (on) TossBlue else Color(0xFFEEF0F3), RoundedCornerShape(6.dp)),
+            Modifier.size(18.dp).background(if (on) TossBlue else Color.Transparent, RoundedCornerShape(8.dp))
+                .border(2.dp, if (on) TossBlue else AppTheme.colors.surfaceMuted, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             if (on) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(12.dp))
@@ -425,7 +427,7 @@ private fun ProfileStep(
         // 상호 입력
         Box(
             Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(13.dp))
-                .border(1.5.dp, Color(0xFFEEF0F3), RoundedCornerShape(13.dp))
+                .border(1.5.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(13.dp))
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             if (name.isEmpty()) Text("상호 (예: ○○ 줄눈)", fontSize = 15.sp, color = TossTextTertiary)
@@ -447,7 +449,7 @@ private fun ProfileStep(
                 Box(
                     Modifier
                         .background(if (on) TossBlue else Color.White, RoundedCornerShape(999.dp))
-                        .border(1.5.dp, if (on) TossBlue else Color(0xFFEEF0F3), RoundedCornerShape(999.dp))
+                        .border(1.5.dp, if (on) TossBlue else AppTheme.colors.surfaceMuted, RoundedCornerShape(999.dp))
                         .clickable { if (on) selectedRegions.remove(r) else selectedRegions.add(r) }
                         .padding(horizontal = 15.dp, vertical = 9.dp)
                 ) {
@@ -485,7 +487,7 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
         // 말풍선
         Box(
             Modifier.background(Color.White, RoundedCornerShape(16.dp))
-                .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(16.dp))
+                .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp))
                 .padding(horizontal = 17.dp, vertical = 11.dp)
         ) {
             Text("사장님, 옆에서 잘 배워서 똑똑해질게요!", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
@@ -584,7 +586,7 @@ private fun ObDots(step: Int) {
 @Composable
 private fun KickerChip(text: String, accent: Color = ObAccent) {
     Box(
-        Modifier.background(Color(0xFFF2F4F7), RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 5.dp)
+        Modifier.background(AppTheme.colors.bg, RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 5.dp)
     ) {
         Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = accent, letterSpacing = 0.5.sp)
     }
@@ -621,7 +623,7 @@ private fun storySlides(): List<Slide> = listOf(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("✨ AI 추천 답변", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                     Spacer(Modifier.weight(1f))
-                    Box(Modifier.background(Color(0xFFE7F8EF), RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Box(Modifier.background(AppTheme.colors.doneBg, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                         Text("✓ 사장님 말투", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
                     }
                 }
@@ -634,7 +636,7 @@ private fun storySlides(): List<Slide> = listOf(
     Slide("02 · 안내", "내일 가요, 미리 알려드려요", "도착 30분 전 문자, 헛걸음 없게") { active ->
         Column(Modifier.fillMaxWidth()) {
             RiseIn(active, 0) {
-            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(14.dp)) {
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp)).padding(14.dp)) {
                 Text("📍 현장 5km 진입 · 도착 30분 전", fontSize = 11.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text("고객님, 30분 뒤 도착 예정입니다 😊", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -642,7 +644,7 @@ private fun storySlides(): List<Slide> = listOf(
             }
             Spacer(Modifier.height(12.dp))
             RiseIn(active, 150) {
-            Box(Modifier.background(Color(0xFFFEF3E0), RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 6.dp)) {
+            Box(Modifier.background(AppTheme.colors.cautionBg, RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 6.dp)) {
                 Text("시공 하루 전 안내도 자동", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             }
             }
@@ -806,7 +808,7 @@ private fun TypewriterText(text: String, active: Boolean) {
 private fun CustomerBubble(text: String) {
     Box(
         Modifier.background(Color.White, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 14.dp, bottomStart = 4.dp))
-            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 14.dp, bottomStart = 4.dp))
+            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 14.dp, bottomStart = 4.dp))
             .padding(horizontal = 13.dp, vertical = 11.dp)
     ) {
         Text(text, fontSize = 13.sp, color = TossTextPrimary)

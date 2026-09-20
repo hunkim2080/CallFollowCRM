@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.reminder
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -107,7 +108,7 @@ fun ScheduleReminderScreen(
 private fun ReminderCard(row: ReminderRow, onSend: () -> Unit, onDismiss: () -> Unit) {
     val isToday = row.item.kind == ReminderKind.ARRIVAL
     val (badgeText, badgeColor, badgeBg) =
-        if (isToday) Triple("오늘 출발", TossSuccess, Color(0xFFE6F7EC))
+        if (isToday) Triple("오늘 출발", TossSuccess, AppTheme.colors.doneBg)
         else Triple("내일 시공", TossBlue, TossBlueSoft)
     TossCard {
         Column {

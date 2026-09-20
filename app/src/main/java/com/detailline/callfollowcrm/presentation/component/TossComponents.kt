@@ -260,7 +260,7 @@ fun TossBadge(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(8.dp),
         color = background
     ) {
         Text(

@@ -2625,7 +2625,7 @@ private fun TodayHeroCard(
                                             DateTimeUtils.formatWorkMinutes(mins),
                                             color = TossBlue, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp)).background(Color.White)
+                                                .clip(RoundedCornerShape(8.dp)).background(Color.White)
                                                 .padding(horizontal = 7.dp, vertical = 1.dp)
                                         )
                                         Spacer(Modifier.width(7.dp))
@@ -2718,7 +2718,7 @@ private fun CollabUpcomingCard(
             ) {
                 Text(
                     word, color = purple, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(purpleSoft).padding(horizontal = 7.dp, vertical = 2.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(purpleSoft).padding(horizontal = 7.dp, vertical = 2.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -4264,7 +4264,7 @@ private fun WaitingCard(
 
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
-                Box(Modifier.background(TossBlueSoft, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                Box(Modifier.background(TossBlueSoft, RoundedCornerShape(8.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
                     Text("신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
             }

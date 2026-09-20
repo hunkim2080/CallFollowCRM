@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.border
@@ -140,9 +142,9 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
     )
 )
 
-private val TipBg = Color(0xFFF5F8FF)
+private val TipBg = LightColors.primaryBg
 private val TipBorder = Color(0xFFE4EBF7)
-private val TipTint = Color(0xFFEEF4FF)
+private val TipTint = LightColors.primaryBg
 private val BlueDark = Color(0xFF1B64DA)
 
 /** 상담함 최근 대화 사이 팁 카드 — 대화 줄과 비슷한 크기(광고 티 안 나게). 프로토 .mktip 1:1. */

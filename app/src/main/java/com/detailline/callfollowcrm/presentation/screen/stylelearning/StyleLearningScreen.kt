@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.stylelearning
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,8 +58,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
-private val Purple = Color(0xFF7C5CFC)
-private val PurpleSoft = Color(0xFFF1ECFF)
+private val Purple = LightColors.category
+private val PurpleSoft = LightColors.categoryBg
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

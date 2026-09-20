@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.newleads
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -446,7 +447,7 @@ private fun PeekCallCard(item: PeekItem.Call) {
 
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(14.dp)).background(Color(0xFFEAF4F1))
+            .clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.doneBg)
             .border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp, vertical = 11.dp)
     ) {

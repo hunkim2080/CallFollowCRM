@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.spam
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -152,8 +153,8 @@ private fun SpamRow(entry: SpamPhoneEntity, onUnmark: () -> Unit) {
         else -> "끝 ${entry.phoneSuffix}"
     }
     val name = entry.displayName?.takeIf { it.isNotBlank() }
-    val iconBg = if (isPersonal) Color(0xFFF1ECFE) else Color(0xFFFFF1F3)
-    val iconTint = if (isPersonal) Color(0xFF7C5CFC) else Color(0xFFF0436A)
+    val iconBg = if (isPersonal) AppTheme.colors.categoryBg else AppTheme.colors.unpaidBg
+    val iconTint = if (isPersonal) AppTheme.colors.category else AppTheme.colors.unpaid
 
     Row(
         Modifier

@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -54,9 +56,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 private val MascotEyeColor = Color(0xFF2B3243)
 private val MascotCheekColor = Color(0xFFFFB3C1)
 private val MascotHatLight = Color(0xFFFFCB5B)
-private val MascotHatDark = Color(0xFFF6A609)
+private val MascotHatDark = LightColors.caution
 private val MascotHatBrimDark = Color(0xFFE8910A)
-private val MascotFaceLight = Color(0xFFEAF2FF)
+private val MascotFaceLight = LightColors.primaryBg
 private val MascotFaceDark = Color(0xFFCFE0FF)
 private val MascotCrownGold = Color(0xFFFFC83D)
 
@@ -72,15 +74,15 @@ object MascotTierState {
 
 /** 10단계 모자 색 (light, dark) — 10레벨 구간마다 변신. */
 private val MascotHatPalette = listOf(
-    Color(0xFFFFCB5B) to Color(0xFFF6A609), // 0 새내기 주황(기본)
+    Color(0xFFFFCB5B) to LightColors.caution, // 0 새내기 주황(기본)
     Color(0xFF7DD3C8) to Color(0xFF2FB3A4), // 1 수습 청록
     Color(0xFF8FD98C) to Color(0xFF3FB84B), // 2 일잘러 초록
-    Color(0xFF8FB6FF) to Color(0xFF3182F6), // 3 베테랑 파랑
-    Color(0xFFB39DFF) to Color(0xFF7C5CFC), // 4 에이스 보라
+    Color(0xFF8FB6FF) to LightColors.primary, // 3 베테랑 파랑
+    Color(0xFFB39DFF) to LightColors.category, // 4 에이스 보라
     Color(0xFFFFA6C9) to Color(0xFFF0589B), // 5 능력자 분홍
     Color(0xFFFF9B7A) to Color(0xFFF0562E), // 6 달인 주홍
     Color(0xFFC9A6FF) to Color(0xFF8B3DF6), // 7 고수 진보라
-    Color(0xFFDDE3EC) to Color(0xFF98A4B6), // 8 마스터 은색
+    Color(0xFFDDE3EC) to LightColors.textHint, // 8 마스터 은색
     Color(0xFFFFE08A) to Color(0xFFF5B400)  // 9 레전드 금색
 )
 

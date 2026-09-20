@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.onboarding
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -46,7 +48,7 @@ private val Green = TossSuccess              // #16C172 (기존 #12B886 드리�
 private val Ink = TossTextPrimary            // #0B0F19 (기존 #191F28 드리프트 → 토큰)
 private val Sub = TossTextSecondary          // #5A6472 (기존 #6B7684 드리프트 → 토큰)
 private val SoftBlue = TossBlueSoft          // #EEF4FF
-private val SoftGreen = Color(0xFFEAFBF2)    // 성공 틴트 — 전용 토큰 없어 유지
+private val SoftGreen = LightColors.doneBg    // 성공 틴트 — 전용 토큰 없어 유지
 
 @Composable
 fun OnboardingSetupScreen(
@@ -251,7 +253,7 @@ private fun ReadyRow(mark: String, label: String, done: Boolean) {
         ) {
             Text(
                 mark, fontSize = 14.sp, fontWeight = FontWeight.Black,
-                color = if (done) Color.White else Color(0xFF9AA3AF)
+                color = if (done) Color.White else AppTheme.colors.textHint
             )
         }
         Spacer(Modifier.width(11.dp))
@@ -303,14 +305,14 @@ private fun ColumnScope.RecMethodPicker(onPick: (String) -> Unit, onLater: () ->
 private fun MethodCard(emoji: String, t1: String, t2: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(top = 12.dp)
-            .background(Color(0xFFF7F9FB), RoundedCornerShape(16.dp))
-            .border(1.5.dp, Color(0xFFEAEEF2), RoundedCornerShape(16.dp))
+            .background(AppTheme.colors.bg, RoundedCornerShape(16.dp))
+            .border(1.5.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(16.dp))
             .clickable { onClick() }.padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             Modifier.size(46.dp).background(Color.White, RoundedCornerShape(13.dp))
-                .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(13.dp)),
+                .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(13.dp)),
             contentAlignment = Alignment.Center
         ) { Text(emoji, fontSize = 24.sp) }
         Spacer(Modifier.width(14.dp))
@@ -378,7 +380,7 @@ private fun ColumnScope.RecGuide(
         val ctx = LocalContext.current
         // '다시 찾기'와 붙으면 오터치 → 명확히 띄우고 옅은 구분선 얹음.
         Spacer(Modifier.height(10.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F2F5)))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfaceMuted))
         Spacer(Modifier.height(6.dp))
         InlineDiagPrompt(
             prefs = preferences,

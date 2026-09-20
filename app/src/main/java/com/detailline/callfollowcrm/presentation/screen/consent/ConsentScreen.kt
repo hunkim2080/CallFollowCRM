@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.consent
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,13 +35,13 @@ import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 
-private val Bg = Color(0xFFFBFCFE)
-private val Ink = Color(0xFF0B0F19)
-private val Blue = Color(0xFF3182F6)
+private val Bg = LightColors.surface
+private val Ink = LightColors.text
+private val Blue = LightColors.primary
 private val Disabled = Color(0xFFE2E6EC)
 private val Tag = Color(0xFF3A4250)
 private val Sub = TossTextSecondary
-private val LineBg = Color(0xFFF3F5F9)
+private val LineBg = LightColors.bg
 
 /**
  * 개인정보 동의 게이트 (진입 1회) — docs/ANDROID_HANDOFF_consent.md. SKT AI메시지 동의 벤치마킹.

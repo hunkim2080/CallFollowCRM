@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -409,7 +410,7 @@ fun SettingsScreen(
                 //   (프로토 5그룹에 앱 기능 13개가 아무 데나 섞였던 것 → 성격별 6그룹으로. 새 그룹=기록·분석 / 알림·번호 관리.)
                 // 인원 관리·수첩 제거(2026-08-31 사장님 "더보기 정리"). 관련 화면/nav 코드는 추후 청소.
                 SettingsGroup("협업·박람회") {
-                    LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
+                    LockRow(Icons.Filled.Group, AppTheme.colors.categoryBg, AppTheme.colors.category, "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
                     // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
                     LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
@@ -419,7 +420,7 @@ fun SettingsScreen(
                 SettingsGroup("기록·분석") {
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
                         "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
-                    LockRow(Icons.Filled.Payments, Color(0xFFE7F8F0), Color(0xFF16C172), "협업 기록",
+                    LockRow(Icons.Filled.Payments, AppTheme.colors.doneBg, AppTheme.colors.done, "협업 기록",
                         "협업 사장님별 · 월별로 얼마나 함께했나 (기록·세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
                 }
                 SettingsGroup("내 답장 재료") {
@@ -431,7 +432,7 @@ fun SettingsScreen(
                         "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
                         "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
-                    LockRow(Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC), "내 말투 학습",
+                    LockRow(Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category, "내 말투 학습",
                         "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
                 }
                 // 새 그룹 — 흩어져 있던 알림/번호 설정 모음(알림소리=답장재료에서, 사진받기=도움말에서, 스팸·사생활=앱설정에서 이동).
@@ -443,9 +444,9 @@ fun SettingsScreen(
                         LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
                             "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
                     }
-                    LockRow(Icons.Filled.Block, Color(0xFFFFF1F3), Color(0xFFF0436A), "스팸 차단 번호",
+                    LockRow(Icons.Filled.Block, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "스팸 차단 번호",
                         "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
-                    LockRow(Icons.Filled.Person, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "사생활 번호",
+                    LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "사생활 번호",
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                 }
                 SettingsGroup("앱 설정") {
@@ -465,9 +466,9 @@ fun SettingsScreen(
                     //   구글: 앱에서 계정을 만들 수 있으면 "in-app path to delete their app accounts
                     //   and associated data" + 웹 링크 **둘 다** 있어야 한다.
                     //   전에는 처리방침에 "앱 내 설정에서 삭제·탈퇴 가능" 이라고 적어놓고 **기능이 없었다.**
-                    LockRow(Icons.Filled.Delete, Color(0xFFFDECEF), Color(0xFFD32F4E), "계정 삭제",
+                    LockRow(Icons.Filled.Delete, AppTheme.colors.unpaidBg, Color(0xFFD32F4E), "계정 삭제",
                         "계정과 서버에 저장된 내 데이터를 지워요", onClick = { showDeleteAccount = true })
-                    LockRow(Icons.Filled.BugReport, Color(0xFFFFF1F3), Color(0xFFF0436A), "문제 신고 / 진단 보내기",
+                    LockRow(Icons.Filled.BugReport, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
                 }
 
@@ -518,7 +519,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(14.dp))
                     // 막내가 알아낸 원칙 (판단 기준 = 3번째 학습 층). (2026-06-17)
                     LockRow(
-                        Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC),
+                        Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category,
                         "막내가 알아낸 원칙",
                         "막내가 사장님 답변에서 찾은 판단 기준 · 수정/삭제",
                         onClick = onOpenPrinciples
@@ -673,7 +674,7 @@ private fun UsageStatsCard(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (selected) TossBlue else Color(0xFFEEF1F4))
+                            .background(if (selected) TossBlue else AppTheme.colors.surfaceMuted)
                             .clickable {
                                 selectedPeriod = p
                                 onRefresh(p)
@@ -870,7 +871,7 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
                 Spacer(Modifier.height(12.dp))
                 // 통화 없이 카드 미리보기 (사장님 2026-07-12: 매번 전화 걸어 테스트하지 않게). 미리보기는 눌러도 발송 X.
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F1FE))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.primaryBg)
                         .clickable {
                             val items = prefs.postCallItems
                             if (items.isEmpty()) {
@@ -1223,7 +1224,7 @@ private fun WebViewerSection(container: AppContainer) {
             // ① 주소 — 크게 + 복사 (사장님이 PC 주소를 몰라 시작을 못 하던 문제. 2026-08-15)
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFEEF4FF)).border(1.dp, Color(0xFFD5E4FB), RoundedCornerShape(12.dp))
+                    .background(AppTheme.colors.primaryBg).border(1.dp, Color(0xFFD5E4FB), RoundedCornerShape(12.dp))
                     .padding(14.dp)
             ) {
                 Text("①  PC 브라우저 주소창에 이렇게 치세요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
@@ -1250,7 +1251,7 @@ private fun WebViewerSection(container: AppContainer) {
             if (!authed) {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFFFF7E6)).border(1.dp, Color(0xFFFFE2A8), RoundedCornerShape(12.dp))
+                        .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFFFE2A8), RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
                     Text("🔑  먼저 웹 로그인 인증 (한 번만)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8A6100))
@@ -1935,7 +1936,7 @@ private fun AutoLearningCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFFFF3DF))
+                            .background(AppTheme.colors.cautionBg)
                             .padding(12.dp)
                     ) {
                         Column {
@@ -2196,7 +2197,7 @@ private fun AutoSmsSection(
     Spacer(Modifier.height(10.dp))
 
     // ③ 오늘 시공 도착 안내
-    AutoCard("📍", Color(0xFFE6F7EE), "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
+    AutoCard("📍", AppTheme.colors.doneBg, "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
         arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it; onArrivalToggle(it) }) {
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
         AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
@@ -2214,7 +2215,7 @@ private fun AutoSmsSection(
     var showConsent by remember { mutableStateOf(false) }
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
                 contentAlignment = Alignment.Center) { Text("🤖", fontSize = 16.sp) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
@@ -2267,7 +2268,7 @@ private fun AutoSmsSection(
     var blockCapOn by remember { mutableStateOf(prefs.blockScreenCapture) }
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFDE8E8)),
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.unpaidBg),
                 contentAlignment = Alignment.Center) { Text("🔒", fontSize = 16.sp) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
@@ -2303,7 +2304,7 @@ private fun AutoSmsSection(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFE8F1FE)),
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.primaryBg),
                     contentAlignment = Alignment.Center) { Text("📞", fontSize = 16.sp) }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
@@ -2340,7 +2341,7 @@ private fun AutoSmsSection(
             if (callerCardOn && !overlayGranted) {
                 Spacer(Modifier.height(10.dp))
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFF3DF))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.cautionBg)
                         .clickable {
                             runCatching {
                                 overlayPermLauncher.launch(
@@ -2427,7 +2428,7 @@ private fun AutoSmsSection(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
                     contentAlignment = Alignment.Center) { Text("🎙️", fontSize = 16.sp) }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
@@ -2442,7 +2443,7 @@ private fun AutoSmsSection(
                 Spacer(Modifier.width(8.dp))
                 Box(
                     Modifier.clip(RoundedCornerShape(10.dp))
-                        .background(if (recFolderConnected) Color(0xFFEEF0F3) else Color(0xFF3182F6))
+                        .background(if (recFolderConnected) AppTheme.colors.surfaceMuted else AppTheme.colors.primary)
                         .clickable {
                             if (recFolderConnected) {
                                 com.detailline.callfollowcrm.recording.AdotFolderScanner.scanIfConnected(ctx, recAppContainer) { }
@@ -2468,7 +2469,7 @@ private fun AutoSmsSection(
             if (!recFolderConnected) {
                 Spacer(Modifier.height(8.dp))
                 Text("자동으로 안 되면 → 폴더 직접 고르기",
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3182F6),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primary,
                     modifier = Modifier.clickable { recFolderLauncher.launch(null) }.padding(vertical = 2.dp))
             }
         }
@@ -2481,7 +2482,7 @@ private fun AutoSmsSection(
     // ④ 정기 문자 예약 (링크)
     TossCard(onClick = onOpenRecurring) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFE2F7F3)),
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.doneBg),
                 contentAlignment = Alignment.Center) { Text("🔁", fontSize = 16.sp) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
@@ -2510,7 +2511,7 @@ private fun AutoSmsSection(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFFEDE9FE)),
+                Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.categoryBg),
                     contentAlignment = Alignment.Center) { Text("✨", fontSize = 15.sp) }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -2537,7 +2538,7 @@ private fun AutoSmsSection(
             // 아이콘 헤더
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFFFDECEC)),
+                    Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.unpaidBg),
                     contentAlignment = Alignment.Center
                 ) { Text("🚫", fontSize = 15.sp) }
                 Spacer(Modifier.width(10.dp))
@@ -2565,7 +2566,7 @@ private fun AutoSmsSection(
                 ) {
                     spamPrefixes.sorted().forEach { p ->
                         Row(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFDECEC))
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.unpaidBg)
                                 .border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(999.dp))
                                 .clickable { spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes }
                                 .padding(start = 13.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
@@ -2670,7 +2671,7 @@ private fun AutoCard(
                         Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                         if (badge != null) {
                             Spacer(Modifier.width(6.dp))
-                            Box(Modifier.clip(RoundedCornerShape(6.dp)).background(TossBlueSoft)
+                            Box(Modifier.clip(RoundedCornerShape(8.dp)).background(TossBlueSoft)
                                 .padding(horizontal = 6.dp, vertical = 1.dp)) {
                                 Text(badge, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                             }
@@ -2774,7 +2775,7 @@ private fun DeleteAccountSheet(onDismiss: () -> Unit) {
             Text("계정 삭제", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFFFDECEF)).padding(14.dp)) {
+                .background(AppTheme.colors.unpaidBg).padding(14.dp)) {
                 Text(
                     "지우면 되돌릴 수 없어요.\n먼저 [데이터 내보내기]로 백업해 두세요.",
                     fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
@@ -3164,7 +3165,7 @@ private fun OwnerToneRagCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFFFF3DF))
+                            .background(AppTheme.colors.cautionBg)
                             .padding(12.dp)
                     ) {
                         Text(
@@ -3254,7 +3255,7 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFFFF3DF))  // 연한 노랑 — 안내 톤
+                    .background(AppTheme.colors.cautionBg)  // 연한 노랑 — 안내 톤
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Column {
@@ -3349,7 +3350,7 @@ private fun NavAppPreferenceCard(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (selected) TossBlue else Color(0xFFEEF1F4))
+                            .background(if (selected) TossBlue else AppTheme.colors.surfaceMuted)
                             .clickable { onSelect(app.key) }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
@@ -3694,7 +3695,7 @@ private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
             .tossCardShadow(RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .then(if (onClick != null) Modifier.clickable(interactionSource = agentInteraction, indication = null, onClick = onClick) else Modifier)
-            .background(Brush.linearGradient(listOf(Color(0xFFEAF2FF), Color(0xFFF1ECFF))))
+            .background(Brush.linearGradient(listOf(AppTheme.colors.primaryBg, AppTheme.colors.categoryBg)))
             .border(1.dp, Color(0xFFE6EAFB), RoundedCornerShape(22.dp))
             .padding(horizontal = 18.dp, vertical = 15.dp)
     ) {
@@ -3720,7 +3721,7 @@ private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(999.dp))
-                            .background(Brush.horizontalGradient(listOf(Color(0xFF3182F6), Color(0xFF7C5CFC))))
+                            .background(Brush.horizontalGradient(listOf(AppTheme.colors.primary, AppTheme.colors.category)))
                             .padding(horizontal = 9.dp, vertical = 2.dp)
                     ) {
                         Text("Lv.${card.level} · ${card.title}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
@@ -3743,7 +3744,7 @@ private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
                                     .fillMaxWidth((card.tonePct / 100f).coerceIn(0.03f, 1f))
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(99.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF3182F6), Color(0xFF7C5CFC))))
+                                    .background(Brush.horizontalGradient(listOf(AppTheme.colors.primary, AppTheme.colors.category)))
                             )
                         }
                     }
@@ -3808,7 +3809,7 @@ private fun DataBackupSection(
         Row(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(if (recent) Color(0xFFE7F8F0) else Color(0xFFFFF3DF))
+                .background(if (recent) AppTheme.colors.doneBg else AppTheme.colors.cautionBg)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(9.dp),
             verticalAlignment = Alignment.Top
@@ -3922,7 +3923,7 @@ private fun LockRow(
         }
         when (tier) {
             "프로" -> TierTag("프로", TossBlue)
-            "비즈니스" -> TierTag("비즈니스", Color(0xFF7C5CFC))
+            "비즈니스" -> TierTag("비즈니스", AppTheme.colors.category)
             else -> Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
         }
     }
@@ -4048,7 +4049,7 @@ private fun SetupCheckCard(
             Modifier.fillMaxWidth()
                 .pressScale(checkInteraction)
                 .tossCardShadow(RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(Color(0xFFEAFBF2))
+                .clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.doneBg)
                 .clickable(interactionSource = checkInteraction, indication = null) { collapsed = false }.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -4081,7 +4082,7 @@ private fun SetupCheckCard(
             // 녹음 "연결" 눌러도 계속 0개면 원인 자동 진단(파일없음/파서미스 + 가린 파일명). (2026-07-29 사장님)
             if (recScanFailed) {
                 Spacer(Modifier.height(4.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F2F5)))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfaceMuted))
                 com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt(
                     prefs = preferences,
                     tag = "홈-녹음연결(0개)",
@@ -4137,7 +4138,7 @@ private fun ToneLearnProtoSection(
     // ── tone-hero (보라 그라데이션) ──
     Column(
         Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF7C5CFC), Color(0xFF5B3FE0))))
+            .background(Brush.linearGradient(listOf(AppTheme.colors.category, Color(0xFF5B3FE0))))
             .padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -4172,9 +4173,9 @@ private fun ToneLearnProtoSection(
     // ── 말투 학습 켜짐/꺼짐 (tone-on) ──
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFF1ECFF)),
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(AppTheme.colors.categoryBg),
                 contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.AutoAwesome, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -4192,7 +4193,7 @@ private fun ToneLearnProtoSection(
                 checked = toneOn,
                 onCheckedChange = { toneOn = it; prefs.toneLearnEnabled = it },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF7C5CFC)
+                    checkedThumbColor = Color.White, checkedTrackColor = AppTheme.colors.category
                 )
             )
         }
@@ -4237,7 +4238,7 @@ private fun ToneLearnProtoSection(
                     val (sent, totalN) = ragProgress ?: (0 to 0)
                     val frac = if (totalN <= 0) 0f else (sent.toFloat() / totalN).coerceIn(0f, 1f)
                     Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(TossGrayBg)) {
-                        Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(RoundedCornerShape(4.dp)).background(Color(0xFF7C5CFC)))
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(RoundedCornerShape(4.dp)).background(AppTheme.colors.category))
                     }
                     Spacer(Modifier.height(6.dp))
                     Text("$sent / $totalN 건 학습 중...", fontSize = 11.sp, color = TossTextSecondary)
@@ -4262,7 +4263,7 @@ private fun ToneLearnProtoSection(
                         Text("새 메시지 ${pending}건 대기", fontSize = 11.sp, color = TossTextSecondary)
                         Spacer(Modifier.height(6.dp))
                         Text("지금 동기화", fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            color = Color(0xFF7C5CFC), modifier = Modifier.clickable { onUpload() })
+                            color = AppTheme.colors.category, modifier = Modifier.clickable { onUpload() })
                     } else {
                         Text("✅ 최신 상태로 학습됨", fontSize = 12.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
                     }
@@ -4384,8 +4385,8 @@ private fun ToneBeforeAfter(ex: com.detailline.callfollowcrm.ai.ToneExample) {
         Box(Modifier.padding(horizontal = 15.dp).fillMaxWidth().height(1.dp).background(TossDivider))
         // mine row
         ToneBaRow(
-            tag = "내 말투", tagBg = Color(0xFFF1ECFF), tagColor = Color(0xFF7C5CFC), mark = "✨ 사장님처럼",
-            msg = ex.mine, msgBg = Color(0xFFF6F3FF), msgBorder = Color(0xFFECE5FF)
+            tag = "내 말투", tagBg = AppTheme.colors.categoryBg, tagColor = AppTheme.colors.category, mark = "✨ 사장님처럼",
+            msg = ex.mine, msgBg = AppTheme.colors.primaryBg, msgBorder = Color(0xFFECE5FF)
         )
     }
 }
@@ -4399,11 +4400,11 @@ private fun ToneBaRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 tag, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = tagColor,
-                modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(tagBg).padding(horizontal = 8.dp, vertical = 2.dp)
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(tagBg).padding(horizontal = 8.dp, vertical = 2.dp)
             )
             if (mark != null) {
                 Spacer(Modifier.weight(1f))
-                Text(mark, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC))
+                Text(mark, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -4419,16 +4420,16 @@ private fun ToneBaRow(
 @Composable
 private fun ToneSourceRow(icon: ImageVector, title: String, desc: String, count: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1ECFF)),
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
             contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(17.dp))
+            Icon(icon, null, tint = AppTheme.colors.category, modifier = Modifier.size(17.dp))
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Text(desc, fontSize = 11.5.sp, color = TossTextTertiary)
         }
-        Text(count, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC))
+        Text(count, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category)
     }
 }
 
@@ -4443,9 +4444,9 @@ private fun ToneTeachButton(icon: ImageVector, title: String, desc: String, onCl
             .clickable(interactionSource = teachInteraction, indication = null, onClick = onClick).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1ECFF)),
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
             contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(17.dp))
+            Icon(icon, null, tint = AppTheme.colors.category, modifier = Modifier.size(17.dp))
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {

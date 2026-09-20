@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.collab
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,11 +59,11 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
-private val GreenBg = Color(0xFFE7F8F0)
+private val GreenBg = LightColors.doneBg
 private val GreenDeep = Color(0xFF0F9B5C)
-private val RedBg = Color(0xFFFDECF0)
+private val RedBg = LightColors.unpaidBg
 private val RedDeep = Color(0xFFD5325C)
-private val WaitBg = Color(0xFFFFF3E0)
+private val WaitBg = LightColors.cautionBg
 private val WaitFg = Color(0xFFE08600)
 
 /**

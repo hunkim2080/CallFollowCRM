@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.search
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.clickable
@@ -142,7 +144,7 @@ fun SearchScreen(
                         Text("최근 검색", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                         Spacer(Modifier.weight(1f))
                         Text("전체 지우기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
                                 .clickable { viewModel.clearRecent() }.padding(horizontal = 6.dp, vertical = 3.dp))
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -435,7 +437,7 @@ private fun SiteRow(s: SiteHit, query: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(44.dp).background(Color(0xFFFEF3E0), CircleShape),
+            Modifier.size(44.dp).background(AppTheme.colors.cautionBg, CircleShape),
             contentAlignment = Alignment.Center
         ) { Text("📍", fontSize = 17.sp) }
         Spacer(Modifier.size(13.dp))
@@ -498,15 +500,15 @@ private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
         // 진짜 말이 아니라 AI 가 정리한 글에서 걸렸으면 **그렇다고 밝힌다.** (2026-09-19 사장님)
         SearchSource.CALL -> Triple(
             if (fromSummary) "📞 통화 요약" else "📞 통화",
-            Color(0xFFE7F8EE), Color(0xFF16A765)
+            AppTheme.colors.doneBg, Color(0xFF16A765)
         )
-        SearchSource.MESSAGE -> Triple("💬 문자", Color(0xFFE7F0FE), Color(0xFF3182F6))
-        SearchSource.MEMO -> Triple("📝 메모", Color(0xFFEDE9FE), Color(0xFF7C5CFC))
+        SearchSource.MESSAGE -> Triple("💬 문자", AppTheme.colors.primaryBg, AppTheme.colors.primary)
+        SearchSource.MEMO -> Triple("📝 메모", AppTheme.colors.categoryBg, AppTheme.colors.category)
         SearchSource.CUSTOMER -> null
     }
     if (chip != null) {
         Box(
-            Modifier.padding(end = 6.dp).background(chip.second, RoundedCornerShape(6.dp))
+            Modifier.padding(end = 6.dp).background(chip.second, RoundedCornerShape(8.dp))
                 .padding(horizontal = 6.dp, vertical = 1.dp)
         ) {
             Text(chip.first, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = chip.third, maxLines = 1)
@@ -516,11 +518,11 @@ private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
 
 // 프로토 avatarHtml 틴트 5색 [bg, fg].
 private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to Color(0xFF3182F6),
-    Color(0xFFE7F8EE) to Color(0xFF16A765),
-    Color(0xFFFDEAEF) to Color(0xFFF0436A),
-    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
-    Color(0xFFFEF3E0) to Color(0xFFE0920C)
+    Color(0xFFE6EFFF) to LightColors.primary,
+    LightColors.doneBg to Color(0xFF16A765),
+    LightColors.unpaidBg to LightColors.unpaid,
+    LightColors.categoryBg to LightColors.category,
+    LightColors.cautionBg to Color(0xFFE0920C)
 )
 
 @Composable

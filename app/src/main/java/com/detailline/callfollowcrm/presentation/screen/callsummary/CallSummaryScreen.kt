@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.callsummary
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -62,7 +64,7 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.SmsSender
 import kotlinx.coroutines.launch
 
-private val Purple = Color(0xFF7C5CFC)
+private val Purple = LightColors.category
 
 /**
  * 통화 정리해서 보내기 (2026-06-03 사장님 요청, A안 = 정리 중심).

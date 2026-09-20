@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.brief
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,7 +51,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val GoalCardBg = Color(0xFF202632)
-private val WarnBg = Color(0xFFFFF3DF)
+private val WarnBg = LightColors.cautionBg
 private val WarnText = Color(0xFFB8780A)
 private val WarnSub = Color(0xFFC9820B)
 

@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.settlement
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.withStyle
@@ -357,8 +359,8 @@ private fun SettleTopCard(
                             .clip(RoundedCornerShape(99.dp))
                             .background(
                                 Brush.horizontalGradient(
-                                    if (top.goalReached) listOf(Color(0xFFFFC658), Color(0xFFF6A609))
-                                    else listOf(Color(0xFF5BA0FF), Color(0xFF3182F6))
+                                    if (top.goalReached) listOf(Color(0xFFFFC658), AppTheme.colors.caution)
+                                    else listOf(Color(0xFF5BA0FF), AppTheme.colors.primary)
                                 )
                             )
                     )
@@ -680,11 +682,11 @@ private fun EmptyMini(filter: SettleFilter) {
 /* ─────────────── 아바타 (프로토 AV_TINTS) ─────────────── */
 
 private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to Color(0xFF3182F6),
-    Color(0xFFE7F8EE) to Color(0xFF16A765),
-    Color(0xFFFDEAEF) to Color(0xFFF0436A),
-    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
-    Color(0xFFFEF3E0) to Color(0xFFE0920C),
+    Color(0xFFE6EFFF) to LightColors.primary,
+    LightColors.doneBg to Color(0xFF16A765),
+    LightColors.unpaidBg to LightColors.unpaid,
+    LightColors.categoryBg to LightColors.category,
+    LightColors.cautionBg to Color(0xFFE0920C),
 )
 
 @Composable

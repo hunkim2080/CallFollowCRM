@@ -443,7 +443,7 @@ private fun PricingItemRow(
                 if (item.unit == PricingItemEntity.UNIT_PYEONG) {
                     Spacer(Modifier.width(6.dp))
                     Box(
-                        Modifier.clip(RoundedCornerShape(6.dp)).background(TossBlueSoft)
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(TossBlueSoft)
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) { Text("평당", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
                 }
@@ -451,7 +451,7 @@ private fun PricingItemRow(
                 if (item.isEstimated) {
                     Spacer(Modifier.width(6.dp))
                     Box(
-                        Modifier.clip(RoundedCornerShape(6.dp)).background(TossGrayBg)
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(TossGrayBg)
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) { Text("추정", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary) }
                 }

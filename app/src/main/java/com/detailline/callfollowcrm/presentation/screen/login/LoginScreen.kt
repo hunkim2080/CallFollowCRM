@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.login
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,9 +54,9 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 
-private val LoginBg = Color(0xFFFBFCFE)
-private val LogoInk = Color(0xFF0B0F19)
-private val LoginBlue = Color(0xFF3182F6)
+private val LoginBg = LightColors.surface
+private val LogoInk = LightColors.text
+private val LoginBlue = LightColors.primary
 private val TagColor = Color(0xFF3A4250)
 private val SubColor = TossTextSecondary
 
@@ -103,7 +105,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFFE7F0FF), Color(0x00FBFCFE)),
+                        colors = listOf(AppTheme.colors.primaryBg, Color(0x00FBFCFE)),
                         center = Offset(540f, -120f),
                         radius = 1100f
                     )
@@ -211,7 +213,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 Text("개인정보 수집·이용", fontSize = 11.sp, color = LoginBlue, fontWeight = FontWeight.Bold,
                     textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
                     modifier = Modifier.clickable { openDoc(com.detailline.callfollowcrm.AppConfig.CONSENT_REQUIRED_URL) }.padding(4.dp))
-                Text("·", fontSize = 11.sp, color = Color(0xFF9AA3AF), modifier = Modifier.padding(horizontal = 2.dp))
+                Text("·", fontSize = 11.sp, color = AppTheme.colors.textHint, modifier = Modifier.padding(horizontal = 2.dp))
                 Text("개인정보처리방침", fontSize = 11.sp, color = LoginBlue, fontWeight = FontWeight.Bold,
                     textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
                     modifier = Modifier.clickable { openDoc(com.detailline.callfollowcrm.AppConfig.PRIVACY_POLICY_URL) }.padding(4.dp))
@@ -220,7 +222,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
             Text(
                 "로그인하면 위 내용에 동의하는 것으로 봐요",
                 fontSize = 11.sp,
-                color = Color(0xFF9AA3AF),
+                color = AppTheme.colors.textHint,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 18.sp,
                 modifier = Modifier.fillMaxWidth(),
@@ -241,7 +243,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
 
             // 베타 신청 — 화이트리스트에 없는 사람이 신청 문자를 보내는 경로 (2026-07-25 사장님).
             Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEF1F5)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfaceMuted))
             Spacer(Modifier.height(12.dp))
             Row(
                 Modifier.fillMaxWidth().clickable { showBeta = true },
@@ -264,7 +266,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
 @Composable
 private fun BetaFieldLabel(t: String) {
     Text(
-        t, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF5A6472),
+        t, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.textSub,
         modifier = Modifier.padding(top = 15.dp, bottom = 6.dp)
     )
 }
@@ -346,12 +348,12 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
                     val on = trade == tr
                     Box(
                         Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                            .background(if (on) Color(0xFFEAF1FF) else Color(0xFFF1F4F8))
-                            .border(1.4.dp, if (on) Color(0xFFB9D0FF) else Color(0xFFF1F4F8), RoundedCornerShape(10.dp))
+                            .background(if (on) AppTheme.colors.primaryBg else AppTheme.colors.bg)
+                            .border(1.4.dp, if (on) Color(0xFFB9D0FF) else AppTheme.colors.bg, RoundedCornerShape(10.dp))
                             .clickable { trade = if (on) "" else tr }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
-                    ) { Text(tr, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = if (on) Color(0xFF1B64DA) else Color(0xFF5A6472)) }
+                    ) { Text(tr, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = if (on) Color(0xFF1B64DA) else AppTheme.colors.textSub) }
                 }
                 repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
             }
@@ -377,7 +379,7 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "닫기", fontSize = 13.sp, color = Color(0xFF9AA3AF), fontWeight = FontWeight.Bold,
+            "닫기", fontSize = 13.sp, color = AppTheme.colors.textHint, fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth().clickable { onClose() }.padding(6.dp)
         )

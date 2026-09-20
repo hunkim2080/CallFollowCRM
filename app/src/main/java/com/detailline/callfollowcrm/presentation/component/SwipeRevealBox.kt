@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -61,7 +62,7 @@ fun SwipeRevealBox(
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
     label: String = "삭제",
-    containerColor: Color = Color(0xFFF0436A),
+    containerColor: Color = AppTheme.colors.unpaid,
     contentColor: Color = Color.White,
     icon: ImageVector = Icons.Filled.Delete,
     shape: Shape = RoundedCornerShape(14.dp),

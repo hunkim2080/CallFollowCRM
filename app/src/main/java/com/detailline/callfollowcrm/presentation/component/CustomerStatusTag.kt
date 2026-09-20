@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -51,11 +53,11 @@ fun customerStatusOf(
 
 /** 상태별 딱지 색 (fg, bg). CustomersScreen custTag 와 동일 팔레트. */
 private fun statusColors(s: String): Pair<Color, Color> = when (s) {
-    "완료" -> Color(0xFF0E9F56) to Color(0xFFE5F8EE)   // green
-    "신규" -> Color(0xFFB7791F) to Color(0xFFFEF3E0)   // amber
-    "미전환" -> Color(0xFF9AA3AF) to Color(0xFFF4F5F7) // gray
-    "잔금미수" -> Color(0xFFE0620D) to Color(0xFFFFF0E1) // orange (돈 받을 것)
-    else -> Color(0xFF3182F6) to Color(0xFFEAF2FE)     // blue (예약)
+    "완료" -> Color(0xFF0E9F56) to LightColors.doneBg   // green
+    "신규" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber
+    "미전환" -> LightColors.textHint to LightColors.bg // gray
+    "잔금미수" -> Color(0xFFE0620D) to LightColors.cautionBg // orange (돈 받을 것)
+    else -> LightColors.primary to LightColors.primaryBg     // blue (예약)
 }
 
 /**
@@ -86,7 +88,7 @@ fun CustomerStatusTag(status: String) {
 
 /** 분류 태그 색 — 사장님이 만든 묶음(일당 등). 한 곳에서만 정한다. */
 private val CATEGORY_FG = Color(0xFF6D5AE6)
-private val CATEGORY_BG = Color(0xFFEFEBFF)
+private val CATEGORY_BG = LightColors.categoryBg
 
 /**
  * ① 분류 태그 — 사장님이 직접 만든 묶음.

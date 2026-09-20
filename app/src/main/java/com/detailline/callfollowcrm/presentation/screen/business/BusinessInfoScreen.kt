@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.business
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.util.copyToClip
 
 import androidx.activity.compose.BackHandler
@@ -255,7 +256,7 @@ fun BusinessInfoScreen(
 
                 // 사업자등록증 사진으로 자동입력 — 직접 타이핑 줄이기(특히 어르신). (2026-08-05 사장님)
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF3F7FF)).padding(14.dp)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.primaryBg).padding(14.dp)
                 ) {
                     Text("📷 사업자등록증으로 자동입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(3.dp))
@@ -323,7 +324,7 @@ fun BusinessInfoScreen(
                     Spacer(Modifier.height(8.dp))
                     Box(
                         Modifier.clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFEAF2FF))
+                            .background(AppTheme.colors.primaryBg)
                             .clickable {
                                 val holder = accountHolder.ifBlank { owner }
                                 context.copyToClip("계좌", listOf(bank, accountNo, holder).filter { it.isNotBlank() }.joinToString(" "))
@@ -394,7 +395,7 @@ fun BusinessInfoScreen(
 @Composable
 private fun OcrPickButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFFEAF0FF))
+        modifier.clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.primaryBg)
             .clickable(enabled = enabled) { onClick() }.padding(vertical = 11.dp),
         contentAlignment = Alignment.Center
     ) {

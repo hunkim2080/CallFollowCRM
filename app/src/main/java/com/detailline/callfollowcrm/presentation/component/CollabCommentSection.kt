@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
 
-private val CommentPurple = Color(0xFF7C5CFC)
+private val CommentPurple = LightColors.category
 private val CTextPrimary = Color(0xFF191F28)
 private val CTextSecondary = Color(0xFF4E5968)
 private val CTextTertiary = Color(0xFF8B95A1)
@@ -58,7 +60,7 @@ fun CollabCommentSection(
             modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-                .border(1.dp, Color(0xFFE9ECF0), RoundedCornerShape(14.dp)).padding(13.dp)
+                .border(1.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
             if (comments.isEmpty()) {
                 Text("아직 남긴 말이 없어요. 현장에 대해 한마디 남겨보세요.",

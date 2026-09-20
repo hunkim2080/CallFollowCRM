@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.report
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +50,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
-private val Warn = Color(0xFFF6A609)
+private val Warn = LightColors.caution
 private fun manwon(won: Long): String {
     if (won <= 0L) return "0원"
     val man = won / 10_000L

@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.chat
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -80,7 +82,7 @@ data class QuoteDocData(
 
 private val SealRed = Color(0xFFD6342C)
 private val DocBorder = Color(0xFFCFD6DF)
-private val DocHeaderBg = Color(0xFFF4F5F7)
+private val DocHeaderBg = LightColors.bg
 
 private fun won(n: Long): String = NumberFormat.getNumberInstance(Locale.KOREA).format(n)
 
@@ -177,7 +179,7 @@ fun QuoteDocScreen(
         Text(
             "📩 고객에게 이 이미지(직인 포함)가 문자로 가요",
             fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium,
-            modifier = Modifier.fillMaxWidth().background(Color(0xFFEEF4FF)).padding(horizontal = 18.dp, vertical = 11.dp)
+            modifier = Modifier.fillMaxWidth().background(AppTheme.colors.primaryBg).padding(horizontal = 18.dp, vertical = 11.dp)
         )
 
         Column(
@@ -193,7 +195,7 @@ fun QuoteDocScreen(
                     }
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.White)
-                    .border(1.dp, Color(0xFFECEFF3), RoundedCornerShape(16.dp))
+                    .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp))
                     .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 26.dp)
             ) {
                 // ── 헤더: 좌 타이틀 / 우 회사 (레터헤드) ──
@@ -255,7 +257,7 @@ fun QuoteDocScreen(
                         Spacer(Modifier.height(5.dp))
                         SummaryRow("부가세 (10%)", "${won(vat)}원", false)
                         Spacer(Modifier.height(7.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E9F0)))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfacePressed))
                         Spacer(Modifier.height(7.dp))
                         SummaryRow("합계 (부가세 포함)", "${won(grand)}원", true)
                     }
@@ -265,7 +267,7 @@ fun QuoteDocScreen(
                     Spacer(Modifier.height(12.dp))
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFEEF4FF)).padding(14.dp)
+                            .background(AppTheme.colors.primaryBg).padding(14.dp)
                     ) {
                         Row(Modifier.fillMaxWidth()) {
                             Text(
@@ -309,7 +311,7 @@ fun QuoteDocScreen(
                 }
                 // ── 서명란: 견적일자 + 직인 ──
                 Spacer(Modifier.height(22.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E9F0)))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfacePressed))
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                     Column(Modifier.weight(1f)) {
@@ -325,9 +327,9 @@ fun QuoteDocScreen(
                     Box(Modifier.size(84.dp).rotate(-8f), contentAlignment = Alignment.Center) {
                         // 빨강 꽉 찬 네모(살짝 진한 테두리로 도장 각인 느낌)
                         Box(
-                            Modifier.matchParentSize().clip(RoundedCornerShape(7.dp))
+                            Modifier.matchParentSize().clip(RoundedCornerShape(8.dp))
                                 .background(SealRed)
-                                .border(2.dp, Color(0xFFB0201A), RoundedCornerShape(7.dp))
+                                .border(2.dp, Color(0xFFB0201A), RoundedCornerShape(8.dp))
                         )
                         // 안쪽 흰 테두리 + 흰 글자(음각)
                         Box(
@@ -380,7 +382,7 @@ private fun QuoteTableHeader() {
     Column {
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                .background(Color(0xFFEEF4FF)).padding(vertical = 8.dp, horizontal = 4.dp)
+                .background(AppTheme.colors.primaryBg).padding(vertical = 8.dp, horizontal = 4.dp)
         ) {
             Text("품목", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
                 textAlign = TextAlign.Start, modifier = Modifier.weight(2f).padding(horizontal = 4.dp))
@@ -404,7 +406,7 @@ private fun QuoteTableRow(name: String, spec: String, amount: String, last: Bool
             Text(amount, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111), textAlign = TextAlign.End,
                 modifier = Modifier.weight(1.3f).padding(horizontal = 4.dp))
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(if (last) Color(0xFFD5DBE3) else Color(0xFFEDF0F4)))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(if (last) Color(0xFFD5DBE3) else AppTheme.colors.surfaceMuted))
     }
 }
 

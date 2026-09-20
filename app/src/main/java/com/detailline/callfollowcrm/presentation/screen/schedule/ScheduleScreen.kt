@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
@@ -379,7 +381,7 @@ fun ScheduleScreen(
                     ) {
                         listOf(
                             TossSuccess to "시공", TossTextTertiary to "지난",
-                            Color(0xFF7C5CFC) to "협업", Color(0xFFF6A609) to "요청"
+                            AppTheme.colors.category to "협업", AppTheme.colors.caution to "요청"
                         ).forEach { (col, lbl) ->
                             Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(col))
                             Spacer(Modifier.width(3.dp))
@@ -452,7 +454,7 @@ fun ScheduleScreen(
                 item(key = "collab-label") {
                     Text(
                         "이 날 협업 ${collabForSelected.size}곳",
-                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC),
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category,
                         modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
                     )
                 }
@@ -612,15 +614,15 @@ private fun CollabDayCard(
     TossCard(onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFF7C5CFC)))
+                Box(Modifier.size(9.dp).clip(CircleShape).background(AppTheme.colors.category))
                 Spacer(Modifier.width(10.dp))
                 Text(com.detailline.callfollowcrm.ai.siteDisplayName(site), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
                 Text(
                     "협업",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF7C5CFC),
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 4.dp)
+                    color = AppTheme.colors.category,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg).padding(horizontal = 9.dp, vertical = 4.dp)
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -654,7 +656,7 @@ private fun PendingCollabDayCard(
                 Text(
                     "요청 · 확인하기",
                     fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFFFFF3DF)).padding(horizontal = 9.dp, vertical = 4.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 9.dp, vertical = 4.dp)
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -894,7 +896,7 @@ private fun AsDayCard(
     val s = DateTimeUtils.startOfDay(asStart)
     val totalDays = customer.asScheduledDays.coerceAtLeast(1)
     val dayN = selectedDayMs?.let { ((it - s) / DateTimeUtils.DAY_MS).toInt() + 1 }?.coerceIn(1, totalDays) ?: 1
-    val orange = Color(0xFFF5920B); val orangeDeep = Color(0xFFB8780A); val orangeBg = Color(0xFFFEF0DC)
+    val orange = Color(0xFFF5920B); val orangeDeep = Color(0xFFB8780A); val orangeBg = AppTheme.colors.cautionBg
     TossCard(onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -906,7 +908,7 @@ private fun AsDayCard(
                     modifier = Modifier.weight(1f)
                 )
                 if (totalDays > 1) {
-                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(orangeBg).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(orangeBg).padding(horizontal = 8.dp, vertical = 3.dp)) {
                         Text("${totalDays}일 중 ${dayN}일차", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = orangeDeep)
                     }
                     Spacer(Modifier.width(7.dp))
@@ -1097,7 +1099,7 @@ private fun CalendarDay(
                             // 막대는 날짜 동그라미 '밖(아래)' 흰 배경 위 → 선택돼도 흰색이면 안 보임(사장님 신고).
                             //   선택 여부와 무관하게 색 유지(협업=보라/지난=회색/다가올=초록).
                             lane == pendingLane -> PendingCalBar()   // 응답 대기 협업 = 주황 + 은은한 깜빡임(눈길 끌기)
-                            lane == collabLane -> CalBar(BarSeg.SINGLE, Color(0xFF7C5CFC))
+                            lane == collabLane -> CalBar(BarSeg.SINGLE, AppTheme.colors.category)
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
                                 if (bar != null) {
@@ -1255,9 +1257,9 @@ private fun DayJobCard(
                 )
                 if (totalDays > 1) {
                     Box(
-                        Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFF1ECFF)).padding(horizontal = 8.dp, vertical = 3.dp)
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg).padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text("${totalDays}일 중 ${dayN}일차", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC))
+                        Text("${totalDays}일 중 ${dayN}일차", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category)
                     }
                     Spacer(Modifier.width(7.dp))
                 }
@@ -1270,7 +1272,7 @@ private fun DayJobCard(
                 val tagText = if (customer.workCompletedAt != null) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
                 Box(
                     Modifier.clip(RoundedCornerShape(8.dp))
-                        .background(if (isPast) TossGrayBg else Color(0xFFE5F8EE))
+                        .background(if (isPast) TossGrayBg else AppTheme.colors.doneBg)
                         .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
                     Text(tagText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (isPast) TossTextTertiary else Color(0xFF0E9F56))
@@ -1372,11 +1374,11 @@ private fun AssignAvatars(members: List<com.detailline.callfollowcrm.data.local.
 }
 
 private val ASSIGN_TINTS = listOf(
-    Color(0xFFE6EFFF) to Color(0xFF3182F6),
-    Color(0xFFE7F8EE) to Color(0xFF16A765),
-    Color(0xFFFDEAEF) to Color(0xFFF0436A),
-    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
-    Color(0xFFFEF3E0) to Color(0xFFE0920C),
+    Color(0xFFE6EFFF) to LightColors.primary,
+    LightColors.doneBg to Color(0xFF16A765),
+    LightColors.unpaidBg to LightColors.unpaid,
+    LightColors.categoryBg to LightColors.category,
+    LightColors.cautionBg to Color(0xFFE0920C),
 )
 
 @Composable
@@ -1653,7 +1655,7 @@ private fun AssignTeamSheet(
     // 협업을 새로 보낼 땐 현장 주소가 꼭 있어야 함 — 없으면 상대가 못 찾고 현장명이 "협업 현장"으로 떠서. (2026-06-20 사장님)
     val invitingNewCollab = selectedPartners.any { it !in reqKeys }
     val needAddress = invitingNewCollab && siteAddress.isNullOrBlank() && siteAddrInput.isBlank()
-    val purple = Color(0xFF7C5CFC); val purpleLight = Color(0xFFF1ECFF)
+    val purple = AppTheme.colors.category; val purpleLight = AppTheme.colors.categoryBg
 
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
     Box(
@@ -1934,7 +1936,7 @@ private fun AssignTeamSheet(
                     .background(
                         when {
                             anySelected -> TossBlue
-                            isCancelAll -> Color(0xFFFDECEC)   // 취소(빼기) — 연한 빨강
+                            isCancelAll -> AppTheme.colors.unpaidBg   // 취소(빼기) — 연한 빨강
                             else -> Color(0xFFE2E6EC)
                         }
                     )
@@ -2018,7 +2020,7 @@ private fun QuickAddForm(
 ) {
     Spacer(Modifier.height(10.dp))
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF4F6F8)).padding(14.dp)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.bg).padding(14.dp)
     ) {
         Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = TossTextPrimary)
         Spacer(Modifier.height(10.dp))

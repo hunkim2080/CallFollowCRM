@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.expo
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -100,14 +102,14 @@ import kotlinx.coroutines.launch
 
 private val Kk = Color(0xFFFEE500)          // 카카오 옐로
 private val KkInk = Color(0xFF1A1A1A)       // 옐로 위 글자
-private val ExpoBg = Color(0xFFEDEFF2)      // 페이지 배경
-private val Panel = Color(0xFFFFFFFF)
+private val ExpoBg = LightColors.surfaceMuted      // 페이지 배경
+private val Panel = LightColors.surface
 private val T1 = Color(0xFF1A1A1A)
-private val T2 = Color(0xFF5F666D)
-private val T3 = Color(0xFF9AA0A6)
-private val Field = Color(0xFFF1F3F5)
+private val T2 = LightColors.textSub
+private val T3 = LightColors.textHint
+private val Field = LightColors.bg
 private val AccentBlue = Color(0xFF5B7CFA)
-private val OcrFill = Color(0xFFFFF7D6)      // OCR로 채운 칸 형광(연한 노랑) 하이라이트
+private val OcrFill = LightColors.cautionBg      // OCR로 채운 칸 형광(연한 노랑) 하이라이트
 
 /** OCR로 채운 입력칸 하이라이트 컬러. on 이면 연한 형광 배경. */
 @Composable
@@ -383,9 +385,9 @@ private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
         val badge = if (isOwner) "방장" else "팀원"
         // 방장=금색, 팀원=파랑 (색으로 역할 구분)
         val badgeFg = if (isOwner) Color(0xFFB58A00) else Color(0xFF2F6FDB)
-        val badgeBg = if (isOwner) Color(0xFFFFF6D6) else Color(0xFFE7F0FB)
+        val badgeBg = if (isOwner) AppTheme.colors.cautionBg else Color(0xFFE7F0FB)
         Text(badge, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = badgeFg,
-            modifier = Modifier.background(badgeBg, RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+            modifier = Modifier.background(badgeBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
     }
 }
 
@@ -450,7 +452,7 @@ private fun ColumnScope.RoomDetailView(
                             ) { Text("공유", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = KkInk) }
                         }
                         Spacer(Modifier.height(12.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F1F3)))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfaceMuted))
                         Spacer(Modifier.height(12.dp))
                     }
                     Row(Modifier.fillMaxWidth().clickable { memOpen = !memOpen }, verticalAlignment = Alignment.CenterVertically) {
@@ -469,7 +471,7 @@ private fun ColumnScope.RoomDetailView(
                                 if (m.role == "owner") {
                                     Spacer(Modifier.width(6.dp))
                                     Text("방장", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
-                                        modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                        modifier = Modifier.background(AppTheme.colors.cautionBg, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.weight(1f))
                                 Text(ph(m.phone), fontSize = 12.sp, color = T3)
@@ -555,7 +557,7 @@ private fun GroupRow(title: String, desc: String, onClick: () -> Unit) {
 
 @Composable
 private fun RowDivider() {
-    Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFFF0F1F3)))
+    Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(AppTheme.colors.surfaceMuted))
 }
 
 // ══════════════ 상품·서비스 준비 (방장) ══════════════
@@ -804,7 +806,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                         .padding(14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(22.dp).background(if (sel) Kk else Field, RoundedCornerShape(6.dp)),
+                        Box(Modifier.size(22.dp).background(if (sel) Kk else Field, RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center) {
                             if (sel) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = KkInk)
                         }
@@ -877,7 +879,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                                     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         rowItems.forEach { it2 ->
                                             val on = checkSel["${sc.key}::$it2"] == true
-                                            Box(Modifier.weight(1f).background(if (on) Color(0xFFFFF6D6) else Field, RoundedCornerShape(8.dp))
+                                            Box(Modifier.weight(1f).background(if (on) AppTheme.colors.cautionBg else Field, RoundedCornerShape(8.dp))
                                                 .clickable { checkSel["${sc.key}::$it2"] = !on }.padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
                                                 Text((if (on) "✓ " else "") + it2, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (on) T1 else T3, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             }
@@ -921,7 +923,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
             item {
                 // 고객이 서명·완료를 누르면 서버가 customer_confirmed=true → 배너 표시. 상담사가 수정하면 서버가 풀음.
                 if (live?.customerConfirmed == true) {
-                    Box(Modifier.fillMaxWidth().background(Color(0xFFE9FBF2), RoundedCornerShape(12.dp)).padding(14.dp)) {
+                    Box(Modifier.fillMaxWidth().background(AppTheme.colors.doneBg, RoundedCornerShape(12.dp)).padding(14.dp)) {
                         Text("✅ 고객이 계약서 작성을 완료했어요 · 수정사항 없으신가요?",
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0E9B63))
                     }
@@ -1073,7 +1075,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                         Spacer(Modifier.height(if (unassigned.isNotEmpty()) 8.dp else 13.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(
-                                Modifier.weight(1f).background(Color(0xFFEFF3F8), RoundedCornerShape(11.dp)).clickable {
+                                Modifier.weight(1f).background(AppTheme.colors.bg, RoundedCornerShape(11.dp)).clickable {
                                     val targets = if (crewSel.isNotEmpty()) members.filter { crewSel.contains(it.phone) }
                                         else members.filter { m -> d.items.any { it.assignedPhone.filter { c -> c.isDigit() } == m.phone.filter { c -> c.isDigit() } } }
                                     if (targets.size >= 2) {
@@ -1085,7 +1087,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 contentAlignment = Alignment.Center
                             ) { Text("🎲 다시 돌리기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
                             Box(
-                                Modifier.weight(1f).background(Color(0xFFFFF0F0), RoundedCornerShape(11.dp))
+                                Modifier.weight(1f).background(AppTheme.colors.unpaidBg, RoundedCornerShape(11.dp))
                                     .clickable { confirmReset = true }.padding(vertical = 11.dp),
                                 contentAlignment = Alignment.Center
                             ) { Text("↺ 초기화", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE1483B)) }
@@ -1119,7 +1121,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                     Text(if (scheduled) "일정 ${dateShort(s.scheduledAtMs)}" else "일정 미정",
                                         fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold,
                                         color = if (scheduled) Color(0xFF0E9B63) else Color(0xFFB58A00),
-                                        modifier = Modifier.background(if (scheduled) Color(0xFFE9FBF2) else Color(0xFFFFF6D6), RoundedCornerShape(6.dp))
+                                        modifier = Modifier.background(if (scheduled) AppTheme.colors.doneBg else AppTheme.colors.cautionBg, RoundedCornerShape(8.dp))
                                             .padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Text("계약자 ${s.agentName.ifBlank { "-" }}" + (s.assignedName?.let { " · 시공자 $it" } ?: " · 시공자 미배정"),
@@ -1151,7 +1153,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             Spacer(Modifier.height(12.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Box(
-                                    Modifier.weight(1f).background(Color(0xFFEDF2FF), RoundedCornerShape(12.dp))
+                                    Modifier.weight(1f).background(AppTheme.colors.primaryBg, RoundedCornerShape(12.dp))
                                         .clickable {
                                             pickDate(ctx, s.scheduledAtMs) { picked ->
                                                 scope.launch {
@@ -1164,10 +1166,10 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                     contentAlignment = Alignment.Center
                                 ) { Text(if (s.scheduledAtMs > 0L) "시공일 변경" else "시공일 잡기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentBlue) }
                                 Box(
-                                    Modifier.weight(1f).background(Color(0xFFEFEAFE), RoundedCornerShape(12.dp))
+                                    Modifier.weight(1f).background(AppTheme.colors.categoryBg, RoundedCornerShape(12.dp))
                                         .clickable { assignTarget = s }.padding(vertical = 11.dp),
                                     contentAlignment = Alignment.Center
-                                ) { Text("시공자 배정", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C5CFC)) }
+                                ) { Text("시공자 배정", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.category) }
                             }
                             Spacer(Modifier.height(8.dp))
                             Box(
@@ -1207,7 +1209,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 if (m.role == "owner") {
                                     Spacer(Modifier.width(6.dp))
                                     Text("방장", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
-                                        modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                        modifier = Modifier.background(AppTheme.colors.cautionBg, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.weight(1f))
                                 if (at.assignedName != null && at.assignedName == m.name)
@@ -1245,7 +1247,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             val on = crewSel.contains(m.phone)
                             Row(Modifier.fillMaxWidth().clickable { if (on) crewSel.remove(m.phone) else crewSel.add(m.phone) }.padding(vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(22.dp).background(if (on) AccentBlue else Field, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(22.dp).background(if (on) AccentBlue else Field, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                                     if (on) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                                 }
                                 Spacer(Modifier.width(10.dp))
@@ -1253,7 +1255,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 if (m.role == "owner") {
                                     Spacer(Modifier.width(6.dp))
                                     Text("방장", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
-                                        modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                        modifier = Modifier.background(AppTheme.colors.cautionBg, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                             }
                         }
@@ -1328,7 +1330,7 @@ private fun AssignAnimOverlay(
         onDismissRequest = { },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFAFFFFFF))) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(AppTheme.colors.surface)) {
             val W = maxWidth; val H = maxHeight
             val n = crew.size.coerceAtLeast(1)
             val done = step >= total
@@ -1353,7 +1355,7 @@ private fun AssignAnimOverlay(
                     for (i in depth downTo 1) {
                         Box(Modifier.offset(x = (i * 3 - 6).dp, y = (i * 3).dp).size(width = 72.dp, height = 90.dp)
                             .background(Color.White, RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0xFFE3E8EF), RoundedCornerShape(8.dp)))
+                            .border(1.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(8.dp)))
                     }
                 }
             }
@@ -1385,7 +1387,7 @@ private fun AssignAnimOverlay(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         // 쌓인 종이 더미
                         Box(Modifier.height(60.dp).width(72.dp), contentAlignment = Alignment.BottomCenter) {
-                            if (c == 0) Box(Modifier.size(width = 56.dp, height = 12.dp).background(Color(0xFFEEF1F4), RoundedCornerShape(6.dp)))
+                            if (c == 0) Box(Modifier.size(width = 56.dp, height = 12.dp).background(AppTheme.colors.surfaceMuted, RoundedCornerShape(8.dp)))
                             for (k in 0 until c.coerceAtMost(6)) {
                                 Box(Modifier.offset(y = -(k * 7).dp).size(width = 52.dp, height = 30.dp)
                                     .background(Color.White, RoundedCornerShape(5.dp))
@@ -1432,9 +1434,9 @@ private fun PaperSheet(name: String, amount: String, modifier: Modifier = Modifi
     ) {
         Text(name, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(7.dp))
-        Box(Modifier.fillMaxWidth(0.82f).height(4.dp).background(Color(0xFFEDF0F4), RoundedCornerShape(2.dp)))
+        Box(Modifier.fillMaxWidth(0.82f).height(4.dp).background(AppTheme.colors.surfaceMuted, RoundedCornerShape(2.dp)))
         Spacer(Modifier.height(4.dp))
-        Box(Modifier.fillMaxWidth(0.58f).height(4.dp).background(Color(0xFFEDF0F4), RoundedCornerShape(2.dp)))
+        Box(Modifier.fillMaxWidth(0.58f).height(4.dp).background(AppTheme.colors.surfaceMuted, RoundedCornerShape(2.dp)))
         Spacer(Modifier.height(9.dp))
         Text(amount, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
     }
@@ -1499,7 +1501,7 @@ private fun ColumnScope.MyInboxView(repo: ExpoRepository, n: Nav.MyInbox, myPhon
                             Text(if (sch) "${dateShort(s.scheduledAtMs)} 시공" else "일정 미정",
                                 fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold,
                                 color = if (sch) Color(0xFF0E9B63) else Color(0xFFB58A00),
-                                modifier = Modifier.background(if (sch) Color(0xFFE9FBF2) else Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                modifier = Modifier.background(if (sch) AppTheme.colors.doneBg else AppTheme.colors.cautionBg, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                             Spacer(Modifier.weight(1f))
                             Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                         }
@@ -1509,7 +1511,7 @@ private fun ColumnScope.MyInboxView(repo: ExpoRepository, n: Nav.MyInbox, myPhon
                         Spacer(Modifier.height(10.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val fp = s.customerPhone
-                            Box(Modifier.weight(1f).background(Color(0xFFEDF2FF), RoundedCornerShape(12.dp))
+                            Box(Modifier.weight(1f).background(AppTheme.colors.primaryBg, RoundedCornerShape(12.dp))
                                 .clickable(enabled = fp.isNotBlank()) { dialPhone(ctx, fp) }.padding(vertical = 11.dp), contentAlignment = Alignment.Center) {
                                 Text("📞 전화", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (fp.isNotBlank()) AccentBlue else T3)
                             }
@@ -1588,11 +1590,11 @@ private fun bizPhoneHyphen(raw: String): String {
 private fun OcrButtons(busy: Boolean, guide: String, onCamera: () -> Unit, onGallery: () -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f).background(Color(0xFFEAF0FF), RoundedCornerShape(10.dp))
+            Box(Modifier.weight(1f).background(AppTheme.colors.primaryBg, RoundedCornerShape(10.dp))
                 .clickable(enabled = !busy) { onCamera() }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                 Text("📷 촬영", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (busy) T3 else Color(0xFF2F6FDB))
             }
-            Box(Modifier.weight(1f).background(Color(0xFFEAF0FF), RoundedCornerShape(10.dp))
+            Box(Modifier.weight(1f).background(AppTheme.colors.primaryBg, RoundedCornerShape(10.dp))
                 .clickable(enabled = !busy) { onGallery() }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                 Text("🖼 앨범", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (busy) T3 else Color(0xFF2F6FDB))
             }
@@ -1941,7 +1943,7 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                             pick.julnun.forEach { (item, mat) ->
                                 Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(item, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T1, modifier = Modifier.weight(1f))
-                                    if (mat.isNotBlank()) Box(Modifier.background(Color(0xFFEEF4FF), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 3.dp)) {
+                                    if (mat.isNotBlank()) Box(Modifier.background(AppTheme.colors.primaryBg, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 3.dp)) {
                                         Text(mat, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
                                     }
                                 }
@@ -1985,7 +1987,7 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                     }
                     info?.terms?.takeIf { it.isNotBlank() }?.let { t ->
                         Spacer(Modifier.height(12.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEF0F3)))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfaceMuted))
                         Spacer(Modifier.height(10.dp))
                         Text("계약 약관", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2)
                         Spacer(Modifier.height(3.dp))
@@ -2121,7 +2123,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                 Column(
                                     Modifier.weight(1f).fillMaxHeight()
                                         .padding(0.5.dp)
-                                        .background(Color(0xFFFAFBFC))
+                                        .background(AppTheme.colors.surface)
                                         .clickable(enabled = dayItems.isNotEmpty()) { dialogDay = day }
                                         .padding(horizontal = 2.dp, vertical = 3.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally   // 날짜 숫자를 요일 라벨(가운데)과 정렬 (치우침 방지)
@@ -2129,7 +2131,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                     Text("$day", fontSize = 12.sp,
                                         fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium,
                                         color = if (isToday) KkInk else if (col == 0) Color(0xFFE1483B) else T1,
-                                        modifier = if (isToday) Modifier.background(Kk, RoundedCornerShape(7.dp)).padding(horizontal = 6.dp, vertical = 1.dp) else Modifier)
+                                        modifier = if (isToday) Modifier.background(Kk, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 1.dp) else Modifier)
                                     Spacer(Modifier.height(2.dp))
                                     dayItems.take(3).forEach { s ->
                                         // 그날 몇동 몇호 시공인지 바로 보이게 = 동호수 우선.
@@ -2138,7 +2140,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                             fontSize = 9.5.sp, color = Color(0xFF2B59D6), fontWeight = FontWeight.Medium,
                                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.fillMaxWidth()
-                                                .background(Color(0xFFE8EEFF), RoundedCornerShape(3.dp))
+                                                .background(AppTheme.colors.categoryBg, RoundedCornerShape(3.dp))
                                                 .padding(horizontal = 3.dp, vertical = 1.dp)
                                         )
                                         Spacer(Modifier.height(2.dp))
@@ -2146,7 +2148,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                     if (dayItems.size > 3) Text("+${dayItems.size - 3}", fontSize = 9.sp, color = T3)
                                 }
                             } else {
-                                Box(Modifier.weight(1f).fillMaxHeight().padding(0.5.dp).background(Color(0xFFF3F4F6)))
+                                Box(Modifier.weight(1f).fillMaxHeight().padding(0.5.dp).background(AppTheme.colors.bg))
                             }
                         }
                     }

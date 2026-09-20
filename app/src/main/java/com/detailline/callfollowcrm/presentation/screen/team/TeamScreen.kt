@@ -2,6 +2,8 @@
 
 package com.detailline.callfollowcrm.presentation.screen.team
 
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Intent
 import android.provider.ContactsContract
@@ -334,7 +336,7 @@ fun TeamScreen(
 private fun PeopleToggle(current: String, onSelect: (String) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFEEF0F3)).padding(3.dp),
+            .background(AppTheme.colors.surfaceMuted).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         listOf("team" to "팀원", "worker" to "일당사장").forEach { (key, label) ->
@@ -482,7 +484,7 @@ private fun RoleBadge(label: String, lead: Boolean) {
         label,
         fontSize = 11.sp, fontWeight = FontWeight.Bold,
         color = if (lead) TossBlue else TossTextSecondary,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+        modifier = Modifier.clip(RoundedCornerShape(8.dp))
             .background(if (lead) TossBlueSoft else TossGrayBg)
             .padding(horizontal = 8.dp, vertical = 2.dp)
     )
@@ -502,7 +504,7 @@ private fun DepartAlertRow(e: TeamRepository.TeamEvent, showDivider: Boolean) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(Color(0xFFE5F8EE)),
+                Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(AppTheme.colors.doneBg),
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Default.Navigation, null, tint = Color(0xFF0E9F56), modifier = Modifier.size(18.dp)) }
             Spacer(Modifier.width(11.dp))
@@ -650,11 +652,11 @@ private fun Avatar(name: String, tintIndex: Int) {
 
 // 프로토 AV_TINTS [bg, fg] 5색.
 private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to Color(0xFF3182F6),
-    Color(0xFFE7F8EE) to Color(0xFF16A765),
-    Color(0xFFFDEAEF) to Color(0xFFF0436A),
-    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
-    Color(0xFFFEF3E0) to Color(0xFFE0920C),
+    Color(0xFFE6EFFF) to LightColors.primary,
+    LightColors.doneBg to Color(0xFF16A765),
+    LightColors.unpaidBg to LightColors.unpaid,
+    LightColors.categoryBg to LightColors.category,
+    LightColors.cautionBg to Color(0xFFE0920C),
 )
 
 /** 점선 테두리 modifier (프로토 .invite dashed border). */

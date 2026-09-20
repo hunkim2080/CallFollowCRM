@@ -446,7 +446,7 @@ private fun CashItemRow(
                     }
                     Spacer(Modifier.height(4.dp))
                     Text("삭제", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary,
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onDelete() }
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onDelete() }
                             .padding(horizontal = 6.dp, vertical = 2.dp))
                 }
             }

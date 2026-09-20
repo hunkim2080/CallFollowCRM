@@ -314,7 +314,7 @@ private fun MiniJobRow(c: CustomerEntity) {
                 c.scheduledWorkMinutes?.let { mins ->
                     Spacer(Modifier.width(8.dp))
                     // 프로토 .md-time: blue-tint pill 배지 (평문 텍스트 아님)
-                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(TossBlueSoft).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(TossBlueSoft).padding(horizontal = 8.dp, vertical = 2.dp)) {
                         Text(DateTimeUtils.formatWorkMinutes(mins),
                             fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                     }
