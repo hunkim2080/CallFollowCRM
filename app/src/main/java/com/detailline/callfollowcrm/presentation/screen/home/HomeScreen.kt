@@ -2166,13 +2166,21 @@ private fun BandShell(
             .clickable { onTap() },
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 아이콘 칸 — 전엔 띠 왼쪽을 **꽉 채운 네모**였다. 흰 띠에선 그 회색 사각형이
+        //   *사진이 깨져서 생긴 빈 자리* 처럼 보였다. (2026-09-20 사장님 "이미지 깨진 것 같지 않니?")
+        //   → 둥근 작은 칸에 담는다. 앱의 다른 아이콘들과 같은 모양이라 '그림'으로 읽힌다.
         Box(
-            Modifier.width(44.dp).height(52.dp)
-                .background(if (border != null) Color(0x0D000000) else Color(0x1AFFFFFF)),
+            Modifier.padding(start = 11.dp).size(34.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(if (border != null) TossGrayBg else Color(0x24FFFFFF)),
             contentAlignment = Alignment.Center
         ) {
-            if (iconVector != null) Icon(iconVector, null, tint = fg.copy(alpha = 0.75f), modifier = Modifier.size(19.dp))
-            else Text(icon, fontSize = 17.sp)
+            if (iconVector != null) Icon(
+                iconVector, null,
+                tint = if (border != null) TossTextSecondary else fg,
+                modifier = Modifier.size(18.dp)
+            )
+            else Text(icon, fontSize = 16.sp)
         }
         Column(Modifier.weight(1f).padding(start = 11.dp, top = 9.dp, bottom = 10.dp, end = 4.dp)) {
             Text(line1, color = fg, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold,
