@@ -1061,29 +1061,63 @@ fun HomeScreen(
                 //   탭 = 그 고객 채팅(잔금 요청 보내러) · 꾹 누름 = 받음 처리(되돌리기 가능).
                 // 2026-09-20: **[미수] 칩 안에서만.** 전에는 전체 화면에 넉 장씩 쌓여 목록을 밀어냈다.
                 //   미수 칩에선 목록 대신 이 카드를 보여준다 — [잔금 요청] 버튼이 여기 있기 때문.
-                if (inboxChip == "owe") balanceDues.forEach { due ->
-                    item(key = "balancedue-${due.customerId}-${due.jobId ?: 0L}") {
-                        InboxAlert(
-                            accent = Color(0xFFF0436A),
-                            accentTint = Color(0xFFFDE7EC),
-                            icon = Icons.Filled.AccountBalanceWallet,
-                            title = "아직 안 들어온 잔금",
-                            tagText = "${due.daysSince}일째",
-                            tagBg = Color(0xFFFDE7EC), tagFg = Color(0xFFF0436A),
-                            sub = (due.whereLabel?.let { "$it · " } ?: "") + "잔금 ${MoneyFormatter.won(due.outstandingWon)} · 꾹 누르면 '받음' 처리",
-                            goLabel = "잔금 요청",
-                            onClick = { onOpenChat(due.phone, due.customerId) },
-                            onLongClick = {
-                                viewModel.markBalanceReceived(due.customerId, due.jobId)
-                                scope.launch {
-                                    val r = snackbarHostState.showSnackbar(
-                                        message = "${due.name} 잔금 받음 처리 ✓",
-                                        actionLabel = "되돌리기",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId, due.jobId)
-                                }
+                if (inboxChip == "owe" && balanceDues.isNotEmpty()) {
+                    // 💰 합계 먼저 — 돈은 "다 더하면 얼마인지" 가 첫 질문이다.
+                    item(key = "owe-total") {
+                        val sum = balanceDues.sumOf { it.outstandingWon }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp, start = 4.dp, end = 4.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Text(
+                                "못 받은 돈", fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold, color = TossTextTertiary
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                MoneyFormatter.won(sum), fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold, color = TossError
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                "${balanceDues.size}건", fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold, color = TossTextTertiary
+                            )
+                        }
+                    }
+                    // 다른 칩과 **같은 목록 모양** — 흰 카드 하나에 줄들. (2026-09-20 사장님 "언발란스")
+                    item(key = "owe-list") {
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .tossCardShadow(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.White)
+                        ) {
+                            balanceDues.forEachIndexed { idx, due ->
+                                if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                                OweRow(
+                                    due = due,
+                                    onClick = { onOpenChat(due.phone, due.customerId) },
+                                    onLongClick = {
+                                        viewModel.markBalanceReceived(due.customerId, due.jobId)
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar(
+                                                message = "${due.name} 잔금 받음 처리 ✓",
+                                                actionLabel = "되돌리기",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId, due.jobId)
+                                        }
+                                    }
+                                )
                             }
+                        }
+                    }
+                    item(key = "owe-hint") {
+                        Text(
+                            "줄을 꾹 누르면 '받음' 처리돼요", fontSize = 11.5.sp,
+                            color = TossTextTertiary,
+                            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp)
                         )
                     }
                 }
@@ -3940,6 +3974,73 @@ private fun ChipEmpty(chip: String) {
         if (sub != null) {
             Spacer(Modifier.height(6.dp))
             Text(sub, fontSize = 12.sp, color = TossTextTertiary)
+        }
+    }
+}
+
+/**
+ * 💰 미수 한 줄 — **돈이 주인공**이다. (2026-09-20 사장님 "언발란스하다")
+ *
+ * 전엔 협업 요청 알림(InboxAlert)을 그대로 썼다. 알림은 *목록 위에 하나 얹히는* 모양인데
+ * [미수] 칩은 화면이 통째로 이것뿐이라 남의 옷을 입은 것처럼 보였다.
+ * 그래서 다른 칩과 같은 **줄 모양**으로 맞추고, 오른쪽에 금액과 [잔금 요청] 을 세로로 둔다.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun OweRow(
+    due: com.detailline.callfollowcrm.presentation.screen.home.HomeBalanceDueUi,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    due.whereLabel ?: due.name, fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFDE7EC))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        "${due.daysSince}일째", fontSize = 10.5.sp,
+                        fontWeight = FontWeight.ExtraBold, color = TossError
+                    )
+                }
+            }
+            Spacer(Modifier.height(3.dp))
+            // 첫 줄이 **현장 주소**면 둘째 줄은 **누구인지** — 전화를 걸려면 이름이 있어야 한다.
+            //   주소가 없어 첫 줄이 이미 이름이면 그땐 무슨 돈인지 적는다.
+            Text(
+                if (due.whereLabel != null && due.whereLabel != due.name) due.name
+                else "시공 끝남 · 잔금 남음",
+                fontSize = 11.5.sp, color = TossTextTertiary,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                MoneyFormatter.won(due.outstandingWon), fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold, color = TossError
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFDE7EC))
+                    .clickable { onClick() }
+                    .padding(horizontal = 11.dp, vertical = 6.dp)
+            ) {
+                Text("잔금 요청", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
+            }
         }
     }
 }
