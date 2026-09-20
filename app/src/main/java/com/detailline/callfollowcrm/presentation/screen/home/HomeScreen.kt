@@ -1104,11 +1104,14 @@ fun HomeScreen(
                 val hideThreads = inboxChip == "owe"
                 // 칩을 켄 채 대기가 비면 머리글·막내를 안 띄운다 — "시공 끝남" 을 보는데
                 //   "지금 답장 기다려요 0 / 다 챙기셨네요" 가 나오면 딴소리다. (2026-09-20)
-                if (!hideThreads && !(chipOn && waiting.isEmpty())) {
-                    item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
-                }
+                // 2026-09-20 사장님 "지금 답장 기다려요. 이거 없어져야 하는 거 아니야?"
+                //   맞다. **칩의 [안 챙긴 N] 이 이미 같은 말**을 한다. 머리글이 또 세면 같은 숫자가 두 곳에.
+                //   → 머리글은 아예 안 띄우고, 대기 줄은 목록 맨 위에 그대로 둔다(정보는 안 잃는다).
+                //   막내 마스코트는 **[안 챙긴] 칩이 비었을 때만** — 거기선 "다 챙겼다"가 진짜 할 말이다.
                 if (waiting.isEmpty() || hideThreads) {
-                    if (!chipOn) item(key = "waiting-empty") { WaitingEmptyMascot(newUser = recent.isEmpty()) }
+                    if (inboxChip == "unhandled") {
+                        item(key = "waiting-empty") { WaitingEmptyMascot(newUser = recent.isEmpty()) }
+                    }
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
                         val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
