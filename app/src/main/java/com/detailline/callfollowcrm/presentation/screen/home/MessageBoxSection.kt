@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -138,13 +139,16 @@ fun MessageBoxSection(
     onMoveToConsult: (String) -> Unit,
     onMoveToSpam: (String, String?) -> Unit,
     onTogglePin: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 비었을 때 할 말 — **지금 고른 칩 얘기**여야 한다. (2026-09-20 실기: [택배] 인데 "문자함이 비어 있어요") */
+    emptySpeech: String = "문자함이 비어 있어요",
+    emptySub: String = "고객이 아닌 문자(광고·인증·알림)가 여기 모여요"
 ) {
     if (threads.isEmpty()) {
         Box(modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.Center) {
             com.detailline.callfollowcrm.presentation.component.MascotEmptyState(
-                speech = "문자함이 비어 있어요",
-                sub = "고객이 아닌 문자(광고·인증·알림)가 여기 모여요"
+                speech = emptySpeech,
+                sub = emptySub
             )
         }
         return
@@ -176,6 +180,15 @@ fun MessageBoxSection(
     }
 }
 
+/** 훑기용으로만 떼는 접두어 — 대화창 원문은 건드리지 않는다. */
+private fun stripSystemPrefix(body: String): String {
+    var s = body.trimStart()
+    for (p in arrayOf("[Web발신]", "(광고)", "[국제발신]")) {
+        if (s.startsWith(p)) s = s.removePrefix(p).trimStart()
+    }
+    return s
+}
+
 @Composable
 private fun GeneralRow(
     t: GeneralThread,
@@ -196,12 +209,22 @@ private fun GeneralRow(
                 .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 이니셜 원 아바타
+            // 이니셜 원 아바타 — 이름이 있을 때만. 이름이 없으면 **번호 첫 글자**가 그려져서
+            //   동그라미마다 "0" "1" 이 박혔다. 아무 뜻이 없다. (2026-09-20 실기) → 사람 그림으로.
+            val hasName = !t.displayName.isNullOrBlank()
             Box(
-                Modifier.size(42.dp).clip(CircleShape).background(TossBlueSoft),
+                Modifier.size(42.dp).clip(CircleShape)
+                    .background(if (hasName) TossBlueSoft else TossGrayBg),
                 contentAlignment = Alignment.Center
             ) {
-                Text(title.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                if (hasName) {
+                    Text(title.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                } else {
+                    Icon(
+                        Icons.Default.Person, null,
+                        tint = TossTextTertiary, modifier = Modifier.size(19.dp)
+                    )
+                }
             }
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
@@ -218,7 +241,9 @@ private fun GeneralRow(
                     }
                 }
                 Spacer(Modifier.size(2.dp))
-                Text(t.lastBody.replace("\n", " "), fontSize = 12.5.sp,
+                // 줄마다 "[Web발신]" 이 앞을 다 차지해 정작 내용이 잘렸다. (2026-09-20 실기)
+                //   보낸 쪽 시스템 표시일 뿐 사장님께 쓸모가 없다 → 훑을 때만 뗀다(원문은 그대로).
+                Text(stripSystemPrefix(t.lastBody).replace("\n", " "), fontSize = 12.5.sp,
                     color = if (t.unread) TossTextSecondary else TossTextTertiary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

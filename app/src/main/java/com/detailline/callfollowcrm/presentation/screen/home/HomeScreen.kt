@@ -304,7 +304,9 @@ fun HomeScreen(
             "unhandled" to all.count { pending(it) },
             "wait" to all.count {
                 val c = it.customer
-                c != null && (c.scheduledWorkDate ?: 0L) > 0L && c.workCompletedAt == null && pending(it)
+                // 목록과 **같은 규칙**이어야 한다 — 숫자가 3인데 열면 5줄이면 둘 다 못 믿는다.
+                c != null && (c.scheduledWorkDate ?: 0L) >= DateTimeUtils.startOfDay(System.currentTimeMillis()) &&
+                    !c.isWorkDone && pending(it)
             },
             // 미수는 연락이 와서가 아니라 **받을 돈이 남아서** 할 일이다 — 건수 그대로.
             "owe" to all.count { it.customer?.id in dues }
@@ -395,6 +397,9 @@ fun HomeScreen(
 
     // 목록 스크롤 위치 — **앱바가 알아야** 검색창을 접을 수 있어 Scaffold 밖으로 올렸다. (2026-09-19)
     val listState = rememberLazyListState()
+    // 칩을 바꾸면 **맨 위부터** 보여준다. (2026-09-20 실기)
+    //   목록만 갈리고 스크롤 위치가 남아서, [새 번호] 를 누르면 첫 줄이 잘린 중간부터 보였다.
+    LaunchedEffect(inboxChip) { runCatching { listState.scrollToItem(0) } }
 
     // Scaffold 를 Box 로 감싸 그 위(홈 콘텐츠 전체를 덮는 z-레벨)에 업데이트 시트를 오버레이. (2026-07-18 사장님)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
@@ -806,7 +811,9 @@ fun HomeScreen(
                 // 프로토 today-new-slot — "오늘 신규 문의 N통 / 어제 M통".
                 //   2026-09-20: **[오늘 신규] 칩 안에서만** 보여준다. 전체 화면에선 칩에 숫자가 이미 있다.
                 //   어제와 비교하는 말은 칩이 못 하니 카드로 남긴다.
-                if (inboxChip == "today") {
+                //   0 통이면 카드를 안 띄운다 — "오늘 신규 문의 0통" 아래 "여기 아무도 없어요" 가
+                //   같은 말을 두 번 하고, 오른쪽 '-' 딱지는 뜻이 없었다. (2026-09-20 실기)
+                if (inboxChip == "today" && todayNew > 0) {
                     item(key = "today-new") {
                         TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenNewLeads)
                     }
@@ -1089,16 +1096,24 @@ fun HomeScreen(
                 // 🏷️ **칩으로 한 번 거른다.** 이 아래 '지금 답장 기다려요'·'최근 대화' 는 손 안 댄다 —
                 //   거른 목록을 그대로 받으니 렌더가 통째로 재사용된다. (2026-09-20)
                 val dueIds = balanceDues.mapNotNull { it.customerId }.toHashSet()
+                val todayStart0 = DateTimeUtils.startOfDay(System.currentTimeMillis())
                 val chipItems = when (inboxChip) {
                     "today" -> dedupItems.filter { it.isNewToday }
                     "unhandled" -> dedupItems.filter { it.isUnconfirmed }
+                    // 🔨 **앞으로 할 시공만.** (2026-09-20 실기)
+                    //   전엔 '예약일이 있고 완료 버튼을 안 누른 것' 이었다. 그래서 **이미 끝난 시공**이
+                    //   (완료 버튼을 안 눌렀다는 이유로) 여기 들어와 초록 '완료' 딱지를 달고 앉아 있었다.
+                    //   사장님: *"시공대기 칩은 시공 예약이 되어있는 고객군만"* → 예약일이 **오늘 이후**인 것만.
                     "wait" -> dedupItems.filter {
                         val c = it.customer
-                        c != null && (c.scheduledWorkDate ?: 0L) > 0L && c.workCompletedAt == null
+                        c != null && (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
                     }
                     "owe" -> dedupItems.filter { it.customer?.id in dueIds }
                     "newnum" -> dedupItems.filter { it.customer == null }
-                    "done" -> dedupItems.filter { it.customer?.workCompletedAt != null }
+                    // '끝났다' 는 앱에 이미 단일 출처가 있다 — CustomerEntity.isWorkDone
+                    //   (완료 버튼 **또는** 잔금 받음. 사장님 2026-08-18 "잔금 받으면 = 완료").
+                    //   칩만 다른 자를 쓰면 딱지와 목록이 서로 딴소리를 한다.
+                    "done" -> dedupItems.filter { it.customer?.isWorkDone == true }
                     else -> dedupItems
                 }
                 val chipOn = inboxChip != "all"
@@ -1129,7 +1144,15 @@ fun HomeScreen(
                 //   막내 마스코트는 **[안 챙긴] 칩이 비었을 때만** — 거기선 "다 챙겼다"가 진짜 할 말이다.
                 if (waiting.isEmpty() || hideThreads) {
                     if (inboxChip == "unhandled") {
-                        item(key = "waiting-empty") { WaitingEmptyMascot(newUser = recent.isEmpty()) }
+                        // '처음 오신 분' 인사(newUser)는 **대화가 정말 하나도 없을 때만.** (2026-09-20 실기)
+                        //   거른 목록(recent)을 보면 [안 챙긴] 이 비었다는 이유로 몇 년 쓰신 분께도
+                        //   "사장님, 잘 부탁드려요!" 가 떴다. 여기선 "다 챙기셨네요" 가 할 말이다.
+                        item(key = "waiting-empty") {
+                            Box(
+                                Modifier.fillParentMaxHeight().padding(bottom = 64.dp),
+                                contentAlignment = Alignment.Center
+                            ) { WaitingEmptyMascot(newUser = dedupItems.isEmpty()) }
+                        }
                     }
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
@@ -1241,16 +1264,27 @@ fun HomeScreen(
                     }
                 }
 
-                // 최근 대화 — 프로토 recent-row: 한 흰 카드 안 줄들 + 구분선(낱개 카드 X).
-                if (!hideThreads && chipOn && waiting.isEmpty() && recent.isEmpty() && pinned.isEmpty()) {
+                // 칩을 켰는데 보여줄 게 없다 — **왜 비었는지**를 말해준다. (2026-09-20 실기)
+                //   [미수] 는 목록을 안 쓰고 잔금 카드가 본문이라, 잔금이 0이면 **글자 하나 없는 백지**였다.
+                //   백지는 "앱이 죽었나?" 로 읽힌다. 그리고 [안 챙긴] 은 막내가 이미 말하니 **두 번 말하지 않는다.**
+                val chipBodyEmpty =
+                    if (hideThreads) balanceDues.isEmpty()
+                    else waiting.isEmpty() && recent.isEmpty() && pinned.isEmpty()
+                if (chipOn && chipBodyEmpty && inboxChip != "unhandled") {
                     item(key = "chip-empty") {
-                        Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                            Text("여기 아무도 없어요", fontSize = 13.sp, color = TossTextTertiary)
-                        }
+                        // 빈 문구를 위에 붙이면 아래가 통째로 비어 **덜 그려진 화면**처럼 보인다.
+                        //   남은 자리 한가운데에 둔다(살짝 위 — 화면 정중앙보다 위가 눈에 편하다). (2026-09-20 사장님 "여백")
+                        Box(
+                            Modifier.fillParentMaxHeight().padding(bottom = 64.dp),
+                            contentAlignment = Alignment.Center
+                        ) { ChipEmpty(inboxChip) }
                     }
                 }
+                // 최근 대화 — 프로토 recent-row: 한 흰 카드 안 줄들 + 구분선(낱개 카드 X).
+                //   머리글은 [전체] 에서만. 칩을 켰을 땐 **빈 머리글을 넣지 않는다** —
+                //   빈 글자도 자리(위 16dp)를 먹어서 칩과 목록 사이에 설명 없는 틈이 생겼다. (2026-09-20 실기)
                 if (recent.isNotEmpty() && !hideThreads) {
-                    item(key = "recent-head") { SecSub(if (chipOn) "" else "최근 대화") }
+                    if (!chipOn) item(key = "recent-head") { SecSub("최근 대화") }
                     item(key = "recent-card") {
                         val shownRecent = recent.take(recentShown)
                         // 프로토 renderRecent 1:1 — 대화 3개마다 팁 하나. 단, 팁이 실제로 끼일 때만 카드를 끊고(flush),
@@ -1660,6 +1694,17 @@ fun HomeScreen(
                 }
                 MessageBoxSection(
                     threads = boxThreads,
+                    // 빈 화면은 **누른 칩 얘기**여야 한다. (2026-09-20 실기)
+                    emptySpeech = when (inboxChip) {
+                        "parcel" -> "온 택배 문자가 없어요"
+                        "ad" -> "광고·인증 문자가 없어요"
+                        else -> "문자함이 비어 있어요"
+                    },
+                    emptySub = when (inboxChip) {
+                        "parcel" -> "운송장·배송 문자는 여기로 모여요"
+                        "ad" -> "인증번호·광고 문자는 여기로 모여요"
+                        else -> "고객이 아닌 문자(광고·인증·알림)가 여기 모여요"
+                    },
                     pinnedSuffixes = pinnedSuffixes,
                     onOpen = { phone -> onOpenChat(phone, null) },
                     onMoveToConsult = { phone ->
@@ -2081,7 +2126,9 @@ private fun TodayBand(
         } else {
             BandShell(
                 bg = Color.White, fg = TossTextPrimary, subFg = TossTextTertiary,
-                icon = "📅", border = TossDivider,
+                // 📅 이모지는 삼성 글꼴에서 **"JUL 17"** 로 그려진다 — 오늘도 다음 시공도 아닌
+                //   엉뚱한 날짜가 띠에 박혀 보였다. (2026-09-20 실기) → 날짜 없는 그림으로.
+                icon = "", iconVector = Icons.Default.DateRange, border = TossDivider,
                 line1 = if (next != null) "오늘은 시공이 없어요" else "잡힌 시공이 없어요",
                 line2 = next?.let { nextLine(it) } ?: "밀린 상담·견적 챙기기 좋은 날이에요",
                 action = "일정 추가", onAction = onAddSchedule,
@@ -2106,7 +2153,9 @@ private fun BandShell(
     bg: Color, fg: Color, subFg: Color, icon: String,
     line1: String, line2: String,
     action: String?, onAction: () -> Unit, onTap: () -> Unit,
-    border: Color? = null
+    border: Color? = null,
+    /** 이모지 대신 쓸 그림 — 글꼴마다 다르게 그려지는 이모지를 피할 때. */
+    iconVector: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     Row(
         Modifier
@@ -2121,7 +2170,10 @@ private fun BandShell(
             Modifier.width(44.dp).height(52.dp)
                 .background(if (border != null) Color(0x0D000000) else Color(0x1AFFFFFF)),
             contentAlignment = Alignment.Center
-        ) { Text(icon, fontSize = 17.sp) }
+        ) {
+            if (iconVector != null) Icon(iconVector, null, tint = fg.copy(alpha = 0.75f), modifier = Modifier.size(19.dp))
+            else Text(icon, fontSize = 17.sp)
+        }
         Column(Modifier.weight(1f).padding(start = 11.dp, top = 9.dp, bottom = 10.dp, end = 4.dp)) {
             Text(line1, color = fg, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -2178,7 +2230,9 @@ private fun InboxChips(
     //   대신 문자함을 **택배 / 광고·인증** 둘로 가른다. 택배는 무조건 자동 SMS 로 온다.
     val who = listOf("newnum" to "새 번호", "done" to "시공 끝남")
     androidx.compose.foundation.lazy.LazyRow(
-        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
+        // 위 6 + 검색창 아래 10 = 16 / 아래 10 + 목록 위 8 = 18. 거의 같게 맞춘다.
+        //   전엔 위가 12 뿐이라 칩이 검색창에 붙어 보였다. (2026-09-20 사장님 "여백 간격")
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp),
         contentPadding = PaddingValues(horizontal = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2200,8 +2254,11 @@ private fun InboxChips(
             val (k, label) = who[i]
             ChipPill(label, null, selected == k) { onSelect(k) }
         }
-        item { ChipPill("📦 택배", null, selected == "parcel") { onSelect("parcel") } }
-        item { ChipPill("광고", generalBadge.takeIf { it > 0 }, selected == "ad") { onSelect("ad") } }
+        // 이모지는 **택배에만** 있어서 줄이 삐뚤어 보였다 → 뺀다. (2026-09-20 실기)
+        item { ChipPill("택배", null, selected == "parcel") { onSelect("parcel") } }
+        // 🔴 **빨강은 "내가 손댈 것" 에만.** 광고·인증문자는 답장할 일이 없는데 빨간 숫자가 떠서
+        //   할 일처럼 보였다. 숫자는 남기되 **회색**으로 — 몇 통 왔는지는 알려주되 재촉하지 않는다.
+        item { ChipPill("광고", generalBadge.takeIf { it > 0 }, selected == "ad", quiet = true) { onSelect("ad") } }
     }
 }
 
@@ -2211,6 +2268,8 @@ private fun ChipPill(
     label: String, count: Int?, on: Boolean,
     /** 셀 게 0 — 흐리게. 자리는 지킨다(숨기면 옆 칩이 밀려 손이 기억하는 위치가 흔들린다). */
     dim: Boolean = false,
+    /** 숫자가 **할 일이 아닌** 칩(광고 등) — 숫자를 회색으로. 빨강은 손댈 것에만. */
+    quiet: Boolean = false,
     onClick: () -> Unit
 ) {
     // ⚠️ 안 고른 칩을 TossGrayBg 로 했더니 **화면 배경과 같은 회색이라 안 보였다**(2026-09-20 실기).
@@ -2220,8 +2279,12 @@ private fun ChipPill(
             .clip(RoundedCornerShape(999.dp))
             .background(if (on) TossBlue else Color.White)
             .then(
-                if (on) Modifier
-                else Modifier.border(1.dp, TossDivider, RoundedCornerShape(999.dp))
+                when {
+                    on -> Modifier
+                    // 0 인 칩은 테두리까지 연하게 — 글자색만 바꿨더니 **차이가 안 보였다.** (2026-09-20 실기)
+                    dim -> Modifier.border(1.dp, Color(0xFFEEF1F4), RoundedCornerShape(999.dp))
+                    else -> Modifier.border(1.dp, TossDivider, RoundedCornerShape(999.dp))
+                }
             )
             .clickable { onClick() }
             .padding(horizontal = 13.dp, vertical = 8.dp),
@@ -2231,7 +2294,7 @@ private fun ChipPill(
             label,
             color = when {
                 on -> Color.White
-                dim -> TossTextTertiary
+                dim -> Color(0xFFB0B8C1)
                 else -> TossTextSecondary
             },
             fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1
@@ -2240,7 +2303,7 @@ private fun ChipPill(
             Spacer(Modifier.width(5.dp))
             Text(
                 count.toString(),
-                color = if (on) Color.White else TossError,
+                color = if (on) Color.White else if (quiet) TossTextTertiary else TossError,
                 fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
             )
         }
@@ -3787,6 +3850,36 @@ private fun WaitingHeader(count: Int) {
         // 프로토 .swipe-hint — 회색칩 배경
         Text("← 밀어서 스팸·사생활·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
             modifier = Modifier.background(TossGrayBg, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp))
+    }
+}
+
+/**
+ * 칩을 켰는데 아무것도 없을 때 할 말. (2026-09-20 실기)
+ *
+ * "여기 아무도 없어요" 하나로 때우면 **왜 비었는지**를 모른다. 특히 [미수] 는 글자조차 없어서
+ * 앱이 죽은 줄 아신다. 칩마다 *지금 무엇이 없는지* 와 *언제 여기 채워지는지* 를 같이 말한다.
+ */
+private fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
+    "today" -> "오늘 새로 온 문의가 없어요" to "저장 안 된 번호에서 연락이 오면 여기 쌓여요"
+    "wait" -> "잡혀 있는 시공이 없어요" to "날짜를 잡으면 여기 모여요"
+    "owe" -> "못 받은 돈이 없어요" to "시공이 끝났는데 잔금이 남으면 여기 떠요"
+    "newnum" -> "저장 안 된 번호가 없어요" to null
+    "done" -> "끝낸 시공이 없어요" to null
+    else -> "여기 아무도 없어요" to null
+}
+
+@Composable
+private fun ChipEmpty(chip: String) {
+    val (title, sub) = chipEmptyText(chip)
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+        if (sub != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(sub, fontSize = 12.sp, color = TossTextTertiary)
+        }
     }
 }
 
