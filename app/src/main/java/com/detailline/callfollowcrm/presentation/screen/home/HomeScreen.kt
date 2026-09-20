@@ -257,6 +257,8 @@ fun HomeScreen(
     // 🏷️ 상담함 칩 (2026-09-20 사장님 "거르기로 가자") — 탭 두 개를 칩 한 줄로.
     //   왼쪽은 오늘 할 일, 오른쪽은 사람 찾기. "msg" 만 본문이 문자함으로 바뀌고 나머지는 **같은 목록을 거른다.**
     var inboxChip by rememberSaveable { mutableStateOf("all") }
+    // 없앤 칩([새 번호])을 고른 채로 앱을 닫았으면 그 값이 남아 **아무 칩도 안 켜진 화면**이 된다.
+    LaunchedEffect(inboxChip) { if (inboxChip == "newnum") inboxChip = "all" }
 
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
@@ -1087,7 +1089,6 @@ fun HomeScreen(
                         c != null && (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
                     }
                     "owe" -> dedupItems.filter { it.customer?.id in dueIds }
-                    "newnum" -> dedupItems.filter { it.customer == null }
                     // '끝났다' 는 앱에 이미 단일 출처가 있다 — CustomerEntity.isWorkDone
                     //   (완료 버튼 **또는** 잔금 받음. 사장님 2026-08-18 "잔금 받으면 = 완료").
                     //   칩만 다른 자를 쓰면 딱지와 목록이 서로 딴소리를 한다.
@@ -2340,7 +2341,11 @@ private fun InboxChips(
     )
     // 지인 칩은 안 만든다 — 사장님: "보통 지인은 문자보다 카톡을 사용함". (2026-09-20)
     //   대신 문자함을 **택배 / 광고·인증** 둘로 가른다. 택배는 무조건 자동 SMS 로 온다.
-    val who = listOf("newnum" to "새 번호", "done" to "시공 끝남")
+    // ❌ [새 번호] 뺐다. (2026-09-20 사장님 "칩자체가 쓸모없는 느낌이야. 전체에 다 있는데..
+    //    보지도 않을 칩만 길어져서 어수선한느낌")
+    //    맞다 — 이 칩만의 할 일이 없었다. '고객 카드 없는 번호' 는 [전체] 에 다 있고,
+    //    광고는 이미 [광고] 칩이 가져가서 여기엔 [국제발신] 같은 찌꺼기만 쌓였다.
+    val who = listOf("done" to "시공 끝남")
     androidx.compose.foundation.lazy.LazyRow(
         // 위 6 + 검색창 아래 10 = 16 / 아래 10 + 목록 위 8 = 18. 거의 같게 맞춘다.
         //   전엔 위가 12 뿐이라 칩이 검색창에 붙어 보였다. (2026-09-20 사장님 "여백 간격")
@@ -3975,7 +3980,6 @@ private fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
     "today" -> "오늘 새로 온 문의가 없어요" to "저장 안 된 번호에서 연락이 오면 여기 쌓여요"
     "wait" -> "잡혀 있는 시공이 없어요" to "날짜를 잡으면 여기 모여요"
     "owe" -> "못 받은 돈이 없어요" to "시공이 끝났는데 잔금이 남으면 여기 떠요"
-    "newnum" -> "저장 안 된 번호가 없어요" to null
     "done" -> "끝낸 시공이 없어요" to null
     else -> "여기 아무도 없어요" to null
 }
