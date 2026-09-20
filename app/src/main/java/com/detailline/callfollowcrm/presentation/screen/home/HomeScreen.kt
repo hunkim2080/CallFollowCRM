@@ -257,8 +257,18 @@ fun HomeScreen(
     // 🏷️ 상담함 칩 (2026-09-20 사장님 "거르기로 가자") — 탭 두 개를 칩 한 줄로.
     //   왼쪽은 오늘 할 일, 오른쪽은 사람 찾기. "msg" 만 본문이 문자함으로 바뀌고 나머지는 **같은 목록을 거른다.**
     var inboxChip by rememberSaveable { mutableStateOf("all") }
+    /** [문자함] 안에서 보는 갈래 — "ad"(광고·인증) / "parcel"(택배). 합치면 문자함 전부. */
+    var boxSub by rememberSaveable { mutableStateOf("ad") }
     // 없앤 칩([새 번호])을 고른 채로 앱을 닫았으면 그 값이 남아 **아무 칩도 안 켜진 화면**이 된다.
-    LaunchedEffect(inboxChip) { if (inboxChip == "newnum" || inboxChip == "unhandled") inboxChip = "all" }
+    LaunchedEffect(inboxChip) {
+        // 없앤 칩([새 번호]·[답장 대기])을 고른 채 앱을 닫았으면 그 값이 남아
+        //   **아무 칩도 안 켜진 화면**이 된다. [택배]·[광고] 는 [문자함] 으로 합쳐졌다.
+        when (inboxChip) {
+            "newnum", "unhandled" -> inboxChip = "all"
+            "parcel" -> { inboxChip = "box"; boxSub = "parcel" }
+            "ad" -> { inboxChip = "box"; boxSub = "ad" }
+        }
+    }
 
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
@@ -399,6 +409,12 @@ fun HomeScreen(
 
     // 목록 스크롤 위치 — **앱바가 알아야** 검색창을 접을 수 있어 Scaffold 밖으로 올렸다. (2026-09-19)
     val listState = rememberLazyListState()
+    /** 목록이 맨 위인가 — 검색창·칩 줄을 **내리면 접는** 기준. (사장님: "정리는 스크롤 자동 숨김으로") */
+    val atTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 40
+        }
+    }
     // 칩을 바꾸면 **맨 위부터** 보여준다. (2026-09-20 실기)
     //   목록만 갈리고 스크롤 위치가 남아서, [새 번호] 를 누르면 첫 줄이 잘린 중간부터 보였다.
     LaunchedEffect(inboxChip) { runCatching { listState.scrollToItem(0) } }
@@ -470,11 +486,6 @@ fun HomeScreen(
             // 🔍 **검색창** — 돋보기 아이콘을 창으로 승격. (2026-09-19 사장님 · 프로토 Wb1zoMZT)
             //   창 안 글자가 곧 안내문이다. 에이닷이 잘한 게 그거였다.
             //   목록을 내리면 접는다 — 맨 위에서만 보인다. ("정리는 스크롤 자동 숨김으로")
-            val atTop by remember {
-                derivedStateOf {
-                    listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 40
-                }
-            }
             androidx.compose.animation.AnimatedVisibility(visible = atTop) {
                 // 두 문장을 번갈아 — 한 줄에 다 넣으면 길어서 안 읽힌다.
                 val hints = listOf("이름·주소·금액·통화 내용까지", "\"동탄\" · \"미수\" · \"9월\" 도 찾아져요")
@@ -540,16 +551,21 @@ fun HomeScreen(
             //      슬롯테이블 group 이 어긋나 recompose 시 크래시(Stack.pop AIOOBE) — 반드시 if/else 로. (2026-07-12)
             // 🏷️ 칩 한 줄 — 탭 두 개가 쓰던 자리. (2026-09-20 · 프로토 6qoXfXjd)
             //   ⚠️ 옛 InboxFolderTabs 는 안 지웠다. 되돌릴 땐 이 줄만 바꾸면 된다.
-            InboxChips(
-                selected = inboxChip,
-                onSelect = { key ->
-                    inboxChip = key
-                    // 택배·광고는 문자함(비고객) 본문을 쓴다. 나머지는 상담함 목록을 거른다.
-                    inboxTab = if (key == "parcel" || key == "ad") 1 else 0
-                },
-                counts = inboxChipCounts,
-                generalBadge = generalUnread
-            )
+            // 📉 **내리면 접는다.** (2026-09-20 사장님 "칩이 많이 보이는게 거슬리는데")
+            //   검색창이 이미 이렇게 돈다 — 새로 배울 게 없다.
+            //   ⚠️ **필터를 켠 상태면 안 접는다.** 칩이 사라지면 지금 뭘 보는지 알 수가 없다.
+            androidx.compose.animation.AnimatedVisibility(visible = atTop || inboxChip != "all") {
+                InboxChips(
+                    selected = inboxChip,
+                    onSelect = { key ->
+                        inboxChip = key
+                        // [문자함] 만 비고객 본문을 쓴다. 나머지는 상담함 목록을 거른다.
+                        inboxTab = if (key == "box") 1 else 0
+                    },
+                    counts = inboxChipCounts,
+                    generalBadge = generalUnread
+                )
+            }
 
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
             //   "처음엔 옛 통화만, 잠시 후 SMS 카드 스르륵 추가" 깜빡임 인지.
@@ -1727,28 +1743,29 @@ fun HomeScreen(
                 // 📦 택배 / 광고·인증 가르기. (2026-09-20 사장님)
                 //   발신번호 8자리는 "손님 아님" 까지만 말해준다 — 택배사도 8자리라 글자를 봐야 갈린다.
                 //   여긴 이미 '손님 아님' 으로 걸러진 구역이라 글자를 봐도 안전하다(포워딩 걱정 없음).
-                val boxThreads = when (inboxChip) {
-                    "parcel" -> generalThreads.filter {
-                        com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
-                    }
-                    "ad" -> generalThreads.filterNot {
-                        com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
-                    }
-                    else -> generalThreads
+                val parcels = generalThreads.filter {
+                    com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
                 }
+                val ads = generalThreads.filterNot {
+                    com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                }
+                val boxThreads = if (boxSub == "parcel") parcels else ads
+                // 📨 가르기는 **문자함 안에서**. 둘이 합치면 문자함 전부라 빠지는 게 없다.
+                Row(
+                    Modifier.fillMaxWidth().background(Color.White)
+                        .padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 9.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    BoxSubChip("광고", ads.size, boxSub != "parcel") { boxSub = "ad" }
+                    BoxSubChip("택배", parcels.size, boxSub == "parcel") { boxSub = "parcel" }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                 MessageBoxSection(
                     threads = boxThreads,
                     // 빈 화면은 **누른 칩 얘기**여야 한다. (2026-09-20 실기)
-                    emptySpeech = when (inboxChip) {
-                        "parcel" -> "온 택배 문자가 없어요"
-                        "ad" -> "광고·인증 문자가 없어요"
-                        else -> "문자함이 비어 있어요"
-                    },
-                    emptySub = when (inboxChip) {
-                        "parcel" -> "운송장·배송 문자는 여기로 모여요"
-                        "ad" -> "인증번호·광고 문자는 여기로 모여요"
-                        else -> "고객이 아닌 문자(광고·인증·알림)가 여기 모여요"
-                    },
+                    emptySpeech = if (boxSub == "parcel") "온 택배 문자가 없어요" else "광고·인증 문자가 없어요",
+                    emptySub = if (boxSub == "parcel") "운송장·배송 문자는 여기로 모여요"
+                        else "인증번호·광고 문자는 여기로 모여요",
                     pinnedSuffixes = pinnedSuffixes,
                     onOpen = { phone -> onOpenChat(phone, null) },
                     onMoveToConsult = { phone ->
@@ -2368,11 +2385,43 @@ private fun InboxChips(
             val (k, label) = who[i]
             ChipPill(label, null, selected == k) { onSelect(k) }
         }
-        // 이모지는 **택배에만** 있어서 줄이 삐뚤어 보였다 → 뺀다. (2026-09-20 실기)
-        item { ChipPill("택배", null, selected == "parcel") { onSelect("parcel") } }
-        // 🔴 **빨강은 "내가 손댈 것" 에만.** 광고·인증문자는 답장할 일이 없는데 빨간 숫자가 떠서
-        //   할 일처럼 보였다. 숫자는 남기되 **회색**으로 — 몇 통 왔는지는 알려주되 재촉하지 않는다.
-        item { ChipPill("광고", generalBadge.takeIf { it > 0 }, selected == "ad", quiet = true) { onSelect("ad") } }
+        // 📨 **택배·광고를 하나로.** (2026-09-20 사장님) 그 둘을 누르면 제목이 "문자함" 으로 바뀌고
+        //   배경도 흰색이었다 — 이미 다른 화면이었다. 칩 하나로 묶어야 제목이 바뀌는 게 말이 된다.
+        //   가르기는 그 안에서 [광고][택배] 로 한다.
+        // 🔴 숫자는 **회색** — 광고·인증문자는 답장할 일이 없다. 빨강은 "내가 손댈 것" 에만.
+        item { ChipPill("문자함", generalBadge.takeIf { it > 0 }, selected == "box", quiet = true) { onSelect("box") } }
+    }
+}
+
+/**
+ * 📨 문자함 안 갈래 칩 — [광고] [택배]. (2026-09-20)
+ *   위 칩 줄과 **모양을 달리한다**(흰 바탕 위 회색 알약) — 같은 모양이면 칩 줄이 두 줄인 줄 안다.
+ *   숫자는 회색. 여긴 손댈 일이 없는 구역이다.
+ */
+@Composable
+private fun BoxSubChip(label: String, count: Int, on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            // ⚠️ 고른 것도 **진한 파랑을 안 쓴다.** 위 칩 줄과 똑같이 칠했더니
+            //   파란 알약이 두 줄로 겹쳐 **칩 줄이 두 줄인 것처럼** 보였다. (2026-09-20 실기)
+            //   여긴 한 단 아래니까 연한 파랑으로 — '안쪽 갈래' 로 읽힌다.
+            .background(if (on) TossBlueSoft else TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label, color = if (on) TossBlue else TossTextSecondary,
+            fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold
+        )
+        if (count > 0) {
+            Spacer(Modifier.width(4.dp))
+            Text(
+                count.toString(), color = if (on) TossBlue else TossTextTertiary,
+                fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold
+            )
+        }
     }
 }
 
