@@ -165,6 +165,9 @@ fun CallFollowCrmTheme(
         androidx.compose.runtime.CompositionLocalProvider(
             androidx.compose.material3.LocalTextStyle provides
                 androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = Pretendard),
+            // 🎨 디자인 시스템 색을 같이 깐다 — 화면에서 `AppTheme.colors.X` 로 꺼낸다. (2026-09-20)
+            //   값은 지금 쓰는 것과 같으므로 **보이는 변화는 없다.** DesignSystem.kt 참고.
+            LocalAppColors provides (if (isDark) DarkColors else LightColors),
             content = content
         )
     }
