@@ -1191,6 +1191,23 @@ object NotificationHelper {
      *   조용히 사라지던 문제 → 이제는 알림으로 알려 사장님이 대처(삼성 메시지 확인/기본앱 전환)하게.
      *   ⚠️ 근본 해결 = 삼성 메시지를 기본 문자앱으로 두기(그 사진은 RING-GO 가 그대로 읽음).
      */
+    /**
+     * 📷 사진이 **깨져서** 왔을 때 — 두 번 받아봐도 깨진 경우. (2026-09-20 사장님 실기 신고)
+     *   전엔 앱이 잘 받은 줄 알고 지지직 사진을 그대로 보여줬고, 사장님이 한참 들여다보셨다.
+     *   못 고치는 상황이라도 **왜 그런지 말해주면** 시간을 안 쓴다.
+     */
+    fun showMmsBroken(context: Context) {
+        showProtoPush(
+            context = context,
+            id = MMS_FAIL_ID,
+            channelId = CHANNEL_INCOMING_SMS,
+            accent = ACCENT_AMBER,
+            title = "📷 사진이 깨져서 왔어요",
+            msg = "두 번 받아봤는데 깨진 채로 와요.",
+            note = "손님께 한 장씩 다시 보내달라고 하면 잘 올 거예요. 여러 장을 한 번에 보내면 통신사가 줄이면서 깨지기도 해요."
+        )
+    }
+
     fun showMmsReceiveFailed(context: Context, senderHint: String?) {
         val who = senderHint?.takeIf { it.isNotBlank() }?.let { "$it 님" } ?: "고객"
         showProtoPush(

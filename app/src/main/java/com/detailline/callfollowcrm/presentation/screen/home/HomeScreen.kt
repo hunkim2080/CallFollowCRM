@@ -535,7 +535,11 @@ fun HomeScreen(
             //   ⚠️ 옛 InboxFolderTabs 는 안 지웠다. 되돌릴 땐 이 줄만 바꾸면 된다.
             InboxChips(
                 selected = inboxChip,
-                onSelect = { key -> inboxChip = key; inboxTab = if (key == "msg") 1 else 0 },
+                onSelect = { key ->
+                    inboxChip = key
+                    // 택배·광고는 문자함(비고객) 본문을 쓴다. 나머지는 상담함 목록을 거른다.
+                    inboxTab = if (key == "parcel" || key == "ad") 1 else 0
+                },
                 counts = inboxChipCounts,
                 generalBadge = generalUnread
             )
@@ -1642,8 +1646,20 @@ fun HomeScreen(
             } // end Box(nestedScroll)
             } else {
                 // 문자함(고객 아님) — 삼성 기본 메시지식 단순 목록.
+                // 📦 택배 / 광고·인증 가르기. (2026-09-20 사장님)
+                //   발신번호 8자리는 "손님 아님" 까지만 말해준다 — 택배사도 8자리라 글자를 봐야 갈린다.
+                //   여긴 이미 '손님 아님' 으로 걸러진 구역이라 글자를 봐도 안전하다(포워딩 걱정 없음).
+                val boxThreads = when (inboxChip) {
+                    "parcel" -> generalThreads.filter {
+                        com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                    }
+                    "ad" -> generalThreads.filterNot {
+                        com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                    }
+                    else -> generalThreads
+                }
                 MessageBoxSection(
-                    threads = generalThreads,
+                    threads = boxThreads,
                     pinnedSuffixes = pinnedSuffixes,
                     onOpen = { phone -> onOpenChat(phone, null) },
                     onMoveToConsult = { phone ->
@@ -2158,6 +2174,8 @@ private fun InboxChips(
         "today" to "오늘 신규", "unhandled" to "안 챙긴",
         "wait" to "시공 대기", "owe" to "미수"
     )
+    // 지인 칩은 안 만든다 — 사장님: "보통 지인은 문자보다 카톡을 사용함". (2026-09-20)
+    //   대신 문자함을 **택배 / 광고·인증** 둘로 가른다. 택배는 무조건 자동 SMS 로 온다.
     val who = listOf("newnum" to "새 번호", "done" to "시공 끝남")
     androidx.compose.foundation.lazy.LazyRow(
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
@@ -2182,7 +2200,8 @@ private fun InboxChips(
             val (k, label) = who[i]
             ChipPill(label, null, selected == k) { onSelect(k) }
         }
-        item { ChipPill("문자함", generalBadge.takeIf { it > 0 }, selected == "msg") { onSelect("msg") } }
+        item { ChipPill("📦 택배", null, selected == "parcel") { onSelect("parcel") } }
+        item { ChipPill("광고", generalBadge.takeIf { it > 0 }, selected == "ad") { onSelect("ad") } }
     }
 }
 

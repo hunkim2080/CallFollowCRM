@@ -133,25 +133,35 @@ class SettlementCalcTest {
     private val DAY = com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS
     private val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(1_700_000_000_000L)
 
-    @Test fun `미수 있고 시공 어제면 1일째`() {
-        val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, scheduled = today - DAY)
+    @Test fun `완료 어제면 1일째`() {
+        val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, completedAt = today - DAY)
         assertEquals(1, SettlementCalc.overdueDays(c, today))
     }
 
-    @Test fun `미수 있어도 시공 오늘이면 아직 안 지남`() {
-        val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, scheduled = today)
+    @Test fun `완료가 오늘이면 아직 안 지남`() {
+        val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, completedAt = today)
         assertEquals(null, SettlementCalc.overdueDays(c, today))
     }
 
-    @Test fun `시공 미래면 null`() {
+    /**
+     * 🔴 **시공을 안 했으면 미수가 아니다.** (2026-09-20 사장님)
+     *   계약금만 받고 잔금이 남은 채 예약일이 지난 건 — 전엔 미수로 잡혀
+     *   **아직 안 한 일의 돈을 독촉**하게 됐다. 실제 업무폰 자료가 전부 이 모양이었다.
+     */
+    @Test fun `예약일이 지나도 완료 표시가 없으면 미수 아님`() {
+        val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, scheduled = today - 5 * DAY)
+        assertEquals(null, SettlementCalc.overdueDays(c, today))
+    }
+
+    @Test fun `예약이 미래면 당연히 미수 아님`() {
         val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, scheduled = today + DAY)
         assertEquals(null, SettlementCalc.overdueDays(c, today))
     }
 
-    @Test fun `완납이면 시공 지났어도 null`() {
+    @Test fun `완납이면 완료 지났어도 null`() {
         val c = customer(
             total = 1_000_000, deposit = 300_000, depositPaid = true,
-            balance = 700_000, balancePaid = true, scheduled = today - 5 * DAY
+            balance = 700_000, balancePaid = true, completedAt = today - 5 * DAY
         )
         assertEquals(null, SettlementCalc.overdueDays(c, today))
     }
@@ -161,7 +171,7 @@ class SettlementCalcTest {
         assertEquals(null, SettlementCalc.overdueDays(c, today))
     }
 
-    @Test fun `완료일이 시공 예약일보다 우선`() {
+    @Test fun `예약일이 아무리 오래돼도 완료일로만 센다`() {
         // 예약일은 10일 전이지만 실제 완료일이 2일 전 → 2일째로 계산.
         val c = customer(
             total = 1_000_000, deposit = 300_000, depositPaid = true,
