@@ -2,6 +2,12 @@
 
 package com.detailline.callfollowcrm.presentation.screen.chat
 
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.outlined.Info
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.Manifest
@@ -700,7 +706,8 @@ fun ChatScreen(
                             onOpenCustomerDetail(id)
                         }
                     }) {
-                        Icon(Icons.Default.Info, "고객 카드", tint = TossTextSecondary)
+                        // 꽉 찬 까만 동그라미는 그 줄에서 제일 튀는데 제일 안 중요하다 -> 선 아이콘. (2026-09-20 사장님)
+                        Icon(Icons.Outlined.Info, "고객 카드", tint = TossTextSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
@@ -2421,7 +2428,7 @@ private fun CallSegment(
                         .clickable { editText = summary?.summaryText.orEmpty(); editing = true }
                         .padding(horizontal = 8.dp, vertical = 5.dp)
                 ) {
-                    Text("✏️ 요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
             // 후속 문자 — **요약 바로 아래**에도 둔다. (2026-09-17 사장님: "ux가 좀 이상한거같은데")
@@ -2435,7 +2442,7 @@ private fun CallSegment(
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("✍️ 이 통화로 후속 문자 쓰기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("이 통화로 후속 문자 쓰기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
         }
@@ -2449,7 +2456,7 @@ private fun CallSegment(
         var seekReqTick by remember(summary?.id) { mutableStateOf(0) }
         if (transcript != null || callSegments.isNotEmpty()) {
             Column(Modifier.padding(top = 12.dp)) {
-                Text("🗣️ 통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
+                Text("통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
                 Spacer(Modifier.height(6.dp))
                 if (callSegments.isNotEmpty()) {
                     Column(
@@ -2514,7 +2521,7 @@ private fun CallSegment(
                     .clickable { sheetOpen = false; onUseAsDraft(draft) }.padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✍️ 이 통화로 후속 문자 쓰기", color = teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("이 통화로 후속 문자 쓰기", color = teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
         }
@@ -2854,11 +2861,19 @@ private fun IntakeSegment(
 private fun TimelineEventSegment(
     event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity
 ) {
-    val (emoji, title, accent) = when (event.type) {
-        "schedule" -> Triple("📅", if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", AppTheme.colors.primary)
-        "amount" -> Triple("💰", if (event.oldValue == null) "시공금액 등록" else "시공금액 변경", AppTheme.colors.caution)
-        "balance_paid" -> Triple("💵", "잔금 받음 처리", TossSuccess)
-        else -> Triple("📝", "변경", TossTextSecondary)
+    // 이모지 대신 **앱이 그리는 아이콘**. 이모지는 폰마다 그림이 다르고, 📅 는 "JUL 17" 이라고
+    //   적힌 미국 달력으로 나와 우리 일정과 무관한 날짜를 보여줬다. (2026-09-20 사장님)
+    val (icon, title, accent) = when (event.type) {
+        "schedule" -> Triple(Icons.Filled.CalendarMonth, if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", AppTheme.colors.primaryText)
+        "amount" -> Triple(Icons.Filled.Payments, if (event.oldValue == null) "시공금액 등록" else "시공금액 변경", AppTheme.colors.cautionText)
+        "balance_paid" -> Triple(Icons.Filled.Check, "잔금 받음 처리", AppTheme.colors.doneText)
+        else -> Triple(Icons.Filled.EditNote, "변경", AppTheme.colors.textSub)
+    }
+    val accentBg = when (event.type) {
+        "schedule" -> AppTheme.colors.primaryBg
+        "amount" -> AppTheme.colors.cautionBg
+        "balance_paid" -> AppTheme.colors.doneBg
+        else -> AppTheme.colors.surfaceMuted
     }
     val changeText = when {
         event.type == "balance_paid" -> "${event.newValue ?: "잔금"} 받음"
@@ -2873,25 +2888,30 @@ private fun TimelineEventSegment(
             .padding(vertical = 4.dp)
             .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(AppTheme.colors.bg)
-            .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.surface)
             .padding(horizontal = 11.dp, vertical = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 13.sp)
-            Spacer(Modifier.width(7.dp))
+            Box(
+                modifier = Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(accentBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+            }
+            Spacer(Modifier.width(9.dp))
             Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
                 modifier = Modifier.weight(1f))
             Text(DateTimeUtils.formatShort(event.createdAt), fontSize = 10.5.sp,
                 color = TossTextTertiary, fontWeight = FontWeight.Medium)
         }
         Spacer(Modifier.height(3.dp))
-        Text(changeText, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = accent,
-            modifier = Modifier.padding(start = 20.dp))
+        // 값은 **검정**. 색은 왼쪽 칩에만 — 한 화면에 파랑·주황·초록 글자가 겹치면 경중이 사라진다.
+        Text(changeText, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.text,
+            modifier = Modifier.padding(start = 35.dp))
         event.reason?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(2.dp))
             Text("이유: $it", fontSize = 11.5.sp, color = TossTextTertiary,
-                modifier = Modifier.padding(start = 20.dp),
+                modifier = Modifier.padding(start = 35.dp),
                 maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
@@ -2906,9 +2926,10 @@ private fun IssuedDocSegment(
     onEdit: (() -> Unit)? = null
 ) {
     val isQuote = doc.kind == "quote"
-    val emoji = if (isQuote) "📜" else "📋"
+    val icon = if (isQuote) Icons.Filled.ReceiptLong else Icons.Filled.Assignment
     val title = if (isQuote) "견적서 발행" else "시공접수서 발행"
-    val accent = if (isQuote) AppTheme.colors.primary else TossSuccess
+    val accent = if (isQuote) AppTheme.colors.primaryText else AppTheme.colors.doneText
+    val accentBg = if (isQuote) AppTheme.colors.primaryBg else AppTheme.colors.doneBg
     val issuedInteraction = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
@@ -2917,14 +2938,18 @@ private fun IssuedDocSegment(
             .pressScale(issuedInteraction)
             .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(AppTheme.colors.bg)
-            .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.surface)
             .clickable(interactionSource = issuedInteraction, indication = null) { onOpen() }
             .padding(horizontal = 11.dp, vertical = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 13.sp)
-            Spacer(Modifier.width(7.dp))
+            Box(
+                modifier = Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(accentBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+            }
+            Spacer(Modifier.width(9.dp))
             Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
                 modifier = Modifier.weight(1f))
             Text(DateTimeUtils.formatShort(doc.issuedAtMs), fontSize = 10.5.sp,
