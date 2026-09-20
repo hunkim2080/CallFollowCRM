@@ -190,47 +190,57 @@ object AppTheme {
  *   숫자가 줄맞춤돼야 하는 자리(금액)는 `fontFeatureSettings = "tnum"` 이 걸려 있다.
  */
 object AppType {
-    /** 34 — 화면에 하나뿐인 핵심 숫자(이번 달 매출·정산 합계). 한 화면에 한 번. */
+    /**
+     * ⚠️ **크기는 지금 앱 값 그대로다.** (2026-09-20 사장님)
+     *
+     * 시스템 초안은 한 단계씩 키우자고 했다(줄 제목 15→17, 미리보기 13→15 …). 넣고 폰으로 보니
+     * **이름 17 과 내용 15 가 너무 가까워 위아래 층이 뭉개졌다.** 사장님: *"이 상태가 나은거같은데 균형이"*.
+     * 그래서 **이름을 붙이는 일만 하고 크기는 안 건드린다.**
+     *
+     * 야외 가독성(작은 글자 키우기)은 아직 **안 정한 것**으로 남겨 둔다 — 키우려면 층 간격을
+     * 같이 벌려야 한다. 그때도 **이 파일의 숫자만** 고치면 화면은 따라온다.
+     */
+    /** 30 — 화면에 하나뿐인 핵심 숫자(이번 달 매출·정산 합계). */
     val hero = TextStyle(
-        fontFamily = Pretendard, fontSize = 34.sp, lineHeight = 42.sp,
+        fontFamily = Pretendard, fontSize = 30.sp, lineHeight = 38.sp,
         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp,
         fontFeatureSettings = "tnum"
     )
-    /** 26 — 탭 화면 큰 제목(상담함·일정·정산·통계·더보기). */
+    /** 23 — 탭 화면 큰 제목(상담함·일정·정산·통계·더보기). */
     val display = TextStyle(
-        fontFamily = Pretendard, fontSize = 26.sp, lineHeight = 34.sp,
-        fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.4).sp
+        fontFamily = Pretendard, fontSize = 23.sp, lineHeight = 30.sp,
+        fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp
     )
-    /** 22 — 상단바 제목, 달력 연·월, 목록 위 합계 금액, 시트 제목. */
+    /** 19 — 상단바 제목, 달력 연·월, 목록 위 합계 금액, 시트 제목. */
     val title = TextStyle(
-        fontFamily = Pretendard, fontSize = 22.sp, lineHeight = 30.sp,
+        fontFamily = Pretendard, fontSize = 19.sp, lineHeight = 26.sp,
         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
         fontFeatureSettings = "tnum"
     )
-    /** 17 — 줄 제목(이름·단지명·전화번호), 카드 제목, 큰 버튼. 한 줄, 넘치면 말줄임. */
+    /** 15 — 줄 제목(이름·단지명·전화번호), 카드 제목. 한 줄, 넘치면 말줄임. */
     val headline = TextStyle(
-        fontFamily = Pretendard, fontSize = 17.sp, lineHeight = 24.sp,
+        fontFamily = Pretendard, fontSize = 15.sp, lineHeight = 21.sp,
         fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp
     )
-    /** 15 — 읽는 글: 대화 미리보기, 말풍선, 입력, 설정 항목. */
+    /** 13 — **읽는 글**: 대화 미리보기, 말풍선, 설정 항목. 가장 가벼운 굵기. */
     val body = TextStyle(
-        fontFamily = Pretendard, fontSize = 15.sp, lineHeight = 22.sp,
-        fontWeight = FontWeight.Medium
+        fontFamily = Pretendard, fontSize = 13.sp, lineHeight = 19.sp,
+        fontWeight = FontWeight.Normal
     )
-    /** 14 — 누르는 것과 머리말: 칩, 작은 버튼, 띠 문구, 섹션 머리, 줄 오른쪽 금액. */
+    /** 12.5 — 누르는 것과 머리말: 칩, 작은 버튼, 띠 문구, 섹션 머리. */
     val label = TextStyle(
-        fontFamily = Pretendard, fontSize = 14.sp, lineHeight = 20.sp,
-        fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"
+        fontFamily = Pretendard, fontSize = 12.5.sp, lineHeight = 18.sp,
+        fontWeight = FontWeight.ExtraBold, fontFeatureSettings = "tnum"
     )
-    /** 13 — 메타 줄: 잔금·날짜 요약, 시각, 도움말, 달력 범례. */
+    /** 11.5 — 메타 줄: ✨요약, 시각, 도움말. 읽는 글이라 보통 굵기. */
     val caption = TextStyle(
-        fontFamily = Pretendard, fontSize = 13.sp, lineHeight = 18.sp,
-        fontWeight = FontWeight.Medium
+        fontFamily = Pretendard, fontSize = 11.5.sp, lineHeight = 16.sp,
+        fontWeight = FontWeight.Normal
     )
-    /** 12 — 가장 작은 글자: 딱지, 탭바 이름, 달력 요일, 숫자 뱃지. **하한**. */
+    /** 10.5 — 가장 작은 글자: 딱지, 탭바 이름, 달력 요일, 숫자 뱃지. */
     val micro = TextStyle(
-        fontFamily = Pretendard, fontSize = 12.sp, lineHeight = 16.sp,
-        fontWeight = FontWeight.Bold
+        fontFamily = Pretendard, fontSize = 10.5.sp, lineHeight = 14.sp,
+        fontWeight = FontWeight.ExtraBold
     )
 }
 

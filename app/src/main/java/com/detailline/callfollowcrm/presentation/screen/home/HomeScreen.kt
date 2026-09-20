@@ -159,6 +159,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.Brush
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
+import com.detailline.callfollowcrm.presentation.theme.AppSize
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
 import androidx.compose.ui.tooling.preview.Preview
@@ -451,8 +454,9 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(if (inboxTab == 0) "상담함" else "문자함", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
-                    Text(todayLabel, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                    // 화면 제목 = display(26 ExtraBold) · 날짜 = caption(13 Medium, 보조 정보)
+                    Text(if (inboxTab == 0) "상담함" else "문자함", style = AppType.display, color = AppTheme.colors.text)
+                    Text(todayLabel, style = AppType.caption, color = AppTheme.colors.textHint)
                 }
                 AiBadge(
                     trade = ownerTrade,
@@ -2275,6 +2279,7 @@ private fun BandShell(
     Row(
         Modifier
             .fillMaxWidth()
+            .heightIn(min = 62.dp)
             .clip(RoundedCornerShape(14.dp))
             .then(if (border != null) Modifier.border(1.dp, border, RoundedCornerShape(14.dp)) else Modifier)
             .background(bg)
@@ -2297,18 +2302,20 @@ private fun BandShell(
             )
             else Text(icon, fontSize = 16.sp)
         }
-        Column(Modifier.weight(1f).padding(start = 11.dp, top = 9.dp, bottom = 10.dp, end = 4.dp)) {
-            Text(line1, color = fg, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold,
+        // 📢 띠 안쪽도 벌린다 — 사장님: "오늘 시공이 없어요 이부분도 글 위아래 간격이 너무 딱붙어있어"
+        Column(Modifier.weight(1f).padding(start = 12.dp, top = 13.dp, bottom = 13.dp, end = 4.dp)) {
+            // 띠 첫 줄 = label(14 Bold) · 둘째 줄 = caption(13 Medium). 둘째 줄은 읽는 글이다.
+            Text(line1, color = fg, style = AppType.label,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(line2, color = subFg, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+            Spacer(Modifier.height(5.dp))
+            Text(line2, color = subFg, style = AppType.caption,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         if (action != null) {
             Text(
                 action,
                 color = if (border != null) TossTextSecondary else Color.White,
-                fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                style = AppType.micro,
                 modifier = Modifier
                     .padding(end = 11.dp)
                     .clip(RoundedCornerShape(9.dp))
@@ -2462,14 +2469,14 @@ private fun ChipPill(
                 dim -> Color(0xFFB0B8C1)
                 else -> TossTextSecondary
             },
-            fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1
+            style = AppType.label, maxLines = 1
         )
         if (count != null) {
             Spacer(Modifier.width(5.dp))
             Text(
                 count.toString(),
                 color = if (on) Color.White else if (quiet) TossTextTertiary else TossError,
-                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
+                style = AppType.label
             )
         }
     }
@@ -4141,9 +4148,8 @@ private fun shortWon(won: Long): String =
 private fun SecSub(text: String) {
     Text(
         text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-        color = TossTextTertiary,
+        style = AppType.label,
+        color = AppTheme.colors.textHint,
         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
     )
 }
@@ -4387,8 +4393,14 @@ private fun RecentRow(
     Row(
         Modifier
             .fillMaxWidth()
+            // 🫁 **줄 키는 내용과 상관없이 같다.** (2026-09-20 사장님
+            //   "요약이 있든 없든 여백이 똑같이 있어야 디자인 일관성이 같지 않나")
+            //   맞다. 요약이 붙은 줄만 키가 커지면 목록이 들쭉날쭉해진다.
+            //   **세 줄짜리 높이보다 넉넉하게 96** — 두 줄짜리는 가운데 정렬되어 위아래로 숨을 쉰다.
+            //   (2026-09-20 사장님 "더 여유롭게 보고싶어" → 88 에서 96 으로)
+            .heightIn(min = 96.dp)
             .combinedClickable(onClick = { onOpenChat() }, onLongClick = { onLongClick?.invoke() })
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = AppSpace.s16, vertical = AppSpace.s12),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 안 읽음 점 거터 — 읽은 줄도 빈 14dp 자리 유지(아바타 세로 정렬 통일).
@@ -4404,10 +4416,13 @@ private fun RecentRow(
                 // 이름+태그는 한 덩어리(가변폭 weight)로 묶고 시각은 그 밖에 → 시각이 이름 길이와 무관하게
                 //   '항상 맨 오른쪽'에 정렬된다. (2026-08-05 사장님: 날짜가 이름 길이 따라 삐뚤어짐)
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    // 🅰️ 줄 제목 = headline(17 Bold). 안 읽은 줄만 한 단계 더 굵게.
                     Text(
-                        title, fontSize = 15.sp,
-                        fontWeight = if (unread) FontWeight.ExtraBold else FontWeight.Bold,
-                        color = TossTextPrimary,
+                        title,
+                        style = AppType.headline.copy(
+                            fontWeight = if (unread) FontWeight.ExtraBold else FontWeight.Bold
+                        ),
+                        color = AppTheme.colors.text,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
@@ -4417,23 +4432,28 @@ private fun RecentRow(
 
                 }
                 Spacer(Modifier.width(6.dp))
-                Text(recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                // 시각은 **훑을 때 눈에 안 걸려야** 한다 → caption(13 Medium).
+                Text(
+                    recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt),
+                    style = AppType.caption, color = AppTheme.colors.textHint
+                )
             }
             if (!primaryText.isNullOrBlank()) {
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(6.dp))
+                // 📖 **읽는 글** = body(15 Medium). 안 읽은 줄만 색을 진하게(굵기 말고 색으로).
                 Text(
-                    primaryText, fontSize = 13.sp,
-                    color = if (unread) TossTextPrimary else TossTextSecondary,
-                    fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
+                    primaryText, style = AppType.body,
+                    color = if (unread) AppTheme.colors.text else AppTheme.colors.textSub,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
             // ✨AI 요약 — 최근 문자 아래 회색 작게 (A안). 최근 문자가 있을 때만 보조로 노출.
             if (!secondaryText.isNullOrBlank()) {
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(5.dp))
+                // 메타 줄 = caption(13 Medium).
                 Text(
-                    "✨ $secondaryText", fontSize = 11.5.sp,
-                    color = TossTextTertiary, fontWeight = FontWeight.Normal,
+                    "✨ $secondaryText", style = AppType.caption,
+                    color = AppTheme.colors.textHint,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
