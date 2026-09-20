@@ -70,7 +70,8 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private val summaryBySuffixFlow: kotlinx.coroutines.flow.Flow<Map<String, String>> =
         combine(aiSummaries, callSummaryRepository.observeAll()) { smsSums, callSums ->
             val smsMap = smsSums.mapNotNull { s ->
-                s.cardSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { s.phoneSuffix to it }
+                com.detailline.callfollowcrm.util.SummaryText.stripLeadingEmoji(s.cardSummary)
+                    ?.trim()?.takeIf { it.isNotEmpty() }?.let { s.phoneSuffix to it }
             }.toMap()
             val callMap = callSums
                 .groupBy { phoneSuffix(it.phoneNumber ?: "") }

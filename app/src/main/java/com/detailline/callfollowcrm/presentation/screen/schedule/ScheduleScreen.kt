@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import androidx.compose.material.icons.filled.AutoAwesome
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -369,7 +370,7 @@ fun ScheduleScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 11.dp),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("📌 날짜를 ", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
+                        Text("날짜를 ", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
                         Text("길게 누르면", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                         Text(" 그 날 일정을 바로 등록해요", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
                     }
@@ -379,22 +380,26 @@ fun ScheduleScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 색은 **다 다르게**, 모양은 **달력에 찍히는 그대로**(시공~A/S=막대, 간단=점).
+                        //   전엔 요청과 A/S 가 똑같은 주황이라 🔧 이모지로 억지 구분했고, 간단도 회색이
+                        //   겹쳐 📌 를 붙였다. 이모지로 때우는 건 **색이 틀렸다는 뜻**이다. (2026-09-20 사장님)
                         listOf(
-                            TossSuccess to "시공", TossTextTertiary to "지난",
-                            AppTheme.colors.category to "협업", AppTheme.colors.caution to "요청"
-                        ).forEach { (col, lbl) ->
-                            Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(col))
+                            Triple(TossSuccess, "시공", true),
+                            Triple(TossTextTertiary, "지난", true),
+                            Triple(AppTheme.colors.category, "협업", true),
+                            Triple(AppTheme.colors.caution, "요청", true),
+                            Triple(AppTheme.colors.primary, "A/S", false),
+                            Triple(TossTextTertiary, "간단", false)
+                        ).forEach { (col, lbl, isBar) ->
+                            if (isBar) Box(
+                                Modifier.padding(start = 9.dp).width(13.dp).height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)).background(col)
+                            ) else Box(
+                                Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(col)
+                            )
                             Spacer(Modifier.width(3.dp))
                             Text(lbl, fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
                         }
-                        // A/S(무료) — 주황 점. '요청' 주황과 헷갈리지 않게 🔧 로 표시. (DB v43)
-                        Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(Color(0xFFF5920B)))
-                        Spacer(Modifier.width(3.dp))
-                        Text("🔧A/S", fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
-                        // 간단 일정 — 회색 점. '지난'(회색 막대)과 모양이 달라 헷갈리지 않게 📌 로. (2026-09-16)
-                        Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(TossTextTertiary))
-                        Spacer(Modifier.width(3.dp))
-                        Text("📌간단", fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -485,7 +490,7 @@ fun ScheduleScreen(
             if (pendingForSelected.isNotEmpty()) {
                 item(key = "pending-collab-label") {
                     Text(
-                        "🤝 협업 요청 ${pendingForSelected.size}건 · 아직 응답 안 함",
+                        "협업 요청 ${pendingForSelected.size}건 · 아직 응답 안 함",
                         fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
                         modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
                     )
@@ -498,7 +503,7 @@ fun ScheduleScreen(
             if (asForSelected.isNotEmpty()) {
                 item(key = "as-label") {
                     Text(
-                        "🔧 이 날 A/S ${asForSelected.size}곳 · 무료",
+                        "이 날 A/S ${asForSelected.size}곳 · 무료",
                         fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
                         modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
                     )
@@ -512,7 +517,7 @@ fun ScheduleScreen(
             if (simpleForSelected.isNotEmpty()) {
                 item(key = "simple-label") {
                     Text(
-                        "📌 이 날 간단 일정 ${simpleForSelected.size}개",
+                        "이 날 간단 일정 ${simpleForSelected.size}개",
                         fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
                         modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
                     )
@@ -896,14 +901,16 @@ private fun AsDayCard(
     val s = DateTimeUtils.startOfDay(asStart)
     val totalDays = customer.asScheduledDays.coerceAtLeast(1)
     val dayN = selectedDayMs?.let { ((it - s) / DateTimeUtils.DAY_MS).toInt() + 1 }?.coerceIn(1, totalDays) ?: 1
-    val orange = Color(0xFFF5920B); val orangeDeep = Color(0xFFB8780A); val orangeBg = AppTheme.colors.cautionBg
+    // A/S 색 = 파랑(범례와 같은 색). 전엔 '요청'과 똑같은 주황이라 🔧 이모지로 억지 구분했다. (2026-09-20 사장님)
+    val orange = AppTheme.colors.primary; val orangeDeep = AppTheme.colors.primaryText; val orangeBg = AppTheme.colors.primaryBg
     TossCard(onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(9.dp).clip(CircleShape).background(orange))
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "🔧 " + (customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber)),
+                    // 공구 이모지 대신 **왼쪽 점 색**(파랑)으로 A/S 임을 표시 — 범례와 같은 색. (2026-09-20)
+                    customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber),
                     fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                     modifier = Modifier.weight(1f)
                 )
@@ -1115,14 +1122,15 @@ private fun CalendarDay(
                 }
             }
         }
-        // 칸 맨 아래 점들 — A/S(주황) · 간단 일정(회색). 시공 초록막대·협업 보라막대와 별개.
+        // 칸 맨 아래 점들 — A/S(파랑) · 간단 일정(회색). 시공 초록막대·협업 보라막대와 별개.
         //   둘 다 있으면 나란히 찍힌다(겹쳐서 하나로 보이면 A/S 를 놓친다).
         if (isAs || isSimple) {
             Row(
                 Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                if (isAs) Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFF5920B)))
+                // A/S 는 파랑 점 — '요청'(주황 막대)과 색까지 같으면 구분이 안 된다. (2026-09-20 사장님)
+                if (isAs) Box(Modifier.size(6.dp).clip(CircleShape).background(AppTheme.colors.primary))
                 if (isSimple) Box(Modifier.size(6.dp).clip(CircleShape).background(TossTextTertiary))
             }
         }
@@ -1244,9 +1252,11 @@ private fun DayJobCard(
         Column {
             // 1행: hd 점 + 이름 + N일차 + 시간 + 태그 + 수정
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 달력 막대와 **같은 색**. 전엔 앞으로 올 시공이 빨강이었는데, 빨강은 미수·위험 색이고
+                //   범례에 있지도 않았다. (2026-09-20 사장님)
                 Box(
                     Modifier.size(9.dp).clip(CircleShape)
-                        .background(if (isPast) Color(0xFFC2C9D2) else TossError)
+                        .background(if (isPast) Color(0xFFC2C9D2) else AppTheme.colors.done)
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
@@ -1269,13 +1279,25 @@ private fun DayJobCard(
                 }
                 // 태그 (완료 / D-day)
                 // 날짜만 지나면 "완료"라 놓친 현장도 완료로 보이던 것 → 진짜 완료 처리만 "완료", 나머지 지난 건 "지남". 2026-07-30
-                val tagText = if (customer.workCompletedAt != null) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
+                // 초록 = **끝난 것** · 파랑 = **앞으로 올 것** · 회색 = 그냥 지나간 것. (2026-09-20 사장님)
+                //   전엔 [완료] 가 회색이고 [D-5] 가 초록이라 거꾸로였다.
+                val isDone = customer.workCompletedAt != null
+                val tagText = if (isDone) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
+                val tagBg = when {
+                    isDone -> AppTheme.colors.doneBg
+                    isPast -> TossGrayBg
+                    else -> AppTheme.colors.primaryBg
+                }
+                val tagFg = when {
+                    isDone -> AppTheme.colors.doneText
+                    isPast -> TossTextTertiary
+                    else -> AppTheme.colors.primaryText
+                }
                 Box(
-                    Modifier.clip(RoundedCornerShape(8.dp))
-                        .background(if (isPast) TossGrayBg else AppTheme.colors.doneBg)
+                    Modifier.clip(RoundedCornerShape(8.dp)).background(tagBg)
                         .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
-                    Text(tagText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (isPast) TossTextTertiary else Color(0xFF0E9F56))
+                    Text(tagText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = tagFg)
                 }
                 // 연필 아이콘 제거(2026-06-11): 카드 전체 탭 = 연필 탭 = 고객 상세로, 기능 동일해 중복이었음.
             }
@@ -1293,7 +1315,16 @@ private fun DayJobCard(
             // ✨ AI 요약
             if (!cardSummary.isNullOrBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text("✨ $cardSummary", fontSize = 13.sp, color = if (isPast) TossTextTertiary else TossBlue, fontWeight = FontWeight.Medium, maxLines = 2)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 글자 ✨ 는 갤럭시에서 남색 타일로 그려진다 → 앱이 그리는 아이콘으로. (2026-09-20 사장님)
+                    Icon(
+                        Icons.Filled.AutoAwesome, null,
+                        tint = if (isPast) TossTextTertiary else TossBlue,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(cardSummary, fontSize = 13.sp, color = if (isPast) TossTextTertiary else TossBlue, fontWeight = FontWeight.Medium, maxLines = 2)
+                }
             }
             // 입금 상태 (읽기 전용)
             if (hasMoney) {
@@ -1342,7 +1373,8 @@ private fun AssignBtn(label: String, filled: Boolean, onClick: () -> Unit) {
         fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
         color = if (filled) TossBlue else TossTextTertiary,
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            // 버튼은 둥근 네모. 알약은 '고르는 칩'에만. (2026-09-20 사장님)
+            .clip(RoundedCornerShape(10.dp))
             .then(if (filled) Modifier.background(TossBlueSoft) else Modifier)
             .clickable { onClick() }
             .padding(horizontal = if (filled) 13.dp else 8.dp, vertical = 7.dp)
@@ -1390,7 +1422,7 @@ private fun PayStatusReadOnly(row: com.detailline.callfollowcrm.domain.settlemen
         Spacer(Modifier.height(3.dp))
         val hasDeposit = row.depositAmount > 0L
         val (plain, emphasis, emColor) = when {
-            row.isPaidOff -> Triple("", "전액 완납 ✓", TossSuccess)
+            row.isPaidOff -> Triple("", "전액 완납", TossSuccess)
             hasDeposit && !row.depositPaid -> Triple("계약금 ${manwon(row.depositAmount)}만 · 잔금 ${manwon(row.balanceAmount)}만 ", "미수", TossError)
             hasDeposit -> Triple("계약금 ${manwon(row.depositAmount)}만 받음 · ", "잔금 ${manwon(row.balanceAmount)}만 남음", TossError)
             else -> Triple("계약금 없음 · ", "전액 ${manwon(row.total)}만 미수", TossError)

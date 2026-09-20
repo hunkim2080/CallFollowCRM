@@ -583,7 +583,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val suffixes = st.all.map { phoneSuffix(it.phoneNumber) }.distinct().filter { it.length >= 7 }
             if (suffixes.isEmpty()) flowOf(emptyMap())
             else container.conversationAiRepository.observeMany(suffixes).map { list ->
-                list.mapNotNull { e -> e.cardSummary?.let { e.phoneSuffix to it } }.toMap()
+                list.mapNotNull { e ->
+                    com.detailline.callfollowcrm.util.SummaryText.stripLeadingEmoji(e.cardSummary)?.let { e.phoneSuffix to it }
+                }.toMap()
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 

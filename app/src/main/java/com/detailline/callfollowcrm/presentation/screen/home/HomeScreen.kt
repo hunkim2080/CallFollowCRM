@@ -4350,6 +4350,20 @@ private val AV_TINTS = listOf(
 )
 
 /** 프로토 avatarHtml — 이름 있으면 컬러 이니셜 원, 없으면 회색 사람 아이콘. */
+/**
+ * AI 가 쓴 글 표시 — 요약 줄 앞의 작은 반짝임. (2026-09-20 사장님)
+ *   글자 ✨ 를 쓰면 갤럭시에서 남색 밤하늘 타일로 그려져 목록이 어두워진다.
+ */
+@Composable
+private fun AiMark() {
+    Icon(
+        Icons.Filled.AutoAwesome, contentDescription = null,
+        tint = AppTheme.colors.textHint,
+        modifier = Modifier.size(12.dp).padding(end = 0.dp)
+    )
+    Spacer(Modifier.width(5.dp))
+}
+
 @Composable
 private fun Avatar(name: String?, index: Int) {
     if (name.isNullOrBlank()) {
@@ -4393,6 +4407,9 @@ private fun RecentRow(
     //   (이전엔 읽은 줄에서 요약이 최근 문자를 덮어써 "최근에 뭐라 했는지" 안 보인다는 신고. 2026-08-04)
     val lastMsg = item.lastBody?.takeIf { it.isNotBlank() }
         ?.let { (if (item.lastSent == true) "나: " else "") + it }
+    // "AI 가 쓴 글" 표시 — 글자 ✨ 가 아니라 **앱이 그리는 아이콘**(아래 AiMark).
+    //   갤럭시의 ✨ 는 남색 밤하늘 타일로 그려져 줄마다 까만 네모가 붙었다. (2026-09-20 사장님)
+    //   서버 요약에서 이모지를 뺀 뒤로 이 줄이 **손님 말인지 AI 요약인지** 구분할 표시는 이것뿐이다.
     val summaryLine = aiSummary?.takeIf { it.isNotBlank() }
     val primaryText = lastMsg ?: summaryLine
     val secondaryText = if (lastMsg != null) summaryLine else null
@@ -4447,21 +4464,28 @@ private fun RecentRow(
             if (!primaryText.isNullOrBlank()) {
                 Spacer(Modifier.height(6.dp))
                 // 📖 **읽는 글** = body(15 Medium). 안 읽은 줄만 색을 진하게(굵기 말고 색으로).
-                Text(
-                    primaryText, style = AppType.body,
-                    color = if (unread) AppTheme.colors.text else AppTheme.colors.textSub,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 문자가 없어 요약이 주(主)로 올라온 줄 — AI 가 쓴 글임을 표시.
+                    if (lastMsg == null && summaryLine != null) AiMark()
+                    Text(
+                        primaryText, style = AppType.body,
+                        color = if (unread) AppTheme.colors.text else AppTheme.colors.textSub,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
             // ✨AI 요약 — 최근 문자 아래 회색 작게 (A안). 최근 문자가 있을 때만 보조로 노출.
             if (!secondaryText.isNullOrBlank()) {
                 Spacer(Modifier.height(5.dp))
                 // 메타 줄 = caption(13 Medium).
-                Text(
-                    "✨ $secondaryText", style = AppType.caption,
-                    color = AppTheme.colors.textHint,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AiMark()
+                    Text(
+                        secondaryText, style = AppType.caption,
+                        color = AppTheme.colors.textHint,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

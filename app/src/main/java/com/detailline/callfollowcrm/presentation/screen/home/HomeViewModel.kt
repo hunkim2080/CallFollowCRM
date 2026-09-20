@@ -1424,7 +1424,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     container.conversationAiRepository.observeMany(suffixes),
                     container.callSummaryRepository.observeAll()
                 ) { convList, callList ->
-                    val smsMap = convList.mapNotNull { e -> e.cardSummary?.let { e.phoneSuffix to it } }.toMap()
+                    // 옛 요약 앞에 붙어 있던 이모지는 떼어낸다 — 줄 앞의 ✨ 와 겹친다. (2026-09-20 사장님)
+                    val smsMap = convList.mapNotNull { e ->
+                        com.detailline.callfollowcrm.util.SummaryText.stripLeadingEmoji(e.cardSummary)?.let { e.phoneSuffix to it }
+                    }.toMap()
                     // 번호별 최신 통화요약 한 줄 — SMS 요약 없는 번호(통화만)만 채움.
                     val callMap = callList
                         .groupBy { phoneSuffix(it.phoneNumber ?: "") }
