@@ -286,14 +286,18 @@ private fun DashedRecordButton(onClick: () -> Unit) {
 @Composable
 private fun MonthSummaryRows(agg: CashDayAgg) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // 예정이 없으면 두 줄이 **같은 값**이었다 — 같은 숫자를 두 번 읽게 된다.
+        //   예정이 있을 때만 둘째 줄을 보여준다. 괄호 말(실현·추정)도 뺐다. (2026-09-20 사장님)
         SummaryRow(
-            "확정 순이익 (실현)", "이미 받은 돈 − 이미 낸 돈",
+            "이번 달 순이익", "받은 돈 − 낸 돈",
             signedManwon(agg.netDone), if (agg.netDone >= 0) CashIn else CashOut
         )
-        SummaryRow(
-            "예상 순이익 (추정)", "들어올·나갈 예정까지 반영",
-            signedManwon(agg.netPlanned), TossTextSecondary
-        )
+        if (agg.netPlanned != agg.netDone) {
+            SummaryRow(
+                "예정까지 넣으면", "들어올·나갈 예정 반영",
+                signedManwon(agg.netPlanned), TossTextSecondary
+            )
+        }
     }
 }
 
@@ -424,8 +428,10 @@ private fun CashItemRow(
                     )
                 }
                 Spacer(Modifier.height(3.dp))
+                // 단위는 **만원**으로 통일 — 같은 화면에 605만원 / +205 / +1,300,000원 이 섞여 있었다.
+                //   만 단위로 안 떨어지는 돈(자재비 3만 7천원 등)은 원 그대로 적는다.
                 Text(
-                    (if (item.isIncome) "+" else "−") + MoneyFormatter.won(item.amount) +
+                    (if (item.isIncome) "+" else "−") + manwonOrWon(item.amount) +
                         (if (item.isDone) "" else " (예정)"),
                     style = MaterialTheme.typography.titleSmall, color = amtColor, fontWeight = FontWeight.Bold
                 )
@@ -577,6 +583,10 @@ private fun ToggleHalf(label: String, selected: Boolean, color: Color, onClick: 
 }
 
 private fun signedWon(v: Long): String = (if (v >= 0) "+" else "−") + MoneyFormatter.won(kotlin.math.abs(v))
+
+/** 만 단위로 떨어지면 "130만원", 아니면 "37,000원". 화면 단위를 만원으로 모으기 위한 것. (2026-09-20 사장님) */
+private fun manwonOrWon(won: Long): String =
+    if (won != 0L && won % 10_000L == 0L) "%,d만원".format(won / 10_000L) else MoneyFormatter.won(won)
 
 private fun signedManwon(v: Long): String = (if (v >= 0) "+" else "−") + man(kotlin.math.abs(v)) + "만원"
 

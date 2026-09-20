@@ -163,12 +163,14 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
 
         val m2Top: String
         val m2Next: String
+        // 한 소식을 세 줄로 말하던 것을 **한 줄**로. 이모지도 뺀다. (2026-09-20 사장님)
+        //   전: "🎉 목표 500만원 달성!" + "목표 초과 +105만원 · 최고예요 👑" + "🎉 목표 달성! 남은 10일은…"
         if (reached) {
-            m2Top = "🎉 목표 ${comma(goalManwon)}만원 달성!"
-            m2Next = "목표 초과 +${manwon(received - goalWon)}만원 · 최고예요 👑"
+            m2Top = "목표 ${comma(goalManwon)}만원 달성"
+            m2Next = "${manwon(received - goalWon)}만원 더 벌었어요"
         } else {
-            m2Top = "🎯 이번 달 목표 ${comma(goalManwon)}만원"
-            m2Next = "목표까지 ${manwon(goalWon - received)}만원 남았어요 · $fillPct%"
+            m2Top = "이번 달 목표 ${comma(goalManwon)}만원"
+            m2Next = "${manwon(goalWon - received)}만원 남았어요 · $fillPct%"
         }
 
         // 페이스 (이번 달만): 시간 진행률 vs 목표 진행률
@@ -182,11 +184,13 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
             daysLeft = daysIn - dayN
             val timePct = (dayN * 100.0 / daysIn).toInt().coerceIn(0, 100)
             val gap = fillPct - timePct
+            // 뒤에 " · N일 남음" 이 또 붙으므로 여기서 날짜를 말하지 않는다 (전엔 "10일" 이 한 줄에 두 번).
             when {
-                reached -> { paceAhead = true; paceText = "🎉 목표 달성! 남은 ${daysLeft}일은 보너스예요" }
-                gap >= -5 -> { paceAhead = true; paceText = "👍 시간보다 앞서가고 있어요 · 좋은 페이스!" }
-                daysLeft <= 3 -> { paceAhead = false; paceText = "🔥 ${daysLeft}일 남았어요 · 막판 스퍼트!" }
-                else -> { paceAhead = false; paceText = "💪 페이스를 조금만 올리면 따라잡아요" }
+                // 달성했으면 m2Next("105만원 더 벌었어요")가 이미 좋은 소식을 말했다 — 또 말하지 않는다.
+                reached -> { paceAhead = true; paceText = null }
+                gap >= -5 -> { paceAhead = true; paceText = "시간보다 앞서가고 있어요" }
+                daysLeft <= 3 -> { paceAhead = false; paceText = "막판 스퍼트" }
+                else -> { paceAhead = false; paceText = "페이스를 조금만 올리면 따라잡아요" }
             }
         }
 

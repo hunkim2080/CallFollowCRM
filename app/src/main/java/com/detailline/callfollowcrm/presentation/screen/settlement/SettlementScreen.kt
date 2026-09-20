@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.settlement
 
+import androidx.compose.material.icons.filled.Person
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.ui.text.buildAnnotatedString
@@ -302,18 +303,21 @@ private fun SettleTopCard(
                 modifier = Modifier.padding(start = 2.dp, bottom = 5.dp))
         }
         // prev pill
+        // 전월 대비는 **참고 수치**다. 전엔 떨어진 달이 빨강이라, 목표를 넘긴 달에도 빨간 경고가
+        //   같이 떠서 잘한 건지 못한 건지 흐려졌다. 시공은 달마다 들쭉날쭉한 게 정상이다.
+        //   → 색을 빼고 ▲▼ 로만. **빨강은 미수(진짜 받아야 할 돈)에만.** (2026-09-20 사장님)
         val up = top.prevPct >= 0
         Box(
             modifier = Modifier
                 .padding(top = 7.dp)
                 .clip(RoundedCornerShape(999.dp))
-                .background(if (up) PrevUpBg else PrevDownBg)
+                .background(Color.White.copy(alpha = 0.10f))
                 .padding(horizontal = 9.dp, vertical = 3.dp)
         ) {
             Text(
-                "전월 대비 ${if (up) "+" else ""}${top.prevPct}%",
+                "${if (up) "▲" else "▼"} 전월 대비 ${kotlin.math.abs(top.prevPct)}%",
                 fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = if (up) PrevUpFg else PrevDownFg
+                color = Color.White.copy(alpha = 0.66f)
             )
         }
 
@@ -366,18 +370,20 @@ private fun SettleTopCard(
                     )
                 }
             }
+            // 한 줄. 전엔 같은 소식이 두 줄로 나뉘어 "목표 초과…" + "목표 달성!…" 이 연달아 떴다.
             Text(
-                top.m2Next, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.72f), modifier = Modifier.padding(top = 8.dp)
+                buildString {
+                    append(top.m2Next)
+                    top.paceText?.let { append(" · "); append(it) }
+                    if (top.isLiveMonth && top.daysLeft > 0) append(" · ${top.daysLeft}일 남음")
+                },
+                fontSize = 11.5.sp,
+                fontWeight = if (top.goalReached) FontWeight.ExtraBold else FontWeight.SemiBold,
+                color = if (top.goalReached || top.paceAhead) PaceAhead
+                else if (top.paceText != null) PaceBehind
+                else Color.White.copy(alpha = 0.72f),
+                modifier = Modifier.padding(top = 8.dp)
             )
-            top.paceText?.let { pace ->
-                Text(
-                    "$pace · ${top.daysLeft}일 남음",
-                    fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (top.paceAhead) PaceAhead else PaceBehind,
-                    modifier = Modifier.padding(top = 9.dp)
-                )
-            }
         }
 
         // sdiv
@@ -580,13 +586,15 @@ private fun PayBlock(
             Text("총 ${manwonText(c.total)}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp)
             Spacer(Modifier.height(4.dp))
             // pay-stat
+            // 같은 상태를 "남음"/"미수" 로 다르게 쓰던 것을 **한 가지 말**로. 단위도 "만" -> "만원".
+            //   (2026-09-20 사장님)
             when {
-                c.isPaidOff -> Text("전액 완납 ✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
+                c.isPaidOff -> Text("전액 완납", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
                 hasDeposit && !c.depositPaid -> PayStat(
-                    "계약금 ${manwon(c.depositAmount)}만 · 잔금 ${manwon(c.balanceAmount)}만 ", "미수")
+                    "계약금 ${manwon(c.depositAmount)}만원 안 받음 · ", "잔금 ${manwon(c.balanceAmount)}만원 남음")
                 hasDeposit -> PayStat(
-                    "계약금 ${manwon(c.depositAmount)}만 받음 · ", "잔금 ${manwon(c.balanceAmount)}만 남음")
-                else -> PayStat("계약금 없음 · ", "전액 ${manwon(c.total)}만 미수")
+                    "계약금 ${manwon(c.depositAmount)}만원 받음 · ", "잔금 ${manwon(c.balanceAmount)}만원 남음")
+                else -> PayStat("계약금 없음 · ", "전액 ${manwon(c.total)}만원 남음")
             }
         }
         Spacer(Modifier.width(12.dp))
@@ -664,7 +672,7 @@ private fun SettleDoneRow(item: SettleItem, index: Int) {
                 .background(TossSuccess.copy(alpha = 0.12f))
                 .padding(horizontal = 9.dp, vertical = 4.dp)
         ) {
-            Text("✓ 완납", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
+            Text("완납", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
         }
     }
 }
@@ -673,7 +681,7 @@ private fun SettleDoneRow(item: SettleItem, index: Int) {
 private fun EmptyMini(filter: SettleFilter) {
     val msg = when (filter) {
         SettleFilter.ALL -> "정산할 내역이 아직 없어요"
-        SettleFilter.OUTSTANDING -> "못 받은 돈이 없어요 👍"
+        SettleFilter.OUTSTANDING -> "못 받은 돈이 없어요"
         SettleFilter.PAID_OFF -> "완납된 고객이 아직 없어요"
     }
     com.detailline.callfollowcrm.presentation.component.MascotEmptyState(speech = msg)
@@ -681,12 +689,9 @@ private fun EmptyMini(filter: SettleFilter) {
 
 /* ─────────────── 아바타 (프로토 AV_TINTS) ─────────────── */
 
+/** 아바타는 **한 색** — 상담함·고객정보와 같게. 색은 상태에만 쓴다. (2026-09-20 사장님) */
 private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to LightColors.primary,
-    LightColors.doneBg to Color(0xFF16A765),
-    LightColors.unpaidBg to LightColors.unpaid,
-    LightColors.categoryBg to LightColors.category,
-    LightColors.cautionBg to Color(0xFFE0920C),
+    LightColors.primaryBg to LightColors.primaryText,
 )
 
 @Composable
@@ -696,7 +701,13 @@ private fun Avatar(name: String?, index: Int, small: Boolean = false) {
         Box(
             Modifier.size(sz).clip(CircleShape).background(TossGrayBg),
             contentAlignment = Alignment.Center
-        ) { Text("👤", fontSize = if (small) 14.sp else 16.sp) }
+        ) {
+            // 이모지 👤 대신 앱이 그리는 사람 아이콘 — 상담함과 같은 모양.
+            androidx.compose.material3.Icon(
+                androidx.compose.material.icons.Icons.Default.Person, null,
+                tint = TossTextTertiary, modifier = Modifier.size(if (small) 17.dp else 19.dp)
+            )
+        }
         return
     }
     val (bg, fg) = AV_TINTS[index % AV_TINTS.size]
