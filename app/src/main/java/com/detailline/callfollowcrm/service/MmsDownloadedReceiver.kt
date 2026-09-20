@@ -119,7 +119,7 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
     }
 
     /** RetrieveConf 안의 이미지 조각들. 저장하기 전에 바로 볼 수 있다. */
-    private fun imageBytesOf(retrieve: RetrieveConf): List<ByteArray> {
+    internal fun imageBytesOf(retrieve: RetrieveConf): List<ByteArray> {
         val body = runCatching { retrieve.body }.getOrNull() ?: return emptyList()
         val out = ArrayList<ByteArray>()
         for (i in 0 until runCatching { body.partsNum }.getOrDefault(0)) {

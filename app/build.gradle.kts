@@ -57,6 +57,8 @@ android {
         versionName = "0.2.$appVersionCode"
         buildConfigField("long", "BUILD_TIMESTAMP", "${buildTimeMs}L")
         vectorDrawables { useSupportLibrary = true }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
     }
 
     signingConfigs {
@@ -79,6 +81,11 @@ android {
             }
         }
     }
+
+    // 폰 위 시험(androidTest)도 **release 로** 빌드한다. (2026-09-20)
+    //   테스트폰엔 우리 키로 서명된 앱이 이미 깔려 있다. debug 로 시험하면 서명이 달라
+    //   앱을 지워야 하고 = 그 폰 자료가 날아간다. 같은 서명이어야 지우지 않고 얹힌다.
+    testBuildType = "release"
 
     // 릴리즈 APK 파일명을 항상 shigongmagne.apk 로 고정 (베타 배포 링크가 이 이름을 가리킴). (2026-06-17 사장님)
     //   안드로이드 설치/업데이트는 패키지명+versionCode 로 판단 → 파일명은 배포 경로 일치용일 뿐.
@@ -190,4 +197,8 @@ dependencies {
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
     // suspend 함수 (Room DAO) 테스트용 — runTest, TestDispatcher.
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
+    // 폰 위에서 도는 시험 — 진짜 안드로이드 JPEG 해독기가 필요한 것만 여기서 본다.
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
 }
