@@ -544,8 +544,9 @@ fun HomeScreen(
                         if (updateDateLabel.isNotBlank()) "✨ ${updateDateLabel} 새 버전이 나왔어요!" else "✨ 새 버전이 나왔어요!",
                         color = Color.White, fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    // 버튼은 둥근 네모(12). 알약 버튼을 만들지 않는다. (2026-09-20 사장님)
                     Box(
-                        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                        Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White)
                             .clickable { openInstallPage(context) }
                             .padding(horizontal = 16.dp, vertical = 7.dp)
                     ) { Text("업데이트", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
@@ -2466,7 +2467,8 @@ private fun ChipPill(
             label,
             color = when {
                 on -> Color.White
-                dim -> Color(0xFFB0B8C1)
+                // 야외에서 칩 이름이 읽혀야 누를 수 있다 → 한 단계 진하게. (2026-09-20 사장님)
+                dim -> AppTheme.colors.textHint
                 else -> TossTextSecondary
             },
             style = AppType.label, maxLines = 1
@@ -2763,7 +2765,8 @@ private fun CollabSettleCard(
             }
             Text(
                 "현장 보기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category,
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.categoryBg)
+                // 딱지는 둥근 네모(8). 알약은 누르는 것의 모양. (2026-09-20 사장님)
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg)
                     .clickable { onOpen() }.padding(horizontal = 11.dp, vertical = 6.dp)
             )
         }
@@ -3209,7 +3212,7 @@ private fun InboxAlert(
                     if (!tagText.isNullOrEmpty()) {
                         Spacer(Modifier.width(6.dp))
                         Box(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp)
+                            Modifier.clip(RoundedCornerShape(8.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp)
                         ) { Text(tagText, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = tagFg) }
                     }
                 }
@@ -3218,7 +3221,7 @@ private fun InboxAlert(
             }
             Spacer(Modifier.width(8.dp))
             Box(
-                Modifier.clip(RoundedCornerShape(999.dp)).background(accentTint).padding(horizontal = 13.dp, vertical = 7.dp)
+                Modifier.clip(RoundedCornerShape(12.dp)).background(accentTint).padding(horizontal = 13.dp, vertical = 7.dp)
             ) { Text(goLabel, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accent) }
         }
     }
@@ -4096,7 +4099,7 @@ private fun OweRow(
                 //   빨강이 아무 말도 안 하게 된다. 한 주 넘은 것만 빨갛게. (2026-09-20 사장님)
                 val late = due.daysSince >= 7
                 Box(
-                    Modifier.clip(RoundedCornerShape(999.dp))
+                    Modifier.clip(RoundedCornerShape(8.dp))
                         .background(if (late) AppTheme.colors.unpaidBg else TossGrayBg)
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
@@ -4335,12 +4338,15 @@ private fun WaitingCard(
     }
 }
 
-private val AV_TINTS = listOf(   // 프로토 avatarHtml 팔레트 5색 (정산·일정과 동일 — 같은 고객 아바타 색 일치)
-    Color(0xFFE6EFFF) to LightColors.primary,
-    LightColors.doneBg to Color(0xFF16A765),
-    LightColors.unpaidBg to LightColors.unpaid,
-    LightColors.categoryBg to LightColors.category,
-    LightColors.cautionBg to Color(0xFFE0920C),
+/**
+ * 아바타 원 — **한 색.** (2026-09-20 사장님)
+ *   전엔 다섯 색이 번갈아 붙어 김=파랑, 박=초록 … 처럼 보였다. 그런데 그 색에는 **뜻이 없다**
+ *   (이름 순서일 뿐). 색은 **상태에만** 쓴다 — 완료는 초록, 미수는 빨강처럼.
+ *   사람마다 색이 다르면 그 규칙이 흐려진다.
+ *   ⚠️ 목록은 리스트가 5색을 돌려 쓰던 자리라 한 칸짜리로 남겨 둔다(호출부 그대로).
+ */
+private val AV_TINTS = listOf(
+    LightColors.primaryBg to LightColors.primaryText,
 )
 
 /** 프로토 avatarHtml — 이름 있으면 컬러 이니셜 원, 없으면 회색 사람 아이콘. */

@@ -58,12 +58,15 @@ private fun statusColors(s: String): Pair<Color, Color> = when (s) {
     else -> Color(0xFF3182F6) to Color(0xFFEAF2FE)     // blue (예약)
 }
 
-/** 고객 상태 딱지 — 어느 화면에서나 같은 모양으로 따라다님. (2026-09-03 사장님) */
+/**
+ * 고객 상태 딱지 — 어느 화면에서나 같은 모양으로 따라다님. (2026-09-03 사장님)
+ *   모서리 8 = AppShape.sm. **알약으로 만들지 않는다** — 알약은 누르는 것(칩)의 모양이다. (2026-09-20)
+ */
 @Composable
 fun CustomerStatusTag(status: String) {
     val (fg, bg) = statusColors(status)
     Box(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
+        Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(status, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = fg)
     }
@@ -108,7 +111,7 @@ fun CategoryTag(
     //   ⚠️ 이름으로 걸러내던 코드였다. 사장님이 우연히 같은 이름으로 분류를 만드시면
     //      그 분류까지 안 보이게 되던 자리다.
     Box(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(CATEGORY_BG)
+        Modifier.clip(RoundedCornerShape(8.dp)).background(CATEGORY_BG)
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
@@ -183,7 +186,7 @@ fun ScheduleTag(c: CustomerEntity?, listMode: Boolean = true) {
     // 색은 상태 기준(= D-N 도 '예약'의 파랑). 모든 화면에서 같은 색.
     val (fg, bg) = statusColors(if (label.startsWith("시공 D")) "예약" else label)
     Box(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
+        Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = fg, maxLines = 1)
     }
