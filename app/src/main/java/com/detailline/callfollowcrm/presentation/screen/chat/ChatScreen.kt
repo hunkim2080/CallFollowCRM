@@ -2454,6 +2454,13 @@ private fun CallSegment(
         // 탭재생 — 말풍선 누르면 그 시각으로 재생. tick 은 같은 말풍선 재탭도 다시 트리거되게. (2026-08-20 사장님)
         var seekReqMs by remember(summary?.id) { mutableStateOf<Int?>(null) }
         var seekReqTick by remember(summary?.id) { mutableStateOf(0) }
+        // 재생기는 **전문 위**. 전엔 화면 열 몇 장짜리 전문 맨 아래에 있어서,
+        //   듣고 싶으면 끝까지 내려가야 했다. 듣기 시작하고 따라 읽는 순서가 맞다. (2026-09-20 사장님)
+        if (audioUri != null) {
+            Spacer(Modifier.height(12.dp))
+            CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs,
+                seekReqMs = seekReqMs, seekReqTick = seekReqTick)
+        }
         if (transcript != null || callSegments.isNotEmpty()) {
             Column(Modifier.padding(top = 12.dp)) {
                 Text("통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
@@ -2472,11 +2479,27 @@ private fun CallSegment(
                             Spacer(Modifier.width(4.dp)); Text("손님", fontSize = 9.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
                         }
                         if (callSegments.any { it.third != null }) {
-                            Text("💡 말풍선을 누르면 그 부분부터 들려요", fontSize = 9.sp, color = TossTextTertiary,
+                            Text("말풍선을 누르면 그 부분부터 들려요", fontSize = 9.5.sp, color = TossTextTertiary,
                                 modifier = Modifier.padding(bottom = 5.dp))
                         }
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            // **1분 눈금** — 12분짜리 전문에서 지금 어디쯤인지 알 수 있게. (2026-09-20 사장님)
+                            //   받아쓰기에 시각이 있는 문장(Whisper 세그먼트)에만 찍힌다.
+                            var lastMin = -1
                             callSegments.forEach { (speaker, text, startMs) ->
+                                val mn = startMs?.let { (it / 60000L).toInt() }
+                                if (mn != null && mn > lastMin) {
+                                    lastMin = mn
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(top = if (mn == 0) 0.dp else 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("$mn:00", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold,
+                                            color = TossTextTertiary)
+                                        Spacer(Modifier.width(7.dp))
+                                        Box(Modifier.weight(1f).height(1.dp).background(AppTheme.colors.line))
+                                    }
+                                }
                                 val mine = speaker == "나"
                                 val shape = RoundedCornerShape(
                                     topStart = 10.dp, topEnd = 10.dp,
@@ -2489,9 +2512,10 @@ private fun CallSegment(
                                             .background(if (mine) tealBg else Color.White)
                                             .border(1.dp, if (mine) tealLine else AppTheme.colors.surfacePressed, shape)
                                             .let { m -> if (startMs != null) m.clickable { seekReqMs = startMs.toInt(); seekReqTick++ } else m }
-                                            .padding(start = 9.dp, end = 9.dp, top = 5.dp, bottom = 4.dp)
+                                            .padding(start = 9.dp, end = 9.dp, top = 6.dp, bottom = 5.dp)
                                     ) {
-                                        Text(text, fontSize = 11.sp, lineHeight = 15.sp,
+                                        // 받아쓴 글은 **읽는 글**이다 — 11 은 작았다. (2026-09-20 사장님)
+                                        Text(text, fontSize = 12.sp, lineHeight = 17.sp,
                                             color = if (mine) tealDark else Color(0xFF3A4A4A))
                                     }
                                 }
@@ -2508,11 +2532,6 @@ private fun CallSegment(
                 }
                 Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp))
             }
-        }
-        // 녹음 재생 플레이어 — 녹음 파일 있으면 표시. (2026-06-16 사장님)
-        if (audioUri != null) {
-            CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs,
-                seekReqMs = seekReqMs, seekReqTick = seekReqTick)
         }
         // 프로토(08352d6e): 후속문자 = 큰 버튼 → 작은 링크(플레이어 뒤). 통화 요약 있을 때만.
         summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
