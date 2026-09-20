@@ -37,6 +37,10 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         val code = resultCode
         val fileName = intent.getStringExtra(EXTRA_FILE_NAME)
         val subId = intent.getIntExtra(EXTRA_SUB_ID, -1)
+        val locationUrl = intent.getStringExtra(EXTRA_LOCATION_URL)
+        // 이번이 '다시 받기' 인가. 무한 반복을 막는 유일한 장치라 반드시 본다.
+        val isRetry = intent.getBooleanExtra(EXTRA_RETRY, false)
+        val badUri = intent.getStringExtra(EXTRA_BAD_URI)
         val app = context.applicationContext as? CallFollowCrmApplication
         val pending = goAsync()
         scope.launch {
@@ -59,11 +63,49 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
                     ?: runCatching { PduParser(bytes, false).parse() as? RetrieveConf }.getOrNull()
                 if (retrieve == null) { Log.e(TAG, "RetrieveConf parse failed"); notifyFail(app); return@launch }
 
+                // 📷 **깨진 사진인가** — 저장하기 전에 본다. (2026-09-20 사장님 "왜 우리 어플만 그래?")
+                //   삼성 메시지는 자기 엔진이 실패하면 다시 받는다. 우린 확인조차 안 하고 있었다.
+                val imgs = imageBytesOf(retrieve)
+                val badCount = imgs.count { com.detailline.callfollowcrm.util.ImageNoiseCheck.isNoisy(it) }
+                if (badCount > 0) {
+                    Log.w(TAG, "깨진 사진 $badCount/${imgs.size} 장 (retry=$isRetry)")
+                }
+
+                // 다시 받았는데도 깨졌으면 **새 걸 버리고 옛 걸 그대로 둔다** — 바꿔서 나아질 게 없다.
+                if (isRetry && badCount > 0) {
+                    Log.w(TAG, "다시 받아도 깨짐 — 옛 것 유지하고 알림")
+                    keepBadPdu(context, file)
+                    notifyBroken(app)
+                    return@launch
+                }
+
                 val msgUri = runCatching {
                     PduPersister.getPduPersister(context)
                         .persist(retrieve, Telephony.Mms.Inbox.CONTENT_URI, true, true, null, subId)
                 }.onFailure { Log.e(TAG, "PduPersister.persist failed", it) }.getOrNull()
                 Log.i(TAG, "MMS persisted → $msgUri (subId=$subId)")
+
+                // 다시 받은 게 멀쩡하다 → 깨졌던 옛 문자를 지운다(같은 문자가 두 번 남지 않게).
+                if (isRetry && badCount == 0 && !badUri.isNullOrBlank()) {
+                    runCatching {
+                        context.contentResolver.delete(android.net.Uri.parse(badUri), null, null)
+                        Log.i(TAG, "깨졌던 옛 문자 지움 → $badUri")
+                    }.onFailure { Log.e(TAG, "옛 문자 지우기 실패", it) }
+                }
+
+                // 처음 받았는데 깨졌다 → PDU 를 남기고 **한 번만** 다시 받는다.
+                //   ⚠️ 저장은 이미 했다. 다시 받기가 실패해도 문자를 잃지 않는다.
+                if (!isRetry && badCount > 0 && !locationUrl.isNullOrBlank()) {
+                    keepBadPdu(context, file)
+                    runCatching { file.delete() }
+                    // ⚠️ 알림은 **여기서도** 울려야 한다. 문자는 이미 저장됐는데 다시 받기가
+                    //   안 돌아오면 사장님은 문자가 온 줄도 모른다. (다시 받기가 성공하면 그때 또 울리지만
+                    //   같은 id 라 덮어쓴다)
+                    if (msgUri != null) runCatching { runMmsHook(app) }
+                        .onFailure { Log.e(TAG, "hook failed", it) }
+                    redownload(context, locationUrl, subId, msgUri?.toString())
+                    return@launch
+                }
                 runCatching { file.delete() }
 
                 if (msgUri == null) { notifyFail(app); return@launch }
@@ -74,6 +116,70 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }
+    }
+
+    /** RetrieveConf 안의 이미지 조각들. 저장하기 전에 바로 볼 수 있다. */
+    private fun imageBytesOf(retrieve: RetrieveConf): List<ByteArray> {
+        val body = runCatching { retrieve.body }.getOrNull() ?: return emptyList()
+        val out = ArrayList<ByteArray>()
+        for (i in 0 until runCatching { body.partsNum }.getOrDefault(0)) {
+            val part = runCatching { body.getPart(i) }.getOrNull() ?: continue
+            val ct = runCatching { String(part.contentType ?: ByteArray(0)) }.getOrDefault("")
+            if (!ct.startsWith("image/", ignoreCase = true)) continue
+            runCatching { part.data }.getOrNull()?.let { out.add(it) }
+        }
+        return out
+    }
+
+    /**
+     * 깨진 PDU 원본을 남긴다 — **다음에 또 생기면 이걸 뜯어봐야** 통신사가 준 게 이미 깨졌는지,
+     * 우리가 뜯다 깨뜨렸는지 갈린다. 최근 3개만 두고 지운다(용량).
+     */
+    private fun keepBadPdu(context: Context, file: File) {
+        runCatching {
+            val dir = File(context.filesDir, "mms_bad").apply { mkdirs() }
+            dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(2)?.forEach { it.delete() }
+            file.copyTo(File(dir, "bad_${System.currentTimeMillis()}.pdu"), overwrite = true)
+            Log.i(TAG, "깨진 PDU 보관: ${dir.absolutePath}")
+        }.onFailure { Log.e(TAG, "PDU 보관 실패", it) }
+    }
+
+    /** 한 번만 다시 받는다 — 삼성 메시지가 하는 것. */
+    private fun redownload(context: Context, locationUrl: String, subId: Int, badUri: String?) {
+        runCatching {
+            val fileName = "mmsretry_${System.nanoTime()}.pdu"
+            File(context.cacheDir, fileName).delete()
+            val contentUri = android.net.Uri.Builder()
+                .scheme(android.content.ContentResolver.SCHEME_CONTENT)
+                .authority(context.packageName + MmsReceived.PROVIDER_SUFFIX)
+                .path(fileName)
+                .build()
+            val completion = Intent(context, MmsDownloadedReceiver::class.java).apply {
+                putExtra(EXTRA_FILE_NAME, fileName)
+                putExtra(EXTRA_LOCATION_URL, locationUrl)
+                putExtra(EXTRA_SUB_ID, subId)
+                putExtra(EXTRA_RETRY, true)
+                putExtra(EXTRA_BAD_URI, badUri)
+            }
+            val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                    android.app.PendingIntent.FLAG_MUTABLE else 0)
+            val pi = android.app.PendingIntent.getBroadcast(
+                context, (System.nanoTime() and 0x7fffffffL).toInt(), completion, flags
+            )
+            val sms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                context.getSystemService(android.telephony.SmsManager::class.java)
+            else @Suppress("DEPRECATION") android.telephony.SmsManager.getDefault()
+            sms?.downloadMultimediaMessage(context, locationUrl, contentUri, null, pi)
+            Log.i(TAG, "사진이 깨져서 한 번 다시 받는다 (subId=$subId)")
+        }.onFailure { Log.e(TAG, "다시 받기 시작 실패", it) }
+    }
+
+    /** 두 번 다 깨졌을 때 — 사장님이 "왜 이러지?" 하며 시간 쓰지 않게 말해준다. */
+    private fun notifyBroken(app: CallFollowCrmApplication?) {
+        app ?: return
+        if (!app.container.preferences.incomingSmsNotifyEnabled) return
+        runCatching { NotificationHelper.showMmsBroken(app) }
     }
 
     private fun runMmsHook(app: CallFollowCrmApplication) {
@@ -207,6 +313,10 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         const val EXTRA_FILE_NAME = "mms_file_name"
         const val EXTRA_LOCATION_URL = "location_url"
         const val EXTRA_SUB_ID = "sub_id"
+        /** 이번이 '다시 받기' 인가 — 무한 반복을 막는 유일한 장치. */
+        const val EXTRA_RETRY = "is_retry"
+        /** 다시 받기가 성공하면 지울 '깨졌던 문자' 주소. */
+        const val EXTRA_BAD_URI = "bad_uri"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }
