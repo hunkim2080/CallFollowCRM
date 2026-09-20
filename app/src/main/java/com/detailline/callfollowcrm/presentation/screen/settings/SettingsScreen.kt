@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CheckCircle
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import android.Manifest
 import android.content.pm.PackageManager
@@ -421,7 +423,7 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
                         "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
                     LockRow(Icons.Filled.Payments, AppTheme.colors.doneBg, AppTheme.colors.done, "협업 기록",
-                        "협업 사장님별 · 월별로 얼마나 함께했나 (기록·세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
+                        "협업 사장님별 · 월별 기록 (세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
                 }
                 SettingsGroup("내 답장 재료") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
@@ -445,7 +447,7 @@ fun SettingsScreen(
                             "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
                     }
                     LockRow(Icons.Filled.Block, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "스팸 차단 번호",
-                        "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
+                        "스팸 등록한 번호 · 여기서 풀기", onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "사생활 번호",
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                 }
@@ -455,28 +457,34 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
                         navLabel) { subPage = "nav" }
                     LockRow(Icons.Filled.DateRange, TossBlueSoft, TossBlue, "구글 캘린더 연동",
-                        "시공·A/S 일정을 구글 캘린더에 · 위젯·공유·폰교체 백업") { subPage = "mirror" }
+                        "시공·A/S 일정을 구글 캘린더에") { subPage = "mirror" }
                     LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
-                        "PC 브라우저서 시공 사진 보기·블로그용 다운 · QR 로그인 · 보기 전용") { subPage = "web" }
+                        "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
                 }
                 SettingsGroup("도움말") {
                     // 앱 소개 다시 보기 제거(2026-08-31 사장님 "더보기 정리").
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고. Crashlytics(자동) 의 짝.
-                    // 계정 삭제 — **앱 안 경로**. (2026-09-17 플레이 정책 점검)
-                    //   구글: 앱에서 계정을 만들 수 있으면 "in-app path to delete their app accounts
-                    //   and associated data" + 웹 링크 **둘 다** 있어야 한다.
-                    //   전에는 처리방침에 "앱 내 설정에서 삭제·탈퇴 가능" 이라고 적어놓고 **기능이 없었다.**
-                    LockRow(Icons.Filled.Delete, AppTheme.colors.unpaidBg, Color(0xFFD32F4E), "계정 삭제",
-                        "계정과 서버에 저장된 내 데이터를 지워요", onClick = { showDeleteAccount = true })
                     LockRow(Icons.Filled.BugReport, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
                 }
 
-                // '비즈니스' 배지를 유료로 오해해 핵심 기능을 안 누르던 것 → 베타 무료 안내. 리스트 중간이 아니라 맨 아래 푸터로. (2026-08-02 정리)
-                Text(
+                // 배지를 숨기는 동안엔 이 안내도 설명할 대상이 없다. (2026-09-20 사장님)
+                if (SHOW_TIER_BADGES) Text(
                     "'비즈니스'·'프로' 표시가 있어도 베타 기간엔 모두 무료로 열려 있어요.",
                     fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+                )
+                // 계정 삭제 — '도움말' 안에 있었다. **지우는 일은 도움말이 아니다.**
+                //   맨 아래 조용한 한 줄로 내린다(기능·경로 그대로). (2026-09-20 사장님)
+                //   ⚠️ 없애면 안 된다 — 구글 정책상 **앱 안에 계정 삭제 경로**가 있어야 한다. (2026-09-17)
+                Text(
+                    "계정 삭제",
+                    fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showDeleteAccount = true }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 )
                 AppFooter()
                 Spacer(Modifier.height(16.dp))
@@ -3814,7 +3822,12 @@ private fun DataBackupSection(
             horizontalArrangement = Arrangement.spacedBy(9.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Text(if (recent) "✅" else "⚠️", fontSize = 15.sp)
+            // 이모지는 폰마다 그림이 다르다 → 앱이 그리는 아이콘. (2026-09-20 사장님)
+            Icon(
+                if (recent) Icons.Filled.CheckCircle else Icons.Filled.Warning, null,
+                tint = if (recent) Color(0xFF0E9F56) else Color(0xFFB8780A),
+                modifier = Modifier.size(17.dp)
+            )
             Text(
                 // 2026-09-18 — 하루 한 번 자동으로 올라간다. 눌러야만 되던 시절 문구를 고침.
                 if (recent) "하루 한 번 알아서 서버에 저장하고 있어요. 폰을 바꾸거나 앱을 지워도 되살릴 수 있어요."
@@ -3846,7 +3859,7 @@ private fun DataBackupSection(
             ) {
                 if (busy) androidx.compose.material3.CircularProgressIndicator(
                     color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
-                ) else Text("☁️  서버에 백업하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                ) else Text("서버에 백업하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
             Row(
                 Modifier.fillMaxWidth(),
@@ -3869,7 +3882,7 @@ private fun DataBackupSection(
             )
             // 카테고리·태그만 복원 — 일당 등 카테고리가 사라졌을 때, 다른 데이터는 안 되돌리고 태그만. (2026-09-01 사장님)
             Text(
-                "🏷️ 카테고리·태그만 복원 (일당 등)",
+                "카테고리·태그만 복원 (일당 등)",
                 fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -3881,8 +3894,17 @@ private fun DataBackupSection(
 }
 
 /**
+ * **베타 동안 [비즈니스]·[프로] 배지를 숨긴다.** (2026-09-20 사장님 "응 숨기자")
+ *   지금은 전부 무료라 배지에 **뜻이 없는데** 줄에서 제일 진한 색이었다. 그래서 사장님이
+ *   유료인 줄 알고 **핵심 기능을 안 누르신 적**이 있다(아래 LockRow 옛 주석).
+ *   요금을 받기 시작하면 이 값만 true 로 되돌리면 배지가 그대로 살아난다.
+ */
+private const val SHOW_TIER_BADGES = false
+
+/**
  * 프로토 .lockcard — 아이콘 박스(42·radius13) + 제목·부제 + 꺾쇠/티어태그.
  *   tier: null=꺾쇠 / "프로"(파랑) / "비즈니스"(보라). locked=true → opacity .6.
+ *   ⚠️ 배지 표시 여부는 [SHOW_TIER_BADGES].
  */
 @Composable
 private fun LockRow(
@@ -3921,9 +3943,11 @@ private fun LockRow(
                 Text(subtitle, fontSize = 12.sp, color = TossTextTertiary)
             }
         }
-        when (tier) {
-            "프로" -> TierTag("프로", TossBlue)
-            "비즈니스" -> TierTag("비즈니스", AppTheme.colors.category)
+        when {
+            !SHOW_TIER_BADGES ->
+                Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+            tier == "프로" -> TierTag("프로", TossBlue)
+            tier == "비즈니스" -> TierTag("비즈니스", AppTheme.colors.category)
             else -> Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
         }
     }
@@ -4049,14 +4073,14 @@ private fun SetupCheckCard(
             Modifier.fillMaxWidth()
                 .pressScale(checkInteraction)
                 .tossCardShadow(RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.doneBg)
+                // 다 끝난 안내는 **조용해야 한다.** 전엔 초록이라, 할 일이 없는 줄이 화면 위쪽에서
+                //   제일 밝았다. 누르면 지금처럼 다시 펼쳐진다. (2026-09-20 사장님)
+                .clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surface)
                 .clickable(interactionSource = checkInteraction, indication = null) { collapsed = false }.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CheckDot(true)
-            Spacer(Modifier.width(8.dp))
             Text("시작 준비 다 됐어요 ($doneN/$total)", fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                color = TossSuccess, modifier = Modifier.weight(1f))
+                color = TossTextTertiary, modifier = Modifier.weight(1f))
             Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
         }
         return
