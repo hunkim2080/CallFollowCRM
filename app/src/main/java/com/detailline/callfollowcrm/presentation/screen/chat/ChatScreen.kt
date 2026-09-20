@@ -832,13 +832,11 @@ fun ChatScreen(
                     // key 안 줌 — SMS/MMS id 가 별도 테이블, 통화 id 도 별도라 충돌 위험. 인덱스 기반 렌더.
                     //   프로토 chat-date — 날짜 경계마다 회색 알약 구분선 삽입.
                     itemsIndexed(renderRows) { index, ti ->
-                        // 검색 중 '현재 매칭' 항목 = 노란 하이라이트(카톡식). 모든 항목이 fillMaxWidth 라 감싸도 정렬 유지.
+                        // 검색 중 '지금 보고 있는 것'. **줄 전체를 칠하지 않는다** — 어디가 걸린 건지 글자로는
+                        //   안 보여서 어색했다(2026-09-20 사장님). 형광펜은 말풍선 안 글자에 칠한다.
                         val isCurrentMatch = searchMode && searchMatches.getOrNull(currentMatchIdx) == index
-                        Box(
-                            Modifier.fillMaxWidth().then(
-                                if (isCurrentMatch) Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF3C4)) else Modifier
-                            )
-                        ) {
+                        val hlQuery = if (searchMode) searchQuery.trim() else ""
+                        Box(Modifier.fillMaxWidth()) {
                         when (ti) {
                             is ChatTimelineItem.Msg -> {
                                 val msg = ti.message
@@ -846,6 +844,8 @@ fun ChatScreen(
                                     body = msg.body,
                                     timeMs = msg.dateMs,
                                     sent = msg.sent,
+                                    highlight = hlQuery,
+                                    isCurrentMatch = isCurrentMatch,
                                     imageUris = msg.imageUris,
                                     videoUris = msg.videoUris,
                                     isStarred = starredKeys.contains(msg.dateMs to msg.sent),
@@ -1043,20 +1043,6 @@ fun ChatScreen(
             // 원칙 발견 카드 제거 (2026-08-14 사장님: "이상한 타이밍에만 떠서 차라리 없는 게 낫다").
             //   PrincipleDiscoveryCard 정의·ViewModel 로직은 보존(재활성 대비).
 
-            // ⊕ "다음 답변 AI 추천" — 생성 트리거 후 결과 도착 시 입력칸에 1개 삽입(커서+키보드). 재생성 없음. (2026-08-14 사장님)
-            var awaitingManualReply by remember { mutableStateOf(false) }
-            LaunchedEffect(suggestion, suggestionsLoading) {
-                if (awaitingManualReply && !suggestionsLoading) {
-                    val first = suggestion?.suggestions?.firstOrNull { it.text.isNotBlank() }
-                    awaitingManualReply = false
-                    if (first != null) {
-                        setInput(first.text)
-                        runCatching { composerFocusRequester.requestFocus() }
-                    } else {
-                        android.widget.Toast.makeText(context, "답변을 못 만들었어요", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
             // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
             // 💰 고객이 "입금했다"고 한 문자 — 잔금이 남아 있을 때만 물어본다. (2026-09-17 사장님)
             //   실측: 받은 문자 1,085통 중 50통이 이런 문자였다(오탐 0). 지금은 사장님이 그걸 보고
@@ -1149,11 +1135,6 @@ fun ChatScreen(
                 // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님 · 2026-09-16 자리 이동)
                 onSaveAsTemplate = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
                 focusRequester = composerFocusRequester,
-                onGenerateReply = {
-                    awaitingManualReply = true
-                    viewModel.regenerateSuggestions()
-                    android.widget.Toast.makeText(context, "✨ 답변 만드는 중…", android.widget.Toast.LENGTH_SHORT).show()
-                }
             )
         }
     }
@@ -3079,7 +3060,11 @@ private fun ChatBubble(
     onImageTap: (List<android.net.Uri>, Int) -> Unit,
     onLongPress: () -> Unit,
     videoUris: List<android.net.Uri> = emptyList(),
-    onTapEntity: (tag: String, value: String) -> Unit = { _, _ -> }
+    onTapEntity: (tag: String, value: String) -> Unit = { _, _ -> },
+    /** 대화 검색 중이면 이 글자에 형광펜. 빈 글자면 아무것도 안 칠한다. */
+    highlight: String = "",
+    /** 지금 ▲▼ 로 보고 있는 그 건인지 — 진한 형광펜. */
+    isCurrentMatch: Boolean = false
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // 프로토 .brow/.bubble — 시각(btime)은 말풍선 밖(옆 아래), 별표는 바깥쪽.
@@ -3106,7 +3091,9 @@ private fun ChatBubble(
     val uriHandler = LocalUriHandler.current
     val firstUrl = remember(body) { firstUrlIn(body) }
     val linkColor = if (sent) Color.White else TossBlue
-    val styledBody = remember(body, sent, timeMs) { linkifyBody(body, linkColor, timeMs) }
+    val styledBody = remember(body, sent, timeMs, highlight, isCurrentMatch) {
+        highlightBody(linkifyBody(body, linkColor, timeMs), highlight, isCurrentMatch)
+    }
     // 본문 텍스트 탭 지점 → annotation(전화/날짜/URL) 조회용. 롱프레스·pressScale 은 그대로 둔다.
     var bubbleLayout by remember(styledBody) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
     var lastTextDown by remember(styledBody) { mutableStateOf<Offset?>(null) }
@@ -3293,6 +3280,40 @@ private fun firstUrlIn(body: String): String? {
  * 본문 속 URL·전화번호·날짜를 밑줄+색으로 표시하고 위치별 annotation(tag=URL/PHONE/DATE)을 단 AnnotatedString.
  *   탭 동작은 말풍선 onClick 이 탭 지점 → annotation 조회로 처리. baseMs=문자 시각(상대 날짜 기준). (2026-08-04 사장님)
  */
+/**
+ * 찾은 글자에 **형광펜**. (2026-09-20 사장님 "키워드에 형광펜이 칠해져야 익숙할것같은데")
+ *
+ * 브라우저에서 글자 찾을 때와 같은 방식 —
+ *   찾은 글자는 전부 **연한 노랑**, 지금 ▲▼ 로 보고 있는 것만 **진한 노랑**.
+ * 내가 보낸 말풍선은 파란 바탕에 흰 글씨라, 형광펜 자리만 **글자색을 검게** 바꿔야 읽힌다.
+ */
+private fun highlightBody(src: AnnotatedString, query: String, current: Boolean): AnnotatedString {
+    val q = query.trim()
+    if (q.isEmpty()) return src
+    val text = src.text
+    val hits = ArrayList<Int>()
+    var i = text.indexOf(q, ignoreCase = true)
+    while (i >= 0) {
+        hits.add(i)
+        i = text.indexOf(q, i + q.length, ignoreCase = true)
+    }
+    if (hits.isEmpty()) return src
+    val pen = if (current) Color(0xFFFFD54A) else Color(0xFFFFF0B3)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(src)   // 링크·전화·날짜 표시를 그대로 안고 간다
+        for (start in hits) {
+            addStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    background = pen,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.Bold
+                ),
+                start, start + q.length
+            )
+        }
+    }
+}
+
 private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): AnnotatedString {
     data class Span(val start: Int, val end: Int, val tag: String, val value: String)
     val spans = ArrayList<Span>()
@@ -3831,7 +3852,6 @@ private fun ComposerActionMenu(
     onEstimate: () -> Unit,
     onSchedule: () -> Unit,
     onTemplate: () -> Unit,
-    onGenerateReply: () -> Unit,
     /**
      * 입력창에 쓴 글을 문구로 저장. **글이 있을 때만** 보인다. (2026-09-16 사장님 개편)
      *   전엔 [문구 넣기] 시트 맨 위에 있었는데, 거기는 '꺼내 쓰는 방'이라 자리가 안 맞았다.
@@ -3901,7 +3921,10 @@ private fun ComposerActionMenu(
                         ActionMenuRow(Icons.Default.Description, "견적 작성") { open = false; onEstimate() }
                         ActionMenuRow(Icons.Default.DateRange, "내 일정 확인") { open = false; onSchedule() }
                         ActionMenuRow(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { open = false; onTemplate() }
-                        ActionMenuRow(Icons.Default.AutoAwesome, "다음 답변 AI 추천") { open = false; onGenerateReply() }
+                        // ❌ "다음 답변 AI 추천" 뺐다. (2026-09-20 사장님 "+ 쪽은 버리자")
+                        //   AI 추천을 누르는 자리가 두 군데라 역할이 안 갈렸다. 게다가 ⊕ 쪽도 속으로는
+                        //   **3개를 만들고 2개를 버려** 비용은 같은데 쓰는 건 하나였다.
+                        //   입력창 바로 위 띠 하나로 남긴다 — 손가락에도 더 가깝다.
                         if (canSaveText) {
                             ActionMenuRow(Icons.Default.Add, "이 글을 문구로 저장") { open = false; onSaveText() }
                         }
@@ -4036,7 +4059,6 @@ private fun Composer(
     onOpenEstimate: () -> Unit = {},
     onOpenSchedule: () -> Unit = {},
     onOpenTemplate: () -> Unit = {},
-    onGenerateReply: () -> Unit = {},   // ⊕ "다음 답변 AI 추천" — 1개 만들어 입력칸에. (2026-08-14)
     /** ⊕ "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 메뉴에 뜬다. (2026-09-16 사장님 개편) */
     onSaveAsTemplate: () -> Unit = {},
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null
@@ -4113,7 +4135,6 @@ private fun Composer(
                     onEstimate = onOpenEstimate,
                     onSchedule = onOpenSchedule,
                     onTemplate = onOpenTemplate,
-                    onGenerateReply = onGenerateReply,
                     canSaveText = input.isNotBlank() || attachments.isNotEmpty(),
                     onSaveText = onSaveAsTemplate
                 )
@@ -5159,7 +5180,13 @@ private fun AddressRegisterSheet(
 
             // ── 동 / 호수 ──
             Spacer(Modifier.height(16.dp))
-            Text("동 · 호수", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            // ⚠️ 상가·빌딩은 동·호수가 없다. 빈 칸 둘이 나란히 있으면 **필수처럼 보여서 멈춘다.**
+            //   (2026-09-20 사장님, 마포 어울마당로 실제 사례) 등록은 원래 빈 칸으로도 잘 됐다 — **말을 안 해준 것뿐.**
+            //   고객 상세·일정 추가 화면은 이미 "동·호수 (선택)" 이라 적혀 있다. 여기만 빠져 있었다.
+            Text(
+                "동 · 호수 — 없으면 비워두세요",
+                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+            )
             if (parts.dong != null || parts.ho != null) {
                 Spacer(Modifier.height(2.dp))
                 Text("고객이 문자에 적어둔 걸 채웠어요", fontSize = 11.sp, color = TossSuccess)
@@ -5168,7 +5195,8 @@ private fun AddressRegisterSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = dong, onValueChange = { dong = it.filter { c -> c.isDigit() }.take(4) },
-                    placeholder = { Text("101", color = TossTextTertiary) },
+                    // "101" 은 예시인지 입력값인지 헷갈린다 → 무슨 칸인지 + 비워도 된다는 말로. (2026-09-20)
+                    placeholder = { Text("동 (없으면 생략)", color = TossTextTertiary) },
                     suffix = { Text("동", color = TossTextSecondary) },
                     singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -5180,7 +5208,7 @@ private fun AddressRegisterSheet(
                 Spacer(Modifier.width(10.dp))
                 OutlinedTextField(
                     value = ho, onValueChange = { ho = it.filter { c -> c.isDigit() }.take(5) },
-                    placeholder = { Text("1502", color = TossTextTertiary) },
+                    placeholder = { Text("호 (없으면 생략)", color = TossTextTertiary) },
                     suffix = { Text("호", color = TossTextSecondary) },
                     singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
