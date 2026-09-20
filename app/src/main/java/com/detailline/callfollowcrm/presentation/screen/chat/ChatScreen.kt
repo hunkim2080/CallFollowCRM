@@ -2206,39 +2206,67 @@ private fun CallSegment(
     // 프로토 08352d6e: 통화카드 탭 → 아래에서 통화상세 '시트'가 올라옴(인라인 펼침 X). (2026-08-15 사장님 지적 재수정)
     var sheetOpen by remember(record.id, summary?.id) { mutableStateOf(false) }
     // 프로토 .chat-call — 전체폭 teal 카드 + cc-ch(아이콘·유형·시각) + 에이닷 요약 버튼.
+    // 통화 카드 = **한 줄**. 목록에서 알아야 할 건 "언제 몇 분 통화했나" 하나다. (2026-09-20 사장님)
+    //   태그는 **그대로 붙여두되** 아주 연한 딱지(흰 면 + 테두리 한 줄)로 — 눌러야 할 것처럼 보이지 않게.
+    //   프로토 artifact/UVxND9uRVutqBnrsVBwjTa 의 '나' 폰 그대로. 높이 약 118 -> 약 68.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .tossCardShadow(RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isMissed) Color(0xFFFCF3F1) else tealBg)
-            .border(1.dp, if (isMissed) Color(0xFFF0D6D1) else tealLine, RoundedCornerShape(14.dp))
+            .padding(vertical = 5.dp)
+            .tossCardShadow(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isMissed) Color(0xFFFCF3F1) else AppTheme.colors.surface)
+            .then(if (isMissed) Modifier.border(1.dp, Color(0xFFF0D6D1), RoundedCornerShape(12.dp)) else Modifier)
             .then(if (hasDetail) Modifier.clickable { sheetOpen = true } else Modifier)
-            .padding(horizontal = 12.dp, vertical = 11.dp)
+            .padding(horizontal = 11.dp, vertical = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // 아이콘도 한 단계 작게 — 꽉 찬 색 대신 옅은 면 + 색 글자. 카드가 조용해진다.
             Box(
-                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(accent),
+                modifier = Modifier.size(26.dp).clip(RoundedCornerShape(8.dp))
+                    .background(if (isMissed) Color(0xFFF8E7E4) else tealChip),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Phone, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                Icon(Icons.Default.Phone, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
             }
             Spacer(Modifier.width(9.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    buildString { append(label); if (durLabel != null) { append(" · "); append(durLabel) } },
-                    fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = if (isMissed) coral else tealDark
-                )
-                Text(
-                    DateTimeUtils.formatShort(record.endedAt) + when { summary != null -> " · AI 요약됨"; isMissed -> " · 놓친 전화"; else -> " · 문자하다 통화함" },
-                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
-                )
+                // 종류·길이·시각을 **한 줄에**. 종류와 길이는 진하게, 시각은 옅게.
+                //   "AI 요약됨" 은 뺐다 — 눌러보면 아는 것이라 자리만 먹었다. (2026-09-20 사장님)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        buildString { append(label); if (durLabel != null) { append(" "); append(durLabel) } },
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                        color = if (isMissed) coral else tealDark, maxLines = 1
+                    )
+                    Text(
+                        " · " + DateTimeUtils.formatShort(record.endedAt),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textSub, maxLines = 1
+                    )
+                }
+                // 태그(부위·문제·일정) — 제목 바로 아래. 아주 연한 딱지(흰 면 + 테두리 한 줄).
+                //   사장님이 세 단계(진한/연한/아주 연한) 중 **아주 연한** 것을 고르심. (2026-09-20)
+                if (tags.isNotEmpty()) {
+                    Spacer(Modifier.height(5.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        tags.forEach { t ->
+                            Text(
+                                t, color = AppTheme.colors.textSub, fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                    .background(AppTheme.colors.surface)
+                                    .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                            )
+                        }
+                    }
+                }
             }
             if (hasDetail) {
                 // 프로토 .chev = '›' (새 시트 열림 신호). 인라인 펼침 아님.
-                Text("›", color = Color(0xFFB6C9C9), fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 4.dp))
+                Text("›", color = AppTheme.colors.textHint, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 6.dp))
             } else if (isMissed) {
                 // 프로토: 부재중 = '문자하기' 코랄 pill (녹음·요약 없음 → 놓친 전화에 바로 문자). (2026-08-15)
                 Box(
@@ -2250,16 +2278,7 @@ private fun CallSegment(
                 }
             }
         }
-        // 태그(평수·부위·일정) — 프로토 .callchip .tags: 카드에 항상 표시(이정표). (2026-08-15)
-        if (tags.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                tags.forEach { t ->
-                    Text(t, color = teal, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(tealChip).padding(horizontal = 9.dp, vertical = 3.dp))
-                }
-            }
-        }
+        // (태그는 위 제목 아래로 옮겼다 — 아이콘 옆 글자 블록 안. 2026-09-20)
         // 탭하면 아래에서 통화상세 '시트'가 올라옴 — 프로토 08352d6e .sheet(bottom sheet). (2026-08-15 재수정)
         if (sheetOpen && hasDetail) {
             ModalBottomSheet(
