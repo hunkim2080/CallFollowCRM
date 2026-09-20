@@ -2533,16 +2533,9 @@ private fun CallSegment(
                 Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp))
             }
         }
-        // 프로토(08352d6e): 후속문자 = 큰 버튼 → 작은 링크(플레이어 뒤). 통화 요약 있을 때만.
-        summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
-            Box(
-                Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(8.dp))
-                    .clickable { sheetOpen = false; onUseAsDraft(draft) }.padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("이 통화로 후속 문자 쓰기", color = teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        // 전문 아래에 있던 작은 [이 통화로 후속 문자 쓰기] 링크는 뻐다. (2026-09-20 사장님)
+        //   위에 같은 말의 큰 버튼이 이미 있어 **한 시트에 같은 버튼이 두 번**이었다.
+        //   위쪽은 요약 바로 다음(스크롤 없이 보임) — 그게 주식이다.
         }
         }
         }
