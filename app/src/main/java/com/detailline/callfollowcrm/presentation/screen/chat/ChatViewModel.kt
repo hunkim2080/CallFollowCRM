@@ -1517,25 +1517,29 @@ class ChatViewModel(
      * 흐름: PrepareContext 구성 → POST /prepare-reply → 2초 간격 폴링 (최대 10초) → READY 면 표시.
      * 컨텍스트 구성은 SmsReceiver 와 같은 로직 (최근 20건 + customer hint).
      */
-    fun regenerateSuggestions(auto: Boolean = false) {
+    /**
+     * @return **시작했으면 true.** 안 시작했으면 false — 부르는 쪽이 "만드는 중" 같은 말을 하면 안 된다.
+     *   (2026-09-20 사장님 "다른 대답을 하는 느낌": 꺼져 있는데 "만드는 중" 토스트가 같이 떴다)
+     */
+    fun regenerateSuggestions(auto: Boolean = false): Boolean {
         // 'AI 답변 준비' OFF 또는 '고객 아님' 번호 — 자동 재생성(stale)·↻ 모두 안 함. (2026-07-16/18 사장님)
         if (!aiReplyPrepEnabled) {
             _suggestionsLoading.value = false
             if (!auto) _toast.value = if (container.preferences.isNonCustomer(phoneNumber))
                 "'고객 아님'으로 표시된 번호예요 — 추천은 안 만들어요"
             else "AI 답변 준비를 꺼두셨어요 — 더보기 → 설정에서 켤 수 있어요"
-            return
+            return false
         }
         // 통화로 끝난 대화 — 답할 문자가 없으니 준비하지 않고 안내만. (2026-06-17 사장님)
         if (lastActivityIsCall.value) {
             if (!auto) _toast.value = "통화로 끝난 대화예요 — 고객이 문자를 보내면 추천 답변을 준비할게요"
-            return
+            return false
         }
         val latestReceived = _messages.value.firstOrNull { !it.sent } ?: run {
             if (!auto) _toast.value = "고객 마지막 메시지가 없어요"
-            return
+            return false
         }
-        if (_suggestionsLoading.value) return
+        if (_suggestionsLoading.value) return true   // 이미 만드는 중 — "만드는 중" 은 참이다
         _suggestionsLoading.value = true
         _suggestionsFailed.value = false   // 새 시도 시작 — 실패 표시 초기화
         // 🔴 화면을 나가도 **만들던 건 끝까지 만든다.** (2026-09-18 사장님:
@@ -1638,6 +1642,7 @@ class ChatViewModel(
                 _suggestionsLoading.value = false
             }
         }
+        return true
     }
 
     /**
