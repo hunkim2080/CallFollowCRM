@@ -13,6 +13,8 @@ object DateTimeUtils {
     private val dateOnly by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
     private val koreanDate by lazy { SimpleDateFormat("yyyy년 M월 d일 (E)", Locale.KOREAN) }
     private val monthDayShort by lazy { SimpleDateFormat("M/d", Locale.KOREAN) }
+    private val shortDate by lazy { SimpleDateFormat("M/d(E)", Locale.KOREAN) }
+    private val shortDateWithYear by lazy { SimpleDateFormat("yyyy.M.d(E)", Locale.KOREAN) }
     private val monthHeader by lazy { SimpleDateFormat("yyyy년 M월", Locale.KOREAN) }
 
     /**
@@ -32,6 +34,19 @@ object DateTimeUtils {
     fun formatFull(epoch: Long): String = fullFormat.format(Date(epoch))
     fun formatDateOnly(epoch: Long): String = dateOnly.format(Date(epoch))
     fun formatKoreanDate(epoch: Long): String = koreanDate.format(Date(epoch))
+
+    /**
+     * 짧은 날짜 — 올해면 `"9/16(수)"`, 다른 해면 `"2027.1.5(화)"`. (2026-09-20 사장님 "날짜는 줄이는게 좋겠다")
+     *   "2026년 9월 16일 (수)" 는 한 줄을 다 먹는데, 대부분 올해 일이라 연도는 정보가 아니다.
+     *   내년 일이면 연도를 붙여야 **내년인 줄 안다** — 그래서 올해만 줄인다(formatShort 와 같은 규칙).
+     */
+    fun formatShortKoreanDate(epoch: Long): String {
+        val cal = Calendar.getInstance()
+        val thisYear = cal.get(Calendar.YEAR)
+        cal.timeInMillis = epoch
+        return if (cal.get(Calendar.YEAR) == thisYear) shortDate.format(Date(epoch))
+        else shortDateWithYear.format(Date(epoch))
+    }
 
     /** "9/17" 같은 짧은 날짜 — 기간 꼬리표에서 끝나는 날 표시용. */
     fun formatMonthDay(epoch: Long): String = monthDayShort.format(Date(epoch))

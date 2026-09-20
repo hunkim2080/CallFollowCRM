@@ -1,5 +1,12 @@
 package com.detailline.callfollowcrm.presentation.screen.customer
 
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Add
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.util.copyToClip
@@ -340,7 +347,11 @@ fun CustomerDetailScreen(
             // 1. 프로토 cd-card 헤더 — heat 점 + 이름(크게) + [변경] / 전화번호 + [분류 ›] + 📞.
             val categories by viewModel.categories.collectAsState()
             val currentCat = categories.firstOrNull { it.id == c.categoryId }
-            val headerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
+            // 이름을 모르는 손님이면 번호가 이름 자리에 들어가는데, 그 자리가 좁아 "010-484…" 로 잘리고
+            //   **바로 아랫줄에 같은 번호가 또** 나왔다. → 이름 없으면 제목에 번호를 온전히, 아랫줄은 뺀다.
+            //   (2026-09-20 사장님)
+            val hasName = !c.name.isNullOrBlank()
+            val headerName = if (hasName) c.name!! else PhoneNumberFormatter.format(c.phoneNumber)
             val headerCtx = androidx.compose.ui.platform.LocalContext.current
             Column(
                 Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
@@ -348,33 +359,42 @@ fun CustomerDetailScreen(
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     // 고객온도 점 제거 (2026-06-14 사장님: 온도 더 안 씀 — 통화 후 카드에서 뺀 것과 일관).
                     Text(
-                        headerName, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                        headerName, fontSize = if (hasName) 22.sp else 20.sp,
+                        fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                         letterSpacing = (-0.6).sp, maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        // 남는 자리를 **이름 칸이 다 먹는다**. 전엔 뒤쪽 Spacer 와 자리를 나눠 갖느라
+                        //   번호가 "010-484…" 로 잘렸다. (2026-09-20 사장님)
+                        modifier = Modifier.weight(1f)
                     )
                     Spacer(Modifier.width(8.dp))
                     // 상태 딱지(예약/잔금미수/완료 등) — 고객관리와 같은 계산, 어디서나 따라다니게. (2026-09-03 사장님)
                     com.detailline.callfollowcrm.presentation.component.CustomerStatusTag(
                         com.detailline.callfollowcrm.presentation.component.customerStatusOf(c)
                     )
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    // 버튼은 둥근 네모. 알약은 '고르는 것'(칩)에만. (2026-09-20 사장님)
                     androidx.compose.foundation.layout.Row(
-                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                        Modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
                             .clickable { nameDialogOpen = true }.padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
                         androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossTextTertiary, modifier = Modifier.size(12.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("변경", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                        Text(if (hasName) "변경" else "이름 넣기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                     }
                 }
                 Spacer(Modifier.height(10.dp))
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text(PhoneNumberFormatter.format(c.phoneNumber), fontSize = 14.sp, color = TossTextSecondary)
+                    // 제목이 이미 번호면 여기서 또 보여주지 않는다 (같은 번호 두 번).
+                    Text(
+                        if (hasName) PhoneNumberFormatter.format(c.phoneNumber)
+                        else if (currentCat == null) "분류 없음" else "",
+                        fontSize = 14.sp, color = if (hasName) TossTextSecondary else TossTextTertiary
+                    )
                     Spacer(Modifier.weight(1f))
                     androidx.compose.foundation.layout.Box(
-                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                        Modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
                             .clickable { categoryDialogOpen = true }.padding(horizontal = 13.dp, vertical = 6.dp)
                     ) {
                         Text(
@@ -384,7 +404,7 @@ fun CustomerDetailScreen(
                     }
                     Spacer(Modifier.width(8.dp))
                     androidx.compose.foundation.layout.Box(
-                        Modifier.size(34.dp).clip(CircleShape).background(TossGrayBg)
+                        Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
                             .clickable { dialPhone(headerCtx, c.phoneNumber) },
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
@@ -490,15 +510,15 @@ fun CustomerDetailScreen(
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().clickable { runCatching { custMemoFocus.requestFocus() } }
                     ) {
-                        Text("👤", fontSize = 13.sp)
-                        Spacer(Modifier.width(6.dp))
+                        CdTitleIcon(Icons.Filled.Person, "gray")
+                        Spacer(Modifier.width(8.dp))
                         Text("이 손님 메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
                         Spacer(Modifier.weight(1f))
                         val savedMemo = c.memo.orEmpty()
                         val (st, stColor) = when {
                             shouldSaveMemo(memoDirty, memoInput, savedMemo) -> "저장 중…" to TossTextTertiary
-                            memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
-                            else -> "자동으로 저장돼요" to TossTextTertiary
+                            memoInput.isNotBlank() -> "저장됨" to TossSuccess
+                            else -> "자동 저장" to TossTextTertiary
                         }
                         Text(st, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = stColor)
                     }
@@ -531,8 +551,8 @@ fun CustomerDetailScreen(
                         .padding(17.dp)
                 ) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("📍", fontSize = 13.sp)
-                        Spacer(Modifier.width(6.dp))
+                        CdTitleIcon(Icons.Filled.Place, "blue")
+                        Spacer(Modifier.width(8.dp))
                         Text(
                             "현장 주소" + (if (c.scheduledWorkDate != null) " · 예약 고객" else ""),
                             fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
@@ -606,7 +626,8 @@ fun CustomerDetailScreen(
             } else {
                 TossCard(onClick = { showAddressDialog = true }) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("📍", fontSize = 22.sp)
+                        // 전엔 새빨간 압정 이모지(22sp)가 카드에서 제일 튀었다 — 담긴 건 "주소 없음" 인데.
+                        CdTitleIcon(Icons.Filled.Place, "blue")
                         Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("현장 주소", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
@@ -692,7 +713,14 @@ fun CustomerDetailScreen(
                             .clickable { showCollabShare.value = true }.padding(vertical = 13.dp),
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
-                        Text("🤝 협업 사장님 부르기", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            androidx.compose.material3.Icon(
+                                Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(Modifier.width(7.dp))
+                            Text("협업 사장님 부르기", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText)
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     if (showCollabShare.value) {
@@ -703,7 +731,7 @@ fun CustomerDetailScreen(
                     }
                     // 여기선 협업 중인 사장님 진행 표시.
                     if (collabPartners.isNotEmpty()) {
-                        Text("🤝 협업 중", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                        Text("협업 중", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                             modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
                         collabPartners.forEach { (partnerPhone, partnerName, shareId) ->
                             CollabAfterCard(
@@ -957,8 +985,8 @@ fun CustomerDetailScreen(
                 TossCard {
                     Column {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("💰", fontSize = 13.sp)
-                            Spacer(Modifier.width(6.dp))
+                            CdTitleIcon(Icons.Filled.Payments, "amber")
+                            Spacer(Modifier.width(8.dp))
                             Text("일정 · 정산", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                         }
                         Spacer(Modifier.height(10.dp))
@@ -966,55 +994,53 @@ fun CustomerDetailScreen(
                             CdKv(
                                 "시공 예약",
                                 // 여러 날 시공이면 기간까지 — 전엔 시작 날짜만 보여 "3일 중 1일차"인 걸 알 수 없었다. (2026-09-15 사장님)
+                                //   날짜는 짧게("9/16(수)") — 올해 일이면 연도는 정보가 아니다. (2026-09-20 사장님)
                                 if (scheduled != null)
-                                    DateTimeUtils.formatKoreanDate(scheduled) +
+                                    DateTimeUtils.formatShortKoreanDate(scheduled) +
                                         (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") +
                                         DateTimeUtils.workPeriodSuffix(scheduled, c.scheduledWorkDays)
                                 else "아직 예약 안 됨 · 눌러서 설정",
-                                valueColor = if (scheduled != null) TossBlue else TossTextTertiary,
+                                valueColor = if (scheduled != null) AppTheme.colors.text else TossTextTertiary,
+                                trailing = if (scheduled != null) Icons.Default.Edit else Icons.Default.Add,
                                 onClick = { datePickerOpen = true }
                             )
                             // A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
                             CdKv(
-                                "🔧 A/S 예약",
+                                "A/S 예약",
                                 if (c.asScheduledDate != null)
-                                    DateTimeUtils.formatKoreanDate(c.asScheduledDate!!) + (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료"
+                                    DateTimeUtils.formatShortKoreanDate(c.asScheduledDate!!) + (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료"
                                 else "아직 없음 · 눌러서 잡기",
-                                valueColor = if (c.asScheduledDate != null) Color(0xFFF5920B) else TossTextTertiary,
+                                valueColor = if (c.asScheduledDate != null) AppTheme.colors.text else TossTextTertiary,
+                                trailing = if (c.asScheduledDate != null) Icons.Default.Edit else Icons.Default.Add,
                                 onClick = { asPickerOpen = true }
                             )
                             if (hasAmount) {
-                                Spacer(Modifier.height(12.dp))
-                                // 총금액 행 — 있으면 금액+[수정], 없으면 [총금액 입력]. (추가금/정정 대비 항상 수정 가능)
-                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    if (totalWon > 0L)
-                                        Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                                    else
-                                        Text("총금액 미입력", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
-                                    Spacer(Modifier.weight(1f))
-                                    MoneyEditPill(if (totalWon > 0L) "금액 수정" else "총금액 입력") { amountEditJobId = editJobId; amountEditField = "total" }
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                // 계약금 행 — 총금액과 별개로 따로 입력/수정 (2026-06-11 사장님: 계약금을 따로 넣어야 함).
-                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    if (depositWon > 0L)
-                                        Text("계약금 ${manwonLabel(depositWon)}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TossTextSecondary)
-                                    else
-                                        Text("계약금 미설정", fontSize = 14.sp, color = TossTextTertiary)
-                                    Spacer(Modifier.weight(1f))
-                                    MoneyEditPill(if (depositWon > 0L) "계약금 수정" else "계약금 입력") { amountEditJobId = editJobId; amountEditField = "deposit" }
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    payStatusLabel(allPaid, depositWon, balanceWon, depPaid),
-                                    fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
+                                // 돈도 예약과 **같은 줄 모양**으로 — 이름 왼쪽 · 값 오른쪽 · 연필은 같은 크기.
+                                //   전엔 금액이 왼쪽에 크게 있고 버튼이 오른쪽이라 두 줄의 끝이 들쭉날쭉했다. (2026-09-20 사장님)
+                                CdKv(
+                                    "총 금액",
+                                    if (totalWon > 0L) manwonLabel(totalWon) else "미입력",
+                                    valueColor = if (totalWon > 0L) AppTheme.colors.text else TossTextTertiary,
+                                    trailing = if (totalWon > 0L) Icons.Default.Edit else Icons.Default.Add,
+                                    onClick = { amountEditJobId = editJobId; amountEditField = "total" }
+                                )
+                                // 계약금 — 총금액과 별개로 따로 입력/수정 (2026-06-11 사장님: 계약금을 따로 넣어야 함).
+                                CdKv(
+                                    "계약금",
+                                    if (depositWon > 0L) manwonLabel(depositWon) + (if (depPaid) " · 받음" else "") else "미설정",
+                                    valueColor = if (depositWon > 0L) AppTheme.colors.text else TossTextTertiary,
+                                    trailing = if (depositWon > 0L) Icons.Default.Edit else Icons.Default.Add,
+                                    onClick = { amountEditJobId = editJobId; amountEditField = "deposit" }
+                                )
+                                CdKv(
+                                    "잔금",
+                                    if (allPaid) "전액 완납" else manwonLabel(balanceWon) + " 남음",
+                                    valueColor = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.text,
+                                    divider = false
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 if (allPaid) {
-                                    TossSecondaryButton(text = "완납 취소", onClick = {
-                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
-                                        else viewModel.setBalancePaid(false)
-                                    })
+                                    // 되돌리는 것(완납 취소·예약 취소)은 맨 아래 한 줄로 모은다 — 아래 CdUndoRow.
                                 } else if (depositWon > 0L && !depPaid) {
                                     TossPrimaryButton(text = "계약금 확인", onClick = {
                                         if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true)
@@ -1039,18 +1065,30 @@ fun CustomerDetailScreen(
                                 }
                             } else {
                                 Spacer(Modifier.height(12.dp))
-                                TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
+                                TossSecondaryButton(text = "총금액 입력", onClick = { amountEditField = "total" })
                                 Spacer(Modifier.height(8.dp))
-                                TossSecondaryButton(text = "💵 계약금 입력", onClick = { amountEditField = "deposit" })
+                                TossSecondaryButton(text = "계약금 입력", onClick = { amountEditField = "deposit" })
                             }
-                            // 예약 취소 — 카드에서 바로 잘 보이게 (전엔 날짜 팝업 안에 숨어 못 찾음). scheduled 있을 때만. (2026-08-28 사장님)
-                            if (scheduled != null) {
-                                Spacer(Modifier.height(6.dp))
-                                TextButton(
-                                    onClick = { cancelBookingConfirm = true },
-                                    modifier = Modifier.fillMaxWidth()
+                            // 되돌리는 것 둘을 **맨 아래 한 줄**로. (2026-09-20 사장님)
+                            //   전엔 [완납 취소] 가 가로로 꽉 찬 큰 버튼이라 이 카드에서 제일 누르기 쉬웠다.
+                            //   예약 취소는 카드에 보여야 한다(전엔 날짜 팝업 안에 숨어 못 찾음 — 2026-08-28).
+                            if (allPaid || scheduled != null) {
+                                Spacer(Modifier.height(10.dp))
+                                androidx.compose.foundation.layout.Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                 ) {
-                                    Text("🗑 시공 예약 취소", color = TossError, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    if (allPaid) {
+                                        CdUndoChip("완납 취소", danger = false) {
+                                            if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
+                                            else viewModel.setBalancePaid(false)
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    if (scheduled != null) {
+                                        CdUndoChip("시공 예약 취소", danger = true) { cancelBookingConfirm = true }
+                                    }
                                 }
                             }
                         } else {
@@ -1090,8 +1128,8 @@ fun CustomerDetailScreen(
                 TossCard {
                     Column {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("📄", fontSize = 13.sp)
-                            Spacer(Modifier.width(6.dp))
+                            CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 "발행 이력 ${issuedDocs.size}건",
                                 fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
@@ -1152,8 +1190,8 @@ fun CustomerDetailScreen(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
                         ) {
-                            Text("📍", fontSize = 13.sp)
-                            Spacer(Modifier.width(6.dp))
+                            CdTitleIcon(Icons.Filled.EditNote, "gray")
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 메모" else "이 현장 메모",
                                 fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
@@ -1161,8 +1199,8 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.weight(1f))
                             val (memoStatus, memoStatusColor) = when {
                                 shouldSaveMemo(jobMemoDirty, jobMemoInput, jobMemoSaved) -> "저장 중…" to TossTextTertiary
-                                jobMemoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
-                                else -> "자동으로 저장돼요" to TossTextTertiary
+                                jobMemoInput.isNotBlank() -> "저장됨" to TossSuccess
+                                else -> "자동 저장" to TossTextTertiary
                             }
                             Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
                         }
@@ -1213,8 +1251,8 @@ fun CustomerDetailScreen(
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("📷", fontSize = 13.sp)
-                        Spacer(Modifier.width(6.dp))
+                        CdTitleIcon(Icons.Filled.PhotoCamera, "blue")
+                        Spacer(Modifier.width(8.dp))
                         Text(
                             // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
                             (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
@@ -2589,16 +2627,82 @@ private fun heatDotColor(heat: String?): Color = when (heat?.uppercase()) {
     else -> LightColors.primary
 }
 
-/** 프로토 .kv — 라벨(왼쪽 t2) + 값(오른쪽 w700). 탭 가능. */
+/**
+ * 카드 제목 왼쪽 아이콘 칩. (2026-09-20 사장님)
+ *   전엔 👤 📍 💰 📷 이모지였다. 이모지는 **폰마다 그림이 다르고**, 특히 📍 는 새빨간 압정이라
+ *   담긴 내용("주소 없음")보다 이모지가 더 튀었다. 앱이 직접 그리면 어느 폰에서나 같다.
+ */
 @Composable
-private fun CdKv(label: String, value: String, valueColor: Color, onClick: () -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onClick() }.padding(vertical = 9.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+private fun CdTitleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, palette: String) {
+    val (bg, fg) = when (palette) {
+        "blue" -> AppTheme.colors.primaryBg to AppTheme.colors.primaryText
+        "amber" -> AppTheme.colors.cautionBg to AppTheme.colors.cautionText
+        "green" -> AppTheme.colors.doneBg to AppTheme.colors.doneText
+        else -> AppTheme.colors.surfaceMuted to AppTheme.colors.textSub
+    }
+    androidx.compose.foundation.layout.Box(
+        Modifier.size(24.dp).clip(RoundedCornerShape(7.dp)).background(bg),
+        contentAlignment = androidx.compose.ui.Alignment.Center
     ) {
-        Text(label, fontSize = 14.sp, color = TossTextSecondary)
-        Spacer(Modifier.weight(1f))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
+        androidx.compose.material3.Icon(icon, null, tint = fg, modifier = Modifier.size(12.dp))
+    }
+}
+
+/**
+ * 한 줄 = 이름(왼쪽) · 값(오른쪽) · 고치는 단추(같은 크기). (2026-09-20 사장님)
+ *   예약·돈이 **같은 줄 모양**이라 눈이 오른쪽 끝을 따라 내려간다.
+ */
+@Composable
+private fun CdKv(
+    label: String,
+    value: String,
+    valueColor: Color,
+    trailing: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    divider: Boolean = true,
+    onClick: (() -> Unit)? = null
+) {
+    Column {
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+                .padding(vertical = 9.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 13.sp, color = TossTextSecondary)
+            Spacer(Modifier.weight(1f))
+            Text(
+                value, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = valueColor,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
+            )
+            if (trailing != null) {
+                Spacer(Modifier.width(9.dp))
+                androidx.compose.foundation.layout.Box(
+                    Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.surfaceMuted),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    androidx.compose.material3.Icon(
+                        trailing, null, tint = AppTheme.colors.textSub, modifier = Modifier.size(13.dp)
+                    )
+                }
+            }
+        }
+        if (divider) androidx.compose.foundation.layout.Box(
+            Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line)
+        )
+    }
+}
+
+/** 되돌리는 단추 — 작게, 오른쪽 끝에. 빨강은 '취소' 하나에만. (2026-09-20 사장님) */
+@Composable
+private fun CdUndoChip(label: String, danger: Boolean, onClick: () -> Unit) {
+    val fg = if (danger) TossError else AppTheme.colors.textHint
+    androidx.compose.foundation.layout.Box(
+        Modifier.clip(RoundedCornerShape(10.dp))
+            .border(1.dp, if (danger) AppTheme.colors.unpaidBg else AppTheme.colors.surfaceMuted, RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 6.dp)
+    ) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fg)
     }
 }
 
@@ -2606,28 +2710,7 @@ private fun CdKv(label: String, value: String, valueColor: Color, onClick: () ->
 private fun manwonLabel(won: Long): String =
     if (won % 10000L == 0L) "%,d만원".format(won / 10000L) else "%,d원".format(won)
 
-/** 프로토 payChipsHtml 상태 문구. */
-private fun payStatusLabel(allPaid: Boolean, deposit: Long, balance: Long, depPaid: Boolean): String = when {
-    allPaid -> "전액 완납 ✓"
-    deposit > 0L && !depPaid -> "계약금 ${manwonLabel(deposit)} · 잔금 ${manwonLabel(balance)} 미수"
-    deposit > 0L -> "계약금 ${manwonLabel(deposit)} 받음 · 잔금 ${manwonLabel(balance)} 남음"
-    else -> "계약금 없음 · 전액 ${manwonLabel(balance)} 미수"
-}
-
-/** 금액 행 오른쪽 파란 알약 — [금액 수정]/[계약금 입력] 등. 탭 → 해당 입력 다이얼로그. */
-@Composable
-private fun MoneyEditPill(label: String, onClick: () -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-            .clickable { onClick() }
-            .padding(horizontal = 11.dp, vertical = 5.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-    ) {
-        androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossBlue, modifier = Modifier.size(12.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-    }
-}
+// (payStatusLabel / MoneyEditPill 제거 — 돈도 CdKv 한 줄로 바뀌면서 쓸 곳이 없어졌다. 2026-09-20)
 
 /** 금액(총금액/계약금) 입력 다이얼로그 — 만원 단위. */
 @Composable
