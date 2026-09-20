@@ -835,7 +835,8 @@ fun HomeScreen(
                         onOpenChat = { phone, cid -> onOpenChat(phone, cid) },
                         onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
                         onComplete = { c -> completeTarget = c },
-                        onAddSchedule = onAddSchedule
+                        onAddSchedule = onAddSchedule,
+                        onOpenSchedule = onOpenSchedule
                     )
                 }
 
@@ -2069,6 +2070,7 @@ private fun CollabHeroJobCard(
  *  - 색은 **일이 있을 때만**. 없는 날을 초록으로 칠하면 거짓말이 된다.
  *  - 두 곳 이상이면 이름 뒤에 **(1/2)** — 곳수는 절대 안 잘리게 **첫 줄**에 둔다.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TodayBand(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
@@ -2077,7 +2079,9 @@ private fun TodayBand(
     onOpenChat: (phone: String, customerId: Long?) -> Unit,
     onNavigateAddr: (String?) -> Unit,
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
-    onAddSchedule: () -> Unit
+    onAddSchedule: () -> Unit,
+    /** 1쪽(오늘)을 누르면 갈 곳 — 일정 화면. 손님 대화가 아니다. */
+    onOpenSchedule: () -> Unit
 ) {
     val now = System.currentTimeMillis()
     val dayStart = DateTimeUtils.startOfDay(now)
@@ -2085,55 +2089,101 @@ private fun TodayBand(
     val ordered = todayJobs.sortedBy { it.scheduledWorkMinutes ?: 1_440 }
     val total = ordered.size + collabTodayCount
     val target = ordered.firstOrNull()
+    val next = nextJobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= dayStart }
+    val doneToday = todayJobs.isEmpty() && nextJobs.any {
+        (it.scheduledWorkDate ?: 0L) == dayStart && it.workCompletedAt != null
+    }
 
-    if (target != null) {
-        val mins = target.scheduledWorkMinutes
-        val timeText = mins?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "시간 미정"
-        val passed = mins != null && now > dayStart + mins * 60_000L
-        val who = target.name?.takeIf { it.isNotBlank() }
-            ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(target.phoneNumber)
-        val addr = target.address?.trim()?.takeIf { it.isNotBlank() }
-        BandShell(
-            bg = Color(0xFF0B7C5E), fg = Color.White, subFg = Color(0xFFA8E6CE),
-            icon = "🔨",
-            line1 = buildString {
-                append(timeText)
-                if (passed) append(" (지났어요)")
-                append(" · "); append(who)
-                if (total > 1) append("  (1/").append(total).append(")")
-            },
-            line2 = addr ?: "주소 아직 없어요",
-            action = if (passed) "완료" else if (addr != null) "길찾기" else null,
-            onAction = {
-                if (passed) onComplete(target) else onNavigateAddr(addr)
-            },
-            onTap = { onOpenChat(target.phoneNumber, target.id) }
-        )
-    } else {
-        // 오늘 것이 없다 — 다음 시공을 말해준다. 색은 안 쓴다(할 일이 없는 날을 초록으로 칠하면 거짓말).
-        val next = nextJobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= dayStart }
-        val doneToday = todayJobs.isEmpty() && nextJobs.any {
-            (it.scheduledWorkDate ?: 0L) == dayStart && it.workCompletedAt != null
+    // 📄 **1쪽 = 오늘 · 2쪽 = 다음 시공.** (2026-09-20 사장님 "옆으로 쓱 넘기면 다음 일정")
+    //   다음 시공이 없으면 1쪽만 — 넘길 게 없으면 점도 안 그린다.
+    val pageCount = if (next != null) 2 else 1
+    val pager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pageCount })
+
+    Column(Modifier.fillMaxWidth()) {
+        androidx.compose.foundation.pager.HorizontalPager(state = pager) { page ->
+            if (page == 0) {
+                if (target != null) {
+                    val mins = target.scheduledWorkMinutes
+                    val timeText = mins?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "시간 미정"
+                    val passed = mins != null && now > dayStart + mins * 60_000L
+                    val who = target.name?.takeIf { it.isNotBlank() }
+                        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(target.phoneNumber)
+                    val addr = target.address?.trim()?.takeIf { it.isNotBlank() }
+                    BandShell(
+                        bg = Color(0xFF0B7C5E), fg = Color.White, subFg = Color(0xFFA8E6CE),
+                        icon = "🔨",
+                        line1 = buildString {
+                            append(timeText)
+                            if (passed) append(" (지났어요)")
+                            append(" · "); append(who)
+                            if (total > 1) append("  (1/").append(total).append(")")
+                        },
+                        line2 = addr ?: "주소 아직 없어요",
+                        action = if (passed) "완료" else if (addr != null) "길찾기" else null,
+                        onAction = { if (passed) onComplete(target) else onNavigateAddr(addr) },
+                        onTap = { onOpenChat(target.phoneNumber, target.id) }
+                    )
+                } else if (doneToday) {
+                    BandShell(
+                        bg = Color(0xFFE3F8EF), fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
+                        icon = "✅", border = Color(0xFFA8E6C9),
+                        line1 = "오늘 시공 끝났어요",
+                        line2 = next?.let { nextLine(it) } ?: "다음 시공은 아직 없어요",
+                        action = null, onAction = {}, onTap = onOpenSchedule
+                    )
+                } else {
+                    BandShell(
+                        bg = Color.White, fg = TossTextPrimary, subFg = TossTextTertiary,
+                        // 📅 이모지는 삼성 글꼴에서 "JUL 17" 로 그려진다 → 날짜 없는 그림으로.
+                        icon = "", iconVector = Icons.Default.DateRange, border = TossDivider,
+                        line1 = if (next != null) "오늘은 시공이 없어요" else "잡힌 시공이 없어요",
+                        line2 = next?.let { nextLine(it) } ?: "밀린 상담·견적 챙기기 좋은 날이에요",
+                        action = "일정 추가", onAction = onAddSchedule,
+                        // ⚠️ 전엔 **다음 시공 손님 채팅**이 열렸다. "오늘은 없어요" 를 눌렀는데
+                        //   누군지도 모르는 대화창이 뜨니 어리둥절하다. (2026-09-20 사장님 지적)
+                        //   다음 시공은 **2쪽**이 맡는다. 여기선 일정 화면으로.
+                        onTap = onOpenSchedule
+                    )
+                }
+            } else {
+                val c = next!!
+                val who = c.name?.takeIf { it.isNotBlank() }
+                    ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(c.phoneNumber)
+                val addr = c.address?.trim()?.takeIf { it.isNotBlank() }
+                val d = c.scheduledWorkDate ?: 0L
+                val days = ((DateTimeUtils.startOfDay(d) - dayStart) / DateTimeUtils.DAY_MS).toInt()
+                val t = c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                BandShell(
+                    // 예정은 **파란 결**로 — 오늘(초록)과 한눈에 갈린다.
+                    bg = Color(0xFFEFF5FF), fg = Color(0xFF1B5FC1), subFg = Color(0xFF6E92C9),
+                    icon = "", iconVector = Icons.Default.DateRange, border = Color(0xFFD7E5FB),
+                    // 아이콘 칸도 파란 결로 — 회색 네모만 혼자 튀면 또 '깨진 자리' 처럼 보인다.
+                    iconBg = Color(0xFFDCE8FC), iconTint = Color(0xFF3B77D1),
+                    line1 = DateTimeUtils.formatScheduledDate(d) + t +
+                        (if (days > 0) "  (D-$days)" else ""),
+                    line2 = who + " · " + (addr ?: "주소 아직 없어요"),
+                    action = if (addr != null) "길찾기" else null,
+                    onAction = { onNavigateAddr(addr) },
+                    onTap = { onOpenChat(c.phoneNumber, c.id) }
+                )
+            }
         }
-        if (doneToday) {
-            BandShell(
-                bg = Color(0xFFE3F8EF), fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
-                icon = "✅", border = Color(0xFFA8E6C9),
-                line1 = "오늘 시공 끝났어요",
-                line2 = next?.let { nextLine(it) } ?: "다음 시공은 아직 없어요",
-                action = null, onAction = {}, onTap = onAddSchedule
-            )
-        } else {
-            BandShell(
-                bg = Color.White, fg = TossTextPrimary, subFg = TossTextTertiary,
-                // 📅 이모지는 삼성 글꼴에서 **"JUL 17"** 로 그려진다 — 오늘도 다음 시공도 아닌
-                //   엉뚱한 날짜가 띠에 박혀 보였다. (2026-09-20 실기) → 날짜 없는 그림으로.
-                icon = "", iconVector = Icons.Default.DateRange, border = TossDivider,
-                line1 = if (next != null) "오늘은 시공이 없어요" else "잡힌 시공이 없어요",
-                line2 = next?.let { nextLine(it) } ?: "밀린 상담·견적 챙기기 좋은 날이에요",
-                action = "일정 추가", onAction = onAddSchedule,
-                onTap = { next?.let { onOpenChat(it.phoneNumber, it.id) } ?: onAddSchedule() }
-            )
+        // 넘길 수 있다는 걸 알려주는 유일한 표시 — 점이 없으면 아무도 안 넘겨본다.
+        if (pageCount > 1) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 7.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(pageCount) { i ->
+                    val on = pager.currentPage == i
+                    Box(
+                        Modifier.padding(horizontal = 3.dp).size(if (on) 6.dp else 5.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(if (on) TossTextTertiary else TossDivider)
+                    )
+                }
+            }
         }
     }
 }
@@ -2155,7 +2205,10 @@ private fun BandShell(
     action: String?, onAction: () -> Unit, onTap: () -> Unit,
     border: Color? = null,
     /** 이모지 대신 쓸 그림 — 글꼴마다 다르게 그려지는 이모지를 피할 때. */
-    iconVector: androidx.compose.ui.graphics.vector.ImageVector? = null
+    iconVector: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    /** 아이콘 칸 바탕·그림 색. 안 주면 띠 색에 맞춰 알아서. */
+    iconBg: Color? = null,
+    iconTint: Color? = null
 ) {
     Row(
         Modifier
@@ -2172,12 +2225,12 @@ private fun BandShell(
         Box(
             Modifier.padding(start = 11.dp).size(34.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(if (border != null) TossGrayBg else Color(0x24FFFFFF)),
+                .background(iconBg ?: if (border != null) TossGrayBg else Color(0x24FFFFFF)),
             contentAlignment = Alignment.Center
         ) {
             if (iconVector != null) Icon(
                 iconVector, null,
-                tint = if (border != null) TossTextSecondary else fg,
+                tint = iconTint ?: if (border != null) TossTextSecondary else fg,
                 modifier = Modifier.size(18.dp)
             )
             else Text(icon, fontSize = 16.sp)
