@@ -887,10 +887,10 @@ fun HomeScreen(
                     item(key = "estimate-followup-card") {
                         DismissSwipeBox(onDismiss = { viewModel.dismissEstimateFollowup() }) {
                             InboxAlert(
-                                accent = AppTheme.colors.category, accentTint = Color(0xFFF1ECFF),
+                                accent = AppTheme.colors.category, accentTint = AppTheme.colors.categoryBg,
                                 icon = Icons.Filled.Description,
                                 title = "견적 회신 챙기기",
-                                tagText = "미회신", tagBg = Color(0xFFFEF3E0), tagFg = Color(0xFF8A5300),  // 노랑 위 주황 대비부족 → 진갈색. (2026-08-12 접근성)
+                                tagText = "미회신", tagBg = AppTheme.colors.cautionBg, tagFg = Color(0xFF8A5300),  // 노랑 위 주황 대비부족 → 진갈색. (2026-08-12 접근성)
                                 sub = "${estimateFollowupCount}곳 · 답 없는 견적",
                                 goLabel = "보기",
                                 onClick = onOpenEstimateFollowup
@@ -908,11 +908,11 @@ fun HomeScreen(
                         DismissSwipeBox(onDismiss = { viewModel.dismissAutoReply(ar.id) }) {
                             InboxAlert(
                                 accent = if (ar.failed) TossError else TossBlue,
-                                accentTint = if (ar.failed) Color(0xFFFDEAEF) else TossBlueSoft,
+                                accentTint = if (ar.failed) AppTheme.colors.unpaidBg else TossBlueSoft,
                                 icon = Icons.Default.Call,
                                 title = "부재중 전화에 자동 답장 보냄",
                                 tagText = if (ar.failed) "실패" else null,
-                                tagBg = Color(0xFFFDEAEF), tagFg = TossError,
+                                tagBg = AppTheme.colors.unpaidBg, tagFg = TossError,
                                 sub = "$arName · " +
                                     (if (ar.failed) "발송 실패 — 직접 보내주세요" else "자동 인사 보냄") +
                                     " · " + DateTimeUtils.formatShort(ar.createdAt),
@@ -961,11 +961,11 @@ fun HomeScreen(
                     item(key = "collab-invite-${inv.shareId}") {
                         InboxAlert(
                             accent = AppTheme.colors.category,
-                            accentTint = Color(0xFFF1ECFE),
+                            accentTint = AppTheme.colors.categoryBg,
                             icon = Icons.Default.Person,
                             title = "🤝 받은 협업 요청",
                             tagText = "수락 대기",
-                            tagBg = Color(0xFFF1ECFE), tagFg = AppTheme.colors.category,
+                            tagBg = AppTheme.colors.categoryBg, tagFg = AppTheme.colors.category,
                             // 주소는 짧게 — 이름·주소·일당이 한 줄에 다 들어가게 roughSite(대충 어디)로 축약.
                             //   (siteDisplayName=siteLabel 은 도로명주소를 못 줄여 2줄로 길게 나오던 것 fix. 2026-07-08 사장님)
                             sub = run {
@@ -1042,10 +1042,10 @@ fun HomeScreen(
                     item(key = "recurring-due-card") {
                         DismissSwipeBox(onDismiss = { viewModel.dismissRecurringDue() }) {
                             InboxAlert(
-                                accent = AppTheme.colors.caution, accentTint = Color(0xFFFFF3DF),
+                                accent = AppTheme.colors.caution, accentTint = AppTheme.colors.cautionBg,
                                 icon = Icons.Filled.DateRange,
                                 title = "오늘 보낼 정기 문자 ${recurringDueCount}건",
-                                tagText = "확인 후 발송", tagBg = Color(0xFFFFF3DF), tagFg = Color(0xFF8A5300),  // 노랑 위 주황 대비부족 → 진갈색. (2026-08-12 접근성)
+                                tagText = "확인 후 발송", tagBg = AppTheme.colors.cautionBg, tagFg = Color(0xFF8A5300),  // 노랑 위 주황 대비부족 → 진갈색. (2026-08-12 접근성)
                                 sub = "확인하고 한 명씩 보내기",
                                 goLabel = "보기",
                                 onClick = onOpenRecurringDue
@@ -1579,7 +1579,7 @@ fun HomeScreen(
                     text = {
                         Column {
                             Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF1F3))
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.unpaidBg)
                                     .clickable {
                                         spamTarget = null
                                         viewModel.markSpam(phone, target.customer?.name?.takeIf { it.isNotBlank() })
@@ -1988,7 +1988,7 @@ private fun CompletedHeroJobCard(
             .fillMaxWidth()
             .tossCardShadow(RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF1F3F6))
+            .background(AppTheme.colors.bg)
             .clickable { onOpenCustomer(c.id) }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2001,7 +2001,7 @@ private fun CompletedHeroJobCard(
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
-            Text("오늘 시공 완료 ✓", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF9AA1AC))
+            Text("오늘 시공 완료 ✓", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.textHint)
             Text(
                 name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6B7280),
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -2187,7 +2187,7 @@ private fun TodayBand(
                     )
                 } else if (doneToday) {
                     BandShell(
-                        bg = Color(0xFFE3F8EF), fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
+                        bg = AppTheme.colors.doneBg, fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
                         icon = "✅", border = Color(0xFFA8E6C9),
                         line1 = "오늘 시공 끝났어요",
                         line2 = next?.let { nextLine(it) } ?: "다음 시공은 아직 없어요",
@@ -2217,7 +2217,7 @@ private fun TodayBand(
                 val t = c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
                 BandShell(
                     // 예정은 **파란 결**로 — 오늘(초록)과 한눈에 갈린다.
-                    bg = Color(0xFFEFF5FF), fg = Color(0xFF1B5FC1), subFg = Color(0xFF6E92C9),
+                    bg = AppTheme.colors.primaryBg, fg = Color(0xFF1B5FC1), subFg = Color(0xFF6E92C9),
                     icon = "", iconVector = Icons.Default.DateRange, border = Color(0xFFD7E5FB),
                     // 아이콘 칸도 파란 결로 — 회색 네모만 혼자 튀면 또 '깨진 자리' 처럼 보인다.
                     iconBg = Color(0xFFDCE8FC), iconTint = Color(0xFF3B77D1),
@@ -2447,7 +2447,7 @@ private fun ChipPill(
                 when {
                     on -> Modifier
                     // 0 인 칩은 테두리까지 연하게 — 글자색만 바꿨더니 **차이가 안 보였다.** (2026-09-20 실기)
-                    dim -> Modifier.border(1.dp, Color(0xFFEEF1F4), RoundedCornerShape(999.dp))
+                    dim -> Modifier.border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(999.dp))
                     else -> Modifier.border(1.dp, TossDivider, RoundedCornerShape(999.dp))
                 }
             )
@@ -2669,7 +2669,7 @@ private fun CollabUpcomingCard(
     onOpenSite: (String) -> Unit
 ) {
     val purple = AppTheme.colors.category
-    val purpleSoft = Color(0xFFF1ECFE)
+    val purpleSoft = AppTheme.colors.categoryBg
     Column(
         Modifier
             .fillMaxWidth()
@@ -2756,7 +2756,7 @@ private fun CollabSettleCard(
             }
             Text(
                 "현장 보기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category,
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFF1ECFE))
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.categoryBg)
                     .clickable { onOpen() }.padding(horizontal = 11.dp, vertical = 6.dp)
             )
         }
@@ -2777,7 +2777,7 @@ private fun CollabSettleCard(
                     Text("${wage}만원", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 }
                 Spacer(Modifier.height(10.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E8EE)))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfacePressed))
                 Spacer(Modifier.height(10.dp))
             }
             Text("입금 계좌", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
@@ -3147,16 +3147,16 @@ private data class TeamUpdateStyle(
 // ⚠️ @Composable 이 아니라 AppTheme.colors 를 못 읽는다 → 밝은 화면 값을 직접(앱은 밝은 화면 고정).
 private fun teamUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
     "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "팀원 현장 도착 📍", "도착")
-    "completed" -> TeamUpdateStyle(LightColors.category, Color(0xFFF1ECFE), Icons.Default.CheckCircle, "작업 완료 ✅", "작업 완료")
-    "note" -> TeamUpdateStyle(LightColors.caution, Color(0xFFFFF3DF), Icons.Default.Edit, "현장 메모 📝", "")
-    else -> TeamUpdateStyle(TossSuccess, Color(0xFFE5F8EE), Icons.Default.Navigation, "팀원 출발 🚗", "출발")
+    "completed" -> TeamUpdateStyle(LightColors.category, LightColors.categoryBg, Icons.Default.CheckCircle, "작업 완료 ✅", "작업 완료")
+    "note" -> TeamUpdateStyle(LightColors.caution, LightColors.cautionBg, Icons.Default.Edit, "현장 메모 📝", "")
+    else -> TeamUpdateStyle(TossSuccess, LightColors.doneBg, Icons.Default.Navigation, "팀원 출발 🚗", "출발")
 }
 
 // ⚠️ 위와 같은 이유로 LightColors 직접.
 private fun collabUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
     "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "협업 현장 도착 📍", "도착")
-    "completed" -> TeamUpdateStyle(LightColors.category, Color(0xFFF1ECFE), Icons.Default.CheckCircle, "협업 작업 완료 ✅", "작업 완료")
-    else -> TeamUpdateStyle(TossSuccess, Color(0xFFE5F8EE), Icons.Default.Navigation, "협업 현장 출발 🚗", "출발")
+    "completed" -> TeamUpdateStyle(LightColors.category, LightColors.categoryBg, Icons.Default.CheckCircle, "협업 작업 완료 ✅", "작업 완료")
+    else -> TeamUpdateStyle(TossSuccess, LightColors.doneBg, Icons.Default.Navigation, "협업 현장 출발 🚗", "출발")
 }
 
 @Composable
@@ -3424,7 +3424,7 @@ private fun HomeRow(
                     TossBadge(display, color = TossBlue, background = TossBlueSoft)
                     Spacer(Modifier.width(6.dp))
                 } else if (isUnconfirmed) {
-                    TossBadge("미확인", color = TossError, background = Color(0xFFFEECEE))
+                    TossBadge("미확인", color = TossError, background = AppTheme.colors.unpaidBg)
                     Spacer(Modifier.width(6.dp))
                 }
                 IconButton(
@@ -3533,7 +3533,7 @@ private fun HomeRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(Color(0xFFEEF1F4))
+                            .background(AppTheme.colors.surfaceMuted)
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(
@@ -3618,7 +3618,7 @@ private fun NavAppPickerDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFEEF1F4))
+                            .background(AppTheme.colors.surfaceMuted)
                             .clickable { onPick(app) }
                             .padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center
@@ -3699,9 +3699,9 @@ private fun StatusBadgeSmall(label: String) {
 
 private fun statusColors(label: String): Pair<Color, Color> {
     val blue = TossBlue to TossBlueSoft
-    val green = TossSuccess to Color(0xFFE6F7EC)
-    val gray = TossTextSecondary to Color(0xFFF1F3F5)
-    val red = TossError to Color(0xFFFEEBEC)
+    val green = TossSuccess to LightColors.doneBg
+    val gray = TossTextSecondary to LightColors.bg
+    val red = TossError to LightColors.unpaidBg
     return when (label) {
         "신규 문의", "견적 대기", "견적 발송" -> blue
         "예약 대기", "예약 확정" -> green
@@ -3800,15 +3800,15 @@ private fun CallTypeIndicator(callType: String) {
         HomeViewModel.CALL_TYPE_SMS_ONLY ->
             Triple(TossBlueSoft, TossBlue, Icons.AutoMirrored.Filled.Chat)
         "MISSED", "REJECTED" ->
-            Triple(Color(0xFFFEECEE), TossError, Icons.Default.CallMissed)
+            Triple(AppTheme.colors.unpaidBg, TossError, Icons.Default.CallMissed)
         "INCOMING" ->
-            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.CallReceived)
+            Triple(AppTheme.colors.surfaceMuted, TossTextSecondary, Icons.Default.CallReceived)
         "OUTGOING" ->
-            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.CallMade)
+            Triple(AppTheme.colors.surfaceMuted, TossTextSecondary, Icons.Default.CallMade)
         "MANUAL" ->
-            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.Edit)
+            Triple(AppTheme.colors.surfaceMuted, TossTextSecondary, Icons.Default.Edit)
         else ->
-            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.Call)
+            Triple(AppTheme.colors.surfaceMuted, TossTextSecondary, Icons.Default.Call)
     }
     androidx.compose.foundation.layout.Box(
         modifier = Modifier
@@ -3930,7 +3930,7 @@ private fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .background(
-                Brush.linearGradient(listOf(Color(0xFFEAF2FF), Color(0xFFF1ECFF))),
+                Brush.linearGradient(listOf(AppTheme.colors.primaryBg, AppTheme.colors.categoryBg)),
                 RoundedCornerShape(999.dp)
             )
             .border(1.dp, Color(0xFFE0E7FB), RoundedCornerShape(999.dp))
@@ -3961,7 +3961,7 @@ private fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit) 
     val d = todayNew - yesterdayNew
     val deltaText = when { d > 0 -> "▲ $d"; d < 0 -> "▼ ${-d}"; else -> "-" }
     val deltaFg = when { d > 0 -> Color(0xFF0A8F44); d < 0 -> TossError; else -> TossTextTertiary }
-    val deltaBg = when { d > 0 -> AppTheme.colors.doneBg; d < 0 -> Color(0xFFFDEAEF); else -> TossGrayBg }
+    val deltaBg = when { d > 0 -> AppTheme.colors.doneBg; d < 0 -> AppTheme.colors.unpaidBg; else -> TossGrayBg }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -4009,7 +4009,7 @@ private fun WaitingHeader(count: Int) {
         Spacer(Modifier.width(8.dp))
         // 프로토 .count-pill — 빨강(bg #FDEAEF / fg error)
         Box(
-            Modifier.background(Color(0xFFFDEAEF), RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
+            Modifier.background(AppTheme.colors.unpaidBg, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
             Text("$count", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
         }
@@ -4090,7 +4090,7 @@ private fun OweRow(
                 val late = due.daysSince >= 7
                 Box(
                     Modifier.clip(RoundedCornerShape(999.dp))
-                        .background(if (late) Color(0xFFFDE7EC) else TossGrayBg)
+                        .background(if (late) AppTheme.colors.unpaidBg else TossGrayBg)
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
                     // 금액과 일째를 **딱지 하나**로. 오른쪽에 큰 금액을 따로 두었더니
@@ -4331,10 +4331,10 @@ private fun WaitingCard(
 
 private val AV_TINTS = listOf(   // 프로토 avatarHtml 팔레트 5색 (정산·일정과 동일 — 같은 고객 아바타 색 일치)
     Color(0xFFE6EFFF) to LightColors.primary,
-    Color(0xFFE7F8EE) to Color(0xFF16A765),
-    Color(0xFFFDEAEF) to LightColors.unpaid,
-    Color(0xFFF1ECFE) to LightColors.category,
-    Color(0xFFFEF3E0) to Color(0xFFE0920C),
+    LightColors.doneBg to Color(0xFF16A765),
+    LightColors.unpaidBg to LightColors.unpaid,
+    LightColors.categoryBg to LightColors.category,
+    LightColors.cautionBg to Color(0xFFE0920C),
 )
 
 /** 프로토 avatarHtml — 이름 있으면 컬러 이니셜 원, 없으면 회색 사람 아이콘. */
@@ -4454,8 +4454,8 @@ private data class RecentTag(val text: String, val fg: Color, val bg: Color)
  */
 private fun recentStatusTag(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?): RecentTag? {
     if (c == null) return null
-    val blueFg = TossBlue; val blueBg = Color(0xFFEAF2FE)
-    val greenFg = Color(0xFF0E9F56); val greenBg = Color(0xFFE5F8EE)
+    val blueFg = TossBlue; val blueBg = LightColors.primaryBg
+    val greenFg = Color(0xFF0E9F56); val greenBg = LightColors.doneBg
     val grayFg = TossTextTertiary; val grayBg = TossGrayBg
     val sched = c.scheduledWorkDate
     if (sched != null && sched > 0L) {
