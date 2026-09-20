@@ -160,10 +160,17 @@ object SettlementCalc {
         overdueDays(j.workCompletedAt, j.scheduledWorkDate, rowOf(j).outstanding, todayStartMs)
 
     private fun overdueDays(
-        workCompletedAt: Long?, scheduledWorkDate: Long?, outstanding: Long, todayStartMs: Long
+        workCompletedAt: Long?, @Suppress("UNUSED_PARAMETER") scheduledWorkDate: Long?,
+        outstanding: Long, todayStartMs: Long
     ): Int? {
         if (outstanding <= 0L) return null
-        val base = workCompletedAt ?: scheduledWorkDate ?: return null
+        // 🔴 **시공이 끝나야 미수다.** (2026-09-20 사장님 "시공이 끝났는데 돈을 못받은게 미수여야하지않을까?")
+        //   전엔 완료일이 없으면 `scheduledWorkDate` 로 셌다 → **시공을 안 했어도** 예약일만 지나면 미수.
+        //   실제 자료(업무폰 9/19 백업)로 확인: 받을 돈 남은 건 3개가 전부 **앞으로 할 시공**이었다
+        //     850,000원 예약 9/28 · 800,000원 예약 10/6 · 500,000원 예약 10/20 (셋 다 완료 표시 없음)
+        //   옛 규칙이면 9/29 부터 850,000원이 "미수" 로 떠 **아직 안 한 일의 돈을 독촉**하게 된다.
+        //   예약일이 지났는데 완료 표시가 없는 건은 '시공 확인 필요' 지 미수가 아니다.
+        val base = workCompletedAt ?: return null
         val days = ((todayStartMs - DateTimeUtils.startOfDay(base)) / DateTimeUtils.DAY_MS).toInt()
         return if (days >= 1) days else null
     }

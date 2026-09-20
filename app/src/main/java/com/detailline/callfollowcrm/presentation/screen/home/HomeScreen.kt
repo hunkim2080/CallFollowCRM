@@ -293,9 +293,20 @@ fun HomeScreen(
         val dues = balanceDues.mapNotNull { it.customerId }.toHashSet()
         val all = timeline.flatMap { g -> g.items }
             .distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+        // 🔴 **빨간 숫자는 뜻이 하나다 — "내가 손댈 게 몇 개인가".** (2026-09-20 사장님)
+        //   전엔 "몇 명인가" 를 셌다. 그래서 시공이 열 건 잡히면 **잡혀 있다는 이유로** 빨간 10 이 늘 떠 있었다.
+        //   사장님: *"잡혀있어서 뜨는게 아니라... 시공대기 목록 인원한테 문자가 오면 숫자가 뜨는 것"*
+        //   → 오늘 신규·시공 대기도 **답 안 한 것만** 센다. 목록은 전부 보여주되
+        //     안 챙긴 게 위로 오므로(waiting 섹션이 먼저) 숫자가 가리키는 줄이 바로 보인다.
+        fun pending(it: HomeItem) = it.isUnconfirmed
         mapOf(
-            "today" to all.count { it.isNewToday },
-            "unhandled" to all.count { it.isUnconfirmed },
+            "today" to all.count { it.isNewToday && pending(it) },
+            "unhandled" to all.count { pending(it) },
+            "wait" to all.count {
+                val c = it.customer
+                c != null && (c.scheduledWorkDate ?: 0L) > 0L && c.workCompletedAt == null && pending(it)
+            },
+            // 미수는 연락이 와서가 아니라 **받을 돈이 남아서** 할 일이다 — 건수 그대로.
             "owe" to all.count { it.customer?.id in dues }
         )
     }
@@ -1077,6 +1088,10 @@ fun HomeScreen(
                 val chipItems = when (inboxChip) {
                     "today" -> dedupItems.filter { it.isNewToday }
                     "unhandled" -> dedupItems.filter { it.isUnconfirmed }
+                    "wait" -> dedupItems.filter {
+                        val c = it.customer
+                        c != null && (c.scheduledWorkDate ?: 0L) > 0L && c.workCompletedAt == null
+                    }
                     "owe" -> dedupItems.filter { it.customer?.id in dueIds }
                     "newnum" -> dedupItems.filter { it.customer == null }
                     "done" -> dedupItems.filter { it.customer?.workCompletedAt != null }
@@ -2137,7 +2152,12 @@ private fun InboxChips(
     counts: Map<String, Int>,
     generalBadge: Int
 ) {
-    val work = listOf("today" to "오늘 신규", "unhandled" to "안 챙긴", "owe" to "미수")
+    // 시공 대기 = **예약은 잡혔고 아직 안 끝난** 손님. (2026-09-20 사장님)
+    //   예약일이 지났는데 완료 표시가 없는 건도 여기 담긴다 — 안 그러면 어디에도 안 떠서 잊어버린다.
+    val work = listOf(
+        "today" to "오늘 신규", "unhandled" to "안 챙긴",
+        "wait" to "시공 대기", "owe" to "미수"
+    )
     val who = listOf("newnum" to "새 번호", "done" to "시공 끝남")
     androidx.compose.foundation.lazy.LazyRow(
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
@@ -2148,7 +2168,11 @@ private fun InboxChips(
         item { ChipPill("전체", null, selected == "all") { onSelect("all") } }
         items(work.size) { i ->
             val (k, label) = work[i]
-            ChipPill(label, counts[k]?.takeIf { it > 0 }, selected == k) { onSelect(k) }
+            val c = counts[k] ?: 0
+            // 0 이면 **흐리게**. 숨기면 옆 칩 자리가 밀리고, 사장님: "생겼다 없어졌다하면 버그인가?
+            //   생각할수도있으니까. 회색으로 안눌리는 버튼처럼" (2026-09-20)
+            //   다만 **누르는 건 살려둔다** — 못 누르면 그것도 고장으로 보인다. 눌러보면 빈 화면이 확인해준다.
+            ChipPill(label, c.takeIf { it > 0 }, selected == k, dim = c == 0) { onSelect(k) }
         }
         // 할 일 / 사람 찾기 사이 — 얇은 금
         item {
@@ -2164,7 +2188,12 @@ private fun InboxChips(
 
 /** 칩 하나 — 고른 건 파랑(앱 색), 숫자만 빨강. 검정은 남의 앱 색이라 안 쓴다. */
 @Composable
-private fun ChipPill(label: String, count: Int?, on: Boolean, onClick: () -> Unit) {
+private fun ChipPill(
+    label: String, count: Int?, on: Boolean,
+    /** 셀 게 0 — 흐리게. 자리는 지킨다(숨기면 옆 칩이 밀려 손이 기억하는 위치가 흔들린다). */
+    dim: Boolean = false,
+    onClick: () -> Unit
+) {
     // ⚠️ 안 고른 칩을 TossGrayBg 로 했더니 **화면 배경과 같은 회색이라 안 보였다**(2026-09-20 실기).
     //   칩이 아니라 그냥 글자로 보인다. 흰 바탕 + 얇은 테두리라야 "누를 수 있는 것"으로 읽힌다.
     Row(
@@ -2181,7 +2210,11 @@ private fun ChipPill(label: String, count: Int?, on: Boolean, onClick: () -> Uni
     ) {
         Text(
             label,
-            color = if (on) Color.White else TossTextSecondary,
+            color = when {
+                on -> Color.White
+                dim -> TossTextTertiary
+                else -> TossTextSecondary
+            },
             fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1
         )
         if (count != null) {
