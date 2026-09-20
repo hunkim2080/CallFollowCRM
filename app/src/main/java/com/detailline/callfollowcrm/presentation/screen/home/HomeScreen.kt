@@ -1061,67 +1061,6 @@ fun HomeScreen(
                 //   탭 = 그 고객 채팅(잔금 요청 보내러) · 꾹 누름 = 받음 처리(되돌리기 가능).
                 // 2026-09-20: **[미수] 칩 안에서만.** 전에는 전체 화면에 넉 장씩 쌓여 목록을 밀어냈다.
                 //   미수 칩에선 목록 대신 이 카드를 보여준다 — [잔금 요청] 버튼이 여기 있기 때문.
-                if (inboxChip == "owe" && balanceDues.isNotEmpty()) {
-                    // 💰 합계 먼저 — 돈은 "다 더하면 얼마인지" 가 첫 질문이다.
-                    item(key = "owe-total") {
-                        val sum = balanceDues.sumOf { it.outstandingWon }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp, start = 4.dp, end = 4.dp),
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            Text(
-                                "못 받은 돈", fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold, color = TossTextTertiary
-                            )
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                MoneyFormatter.won(sum), fontSize = 17.sp,
-                                fontWeight = FontWeight.ExtraBold, color = TossError
-                            )
-                            Spacer(Modifier.width(5.dp))
-                            Text(
-                                "${balanceDues.size}건", fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold, color = TossTextTertiary
-                            )
-                        }
-                    }
-                    // 다른 칩과 **같은 목록 모양** — 흰 카드 하나에 줄들. (2026-09-20 사장님 "언발란스")
-                    item(key = "owe-list") {
-                        Column(
-                            Modifier.fillMaxWidth()
-                                .tossCardShadow(RoundedCornerShape(14.dp))
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White)
-                        ) {
-                            balanceDues.forEachIndexed { idx, due ->
-                                if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                                OweRow(
-                                    due = due,
-                                    onClick = { onOpenChat(due.phone, due.customerId) },
-                                    onLongClick = {
-                                        viewModel.markBalanceReceived(due.customerId, due.jobId)
-                                        scope.launch {
-                                            val r = snackbarHostState.showSnackbar(
-                                                message = "${due.name} 잔금 받음 처리 ✓",
-                                                actionLabel = "되돌리기",
-                                                duration = SnackbarDuration.Short
-                                            )
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId, due.jobId)
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    item(key = "owe-hint") {
-                        Text(
-                            "줄을 꾹 누르면 '받음' 처리돼요", fontSize = 11.5.sp,
-                            color = TossTextTertiary,
-                            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp)
-                        )
-                    }
-                }
-
                 // 프로토 상담함 본문 — "지금 답장 기다려요"(미확인) + "최근 대화"(나머지) 두 섹션.
                 // 번호당 1줄만 (가장 최근). flatItems 는 최신순 → distinctBy 가 최신 1개 유지.
                 //   (2026-06-08 #4: 고객이 연속 문자/통화 시 같은 번호가 2줄 차지하던 현상 방지.)
@@ -1171,6 +1110,80 @@ fun HomeScreen(
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 // [미수] 칩은 위 잔금 카드가 본문이다. 아래 대화 목록까지 띄우면 **같은 사람이 두 번** 나온다.
                 val hideThreads = inboxChip == "owe"
+
+                if (inboxChip == "owe" && balanceDues.isNotEmpty()) {
+                    // 💰 합계 먼저 — 돈은 "다 더하면 얼마인지" 가 첫 질문이다.
+                    item(key = "owe-total") {
+                        val sum = balanceDues.sumOf { it.outstandingWon }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp, start = 4.dp, end = 4.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Text(
+                                "못 받은 돈", fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold, color = TossTextTertiary
+                            )
+                            Spacer(Modifier.weight(1f))
+                            // 🍃 **금액은 사실이지 경고가 아니다.** 빨강은 한 화면에 하나만.
+                            //   (2026-09-20 사장님 "텍스트 너무 강렬하고 너무 튀어")
+                            Text(
+                                MoneyFormatter.won(sum), fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                "${balanceDues.size}건", fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold, color = TossTextTertiary
+                            )
+                        }
+                    }
+                    // 다른 칩과 **같은 목록 모양** — 흰 카드 하나에 줄들. (2026-09-20 사장님 "언발란스")
+                    item(key = "owe-list") {
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .tossCardShadow(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.White)
+                        ) {
+                            // 같은 사람의 **대화 줄**을 찾아 붙인다 — 상담함은 문자함이다.
+                            val bySuffix = dedupItems.associateBy {
+                                it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                            }
+                            balanceDues.forEachIndexed { idx, due ->
+                                if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                                val sfx = due.phone.filter { c -> c.isDigit() }.takeLast(8)
+                                val item = bySuffix[sfx]
+                                OweRow(
+                                    due = due,
+                                    index = idx,
+                                    lastBody = item?.lastBody?.takeIf { it.isNotBlank() }
+                                        ?.let { (if (item.lastSent == true) "나: " else "") + it },
+                                    summary = aiCardSummaries[sfx],
+                                    onClick = { onOpenChat(due.phone, due.customerId) },
+                                    onLongClick = {
+                                        viewModel.markBalanceReceived(due.customerId, due.jobId)
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar(
+                                                message = "${due.name} 잔금 받음 처리 ✓",
+                                                actionLabel = "되돌리기",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId, due.jobId)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    item(key = "owe-hint") {
+                        Text(
+                            "줄을 누르면 잔금 요청 문자를 쓸 수 있어요 · 꾹 누르면 '받음' 처리", fontSize = 11.5.sp,
+                            color = TossTextTertiary,
+                            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp)
+                        )
+                    }
+                }
+
                 // 칩을 켄 채 대기가 비면 머리글·막내를 안 띄운다 — "시공 끝남" 을 보는데
                 //   "지금 답장 기다려요 0 / 다 챙기셨네요" 가 나오면 딴소리다. (2026-09-20)
                 // 2026-09-20 사장님 "지금 답장 기다려요. 이거 없어져야 하는 거 아니야?"
@@ -3989,15 +4002,22 @@ private fun ChipEmpty(chip: String) {
 @Composable
 private fun OweRow(
     due: com.detailline.callfollowcrm.presentation.screen.home.HomeBalanceDueUi,
+    index: Int,
+    /** 마지막으로 오간 문자. 상담함의 다른 줄과 **같은 자리, 같은 글씨**. */
+    lastBody: String?,
+    summary: String?,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     Row(
         Modifier.fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 다른 줄과 같은 아바타 — 이것만 빠져도 "여기만 다른 화면" 으로 보인다.
+        Avatar(due.name.takeIf { !it.startsWith("0") }, index)
+        Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -4007,43 +4027,56 @@ private fun OweRow(
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 Spacer(Modifier.width(6.dp))
+                // 🔴 **빨강은 진짜 늦었을 때만.** 이틀 지난 것과 두 주 지난 것이 같은 빨강이면
+                //   빨강이 아무 말도 안 하게 된다. 한 주 넘은 것만 빨갛게. (2026-09-20 사장님)
+                val late = due.daysSince >= 7
                 Box(
-                    Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFDE7EC))
+                    Modifier.clip(RoundedCornerShape(999.dp))
+                        .background(if (late) Color(0xFFFDE7EC) else TossGrayBg)
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
+                    // 금액과 일째를 **딱지 하나**로. 오른쪽에 큰 금액을 따로 두었더니
+                    //   현장 이름이 "동탄 아..." 로 잘렸다. (2026-09-20 실기)
                     Text(
                         "${due.daysSince}일째", fontSize = 10.5.sp,
-                        fontWeight = FontWeight.ExtraBold, color = TossError
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (late) TossError else TossTextSecondary
                     )
                 }
+                // 다른 줄은 이 자리에 **시각**이 온다. 미수에선 **금액**이 더 쓸모 있다 —
+                //   언제 왔는지는 아래 ✨요약이 말해준다.
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    shortWon(due.outstandingWon), fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+                )
             }
+            // 📩 **마지막 문자** — 다른 줄과 똑같이. 없으면 이름/상태로 채운다.
             Spacer(Modifier.height(3.dp))
-            // 첫 줄이 **현장 주소**면 둘째 줄은 **누구인지** — 전화를 걸려면 이름이 있어야 한다.
-            //   주소가 없어 첫 줄이 이미 이름이면 그땐 무슨 돈인지 적는다.
             Text(
-                if (due.whereLabel != null && due.whereLabel != due.name) due.name
-                else "시공 끝남 · 잔금 남음",
-                fontSize = 11.5.sp, color = TossTextTertiary,
+                lastBody ?: (if (due.whereLabel != null && due.whereLabel != due.name) due.name
+                    else "시공 끝남 · 잔금 남음"),
+                fontSize = 13.sp, color = TossTextSecondary,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                MoneyFormatter.won(due.outstandingWon), fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold, color = TossError
-            )
-            Spacer(Modifier.height(6.dp))
-            Box(
-                Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFDE7EC))
-                    .clickable { onClick() }
-                    .padding(horizontal = 11.dp, vertical = 6.dp)
-            ) {
-                Text("잔금 요청", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
+            if (!summary.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "✨ $summary", fontSize = 11.5.sp, color = TossTextTertiary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
+        // ⚠️ [잔금 요청] 버튼을 **뺐다.** 눌러봐야 `onOpenChat` — **줄을 누르는 것과 똑같은 동작**이었다.
+        //   하는 일이 없으면서 90dp 를 차지해 현장 이름이 "동탄 아..." 로 잘렸다. (2026-09-20 실기)
+        //   대신 목록 아래 한 줄로 알려준다.
     }
 }
+
+/** "540,000원" 은 딱지에 넣기엔 길다 → "54만원". 딱 떨어지지 않으면 원래대로. */
+private fun shortWon(won: Long): String =
+    if (won >= 10_000L && won % 10_000L == 0L) "${won / 10_000L}만원" else MoneyFormatter.won(won)
 
 /** 프로토 sec-sub — 작은 섹션 부제 ("최근 대화"). */
 @Composable
