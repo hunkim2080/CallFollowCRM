@@ -258,7 +258,7 @@ fun HomeScreen(
     //   왼쪽은 오늘 할 일, 오른쪽은 사람 찾기. "msg" 만 본문이 문자함으로 바뀌고 나머지는 **같은 목록을 거른다.**
     var inboxChip by rememberSaveable { mutableStateOf("all") }
     // 없앤 칩([새 번호])을 고른 채로 앱을 닫았으면 그 값이 남아 **아무 칩도 안 켜진 화면**이 된다.
-    LaunchedEffect(inboxChip) { if (inboxChip == "newnum") inboxChip = "all" }
+    LaunchedEffect(inboxChip) { if (inboxChip == "newnum" || inboxChip == "unhandled") inboxChip = "all" }
 
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
@@ -1079,7 +1079,6 @@ fun HomeScreen(
                 val todayStart0 = DateTimeUtils.startOfDay(System.currentTimeMillis())
                 val chipItems = when (inboxChip) {
                     "today" -> dedupItems.filter { it.isNewToday }
-                    "unhandled" -> dedupItems.filter { it.isUnconfirmed }
                     // 🔨 **앞으로 할 시공만.** (2026-09-20 실기)
                     //   전엔 '예약일이 있고 완료 버튼을 안 누른 것' 이었다. 그래서 **이미 끝난 시공**이
                     //   (완료 버튼을 안 눌렀다는 이유로) 여기 들어와 초록 '완료' 딱지를 달고 앉아 있었다.
@@ -1196,7 +1195,11 @@ fun HomeScreen(
                 //   → 머리글은 아예 안 띄우고, 대기 줄은 목록 맨 위에 그대로 둔다(정보는 안 잃는다).
                 //   막내 마스코트는 **[안 챙긴] 칩이 비었을 때만** — 거기선 "다 챙겼다"가 진짜 할 말이다.
                 if (waiting.isEmpty() || hideThreads) {
-                    if (inboxChip == "unhandled") {
+                    // 막내 인사는 **아무것도 없는 첫 폰**에서만. (2026-09-20)
+                    //   [답장 대기] 칩이 없어졌으니 "다 끝냈어요" 를 띄울 자리가 없고,
+                    //   [전체] 목록 맨 위에 매일 띄우면 그게 또 어수선하다.
+                    //   다 끝냈다는 신호는 **하단 탭 배지가 사라지는 것**이 대신한다.
+                    if (dedupItems.isEmpty() && !chipOn) {
                         // '처음 오신 분' 인사(newUser)는 **대화가 정말 하나도 없을 때만.** (2026-09-20 실기)
                         //   거른 목록(recent)을 보면 [안 챙긴] 이 비었다는 이유로 몇 년 쓰신 분께도
                         //   "사장님, 잘 부탁드려요!" 가 떴다. 여기선 "다 챙기셨네요" 가 할 말이다.
@@ -1315,7 +1318,7 @@ fun HomeScreen(
                 val chipBodyEmpty =
                     if (hideThreads) balanceDues.isEmpty()
                     else waiting.isEmpty() && recent.isEmpty() && pinned.isEmpty()
-                if (chipOn && chipBodyEmpty && inboxChip != "unhandled") {
+                if (chipOn && chipBodyEmpty) {
                     item(key = "chip-empty") {
                         // 빈 문구를 위에 붙이면 아래가 통째로 비어 **덜 그려진 화면**처럼 보인다.
                         //   남은 자리 한가운데에 둔다(살짝 위 — 화면 정중앙보다 위가 눈에 편하다). (2026-09-20 사장님 "여백")
@@ -2327,7 +2330,10 @@ private fun InboxChips(
         // 왼쪽 넷은 **한 결로** — 답장 대기 → 시공 대기 → 잔금 대기.
         //   "아직 안 끝난 것들" 이 순서대로 읽힌다. (2026-09-20 사장님 확정)
         //   '미수' 는 장부 말투라 독촉처럼 들려서 뺐다.
-        "today" to "오늘 신규", "unhandled" to "답장 대기",
+        // ❌ [답장 대기] 뺐다. (2026-09-20 사장님 "숫자 하단 탭으로 옮기는거 좋은것같아")
+        //   안 챙긴 줄은 [전체] 에서도 이미 맨 위에 모이고 파란 점이 붙는다 — 앱이 더해주는 게 없었다.
+        //   숫자는 하단 [상담함] 탭 배지로 갔다(카톡·문자앱이 쓰는 그 자리).
+        "today" to "오늘 신규",
         "wait" to "시공 대기", "owe" to "잔금 대기"
     )
     // 지인 칩은 안 만든다 — 사장님: "보통 지인은 문자보다 카톡을 사용함". (2026-09-20)

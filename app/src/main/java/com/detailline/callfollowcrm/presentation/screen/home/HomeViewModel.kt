@@ -1491,6 +1491,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
 
     init {
+        // 📮 하단 탭 배지로 흘려보낸다. **WhileSubscribed 가 아니라** viewModelScope 로 모으는 이유 —
+        //   상담함 화면을 떠나면 구독이 끊겨 값이 멈춘다. 탭바는 다른 탭에서도 숫자를 보여야 한다.
+        viewModelScope.launch {
+            unhandledCount.collect { container.inboxUnansweredCount.value = it }
+        }
         // 미확인(대기) 고객마다 서버 추천 답변을 한 번씩 조회 → 준비돼 있으면 카드에 노출.
         //   서버는 SMS 수신 시 이미 prepare 해두므로 보통 READY. MISSING 이면 조용히 스킵(채팅에서 ↻).
         viewModelScope.launch {

@@ -182,10 +182,13 @@ fun AppRoot(container: AppContainer) {
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     if (showTabBar) {
-                        // 상담함 배지 = 받은 협업 요청(수락 대기) 수 — 푸시 지워도 여기서 눈에 띄게. (2026-06-14 사장님)
+                        // 상담함 배지 = **답장 안 한 수 + 받은 협업 요청 수**. (2026-09-20 사장님)
+                        //   둘 다 "내가 손댈 것" 이라 한 숫자로 합친다. 빨간 숫자는 뜻이 하나여야 한다.
+                        //   [답장 대기] 칩을 빼면서 그 숫자가 여기로 왔다 — 카톡·문자앱이 쓰는 그 자리.
                         val pendingCollab by container.collabEventCenter.pendingInvites.collectAsState()
+                        val unanswered by container.inboxUnansweredCount.collectAsState()
                         RingTabBar(
-                            inboxBadge = pendingCollab.size.takeIf { it > 0 },
+                            inboxBadge = (unanswered + pendingCollab.size).takeIf { it > 0 },
                             currentRoute = if (currentRoute in RING_TAB_ROUTES) currentRoute else lastTabRoute,
                             onSelect = { route ->
                                 // 2026-06-07 사장님 통점: 탭이 가끔 안 눌림.

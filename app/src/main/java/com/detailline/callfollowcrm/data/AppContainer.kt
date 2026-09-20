@@ -247,6 +247,15 @@ class AppContainer(context: Context) {
     val collabEventCenter by lazy {
         com.detailline.callfollowcrm.ai.CollabEventCenter(sharedSiteRepository, preferences)
     }
+    /**
+     * 📮 하단 [상담함] 탭 배지에 쓸 **답장 안 한 수**. (2026-09-20 사장님)
+     *   HomeViewModel 이 계산해 여기 담아두고, AppRoot(탭바)가 읽는다 —
+     *   탭바는 화면 밖에 있어서 HomeViewModel 을 직접 못 보기 때문.
+     *   ⚠️ 상담함이 살아있는 동안 갱신된다. 다른 탭에 오래 머물면 마지막 값을 유지한다
+     *      (새 문자는 그 자체로 알림이 오므로 놓칠 일은 없다).
+     */
+    val inboxUnansweredCount = kotlinx.coroutines.flow.MutableStateFlow(0)
+
     /** FCM 토큰 서버 등록 — 즉시 푸시(2026-06-12). docs/SERVER_HANDOFF_fcm_push.md */
     val pushRegisterRepository by lazy {
         com.detailline.callfollowcrm.ai.PushRegisterRepository()
