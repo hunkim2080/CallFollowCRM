@@ -821,7 +821,11 @@ fun HomeScreen(
 
                 // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.
                 //   오늘 협업 현장도 여기에 보라색 카드로 함께 표시. (2026-06-24 사장님)
-                if (inboxChip == "all") item(key = "today-hero") {
+                // 🔨 띠는 **어느 칩을 보든** 뜬다. (2026-09-20 사장님 "그거 안보이네?")
+                //   오늘 시공이 있는지는 미수를 보든 새 번호를 보든 알아야 하는 것이고,
+                //   칩을 옮길 때마다 있다 없다 하면 화면이 흔들린다.
+                //   (택배·광고는 문자함이라 이 목록 자체를 안 쓴다 → 저절로 안 뜬다.)
+                item(key = "today-hero") {
                     val todayDayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
                     val collabTodaySites = collabUpcoming.filter {
                         it.scheduledAtMs > 0L && DateTimeUtils.startOfDay(it.scheduledAtMs) == todayDayStart
