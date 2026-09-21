@@ -274,7 +274,7 @@ private fun RuleEditorDialog(
                 Spacer(Modifier.height(18.dp))
                 EditorLabel("문구 ({고객명} = 고객 이름으로 자동 치환)")
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                    body, { body = it }, placeholder = "{고객명}님, ...", singleLine = false, minHeightDp = 76)
+                    body, { body = it }, placeholder = "{고객명}님, …", singleLine = false, minHeightDp = 76)
                 Spacer(Modifier.height(6.dp))
                 TextButton(onClick = { if (!body.contains("{고객명}")) body = "{고객명}님, " + body }) {
                     Text("+ {고객명} 넣기", color = TossBlue)

@@ -715,7 +715,7 @@ private fun UsageStatsCard(
             when {
                 result == null && loading -> {
                     Text(
-                        "사용량 불러오는 중...",
+                        "사용량 불러오는 중…",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TossTextTertiary
                     )
@@ -736,7 +736,7 @@ private fun UsageStatsCard(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "잠시 후 다시 확인해 주세요.",
+                        "잠시 후 다시 확인해주세요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextTertiary
                     )
@@ -2106,7 +2106,7 @@ private fun ServerStatusCard(alive: Boolean?) {
         false -> Triple(
             TossError,
             "AI 서버 연결 안 됨",
-            "인터넷 연결을 확인해 주세요. 잠시 후 자동으로 다시 연결돼요. 답변 추천이 안 떠도 메시지는 보낼 수 있어요."
+            "인터넷 연결을 확인해주세요. 잠시 후 자동으로 다시 연결돼요. 답변 추천이 안 떠도 메시지는 보낼 수 있어요."
         )
         null -> Triple(
             TossTextTertiary,
@@ -4181,7 +4181,7 @@ private fun ToneLearnProtoSection(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    if (toneOn) "막내 비서가 사장님 말투를 ${tonePct}% 따라 해요"
+                    if (toneOn) "막내가 사장님 말투를 ${tonePct}% 따라 해요"
                     else "학습이 꺼져 있어요. 켜면 다시 배우기 시작해요",
                     fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold
                 )

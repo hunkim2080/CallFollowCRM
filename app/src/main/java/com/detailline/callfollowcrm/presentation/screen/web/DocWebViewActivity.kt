@@ -132,7 +132,7 @@ class DocWebViewActivity : ComponentActivity() {
         private const val ERROR_HTML =
             "<html><body style='font-family:sans-serif;padding:40px 24px;color:#3A4250;line-height:1.6'>" +
                 "<h3 style='color:#0B0F19'>내용을 불러오지 못했어요</h3>" +
-                "<p>인터넷 연결을 확인한 뒤 다시 시도해 주세요.</p></body></html>"
+                "<p>인터넷 연결을 확인한 뒤 다시 해주세요.</p></body></html>"
 
         /** 문서 웹뷰 열기 — 어디서든 context 로 호출. 브라우저 유무와 무관하게 앱 안에서 표시. */
         fun open(ctx: Context, url: String, title: String) {

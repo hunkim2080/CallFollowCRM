@@ -3706,7 +3706,7 @@ private fun SuggestionCardWide(label: String?, text: String, onTap: () -> Unit) 
 @Composable
 private fun AiDisclaimer(modifier: Modifier = Modifier) {
     Text(
-        "AI가 만든 내용은 부정확할 수 있어요. 보내기 전에 확인해 주세요.",
+        "AI가 만든 내용은 부정확할 수 있어요. 보내기 전에 확인해주세요.",
         color = TossTextTertiary, fontSize = 10.5.sp, lineHeight = 14.sp,
         modifier = modifier
     )

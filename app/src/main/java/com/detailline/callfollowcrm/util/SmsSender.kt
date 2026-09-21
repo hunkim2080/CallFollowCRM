@@ -160,7 +160,7 @@ object SmsSender {
             return false
         }
         if (!isDefaultSmsApp(context)) {
-            Log.w(TAG, "sendMms blocked: RING-GO is not the default SMS app")
+            Log.w(TAG, "sendMms blocked: 시공막내 is not the default SMS app")
             return false
         }
         if (phoneNumber.isBlank() || uris.isEmpty()) return false

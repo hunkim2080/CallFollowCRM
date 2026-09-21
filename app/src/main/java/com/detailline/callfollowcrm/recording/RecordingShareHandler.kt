@@ -109,7 +109,7 @@ object RecordingShareHandler {
                         // 서버 요약 실패(예: 502) — 녹음은 이미 저장됨. 무반응이면 "안됨"으로 보이므로 안내.
                         Toast.makeText(
                             appCtx,
-                            "통화 요약 서버 오류 — 녹음은 저장됐어요. 잠시 후 다시 시도해 주세요.",
+                            "통화 요약 서버 오류 — 녹음은 저장됐어요. 잠시 후 다시 해주세요.",
                             Toast.LENGTH_LONG
                         ).show()
                     }

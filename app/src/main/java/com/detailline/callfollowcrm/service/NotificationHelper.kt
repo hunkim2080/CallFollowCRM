@@ -1028,7 +1028,7 @@ object NotificationHelper {
         val msg = when {
             !oldLabel.isNullOrBlank() && newWithTime != null -> "'${site}' 일정이 ${oldLabel} → ${newWithTime} 로 바뀌었어요"
             newWithTime != null -> "'${site}' 일정이 ${newWithTime} 로 바뀌었어요"
-            else -> "'${site}' 시공 일정이 바뀌었어요 — 확인해 주세요"
+            else -> "'${site}' 시공 일정이 바뀌었어요 — 확인해주세요"
         }
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_RESCHEDULE, ACCENT_PURPLE,

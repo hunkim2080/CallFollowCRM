@@ -319,7 +319,7 @@ fun CustomerDetailScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    "고객 정보를 불러오는 중...",
+                    "고객 정보를 불러오는 중…",
                     modifier = Modifier.padding(24.dp),
                     color = TossTextTertiary
                 )
