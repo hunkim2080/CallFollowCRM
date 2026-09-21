@@ -231,10 +231,10 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Text("시공막내", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        Text("곁에 오래 둘수록, 나다워지는 AI 비서", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("상담과 일정관리는, 우리 막내가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))
         Text(
-            "쓸수록 사장님을 닮아갑니다.\n곁에 오래 둘수록, 완벽한 비서가 됩니다.",
+            "상담·일정은 첫날부터 막내가 합니다.\n쓸수록 사장님을 닮아갑니다.",
             fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
             lineHeight = 22.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
         )

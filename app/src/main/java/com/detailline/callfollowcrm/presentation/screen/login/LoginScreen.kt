@@ -144,8 +144,9 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 // 키보드 올라오면 태그라인 숨겨 hero 압축(겹침 방지). 키보드 내리면 다시 보임.
                 if (!imeVisible) {
                     Spacer(Modifier.height(12.dp))
+                    // 태그라인 = 브랜드 북 v5 확정본. 스토어·웹·온보딩과 **같은 문장**이어야 한다.
                     Text(
-                        "곁에 오래 둘수록, 나다워지는 AI 비서",
+                        "상담과 일정관리는, 우리 막내가",
                         fontSize = 14.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TagColor
