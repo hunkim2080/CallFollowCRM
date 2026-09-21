@@ -3324,83 +3324,11 @@ private fun AutoReplyCard(
     }
 }
 
-@Composable
-private fun KpiSection(
-    todayNew: Int,
-    unhandled: Int,
-    weekScheduled: Int,
-    /** 2026-05-30 #12 — 🆕 카드 클릭 시 TodayNew 필터 적용. */
-    onFilterTodayNew: () -> Unit,
-    onFilterUnhandled: () -> Unit,
-    onOpenSchedule: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // 2026-05-25: 4장 → 3장으로 축소. "견적 답대기" 는 status enum 기반이라 폐기.
-        // 2026-05-30 #12 통점 fix: 🆕 카드도 클릭 가능 (TodayNew 필터 적용).
-        //   3 카드 모두 동일 패턴 — 클릭 시 해당 필터 / 화면 진입.
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            KpiCard("🆕", "오늘 신규", todayNew, TossBlue, Modifier.weight(1f), onFilterTodayNew)
-            KpiCard("⚠️", "미확인", unhandled, TossError, Modifier.weight(1f), onFilterUnhandled)
-            KpiCard("📅", "이번주 시공", weekScheduled, TossSuccess, Modifier.weight(1f), onOpenSchedule)
-        }
-    }
-}
-
-/**
- * 정사각형에 가까운 KPI 카드. 큰 숫자 + 라벨 + 좌상단 이모지.
- * 탭 동작은 호출부 정의 (필터 변경, 외부 화면 이동 등).
+/*
+ * (지움 2026-09-21) KPI 카드 3장(🆕 오늘 신규 · ⚠️ 미확인 · 📅 이번주 시공) —
+ *   @Preview 에서만 불리던 **죽은 코드**였다. 2026-09-20 상담함 리디자인에서 그 자리를
+ *   칩([전체][오늘 신규][시공 대기][잔금 대기])이 가져갔다. 되살릴 일이 생기면 git 에서.
  */
-@Composable
-private fun KpiCard(
-    emoji: String,
-    label: String,
-    count: Int,
-    accent: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val emphasized = count > 0
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 18.sp)
-            Spacer(Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = TossTextSecondary,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                count.toString(),
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (emphasized) accent else TossTextTertiary
-            )
-            Spacer(Modifier.width(3.dp))
-            Text(
-                "건",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (emphasized) accent else TossTextTertiary,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-        }
-    }
-}
 
 @Composable
 private fun HomeRow(
@@ -4601,85 +4529,5 @@ private fun WaitingEmptyMascot(newUser: Boolean = false) {
 //   코드 저장 시 1~3초 안에 자동 갱신. phone 빌드 안 해도 됨.
 // ============================================================
 
-@Preview(name = "KPI 카드 — 모두 0", showBackground = true, backgroundColor = 0xFFF7F8FA)
-@Composable
-private fun KpiSectionPreviewEmpty() {
-    CallFollowCrmTheme {
-        KpiSection(
-            todayNew = 0,
-            unhandled = 0,
-            weekScheduled = 0,
-            onFilterTodayNew = {},
-            onFilterUnhandled = {},
-            onOpenSchedule = {}
-        )
-    }
-}
-
-@Preview(name = "KPI 카드 — 일반 상황", showBackground = true, backgroundColor = 0xFFF7F8FA)
-@Composable
-private fun KpiSectionPreviewNormal() {
-    CallFollowCrmTheme {
-        KpiSection(
-            todayNew = 2,
-            unhandled = 5,
-            weekScheduled = 3,
-            onFilterTodayNew = {},
-            onFilterUnhandled = {},
-            onOpenSchedule = {}
-        )
-    }
-}
-
-@Preview(name = "KPI 카드 — 폭주", showBackground = true, backgroundColor = 0xFFF7F8FA)
-@Composable
-private fun KpiSectionPreviewBusy() {
-    CallFollowCrmTheme {
-        KpiSection(
-            todayNew = 12,
-            unhandled = 28,
-            weekScheduled = 9,
-            onFilterTodayNew = {},
-            onFilterUnhandled = {},
-            onOpenSchedule = {}
-        )
-    }
-}
-
 /** S9 사이즈 별도 확인 (사장님 실기기 360x740 dp). */
-@Preview(
-    name = "KPI — S9 360x740",
-    showBackground = true,
-    backgroundColor = 0xFFF7F8FA,
-    widthDp = 360,
-    heightDp = 200
-)
-@Composable
-private fun KpiSectionPreviewS9() {
-    CallFollowCrmTheme {
-        KpiSection(
-            todayNew = 1,
-            unhandled = 4,
-            weekScheduled = 2,
-            onFilterTodayNew = {},
-            onFilterUnhandled = {},
-            onOpenSchedule = {}
-        )
-    }
-}
-
 /** 2026-05-30 다크모드 Preview — 다크 테마 적용 시 모양 확인용. */
-@Preview(name = "KPI — 다크모드", showBackground = true, backgroundColor = 0xFF161616)
-@Composable
-private fun KpiSectionPreviewDark() {
-    CallFollowCrmTheme(darkOverride = true) {
-        KpiSection(
-            todayNew = 2,
-            unhandled = 5,
-            weekScheduled = 3,
-            onFilterTodayNew = {},
-            onFilterUnhandled = {},
-            onOpenSchedule = {}
-        )
-    }
-}

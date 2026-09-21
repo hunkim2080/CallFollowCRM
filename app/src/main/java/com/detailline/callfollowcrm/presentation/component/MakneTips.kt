@@ -1,5 +1,13 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Payments
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
@@ -47,7 +55,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
  */
 data class MakneTip(
     val key: String,
-    val emoji: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val tag: String,          // "왜 추천" (💡 아직 안 써보셨어요 등) — 광고 아닌 '도움' 느낌
     val title: String,
     val desc: String,
@@ -61,7 +69,7 @@ data class MakneTip(
  */
 val MAKNE_TIPS: List<MakneTip> = listOf(
     MakneTip(
-        "price", "📋", "아직 안 써보셨어요", "보낸 문자로 가격표 자동완성",
+        "price", androidx.compose.material.icons.Icons.Filled.Payments, "아직 안 써보셨어요", "보낸 문자로 가격표 자동완성",
         "예전에 보낸 견적 문자를 읽어 품목·가격·기준을 알아서 채워드려요.",
         Destinations.PRICING_ITEMS,
         listOf(
@@ -71,7 +79,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "quote", "📜", "이런 것도 돼요", "도장 찍힌 정식 견적서",
+        "quote", androidx.compose.material.icons.Icons.Filled.ReceiptLong, "이런 것도 돼요", "도장 찍힌 정식 견적서",
         "상호·대표·직인을 한 번 등록하면 견적서에 도장까지 자동으로 찍혀요.",
         Destinations.BUSINESS_INFO,
         listOf(
@@ -81,7 +89,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "recur", "🔁", "단골 관리", "단골에게 정기 문자 자동 발송",
+        "recur", androidx.compose.material.icons.Icons.Filled.Autorenew, "단골 관리", "단골에게 정기 문자 자동 발송",
         "명절·안부 문자를 한 번 정해두면 알아서 챙겨 보내드려요.",
         Destinations.RECURRING,
         listOf(
@@ -91,7 +99,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "autosms", "📩", "이런 것도 돼요", "시공 하루 전 자동 안내 문자",
+        "autosms", androidx.compose.material.icons.Icons.Filled.Send, "이런 것도 돼요", "시공 하루 전 자동 안내 문자",
         "부재중 응답·시공 D-1·도착 안내까지, 깜빡해도 자동으로 나가요.",
         Destinations.SETTINGS_AUTOSMS,
         listOf(
@@ -101,7 +109,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "settle", "💰", "미수금 챙기기", "못 받은 돈 한눈에",
+        "settle", androidx.compose.material.icons.Icons.Filled.AccountBalanceWallet, "미수금 챙기기", "못 받은 돈 한눈에",
         "계약금·잔금 누가 안 줬는지 자동 정리 — 떼일 걱정 줄여드려요.",
         Destinations.SETTLEMENT,
         listOf(
@@ -111,7 +119,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "tpl", "💬", "답장 더 빠르게", "자주 쓰는 문구, 템플릿으로",
+        "tpl", androidx.compose.material.icons.Icons.Filled.Chat, "답장 더 빠르게", "자주 쓰는 문구, 템플릿으로",
         "매번 치던 안내 문구를 저장해두고 한 번에 넣어요.",
         Destinations.TEMPLATE_LIST,
         listOf(
@@ -121,7 +129,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "tone", "✨", "프로 기능", "나처럼 답하는 AI",
+        "tone", androidx.compose.material.icons.Icons.Filled.AutoAwesome, "프로 기능", "나처럼 답하는 AI",
         "사장님 말투를 학습해 추천 답변이 점점 사장님처럼 바뀌어요.",
         Destinations.STYLE_LEARNING,
         listOf(
@@ -131,7 +139,7 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
         )
     ),
     MakneTip(
-        "report", "📊", "장사 분석", "매출·전환율 리포트",
+        "report", androidx.compose.material.icons.Icons.Filled.BarChart, "장사 분석", "매출·전환율 리포트",
         "이번 달 매출·시공 전환율·추천 채택률을 한 장으로.",
         Destinations.REPORT,
         listOf(
@@ -160,10 +168,15 @@ fun MakneTipCard(tip: MakneTip, onGo: () -> Unit, onDismiss: () -> Unit) {
             Box(
                 Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Color.White),
                 contentAlignment = Alignment.Center
-            ) { Text(tip.emoji, fontSize = 18.sp) }
+            ) {
+                // 이모지는 폰마다 그림이 다르다 → 앱이 그리는 아이콘. (2026-09-21 사장님)
+                androidx.compose.material3.Icon(
+                    tip.icon, null, tint = TossBlue, modifier = Modifier.size(19.dp)
+                )
+            }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text("💡 ${tip.tag}", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = BlueDark, maxLines = 1)
+                Text(tip.tag, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = BlueDark, maxLines = 1)
                 Text(tip.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(tip.desc, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -201,9 +214,13 @@ fun MakneGuideOverlay(tip: MakneTip, onProceed: () -> Unit, onDismiss: () -> Uni
                 Box(
                     Modifier.size(52.dp).clip(RoundedCornerShape(15.dp)).background(TipTint).align(Alignment.CenterHorizontally),
                     contentAlignment = Alignment.Center
-                ) { Text(tip.emoji, fontSize = 26.sp) }
+                ) {
+                    androidx.compose.material3.Icon(
+                        tip.icon, null, tint = TossBlue, modifier = Modifier.size(27.dp)
+                    )
+                }
                 Spacer(Modifier.height(11.dp))
-                Text("막내가 알려드릴게요 😊", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = BlueDark,
+                Text("막내가 알려드릴게요", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = BlueDark,
                     modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Spacer(Modifier.height(3.dp))
                 Text(tip.title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
