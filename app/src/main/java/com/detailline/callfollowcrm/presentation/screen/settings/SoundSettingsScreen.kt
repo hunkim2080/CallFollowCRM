@@ -136,7 +136,8 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(s.label, fontSize = 15.sp, color = TossTextPrimary, modifier = Modifier.weight(1f))
-                        Text(curLabel, fontSize = 14.sp, color = TossBlue, fontWeight = FontWeight.SemiBold)
+                        // 소리 이름은 **값**이다 — 검정으로. (2026-09-21 사장님)
+                        Text(curLabel, fontSize = 14.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.width(4.dp))
                         Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
                     }
@@ -229,7 +230,7 @@ private fun QuietTimeRow(label: String, value: String, onClick: () -> Unit) {
     ) {
         Text(label, fontSize = 14.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
-        Text(value, fontSize = 15.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+        Text(value, fontSize = 15.sp, color = TossTextPrimary, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(4.dp))
         Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
     }

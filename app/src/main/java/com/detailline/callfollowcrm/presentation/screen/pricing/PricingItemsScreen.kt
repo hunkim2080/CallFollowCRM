@@ -467,7 +467,8 @@ private fun PricingItemRow(
                 formatWonShort(item.price),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = TossBlue.copy(alpha = alpha)
+                // 값은 검정 — 색은 상태에만. 파랑이 많으면 **진짜 눌러야 할 파랑**이 안 보인다. (2026-09-21 사장님)
+                color = TossTextPrimary.copy(alpha = alpha)
             )
             // 선택 모드에선 활성 토글 숨김 (행 전체가 선택 대상)
             if (!selectionMode) {
