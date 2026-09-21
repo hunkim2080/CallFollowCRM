@@ -4843,7 +4843,7 @@ PERSONA_MAX_TOKENS = 200                      # 한두 줄 출력이라 짧게
 _persona_inflight: dict[str, asyncio.Task] = {}
 
 
-PERSONA_SYSTEM_PROMPT = """너는 줄눈/타일 시공 사장님의 비서다. 주어진 고객과의 대화·메모·통화 기록을 보고
+PERSONA_SYSTEM_PROMPT = """너는 줄눈/타일 시공 사장님의 막내다. 주어진 고객과의 대화·메모·통화 기록을 보고
 "이 고객은 누구이고 어떤 상태인가" 를 한두 문장으로 요약한다.
 
 규칙:
@@ -7120,7 +7120,7 @@ def _make_blog_thumb(title: str, category: str, slug: str) -> str:
         for ln in lines[:3]:
             d.text((70, y), ln, font=f, fill="white")
             y += int(ts * 1.3)
-        d.text((70, H - 80), "시공 사장님의 막내 비서 · si0in.kr",
+        d.text((70, H - 80), "상담과 일정관리는, 우리 막내가 · si0in.kr",
                font=ImageFont.truetype(fpath, 30), fill=(255, 255, 255))
         _THUMBS_DIR.mkdir(parents=True, exist_ok=True)
         out = _THUMBS_DIR / f"post-{slug}.png"
@@ -7133,7 +7133,7 @@ def _make_blog_thumb(title: str, category: str, slug: str) -> str:
 
 _BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가다. 독자는 혼자 일하는 한국의 시공·인테리어 사장님 (40~60대, 현장직, 존댓말 선호).
 
-시공막내 = 시공 사장님의 막내 비서 앱. 기능: 전화 오면 고객 카드, 부재중 자동 문자, AI 통화 요약, AI 추천 답장(말투 학습), 직인 견적서 이미지(부가세 별도/포함 명시), 시공접수서 링크(고객이 작성→일정 자동 등록→읽기전용 영수증), 시공 하루 전 자동 안내 문자, 계약금·잔금 정산 관리, 협업 현장 공유(도착·증거사진·일당 정산), 정기 문자 예약, **글 만들기(실제 상담 내용·현장 사진으로 블로그 글 자동 생성 — 시공막내의 핵심 영업 무기)**, 통화 내용까지 되는 전체 검색, 잔금 미수 자동 분류, 한 고객 여러 현장 일정. 고객카드·견적서·접수서·일정·정산 등 기본 기능은 기간 제한 없이 무료, AI 응대·홍보 기능만 유료.
+시공막내 = 시공 사장님의 막내 앱 ("상담과 일정관리는, 우리 막내가"). 기능: 전화 오면 고객 카드, 부재중 자동 문자, AI 통화 요약, AI 추천 답장(말투 학습), 직인 견적서 이미지(부가세 별도/포함 명시), 시공접수서 링크(고객이 작성→일정 자동 등록→읽기전용 영수증), 시공 하루 전 자동 안내 문자, 계약금·잔금 정산 관리, 협업 현장 공유(도착·증거사진·일당 정산), 정기 문자 예약, **글 만들기(실제 상담 내용·현장 사진으로 블로그 글 자동 생성 — 시공막내의 핵심 영업 무기)**, 통화 내용까지 되는 전체 검색, 잔금 미수 자동 분류, 한 고객 여러 현장 일정. 고객카드·견적서·접수서·일정·정산 등 기본 기능은 기간 제한 없이 무료, AI 응대·홍보 기능만 유료.
 
 글 스타일 (반드시):
 - 도입: 사장님이 겪는 구체적 장면으로 공감 후킹 (2~3문단)
@@ -18415,7 +18415,7 @@ async def shared_link_page(share_id: str) -> HTMLResponse:
     {f'<div class="row"><div class="k">고객</div><div class="v">{customer_label}</div></div>' if customer_label else ''}
   </div>
 
-  <a href="/install" class="install-cta">📲 시공막내 앱 설치하기 →</a>
+  <a href="/install" class="install-cta">시공막내 앱 설치하기 →</a>
 
   <div class="footer-note">
     설치 후 가입 시 <b>{owner_name}님이 공유한 이 현장이 자동으로 협업 목록에 추가</b>됩니다.<br>
