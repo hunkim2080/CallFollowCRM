@@ -1632,10 +1632,16 @@ fun CustomerDetailScreen(
                             androidx.compose.foundation.layout.Row(
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                TextButton(onClick = { addingNewJob = false; datePickerOpen = false }) {
-                                    Text("취소", color = TossTextSecondary)
-                                }
-                                TextButton(
+                                // 앱의 다른 창(금액 입력)과 같은 버튼 옷. 전엔 여기만 그냥 글씨였다. (2026-09-21 사장님)
+                                com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
+                                    text = "취소",
+                                    onClick = { addingNewJob = false; datePickerOpen = false },
+                                    modifier = Modifier.width(92.dp)
+                                )
+                                Spacer(Modifier.width(9.dp))
+                                com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
+                                    text = "저장",
+                                    modifier = Modifier.width(112.dp),
                                     onClick = {
                                         val start = rangeState.selectedStartDateMillis
                                         if (start != null) {
@@ -1662,7 +1668,7 @@ fun CustomerDetailScreen(
                                         addingNewJob = false
                                         datePickerOpen = false
                                     }
-                                ) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+                                )
                             }
                         }
                     }
@@ -1734,19 +1740,27 @@ fun CustomerDetailScreen(
                             androidx.compose.foundation.layout.Row(
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                TextButton(onClick = { asPickerOpen = false }) {
-                                    Text("취소", color = TossTextSecondary)
-                                }
-                                TextButton(onClick = {
-                                    val start = asRangeState.selectedStartDateMillis
-                                    if (start != null) {
-                                        val end = asRangeState.selectedEndDateMillis
-                                        val days = if (end != null && end > start)
-                                            ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
-                                        viewModel.updateAsSchedule(start, days.coerceAtLeast(1))
+                                // 날짜 창 버튼 옷 통일 — 앱의 다른 창(금액 입력)과 같게. (2026-09-21 사장님)
+                                com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
+                                    text = "취소",
+                                    onClick = { asPickerOpen = false },
+                                    modifier = Modifier.width(92.dp)
+                                )
+                                Spacer(Modifier.width(9.dp))
+                                com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
+                                    text = "저장",
+                                    modifier = Modifier.width(112.dp),
+                                    onClick = {
+                                        val start = asRangeState.selectedStartDateMillis
+                                        if (start != null) {
+                                            val end = asRangeState.selectedEndDateMillis
+                                            val days = if (end != null && end > start)
+                                                ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
+                                            viewModel.updateAsSchedule(start, days.coerceAtLeast(1))
+                                        }
+                                        asPickerOpen = false
                                     }
-                                    asPickerOpen = false
-                                }) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+                                )
                             }
                         }
                     }

@@ -1751,23 +1751,29 @@ fun ChatScreen(
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = { showDatePicker = false }) {
-                                Text("취소", color = TossTextSecondary)
-                            }
-                            TextButton(onClick = {
-                                val start = rangeState.selectedStartDateMillis
-                                if (start != null) {
-                                    val end = rangeState.selectedEndDateMillis
-                                    val days = if (end != null && end > start)
-                                        ((end - start) / com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS).toInt() + 1 else 1
-                                    pendingWorkDays = days.coerceAtLeast(1)
-                                    viewModel.setScheduledWorkDate(start)
-                                    pendingScheduleTimeMs = start   // 날짜 등록 후 "시공 시간" 선택으로 이어감
+                            // 날짜 창 버튼 옷 통일 — 앱의 다른 창과 같게. (2026-09-21 사장님)
+                            com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
+                                text = "취소",
+                                onClick = { showDatePicker = false },
+                                modifier = Modifier.width(92.dp)
+                            )
+                            Spacer(Modifier.width(9.dp))
+                            com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
+                                text = "등록",
+                                modifier = Modifier.width(112.dp),
+                                onClick = {
+                                    val start = rangeState.selectedStartDateMillis
+                                    if (start != null) {
+                                        val end = rangeState.selectedEndDateMillis
+                                        val days = if (end != null && end > start)
+                                            ((end - start) / com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS).toInt() + 1 else 1
+                                        pendingWorkDays = days.coerceAtLeast(1)
+                                        viewModel.setScheduledWorkDate(start)
+                                        pendingScheduleTimeMs = start   // 날짜 등록 후 "시공 시간" 선택으로 이어감
+                                    }
+                                    showDatePicker = false
                                 }
-                                showDatePicker = false
-                            }) {
-                                Text("등록", color = TossBlue, fontWeight = FontWeight.SemiBold)
-                            }
+                            )
                         }
                     }
                 }
