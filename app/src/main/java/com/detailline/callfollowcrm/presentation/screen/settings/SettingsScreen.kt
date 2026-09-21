@@ -249,7 +249,7 @@ fun SettingsScreen(
                     val ok = com.detailline.callfollowcrm.util.DiagnosticsReporter
                         .sendToServer(context, container.preferences, note, shotUri)
                     if (ok) {
-                        Toast.makeText(context, "진단을 보냈어요. 감사합니다! 🙏", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "진단을 보냈어요. 감사합니다!", Toast.LENGTH_LONG).show()
                     } else {
                         // 서버 전송 실패 → 공유 시트로 폴백(리포트 유실 방지)
                         Toast.makeText(context, "바로 전송이 안 돼 공유로 열었어요", Toast.LENGTH_LONG).show()
@@ -2418,7 +2418,7 @@ private fun AutoSmsSection(
             recFolderConnected = true
             recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
             android.widget.Toast.makeText(
-                ctx, recLabel?.let { "연결됐어요 ✓  $it" } ?: "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.",
+                ctx, recLabel?.let { "연결됐어요 $it" } ?: "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         }
@@ -2437,7 +2437,7 @@ private fun AutoSmsSection(
                 val n = label?.substringAfter("녹음 ", "")?.substringBefore("개")?.toIntOrNull() ?: 0
                 android.widget.Toast.makeText(
                     ctx,
-                    if (n > 0) "통화 녹음 ${n}개를 찾았어요! 이제 통화 끝나면 자동으로 요약돼요 ✨"
+                    if (n > 0) "통화 녹음 ${n}개를 찾았어요! 이제 통화 끝나면 자동으로 요약돼요"
                     else "연결됐어요. 이제 통화 끝나면 녹음을 자동으로 요약해요.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
@@ -2472,7 +2472,7 @@ private fun AutoSmsSection(
                                 com.detailline.callfollowcrm.recording.AdotFolderScanner.scanIfConnected(ctx, recAppContainer) { }
                                 recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
                                 android.widget.Toast.makeText(ctx,
-                                    recLabel?.let { "확인했어요 ✓  $it" } ?: "통화 녹음을 보고 있어요 ✓",
+                                    recLabel?.let { "확인했어요 $it" } ?: "통화 녹음을 보고 있어요",
                                     android.widget.Toast.LENGTH_LONG).show()
                             } else {
                                 recAudioPermLauncher.launch(
@@ -2653,7 +2653,7 @@ private fun AutoSmsSection(
                             } else {
                                 spamPrefixes = spamPrefixes + p
                                 prefs.spamPrefixes = spamPrefixes   // .commit() = 즉시 저장
-                                android.widget.Toast.makeText(ctx, "‘$p’ 저장됐어요 ✓ — 위 ‘등록된 앞자리’에 추가됐어요", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(ctx, "‘$p’ 저장됐어요 — 위 ‘등록된 앞자리’에 추가됐어요", android.widget.Toast.LENGTH_SHORT).show()
                             }
                             newSpamPrefix = ""
                         }
@@ -4036,7 +4036,7 @@ private fun SetupCheckCard(
         val n = runCatching { scanner.countMediaStoreCandidates(context) }.getOrDefault(0)
         refresh++
         recScanFailed = n == 0
-        if (n > 0) Toast.makeText(context, "녹음 ${n}개를 찾았어요 🎉 통화가 끝나면 자동 요약돼요", Toast.LENGTH_LONG).show()
+        if (n > 0) Toast.makeText(context, "녹음 ${n}개를 찾았어요 통화가 끝나면 자동 요약돼요", Toast.LENGTH_LONG).show()
         else Toast.makeText(context, "아직 녹음이 없어요. 통화 녹음을 먼저 켜주세요 (전화 설정)", Toast.LENGTH_LONG).show()
     }
     val audioLauncher = rememberLauncherForActivityResult(

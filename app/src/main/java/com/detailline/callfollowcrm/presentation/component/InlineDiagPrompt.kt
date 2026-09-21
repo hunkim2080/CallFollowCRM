@@ -67,7 +67,7 @@ fun InlineDiagPrompt(
                     val ok = DiagnosticsReporter.sendAuto(context, prefs, tag, extra)
                     sending = false
                     if (ok) {
-                        Toast.makeText(context, "진단을 보냈어요. 원인을 확인할게요 🙏", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "진단을 보냈어요. 원인을 확인할게요", Toast.LENGTH_LONG).show()
                     } else {
                         // 서버 직송 실패 → 공유로 폴백(리포트 유실 방지).
                         Toast.makeText(context, "바로 전송이 안 돼 공유로 열었어요", Toast.LENGTH_LONG).show()

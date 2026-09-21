@@ -91,7 +91,7 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
             container.teamRepository.invite(ownerPhone, nm, ph, tint = tint).fold(
                 onSuccess = { r ->
                     load()
-                    _toast.value = "${r.name} 추가 · 초대 링크를 문자에 넣었어요 📩"
+                    _toast.value = "${r.name} 추가· 초대 링크를 문자에 넣었어요"
                     onResult(ph, r.smsDraft)
                 },
                 onFailure = { _toast.value = inviteErrorMessage(it) }
@@ -131,7 +131,7 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             _loading.value = true
             container.teamRepository.invite(ownerPhone, nm, member.phone, member.role, member.tint).fold(
-                onSuccess = { load(); _toast.value = "이름을 '${nm}'(으)로 바꿨어요 ✓" },
+                onSuccess = { load(); _toast.value = "이름을 '${nm}'(으)로 바꿨어요" },
                 onFailure = { _toast.value = inviteErrorMessage(it) }
             )
             _loading.value = false

@@ -829,7 +829,7 @@ class CustomerDetailViewModel(
     fun aiPolish(rawBody: String, onPolished: (String) -> Unit) {
         if (rawBody.isBlank()) return
         // TODO: 자체 서버 연동 후 실제 호출. 지금은 안내만.
-        _toast.value = "AI 다듬기 ✨ 는 자체 서버 마련 후 활성화돼요"
+        _toast.value = "AI 다듬기는 자체 서버 마련 후 활성화돼요"
     }
 
     /**

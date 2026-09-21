@@ -530,7 +530,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }
             _toast.value = when {
                 selected.isEmpty() -> "배정을 비웠어요"
-                pushed > 0 -> "${selected.size}명 배정 · 현장 공유 📩"
+                pushed > 0 -> "${selected.size}명 배정· 현장 공유"
                 else -> "${selected.size}명 배정 (링크 발급 후 다시 시도하면 공유돼요)"
             }
         }

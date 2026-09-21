@@ -283,7 +283,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
                     container.customerRepository.updateDepositPaidAt(customerId, at)
                 }
             }.onSuccess {
-                if (paid) _toast.value = "받았어요 ✓"
+                if (paid) _toast.value = "받았어요"
             }.onFailure {
                 _toast.value = "저장에 실패했어요 — 다시 시도해주세요"
             }
@@ -307,7 +307,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
                     container.customerRepository.updateBalancePaidAt(customerId, at)
                 }
             }.onSuccess {
-                if (paid) _toast.value = "잔금을 받았어요 ✓"
+                if (paid) _toast.value = "잔금을 받았어요"
             }.onFailure {
                 _toast.value = "저장에 실패했어요 — 다시 시도해주세요"
             }

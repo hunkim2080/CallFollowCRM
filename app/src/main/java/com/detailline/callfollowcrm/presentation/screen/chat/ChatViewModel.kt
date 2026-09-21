@@ -177,7 +177,7 @@ class ChatViewModel(
             }
         }
         result.onSuccess {
-            _toast.value = if (photoUris.isEmpty()) "문구로 저장했어요 ✓" else "문구+사진 저장했어요 ✓"
+            _toast.value = if (photoUris.isEmpty()) "문구로 저장했어요" else "문구+사진 저장했어요"
         }.onFailure { _toast.value = "저장 실패" }
     }
 
@@ -333,7 +333,7 @@ class ChatViewModel(
             }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED)  // 호출 자체가 throw = 실패(파일 없음 아님)
             com.detailline.callfollowcrm.recording.CallSummaryProgress.end(phone, at)
             _toast.value = when (res) {
-                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요 ✨"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> "이미 요약돼 있어요"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "통화 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요. 통화 녹음이 켜져 있는지 확인해주세요."
@@ -351,7 +351,7 @@ class ChatViewModel(
             val trimmed = newText.trim()
             val edited = summary.copy(summaryText = trimmed, updatedAt = System.currentTimeMillis())
             container.callSummaryRepository.update(edited)   // 요약 즉시 반영
-            _toast.value = "통화 요약 수정 ✓ 후속문자도 다시 정리 중…"
+            _toast.value = "통화 요약 수정 · 후속문자도 다시 정리 중…"
             // 후속문자를 수정된 요약 기준으로 재생성 → DB 갱신되면 카드 버튼이 자동으로 새 문자를 씀(요약 카드는 DB observe).
             val phone = summary.phoneNumber
             val fresh = if (phone.isNullOrBlank()) null else runCatching {
@@ -366,9 +366,9 @@ class ChatViewModel(
             }.getOrNull()
             if (fresh != null) {
                 container.callSummaryRepository.update(edited.copy(recommendedMessage = fresh, updatedAt = System.currentTimeMillis()))
-                _toast.value = "요약·후속문자 새로 정리 완료 ✓"
+                _toast.value = "요약·후속문자 새로 정리 완료"
             } else {
-                _toast.value = "통화 요약을 수정했어요 ✓"
+                _toast.value = "통화 요약을 수정했어요"
             }
         }
     }

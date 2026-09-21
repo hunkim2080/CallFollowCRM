@@ -517,7 +517,7 @@ fun SharedSiteScreen(
                     confirmRemoveSite = null
                     if (done) {
                         viewModel.trash(s.shareId)
-                        android.widget.Toast.makeText(context, "목록에서 정리했어요 — 우상단 🗑에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "목록에서 정리했어요 — 우상단 에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
                     } else {
                         viewModel.leaveCollab(s)
                     }
