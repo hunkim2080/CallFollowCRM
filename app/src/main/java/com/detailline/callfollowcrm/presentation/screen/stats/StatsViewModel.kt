@@ -190,7 +190,7 @@ data class StatTypeRow(val name: String, val count: Int, val delta: Int)
 data class TrendBar(val label: String, val cur: Int, val prev: Int)
 
 data class StatsUiState(
-    val greeting: String = "이번 달, 잘 하고 계세요 👏",
+    val greeting: String = "이번 달, 잘 하고 계세요",
     val monthLabel: String = "",
     val jobs: Int = 0,
     /** 작년 동월 대비 현장 수 차이. null = 작년 데이터 없음(문구 생략). */
@@ -257,6 +257,6 @@ private fun greetingOf(nowMs: Long): String {
     return when {
         day >= last - 3 -> "${mo}월, 정말 고생하셨어요"
         day <= 10 -> "${mo}월, 좋은 출발이에요!"
-        else -> "${mo}월, 잘 하고 계세요 👏"
+        else -> "${mo}월, 잘 하고 계세요"
     }
 }

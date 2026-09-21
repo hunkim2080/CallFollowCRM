@@ -750,23 +750,13 @@ private fun SegTabs(current: String, onSelect: (String) -> Unit) {
 /** 1차 분리 세그먼트 — 공유받은 현장 / 내가 공유한 현장. (2026-06-18 사장님) */
 @Composable
 private fun CollabTopTabs(current: String, onSelect: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surfaceMuted).padding(3.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        listOf("received" to "공유받은 현장", "shared" to "내가 공유한 현장").forEach { (key, label) ->
-            val on = current == key
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                    .background(if (on) Color.White else Color.Transparent)
-                    .clickable { onSelect(key) }.padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(label, fontSize = 13.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
-                    color = if (on) TossTextPrimary else TossTextTertiary)
-            }
-        }
-    }
+    // 앱 어디서나 같은 탭 모양. 전엔 여기만 '회색 바탕 + 흰 알약' 이었다. (2026-09-21 사장님)
+    val keys = listOf("received", "shared")
+    com.detailline.callfollowcrm.presentation.component.AppTabs(
+        tabs = listOf("공유받은 현장", "내가 공유한 현장"),
+        selected = keys.indexOf(current).coerceAtLeast(0),
+        onSelect = { onSelect(keys[it]) }
+    )
 }
 
 /**

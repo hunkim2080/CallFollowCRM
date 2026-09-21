@@ -668,24 +668,8 @@ fun CustomerDetailScreen(
                 // "블로그"(비즈니스 요금제 예정) 탭은 출시 전까지 숨김 — 눌러도 "곧 제공" 토스트만 뜨는 데드엔드였음.
                 //   아래 detailTab==3 블로그 lockcard 블록은 탭이 없어 자동으로 도달 불가(코드는 유지). 2026-07-29.
                 val detailTabs = listOf("일정·정산", "협업", "시공접수서")
-                androidx.compose.foundation.layout.Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    detailTabs.forEachIndexed { i, label ->
-                        val on = detailTab == i
-                        androidx.compose.foundation.layout.Box(
-                            Modifier.weight(1f).clip(RoundedCornerShape(9.dp))
-                                .background(if (on) TossBlue else Color.Transparent)
-                                .clickable { detailTab = i }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
-                        ) {
-                            Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (on) Color.White else TossTextSecondary, maxLines = 1)
-                        }
-                    }
-                }
+                // 이 모양이 앱의 탭 기준이 됐다 → 공용 부품으로 옮김(AppTabs). (2026-09-21 사장님)
+                com.detailline.callfollowcrm.presentation.component.AppTabs(tabs = detailTabs, selected = detailTab, onSelect = { detailTab = it })
             }
 
             // 1.4 협업 현장으로 공유 (collab-sites-proto a-card) — 다른 사장님과 이 현장 하나만 같이.

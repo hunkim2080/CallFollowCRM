@@ -89,20 +89,12 @@ fun ReportScreen(
         ) {
             // 기간 탭
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ReportPeriod.values().forEach { p ->
-                        val sel = p == period
-                        Box(
-                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                                .background(if (sel) TossTextPrimary else Color.White)
-                                .clickable { viewModel.setPeriod(p) }.padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(p.label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                                color = if (sel) Color.White else TossTextSecondary)
-                        }
-                    }
-                }
+                // 앱 어디서나 같은 탭 모양. 전엔 여기만 **까만** 탭이었다. (2026-09-21 사장님)
+                com.detailline.callfollowcrm.presentation.component.AppTabs(
+                    tabs = ReportPeriod.values().map { it.label },
+                    selected = ReportPeriod.values().indexOf(period),
+                    onSelect = { viewModel.setPeriod(ReportPeriod.values()[it]) }
+                )
             }
 
             // 1) 히어로 — 번 돈

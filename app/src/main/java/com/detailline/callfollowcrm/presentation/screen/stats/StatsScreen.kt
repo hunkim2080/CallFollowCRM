@@ -123,7 +123,6 @@ private fun StatsHero(s: StatsUiState) {
             .background(Brush.linearGradient(listOf(TossBlue, TossBlueDark)))
             .padding(22.dp)
     ) {
-        Text("👏", fontSize = 26.sp)
         Text(s.greeting, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
             letterSpacing = (-0.6).sp, modifier = Modifier.padding(top = 6.dp))
         // h2: 현장 N곳 + (작년 대비)
@@ -138,16 +137,8 @@ private fun StatsHero(s: StatsUiState) {
                 Text(if (d > 0) "$d 곳 더!" else "${-d}곳 적게", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             }
         }
-        // rank-badge → 전국 데이터 모이는 중
-        Box(
-            modifier = Modifier
-                .padding(top = 11.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color.White.copy(alpha = 0.2f))
-                .padding(horizontal = 12.dp, vertical = 5.dp)
-        ) {
-            Text("🔥 전국 페이스는 데이터가 모이는 중", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-        }
+        // 전국 비교는 **아직 안 되는 기능**이다. 파란 카드 한가운데서 자리를 먹지 않게 뺐다.
+        //   아래 '시장 비교' 카드에 한 줄로 접어 뒀다가, 데이터가 모이면 그때 편다. (2026-09-21 사장님)
     }
 }
 
@@ -183,10 +174,11 @@ private fun StatGrid(s: StatsUiState, onOpenVisited: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             // 프로토 openVisited — "다녀온 현장 ›" 셀만 탭 가능 → 현장 목록.
             StatCell("다녀온 현장 ›", "${s.jobs}", "곳", TossTextPrimary, Modifier.weight(1f), onClick = onOpenVisited)
-            StatCell("받은 문의", "${s.inquiries}", "건", TossBlue, Modifier.weight(1f))
+            // 숫자는 검정 — 파랑·초록에 뜻이 없었다(좋다/나쁘다가 아니라 그냥 숫자). (2026-09-21 사장님)
+            StatCell("받은 문의", "${s.inquiries}", "건", TossTextPrimary, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCell("시공 전환율", "${s.conversionPct}", "%", TossSuccess, Modifier.weight(1f))
+            StatCell("시공 전환율", "${s.conversionPct}", "%", TossTextPrimary, Modifier.weight(1f))
             StatCell("보낸 답장", "${s.sentReplies}", "건", TossTextPrimary, Modifier.weight(1f))
         }
     }
@@ -217,20 +209,13 @@ private fun StatCell(label: String, value: String, unit: String, valueColor: Col
 private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
     Column {
         // period-toggle
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-            StatPeriod.values().forEach { p ->
-                val on = t.period == p
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (on) TossBlue else Color.White)
-                        .clickable { onSelect(p) }
-                        .padding(horizontal = 15.dp, vertical = 8.dp)
-                ) {
-                    Text(p.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else TossTextSecondary)
-                }
-            }
-        }
+        // 탭은 앱 어디서나 같은 모양(AppTabs). 전엔 화면마다 달랐다. (2026-09-21 사장님)
+        com.detailline.callfollowcrm.presentation.component.AppTabs(
+            tabs = StatPeriod.values().map { it.label },
+            selected = StatPeriod.values().indexOf(t.period),
+            modifier = Modifier.padding(bottom = 12.dp),
+            onSelect = { onSelect(StatPeriod.values()[it]) }
+        )
         // panel
         Column(
             modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
@@ -262,7 +247,9 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
                         verticalArrangement = Arrangement.Bottom,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("${b.cur}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue, maxLines = 1)
+                        // 0 은 강조할 값이 아니다 — 파랑은 **있는 값**에만. (2026-09-21 사장님)
+                        Text("${b.cur}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                            color = if (b.cur > 0) TossBlue else TossTextTertiary, maxLines = 1)
                         Spacer(Modifier.height(4.dp))
                         // 막대 영역 = 남는 높이(weight). 각 막대는 이 높이의 비율로 채움.
                         Row(
@@ -288,21 +275,16 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
                 LegendItem(TossBlue, t.unitLabel)
             }
         }
-        // 시장 비교 (전국 = 모이는 중)
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp)
+        // 시장 비교 — **아직 안 되는 기능**이라 한 줄로 접어 둔다. 전엔 카드 하나를 통째로 먹으면서
+        //   "모이는 중" 을 세 번 말했다. 데이터가 모이면 그때 편다. (2026-09-21 사장님)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(14.dp))
+                .background(Color.White).padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("📊 시장 비교", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextInfo, modifier = Modifier.padding(bottom = 11.dp))
-            MkRow("내 문의", "${if (t.deltaPct >= 0) "+" else ""}${t.deltaPct}%", if (t.deltaPct >= 0) TossSuccess else TossError)
-            MkRow("시공막내 전국 평균", "모이는 중", TossTextTertiary)
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(12.dp)
-            ) {
-                Text(
-                    "전국 시공자 평균은 데이터가 모이는 중이에요. 곧 \"나만 그런 건지\"까지 한눈에 보여드릴게요.",
-                    fontSize = 13.sp, color = TossTextSecondary
-                )
-            }
+            Text("시장 비교", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.weight(1f))
+            Text("전국 시공자가 더 모이면 열려요", fontSize = 12.sp, color = TossTextTertiary)
         }
     }
 }
@@ -366,7 +348,7 @@ private fun StatTypes(s: StatsUiState) {
                     .background(Brush.linearGradient(listOf(TossBlue, TossBlueDark)))
                     .padding(horizontal = 17.dp, vertical = 16.dp)
             ) {
-                Text("🎉 가장 많이 한 시공", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.85f))
+                Text("가장 많이 한 시공", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.85f))
                 Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth().padding(top = 7.dp)) {
                     Text(top.name, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = (-0.4).sp)
                     Spacer(Modifier.weight(1f))
