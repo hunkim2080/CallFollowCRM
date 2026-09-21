@@ -111,7 +111,9 @@ tasks.register("checkHardcodedStyle") {
     }
 }
 
-// 폰에 넣는 빌드에서만 건다. 개발 중 디버그 빌드는 막지 않는다.
-tasks.matching { it.name == "assembleRelease" }.configureEach {
+// 폰에 넣는 빌드(assembleRelease)와 **플레이에 올리는 빌드(bundleRelease)** 둘 다 건다.
+//   2026-09-21: assembleRelease 에만 걸려 있었다 — 폰 테스트를 건너뛰고 바로 태그를 찍으면
+//   검사 없이 플레이로 나가는 구멍이 있었다. 정작 제일 중요한 문이 열려 있던 셈.
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
     dependsOn("checkHardcodedStyle")
 }

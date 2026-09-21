@@ -10785,3 +10785,9 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - 백업 main.py.bak.auth-20260921-222804 · /health 200 확인
 - ⚠️ 이 문자 고칠 땐 자동입력 규칙 지킬 것 — 본문에 "인증번호" 또는 "시공막내" 포함 +
   **코드보다 앞에 다른 6자리 숫자를 두지 말 것** (SignupViewModel.readCodeFromInbox)
+
+## 2026-09-21 23:05 · android
+플레이 내부테스트 업로드(upload-20260921-2256, 성공) + 빌드 감시 구멍 막음
+- 감시(style_guard·brand_guard)가 assembleRelease 에만 걸려 있었음
+  → 폰 테스트 건너뛰고 태그만 찍으면 검사 없이 플레이로 나가는 구멍
+  → bundleRelease(AAB)에도 걸도록 수정. --dry-run 으로 태스크 그래프 확인
