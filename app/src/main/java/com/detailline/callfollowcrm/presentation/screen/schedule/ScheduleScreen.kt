@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -1093,7 +1094,8 @@ private fun CalendarDay(
     val lastLane = minOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), CAL_MAX_LANE) // 최대 3줄
     Box(
         modifier = modifier
-            .height(52.dp)
+            // 52 → 62dp: 맨 윗줄을 **지역명 띠**(13dp)로 키운 만큼. 모든 칸이 같은 높이라야 행이 안 흐트러진다.
+            .height(62.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1123,10 +1125,11 @@ private fun CalendarDay(
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
                                 if (bar != null) {
                                     val c = if (bar.past) TossTextTertiary else TossSuccess
-                                    CalBar(bar.seg, c)
+                                    // 맨 윗줄만 **지역명 띠**. 아랫줄까지 키우면 칸이 3배가 된다.
+                                    if (lane == 0) CalRegionBar(bar.seg, c, bar.label) else CalBar(bar.seg, c)
                                 } else {
                                     // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 막대가 가로로 이어지게.
-                                    Box(Modifier.fillMaxWidth().height(4.dp))
+                                    Box(Modifier.fillMaxWidth().height(if (lane == 0) 13.dp else 4.dp))
                                 }
                             }
                         }
@@ -1169,18 +1172,40 @@ private fun PendingCalBar() {
 /** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
 @Composable
 private fun CalBar(seg: BarSeg, color: Color) {
-    val shape = when (seg) {
-        BarSeg.SINGLE -> RoundedCornerShape(3.dp)
-        BarSeg.START -> RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp)
-        BarSeg.END -> RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
-        BarSeg.MID -> RoundedCornerShape(0.dp)
-    }
+    val shape = calBarShape(seg)
     if (seg == BarSeg.SINGLE) {
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Box(Modifier.width(16.dp).height(4.dp).clip(shape).background(color))
         }
     } else {
         Box(Modifier.fillMaxWidth().height(4.dp).clip(shape).background(color))
+    }
+}
+
+/**
+ * 달력 칸 맨 윗줄 — **색=종류, 글자=어디**. (2026-09-22 사장님 "지역명 정도")
+ *   여러 날 시공은 첫날에만 글자가 오고(label != null) 이어지는 날은 같은 높이 빈 띠라
+ *   막대가 가로로 끊기지 않는다.
+ */
+@Composable
+private fun CalRegionBar(seg: BarSeg, color: Color, label: String?) {
+    val shape = calBarShape(seg)
+    Box(
+        Modifier.fillMaxWidth().height(13.dp).clip(shape).background(color),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!label.isNullOrBlank()) {
+            Text(
+                label,
+                color = Color.White,
+                fontSize = CAL_REGION_TEXT_SP,
+                lineHeight = CAL_REGION_TEXT_SP,   // 테마 lineHeight(24sp)를 물려받으면 띠 안에서 글자가 잘린다
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+        }
     }
 }
 
@@ -1253,6 +1278,9 @@ private fun UpcomingSection(
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .padding(bottom = 8.dp)
+                    // 앱의 다른 카드와 **같은 옷** — 그림자가 없으면 배경에 붕 떠서
+                    //   "왜 밖으로 빠져있어?" 로 보인다. (2026-09-21 사장님)
+                    .tossCardShadow(AppShape.lg)
                     .clip(AppShape.lg)
                     .background(Color.White)
                     .clickable { onOpenDay(DateTimeUtils.startOfDay(r.ms)) }
@@ -1534,6 +1562,17 @@ private fun koreanMonthDay(ms: Long): String =
 /** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~2 = 최대 3줄). 칸 렌더러와 반드시 같은 값. */
 private const val CAL_MAX_LANE = 2
 
+/** 달력 막대 모서리 — 여러 날 시공이 가로로 이어져 보이게 끝만 둥글린다. CalBar/CalRegionBar 공용. */
+private fun calBarShape(seg: BarSeg) = when (seg) {
+    BarSeg.SINGLE -> RoundedCornerShape(3.dp)
+    BarSeg.START -> RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp)
+    BarSeg.END -> RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
+    BarSeg.MID -> RoundedCornerShape(0.dp)
+}
+
+/** 달력 칸 지역명 글자 크기 — 46dp 칸에 2~3글자가 들어가는 한계값. 여기 한 곳에서만 정한다. */
+private val CAL_REGION_TEXT_SP = 9.sp
+
 /** "방금 · 35건" / "오후 2:10 · 35건" / "어제 · 35건" — 버튼 밑 한 줄. (2026-09-15 사장님) */
 private fun lastSyncLabel(atMs: Long, count: Int): String {
     // 아직 한 번도 안 올렸으면 시각이 없다 — "방금" 이라고 거짓말하지 않는다. (2026-09-16)
@@ -1550,7 +1589,13 @@ private fun lastSyncLabel(atMs: Long, count: Int): String {
 }
 
 private enum class BarSeg { SINGLE, START, MID, END }
-private data class DayBar(val lane: Int, val seg: BarSeg, val past: Boolean)
+private data class DayBar(
+    val lane: Int,
+    val seg: BarSeg,
+    val past: Boolean,
+    /** 칸에 적을 **지역명**. 여러 날 시공은 **첫날만** 채운다(날마다 반복하면 지저분). */
+    val label: String? = null
+)
 
 private data class CalendarCell(
     val dayStartMs: Long,
@@ -1688,7 +1733,10 @@ private fun buildCalendarCells(
             DayBar(
                 lane = (laneMap[laneKeyOf(c)] ?: 0).coerceAtMost(CAL_MAX_LANE),
                 seg = seg,
-                past = dayStart < todayStart
+                past = dayStart < todayStart,
+                // 글자는 첫날에만. 홈 띠에서 "동대문" 뽑을 때 쓰는 그 함수를 그대로 쓴다.
+                label = if (seg == BarSeg.SINGLE || seg == BarSeg.START)
+                    com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address) else null
             )
         }.sortedBy { it.lane }
         cells += CalendarCell(
