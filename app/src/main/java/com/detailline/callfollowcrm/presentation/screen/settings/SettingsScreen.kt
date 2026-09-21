@@ -1,5 +1,13 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Place
@@ -656,7 +664,7 @@ private fun UsageStatsCard(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📊", fontSize = 16.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.BarChart, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "토큰 사용량 — $periodLabel",
@@ -1913,7 +1921,7 @@ private fun AutoLearningCard(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🔄", fontSize = 16.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Refresh, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "자동 학습 (시나리오별 분석)",
@@ -2321,7 +2329,7 @@ private fun AutoSmsSection(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.primaryBg),
-                    contentAlignment = Alignment.Center) { Text("📞", fontSize = 16.sp) }
+                    contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Phone, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -2444,7 +2452,7 @@ private fun AutoSmsSection(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
-                    contentAlignment = Alignment.Center) { Text("🎙️", fontSize = 16.sp) }
+                    contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Mic, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Text("통화 녹음 자동 찾기${if (recFolderConnected) " · 연결됨" else ""}", fontSize = 15.sp,
@@ -2498,7 +2506,7 @@ private fun AutoSmsSection(
     TossCard(onClick = onOpenRecurring) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.doneBg),
-                contentAlignment = Alignment.Center) { Text("🔁", fontSize = 16.sp) }
+                contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Autorenew, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("정기 문자 예약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -2555,7 +2563,7 @@ private fun AutoSmsSection(
                 Box(
                     Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.unpaidBg),
                     contentAlignment = Alignment.Center
-                ) { Text("🚫", fontSize = 15.sp) }
+                ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Block, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) }
                 Spacer(Modifier.width(10.dp))
                 Text("광고·스팸 번호 앞자리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }
@@ -3107,7 +3115,7 @@ private fun OwnerToneRagCard(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🧠", fontSize = 16.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Psychology, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "깊이 학습 (Tone RAG)",
@@ -3247,7 +3255,7 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📩", fontSize = 16.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.MarkEmailUnread, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "수신 문자 알림",
@@ -3343,7 +3351,7 @@ private fun NavAppPreferenceCard(
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🧭", fontSize = 16.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Explore, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "기본 네비 앱",
@@ -3406,7 +3414,7 @@ private fun NotificationDiagnosticCard() {
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📷", fontSize = 16.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.PhotoCamera, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "고객 사진(문자) 잘 받기",
@@ -3429,7 +3437,7 @@ private fun NotificationDiagnosticCard() {
             ) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("⚠️", fontSize = 14.sp)
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Warning, null, tint = TossTextSecondary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
                             "갤메시지 \"채팅+\" 끄기 (필수)",
@@ -4410,7 +4418,7 @@ private fun ToneBeforeAfter(ex: com.detailline.callfollowcrm.ai.ToneExample) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 15.dp, end = 15.dp, top = 14.dp, bottom = 4.dp)
         ) {
-            Text("💬", fontSize = 12.sp)
+            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Chat, null, tint = TossTextSecondary, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
             Text("\"${ex.question}\"", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
         }

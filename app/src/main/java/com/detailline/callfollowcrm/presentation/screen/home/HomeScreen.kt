@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.home
 
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -2712,7 +2714,7 @@ private fun CollabUpcomingCard(
             Box(
                 Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(purpleSoft),
                 contentAlignment = Alignment.Center
-            ) { Text("🤝", fontSize = 15.sp) }
+            ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) }
             Spacer(Modifier.width(10.dp))
             Text("협업 현장 · ${sites.size}곳", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
                 color = purple, modifier = Modifier.weight(1f))
@@ -3019,7 +3021,7 @@ private fun OutstandingCard(
                     .background(if (outstandingCount > 0) TossError.copy(alpha = 0.10f) else TossSuccess.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("💰", fontSize = 18.sp)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Payments, null, tint = TossTextSecondary, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {

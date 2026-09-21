@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.customer
 
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Payments
@@ -592,7 +594,7 @@ fun CustomerDetailScreen(
                 TossCard {
                     Column {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("📍", fontSize = 18.sp)
+                            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Place, null, tint = TossTextSecondary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(7.dp))
                             Text("문자에서 이런 주소를 봤어요", fontSize = 12.sp,
                                 fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
@@ -2985,7 +2987,7 @@ private fun PaymentRow(
                         androidx.compose.foundation.layout.Row(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text("✅", fontSize = 22.sp)
+                            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.CheckCircle, null, tint = TossTextSecondary, modifier = Modifier.size(22.dp))
                             Spacer(Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -3035,7 +3037,7 @@ private fun PaymentRow(
                         androidx.compose.foundation.layout.Row(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text("🚫", fontSize = 18.sp)
+                            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Block, null, tint = TossTextSecondary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 "이 거래엔 $label 없음",
@@ -3714,7 +3716,7 @@ private fun AddressEditDialog(
                         value = text,
                         onValueChange = { text = it },
                         label = { Text("도로명 주소") },
-                        leadingIcon = { Text("📍", fontSize = 15.sp) },
+                        leadingIcon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Place, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) },
                         singleLine = false,
                         modifier = Modifier.fillMaxWidth()
                     )
