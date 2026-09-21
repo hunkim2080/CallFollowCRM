@@ -99,7 +99,7 @@ fun PrincipleManageScreen(
                                 .padding(vertical = 28.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("아직 알아낸 원칙이 없어요.\n대화하다 보면 막내가 하나씩 찾아내요 🌱",
+                            Text("아직 알아낸 원칙이 없어요.\n대화하다 보면 막내가 하나씩 찾아내요",
                                 fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }

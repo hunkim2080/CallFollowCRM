@@ -346,6 +346,10 @@ fun AppNavHost(
                             .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                             .setPrompt("PC 화면의 QR을 비춰주세요")
                             .setBeepEnabled(false)
+                            // 세로 고정 화면. 기본 화면은 가로로 박혀 있어 열 때마다 화면이 돌고
+                            //   카메라가 껐다 켜져 버벅였다. (2026-09-21 사장님)
+                            .setCaptureActivity(com.detailline.callfollowcrm.presentation.qr.PortraitCaptureActivity::class.java)
+                            .setOrientationLocked(true)
                     )
                 },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }

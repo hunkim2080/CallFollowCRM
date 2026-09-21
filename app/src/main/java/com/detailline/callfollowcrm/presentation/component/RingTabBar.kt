@@ -108,21 +108,31 @@ private fun RingTabItem(
         Box(contentAlignment = Alignment.Center) {
             Icon(tab.icon, contentDescription = tab.label, tint = tint, modifier = Modifier.size(23.dp))
             if (badge != null && badge > 0) {
-                // 깔끔한 원형 뱃지 — 한 자리("1")도 찌그러지지 않게 최소 16dp 정사각 + 흰 테두리로 아이콘과 분리.
+                // 동그란 배지. **1~2자리는 17dp 정사각으로 못 박는다.**
+                //   전엔 minSize 만 줬는데, 글자가 테마의 줄 높이(24sp)를 물려받아 상자가
+                //   12.4 x 22.5 dp **세로 캡슐**이 됐다(실측). 줄 높이도 글자에 맞춘다.
+                //   (2026-09-21 사장님 "동그라미가 찌그러짐")
+                val badgeLabel = if (badge > 99) "99+" else badge.toString()
+                val wide = badgeLabel.length > 2
                 Box(
                     modifier = Modifier
                         .offset(x = 10.dp, y = (-6).dp)
-                        .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
+                        .then(
+                            if (wide) Modifier.height(17.dp).defaultMinSize(minWidth = 17.dp)
+                            else Modifier.size(17.dp)
+                        )
                         .background(TossError, CircleShape)
                         .border(1.5.dp, Color.White, CircleShape)
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = if (wide) 5.dp else 0.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (badge > 99) "99+" else badge.toString(),
+                        badgeLabel,
                         color = Color.White,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
+                        lineHeight = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 }
             }

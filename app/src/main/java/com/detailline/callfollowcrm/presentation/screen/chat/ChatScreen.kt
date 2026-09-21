@@ -1748,19 +1748,18 @@ fun ChatScreen(
                         )
                         androidx.compose.foundation.layout.Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.End,
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
                             // 날짜 창 버튼 옷 통일 — 앱의 다른 창과 같게. (2026-09-21 사장님)
                             com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
                                 text = "취소",
                                 onClick = { showDatePicker = false },
-                                modifier = Modifier.width(92.dp)
+                                modifier = Modifier.weight(1f)
                             )
                             Spacer(Modifier.width(9.dp))
                             com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
                                 text = "등록",
-                                modifier = Modifier.width(112.dp),
+                                modifier = Modifier.weight(1f),
                                 onClick = {
                                     val start = rangeState.selectedStartDateMillis
                                     if (start != null) {

@@ -1294,7 +1294,9 @@ private fun WebViewerSection(container: AppContainer) {
                                 .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                                 .setPrompt("PC 화면의 QR을 비춰주세요")
                                 .setBeepEnabled(false)
-                                .setOrientationLocked(false)
+                                // 세로 고정 화면. 기본 화면은 가로로 박혀 있다. (2026-09-21 사장님)
+                                .setCaptureActivity(com.detailline.callfollowcrm.presentation.qr.PortraitCaptureActivity::class.java)
+                                .setOrientationLocked(true)
                         )
                     }
                 }
@@ -4215,7 +4217,7 @@ private fun ToneLearnProtoSection(
                     fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (toneOn) "추천 답변이 사장님 말투로 만들어지고, 채팅에 ✨내 말투 배지가 붙어요"
+                    if (toneOn) "추천 답변이 사장님 말투로 만들어지고, 채팅에 ‘내 말투’ 배지가 붙어요"
                     else "추천 답변이 일반 AI 말투로 나와요",
                     fontSize = 12.sp, color = TossTextTertiary
                 )
@@ -4297,7 +4299,11 @@ private fun ToneLearnProtoSection(
                         Text("지금 동기화", fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.category, modifier = Modifier.clickable { onUpload() })
                     } else {
-                        Text("✅ 최신 상태로 학습됨", fontSize = 12.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.CheckCircle, null, tint = TossSuccess, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text("최신 상태로 학습됨", fontSize = 12.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -4323,7 +4329,7 @@ private fun ToneLearnProtoSection(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Text("🔒", fontSize = 13.sp)
+        Icon(Icons.Filled.Lock, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(8.dp))
         Text("내 문자는 사장님 계정에서 말투 학습에만 쓰이고, 다른 곳에 공유되지 않아요.",
             fontSize = 12.sp, color = TossTextSecondary, modifier = Modifier.weight(1f))
@@ -4509,12 +4515,16 @@ private fun ToneInputDialog(
                 )
             }
         },
+        // 글을 적어 저장하는 창은 **금액 입력 창과 같은 버튼 옷**. (2026-09-21 사장님)
+        //   전엔 여기만 그냥 글씨라 창마다 달라 보였다.
         confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) {
-                Text("저장", color = TossBlue, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth()) {
+                com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(9.dp))
+                com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(text = "저장", onClick = { onConfirm(text) }, modifier = Modifier.weight(1f))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) } },
+        dismissButton = null,
         containerColor = Color.White
     )
 }

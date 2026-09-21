@@ -361,5 +361,20 @@
             android:name=".service.CopyToClipboardReceiver"
             android:exported="false" />
 
+        <!--
+          QR 스캔 화면 — **세로 고정.** (2026-09-21 사장님 "왜 가로모드지")
+            zxing 기본 화면은 라이브러리 매니페스트에 sensorLandscape 로 박혀 있어
+            열 때마다 화면이 누우고, 그 사이 카메라가 꺼졌다 켜져 버벅였다.
+            상속해서 여기서 다시 선언하는 것 외엔 방법이 없다.
+        -->
+        <activity
+            android:name=".presentation.qr.PortraitCaptureActivity"
+            android:screenOrientation="portrait"
+            android:stateNotNeeded="true"
+            android:clearTaskOnLaunch="true"
+            android:exported="false"
+            android:theme="@style/zxing_CaptureTheme"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+
     </application>
 </manifest>

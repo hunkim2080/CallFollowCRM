@@ -1594,38 +1594,27 @@ fun CustomerDetailScreen(
                                 )
                             }
                         )
-                        androidx.compose.foundation.layout.Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
-                            // 예약 취소(일정 비우기) — 기존 예약 있을 때만 노출. 고객이 시공 취소 시. (2026-06-08 #6)
-                            if (customer?.scheduledWorkDate != null) {
-                                TextButton(onClick = {
-                                    viewModel.updateScheduledWorkDate(null)
-                                    datePickerOpen = false
-                                    android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
-                                }) {
-                                    Text("예약 취소", color = TossError, fontWeight = FontWeight.SemiBold)
-                                }
-                            } else {
-                                Spacer(Modifier.width(1.dp))
-                            }
+                            // 버튼 폭을 고정했더니 [예약 취소] 까지 한 줄에 안 들어가 **잘렸다**(2026-09-21 사장님).
+                            //   → 두 버튼은 **반반(weight)**, [예약 취소] 는 **아래 한 줄**로. 큰 글씨에서도 안 잘린다.
                             androidx.compose.foundation.layout.Row(
+                                Modifier.fillMaxWidth(),
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                // 앱의 다른 창(금액 입력)과 같은 버튼 옷. 전엔 여기만 그냥 글씨였다. (2026-09-21 사장님)
+                                // 앱의 다른 창(금액 입력)과 같은 버튼 옷.
                                 com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
                                     text = "취소",
                                     onClick = { addingNewJob = false; datePickerOpen = false },
-                                    modifier = Modifier.width(92.dp)
+                                    modifier = Modifier.weight(1f)
                                 )
                                 Spacer(Modifier.width(9.dp))
                                 com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
                                     text = "저장",
-                                    modifier = Modifier.width(112.dp),
+                                    modifier = Modifier.weight(1f),
                                     onClick = {
                                         val start = rangeState.selectedStartDateMillis
                                         if (start != null) {
@@ -1653,6 +1642,21 @@ fun CustomerDetailScreen(
                                         datePickerOpen = false
                                     }
                                 )
+                            }
+                            // 예약 취소(일정 비우기) — 되돌리는 일이라 **아래 한 줄**, 조용한 빨간 글씨.
+                            //   (2026-06-08 #6 · 자리 옮김 2026-09-21)
+                            if (customer?.scheduledWorkDate != null) {
+                                Spacer(Modifier.height(4.dp))
+                                TextButton(
+                                    onClick = {
+                                        viewModel.updateScheduledWorkDate(null)
+                                        datePickerOpen = false
+                                        android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("예약 취소", color = TossError, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -1728,12 +1732,12 @@ fun CustomerDetailScreen(
                                 com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
                                     text = "취소",
                                     onClick = { asPickerOpen = false },
-                                    modifier = Modifier.width(92.dp)
+                                    modifier = Modifier.weight(1f)
                                 )
                                 Spacer(Modifier.width(9.dp))
                                 com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
                                     text = "저장",
-                                    modifier = Modifier.width(112.dp),
+                                    modifier = Modifier.weight(1f),
                                     onClick = {
                                         val start = asRangeState.selectedStartDateMillis
                                         if (start != null) {
