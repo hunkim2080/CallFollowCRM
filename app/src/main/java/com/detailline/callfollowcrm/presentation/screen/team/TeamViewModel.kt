@@ -114,7 +114,7 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
                         }
                     }
                 },
-                onFailure = { _toast.value = "제외 실패 — 잠시 후 다시 시도해주세요" }
+                onFailure = { _toast.value = "제외하지 못했어요 — 잠시 후 다시 해주세요" }
             )
         }
     }
@@ -153,7 +153,7 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
     private fun inviteErrorMessage(t: Throwable): String {
         val msg = t.message.orEmpty()
         return if (msg.contains("403")) "팀 관리는 비즈니스 요금제 기능이에요."
-        else "서버 연결 실패 — 잠시 후 다시 시도해주세요"
+        else "서버에 잠깐 연결이 안 돼요 — 잠시 후 다시 해주세요"
     }
 }
 

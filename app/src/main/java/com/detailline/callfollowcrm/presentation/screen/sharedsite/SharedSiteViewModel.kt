@@ -211,7 +211,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                 if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {
                     runCatching { container.mirrorSyncManager.pushNow(force = true) }
                 }
-            }.onFailure { _toast.value = "전송 실패 — 잠시 후 다시" }
+            }.onFailure { _toast.value = "보내지 못했어요 — 잠시 후 다시 해주세요" }
         }
     }
 
@@ -268,7 +268,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                     _toast.value = "현장 사진을 올렸어요"
                     _photos.value = repo.photos(shareId, myPhone).getOrDefault(_photos.value)
                 }
-                .onFailure { _toast.value = "사진 업로드 실패 — 잠시 후 다시" }
+                .onFailure { _toast.value = "사진을 올리지 못했어요 — 잠시 후 다시 해주세요" }
             _photoBusy.value = false
         }
     }
@@ -282,7 +282,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                     _toast.value = "사진을 삭제했어요"
                     _photos.value = repo.photos(shareId, myPhone).getOrDefault(_photos.value)
                 }
-                .onFailure { _toast.value = "사진 삭제 실패 — 잠시 후 다시" }
+                .onFailure { _toast.value = "사진을 지우지 못했어요 — 잠시 후 다시 해주세요" }
         }
     }
 

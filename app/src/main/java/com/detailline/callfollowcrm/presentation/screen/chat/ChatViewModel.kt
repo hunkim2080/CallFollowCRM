@@ -178,7 +178,7 @@ class ChatViewModel(
         }
         result.onSuccess {
             _toast.value = if (photoUris.isEmpty()) "문구로 저장했어요" else "문구+사진 저장했어요"
-        }.onFailure { _toast.value = "저장 실패" }
+        }.onFailure { _toast.value = "저장하지 못했어요 — 다시 해주세요" }
     }
 
     /**

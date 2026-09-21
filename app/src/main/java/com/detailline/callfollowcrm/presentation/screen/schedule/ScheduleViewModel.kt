@@ -440,7 +440,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     _toast.value = "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요"
                 }
-            }.onFailure { _toast.value = "공유 실패 — 잠시 후 다시 시도해주세요" }
+            }.onFailure { _toast.value = "공유하지 못했어요 — 잠시 후 다시 해주세요" }
         }
     }
 
@@ -490,7 +490,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.teamRepository.invite(owner, nm, ph)
                 .onSuccess { loadTeam(); _toast.value = "팀원 ${nm}님을 추가했어요" }
-                .onFailure { _toast.value = "팀원 추가 실패 — 잠시 후 다시 시도해주세요" }
+                .onFailure { _toast.value = "팀원을 추가하지 못했어요 — 잠시 후 다시 해주세요" }
         }
     }
 

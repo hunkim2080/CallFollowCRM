@@ -1215,7 +1215,7 @@ private fun WebViewerSection(container: AppContainer) {
                     authed = true; reauthOpen = false; reauthSent = false; reauthCode = ""
                     toast("인증 완료! 이제 아래 QR로 로그인돼요 ✅")
                 } else toast("인증은 됐는데 열쇠(토큰)가 안 왔어요. 관리자에게 알려주세요")
-            }.onFailure { toast((it as? com.detailline.callfollowcrm.ai.AuthException)?.message ?: "인증 실패 — 다시 시도") }
+            }.onFailure { toast((it as? com.detailline.callfollowcrm.ai.AuthException)?.message ?: "인증하지 못했어요 — 다시 해주세요") }
         }
     }
 

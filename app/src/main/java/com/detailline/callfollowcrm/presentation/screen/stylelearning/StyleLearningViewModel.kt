@@ -127,7 +127,7 @@ class StyleLearningViewModel(
                     )
                 },
                 onFailure = {
-                    _state.value.copy(loading = false, progress = 0, toast = "학습 실패")
+                    _state.value.copy(loading = false, progress = 0, toast = "막내가 못 배웠어요 — 잠시 후 다시 해주세요")
                 }
             )
         }

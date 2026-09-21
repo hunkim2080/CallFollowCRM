@@ -919,7 +919,7 @@ fun HomeScreen(
                                 accentTint = if (ar.failed) AppTheme.colors.unpaidBg else TossBlueSoft,
                                 icon = Icons.Default.Call,
                                 title = "부재중 전화에 자동 답장 보냄",
-                                tagText = if (ar.failed) "실패" else null,
+                                tagText = if (ar.failed) "못 보냄" else null,
                                 tagBg = AppTheme.colors.unpaidBg, tagFg = TossError,
                                 sub = "$arName · " +
                                     (if (ar.failed) "발송 실패 — 직접 보내주세요" else "자동 인사 보냄") +

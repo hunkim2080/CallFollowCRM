@@ -271,7 +271,7 @@ class CustomerDetailViewModel(
             _teamPhotos.value = _teamPhotos.value.filterNot { it.photoId == photoId }
             _toast.value = "사진을 삭제했어요"
             if (cust.isNotBlank()) refreshTeamPhotos()
-        }.onFailure { _toast.value = "삭제 실패 — 잠시 후 다시" }
+        }.onFailure { _toast.value = "지우지 못했어요 — 잠시 후 다시 해주세요" }
     }
 
     // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (cowork prepare-reply 가 자동 생성).
@@ -898,7 +898,7 @@ class CustomerDetailViewModel(
                         )
                     }
                 }
-                _toast.value = "발송 실패"
+                _toast.value = "문자를 보내지 못했어요 — 다시 해주세요"
                 onResult(false)
             }
         }

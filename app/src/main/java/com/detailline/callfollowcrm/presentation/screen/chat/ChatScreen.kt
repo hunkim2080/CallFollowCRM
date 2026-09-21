@@ -1962,7 +1962,7 @@ fun ChatScreen(
                                   else "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요"
                         android.widget.Toast.makeText(estCtx, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }.onFailure {
-                        android.widget.Toast.makeText(estCtx, "서버 연결 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(estCtx, "서버에 잠깐 연결이 안 돼요 — 잠시 후 다시 해주세요", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             },
@@ -4421,7 +4421,7 @@ private fun SummaryFailedPlaceholder(
         }
         com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt(
             prefs = diagPrefs,
-            tag = "통화요약 실패",
+            tag = "요약 못 함",
             modifier = Modifier.padding(horizontal = 14.dp),
             prompt = "계속 안 되나요?",
             buildExtra = { "통화 요약 실패 — 서버 STT/요약 응답 실패(크레딧/네트워크/오디오 읽기 등)" }

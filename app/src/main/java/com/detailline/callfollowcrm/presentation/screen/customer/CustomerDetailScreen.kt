@@ -4211,7 +4211,7 @@ private fun CollabShareSheet(
                 }
                 onDismiss()
             }.onFailure {
-                android.widget.Toast.makeText(context, "공유 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "공유하지 못했어요 — 잠시 후 다시 해주세요", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
