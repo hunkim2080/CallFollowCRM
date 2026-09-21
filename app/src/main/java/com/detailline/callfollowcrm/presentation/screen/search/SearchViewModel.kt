@@ -215,7 +215,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             if (c.id in covered || jobs.any { it.customerId == c.id }) continue
             if (com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding > 0L) unpaid++
         }
-        if (unpaid > 0) out.add(BaitChip("💰 미수 ${unpaid}건", "미수"))
+        if (unpaid > 0) out.add(BaitChip("미수 ${unpaid}건", "미수"))
 
         // ② 📅 이번 달 시공
         val cal = java.util.Calendar.getInstance()
@@ -233,7 +233,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             jobs.map { (it.address ?: "") to (it.scheduledWorkDate ?: it.workCompletedAt ?: 0L) } +
                 customers.map { (it.address ?: "") to (it.scheduledWorkDate ?: it.workCompletedAt ?: 0L) }
         )
-        if (region != null) out.add(BaitChip("📍 ${region.first} ${region.second}곳", region.first))
+        if (region != null) out.add(BaitChip("${region.first} ${region.second}곳", region.first))
 
         out.take(3)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

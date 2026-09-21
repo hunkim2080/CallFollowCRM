@@ -360,7 +360,7 @@ private fun ColumnScope.RecGuide(
     Box(
         Modifier.fillMaxWidth().background(SoftGreen, RoundedCornerShape(12.dp)).padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
-    ) { Text("한 번만 켜두면 계속 자동이에요 👍", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Green) }
+    ) { Text("한 번만 켜두면 계속 자동이에요", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Green) }
     Spacer(Modifier.height(6.dp))
     Box(Modifier.fillMaxWidth().clickable { onSwitch() }.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
         Text(if (adot) "삼성 전화 쓰세요? 삼성 방법 보기" else "에이닷 쓰세요? 에이닷 방법 보기",
@@ -374,7 +374,7 @@ private fun ColumnScope.RecGuide(
     Box(
         Modifier.fillMaxWidth().clickable(enabled = !scanning) { onRescan() }.padding(vertical = 13.dp),
         contentAlignment = Alignment.Center
-    ) { Text(if (scanning) "찾는 중…" else "다 켰어요 · 다시 찾기 🔄", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1)) }
+    ) { Text(if (scanning) "찾는 중…" else "다 켰어요 · 다시 찾기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1)) }
     // 켜고 다시 찾아도 계속 0개 = 우리가 못 잡는 것 → 원인(파일없음/파서미스+가린 파일명) 자동 진단. (2026-07-29 사장님)
     if (showDiag) {
         val ctx = LocalContext.current

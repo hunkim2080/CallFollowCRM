@@ -287,7 +287,7 @@ fun TeamScreen(
                     // 추가됨을 문자앱 위로도 확실히 알림 — 스낵바는 문자앱에 가려 안 보이고 타임아웃됨.
                     android.widget.Toast.makeText(
                         context,
-                        "${name.trim()} 팀원으로 추가됐어요 ✓ 초대 문자를 보내주세요 📩",
+                        "${name.trim()} 팀원으로 추가됐어요 · 초대 문자를 보내주세요",
                         android.widget.Toast.LENGTH_LONG
                     ).show()
                     // 자동발송 X — 문자앱 prefill, 사장님이 ▶ 직접 발송.
@@ -359,7 +359,7 @@ private fun PeopleToggle(current: String, onSelect: (String) -> Unit) {
 private fun OwnerMissingNotice(modifier: Modifier) {
     Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("📇 사업자 정보를 먼저 등록해주세요", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text("사업자 정보를 먼저 등록해주세요", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(8.dp))
             Text(
                 "팀원 초대 링크는 사장님 전화번호로 묶여요.\n더보기 → 견적서·사업자 정보 에서 전화번호를 등록해주세요.",
@@ -461,7 +461,7 @@ private fun MemberRow(
             // 오른쪽 '수정' 버튼 — 이름 수정(같은 번호 재초대 → 서버가 이름만 갱신, 링크 유지). 제외는 밀어서. (2026-06-26 사장님)
             if (onEdit != null) {
                 Text(
-                    "✏️ 수정", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                    "수정", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
                     modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
                         .clickable(onClick = onEdit).padding(horizontal = 11.dp, vertical = 6.dp)
                 )

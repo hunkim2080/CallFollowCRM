@@ -178,7 +178,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             // 자동으로 안 채워졌을 때의 뒷문. 조용한 글씨 하나.
             Text(
-                "📱 내 번호 불러오기",
+                "내 번호 불러오기",
                 fontSize = 12.sp, fontWeight = FontWeight.Bold, color = LoginBlue,
                 modifier = Modifier.fillMaxWidth().clickable { askHint() }.padding(4.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -321,7 +321,7 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
             .padding(top = 22.dp, bottom = 24.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text("베타 테스터 신청 🐣", fontSize = 19.sp, fontWeight = FontWeight.Black, color = LogoInk, letterSpacing = (-0.4).sp)
+        Text("베타 테스터 신청", fontSize = 19.sp, fontWeight = FontWeight.Black, color = LogoInk, letterSpacing = (-0.4).sp)
         Spacer(Modifier.height(5.dp))
         Text(
             "아직 초대받은 분만 쓰는 베타예요. 아래를 적어 신청하면 사장님이 확인하고 등록해 드려요.",
@@ -370,7 +370,7 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
                 .background(if (canSend) LoginBlue else Color(0xFFE2E6EC), RoundedCornerShape(14.dp))
                 .clickable(enabled = canSend) { send() },
             contentAlignment = Alignment.Center
-        ) { Text("💬 신청 문자 보내기", color = if (canSend) Color.White else Color(0xFF8B95A3), fontSize = 15.sp, fontWeight = FontWeight.Black) }
+        ) { Text("신청 문자 보내기", color = if (canSend) Color.White else Color(0xFF8B95A3), fontSize = 15.sp, fontWeight = FontWeight.Black) }
         Spacer(Modifier.height(10.dp))
         Text(
             "누르면 문자 앱이 열리고, 적으신 내용이 사장님께 문자로 전송돼요",

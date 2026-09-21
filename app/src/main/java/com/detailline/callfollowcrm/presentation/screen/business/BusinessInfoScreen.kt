@@ -199,7 +199,7 @@ fun BusinessInfoScreen(
                     Spacer(Modifier.height(16.dp))
                     Text("사업자등록증에서 글자를 읽고 있어요", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(3.dp))
-                    Text("보통 5~10초 걸려요 · 잠시만요 🙂", fontSize = 12.sp, color = TossTextTertiary)
+                    Text("보통 5~10초 걸려요 · 잠시만요", fontSize = 12.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(16.dp))
                     // 취소 — 오래 걸리거나 멈춘 것 같으면 빠져나갈 수 있게. (2026-08-15 UX감사#5)
                     Text("취소", color = TossTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -258,14 +258,14 @@ fun BusinessInfoScreen(
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.primaryBg).padding(14.dp)
                 ) {
-                    Text("📷 사업자등록증으로 자동입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("사업자등록증으로 자동입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(3.dp))
                     Text("사진 한 장이면 상호·대표자·번호·주소가 자동으로 채워져요. (채운 뒤 확인하고 저장하세요)",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
                     Spacer(Modifier.height(10.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                        OcrPickButton("📷 촬영", !ocrBusy, Modifier.weight(1f)) { pickOcrCamera() }
-                        OcrPickButton("🖼 앨범", !ocrBusy, Modifier.weight(1f)) { pickOcrGallery() }
+                        OcrPickButton("촬영", !ocrBusy, Modifier.weight(1f)) { pickOcrCamera() }
+                        OcrPickButton("앨범", !ocrBusy, Modifier.weight(1f)) { pickOcrGallery() }
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -290,7 +290,7 @@ fun BusinessInfoScreen(
                 )
                 // 직접 입력 대신 한 번 탭으로 내 폰 번호 불러오기.
                 Text(
-                    "📱 내 번호 불러오기",
+                    "내 번호 불러오기",
                     fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
                     modifier = Modifier
                         .padding(top = 6.dp, start = 2.dp)
@@ -331,7 +331,7 @@ fun BusinessInfoScreen(
                             }
                             .padding(horizontal = 14.dp, vertical = 9.dp)
                     ) {
-                        Text("📋 계좌 전체 복사 (고객에게 바로 붙여넣기)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                        Text("계좌 전체 복사 (고객에게 바로 붙여넣기)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                     }
                 }
 
@@ -379,7 +379,7 @@ fun BusinessInfoScreen(
                                         }
                                 }
                             }
-                            android.widget.Toast.makeText(context, "사업자 정보를 저장했어요 ✓ 견적서에 반영돼요", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, "사업자 정보를 저장했어요 · 견적서에 반영돼요", android.widget.Toast.LENGTH_SHORT).show()
                             onBack()
                         }
                         .padding(vertical = 16.dp),

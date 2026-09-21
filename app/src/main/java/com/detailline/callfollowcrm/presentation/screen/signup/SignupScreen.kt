@@ -172,7 +172,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
     )
     Spacer(Modifier.height(10.dp))
     Text(
-        "📱 내 번호 불러오기",
+        "내 번호 불러오기",
         fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Blue,
         modifier = Modifier.fillMaxWidth().clickable { askHint() }.padding(4.dp),
         textAlign = TextAlign.Center

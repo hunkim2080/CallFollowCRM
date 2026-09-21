@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.search
 
+import androidx.compose.material.icons.filled.Place
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
@@ -213,7 +214,7 @@ fun SearchScreen(
                 val pick: (SiteHit) -> Unit = { s ->
                     keyboard?.hide(); viewModel.rememberQuery(query); onOpenChat(s.phone, s.customerId)
                 }
-                siteGroup("💰 못 받은 돈", unpaid, unpaidOpen, query, pick)
+                siteGroup("못 받은 돈", unpaid, unpaidOpen, query, pick)
                 siteGroup("그달 시공", period, periodOpen, query, pick)
                 // 📍 현장 — 주소로 찾은 것. 말(통화·문자)보다 **위**에 둔다.
                 //   "동탄" 을 칠 땐 동탄에서 한 현장이 먼저 보여야 한다. (2026-09-19 사장님 1순위)
@@ -226,7 +227,7 @@ fun SearchScreen(
                                 .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("📍 현장", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                            Text("현장", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                             Spacer(Modifier.size(7.dp))
                             Box(
                                 Modifier.background(Color.White, RoundedCornerShape(999.dp))
@@ -439,7 +440,12 @@ private fun SiteRow(s: SiteHit, query: String, onClick: () -> Unit) {
         Box(
             Modifier.size(44.dp).background(AppTheme.colors.cautionBg, CircleShape),
             contentAlignment = Alignment.Center
-        ) { Text("📍", fontSize = 17.sp) }
+        ) {
+            androidx.compose.material3.Icon(
+                androidx.compose.material.icons.Icons.Filled.Place, null,
+                tint = AppTheme.colors.cautionText, modifier = Modifier.size(19.dp)
+            )
+        }
         Spacer(Modifier.size(13.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -462,10 +468,10 @@ private fun SiteRow(s: SiteHit, query: String, onClick: () -> Unit) {
 
 /** 02 묶음 제목 — 손님 → 통화 → 문자 → 메모. (2026-09-19 사장님) */
 private fun groupTitle(src: SearchSource): String = when (src) {
-    SearchSource.CUSTOMER -> "👤 손님"
-    SearchSource.CALL -> "📞 통화"
-    SearchSource.MESSAGE -> "💬 문자"
-    SearchSource.MEMO -> "📝 메모"
+    SearchSource.CUSTOMER -> "손님"
+    SearchSource.CALL -> "통화"
+    SearchSource.MESSAGE -> "문자"
+    SearchSource.MEMO -> "메모"
 }
 
 /**
@@ -499,11 +505,11 @@ private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
     val chip = when (source) {
         // 진짜 말이 아니라 AI 가 정리한 글에서 걸렸으면 **그렇다고 밝힌다.** (2026-09-19 사장님)
         SearchSource.CALL -> Triple(
-            if (fromSummary) "📞 통화 요약" else "📞 통화",
+            if (fromSummary) "통화 요약" else "통화",
             AppTheme.colors.doneBg, Color(0xFF16A765)
         )
-        SearchSource.MESSAGE -> Triple("💬 문자", AppTheme.colors.primaryBg, AppTheme.colors.primary)
-        SearchSource.MEMO -> Triple("📝 메모", AppTheme.colors.categoryBg, AppTheme.colors.category)
+        SearchSource.MESSAGE -> Triple("문자", AppTheme.colors.primaryBg, AppTheme.colors.primary)
+        SearchSource.MEMO -> Triple("메모", AppTheme.colors.categoryBg, AppTheme.colors.category)
         SearchSource.CUSTOMER -> null
     }
     if (chip != null) {

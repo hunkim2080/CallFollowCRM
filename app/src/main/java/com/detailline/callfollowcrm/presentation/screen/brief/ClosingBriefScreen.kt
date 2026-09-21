@@ -1,5 +1,10 @@
 package com.detailline.callfollowcrm.presentation.screen.brief
 
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Engineering
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChatBubble
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
@@ -74,7 +79,7 @@ fun ClosingBriefScreen(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
-                title = { Text("오늘 하루 마감 브리핑 🌙", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                title = { Text("오늘 하루 마감 브리핑", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
@@ -100,7 +105,7 @@ fun ClosingBriefScreen(
                 Text(state.achievementLine!!, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
             } else if (state.loaded) {
                 Spacer(Modifier.height(8.dp))
-                Text("조용한 날도 사장님 하루예요. 푹 쉬세요 🌙", fontSize = 13.sp, color = TossTextTertiary)
+                Text("조용한 날도 사장님 하루예요. 푹 쉬세요", fontSize = 13.sp, color = TossTextTertiary)
             }
             Spacer(Modifier.height(16.dp))
 
@@ -109,9 +114,10 @@ fun ClosingBriefScreen(
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max)
             ) {
-                StatTile("오늘 새 문의", "${state.newCount}건", "👋", Modifier.weight(1f).fillMaxHeight()) { onOpenNewLeads() }
-                StatTile("오늘 마무리", "${state.completedCount}건", "✅", Modifier.weight(1f).fillMaxHeight()) { onOpenSchedule() }
-                StatTile("오늘 입금", "${state.depositCount}건", "💰", Modifier.weight(1f).fillMaxHeight(), sub = state.paidSumLabel) { onOpenSettlement() }
+                // 이모지는 폰마다 그림이 다르다 → 앱이 그리는 아이콘. (2026-09-21 사장님)
+                StatTile("오늘 새 문의", "${state.newCount}건", androidx.compose.material.icons.Icons.Filled.ChatBubble, Modifier.weight(1f).fillMaxHeight()) { onOpenNewLeads() }
+                StatTile("오늘 마무리", "${state.completedCount}건", androidx.compose.material.icons.Icons.Filled.CheckCircle, Modifier.weight(1f).fillMaxHeight()) { onOpenSchedule() }
+                StatTile("오늘 입금", "${state.depositCount}건", androidx.compose.material.icons.Icons.Filled.Payments, Modifier.weight(1f).fillMaxHeight(), sub = state.paidSumLabel) { onOpenSettlement() }
             }
             Spacer(Modifier.height(18.dp))
 
@@ -162,7 +168,7 @@ fun ClosingBriefScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (state.loaded) "내일은 시공 일정이 없어요. 푹 쉬세요 🌙" else "불러오는 중…",
+                        if (state.loaded) "내일은 시공 일정이 없어요. 푹 쉬세요" else "불러오는 중…",
                         color = TossTextTertiary, fontSize = 13.sp
                     )
                 }
@@ -177,7 +183,9 @@ fun ClosingBriefScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(TossBlueSoft),
-                            contentAlignment = Alignment.Center) { Text("🔧", fontSize = 16.sp) }
+                            contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Engineering, null, tint = TossBlue, modifier = Modifier.size(18.dp))
+                        }
                         Spacer(Modifier.width(11.dp))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -186,7 +194,7 @@ fun ClosingBriefScreen(
                                 Text(job.timeLabel, fontSize = 12.5.sp, color = TossTextSecondary)
                             }
                             job.addressLabel?.let {
-                                Text("📍 $it", fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
+                                Text("$it", fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
                                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
                             }
                             job.receivableLabel?.let {
@@ -219,7 +227,9 @@ fun ClosingBriefScreen(
                         .clickable { onOpenSettlement() }.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("💡", fontSize = 15.sp)
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Filled.Lightbulb, null, tint = Color(0xFFB8780A), modifier = Modifier.size(17.dp)
+                    )
                     Spacer(Modifier.width(9.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -242,7 +252,7 @@ fun ClosingBriefScreen(
 private fun StatTile(
     label: String,
     value: String,
-    emoji: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier,
     sub: String? = null,
     onClick: () -> Unit
@@ -255,7 +265,7 @@ private fun StatTile(
             .clickable { onClick() }
             .padding(vertical = 14.dp, horizontal = 11.dp)
     ) {
-        Text(emoji, fontSize = 17.sp)
+        androidx.compose.material3.Icon(icon, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
         Spacer(Modifier.height(8.dp))
         Text(label, fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold, maxLines = 1)
         Spacer(Modifier.height(3.dp))

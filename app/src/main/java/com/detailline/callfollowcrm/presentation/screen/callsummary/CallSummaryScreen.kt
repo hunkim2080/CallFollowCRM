@@ -182,7 +182,7 @@ fun CallSummaryScreen(
             }
             Toast.makeText(
                 context,
-                if (ok) "통화 정리를 보냈어요 ✓" else "발송에 실패했어요",
+                if (ok) "통화 정리를 보냈어요" else "발송에 실패했어요",
                 Toast.LENGTH_SHORT
             ).show()
             if (ok) onBack()
@@ -223,8 +223,8 @@ fun CallSummaryScreen(
             if (!hasResult) {
                 // ── 입력 단계 ──
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SourceButton("🎤 음성으로", Modifier.weight(1f)) { launchVoice() }
-                    SourceButton("📋 붙여넣기", Modifier.weight(1f)) {
+                    SourceButton("음성으로", Modifier.weight(1f)) { launchVoice() }
+                    SourceButton("붙여넣기", Modifier.weight(1f)) {
                         val t = clipboard.getText()?.text.orEmpty()
                         if (t.isBlank()) {
                             Toast.makeText(context, "복사된 내용이 없어요", Toast.LENGTH_SHORT).show()
@@ -275,7 +275,7 @@ fun CallSummaryScreen(
                             .background(Color.White)
                             .padding(16.dp)
                     ) {
-                        Text("📋 통화 요약", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Text("통화 요약", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                         oneLine?.takeIf { it.isNotBlank() }?.let {
                             Spacer(Modifier.height(6.dp))
                             Text(it, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)

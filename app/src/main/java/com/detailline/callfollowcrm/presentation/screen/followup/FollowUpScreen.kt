@@ -245,7 +245,7 @@ fun FollowUpScreen(
                                 callLogPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
                             }
                         }) {
-                            Text("📞 최근 통화에서", color = TossBlue, fontWeight = FontWeight.SemiBold)
+                            Text("최근 통화에서", color = TossBlue, fontWeight = FontWeight.SemiBold)
                         }
                         TextButton(onClick = {
                             if (PermissionHelper.isGranted(context, Manifest.permission.READ_SMS)) {
@@ -255,7 +255,7 @@ fun FollowUpScreen(
                                 smsPermissionLauncher.launch(Manifest.permission.READ_SMS)
                             }
                         }) {
-                            Text("💬 최근 문자에서", color = TossBlue, fontWeight = FontWeight.SemiBold)
+                            Text("최근 문자에서", color = TossBlue, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Spacer(Modifier.height(4.dp))
@@ -339,7 +339,7 @@ fun FollowUpScreen(
                     if (attachments.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "📎 첨부 사진 ${attachments.size}장 — 보낼 때 자동으로 포함돼요",
+                            "첨부 사진 ${attachments.size}장 — 보낼 때 자동으로 포함돼요",
                             style = MaterialTheme.typography.labelMedium,
                             color = TossBlue,
                             fontWeight = FontWeight.SemiBold

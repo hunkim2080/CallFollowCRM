@@ -495,7 +495,7 @@ private fun ContactCard(
                 Spacer(Modifier.height(9.dp))
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
                     .padding(horizontal = 11.dp, vertical = 9.dp)) {
-                    Text("📝 ${c.memo}", style = MaterialTheme.typography.bodySmall,
+                    Text("${c.memo}", style = MaterialTheme.typography.bodySmall,
                         color = TossTextSecondary, maxLines = 2)
                 }
             }
