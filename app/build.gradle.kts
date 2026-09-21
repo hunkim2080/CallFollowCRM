@@ -202,3 +202,7 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test:runner:1.5.2")
 }
+
+// 화면 코드에 값을 손으로 적는 것을 막는 감시. (2026-09-21 사장님)
+//   tools/style_guard.gradle.kts 참고 — 늘어나면 assembleRelease 가 실패한다.
+apply(from = "$rootDir/tools/style_guard.gradle.kts")
