@@ -23159,7 +23159,7 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
     await _send_sms_solapi(
         phone,
         f"[시공막내] 인증번호 [{code}] (5분 이내 입력)\n"
-        f"사장님의 막내 비서, 시공막내입니다.\n"
+        f"사장님의 막내, 시공막내입니다.\n"
         f"※ 발신전용 — 통화·회신 불가. 문의는 앱에서."
     )
     print(f"[auth/request] {phone} 발송 ({sent_today + 1}/{AUTH_CODE_MAX_PER_DAY})")

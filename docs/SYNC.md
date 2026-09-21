@@ -10770,3 +10770,12 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - 변경: AgentCardState(level·title·xp·tier → stage·stageLabel·togetherMonths), MascotTierState·AGENT_TITLES·AGENT_EMBLEMS·왕관·후광 삭제
 - 브랜드 북(SoT): https://claude.ai/artifact/DKo97pz18SLXBZb7aUN3YZ
 - 다음 액션 (서버쪽): 협업 공유 페이지·블로그 OG 의 "막내 비서" → "막내", 관리자 콘솔 RING-GO 표기
+
+## 2026-09-21 22:20 · android (서버 직접 수정)
+브랜드 북 v5 문구를 **라이브 서버에 반영** — 5곳
+- 블로그 썸네일(OG) 하단 · AI 지식 블럽 · 협업 공유 CTA(이모지) · 가입 인증 문자 · 페르소나 프롬프트
+- "막내 비서" → "막내", 태그라인 "상담과 일정관리는, 우리 막내가" 적용
+- 절차: scp → py_compile(mac python3) → 백업 main.py.bak.brand-20260921-221809 → swap → launchctl reload
+- 검증: 127.0.0.1:8000/health 200 · api.si0in.kr/health 200
+- repo(server/main.py)도 같은 내용으로 맞춰둠 (divergence 방지)
+- ⚠️ 라이브는 여전히 repo 보다 앞서 있음. 통짜 배포 금물.
