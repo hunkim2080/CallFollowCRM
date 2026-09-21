@@ -620,7 +620,7 @@ object NotificationHelper {
         showProtoPush(
             context, CALL_SUMMARY_CONSENT_ID, CHANNEL_REMINDER, ACCENT_PINK,
             title = "통화 요약이 꺼져 있어요",
-            msg = "더보기 → 자동 문자 → '통화 자동 요약'을 켜면 다시 요약해드려요 (한 번만 확인하면 됩니다)",
+            msg = "더보기 → 자동 문자 → '통화 자동 요약'을 켜면 다시 요약해드려요 (한 번만 확인하면 돼요)",
             contentIntent = pending,
             actions = listOf(PushAction("켜러 가기", pending))
         )
@@ -920,7 +920,7 @@ object NotificationHelper {
             //   새 소리를 따로 만들지 않고 CHANNEL_AUTO_REPLY 를 그대로 쓴다.
             context, notifId, CHANNEL_AUTO_REPLY, ACCENT_GREEN,
             title = "📍 사장님께 알려드렸어요",
-            msg = "${site} 3km 진입 · 자동으로 전송됐어요. 도착 버튼은 안 눌러도 돼요 😊",
+            msg = "${site} 3km 진입 · 자동으로 전송됐어요. 도착 버튼은 안 눌러도 돼요",
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
         )
@@ -1586,7 +1586,7 @@ object NotificationHelper {
         // 에이닷 벤치마킹 — 깔끔하게: 짧은 제목 + 본문에 요약 한 줄 · 누구. (2026-07-06 사장님)
         //   기존 제목("막내가 X님 통화를 요약했어요")이 너무 길어 지저분 + 요약이 접힌 알림에서 잘림.
         //   에이닷처럼 제목은 짧게("통화요약 완료!"), 요약 주제는 본문 한 줄로. (앱 상단에 이미 '시공막내' 표시됨)
-        val title = "✨ 통화요약 완료!"
+        val title = "✨ 통화 요약 완료!"
         val summaryLine = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() }
         val body = if (summaryLine != null) "$summaryLine · ${who}님"
                    else "${who}님 통화 요약이 준비됐어요 · 눌러서 확인"
@@ -1728,7 +1728,7 @@ object NotificationHelper {
             .setContentTitle("10초 뒤 자동문자 보낼게요")
             .setContentText("$phoneNumber · 취소하지 않으면 자동 발송")
             .setStyle(NotificationCompat.BigTextStyle().bigText(
-                "$phoneNumber 에게 설정해둔 자동문자를 ${secs}초 뒤 보냅니다. 보내지 않으려면 '취소'를 누르세요."
+                "$phoneNumber 에게 설정해둔 자동문자를 ${secs}초 뒤 보낼게요. 안 보내려면 '취소'를 눌러요."
             ))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
