@@ -226,19 +226,20 @@ private fun CustomerRow(c: CustomerEntity, status: String, category: com.detaill
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // .avatar — 이름 있으면 틴트+이니셜, 번호만이면 회색+사람 아이콘
+        // .avatar — 읽을 글자가 있으면 파란 원+글자, 없으면(번호만·이모지 이름) 회색+사람 아이콘
+        val initial = if (hasName) avatarInitial(title) else ""
         Box(
             Modifier.size(44.dp).background(
-                if (hasName) AV_TINTS[(c.id % AV_TINTS.size).toInt()].first else TossGrayBg,
+                if (initial.isNotEmpty()) AV_TINTS[0].first else TossGrayBg,
                 CircleShape
             ),
             contentAlignment = Alignment.Center
         ) {
-            if (hasName) {
+            if (initial.isNotEmpty()) {
                 Text(
-                    avatarInitial(title),
+                    initial,
                     fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
-                    color = AV_TINTS[(c.id % AV_TINTS.size).toInt()].second
+                    color = AV_TINTS[0].second
                 )
             } else {
                 Icon(Icons.Default.Person, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
@@ -298,13 +299,14 @@ private fun CategoryTagChip(cat: com.detailline.callfollowcrm.data.local.entity.
 // 단골·거래처·AS 제거 — customerStatus()가 절대 안 주는 상태라 칩이 항상 0건이었음(죽은 칩). (2026-08-15 UX감사#4)
 private val CUST_STATUSES = listOf("전체", "신규", "미전환", "예약", "잔금미수", "완료")
 
-// AV_TINTS — 프로토 avatarHtml 틴트 5색 [bg, fg].
+/**
+ * 아바타는 **한 색.** (2026-09-21 사장님)
+ *   전엔 다섯 색이 번갈아 붙어 가=주황, 무=파랑 … 처럼 보였는데 그 색엔 **뜻이 없다**(id 나머지일 뿐).
+ *   색은 **상태에만** 쓴다 — 완료는 초록, 미수는 빨강처럼. 상담함·고객정보·정산과 같은 규칙.
+ *   ⚠️ 한 칸짜리로 두는 이유: 호출부가 `AV_TINTS[id % size]` 로 쓰고 있어 그대로 둬도 동작한다.
+ */
 private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to LightColors.primary,
-    LightColors.doneBg to Color(0xFF16A765),
-    LightColors.unpaidBg to LightColors.unpaid,
-    LightColors.categoryBg to LightColors.category,
-    LightColors.cautionBg to Color(0xFFE0920C)
+    LightColors.primaryBg to LightColors.primaryText
 )
 
 /** 프로토 custTag — 상태별 태그 색 (fg, bg). */
@@ -319,10 +321,16 @@ private fun custTag(s: String): Pair<Color, Color> = when (s) {
     else -> LightColors.primary to LightColors.primaryBg     // blue (예약/상담)
 }
 
-/** 프로토 initial() — 공백·괄호 제거 후 첫 글자. */
-private fun avatarInitial(name: String): String =
-    name.replace(Regex("[\\s()]"), "").firstOrNull()?.toString() ?: "?"
-
+/**
+ * 아바타 글자 — 공백·괄호를 지운 뒤 **읽을 수 있는 첫 글자**.
+ *   이름이 이모지로 시작하면(💖사랑하는 …) 전엔 첫 글자를 못 읽어 **?** 가 떴다. (2026-09-21 사장님)
+ *   이모지·기호는 건너뛰고 한글/영문/숫자를 찾는다. 그래도 없으면 빈 값 → 호출부가 사람 아이콘을 그린다.
+ */
+private fun avatarInitial(name: String): String {
+    val cleaned = name.replace(Regex("[\\s()]"), "")
+    val ch = cleaned.firstOrNull { it.isLetterOrDigit() }
+    return ch?.toString() ?: ""
+}
 private fun startOfToday(): Long {
     val cal = Calendar.getInstance()
     cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)

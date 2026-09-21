@@ -2266,6 +2266,17 @@ private fun nextLine(c: com.detailline.callfollowcrm.data.local.entity.CustomerE
 }
 
 /** 띠 껍데기 — 아이콘 칸 + 두 줄 + 오른쪽 버튼. 색만 갈아 끼운다. */
+/**
+ * 홈 맨 위 띠 한 장. **장마다 색이 다른 것은 일부러다.** (2026-09-21 사장님
+ *   "다른 색상이어야 일정이 있다는 걸 확실히 알 것 같아")
+ *
+ *   1쪽  오늘 시공 있음   → **진한 초록** (오늘 할 일)
+ *        오늘 시공 끝남   → 연초록
+ *        오늘 시공 없음   → 흰색 (할 일 없음)
+ *   2쪽  다음 시공        → **연파랑** (앞으로 올 일)
+ *
+ * ⚠️ 나중에 "통일하자" 며 한 색으로 맞추지 말 것 — **색이 곧 상태**다.
+ */
 @Composable
 private fun BandShell(
     bg: Color, fg: Color, subFg: Color, icon: String,
