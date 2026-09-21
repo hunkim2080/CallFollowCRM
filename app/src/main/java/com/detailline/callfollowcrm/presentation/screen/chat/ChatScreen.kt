@@ -4046,63 +4046,12 @@ private fun TemplatePill(template: MessageTemplateEntity, onTap: () -> Unit) {
     }
 }
 
-/**
- * 2026-05-27 사장님 결정 — Composer 위 chip row 의 [⚡ 액션] 토글 + 5개 액션 칩.
- *   사장님 시나리오: 신규 고객 전화 문의 → 답장 작성. 가격/일정 빠른 접근 필요.
- *   [⚡ 액션] 탭 → 기존 템플릿 휙 사라지고 액션 칩 5개 노출. 다시 탭 → 템플릿 복귀.
- *
- * AI 자동 추천 (next-action-suggest) 와 같은 triggerActionByType 사용 — UX 일관성.
+/*
+ * (지움 2026-09-21) Composer 위 [⚡ 액션] 토글 + 퀵액션 칩 5개 — **화면에 안 뜨는 죽은 코드**였다.
+ *   2026-08-14 에 3칩([견적 작성][내 일정 확인][문구 넣기])을 **입력줄 ⊕ 메뉴**로 옮기면서
+ *   이 자리가 사라졌는데 코드만 남아 있었다(아무 데서도 안 불림).
+ *   지금 ⊕ 메뉴 = ActionMenuRow(아이콘 + 글자). 되살릴 일이 생기면 git 에서 꺼내 쓰면 된다.
  */
-private data class QuickAction(
-    val actionType: String,
-    val emoji: String,
-    val label: String
-)
-
-private val QUICK_ACTIONS = listOf(
-    QuickAction("send_estimate",     "💰", "견적 작성"),
-    QuickAction("confirm_schedule",  "📅", "일정 잡기"),
-    QuickAction("register_schedule", "📌", "시공일 등록"),
-    QuickAction("request_deposit",   "💳", "계약금 안내"),
-    QuickAction("send_followup",     "✉️", "후속 문자")
-)
-
-@Composable
-private fun ActionToggleChip(selected: Boolean, onTap: () -> Unit) {
-    // selected = 액션 모드 — 강조 (파란 배경 + 흰 글자). off = 흰 배경 + 파란 글자 (다른 chip 과 구분).
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = if (selected) TossBlue else Color.White,
-        onClick = onTap
-    ) {
-        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text(
-                if (selected) "✕ 닫기" else "⚡ 액션",
-                color = if (selected) Color.White else TossBlue,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuickActionPill(label: String, emoji: String, onTap: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = TossBlueSoft,
-        onClick = onTap
-    ) {
-        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text(
-                "$emoji $label",
-                color = TossBlue,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp
-            )
-        }
-    }
-}
 
 @Composable
 private fun Composer(
