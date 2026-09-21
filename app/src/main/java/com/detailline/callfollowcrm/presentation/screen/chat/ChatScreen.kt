@@ -1717,7 +1717,11 @@ fun ChatScreen(
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
             androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
+                modifier = Modifier.fillMaxSize()
+                    // Dialog 는 별도 창이라 navigationBarsPadding 이 0 이다 → 창 바닥이 내비바 밑으로 들어간다.
+                    //   실측 2026-09-21: [예약 취소] 글씨 아래 절반이 내비바에 가렸다. (SystemBars.kt 헬퍼로 띄움)
+                    .bottomBarClearance(extra = 20.dp)
+                    .padding(horizontal = 12.dp, vertical = 20.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center
             ) {
                 Surface(

@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.customer
 
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Person
@@ -1561,7 +1562,11 @@ fun CustomerDetailScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
+                modifier = Modifier.fillMaxSize()
+                    // Dialog 는 별도 창이라 navigationBarsPadding 이 0 이다 → 창 바닥이 내비바 밑으로 들어간다.
+                    //   실측 2026-09-21: [예약 취소] 글씨 아래 절반이 내비바에 가렸다. (SystemBars.kt 헬퍼로 띄움)
+                    .bottomBarClearance(extra = 20.dp)
+                    .padding(horizontal = 12.dp, vertical = 20.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center
             ) {
                 Surface(
@@ -1647,7 +1652,9 @@ fun CustomerDetailScreen(
                             }
                             // 예약 취소(일정 비우기) — 되돌리는 일이라 **아래 한 줄**, 조용한 빨간 글씨.
                             //   (2026-06-08 #6 · 자리 옮김 2026-09-21)
-                            if (customer?.scheduledWorkDate != null) {
+                            // ⚠️ '새 시공 추가' 중엔 숨긴다 — 그 창에서 누르면 지금 추가하려던 게 아니라
+                            //    **원래 잡혀 있던 시공**이 지워진다. (2026-09-21 사장님 신고에서 발견)
+                            if (!addingNewJob && customer?.scheduledWorkDate != null) {
                                 Spacer(Modifier.height(4.dp))
                                 TextButton(
                                     onClick = {
@@ -1682,7 +1689,11 @@ fun CustomerDetailScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
+                modifier = Modifier.fillMaxSize()
+                    // Dialog 는 별도 창이라 navigationBarsPadding 이 0 이다 → 창 바닥이 내비바 밑으로 들어간다.
+                    //   실측 2026-09-21: [예약 취소] 글씨 아래 절반이 내비바에 가렸다. (SystemBars.kt 헬퍼로 띄움)
+                    .bottomBarClearance(extra = 20.dp)
+                    .padding(horizontal = 12.dp, vertical = 20.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center
             ) {
                 Surface(

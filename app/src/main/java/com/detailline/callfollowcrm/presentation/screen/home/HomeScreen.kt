@@ -1329,6 +1329,7 @@ fun HomeScreen(
                                         aiSummary = aiCardSummaries[suffix],
                                         // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
                                         category = rItem.customer?.categoryId?.let { cid -> categoryById[cid] },
+                                        filter = inboxChip,
                                         onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
                                         onLongClick = { pinTarget = rItem }
                                     )
@@ -1441,6 +1442,7 @@ fun HomeScreen(
                                                             //   상태 태그와 중복이라 태그로 안 띄움(그럼 모든 행에 붙어 '일당' 이 안 도드라짐). (2026-08-04)
                                                             // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
                                                             category = rItem.customer?.categoryId?.let { cid -> categoryById[cid] },
+                                                            filter = inboxChip,
                                                             onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
                                                             onLongClick = { pinTarget = rItem }
                                                         )
@@ -4352,12 +4354,14 @@ private fun RecentRow(
     unread: Boolean,
     aiSummary: String?,
     category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
+    /** 지금 고른 칩 — 뱃지가 '그 안에서 갈리는 것'을 보여주려고 필요하다. (2026-09-21) */
+    filter: String = "all",
     onOpenChat: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
-    val tag = recentStatusTag(item.customer)   // 프로토 .tag — 시공 D-N/계약금/완료
+    val tag = recentStatusTag(item.customer, filter)   // 시공 D-N / 계약금 / (종료)끝난날 / (잔금)남은돈
     // A안 (2026-08-04 사장님): "최근 무슨 말 했는지"가 먼저 보이게 — 마지막 실제 문자를 주(위)로,
     //   ✨AI 요약은 보조(아래 회색)로. 문자 없이 통화만이면 요약을 주로.
     //   (이전엔 읽은 줄에서 요약이 최근 문자를 덮어써 "최근에 뭐라 했는지" 안 보인다는 신고. 2026-08-04)
@@ -4458,11 +4462,32 @@ private data class RecentTag(val text: String, val fg: Color, val bg: Color)
  * 프로토 recent .tag — 고객 상태에서 파생. 시공일 잡힘=시공 D-N(파랑)/오늘=D-DAY/지남=완료(회색),
  *   잔금 받음=완료(회색), 계약금만=계약금(초록), 그 외 태그 없음. (견적 발송 amber 는 이력 필요 → 후속)
  */
-private fun recentStatusTag(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?): RecentTag? {
+private fun recentStatusTag(
+    c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?,
+    filter: String = "all"
+): RecentTag? {
     if (c == null) return null
     val blueFg = TossBlue; val blueBg = LightColors.primaryBg
     val greenFg = Color(0xFF0E9F56); val greenBg = LightColors.doneBg
     val grayFg = TossTextTertiary; val grayBg = TossGrayBg
+
+    // ⭐ 칩이 이미 말해준 건 뱃지가 또 말하지 않는다. 그 안에서 **갈리는 것**을 보여준다.
+    //   (2026-09-21 사장님: "종료 고객인데 '완료'만 있으면 무슨 소용이야. 며칠날 끝났는지가 포인트")
+    if (filter == "done") {
+        // 끝난 날. 오른쪽 시각은 '마지막 문자' 라 이 답을 못 한다.
+        val doneAt = c.doneAtMs
+        return if (doneAt != null) RecentTag(RECENT_MD_FORMAT.format(java.util.Date(doneAt)) + " 끝", grayFg, grayBg)
+        else null
+    }
+    if (filter == "owe") {
+        // 얼마가 남았나. 전엔 여기도 '완료' 가 붙어 아무 말도 안 했다.
+        val owed = c.balanceAmount ?: (c.totalAmount?.let { t -> t - (c.depositAmount ?: 0L) })
+        return if (owed != null && owed > 0L) {
+            val man = owed / 10_000L
+            RecentTag(if (man > 0L) "잔금 ${man}만" else "잔금", blueFg, blueBg)
+        } else null
+    }
+
     val sched = c.scheduledWorkDate
     if (sched != null && sched > 0L) {
         val days = ((DateTimeUtils.startOfDay(sched) - DateTimeUtils.startOfDay(System.currentTimeMillis())) / DateTimeUtils.DAY_MS).toInt()
