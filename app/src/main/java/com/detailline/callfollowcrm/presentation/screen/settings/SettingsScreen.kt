@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -2179,6 +2180,9 @@ private fun AutoSmsSection(
         modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 6.dp))
 
     // ① 부재중 자동 응답
+    //   ⚠️ 카드 사이에 Spacer 를 넣지 말 것 — 바깥 Column 이 spacedBy(12.dp) 로 이미 띄운다.
+    //     Spacer 도 그 Column 의 '자식'이라 앞뒤로 12dp 가 또 붙어 **12+10+12 = 34dp** 가 됐다.
+    //     (2026-09-21 사장님 "왜 이렇게 간격이 넓어?")
     AutoCard(Icons.Filled.Phone, TossBlueSoft, TossBlue, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
         autoReplyOn, onAutoReplyToggle, initiallyExpanded = expandMissed) {
         AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
@@ -2188,7 +2192,6 @@ private fun AutoSmsSection(
         AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
         AutoNote("신규·단골 모두 자동으로 나가요. 보내기 직전 10초 안에 취소할 수 있어요. 같은 번호엔 하루 1번만 — 최근 24시간 안에 보낸 문자(이미 답장했거나 방금 자동발송)가 있으면 건너뛰어요.")
     }
-    Spacer(Modifier.height(10.dp))
 
     // ② 시공 하루 전 안내 (D-1)
     AutoCard(Icons.Filled.CalendarMonth, Color(0xFFFFF1E6), Color(0xFFB8780A), "시공 하루 전 안내 (D-1)", null,
@@ -2205,7 +2208,6 @@ private fun AutoSmsSection(
         AutoTextArea(d1Text) { d1Text = it; prefs.d1AutoText = it }
         AutoNote("전날 이 시각에 막내가 “보낼까요?” 하고 먼저 물어봐요. 사장님이 확인 눌러야 고객에게 나가요 — 무음 자동발송이 아니에요.")
     }
-    Spacer(Modifier.height(10.dp))
 
     // ③ 오늘 시공 도착 안내
     AutoCard(Icons.Filled.Place, AppTheme.colors.doneBg, AppTheme.colors.doneText, "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
@@ -2213,7 +2215,6 @@ private fun AutoSmsSection(
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
         AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
     }
-    Spacer(Modifier.height(10.dp))
 
     // ④ 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 녹음/텍스트를 자동 요약(공유 안 눌러도 됨).
     var autoSumOn by remember { mutableStateOf(prefs.autoSummaryEnabled) }
@@ -2274,7 +2275,6 @@ private fun AutoSmsSection(
             }
         )
     }
-    Spacer(Modifier.height(8.dp))
 
     // ④-b 화면 캡처 막기 (2026-08-20 사장님) — 기본 OFF(베타 버그 캡처 위해). 켜면 릴리스에서 스샷/녹화 차단. live-apply.
     val capCtx = LocalContext.current
@@ -2282,7 +2282,9 @@ private fun AutoSmsSection(
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.unpaidBg),
-                contentAlignment = Alignment.Center) { Text("🔒", fontSize = 16.sp) }
+                contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Lock, null, tint = AppTheme.colors.unpaid, modifier = Modifier.size(17.dp))
+                }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -2301,7 +2303,6 @@ private fun AutoSmsSection(
             })
         }
     }
-    Spacer(Modifier.height(8.dp))
 
     // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 화면 '테두리'에 상태색을 둘러 신규/예정/기존/완료를 한눈에. (2026-08-31 카드→테두리)
     //   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한 필요 → 켰는데 없으면 안내+허용 버튼.
@@ -2391,7 +2392,6 @@ private fun AutoSmsSection(
             }
         }
     }
-    Spacer(Modifier.height(8.dp))
 
     // 통화 녹음 자동 찾기 — 오디오 권한 한 번이면 MediaStore 에서 통화녹음(에이닷·T전화·삼성)을 앱이 알아서 찾는다.
     //   폴더를 직접 고를 필요 X (연세 있으신 분 배려, 2026-06-30). 폴더 직접 고르기는 fallback 으로 남김.
@@ -4313,7 +4313,6 @@ private fun ToneLearnProtoSection(
     // ── 직접 가르치기 (teach) ──
     ToneSecSub("직접 가르치기")
     ToneTeachButton(Icons.Filled.Add, "예문 추가하기", "\"이런 상황엔 이렇게 답해줘\" 알려주기") { showExampleDialog = true }
-    Spacer(Modifier.height(8.dp))
     ToneTeachButton(Icons.AutoMirrored.Filled.Chat, "말투 세부 설정",
         if (signature.isBlank()) "꼭 쓰는 인사말 등록" else "시그니처: $signature") { showSignatureDialog = true }
     Spacer(Modifier.height(14.dp))
