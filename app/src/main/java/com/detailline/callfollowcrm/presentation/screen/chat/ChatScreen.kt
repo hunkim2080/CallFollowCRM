@@ -3963,6 +3963,30 @@ private fun ComposerActionMenu(
                     }
                 }
             }
+            // 뒤를 살짝 어둡게 — 안 그러면 대화 카드들과 겹쳐 **어디까지가 메뉴인지** 안 보인다.
+            //   Popup 은 제 크기만큼만 창을 잡으므로 화면 크기를 직접 넣어준다.
+            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+            androidx.compose.ui.window.Popup(
+                popupPositionProvider = object : androidx.compose.ui.window.PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: androidx.compose.ui.unit.IntRect,
+                        windowSize: androidx.compose.ui.unit.IntSize,
+                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                        popupContentSize: androidx.compose.ui.unit.IntSize
+                    ) = androidx.compose.ui.unit.IntOffset(-anchorBounds.left, -anchorBounds.top)
+                },
+                onDismissRequest = { open = false }
+            ) {
+                Box(
+                    Modifier
+                        .size(cfg.screenWidthDp.dp, cfg.screenHeightDp.dp)
+                        .background(Color.Black.copy(alpha = 0.26f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { open = false }
+                )
+            }
             androidx.compose.ui.window.Popup(
                 popupPositionProvider = positioner,
                 onDismissRequest = { open = false },
@@ -3989,15 +4013,17 @@ private fun ComposerActionMenu(
                             .background(Color.White)
                             .padding(6.dp)
                     ) {
-                        ActionMenuRow(Icons.Default.Description, "견적 작성") { open = false; onEstimate() }
-                        ActionMenuRow(Icons.Default.DateRange, "내 일정 확인") { open = false; onSchedule() }
-                        ActionMenuRow(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { open = false; onTemplate() }
+                        // 색은 **하는 일의 종류**. 견적=돈/문서, 일정=달력, 문구=글.
+                        ActionMenuRow(Icons.Default.Description, "견적 작성", AppTheme.colors.primary) { open = false; onEstimate() }
+                        ActionMenuRow(Icons.Default.DateRange, "내 일정 확인", AppTheme.colors.category) { open = false; onSchedule() }
+                        ActionMenuRow(Icons.AutoMirrored.Filled.Chat, "문구 넣기", TossSuccess) { open = false; onTemplate() }
                         // ❌ "다음 답변 AI 추천" 뺐다. (2026-09-20 사장님 "+ 쪽은 버리자")
                         //   AI 추천을 누르는 자리가 두 군데라 역할이 안 갈렸다. 게다가 ⊕ 쪽도 속으로는
                         //   **3개를 만들고 2개를 버려** 비용은 같은데 쓰는 건 하나였다.
                         //   입력창 바로 위 띠 하나로 남긴다 — 손가락에도 더 가깝다.
                         if (canSaveText) {
-                            ActionMenuRow(Icons.Default.Add, "이 글을 문구로 저장") { open = false; onSaveText() }
+                            // 문구를 '꺼내 쓰는' 줄과 '넣어 두는' 줄이라 같은 초록.
+                            ActionMenuRow(Icons.Default.Add, "이 글을 문구로 저장", TossSuccess) { open = false; onSaveText() }
                         }
                     }
                 }
@@ -4006,10 +4032,18 @@ private fun ComposerActionMenu(
     }
 }
 
+/**
+ * ⊕ 메뉴 한 줄 — **아이콘만 색, 네모는 없다.** (2026-09-22 사장님 "구분이 잘 안 간다")
+ *
+ * 전엔 세 줄이 다 같은 파란 네모라 눈에는 "파란 네모 3개" 로만 보였다.
+ * ⚠️ 네모(면)를 되살리지 말 것 — 앱에서 넓은 면의 색은 **상태 딱지**로 읽힌다
+ *    (초록=완료·보라=협업). 아이콘만 색을 주면 구분은 되면서 뜻은 안 섞인다.
+ */
 @Composable
 private fun ActionMenuRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    tint: Color,
     onTap: () -> Unit
 ) {
     Row(
@@ -4020,13 +4054,10 @@ private fun ActionMenuRow(
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(TossBlueSoft),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(13.dp))
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
     }
 }
