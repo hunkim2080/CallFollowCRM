@@ -1571,7 +1571,8 @@ fun HomeScreen(
                             Text("취소", color = TossTextSecondary)
                         }
                     },
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
                 )
             }
 
@@ -1627,7 +1628,8 @@ fun HomeScreen(
                             Text("취소", color = TossTextSecondary)
                         }
                     },
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
                 )
             }
 
@@ -1674,7 +1676,8 @@ fun HomeScreen(
                             Text("취소", color = TossTextSecondary)
                         }
                     },
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
                 )
             }
 
@@ -1742,7 +1745,8 @@ fun HomeScreen(
                             }) { Text("고쳐서 보내기", color = TossTextPrimary, fontWeight = FontWeight.Bold) }
                         }
                     },
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
                 )
             }
             } // end Box(nestedScroll)
@@ -3844,7 +3848,8 @@ private fun CategoryAddDialog(
                 Text("취소", color = TossTextSecondary)
             }
         },
-        containerColor = Color.White
+        containerColor = Color.White,
+        tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
     )
 }
 

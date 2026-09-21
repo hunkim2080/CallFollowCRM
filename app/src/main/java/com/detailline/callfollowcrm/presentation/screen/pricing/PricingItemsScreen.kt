@@ -367,7 +367,8 @@ fun PricingItemsScreen(
                     Text("취소", color = TossTextSecondary)
                 }
             },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 
@@ -398,7 +399,8 @@ fun PricingItemsScreen(
                     Text("취소", color = TossTextSecondary)
                 }
             },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 }

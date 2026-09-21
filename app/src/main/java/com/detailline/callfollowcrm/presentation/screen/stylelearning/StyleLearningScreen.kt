@@ -239,7 +239,8 @@ fun StyleLearningScreen(
                 }
             },
             dismissButton = { TextButton(onClick = { exampleOpen = false }) { Text("취소", color = TossTextSecondary) } },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 
@@ -263,7 +264,8 @@ fun StyleLearningScreen(
                 }
             },
             dismissButton = { TextButton(onClick = { signatureOpen = false }) { Text("취소", color = TossTextSecondary) } },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 
@@ -303,7 +305,8 @@ fun StyleLearningScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { examplesListOpen = false }) { Text("닫기", color = Purple, fontWeight = FontWeight.Bold) } },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 
@@ -327,7 +330,8 @@ fun StyleLearningScreen(
                 }
             },
             dismissButton = { TextButton(onClick = { editingExample = null }) { Text("취소", color = TossTextSecondary) } },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 }

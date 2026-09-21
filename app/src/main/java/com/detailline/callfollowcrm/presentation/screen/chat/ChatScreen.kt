@@ -1273,7 +1273,8 @@ fun ChatScreen(
         ModalBottomSheet(
             onDismissRequest = { linkActionTarget = null },
             sheetState = sheetState,
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).bottomBarClearance()
@@ -1359,7 +1360,8 @@ fun ChatScreen(
         ModalBottomSheet(
             onDismissRequest = { bubbleActionTarget = null },
             sheetState = sheetState,
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         ) {
             Column(
                 modifier = Modifier
@@ -5061,7 +5063,8 @@ private fun DepositFollowupDialog(
                 Text("등록만 하기", color = TossTextSecondary)
             }
         },
-        containerColor = Color.White
+        containerColor = Color.White,
+        tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
     )
 }
 

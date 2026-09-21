@@ -217,7 +217,8 @@ fun TemplateListScreen(
                 }) { Text("저장", color = if (name.isNotBlank()) TossBlue else TossTextTertiary, fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("취소", color = TossTextSecondary) } },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 
@@ -233,7 +234,8 @@ fun TemplateListScreen(
                 }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("취소", color = TossTextSecondary) } },
-            containerColor = Color.White
+            containerColor = Color.White,
+            tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
         )
     }
 }
