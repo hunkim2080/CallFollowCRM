@@ -977,8 +977,18 @@ fun CustomerDetailScreen(
                             Text("일정 · 정산", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                         }
                         Spacer(Modifier.height(10.dp))
-                        if (scheduled != null || hasAmount) {
-                            CdKv(
+                        // 화면을 둘로 가르지 않는다 — 표가 이미 "아직 예약 안 됨" 같은 빈 값을 말할 줄 안다.
+                        //   전엔 예약·금액이 하나도 없으면 버튼만 있는 **딴 화면**이 떴다. (2026-09-22 사장님)
+                        if (scheduled == null && !hasAmount) {
+                            // 2026-06-07 사장님 통점: 통화로 다 정해졌는데 일정 등록하려면 견적서 보내기밖에 없었음.
+                            //   그 안내는 아무것도 없을 때만 한 줄로 남긴다.
+                            Text(
+                                "통화로 정해졌으면 여기서 바로 등록하세요. 고객에게 또 입력시키지 않아도 돼요.",
+                                fontSize = 13.sp, color = TossTextSecondary, lineHeight = 20.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        CdKv(
                                 "시공 예약",
                                 // 여러 날 시공이면 기간까지 — 전엔 시작 날짜만 보여 "3일 중 1일차"인 걸 알 수 없었다. (2026-09-15 사장님)
                                 //   날짜는 짧게("9/16(수)") — 올해 일이면 연도는 정보가 아니다. (2026-09-20 사장님)
@@ -1078,21 +1088,6 @@ fun CustomerDetailScreen(
                                     }
                                 }
                             }
-                        } else {
-                            // 2026-06-07 사장님 통점: 통화로 다 정해졌는데 일정 등록하려면 견적서 보내기밖에 없었음(고객이 또 입력).
-                            //   → 이 자리에서 바로 "시공일 등록 / 총금액 입력". 고객 재입력 불필요. (견적서 경로도 보조로 유지)
-                            Text(
-                                "통화로 정해졌으면 여기서 바로 등록하세요. 고객에게 또 입력시키지 않아도 돼요.",
-                                fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
-                            )
-                            Spacer(Modifier.height(13.dp))
-                            TossPrimaryButton(text = "시공일 등록", onClick = { datePickerOpen = true })
-                            Spacer(Modifier.height(8.dp))
-                            TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
-                            Spacer(Modifier.height(8.dp))
-                            TossSecondaryButton(text = "💵 계약금 입력", onClick = { amountEditField = "deposit" })
-                            // "견적서로 보내기" 제거 (2026-06-10 사장님: 용도 불명확). 견적서는 채팅 [견적 작성] 으로.
-                        }
                     }
                 }
             }
