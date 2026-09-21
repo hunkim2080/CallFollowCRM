@@ -532,7 +532,7 @@ object NotificationHelper {
         val msg = "${name}님 · $dateLabel${timeLabel?.let { " $it" } ?: ""} · $address"
         showProtoPush(
             context, notifId, CHANNEL_INSTALL_D1, ACCENT_AMBER,
-            title = "내일 시공 — 안내 문자 보낼까요?",
+            title = "📅 내일 시공 — 안내 문자 보낼까요?",
             msg = msg,
             note = "무음 자동발송 안 해요 · 사장님이 확인하면 보내요",
             contentIntent = pending,
@@ -566,7 +566,7 @@ object NotificationHelper {
         )
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, ACCENT_AMBER,
-            title = "오늘 A/S 있어요 🔧",
+            title = "🔧 오늘 A/S 있어요",
             msg = "${name}님 · $whenLabel · $address · 무료",
             note = "시공과 별개인 A/S 예약이에요 (무료)",
             contentIntent = pending,
@@ -599,7 +599,7 @@ object NotificationHelper {
         )
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, ACCENT_PINK,
-            title = "아직 안 들어온 잔금이 있어요",
+            title = "⏰ 아직 안 들어온 잔금이 있어요",
             msg = "${name}님 · 잔금 ${balanceManwon}만원 · 시공 완료 후 ${daysSince}일째 미입금",
             contentIntent = pending,
             actions = listOf(PushAction("잔금 요청 보내기", pending))
@@ -619,7 +619,7 @@ object NotificationHelper {
         val pending = appOpenPending(context, CALL_SUMMARY_CONSENT_ID)
         showProtoPush(
             context, CALL_SUMMARY_CONSENT_ID, CHANNEL_REMINDER, ACCENT_PINK,
-            title = "통화 요약이 꺼져 있어요",
+            title = "✨ 통화 요약이 꺼져 있어요",
             msg = "더보기 → 자동 문자 → '통화 자동 요약'을 켜면 다시 요약해드려요 (한 번만 확인하면 돼요)",
             contentIntent = pending,
             actions = listOf(PushAction("켜러 가기", pending))
@@ -651,7 +651,7 @@ object NotificationHelper {
         )
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
-            title = "현장 도착 — 안내 문자 보낼까요?",
+            title = "📍 현장 도착 — 안내 문자 보낼까요?",
             msg = "${name}님 현장 5km 안에 들어왔어요",
             note = "확인 후 보내요 · 무음 자동발송 아니에요",
             contentIntent = pending,
@@ -1070,7 +1070,7 @@ object NotificationHelper {
         } else CHANNEL_DAILY_BRIEF
         showProtoPush(
             context, BRIEF_ID, briefChannel, ACCENT_BLUE,
-            title = "오늘 하루 마감 브리핑 🌙",
+            title = "🌙 오늘 하루 마감 브리핑",
             msg = msg, note = note,
             contentIntent = pending,
             actions = listOf(PushAction("오늘 정리 보기", pending))
@@ -1083,7 +1083,7 @@ object NotificationHelper {
         val prefix = if (ruleNames.isNotBlank()) "$ruleNames · " else ""
         showProtoPush(
             context, RECUR_ID, CHANNEL_RECURRING, ACCENT_TEAL,
-            title = "오늘 정기 문자 보낼 고객 ${count}명",
+            title = "🔁 오늘 정기 문자 보낼 고객 ${count}명",
             msg = "${prefix}오늘 ${count}명 · 고객 이름은 자동으로 채워드려요 · 보내기 전에 한 번 봐주세요",
             contentIntent = pending,
             actions = listOf(PushAction("검토하고 보내기", pending))
@@ -1148,7 +1148,7 @@ object NotificationHelper {
      */
     fun showTodaySites(context: Context, count: Int, lines: List<String>, openPhone: String?) {
         if (lines.isEmpty()) { clearTodaySites(context); return }
-        val title = if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
+        val title = if (count <= 1) "🧭 오늘의 현장" else "🧭 오늘의 현장 ${count}곳"
         // 왜 안 지워지는지 + 언제 사라지는지 알려준다 — 상시(ongoing) 알림이라 스와이프로 안 지워져서
         //   안내가 없으면 "이거 왜 계속 있지?" 가 된다. (2026-07-15 사장님 "안내가 어디 있으면 좋을듯")
         val body = lines.joinToString("\n") + "\n\n잔금까지 받으면 자동으로 사라져요"
@@ -1251,7 +1251,7 @@ object NotificationHelper {
         }
         showProtoPush(
             context, notifId, CHANNEL_INTAKE, ACCENT_PURPLE,
-            title = "시공접수서 회신 도착 🎉",
+            title = "🎉 시공접수서 회신 도착",
             msg = msg,
             note = "📍 $address\n주소·시공일이 고객 카드에 자동 반영됐어요.",
             contentIntent = pending,
@@ -1448,7 +1448,7 @@ object NotificationHelper {
         //   비-슬롯 채널이라 평소엔 CHANNEL_POSTCALL 그대로. (2026-08-11 알림 감사)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_POSTCALL))
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("${who}님께 문자 보낼까요?")
+            .setContentTitle("📩 ${who}님께 문자 보낼까요?")
             .setContentText("보낼 문자를 고르면 확인 후 보낼 수 있어요")
             .setColor(NOTIFICATION_BG_COLOR)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -1725,7 +1725,7 @@ object NotificationHelper {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII 가림
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
-            .setContentTitle("10초 뒤 자동문자 보낼게요")
+            .setContentTitle("📨 10초 뒤 자동문자 보낼게요")
             .setContentText("$phoneNumber · 취소하지 않으면 자동 발송")
             .setStyle(NotificationCompat.BigTextStyle().bigText(
                 "$phoneNumber 에게 설정해둔 자동문자를 ${secs}초 뒤 보낼게요. 안 보내려면 '취소'를 눌러요."
@@ -1747,7 +1747,7 @@ object NotificationHelper {
         // 프로토 PUSH.missed (초록) — 부재중 → 막내가 대신 답장.
         showProtoPush(
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_GREEN,
-            title = "부재중 전화 — 막내가 대신 답장했어요",
+            title = "📨 부재중 전화 — 막내가 대신 답장했어요",
             msg = "${formatPhone(phoneNumber)} 님께 자동으로 답장을 보냈어요.",
             note = "누르면 보낸 내용을 볼 수 있어요.",
             contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId)),
