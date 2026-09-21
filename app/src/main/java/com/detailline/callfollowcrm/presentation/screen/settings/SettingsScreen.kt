@@ -3706,9 +3706,6 @@ private fun TemplateDropdown(
  * 더보기 상단 막내 비서 카드 (프로토 .agent-card 간소화).
  *   캐릭터(Mascot) + 이름 + 학습 안내. 학습 수치는 실제 보유값(사장님 톤 샘플 수).
  */
-/** 10레벨 구간마다 캐릭터 '변신' 엠블럼 (정식 그림 전, 우선 배지로 표시). (2026-06-14) */
-private val AGENT_EMBLEMS = listOf("🌱", "🐣", "🔧", "⭐", "🔥", "💪", "🏅", "👑", "💎", "🚀")
-
 @Composable
 private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
     // 프로토 agent-card — 그라데이션 카드 + mascot + 레벨칩 + 말투 진행바 + stats.
@@ -3726,23 +3723,13 @@ private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
             .padding(horizontal = 18.dp, vertical = 15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // 막내 + 단계 변신 엠블럼(우하단 배지)
-            Box(contentAlignment = Alignment.Center) {
-                Mascot(sizeDp = 56.dp)
-                Box(
-                    Modifier.align(Alignment.BottomEnd)
-                        .clip(RoundedCornerShape(999.dp)).background(Color.White)
-                        .border(1.dp, Color(0xFFE6EAFB), RoundedCornerShape(999.dp))
-                        .padding(horizontal = 3.dp, vertical = 1.dp)
-                ) {
-                    Text(AGENT_EMBLEMS[card.tier.coerceIn(0, AGENT_EMBLEMS.lastIndex)], fontSize = 14.sp)
-                }
-            }
+            // 막내 (단계는 이름 옆 칩으로만 — 이모지 배지는 폰마다 다르게 그려져서 뺐다)
+            Mascot(sizeDp = 56.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 // agent-name + lv 칩
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("막내 비서", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    Text("우리 막내", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                     Spacer(Modifier.width(7.dp))
                     Box(
                         Modifier
@@ -3750,7 +3737,7 @@ private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
                             .background(Brush.horizontalGradient(listOf(AppTheme.colors.primary, AppTheme.colors.category)))
                             .padding(horizontal = 9.dp, vertical = 2.dp)
                     ) {
-                        Text("Lv.${card.level} · ${card.title}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        Text(card.stageLabel, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                     }
                 }
                 Spacer(Modifier.height(3.dp))
@@ -3780,8 +3767,8 @@ private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
             }
         }
         Text(
-            "함께한 상담 ${card.consultCount}건 · 시공 완료 ${card.doneJobs}건" +
-                if (card.toNextLevel > 0) " · 다음 레벨까지 ${card.toNextLevel} XP" else " · 최고 레벨 🎉",
+            (if (card.togetherMonths > 0) "사장님이랑 손발 맞춘 지 ${card.togetherMonths}개월 · " else "") +
+                "함께한 상담 ${card.consultCount}건 · 시공 ${card.doneJobs}건",
             fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 9.dp)
         )

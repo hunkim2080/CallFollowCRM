@@ -10763,3 +10763,10 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - 감시 2878곳 (기준선 2934) — 56곳 감소
 - ⚠️ 손대지 않은 것: 박람회(사장님 지시) · 시작 체크의 큰 삽화 이모지 · 막내 레벨 배지 ·
   고객에게 나가는 문자 문구
+
+## 2026-09-21 21:00 · android
+브랜드 북 v5 확정 — 레벨·XP 폐기 → '손발', 호칭 '우리 막내', 모자 노랑 고정
+- 사장님 확정: 인격="자리는 막내, 머리는 똑똑한" / 태그라인="상담과 일정관리는, 우리 막내가" / 얼굴=노란 안전모 / 성장=손발
+- 변경: AgentCardState(level·title·xp·tier → stage·stageLabel·togetherMonths), MascotTierState·AGENT_TITLES·AGENT_EMBLEMS·왕관·후광 삭제
+- 브랜드 북(SoT): https://claude.ai/artifact/DKo97pz18SLXBZb7aUN3YZ
+- 다음 액션 (서버쪽): 협업 공유 페이지·블로그 OG 의 "막내 비서" → "막내", 관리자 콘솔 RING-GO 표기

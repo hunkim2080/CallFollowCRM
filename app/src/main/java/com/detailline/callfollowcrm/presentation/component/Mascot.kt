@@ -60,31 +60,15 @@ private val MascotHatDark = LightColors.caution
 private val MascotHatBrimDark = Color(0xFFE8910A)
 private val MascotFaceLight = LightColors.primaryBg
 private val MascotFaceDark = Color(0xFFCFE0FF)
-private val MascotCrownGold = Color(0xFFFFC83D)
 
 /**
- * 현재 막내 단계(0~9) — 앱 어디서든 Mascot 이 자동 반영. (2026-06-14 사장님)
- *   SettingsViewModel.agentCard 가 레벨 계산 시 갱신, 앱 시작 시 prefs(agentTier) 로 복원.
+ * 안전모 노랑 — **항상 이 색**. (브랜드 북 v5, 2026-09-21 사장님 "노란 안전모")
+ *
+ * ⚠️ 레벨마다 모자 색을 바꾸지 말 것. 그러면 **쓰는 사람마다 브랜드 얼굴색이 달라져서**
+ *   마스코트가 브랜드 상징이 될 수 없다. (10색 변신 폐기 — 2026-09-21)
  */
-object MascotTierState {
-    private val _tier = MutableStateFlow(0)
-    val tier: StateFlow<Int> = _tier.asStateFlow()
-    fun set(t: Int) { _tier.value = t.coerceIn(0, 9) }
-}
-
-/** 10단계 모자 색 (light, dark) — 10레벨 구간마다 변신. */
-private val MascotHatPalette = listOf(
-    Color(0xFFFFCB5B) to LightColors.caution, // 0 새내기 주황(기본)
-    Color(0xFF7DD3C8) to Color(0xFF2FB3A4), // 1 수습 청록
-    Color(0xFF8FD98C) to Color(0xFF3FB84B), // 2 일잘러 초록
-    Color(0xFF8FB6FF) to LightColors.primary, // 3 베테랑 파랑
-    Color(0xFFB39DFF) to LightColors.category, // 4 에이스 보라
-    Color(0xFFFFA6C9) to Color(0xFFF0589B), // 5 능력자 분홍
-    Color(0xFFFF9B7A) to Color(0xFFF0562E), // 6 달인 주홍
-    Color(0xFFC9A6FF) to Color(0xFF8B3DF6), // 7 고수 진보라
-    Color(0xFFDDE3EC) to LightColors.textHint, // 8 마스터 은색
-    Color(0xFFFFE08A) to Color(0xFFF5B400)  // 9 레전드 금색
-)
+private val MascotHatLightFixed = Color(0xFFFFCB5B)
+private val MascotHatDarkFixed = LightColors.caution
 
 /**
  * 막내 비서 마스코트 (프로토 1:1).
@@ -98,11 +82,10 @@ private val MascotHatPalette = listOf(
 fun Mascot(
     modifier: Modifier = Modifier,
     sizeDp: Dp = 96.dp,
-    animateBob: Boolean = true,
-    tier: Int = -1   // -1 = 전역 현재 단계(MascotTierState) 사용
+    animateBob: Boolean = true
 ) {
-    val effTier = (if (tier >= 0) tier else MascotTierState.tier.collectAsState().value).coerceIn(0, 9)
-    val (hatLight, hatDark) = MascotHatPalette[effTier]
+    val hatLight = MascotHatLightFixed
+    val hatDark = MascotHatDarkFixed
     val bobOffsetPx: Float = if (animateBob) {
         val transition = rememberInfiniteTransition(label = "mBob")
         val v by transition.animateFloat(
@@ -124,11 +107,6 @@ fun Mascot(
             .graphicsLayer { translationY = bobOffsetPx * density }
     ) {
         val s = this.size.width / 120f
-
-        // 고레벨 후광 (마스터·레전드) — 얼굴 뒤 금빛 링.
-        if (effTier >= 8) {
-            drawCircle(MascotCrownGold.copy(alpha = 0.30f), radius = 54f * s, center = Offset(60f * s, 74f * s))
-        }
 
         // 0) 얼굴 그림자 (프로토 .m-face box-shadow: 0 12px 26px rgba(49,130,246,.22))
         //    BlurMaskFilter 로 실제 블러 처리. y+12, blur 13 (CSS 26의 절반 ≈ Gaussian σ).
@@ -194,28 +172,13 @@ fun Mascot(
             )
         )
 
-        // 4) 모자 꼭지 / 고레벨(7+) 왕관 — 캔버스 상단이 잘리니 모자 위 좁은 영역(y 0~10)에 작게.
-        if (effTier >= 7) {
-            drawRoundRect(
-                color = MascotCrownGold,
-                topLeft = Offset(49f * s, 4f * s), size = Size(22f * s, 6f * s),
-                cornerRadius = CornerRadius(2f * s)
-            )
-            fun peak(cxp: Float) {
-                val p = Path().apply {
-                    moveTo(cxp - 4.5f * s, 4f * s); lineTo(cxp, 0f); lineTo(cxp + 4.5f * s, 4f * s); close()
-                }
-                drawPath(p, MascotCrownGold)
-            }
-            peak(53.5f * s); peak(60f * s); peak(66.5f * s)
-        } else {
-            drawRoundRect(
-                color = hatDark,
-                topLeft = Offset(53f * s, -1f * s),
-                size = Size(14f * s, 10f * s),
-                cornerRadius = CornerRadius(5f * s)
-            )
-        }
+        // 4) 모자 꼭지. (고레벨 왕관은 폐기 — 막내는 등급이 없다. 브랜드 북 v5)
+        drawRoundRect(
+            color = hatDark,
+            topLeft = Offset(53f * s, -1f * s),
+            size = Size(14f * s, 10f * s),
+            cornerRadius = CornerRadius(5f * s)
+        )
 
         // 5) 눈: 9x9 원, top:58, left:46 / left:65 → 중심(50.5,62.5), (69.5,62.5), 반지름 4.5
         drawCircle(MascotEyeColor, radius = 4.5f * s, center = Offset(50.5f * s, 62.5f * s))
@@ -237,14 +200,6 @@ fun Mascot(
             size = Size(20f * s, 22f * s),
             style = Stroke(width = smileStroke)
         )
-
-        // 레전드(9) — 주변 반짝임 3개.
-        if (effTier >= 9) {
-            val sp = Color(0xFFFFF3C4)
-            drawCircle(sp, radius = 2.6f * s, center = Offset(24f * s, 30f * s))
-            drawCircle(sp, radius = 1.8f * s, center = Offset(98f * s, 40f * s))
-            drawCircle(sp, radius = 2.1f * s, center = Offset(92f * s, 88f * s))
-        }
     }
 }
 

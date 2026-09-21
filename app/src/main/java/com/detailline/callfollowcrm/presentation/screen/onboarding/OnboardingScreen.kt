@@ -477,7 +477,7 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
             Modifier.background(TossBlueSoft, RoundedCornerShape(999.dp)).padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
             Text(
-                if (primary != null) "[$primary] 막내 비서 탄생!" else "막내 비서 탄생!",
+                if (primary != null) "[$primary] 우리 막내 탄생!" else "우리 막내 탄생!",
                 fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark
             )
         }
@@ -490,7 +490,7 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
                 .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp))
                 .padding(horizontal = 17.dp, vertical = 11.dp)
         ) {
-            Text("사장님, 옆에서 잘 배워서 똑똑해질게요!", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text("사장님 손 바쁠 때, 제가 받을게요!", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
         }
         Spacer(Modifier.height(18.dp))
         Text("이제 혼자가 아니에요", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)

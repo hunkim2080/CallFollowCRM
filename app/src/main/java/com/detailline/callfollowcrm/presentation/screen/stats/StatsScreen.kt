@@ -158,11 +158,8 @@ private fun StatsMascot() {
     ) {
         Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { Mascot(sizeDp = 40.dp) }
         Spacer(Modifier.width(6.dp))
-        Row {
-            Text("사장님 옆에서 저도 ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Text("부쩍 자랐어요", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-            Text(". 다음 달도 잘 부탁드려요!", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-        }
+        // 돈 화면에서 막내는 재롱 떨지 않는다 (브랜드 북 v5 §13). 한 일만 담백하게.
+        Text("이번 달도 옆에서 챙길게요", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
     }
 }
 

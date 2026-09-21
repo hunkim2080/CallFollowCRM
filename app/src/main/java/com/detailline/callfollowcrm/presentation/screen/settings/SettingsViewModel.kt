@@ -141,10 +141,6 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val agentCard: StateFlow<AgentCardState> =
         combine(container.customerRepository.observeAll(), _toneRagUploadedCount, _toneRagAvailable) { customers, toneUploaded, sentCount ->
             buildAgentCard(customers, toneUploaded, sentCount)
-        }.onEach {
-            // 단계 변경 시 전역 막내 변신 상태 + prefs 갱신(앱 곳곳 Mascot 반영).
-            com.detailline.callfollowcrm.presentation.component.MascotTierState.set(it.tier)
-            container.preferences.agentTier = it.tier
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentCardState())
 
     private fun buildAgentCard(customers: List<CustomerEntity>, toneUploaded: Int, sentCount: Int): AgentCardState {
@@ -153,24 +149,30 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         val doneJobs = customers.count { it.scheduledWorkDate?.let { d -> d < todayStart } == true }
         val tonePct = ((toneUploaded * 100.0) / TONE_TARGET).toInt().coerceIn(0, 100)
 
-        // 경험치 = 핑퐁(고객에게 보낸 문자 수) + 계약 성사 보너스. 레벨/칭호/변신 단계 산출.
-        val contracted = customers.count { it.scheduledWorkDate != null }
-        val xp = sentCount + contracted * CONTRACT_BONUS_XP
-        val level = levelForXp(xp)
-        val tier = ((level - 1) / 10).coerceIn(0, AGENT_TITLES.lastIndex)
-        val title = AGENT_TITLES[tier]
-        val toNext = if (level < MAX_LEVEL) (xpForLevel(level + 1) - xp).coerceAtLeast(0) else 0
+        // 손발 = 막내 혼자의 등급이 아니라 **둘 사이의 상태**. (브랜드 북 v5, 2026-09-21 사장님)
+        //   레벨·XP 는 "막내가 점점 똑똑해진다"는 뜻이라 인격("이미 똑똑한 막내")과 어긋나서 폐기.
+        val stage = when {
+            tonePct >= 80 -> 2   // 척하면 척
+            tonePct >= 1 -> 1    // 손발 맞는 중
+            else -> 0            // 첫날
+        }
 
+        // "손발 맞춘 지 N개월" = 첫 고객이 생긴 날부터. 새 저장소를 만들지 않고 이미 있는 값으로 센다.
+        val since = customers.minOfOrNull { it.createdAt } ?: 0L
+        val months = if (since <= 0L) 0
+        else ((System.currentTimeMillis() - since) / (30L * 24 * 3600 * 1000)).toInt().coerceAtLeast(0)
+
+        // 첫날에도 **못 한다고 말하지 않는다** — 실력은 처음부터 높고, 모르는 건 '사장님 스타일' 하나뿐.
         val line = when {
             tonePct >= 80 -> "사장님 말투, 이제 거의 다 외웠어요!"
-            tonePct >= 40 -> "사장님 말투를 부지런히 배우고 있어요"
-            tonePct >= 1 -> "사장님 말투를 막 배우기 시작했어요"
-            else -> "문자를 더 주고받으면 제가 말투를 배워요"
+            tonePct >= 40 -> "사장님 말투를 부지런히 익히는 중이에요"
+            tonePct >= 1 -> "사장님 말투를 막 익히기 시작했어요"
+            else -> "상담이랑 일정은 오늘부터 제가 할게요"
         }
         return AgentCardState(
-            level = level, title = title, line = line,
+            stage = stage, stageLabel = MAKNE_STAGES[stage], line = line,
             tonePct = tonePct, consultCount = consult, doneJobs = doneJobs,
-            toNextLevel = toNext, xp = xp, tier = tier
+            togetherMonths = months
         )
     }
 
@@ -476,36 +478,28 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     }
 }
 
-/** 더보기 막내 비서 카드 (프로토 agent-card). */
+/** 더보기 '우리 막내' 카드. */
 data class AgentCardState(
-    val level: Int = 1,
-    val title: String = "새내기",
-    val line: String = "문자를 더 주고받으면 제가 말투를 배워요",
+    val stage: Int = 0,                     // 0 첫날 / 1 손발 맞는 중 / 2 척하면 척
+    val stageLabel: String = "첫날",
+    val line: String = "상담이랑 일정은 오늘부터 제가 할게요",
     val tonePct: Int = 0,
     val consultCount: Int = 0,
     val doneJobs: Int = 0,
-    val toNextLevel: Int = 10,  // 다음 레벨까지 남은 XP
-    val xp: Int = 0,
-    val tier: Int = 0           // 0~9 (10레벨마다 변신)
+    val togetherMonths: Int = 0             // 사장님이랑 손발 맞춘 지 N개월
 )
 
 private const val TONE_TARGET = 500
 
-// ── 막내 레벨 = 경험치 기반 (2026-06-14 사장님 재설계) ──
-//   XP = 핑퐁(고객에게 보낸 문자 = 막내가 배우는 코퍼스) + 계약 성사 보너스. 단순 견적문의(핑퐁 적음)는 XP 적게.
-private const val MAX_LEVEL = 100
-private const val CONTRACT_BONUS_XP = 30
-/** 레벨 L 도달 누적 XP = 2*(L-1)*L. 초반 빠르고 뒤로 갈수록 천천히. L2=4, L10=180, L50=4900, L100=19800. */
-private fun xpForLevel(level: Int): Int = 2 * (level - 1) * level
-private fun levelForXp(xp: Int): Int {
-    var lv = 1
-    while (lv < MAX_LEVEL && xpForLevel(lv + 1) <= xp) lv++
-    return lv
-}
-/** 10단계 칭호 — 10레벨 구간마다 하나(캐릭터 변신과 동일 구간). */
-private val AGENT_TITLES = listOf(
-    "새내기", "수습", "일잘러", "베테랑", "에이스", "능력자", "달인", "고수", "마스터", "레전드"
-)
+/**
+ * 손발 3단계 — 현장 말로. (브랜드 북 v5, 2026-09-21 사장님 "손발")
+ *
+ * ⚠️ 레벨·XP·칭호 10개("일잘러·레전드")로 돌아가지 말 것.
+ *   ① 막내는 **이미 똑똑하다**(사장님 확정 인격). 레벨업은 "점점 똑똑해진다"는 뜻이라 어긋난다.
+ *   ② 이건 막내 혼자의 등급이 아니라 **사장님과 맞아가는 정도**다. 그래서 게임 어휘를 안 쓴다.
+ *   ③ 미수금·매출 옆에 "일잘러 Lv.29" 가 있으면 안 된다.
+ */
+private val MAKNE_STAGES = listOf("첫날", "손발 맞는 중", "척하면 척")
 
 data class SettingsUiState(
     val afterCallBehavior: AfterCallBehavior,

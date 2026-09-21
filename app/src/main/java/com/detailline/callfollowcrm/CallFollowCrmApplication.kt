@@ -59,7 +59,6 @@ class CallFollowCrmApplication : Application() {
         container = AppContainer(this)
         NotificationHelper.ensureChannels(this)
         // 막내 단계(변신) 복원 — 설정 안 열어도 앱 곳곳 막내가 현재 단계로 보이게. (2026-06-14)
-        com.detailline.callfollowcrm.presentation.component.MascotTierState.set(container.preferences.agentTier)
         // 수신 MMS 알림 기준선 — 첫 실행/업데이트 시 now 로 잡아, 설치 전 과거 MMS 는 알림 안 함. (2026-07-03 사장님)
         if (container.preferences.lastNotifiedMmsMs == 0L) {
             container.preferences.lastNotifiedMmsMs = System.currentTimeMillis()
