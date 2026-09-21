@@ -304,6 +304,12 @@ fun HomeScreen(
     val collabUpdates by viewModel.collabUpdates.collectAsState()
     val pendingInvites by viewModel.pendingCollabInvites.collectAsState()
     val collabUpcoming by viewModel.collabUpcoming.collectAsState()
+    // 띠가 쓸 '다음 협업' — 오늘 것 말고 앞으로 것 중 가장 빠른 하나. (2026-09-21 A안)
+    val collabBandNext = remember(collabUpcoming) {
+        val d0 = DateTimeUtils.startOfDay(System.currentTimeMillis())
+        collabUpcoming.filter { it.scheduledAtMs > 0L && DateTimeUtils.startOfDay(it.scheduledAtMs) > d0 }
+            .minByOrNull { it.scheduledAtMs }
+    }
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val balanceDues by viewModel.balanceDues.collectAsState()
@@ -864,6 +870,8 @@ fun HomeScreen(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
                         collabTodayCount = collabTodaySites.size,
+                        collabToday = collabTodaySites.firstOrNull(),
+                        collabNext = collabBandNext,
                         onOpenChat = { phone, cid -> onOpenChat(phone, cid) },
                         onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
                         onComplete = { c -> completeTarget = c },
@@ -874,8 +882,10 @@ fun HomeScreen(
 
                 // 내가 수락한 협업 현장(내일 이후) — 오늘 것은 이미 위 히어로에 표시됨. (2026-06-14 사장님)
                 val todayDayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                // 띠에 이미 올라간 협업은 카드에서 뺀다 — 같은 말을 두 번 하면 어수선하다. (2026-09-21)
                 val collabFuture = collabUpcoming.filter {
-                    it.scheduledAtMs <= 0L || DateTimeUtils.startOfDay(it.scheduledAtMs) != todayDayStart
+                    (it.scheduledAtMs <= 0L || DateTimeUtils.startOfDay(it.scheduledAtMs) != todayDayStart) &&
+                        it.shareId != collabBandNext?.shareId
                 }
                 if (collabFuture.isNotEmpty()) {
                     item(key = "collab-upcoming") {
@@ -2152,6 +2162,10 @@ private fun TodayBand(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     collabTodayCount: Int,
+    /** 오늘 잡힌 협업 현장(있으면). 내 시공이 없어도 **오늘 갈 데가 있으면** 띠가 말해야 한다. */
+    collabToday: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite? = null,
+    /** 내일 이후 가장 빠른 협업 현장. '다음' 후보다 — 내 시공보다 빠를 수 있다. */
+    collabNext: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite? = null,
     onOpenChat: (phone: String, customerId: Long?) -> Unit,
     onNavigateAddr: (String?) -> Unit,
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
@@ -2166,13 +2180,19 @@ private fun TodayBand(
     val total = ordered.size + collabTodayCount
     val target = ordered.firstOrNull()
     val next = nextJobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= dayStart }
+    // ⭐ 협업도 '내 다음 일정'이다. 전엔 내 시공만 봐서 **내일 협업 가는 날에도** "다음 · 9/28" 이라 했다.
+    //   (2026-09-21 사장님 신고) 둘 중 **빠른 쪽**이 다음이다.
+    val nextMineMs = next?.scheduledWorkDate ?: Long.MAX_VALUE
+    val nextCollabMs = collabNext?.scheduledAtMs?.takeIf { it > 0L } ?: Long.MAX_VALUE
+    val nextIsCollab = nextCollabMs < nextMineMs
+    val hasNext = next != null || collabNext != null
     val doneToday = todayJobs.isEmpty() && nextJobs.any {
         (it.scheduledWorkDate ?: 0L) == dayStart && it.workCompletedAt != null
     }
 
     // 📄 **1쪽 = 오늘 · 2쪽 = 다음 시공.** (2026-09-20 사장님 "옆으로 쓱 넘기면 다음 일정")
     //   다음 시공이 없으면 1쪽만 — 넘길 게 없으면 점도 안 그린다.
-    val pageCount = if (next != null) 2 else 1
+    val pageCount = if (hasNext) 2 else 1
     val pager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pageCount })
 
     Column(Modifier.fillMaxWidth()) {
@@ -2199,6 +2219,24 @@ private fun TodayBand(
                         onAction = { if (passed) onComplete(target) else onNavigateAddr(addr) },
                         onTap = { onOpenChat(target.phoneNumber, target.id) }
                     )
+                } else if (collabToday != null) {
+                    // 오늘 갈 데가 협업 현장뿐일 때. 전엔 이 경우에도 "오늘은 시공이 없어요" 라고 했다.
+                    //   협업은 **보라 결** — 일정 탭에서 쓰는 그 색이라 종류가 바로 갈린다.
+                    val cAddr = collabToday.addr?.trim()?.takeIf { it.isNotBlank() }
+                    BandShell(
+                        bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,
+                        subFg = AppTheme.colors.textSub,
+                        icon = "", iconVector = Icons.Default.Handshake,
+                        border = AppTheme.colors.categoryBg,
+                        iconBg = Color.White, iconTint = AppTheme.colors.category,
+                        line1 = "오늘 협업" +
+                            (collabToday.timeLabel?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
+                            (collabToday.ownerName.takeIf { it.isNotBlank() }?.let { " · ${it}님" } ?: ""),
+                        line2 = cAddr ?: collabToday.title,
+                        action = if (cAddr != null) "길찾기" else null,
+                        onAction = { onNavigateAddr(cAddr) },
+                        onTap = onOpenSchedule
+                    )
                 } else if (doneToday) {
                     BandShell(
                         bg = AppTheme.colors.doneBg, fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
@@ -2212,8 +2250,13 @@ private fun TodayBand(
                         bg = Color.White, fg = TossTextPrimary, subFg = TossTextTertiary,
                         // 📅 이모지는 삼성 글꼴에서 "JUL 17" 로 그려진다 → 날짜 없는 그림으로.
                         icon = "", iconVector = Icons.Default.DateRange, border = TossDivider,
-                        line1 = if (next != null) "오늘은 시공이 없어요" else "잡힌 시공이 없어요",
-                        line2 = next?.let { nextLine(it) } ?: "밀린 상담·견적 챙기기 좋은 날이에요",
+                        // '시공' 이 아니라 '일정' — 협업도 세기 때문. (2026-09-21)
+                        line1 = if (hasNext) "오늘은 일정이 없어요" else "잡힌 일정이 없어요",
+                        line2 = when {
+                            nextIsCollab && collabNext != null -> collabNextLine(collabNext)
+                            next != null -> nextLine(next)
+                            else -> "밀린 상담·견적 챙기기 좋은 날이에요"
+                        },
                         action = "일정 추가", onAction = onAddSchedule,
                         // ⚠️ 전엔 **다음 시공 손님 채팅**이 열렸다. "오늘은 없어요" 를 눌렀는데
                         //   누군지도 모르는 대화창이 뜨니 어리둥절하다. (2026-09-20 사장님 지적)
@@ -2221,6 +2264,25 @@ private fun TodayBand(
                         onTap = onOpenSchedule
                     )
                 }
+            } else if (nextIsCollab && collabNext != null) {
+                // 2쪽도 '다음'이 협업이면 협업을 보여준다. 안 그러면 1쪽과 2쪽이 딴소리를 한다.
+                val cAddr = collabNext.addr?.trim()?.takeIf { it.isNotBlank() }
+                val cDays = ((DateTimeUtils.startOfDay(collabNext.scheduledAtMs) - dayStart) / DateTimeUtils.DAY_MS).toInt()
+                BandShell(
+                    bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,
+                    subFg = AppTheme.colors.textSub,
+                    icon = "", iconVector = Icons.Default.Handshake,
+                    border = AppTheme.colors.categoryBg,
+                    iconBg = Color.White, iconTint = AppTheme.colors.category,
+                    line1 = "협업 · " + DateTimeUtils.formatScheduledDate(collabNext.scheduledAtMs) +
+                        (collabNext.timeLabel?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "") +
+                        (if (cDays > 0) "  (D-$cDays)" else ""),
+                    line2 = (collabNext.ownerName.takeIf { it.isNotBlank() }?.let { "${it}님 · " } ?: "") +
+                        (cAddr ?: collabNext.title),
+                    action = if (cAddr != null) "길찾기" else null,
+                    onAction = { onNavigateAddr(cAddr) },
+                    onTap = onOpenSchedule
+                )
             } else {
                 val c = next!!
                 val who = c.name?.takeIf { it.isNotBlank() }
@@ -2262,6 +2324,15 @@ private fun TodayBand(
             }
         }
     }
+}
+
+/** "다음 · 9/22(화) 09:00 · 협업 · 안산" — 다음이 협업일 때의 띠 둘째 줄. (2026-09-21) */
+private fun collabNextLine(s: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite): String {
+    val d = s.scheduledAtMs
+    if (d <= 0L) return "다음 · 협업 · 날짜 미정"
+    val t = s.timeLabel?.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
+    val region = com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr)
+    return "다음 · " + DateTimeUtils.formatScheduledDate(d) + t + " · 협업" + (region?.let { " · $it" } ?: "")
 }
 
 /** "다음 · 9/28(월) 오후 1시 · 동대문" — 띠 둘째 줄. */
