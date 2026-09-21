@@ -493,7 +493,7 @@ fun ScheduleAddScreen(
                     .padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(if (saving) "저장 중..." else if (workMode) "시공 일정 등록" else "일정 등록", color = Color.White,
+                Text(if (saving) "저장 중…" else if (workMode) "시공 일정 등록" else "일정 등록", color = Color.White,
                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
                 Spacer(Modifier.height(40.dp))

@@ -732,7 +732,7 @@ private fun SimpleEventCard(
             text = { Text("이 간단 일정을 지울까요?") },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmDelete = false; onDelete() }) {
-                    Text("지우기", color = com.detailline.callfollowcrm.presentation.theme.TossError)
+                    Text("삭제", color = com.detailline.callfollowcrm.presentation.theme.TossError)
                 }
             },
             dismissButton = {

@@ -1534,7 +1534,7 @@ class ChatViewModel(
             return false
         }
         val latestReceived = _messages.value.firstOrNull { !it.sent } ?: run {
-            if (!auto) _toast.value = "고객 마지막 메시지가 없어요"
+            if (!auto) _toast.value = "고객 마지막 문자가 없어요"
             return false
         }
         if (_suggestionsLoading.value) return true   // 이미 만드는 중 — "만드는 중" 은 참이다

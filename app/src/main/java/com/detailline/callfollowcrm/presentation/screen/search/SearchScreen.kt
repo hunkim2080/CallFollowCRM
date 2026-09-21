@@ -144,7 +144,7 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically) {
                         Text("최근 검색", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                         Spacer(Modifier.weight(1f))
-                        Text("전체 지우기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                        Text("전체 삭제", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                             modifier = Modifier.clip(RoundedCornerShape(8.dp))
                                 .clickable { viewModel.clearRecent() }.padding(horizontal = 6.dp, vertical = 3.dp))
                     }
@@ -190,7 +190,7 @@ fun SearchScreen(
                     Spacer(Modifier.height(14.dp))
                 }
                 if (todayCallers.isNotEmpty()) item {
-                    Text("오늘 통화한 손님", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+                    Text("오늘 통화한 고객", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
                         color = TossTextTertiary, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
                     Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))) {
                         todayCallers.forEachIndexed { i, r ->

@@ -2381,7 +2381,7 @@ private fun AutoSmsSection(
                     Column {
                         Text("⚠️ '다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
                             fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
-                        Text("여기를 눌러 허용하면 전화 올 때 손님 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
+                        Text("여기를 눌러 허용하면 전화 올 때 고객 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
                     }
                 }
             }
@@ -3153,7 +3153,7 @@ private fun OwnerToneRagCard(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "$sent / $total 건 학습 중...",
+                    "$sent / $total 건 학습 중…",
                     fontSize = 11.sp,
                     color = TossTextSecondary
                 )
@@ -4270,10 +4270,10 @@ private fun ToneLearnProtoSection(
                         Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(RoundedCornerShape(4.dp)).background(AppTheme.colors.category))
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text("$sent / $totalN 건 학습 중...", fontSize = 11.sp, color = TossTextSecondary)
+                    Text("$sent / $totalN 건 학습 중…", fontSize = 11.sp, color = TossTextSecondary)
                 }
                 ragUploadedCount == 0 && !ragConsented -> {
-                    Text("동의하면 보낸 메시지 ${formatThousands(ragAvailable)}건이 사장님 전용 서버로 올라가 말투를 배워요. (외부 전송 X)",
+                    Text("동의하면 보낸 문자 ${formatThousands(ragAvailable)}건이 사장님 전용 서버로 올라가 말투를 배워요. (외부 전송 X)",
                         fontSize = 11.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
                     TossPrimaryButton(text = "동의하고 학습 시작", onClick = onConsentAndUpload)
@@ -4289,7 +4289,7 @@ private fun ToneLearnProtoSection(
                     //   (옛 버그: available − uploadedCount 라 걸러진 만큼 "N건 대기"가 영영 안 닫혀 "동기화해도 변동 없음".)
                     val pending = (ragAvailable - maxOf(ragUploadedCount, ragSyncedUpTo)).coerceAtLeast(0)
                     if (pending > 0) {
-                        Text("새 메시지 ${pending}건 대기", fontSize = 11.sp, color = TossTextSecondary)
+                        Text("새 문자 ${pending}건 대기", fontSize = 11.sp, color = TossTextSecondary)
                         Spacer(Modifier.height(6.dp))
                         Text("지금 동기화", fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.category, modifier = Modifier.clickable { onUpload() })

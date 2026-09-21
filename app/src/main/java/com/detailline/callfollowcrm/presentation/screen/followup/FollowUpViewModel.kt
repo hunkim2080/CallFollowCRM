@@ -124,8 +124,8 @@ class FollowUpViewModel(
     /** 문자앱 열기 + DB 기록. SMS 자동 발송은 절대 하지 않는다. */
     fun sendSms(context: Context, onDone: () -> Unit) {
         val s = _state.value
-        if (s.phoneNumber.isBlank()) { _toast.value = "전화번호를 입력해 주세요."; return }
-        if (s.messageBody.isBlank()) { _toast.value = "문자 본문을 입력해 주세요."; return }
+        if (s.phoneNumber.isBlank()) { _toast.value = "전화번호를 입력해주세요"; return }
+        if (s.messageBody.isBlank()) { _toast.value = "문자 본문을 입력해주세요"; return }
 
         viewModelScope.launch {
             val customer = container.customerRepository.upsertByPhone(
@@ -182,7 +182,7 @@ class FollowUpViewModel(
 
     fun saveOnly(context: Context, onDone: () -> Unit) {
         val s = _state.value
-        if (s.phoneNumber.isBlank()) { _toast.value = "전화번호를 입력해 주세요."; return }
+        if (s.phoneNumber.isBlank()) { _toast.value = "전화번호를 입력해주세요"; return }
         viewModelScope.launch {
             val customer = container.customerRepository.upsertByPhone(
                 phoneNumber = s.phoneNumber,

@@ -1381,7 +1381,7 @@ fun ChatScreen(
                     icon = Icons.Default.Bookmarks,
                     tint = TossBlue,
                     label = if (alreadyStarred) "🔖 저장 해제" else "🔖 저장",
-                    subtitle = if (alreadyStarred) "북마크 목록에서 제거" else "분쟁/약속·금액·중요 메시지 보관",
+                    subtitle = if (alreadyStarred) "북마크 목록에서 삭제" else "분쟁/약속·금액·중요 문자 보관",
                     onClick = {
                         viewModel.toggleStar(msg.body, msg.dateMs, msg.sent)
                         bubbleActionTarget = null
@@ -1392,7 +1392,7 @@ fun ChatScreen(
                         icon = Icons.Default.Info,
                         tint = TossTextSecondary,
                         label = "📋 복사",
-                        subtitle = "메시지 본문을 클립보드에",
+                        subtitle = "문자 본문을 클립보드에",
                         onClick = {
                             clipboard.setText(AnnotatedString(msg.body))
                             bubbleActionTarget = null
@@ -1499,7 +1499,7 @@ fun ChatScreen(
     }
     tplEditTitle?.let { tpl ->
         TemplateTextDialog(
-            title = "이름 바꾸기",
+            title = "이름 수정",
             label = "문구 이름",
             initial = tpl.title,
             multiline = false,
@@ -4211,7 +4211,7 @@ private fun Composer(
                             .onFocusChanged { state -> onFocusChange(state.isFocused) },
                         decorationBox = { inner ->
                             if (input.isEmpty()) {
-                                Text("메시지 입력...", color = TossTextTertiary, fontSize = 14.sp)
+                                Text("문자 입력…", color = TossTextTertiary, fontSize = 14.sp)
                             }
                             inner()
                         }
@@ -4931,7 +4931,7 @@ private fun TemplateActionSheet(
             )
             Spacer(Modifier.height(12.dp))
             TemplateActionRow("✏️", "문구 수정", TossTextPrimary, onEdit)
-            TemplateActionRow("🏷️", "이름 바꾸기", TossTextPrimary, onRename)
+            TemplateActionRow("🏷️", "이름 수정", TossTextPrimary, onRename)
             TemplateActionRow("🗑️", "삭제", com.detailline.callfollowcrm.presentation.theme.TossError, onDelete)
             Spacer(Modifier.height(6.dp))
             Box(

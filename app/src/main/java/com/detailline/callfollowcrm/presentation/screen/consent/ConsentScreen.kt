@@ -71,7 +71,7 @@ fun ConsentScreen(
                 Spacer(Modifier.height(16.dp))
                 Text("시공막내를 사용하기 위해", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Tag)
                 Spacer(Modifier.height(2.dp))
-                Text("동의해 주세요", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+                Text("동의해주세요", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
                 Spacer(Modifier.height(28.dp))
                 ConsentRow(
                     checked = requiredChecked,

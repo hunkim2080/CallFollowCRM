@@ -1536,7 +1536,7 @@ object NotificationHelper {
         )
 
         val title = if (isMissed) "📵 아직 답장 못 한 고객이 부재중 전화했어요" else "📞 아직 답장 못 한 고객이 다시 전화했어요"
-        val text = "${formatPhone(phoneNumber)} · 메시지 확인하기"
+        val text = "${formatPhone(phoneNumber)} · 문자 확인하기"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP_QUIET)
             .setSmallIcon(R.drawable.ic_notification)

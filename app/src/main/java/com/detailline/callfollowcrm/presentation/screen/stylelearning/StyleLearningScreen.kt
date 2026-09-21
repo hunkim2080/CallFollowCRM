@@ -164,7 +164,7 @@ fun StyleLearningScreen(
                             .padding(vertical = 13.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(if (state.loading) "분석 중... ${state.progress}%" else "지금 학습하기",
+                        Text(if (state.loading) "분석 중… ${state.progress}%" else "지금 학습하기",
                             color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }

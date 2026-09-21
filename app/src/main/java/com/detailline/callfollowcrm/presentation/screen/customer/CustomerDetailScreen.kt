@@ -383,7 +383,7 @@ fun CustomerDetailScreen(
                     ) {
                         androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossTextTertiary, modifier = Modifier.size(12.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(if (hasName) "변경" else "이름 넣기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                        Text(if (hasName) "수정" else "이름 넣기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -514,7 +514,7 @@ fun CustomerDetailScreen(
                     ) {
                         CdTitleIcon(Icons.Filled.Person, "gray")
                         Spacer(Modifier.width(8.dp))
-                        Text("이 손님 메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                        Text("이 고객 메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
                         Spacer(Modifier.weight(1f))
                         val savedMemo = c.memo.orEmpty()
                         val (st, stColor) = when {
@@ -575,7 +575,7 @@ fun CustomerDetailScreen(
                     Text(displayAddr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
                     if (manualAddress == null) {
                         Spacer(Modifier.height(3.dp))
-                        Text("메시지에서 자동 인식 · 눌러서 확정/수정", fontSize = 11.sp, color = TossTextTertiary)
+                        Text("문자에서 자동 인식 · 눌러서 확정/수정", fontSize = 11.sp, color = TossTextTertiary)
                     }
                     androidx.compose.foundation.layout.Box(
                         Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(13.dp))
@@ -636,7 +636,7 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.height(2.dp))
                             Text("아직 주소가 없어요 · 상담 단계예요", style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary)
                             Spacer(Modifier.height(2.dp))
-                            Text("눌러서 직접 등록하거나, 고객 메시지에 주소가 있으면 자동 채워져요.",
+                            Text("눌러서 직접 등록하거나, 고객 문자에 주소가 있으면 자동 채워져요.",
                                 style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
                         }
                         Text("＋", fontSize = 16.sp, color = TossBlue)
@@ -3471,7 +3471,7 @@ private fun CategoryPickerDialog(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)
         ) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-            Text("이 손님은 어디에 둘까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text("이 고객은 어디에 둘까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text("나중에 묶어 보거나 찾을 때 써요", fontSize = 12.sp, color = TossTextTertiary)
             Spacer(Modifier.height(14.dp))

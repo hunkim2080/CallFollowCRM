@@ -91,13 +91,13 @@ fun AiMessageScreen(
                     singleLine = false, minHeightDp = 56)
             }
             com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
-                text = if (state.loading) "생성 중..." else "답변 3개 생성",
+                text = if (state.loading) "생성 중…" else "답변 3개 생성",
                 onClick = viewModel::loadSuggestions,
                 enabled = !state.loading
             )
             // AI 실패 표시 — 지금까지 화면이 state.error 를 안 읽어서 실패해도 이유를 몰랐음. (2026-08-15 UX감사#6)
             state.error?.takeIf { it.isNotBlank() }?.let { err ->
-                Text("$err — 인터넷 확인 후 다시 시도해 주세요",
+                Text("$err — 인터넷 확인 후 다시 해주세요",
                     color = Color(0xFFF04452), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
             if (state.intents.isNotEmpty()) {
