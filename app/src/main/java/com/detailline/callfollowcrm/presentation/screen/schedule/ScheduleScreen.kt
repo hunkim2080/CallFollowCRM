@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.material.icons.filled.AutoAwesome
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
@@ -410,6 +412,16 @@ fun ScheduleScreen(
             if (schedulesForSelected.isEmpty()) {
                 if (collabForSelected.isEmpty() && asForSelected.isEmpty() && simpleForSelected.isEmpty()) {
                     item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
+                    // 고른 날이 비었으면 **앞으로 뭐가 있는지**를 보여준다. 전엔 "없어요" 한 줄로 끝나서
+                    //   다음 일정을 보려면 날짜를 하나씩 눌러봐야 했다. (2026-09-21 사장님)
+                    item(key = "upcoming") {
+                        UpcomingSection(
+                            jobs = state.all,
+                            collab = collabSites,
+                            todayStart = todayStart,
+                            onOpenDay = { dayMs -> selectedDayMs = dayMs }
+                        )
+                    }
                 }
             } else {
                 if (schedulesForSelected.size > 1) {
@@ -1191,6 +1203,82 @@ private fun DayCount(count: Int) {
         fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
         modifier = Modifier.padding(start = 2.dp, bottom = 11.dp)
     )
+}
+
+/**
+ * 앞으로의 일정 — 고른 날이 비었을 때 그 자리에.
+ *
+ * 왜: 달력은 "언제 비었나" 를 답하고, 이 목록은 "뭐가 있나" 를 답한다.
+ *     전엔 둘째 질문의 답이 **날짜를 눌러야만** 나왔다.
+ * 시공과 협업을 **같이** 센다 — 협업만 있는 날에 "없어요" 라고 하면 거짓말이다.
+ */
+@Composable
+private fun UpcomingSection(
+    jobs: List<CustomerEntity>,
+    collab: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>,
+    todayStart: Long,
+    onOpenDay: (Long) -> Unit
+) {
+    data class Up(val ms: Long, val who: String, val detail: String, val collabRow: Boolean)
+
+    val rows = remember(jobs, collab, todayStart) {
+        val out = ArrayList<Up>()
+        jobs.forEach { c ->
+            val d = c.scheduledWorkDate ?: return@forEach
+            if (d < todayStart || c.isWorkDone) return@forEach
+            val who = c.name?.takeIf { it.isNotBlank() }
+                ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(c.phoneNumber)
+            val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
+            val addr = c.address?.trim()?.takeIf { it.isNotBlank() }
+            out += Up(d, who + "님", listOfNotNull(t, addr).joinToString(" \u00b7 "), false)
+        }
+        collab.forEach { sct ->
+            val d = sct.scheduledAtMs
+            if (d <= 0L || DateTimeUtils.startOfDay(d) < todayStart) return@forEach
+            val who = sct.ownerName.takeIf { it.isNotBlank() }?.let { "\ud611\uc5c5 \u00b7 ${'$'}it\uc0ac\uc7a5\ub2d8" } ?: "\ud611\uc5c5 \ud604\uc7a5"
+            val addr = sct.addr?.trim()?.takeIf { it.isNotBlank() } ?: sct.title
+            out += Up(d, who, listOfNotNull(sct.timeLabel?.takeIf { it.isNotBlank() }, addr).joinToString(" \u00b7 "), true)
+        }
+        out.sortedBy { it.ms }.take(5)
+    }
+    if (rows.isEmpty()) return
+
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+        Text(
+            "\uc55e\uc73c\ub85c\uc758 \uc77c\uc815",
+            style = AppType.label, color = TossTextSecondary,
+            modifier = Modifier.padding(start = 2.dp, bottom = 9.dp)
+        )
+        rows.forEach { r ->
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .clip(AppShape.lg)
+                    .background(Color.White)
+                    .clickable { onOpenDay(DateTimeUtils.startOfDay(r.ms)) }
+                    .padding(horizontal = 13.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.width(3.dp).height(30.dp).clip(AppShape.sm)
+                        .background(if (r.collabRow) AppTheme.colors.category else TossSuccess)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(r.who, style = AppType.body, fontWeight = FontWeight.Bold, color = TossTextPrimary, maxLines = 1)
+                    if (r.detail.isNotBlank()) {
+                        Text(r.detail, style = AppType.caption, color = TossTextSecondary, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    DateTimeUtils.formatScheduledDate(r.ms),
+                    style = AppType.caption, fontWeight = FontWeight.Bold, color = TossTextTertiary
+                )
+            }
+        }
+    }
 }
 
 @Composable
