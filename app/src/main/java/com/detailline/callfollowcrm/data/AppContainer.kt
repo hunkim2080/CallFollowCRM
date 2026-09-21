@@ -256,6 +256,13 @@ class AppContainer(context: Context) {
      */
     val inboxUnansweredCount = kotlinx.coroutines.flow.MutableStateFlow(0)
 
+    /**
+     * 하단 [상담함] 탭의 빨간 숫자를 **이미 상담함에 있는데** 눌렀을 때 올라가는 신호.
+     *   숫자를 눌렀으면 그게 가리키는 것이 나와야 한다 — 전엔 아무 일도 안 일어났다.
+     *   (2026-09-21 사장님 "5라고 찍혀있지만 눌렀을 때 뭐 변화가 없어서")
+     */
+    val inboxJumpToUnhandled = kotlinx.coroutines.flow.MutableStateFlow(0L)
+
     /** FCM 토큰 서버 등록 — 즉시 푸시(2026-06-12). docs/SERVER_HANDOFF_fcm_push.md */
     val pushRegisterRepository by lazy {
         com.detailline.callfollowcrm.ai.PushRegisterRepository()

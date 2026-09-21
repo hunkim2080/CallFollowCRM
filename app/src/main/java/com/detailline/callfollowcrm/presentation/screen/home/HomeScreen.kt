@@ -277,6 +277,10 @@ fun HomeScreen(
         }
     }
 
+    // 하단 탭의 빨간 숫자를 누르면(이미 상담함일 때) 안 챙긴 것만 거른다. 칩은 없다 — 숫자가 곧 필터.
+    val jumpTick by viewModel.jumpToUnhandled.collectAsState()
+    LaunchedEffect(jumpTick) { if (jumpTick > 0L) inboxChip = "pending" }
+
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
     val generalUnread by viewModel.generalUnreadCount.collectAsState()
@@ -859,6 +863,24 @@ fun HomeScreen(
                 //   오늘 시공이 있는지는 미수를 보든 새 번호를 보든 알아야 하는 것이고,
                 //   칩을 옮길 때마다 있다 없다 하면 화면이 흔들린다.
                 //   (택배·광고는 문자함이라 이 목록 자체를 안 쓴다 → 저절로 안 뜬다.)
+                // 걸러졌다는 것과 **나가는 길**을 한 줄로. 칩을 안 되살리는 대신 이게 있어야 한다.
+                if (inboxChip == "pending") {
+                    item(key = "pending-header") {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AppTheme.colors.primaryBg)
+                                .clickable { inboxChip = "all" }
+                                .padding(horizontal = 13.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("아직 답 안 한 문의만 보는 중", style = AppType.label,
+                                color = AppTheme.colors.primary, modifier = Modifier.weight(1f))
+                            Text("전체 보기", style = AppType.label, color = AppTheme.colors.primary)
+                        }
+                    }
+                }
                 item(key = "today-hero") {
                     val todayDayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
                     val collabTodaySites = collabUpcoming.filter {
@@ -1124,6 +1146,9 @@ fun HomeScreen(
                         c != null && (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
                     }
                     "owe" -> dedupItems.filter { it.customer?.id in dueIds }
+                    // 빨간 숫자가 가리키는 것 = 답 안 한 것. 칩이 없고 **탭 숫자로만** 들어온다.
+                    //   키를 "unhandled" 로 쓰면 안 된다 — 없앤 옛 칩 값이라 위 이사 코드가 되돌린다.
+                    "pending" -> dedupItems.filter { it.isUnconfirmed }
                     // '끝났다' 는 앱에 이미 단일 출처가 있다 — CustomerEntity.isWorkDone
                     //   (완료 버튼 **또는** 잔금 받음. 사장님 2026-08-18 "잔금 받으면 = 완료").
                     //   칩만 다른 자를 쓰면 딱지와 목록이 서로 딴소리를 한다.

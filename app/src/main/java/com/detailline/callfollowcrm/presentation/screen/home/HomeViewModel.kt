@@ -34,6 +34,9 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
+    /** 하단 탭 빨간 숫자를 (이미 상담함일 때) 누른 신호 — 화면이 '안 챙긴 것만' 으로 거른다. (2026-09-21) */
+    val jumpToUnhandled: StateFlow<Long> get() = container.inboxJumpToUnhandled
+
     // 자정 넘어 앱 재진입 시 날짜 재계산용 tick. refreshSmsContacts() 가 갱신 → todayJobs 재필터링.
     private val _todayTick = MutableStateFlow(System.currentTimeMillis())
 

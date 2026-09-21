@@ -197,6 +197,11 @@ fun AppRoot(container: AppContainer) {
                                 val live = navController.currentDestination?.route?.substringBefore("?")
                                 android.util.Log.d("NAVTAB", "tap=$route state=$currentRoute live=$live")
                                 val alreadyOnRootTab = currentRoute in RING_TAB_ROUTES && route == live
+                                // 이미 상담함인데 빨간 숫자가 있으면 → 그 숫자가 가리키는 것만 보여준다.
+                                //   (전엔 여기서 조용히 아무 일도 안 했다. 2026-09-21 사장님)
+                                if (alreadyOnRootTab && route == Destinations.HOME && unanswered > 0) {
+                                    container.inboxJumpToUnhandled.value = System.currentTimeMillis()
+                                }
                                 if (!alreadyOnRootTab) {
                                     val startId = navController.graph.findStartDestination().id
                                     // 2026-06-10 사장님 통점 "상세화면(고객상세 등)에서 하단 탭이 안 눌림":
