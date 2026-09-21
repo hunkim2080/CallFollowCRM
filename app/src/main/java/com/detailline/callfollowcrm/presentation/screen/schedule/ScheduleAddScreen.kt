@@ -1,5 +1,8 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import androidx.compose.material.icons.filled.Engineering
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.CalendarMonth
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -217,7 +220,7 @@ fun ScheduleAddScreen(
             //   "시공일을 찍고 그날 일정을 등록하러 들어왔는데 왜 또 캘린더가 있지?"
             //   맞는 말이다. 이미 정해진 날이니 **한 줄로 접어두고**, 바꿀 때만 펼친다.
             FoldRow(
-                icon = "🕘",
+                icon = Icons.Filled.Schedule,
                 title = dayLabel(dayMs),
                 sub = buildString {
                     append(if (allDay) "하루 종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
@@ -239,7 +242,7 @@ fun ScheduleAddScreen(
                     //   지저분하고 산만해 보인다") 대부분 오전 9시로 시작하시는데 그 하나를 고르자고
                     //   아홉 칸이 화면을 차지했다. 표면엔 한 줄, 누를 때만 펼친다.
                     Spacer(Modifier.height(12.dp))
-                    FieldLabel(if (workMode) "🕘 시공 시간" else "🕘 시간")
+                    FieldLabel(if (workMode) "시공 시간" else "시간")
                     PickerRow(
                         value = DateTimeUtils.formatWorkMinutes(workMinutes),
                         hint = "누르면 시간을 고르는 창이 열려요 · 안 건드리면 오전 9시"
@@ -262,7 +265,7 @@ fun ScheduleAddScreen(
             if (!workMode) {
                 // 하루 종일 — 시공엔 없는 개념(시공은 늘 시각이 있다). 간단 일정에만.
                 Spacer(Modifier.height(4.dp))
-                SwitchRow(icon = "📅", title = "하루 종일", on = allDay) { allDay = !allDay }
+                SwitchRow(icon = Icons.Filled.CalendarMonth, title = "하루 종일", on = allDay) { allDay = !allDay }
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("메모 (선택)")
                 SheetTextField(simpleMemo, { simpleMemo = it }, placeholder = "예: 케라폭시 20개")
@@ -427,14 +430,18 @@ fun ScheduleAddScreen(
             //   그 자리에 날짜가 안 보여서 "무슨 날로 저장되는지 모르고" 누르게 됐다
             //   (사장님이 실제로 헷갈리심). 막지 말고 **보여주는** 쪽으로.
             Spacer(Modifier.height(20.dp))
+            // 버튼 바로 위 **같은 파란 칸**이라 '두 번째 버튼'처럼 보였다(눌러야 하나?).
+            //   말을 붙여 **알려주는 줄**로 만든다 — 버튼은 할 일을 말하고, 이 줄은 사실을 말한다.
+            //   (2026-09-21 사장님 "날짜가 두 번 나오네")
             Text(
                 buildString {
+                    append("이 날짜로 저장돼요 · ")
                     append(DateTimeUtils.formatScheduledDate(dayMs))
                     if (allDay) append(" 종일")
                     else { append(' '); append(DateTimeUtils.formatWorkMinutes(workMinutes)) }
                     if (workMode) append(if (workDays > 1) " · ${workDays}일" else " · 하루")
                 },
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1B64DA),
+                fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primaryText,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
@@ -645,13 +652,16 @@ private fun TitleField(value: String, onChange: (String) -> Unit) {
 
 /** 접히는 한 줄 (날짜 등). 눌러야 펼쳐진다. */
 @Composable
-private fun FoldRow(icon: String, title: String, sub: String, open: Boolean, onClick: () -> Unit) {
+private fun FoldRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String, sub: String, open: Boolean, onClick: () -> Unit
+) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(icon, fontSize = 15.sp)
+        androidx.compose.material3.Icon(icon, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -666,13 +676,19 @@ private fun FoldRow(icon: String, title: String, sub: String, open: Boolean, onC
 
 /** 켜고 끄는 한 줄 (하루 종일). */
 @Composable
-private fun SwitchRow(icon: String, title: String, on: Boolean, onToggle: () -> Unit) {
+private fun SwitchRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String, on: Boolean, onToggle: () -> Unit
+) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(icon, fontSize = 15.sp)
+        // 📅 는 갤럭시에서 "JUL 17" 이 적힌 미국 달력으로 나왔다 → 앱이 그리는 아이콘. (2026-09-21 사장님)
+        androidx.compose.material3.Icon(
+            icon, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp)
+        )
         Spacer(Modifier.width(11.dp))
         Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
             modifier = Modifier.weight(1f))
@@ -696,7 +712,10 @@ private fun ExpandRow(open: Boolean, title: String, sub: String, onClick: () -> 
             .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("🏗️", fontSize = 17.sp)
+        androidx.compose.material3.Icon(
+            Icons.Filled.Engineering, null,
+            tint = if (open) TossTextSecondary else TossBlueDark, modifier = Modifier.size(19.dp)
+        )
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold,
