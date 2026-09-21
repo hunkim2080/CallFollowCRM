@@ -298,7 +298,7 @@ fun FollowUpScreen(
                         TextButton(onClick = { firstMetPickerOpen = true }) {
                             Text(
                                 state.firstMetAt?.let { com.detailline.callfollowcrm.util.DateTimeUtils.formatKoreanDate(it) }
-                                    ?: "📅 오늘",
+                                    ?: "오늘",
                                 color = TossBlue,
                                 fontWeight = FontWeight.SemiBold
                             )

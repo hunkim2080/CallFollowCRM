@@ -85,7 +85,10 @@ fun TemplateListScreen(
                 actions = {
                     // 자주 쓰는 문자 자동 찾기(2026-07-02 사장님 요청 — 프로토 외 추가 흐름).
                     TextButton(onClick = onOpenDiscover) {
-                        Text("✨ 찾기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 15.dp, 5.dp)
+                            Text("찾기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
                     }
                     // 프로토 앱바 + (addTemplate)
                     Box(
@@ -117,11 +120,16 @@ fun TemplateListScreen(
                             shape = RoundedCornerShape(14.dp),
                             color = TossBlue
                         ) {
-                            Text(
-                                "✨ 자주 쓰는 문자 자동으로 찾기",
-                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                            )
+                            ) {
+                                com.detailline.callfollowcrm.presentation.theme.AiMark(Color.White, 16.dp, 6.dp)
+                                Text(
+                                    "자주 쓰는 문자 자동으로 찾기",
+                                    color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp
+                                )
+                            }
                         }
                     }
                 }

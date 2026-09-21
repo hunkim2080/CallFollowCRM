@@ -214,7 +214,7 @@ fun SearchScreen(
                     keyboard?.hide(); viewModel.rememberQuery(query); onOpenChat(s.phone, s.customerId)
                 }
                 siteGroup("💰 못 받은 돈", unpaid, unpaidOpen, query, pick)
-                siteGroup("📅 그달 시공", period, periodOpen, query, pick)
+                siteGroup("그달 시공", period, periodOpen, query, pick)
                 // 📍 현장 — 주소로 찾은 것. 말(통화·문자)보다 **위**에 둔다.
                 //   "동탄" 을 칠 땐 동탄에서 한 현장이 먼저 보여야 한다. (2026-09-19 사장님 1순위)
                 if (sites.isNotEmpty()) {

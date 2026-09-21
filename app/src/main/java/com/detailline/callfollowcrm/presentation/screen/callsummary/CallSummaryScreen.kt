@@ -260,7 +260,7 @@ fun CallSummaryScreen(
                 }
                 Spacer(Modifier.height(16.dp))
                 PrimaryButton(
-                    text = if (loading) "AI가 정리하는 중…" else "✨ AI로 정리하기",
+                    text = if (loading) "AI가 정리하는 중…" else "AI로 정리하기",
                     enabled = !loading && raw.text.isNotBlank(),
                     loading = loading,
                     color = Purple

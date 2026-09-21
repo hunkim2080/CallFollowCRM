@@ -142,7 +142,10 @@ fun PricingItemsScreen(
                     } else {
                         // 문자에서 가격 불러오기(2026-07-02 사장님 요청 — 프로토 외 추가 흐름).
                         TextButton(onClick = onOpenExtract) {
-                            Text("✨ 불러오기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 15.dp, 5.dp)
+                                Text("불러오기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
                         }
                         // 선택 삭제 진입 (항목이 있을 때만)
                         if (items.isNotEmpty()) {
@@ -221,13 +224,18 @@ fun PricingItemsScreen(
                         shape = RoundedCornerShape(14.dp),
                         color = TossBlue
                     ) {
-                        Text(
-                            "✨ 문자에서 자동으로 채우기",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                        )
+                        ) {
+                            com.detailline.callfollowcrm.presentation.theme.AiMark(Color.White, 16.dp, 6.dp)
+                            Text(
+                                "문자에서 자동으로 채우기",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                        }
                     }
                 }
             }
@@ -249,8 +257,7 @@ fun PricingItemsScreen(
                             .padding(horizontal = 13.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Text("✨", fontSize = 13.sp)
-                        Spacer(Modifier.width(7.dp))
+                        com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 14.dp, 7.dp)
                         Text(
                             "AI 견적이 이 단가로 자동 계산돼요. 항목을 누르면 정액/평당과 금액을 수정할 수 있어요.",
                             fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Medium, lineHeight = 17.sp

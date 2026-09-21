@@ -1,5 +1,8 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.CheckCircle
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
@@ -1453,7 +1456,7 @@ private fun GoogleCalendarSection(container: AppContainer) {
 
     TossCard {
         Column {
-            Text("📅 구글 캘린더 연동", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text("구글 캘린더 연동", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(2.dp))
             Text(
                 "시공·A/S 일정이 구글 캘린더('시공막내')에 자동으로 올라가요. 폰 위젯·구글 캘린더 앱에서 보고, 가족·직원과 공유하거나, 폰을 바꿔도 그대로 남아요.",
@@ -1608,7 +1611,7 @@ private fun MirrorSection(container: AppContainer) {
                     accepted.forEach { conn ->
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📅 ${fmtPhone(conn.homePhone)}와 일정 공유중",
+                            Text("${fmtPhone(conn.homePhone)}와 일정 공유중",
                                 fontSize = 13.sp, color = TossTextPrimary, fontWeight = FontWeight.Medium,
                                 modifier = Modifier.weight(1f))
                             Text("공유 해제", fontSize = 12.sp, color = TossError, fontWeight = FontWeight.Medium,
@@ -2176,7 +2179,7 @@ private fun AutoSmsSection(
         modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 6.dp))
 
     // ① 부재중 자동 응답
-    AutoCard("📞", TossBlueSoft, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
+    AutoCard(Icons.Filled.Phone, TossBlueSoft, TossBlue, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
         autoReplyOn, onAutoReplyToggle, initiallyExpanded = expandMissed) {
         AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
         AutoTextArea(missedNew) { missedNew = it; prefs.autoMissedNewText = it }
@@ -2188,7 +2191,7 @@ private fun AutoSmsSection(
     Spacer(Modifier.height(10.dp))
 
     // ② 시공 하루 전 안내 (D-1)
-    AutoCard("📅", Color(0xFFFFF1E6), "시공 하루 전 안내 (D-1)", null,
+    AutoCard(Icons.Filled.CalendarMonth, Color(0xFFFFF1E6), Color(0xFFB8780A), "시공 하루 전 안내 (D-1)", null,
         "시공 전날 ${hourLabel(d1Hour)} · 보내기 전 확인",
         d1On, { d1On = it; prefs.d1AutoEnabled = it }) {
         Text("전날 몇 시에 물어볼까요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
@@ -2205,7 +2208,7 @@ private fun AutoSmsSection(
     Spacer(Modifier.height(10.dp))
 
     // ③ 오늘 시공 도착 안내
-    AutoCard("📍", AppTheme.colors.doneBg, "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
+    AutoCard(Icons.Filled.Place, AppTheme.colors.doneBg, AppTheme.colors.doneText, "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
         arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it; onArrivalToggle(it) }) {
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
         AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
@@ -2224,7 +2227,9 @@ private fun AutoSmsSection(
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
-                contentAlignment = Alignment.Center) { Text("🤖", fontSize = 16.sp) }
+                contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(17.dp))
+                }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -2520,7 +2525,7 @@ private fun AutoSmsSection(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.categoryBg),
-                    contentAlignment = Alignment.Center) { Text("✨", fontSize = 15.sp) }
+                    contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(15.dp)) }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("AI 답변 준비", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
@@ -2654,8 +2659,9 @@ private fun AutoSmsSection(
 
 @Composable
 private fun AutoCard(
-    emoji: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconBg: Color,
+    iconTint: Color,
     title: String,
     badge: String?,
     sub: String,
@@ -2671,8 +2677,11 @@ private fun AutoCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }
             ) {
+                // 이모지 대신 **앱이 그리는 아이콘** — 📅 는 갤럭시에서 "JUL 17" 달력으로 나왔다. (2026-09-21 사장님)
                 Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(iconBg),
-                    contentAlignment = Alignment.Center) { Text(emoji, fontSize = 16.sp) }
+                    contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = iconTint, modifier = Modifier.size(17.dp))
+                }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3017,8 +3026,7 @@ private fun OwnerToneCard(sampleCount: Int) {
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("✨", fontSize = 16.sp)
-                Spacer(Modifier.width(6.dp))
+                com.detailline.callfollowcrm.presentation.theme.AiMark(AppTheme.colors.category, 16.dp, 6.dp)
                 Text(
                     "내 톤 학습",
                     style = MaterialTheme.typography.titleLarge,
@@ -4409,7 +4417,7 @@ private fun ToneBeforeAfter(ex: com.detailline.callfollowcrm.ai.ToneExample) {
         Box(Modifier.padding(horizontal = 15.dp).fillMaxWidth().height(1.dp).background(TossDivider))
         // mine row
         ToneBaRow(
-            tag = "내 말투", tagBg = AppTheme.colors.categoryBg, tagColor = AppTheme.colors.category, mark = "✨ 사장님처럼",
+            tag = "내 말투", tagBg = AppTheme.colors.categoryBg, tagColor = AppTheme.colors.category, mark = "사장님처럼",
             msg = ex.mine, msgBg = AppTheme.colors.primaryBg, msgBorder = Color(0xFFECE5FF)
         )
     }

@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.stylelearning
 
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.AutoAwesome
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
@@ -129,7 +131,7 @@ fun StyleLearningScreen(
             TossCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(PurpleSoft),
-                        contentAlignment = Alignment.Center) { Text("✨", fontSize = 17.sp) }
+                        contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(18.dp)) }
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
                         Text("말투 학습 ${if (state.enabled) "켜짐" else "꺼짐"}", fontSize = 15.sp,
@@ -186,9 +188,9 @@ fun StyleLearningScreen(
 
             // ── 무엇으로 배우나요 (sources) ──
             SecSub("무엇으로 배우나요")
-            SourceRow("📩", "내가 보낸 문자", "실제 고객에게 보낸 답장에서 말투를 배워요", state.sampleCount)
+            SourceRow(androidx.compose.material.icons.Icons.Filled.Email, "내가 보낸 문자", "실제 고객에게 보낸 답장에서 말투를 배워요", state.sampleCount)
             Spacer(Modifier.height(8.dp))
-            SourceRow("✨", "직접 가르친 예문", "눌러서 확인·수정 · “이렇게 답해줘” 한 문장", state.examplesCount) { examplesListOpen = true }
+            SourceRow(androidx.compose.material.icons.Icons.Filled.AutoAwesome, "직접 가르친 예문", "눌러서 확인·수정 · “이렇게 답해줘” 한 문장", state.examplesCount) { examplesListOpen = true }
 
             // ── 직접 가르치기 (teach) ──
             SecSub("직접 가르치기")
@@ -355,16 +357,24 @@ private fun PlaceholderCard(text: String) {
 }
 
 @Composable
-private fun SourceRow(emoji: String, title: String, sub: String, count: Int, onClick: (() -> Unit)? = null) {
-    if (onClick != null) TossCard(onClick = onClick) { SourceRowInner(emoji, title, sub, count, true) }
-    else TossCard { SourceRowInner(emoji, title, sub, count, false) }
+private fun SourceRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String, sub: String, count: Int, onClick: (() -> Unit)? = null
+) {
+    if (onClick != null) TossCard(onClick = onClick) { SourceRowInner(icon, title, sub, count, true) }
+    else TossCard { SourceRowInner(icon, title, sub, count, false) }
 }
 
 @Composable
-private fun SourceRowInner(emoji: String, title: String, sub: String, count: Int, chevron: Boolean) {
+private fun SourceRowInner(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String, sub: String, count: Int, chevron: Boolean
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PurpleSoft),
-            contentAlignment = Alignment.Center) { Text(emoji, fontSize = 15.sp) }
+            contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(icon, null, tint = Purple, modifier = Modifier.size(16.dp))
+        }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)

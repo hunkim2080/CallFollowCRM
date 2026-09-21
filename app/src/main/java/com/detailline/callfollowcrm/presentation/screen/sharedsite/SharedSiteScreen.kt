@@ -1118,7 +1118,7 @@ private fun DetailBody(
 
     // 날짜·시공 카드
     Card {
-        InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
+        InfoRow("날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
         site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
         // 수락 전(pending)엔 아래 큰 강조 박스에서 일당을 보여주므로 여기선 생략(중복 방지). 수락 후엔 여기서 표기.
         if (site.status != "pending") site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
@@ -1387,7 +1387,7 @@ private fun OwnerSharedDetail(
     }
     Spacer(Modifier.height(10.dp))
     Card {
-        InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
+        InfoRow("날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
         site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
         site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
     }

@@ -226,7 +226,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             cal.timeInMillis = d
             cal.get(java.util.Calendar.YEAR) == thisY && cal.get(java.util.Calendar.MONTH) + 1 == thisM
         }
-        if (monthCount > 0) out.add(BaitChip("📅 ${thisM}월 시공 ${monthCount}곳", "${thisM}월"))
+        if (monthCount > 0) out.add(BaitChip("${thisM}월 시공 ${monthCount}곳", "${thisM}월"))
 
         // ③ 📍 제일 많이 일한 동네
         val region = topRegion(

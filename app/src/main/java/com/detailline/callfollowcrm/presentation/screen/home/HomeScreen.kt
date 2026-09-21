@@ -540,8 +540,9 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(Color.White, 15.dp, 6.dp)
                     Text(
-                        if (updateDateLabel.isNotBlank()) "✨ ${updateDateLabel} 새 버전이 나왔어요!" else "✨ 새 버전이 나왔어요!",
+                        if (updateDateLabel.isNotBlank()) "${updateDateLabel} 새 버전이 나왔어요!" else "새 버전이 나왔어요!",
                         color = Color.White, fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
                     // 버튼은 둥근 네모(12). 알약 버튼을 만들지 않는다. (2026-09-20 사장님)
@@ -3464,19 +3465,25 @@ private fun HomeRow(
             val isSmsCard = item.record.callType == HomeViewModel.CALL_TYPE_SMS_ONLY
             if (!aiCardSummary.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "✨ $aiCardSummary",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TossBlue,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 5.dp)
+                    Text(
+                        aiCardSummary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TossBlue,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
             } else if (aiCardSummary == null && isSmsCard) {
                 Spacer(Modifier.height(4.dp))
-                com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
-                    text = "✨ 요약 작성 중",
-                    color = TossBlue.copy(alpha = 0.7f)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue.copy(alpha = 0.7f), 13.dp, 5.dp)
+                    com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
+                        text = "요약 작성 중",
+                        color = TossBlue.copy(alpha = 0.7f)
+                    )
+                }
             }
             // aiCardSummary == "" (sentinel) = 표시 X — 시도 끝났는데 요약 거리 없음.
             // 2026-05-25: 번호 두 번 표시 제거 (사장님 피드백). 헤더가 이름 또는 번호이고,
@@ -4131,7 +4138,7 @@ private fun OweRow(
             if (!summary.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "✨ $summary", fontSize = 11.5.sp, color = TossTextTertiary,
+                    summary, fontSize = 11.5.sp, color = TossTextTertiary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
@@ -4287,7 +4294,10 @@ private fun WaitingCard(
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(10.dp)
             ) {
-                Text(if (item.lastBody.isNullOrBlank()) "✨ 통화 요약" else "받은 문자", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (item.lastBody.isNullOrBlank()) com.detailline.callfollowcrm.presentation.theme.AiMark(TossTextTertiary, 12.dp, 4.dp)
+                    Text(if (item.lastBody.isNullOrBlank()) "통화 요약" else "받은 문자", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                }
                 Spacer(Modifier.height(3.dp))
                 Text(
                     incoming, fontSize = 13.5.sp, color = TossTextPrimary,

@@ -242,8 +242,8 @@ fun ScheduleScreen(
                     //   탭은 살려둔다 — 자동이 늦을 때 직접 올릴 수 있는 뒷문(겉보기는 조용한 글씨).
                     if (calendarConnected) {
                         Text(
-                            if (calendarSyncing) "⏳ 올리는 중"
-                            else "📅 " + lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount),
+                            if (calendarSyncing) "올리는 중…"
+                            else lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount),
                             fontSize = 11.sp,
                             color = TossTextTertiary,
                             maxLines = 1,

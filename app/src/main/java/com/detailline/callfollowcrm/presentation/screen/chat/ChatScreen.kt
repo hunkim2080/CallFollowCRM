@@ -1089,7 +1089,8 @@ fun ChatScreen(
                         .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("✨ 다듬었어요", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(TossTextTertiary, 13.dp, 5.dp)
+                    Text("다듬었어요", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.weight(1f))
                     Text(
                         "↩︎ 다듬기 전으로",
@@ -2347,7 +2348,10 @@ private fun CallSegment(
                             .clickable { onSummarizeCall() }.padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✨ 이 통화 요약하기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            com.detailline.callfollowcrm.presentation.theme.AiMark(Color(0xFF0A7D72), 14.dp, 6.dp)
+                            Text("이 통화 요약하기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                        }
                     }
                 }
                 summarizable -> {
@@ -2401,7 +2405,10 @@ private fun CallSegment(
         } else {
             // 프로토(08352d6e): ✨ AI 요약 라벨 + 티얼 박스 안 불릿. (2026-08-15 1:1)
             Column(Modifier.padding(top = 10.dp)) {
-                Text("✨ AI 요약", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(teal, 12.dp, 4.dp)
+                    Text("AI 요약", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
+                }
                 Spacer(Modifier.height(6.dp))
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(tealBg)
@@ -2816,7 +2823,7 @@ private fun IntakeSegment(
         // 접수 내용 요약 — 프로토 team-alert quote 의 시공일·금액·주소 묶음.
         val detailLines = buildList {
             val sched = buildString {
-                event.dateLabel?.let { append("📅 시공일 $it") }
+                event.dateLabel?.let { append("시공일 $it") }
                 event.totalManwon?.let {
                     if (isNotEmpty()) append("  ·  ")
                     append("💰 ${it}만원")
@@ -3588,8 +3595,9 @@ private fun SuggestionArea(
                     modifier = Modifier.fillMaxWidth().clickable(onClick = onCancel).padding(horizontal = 15.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 14.dp, 6.dp)
                     Text(
-                        "✨ AI가 맞춤 답변을 작성 중이에요…",
+                        "AI가 맞춤 답변을 작성 중이에요…",
                         color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.weight(1f)
                     )
@@ -3606,8 +3614,9 @@ private fun SuggestionArea(
                         .padding(horizontal = 15.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 14.dp, 6.dp)
                     Text(
-                        "✨ AI 답변 추천받기",
+                        "AI 답변 추천받기",
                         color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(Modifier.weight(1f))
@@ -3628,8 +3637,9 @@ private fun SuggestionArea(
                         .padding(horizontal = 15.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 14.dp, 6.dp)
                     Text(
-                        if (open) "✨ AI 답안 선택" else "✨ AI 답안 ${choices.size}개 보기",
+                        if (open) "AI 답안 선택" else "AI 답안 ${choices.size}개 보기",
                         color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(Modifier.weight(1f))
@@ -4358,7 +4368,7 @@ private fun SummaryLoadingPlaceholder(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("✨", fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+            com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 6.dp)
             com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
                 text = "대화 요약 작성 중",
                 color = TossBlue,
@@ -4388,8 +4398,9 @@ private fun SummaryLoadingPlaceholder(
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 6.dp)
                 com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
-                    text = "✨ 대화 요약 작성 중",
+                    text = "대화 요약 작성 중",
                     color = TossBlue,
                     modifier = Modifier.weight(1f)
                 )
@@ -4494,7 +4505,7 @@ private fun CollapsedSummaryHeader(
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("✨", fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+        com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 6.dp)
         Text(
             "요약: $line",
             color = TossBlueDark,
@@ -4563,8 +4574,9 @@ private fun UnifiedSummaryCard(
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 5.dp)
                 Text(
-                    "✨ 대화 요약",
+                    "대화 요약",
                     style = MaterialTheme.typography.labelMedium,
                     color = TossBlue,
                     fontWeight = FontWeight.SemiBold
@@ -4690,8 +4702,9 @@ private fun ConversationSummaryBox(
             .background(Color.White)
             .padding(14.dp)
     ) {
+        com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 5.dp)
         Text(
-            "✨ 대화 요약",
+            "대화 요약",
             style = MaterialTheme.typography.labelMedium,
             color = TossBlue,
             fontWeight = FontWeight.SemiBold
@@ -4737,12 +4750,15 @@ private fun NextActionBox(json: String?, onAction: (NextAction) -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "✨ AI 제안",
-                style = MaterialTheme.typography.labelSmall,
-                color = accent,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.detailline.callfollowcrm.presentation.theme.AiMark(accent, 12.dp, 4.dp)
+                Text(
+                    "AI 제안",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             Spacer(Modifier.height(2.dp))
             Text(
                 action.title,

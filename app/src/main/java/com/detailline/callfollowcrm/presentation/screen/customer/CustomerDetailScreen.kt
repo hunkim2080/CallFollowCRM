@@ -1099,7 +1099,7 @@ fun CustomerDetailScreen(
                                 fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
                             )
                             Spacer(Modifier.height(13.dp))
-                            TossPrimaryButton(text = "📅 시공일 등록", onClick = { datePickerOpen = true })
+                            TossPrimaryButton(text = "시공일 등록", onClick = { datePickerOpen = true })
                             Spacer(Modifier.height(8.dp))
                             TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
                             Spacer(Modifier.height(8.dp))
@@ -2270,8 +2270,7 @@ private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona
             androidx.compose.foundation.layout.Row(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                Text("✨", fontSize = 13.sp)
-                Spacer(Modifier.width(6.dp))
+                com.detailline.callfollowcrm.presentation.theme.AiMark(TossTextTertiary, 13.dp, 6.dp)
                 Text("고객 페르소나", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                 // "갱신 중"은 기존 내용이 있을 때만(=다시 다듬는 중). 내용이 아예 없을 땐 아래 안내가 설명하므로 숨김.
                 if (persona.stale && hasContent) {
@@ -2999,7 +2998,7 @@ private fun PaymentRow(
                                         .padding(vertical = 2.dp)
                                 ) {
                                     Text(
-                                        "📅 ${paidAt?.let { DateTimeUtils.formatKoreanDate(it) } ?: ""}",
+                                        "${paidAt?.let { DateTimeUtils.formatKoreanDate(it) } ?: ""}",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = com.detailline.callfollowcrm.presentation.theme.TossSuccess,
                                         fontWeight = FontWeight.SemiBold

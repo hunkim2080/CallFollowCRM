@@ -621,7 +621,10 @@ private fun storySlides(): List<Slide> = listOf(
             RiseIn(active, 160) {
             Column(Modifier.fillMaxWidth().background(TossBlueSoft, RoundedCornerShape(14.dp)).padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("✨ AI 추천 답변", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 12.dp, 4.dp)
+                        Text("AI 추천 답변", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    }
                     Spacer(Modifier.weight(1f))
                     Box(Modifier.background(AppTheme.colors.doneBg, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                         Text("✓ 사장님 말투", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)

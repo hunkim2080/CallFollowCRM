@@ -1804,7 +1804,7 @@ private fun ColumnScope.RoomFormView(
                 Spacer(Modifier.height(8.dp))
                 OcrButtons(ocrBusy && ocrTarget == "biz", "📷 사업자등록증이 화면에 꽉 차고 또렷하게 보이게 찍어 올려주세요",
                     { pickCamera("biz") }, { pickGallery("biz") })
-                if (bizFromOcr) Text("✨ 형광 칸 = 사진에서 자동으로 채운 값이에요 (확인 후 저장)",
+                if (bizFromOcr) Text("형광 칸 = 사진에서 자동으로 채운 값이에요 (확인 후 저장)",
                     fontSize = 11.sp, color = Color(0xFFB58A00), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(value = bizName, onValueChange = { bizName = it; bizFromOcr = false },
@@ -1832,7 +1832,7 @@ private fun ColumnScope.RoomFormView(
                 Spacer(Modifier.height(8.dp))
                 OcrButtons(ocrBusy && ocrTarget == "terms", "📷 인식할 약관 부분만 또렷하게 찍거나 잘라서 올려주세요 (인식률 ↑)",
                     { pickCamera("terms") }, { pickGallery("terms") })
-                if (termsFromOcr) Text("✨ 형광 칸 = 사진에서 자동으로 읽은 약관이에요 (확인 후 저장)",
+                if (termsFromOcr) Text("형광 칸 = 사진에서 자동으로 읽은 약관이에요 (확인 후 저장)",
                     fontSize = 11.sp, color = Color(0xFFB58A00), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = terms, onValueChange = { terms = it; termsFromOcr = false },
