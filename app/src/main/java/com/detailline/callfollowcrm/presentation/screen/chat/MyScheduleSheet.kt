@@ -276,8 +276,30 @@ private fun MiniDay(
                 fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium)
             if (cell.busy) {
                 Spacer(Modifier.height(2.dp))
-                Box(Modifier.size(4.dp).clip(CircleShape)
-                    .background(if (isSelected) Color.White else TossBlue))
+                // 지역명이 있으면 글자 띠, 없으면(주소 미입력·이어지는 날) 점.
+                //   달력 볼 때 궁금한 건 "누구"보다 **"어디 가야 하나"**. (2026-09-22 사장님)
+                val region = cell.region
+                if (!region.isNullOrBlank()) {
+                    Box(
+                        Modifier.fillMaxWidth().height(12.dp)
+                            .clip(MINI_BAR_SHAPE)
+                            .background(if (isSelected) Color.White.copy(alpha = 0.28f) else TossBlueSoft),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            region,
+                            color = if (isSelected) Color.White else TossBlue,
+                            fontSize = MINI_REGION_SP,
+                            lineHeight = MINI_REGION_SP,   // 테마 lineHeight 물려받으면 띠 안에서 잘린다
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Box(Modifier.size(4.dp).clip(CircleShape)
+                        .background(if (isSelected) Color.White else TossBlue))
+                }
             }
         }
     }
@@ -297,7 +319,7 @@ private fun MiniJobRow(c: CustomerEntity) {
             // 주소가 주인공 — 가까운 현장끼리 묶어보려고 보는 화면이라 주소를 크게 위로. (2026-06-04 사장님)
             val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address).takeIf { it.isNotBlank() }
             Text(
-                if (addr != null) "📍 $addr" else "📍 주소 미입력",
+                addr ?: "주소 미입력",
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (addr != null) TossTextPrimary else TossTextTertiary,
                 fontWeight = FontWeight.SemiBold,
@@ -326,13 +348,20 @@ private fun MiniJobRow(c: CustomerEntity) {
 
 // ───────────────────────── 미니 달력 데이터/빌더 (파일 한정) ─────────────────────────
 
+/** 시트 달력 지역명 띠 — 정사각 칸이라 일정 탭보다 작다. 여기 한 곳에서만 정한다. */
+private val MINI_BAR_RADIUS = 3.dp
+private val MINI_BAR_SHAPE = androidx.compose.foundation.shape.RoundedCornerShape(MINI_BAR_RADIUS)
+private val MINI_REGION_SP = 8.5.sp
+
 private data class MiniCell(
     val dayStartMs: Long,
     val dom: Int,
     val dow: Int,
     val inMonth: Boolean,
     val isToday: Boolean,
-    val busy: Boolean
+    val busy: Boolean,
+    /** 칸에 적을 지역명 — 여러 날 시공은 **첫날만** 채운다(날마다 반복하면 지저분). */
+    val region: String? = null
 )
 
 /** 여러 날 시공(scheduledWorkDays) 고려해 이 시공이 dayStart 를 포함하는가. */
@@ -377,7 +406,11 @@ private fun buildMiniCells(monthAnchor: Long, jobs: List<CustomerEntity>, todayS
             dow = cal.get(Calendar.DAY_OF_WEEK),
             inMonth = cal.get(Calendar.MONTH) == targetMonth,
             isToday = dayStart == todayStart,
-            busy = jobs.any { miniJobCoversDay(it, dayStart) }
+            busy = jobs.any { miniJobCoversDay(it, dayStart) },
+            // 그 날 **시작하는** 시공의 지역명. 이어지는 날은 비운다.
+            region = jobs.firstOrNull {
+                it.scheduledWorkDate?.let { d -> DateTimeUtils.startOfDay(d) } == dayStart
+            }?.let { com.detailline.callfollowcrm.util.RegionName.shortRegion(it.address) }
         )
         cal.add(Calendar.DAY_OF_MONTH, 1)
     }
