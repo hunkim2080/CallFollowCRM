@@ -4457,7 +4457,6 @@ private fun RecentRow(
 ) {
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
-    val tag = recentStatusTag(item.customer, filter)   // 시공 D-N / 계약금 / (종료)끝난날 / (잔금)남은돈
     // A안 (2026-08-04 사장님): "최근 무슨 말 했는지"가 먼저 보이게 — 마지막 실제 문자를 주(위)로,
     //   ✨AI 요약은 보조(아래 회색)로. 문자 없이 통화만이면 요약을 주로.
     //   (이전엔 읽은 줄에서 요약이 최근 문자를 덮어써 "최근에 뭐라 했는지" 안 보인다는 신고. 2026-08-04)
@@ -4507,7 +4506,8 @@ private fun RecentRow(
                     )
                     // 그룹 태그 (사장님 분류: '일당' 등) — 한눈에 어떤 묶음인지. (2026-08-04 사장님) 보라색으로 상태태그와 구분.
                     // 태그 두 종류 — 규칙은 공용 한 곳에만. (2026-09-16)
-                    com.detailline.callfollowcrm.presentation.component.CustomerTags(item.customer, category)
+                    //   filter 를 넘기는 이유: 칩이 이미 말해준 건("종료 고객") 뱃지가 또 말하지 않는다.
+                    com.detailline.callfollowcrm.presentation.component.CustomerTags(item.customer, category, filter = filter)
 
                 }
                 Spacer(Modifier.width(6.dp))

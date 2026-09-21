@@ -134,7 +134,12 @@ fun CategoryTag(
 fun CustomerTags(
     c: CustomerEntity?,
     category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity?,
-    gap: androidx.compose.ui.unit.Dp = 7.dp
+    gap: androidx.compose.ui.unit.Dp = 7.dp,
+    /**
+     * 지금 고른 칩. 칩이 **이미 말해준 것**은 뱃지가 또 말하지 않는다.
+     *   (2026-09-21 사장님: "종료 고객인데 '완료'만 있으면 무슨 소용이야. 며칠날 끝났는지가 포인트")
+     */
+    filter: String = "all"
 ) {
     val scheduleLabel = c?.let { scheduleTagLabel(it) }
     val showsDday = scheduleLabel?.startsWith("시공 D") == true
@@ -143,9 +148,46 @@ fun CustomerTags(
         androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
         CategoryTag(category, hideIfDuplicate = showsDday)
     }
-    if (c != null && !hiddenLabel) {
-        androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
-        ScheduleTag(c)
+    if (c != null) {
+        val special = filterTagLabel(c, filter)
+        if (special != null) {
+            androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
+            PlainTag(special)
+        } else if (!hiddenLabel) {
+            androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
+            ScheduleTag(c)
+        }
+    }
+}
+
+/** 칩 안에서 갈리는 값 — 없으면 null(그럼 평소 상태 뱃지). */
+private fun filterTagLabel(c: CustomerEntity, filter: String): String? = when (filter) {
+    // 언제 끝났나. 오른쪽 시각은 '마지막 문자' 라 이 답을 못 한다.
+    "done" -> c.doneAtMs?.let {
+        java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN).format(java.util.Date(it)) + " 끝"
+    }
+    // 얼마가 남았나.
+    "owe" -> {
+        val owed = c.balanceAmount ?: c.totalAmount?.let { t -> t - (c.depositAmount ?: 0L) }
+        if (owed != null && owed > 0L) "잔금 ${owed / 10_000L}만" else null
+    }
+    else -> null
+}
+
+/** 상태색이 아닌 **담백한** 뱃지 — 칩이 이미 상태를 말했으니 색으로 또 말하지 않는다. */
+/** 뱃지 옷 — 모서리·글자크기는 여기 한 곳에서만 정한다(ScheduleTag·PlainTag 공용). */
+private val TAG_SHAPE = RoundedCornerShape(8.dp)
+private val TAG_TEXT_SP = 10.5.sp
+
+@Composable
+private fun PlainTag(label: String) {
+    Box(
+        Modifier.clip(TAG_SHAPE)
+            .background(AppTheme.colors.surfaceMuted)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(label, fontSize = TAG_TEXT_SP, fontWeight = FontWeight.Bold,
+            color = AppTheme.colors.textSub, maxLines = 1)
     }
 }
 
@@ -188,8 +230,8 @@ fun ScheduleTag(c: CustomerEntity?, listMode: Boolean = true) {
     // 색은 상태 기준(= D-N 도 '예약'의 파랑). 모든 화면에서 같은 색.
     val (fg, bg) = statusColors(if (label.startsWith("시공 D")) "예약" else label)
     Box(
-        Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
+        Modifier.clip(TAG_SHAPE).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = fg, maxLines = 1)
+        Text(label, fontSize = TAG_TEXT_SP, fontWeight = FontWeight.Bold, color = fg, maxLines = 1)
     }
 }
