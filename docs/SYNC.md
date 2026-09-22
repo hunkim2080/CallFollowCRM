@@ -10867,3 +10867,9 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   협업 현장 EmptyCard 에 tall/action 인자 추가(서버·데이터 영향 없음).
 - commit: a81e46be
 - 다음 액션: 없음 (서버측 무관)
+
+## 2026-09-22 22:25 · android
+스팸·사생활·협업 기록 디자인 + 이모지 제거 + 제목 중복 제거
+- 변경: UI만. CollabRecordViewModel.monthLabel 이 빈 값일 때 이번 달로 폴백(표시용).
+- commit: (아래 push 참조)
+- 다음 액션: 없음
