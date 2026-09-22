@@ -67,6 +67,8 @@ fun TemplateListScreen(
     onOpenDiscover: () -> Unit = {}
 ) {
     val templates by viewModel.templates.collectAsState()
+    // 펼친 줄 하나. LazyColumn **밖**에 둔다 — 안에 두면 스크롤로 밀려날 때 잊어버린다.
+    var openId by remember { mutableStateOf<Long?>(null) }
     var renameTarget by remember { mutableStateOf<MessageTemplateEntity?>(null) }
     var deleteTarget by remember { mutableStateOf<MessageTemplateEntity?>(null) }
 
@@ -152,43 +154,84 @@ fun TemplateListScreen(
                                 modifier = Modifier.weight(1f))
                         }
                     }
-                    items(templates, key = { it.id }) { t ->
-                        // 프로토 tpl-card — 제목+토글 / 본문(탭=문구수정) / 액션(이름·문구·삭제). 꺼지면 흐리게.
-                        val dim = if (t.isActive) 1f else 0.5f
-                        TossCard {
+                    // 🔴 전엔 **문구 전문이 다 펼쳐진 카드**라 한 화면에 두 개 반이었다.
+                    //   열 개면 한참 스크롤해야 한다 — **목록인데 훑을 수가 없었다.** (2026-09-22 사장님)
+                    //   한 줄씩 접고, 누르면 그 줄만 펼친다. 카드는 묶음 하나에 한 장.
+                    item(key = "tpl-card") {
+                        TossCard(contentPadding = PaddingValues(0.dp)) {
                             Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(t.title, style = MaterialTheme.typography.titleLarge,
-                                        color = TossTextPrimary.copy(alpha = dim), modifier = Modifier.weight(1f))
-                                    Switch(
-                                        checked = t.isActive,
-                                        onCheckedChange = { viewModel.toggleActive(t.id, it) },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = Color.White, checkedTrackColor = TossBlue,
-                                            uncheckedThumbColor = Color.White, uncheckedTrackColor = TossDivider,
-                                            uncheckedBorderColor = TossDivider
-                                        )
-                                    )
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    t.body, style = MaterialTheme.typography.bodyMedium,
-                                    color = TossTextSecondary.copy(alpha = dim),
-                                    modifier = Modifier.fillMaxWidth().clickable { onEdit(t.id) }
-                                )
-                                // 프로토 tpl-actions
-                                Spacer(Modifier.height(11.dp))
-                                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                                Spacer(Modifier.height(11.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("이름 수정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                        color = TossTextTertiary, modifier = Modifier.clickable { renameTarget = t })
-                                    Spacer(Modifier.width(18.dp))
-                                    Text("문구 수정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                        color = TossTextTertiary, modifier = Modifier.clickable { onEdit(t.id) })
-                                    Spacer(Modifier.weight(1f))
-                                    Text("삭제", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                        color = TossError, modifier = Modifier.clickable { deleteTarget = t })
+                                templates.forEachIndexed { idx, t ->
+                                    if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                                    val dim = if (t.isActive) 1f else 0.5f
+                                    val open = openId == t.id
+                                    // 이름을 안 지으면 본문 앞부분이 제목이 된다 → 그땐 **회색**으로.
+                                    //   제목인 척하면 같은 말을 두 번 하는 꼴이 된다.
+                                    val named = t.title.isNotBlank() &&
+                                        !t.body.trim().startsWith(t.title.trim())
+                                    Column {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                                .clickable { openId = if (open) null else t.id }
+                                                .padding(horizontal = 14.dp, vertical = 11.dp)
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(
+                                                    t.title.ifBlank { t.body.lineSequence().firstOrNull().orEmpty() },
+                                                    style = com.detailline.callfollowcrm.presentation.theme.AppType.headline,
+                                                    // ⚠️ 이름 없는 줄을 회색으로 했더니 **꺼진 줄과 헷갈렸다**(폰에서 확인).
+                                                    //   회색은 '꺼짐'에만 쓴다. 이름이 없으면 미리보기 줄을 생략하는 것으로 충분하다.
+                                                    color = TossTextPrimary.copy(alpha = dim),
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                                if (named) {
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Text(
+                                                        t.body.replace("\n", " · "),
+                                                        style = com.detailline.callfollowcrm.presentation.theme.AppType.caption,
+                                                        color = TossTextTertiary.copy(alpha = dim),
+                                                        maxLines = 1,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Switch(
+                                                checked = t.isActive,
+                                                onCheckedChange = { viewModel.toggleActive(t.id, it) },
+                                                colors = SwitchDefaults.colors(
+                                                    checkedThumbColor = Color.White, checkedTrackColor = TossBlue,
+                                                    uncheckedThumbColor = Color.White, uncheckedTrackColor = TossDivider,
+                                                    uncheckedBorderColor = TossDivider
+                                                )
+                                            )
+                                        }
+                                        // 펼친 줄만 전문 + 손볼 것들. 가끔 하는 일은 안에 둔다.
+                                        if (open) {
+                                            Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 13.dp)) {
+                                                Text(
+                                                    t.body, style = MaterialTheme.typography.bodyMedium,
+                                                    color = TossTextSecondary.copy(alpha = dim),
+                                                    modifier = Modifier.fillMaxWidth().clickable { onEdit(t.id) }
+                                                )
+                                                Spacer(Modifier.height(11.dp))
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("이름 수정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                                        color = TossTextTertiary,
+                                                        modifier = Modifier.clickable { renameTarget = t })
+                                                    Spacer(Modifier.width(18.dp))
+                                                    Text("문구 수정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                                        color = TossTextTertiary,
+                                                        modifier = Modifier.clickable { onEdit(t.id) })
+                                                    Spacer(Modifier.weight(1f))
+                                                    Text("삭제", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                                        color = TossError,
+                                                        modifier = Modifier.clickable { deleteTarget = t })
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

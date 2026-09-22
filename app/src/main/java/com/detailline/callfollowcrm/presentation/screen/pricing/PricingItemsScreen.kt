@@ -277,19 +277,34 @@ fun PricingItemsScreen(
                             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                         )
                     }
-                    items(group, key = { it.id }) { item ->
-                        PricingItemRow(
-                            item = item,
-                            selectionMode = selectionMode,
-                            selected = item.id in selectedIds,
-                            onTap = {
-                                if (selectionMode) {
-                                    if (item.id in selectedIds) selectedIds.remove(item.id)
-                                    else selectedIds.add(item.id)
-                                } else editTarget = item
-                            },
-                            onToggleActive = { viewModel.toggleActive(item) }
-                        )
+                    // 🔴 전엔 **줄마다 따로 떠 있는 블록**이라, 글자는 한 줄인데 빈 자리가 절반이었다.
+                    //   가격표는 **훑어보는 표**다. 묶음(신축·구축) 하나를 카드 한 장으로 묶고
+                    //   줄 사이는 얇은 구분선으로. 한 화면에 일곱 줄 → 열두 줄. (2026-09-22 사장님)
+                    item(key = "group-${cat.name}") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
+                            color = Color.White
+                        ) {
+                            Column {
+                                group.forEachIndexed { idx, item ->
+                                    if (idx > 0) Box(
+                                        Modifier.fillMaxWidth().height(1.dp).background(TossDivider)
+                                    )
+                                    PricingItemRow(
+                                        item = item,
+                                        selectionMode = selectionMode,
+                                        selected = item.id in selectedIds,
+                                        onTap = {
+                                            if (selectionMode) {
+                                                if (item.id in selectedIds) selectedIds.remove(item.id)
+                                                else selectedIds.add(item.id)
+                                            } else editTarget = item
+                                        },
+                                        onToggleActive = { viewModel.toggleActive(item) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 item(key = "bottom-spacer") { Spacer(Modifier.height(20.dp)) }
@@ -414,15 +429,13 @@ private fun PricingItemRow(
     onToggleActive: () -> Unit
 ) {
     val alpha = if (item.isActive) 1f else 0.45f
+    // 자기 모서리·흰 바탕을 버렸다 — 이제 묶음 카드 **안에 사는 줄**이다. (2026-09-22)
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onTap),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onTap),
         color = if (selectionMode && selected) TossBlueSoft else Color.White
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 선택 모드: 왼쪽 체크 동그라미 (선택=파랑 채움+체크, 미선택=회색 링)
