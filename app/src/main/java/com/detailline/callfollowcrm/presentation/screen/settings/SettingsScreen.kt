@@ -249,7 +249,7 @@ fun SettingsScreen(
                     val ok = com.detailline.callfollowcrm.util.DiagnosticsReporter
                         .sendToServer(context, container.preferences, note, shotUri)
                     if (ok) {
-                        Toast.makeText(context, "진단을 보냈어요. 감사합니다!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "진단을 보냈어요. 고맙습니다.", Toast.LENGTH_LONG).show()
                     } else {
                         // 서버 전송 실패 → 공유 시트로 폴백(리포트 유실 방지)
                         Toast.makeText(context, "바로 전송이 안 돼 공유로 열었어요", Toast.LENGTH_LONG).show()
@@ -347,7 +347,7 @@ fun SettingsScreen(
     if (restartNeeded) {
         AlertDialog(
             onDismissRequest = { viewModel.consumeRestartNeeded() },
-            title = { Text("복원 완료!", fontWeight = FontWeight.Bold) },
+            title = { Text("다 되살렸어요", fontWeight = FontWeight.Bold) },
             text = { Text("앱을 완전히 껐다 다시 켜면 되살린 데이터가 모두 보여요.", fontSize = 13.5.sp, color = TossTextSecondary) },
             confirmButton = { TextButton(onClick = { viewModel.consumeRestartNeeded() }) { Text("확인", color = TossBlue, fontWeight = FontWeight.Bold) } }
         )
@@ -409,7 +409,55 @@ fun SettingsScreen(
                     onOpenPricingItems = onOpenPricingItems
                 )
 
-                // ⭐ 내 데이터 지키기 (데이터 안전 1단계, 2026-08-10) — 재설치·기기변경 시 통째 소실 방어.
+                // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
+                //   (프로토 5그룹에 앱 기능 13개가 아무 데나 섞였던 것 → 성격별 6그룹으로. 새 그룹=기록·분석 / 알림·번호 관리.)
+                // 인원 관리·수첩 제거(2026-08-31 사장님 "더보기 정리"). 관련 화면/nav 코드는 추후 청소.
+                // ⭐ 2026-09-22 사장님 "순서도 중요도에 따라. 지금은 막 정리 없이 나열된 느낌이야"
+                //   전엔 **성격별** 6묶음이었다(협업·박람회 / 기록·분석 / 내 답장 재료 / 알림·번호 관리 / 앱 설정).
+                //   "재료"·"관리"·"설정"·"분석"은 **잣대가 섞인 이름**이라, 뭘 찾을 때 어느 묶음에
+                //   있을지 짐작이 안 됐다. → 잣대를 하나로: **얼마나 자주 여는가.**
+                //   항목은 하나도 안 없앴다. **자리만 옮겼다.**
+                SettingsGroup("자주 쓰는 것") {
+                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
+                        "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
+                    LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
+                        "자주 쓰는 문구 관리", onClick = onOpenTemplates)
+                    LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
+                        "견적 만들 때 쓰이는 항목", onClick = onOpenPricingItems)
+                }
+                SettingsGroup("일이 생기면") {
+                    LockRow(Icons.Filled.Group, AppTheme.colors.categoryBg, AppTheme.colors.category, "협업 현장",
+                        "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
+                    // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
+                    LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
+                        "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
+                    LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
+                        "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
+                    LockRow(Icons.Filled.Payments, AppTheme.colors.doneBg, AppTheme.colors.done, "협업 기록",
+                        "협업 사장님별 · 월별 기록 (세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
+                }
+                SettingsGroup("한 번 해두면 끝") {
+                    LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보",
+                        "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
+                    LockRow(Icons.Filled.DateRange, TossBlueSoft, TossBlue, "구글 캘린더 연동",
+                        "시공·A/S 일정을 구글 캘린더에") { subPage = "mirror" }
+                    LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
+                        "알림 종류별 소리 고르기 · 미리듣기", onClick = onOpenSoundSettings)
+                    val navLabel = com.detailline.callfollowcrm.util.NavApp.values()
+                        .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
+                    LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
+                        navLabel) { subPage = "nav" }
+                    LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
+                        "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
+                    LockRow(Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category, "내 말투 학습",
+                        "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
+                    // 기본 문자 앱이면 채팅+가 꺼져 있어 이 안내 불필요 → 숨김. (2026-08-02 사장님)
+                    if (!isDefaultSmsApp) {
+                        LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
+                            "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
+                    }
+                }
+                // ⭐ 내 데이터 지키기 — 자동으로 돌아서 거의 안 만진다. 전엔 3번째(맨 위쪽)였다. (2026-09-22 사장님)
                 DataBackupSection(
                     lastBackupAt = lastBackupAt,
                     busy = backupBusy,
@@ -419,63 +467,12 @@ fun SettingsScreen(
                     onServerRestore = { showServerRestoreConfirm = true },
                     onRestoreCategories = { viewModel.serverRestoreCategoriesOnly() }
                 )
-
-                // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
-                //   (프로토 5그룹에 앱 기능 13개가 아무 데나 섞였던 것 → 성격별 6그룹으로. 새 그룹=기록·분석 / 알림·번호 관리.)
-                // 인원 관리·수첩 제거(2026-08-31 사장님 "더보기 정리"). 관련 화면/nav 코드는 추후 청소.
-                SettingsGroup("협업·박람회") {
-                    LockRow(Icons.Filled.Group, AppTheme.colors.categoryBg, AppTheme.colors.category, "협업 현장",
-                        "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
-                    // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
-                    LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
-                        "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
-                }
-                // 새 그룹 — 매출·협업을 '기록/세금' 성격으로 묶음(전엔 리포트=장사분석, 협업기록=사람그룹에 흩어짐).
-                SettingsGroup("기록·분석") {
-                    LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
-                        "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
-                    LockRow(Icons.Filled.Payments, AppTheme.colors.doneBg, AppTheme.colors.done, "협업 기록",
-                        "협업 사장님별 · 월별 기록 (세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
-                }
-                SettingsGroup("내 답장 재료") {
-                    LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
-                        "자주 쓰는 문구 관리", onClick = onOpenTemplates)
-                    LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
-                        "견적 작성에 쓰이는 항목", onClick = onOpenPricingItems)
-                    LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보",
-                        "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
-                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
-                        "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
-                    LockRow(Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category, "내 말투 학습",
-                        "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
-                }
-                // 새 그룹 — 흩어져 있던 알림/번호 설정 모음(알림소리=답장재료에서, 사진받기=도움말에서, 스팸·사생활=앱설정에서 이동).
-                SettingsGroup("알림·번호 관리") {
-                    LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
-                        "알림 종류별 소리 고르기 · 미리듣기", onClick = onOpenSoundSettings)
-                    // 기본 문자 앱이면 채팅+가 꺼져 있어 이 안내 불필요 → 숨김. 기본앱 아닌 사람만 노출(사진 놓침 방어). (2026-08-02 사장님)
-                    if (!isDefaultSmsApp) {
-                        LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
-                            "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
-                    }
+                SettingsGroup("막히거나 이상하면") {
                     LockRow(Icons.Filled.Block, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "스팸 차단 번호",
                         "스팸 등록한 번호 · 여기서 풀기", onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "사생활 번호",
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
-                }
-                SettingsGroup("앱 설정") {
-                    val navLabel = com.detailline.callfollowcrm.util.NavApp.values()
-                        .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
-                    LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
-                        navLabel) { subPage = "nav" }
-                    LockRow(Icons.Filled.DateRange, TossBlueSoft, TossBlue, "구글 캘린더 연동",
-                        "시공·A/S 일정을 구글 캘린더에") { subPage = "mirror" }
-                    LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
-                        "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
-                }
-                SettingsGroup("도움말") {
-                    // 앱 소개 다시 보기 제거(2026-08-31 사장님 "더보기 정리").
-                    // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고. Crashlytics(자동) 의 짝.
+                    // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고.
                     LockRow(Icons.Filled.BugReport, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
                 }
@@ -772,7 +769,7 @@ private fun UsageStatsCard(
                     if (stats.byEndpoint.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "endpoint 별 (비용 순)",
+                            "쓰인 곳별 (돈 많이 든 순)",
                             style = MaterialTheme.typography.labelMedium,
                             color = TossTextTertiary,
                             fontWeight = FontWeight.Medium
@@ -1010,10 +1007,11 @@ private fun DefaultSmsAppCard(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
+                        // 영어·상호 뒤 조사는 **붙여 쓴다**("시공막내 가" → "시공막내가"). 앱 전체가 해요체다.
                         if (isDefault)
-                            "시공막내 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
+                            "문자·사진을 시공막내가 받고 있어요. 갤럭시 메시지 알림은 폰 설정에서 끄세요."
                         else
-                            "SMS/MMS 수신을 시공막내 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다.",
+                            "문자·사진 받는 걸 시공막내가 맡아요. 켜면 폰이 한 번 물어봐요.",
                         fontSize = 12.sp,
                         color = TossTextSecondary
                     )
@@ -1197,7 +1195,7 @@ private fun WebViewerSection(container: AppContainer) {
                 if (v != null && !v.sessionToken.isNullOrBlank()) {
                     container.sessionTokenStore.save(v.sessionToken, v.sessionTokenExpMs)
                     authed = true; reauthOpen = false; reauthSent = false
-                    toast("인증 완료! 이제 QR로 로그인돼요 ✅")
+                    toast("인증했어요. 이제 QR로 로그인돼요")
                     return@launch
                 }
             }
@@ -1213,7 +1211,7 @@ private fun WebViewerSection(container: AppContainer) {
                 if (!v.sessionToken.isNullOrBlank()) {
                     container.sessionTokenStore.save(v.sessionToken, v.sessionTokenExpMs)
                     authed = true; reauthOpen = false; reauthSent = false; reauthCode = ""
-                    toast("인증 완료! 이제 아래 QR로 로그인돼요 ✅")
+                    toast("인증했어요. 이제 아래 QR로 로그인돼요")
                 } else toast("인증은 됐는데 열쇠(토큰)가 안 왔어요. 관리자에게 알려주세요")
             }.onFailure { toast((it as? com.detailline.callfollowcrm.ai.AuthException)?.message ?: "인증하지 못했어요 — 다시 해주세요") }
         }
@@ -1470,7 +1468,7 @@ private fun GoogleCalendarSection(container: AppContainer) {
             Text("구글 캘린더 연동", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(2.dp))
             Text(
-                "시공·A/S 일정이 구글 캘린더('시공막내')에 자동으로 올라가요. 폰 위젯·구글 캘린더 앱에서 보고, 가족·직원과 공유하거나, 폰을 바꿔도 그대로 남아요.",
+                "시공·A/S 일정이 구글 캘린더에 자동으로 올라가요.\n폰 위젯에서 보거나, 가족·직원과 나눠 보거나, 폰을 바꿔도 그대로 남아요.",
                 fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
             )
             Spacer(Modifier.height(12.dp))
@@ -1976,12 +1974,8 @@ private fun AutoLearningCard(
                                     color = Color(0xFFB8780A)
                                 )
                             }
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                "Mac mini 의 답변 prompt 개선 가능 — cowork 한테 'AutoLearning 후보 보고 prompt 개선해줘' 라고 시키세요.",
-                                fontSize = 10.sp,
-                                color = TossTextSecondary
-                            )
+                            // 🗑 "Mac mini 의 답변 prompt 개선 가능 — cowork 한테 … 시키세요" 를 뺐다. (2026-09-22 사장님)
+                            //   사장님한테 **클로드에게 시키라고** 적혀 있었다. 앱 안에 있을 말이 아니다.
                         }
                     }
                 }
@@ -2139,7 +2133,7 @@ private fun ServerStatusCard(alive: Boolean?) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "이번 달 사용량은 추후 표시됩니다 (맥미니 서버 사용량 endpoint 구현 후).",
+                "이번 달 사용량은 아직 안 나와요. 준비 중이에요.",
                 style = MaterialTheme.typography.labelSmall,
                 color = TossTextTertiary
             )
@@ -2200,7 +2194,7 @@ private fun AutoSmsSection(
         Spacer(Modifier.height(10.dp))
         AutoDotLabel(TossSuccess, "다시 연락한 고객 (단골·기존)")
         AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
-        AutoNote("신규·단골 모두 자동으로 나가요. 보내기 직전 10초 안에 취소할 수 있어요. 같은 번호엔 하루 1번만 — 최근 24시간 안에 보낸 문자(이미 답장했거나 방금 자동발송)가 있으면 건너뛰어요.")
+        AutoNote("전화를 못 받으면 자동으로 나가요. 보내기 전 10초 안에 취소할 수 있어요.\n같은 번호엔 하루 한 번만 — 하루 안에 이미 문자가 오갔으면 건너뛰어요.")
     }
 
     // ② 시공 하루 전 안내 (D-1)
@@ -2437,7 +2431,7 @@ private fun AutoSmsSection(
                 val n = label?.substringAfter("녹음 ", "")?.substringBefore("개")?.toIntOrNull() ?: 0
                 android.widget.Toast.makeText(
                     ctx,
-                    if (n > 0) "통화 녹음 ${n}개를 찾았어요! 이제 통화 끝나면 자동으로 요약돼요"
+                    if (n > 0) "통화 녹음 ${n}개를 찾았어요. 이제 통화 끝나면 자동으로 요약돼요"
                     else "연결됐어요. 이제 통화 끝나면 녹음을 자동으로 요약해요.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
@@ -3014,7 +3008,7 @@ private fun AfterCallCard(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "주의: 자동 발송 SMS 는 통신사 요금이 부과될 수 있어요. 잘못된 번호 발송 위험 있으니 신중히.",
+                        "자동 문자도 문자 요금이 나가요. 번호가 틀리면 엉뚱한 사람에게 갈 수 있으니 한 번 더 보세요.",
                         style = MaterialTheme.typography.labelSmall,
                         color = TossError
                     )
@@ -3118,7 +3112,7 @@ private fun OwnerToneRagCard(
                 androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Psychology, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "깊이 학습 (Tone RAG)",
+                    "더 깊이 배우기",
                     style = MaterialTheme.typography.titleLarge,
                     color = TossTextPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -3126,7 +3120,7 @@ private fun OwnerToneRagCard(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "사장님이 평소 보낸 모든 메시지를 자체 서버에 임베딩해서, AI 가 비슷한 상황의 사장님 말투를 직접 찾아 흉내냅니다. 더 사장님답게.",
+                "사장님이 보낸 문자를 막내가 다 읽어두고, 비슷한 상황이 오면 그때 쓰신 말투를 찾아서 따라 해요.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TossTextSecondary
             )
@@ -3195,8 +3189,8 @@ private fun OwnerToneRagCard(
                             .padding(12.dp)
                     ) {
                         Text(
-                            "임베딩 검색 비활성 — Mac mini 에 'pip install FlagEmbedding sqlite-vec' 후 launchctl reload 필요. " +
-                                "메시지는 저장되어 있어 install 후 자동 활성화됩니다.",
+                            // 사장님이 pip install 을 하실 일은 없다. **뭐가 어떻게 되는지만** 알려드린다.
+                            "아직 준비 중이에요. 적어둔 문자는 그대로 있어서, 켜지면 바로 쓰여요.",
                             fontSize = 11.sp,
                             color = Color(0xFFB8780A)
                         )
@@ -3818,84 +3812,82 @@ private fun DataBackupSection(
         SectionLabel("내 데이터 지키기")
         Spacer(Modifier.height(8.dp))
 
-        // 경고(백업 없음/오래됨) 또는 안심(최근 백업) 배너
-        Row(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (recent) AppTheme.colors.doneBg else AppTheme.colors.cautionBg)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            // 이모지는 폰마다 그림이 다르다 → 앱이 그리는 아이콘. (2026-09-20 사장님)
-            Icon(
-                if (recent) Icons.Filled.CheckCircle else Icons.Filled.Warning, null,
-                tint = if (recent) Color(0xFF0E9F56) else Color(0xFFB8780A),
-                modifier = Modifier.size(17.dp)
-            )
-            Text(
-                // 2026-09-18 — 하루 한 번 자동으로 올라간다. 눌러야만 되던 시절 문구를 고침.
-                if (recent) "하루 한 번 알아서 서버에 저장하고 있어요. 폰을 바꾸거나 앱을 지워도 되살릴 수 있어요."
-                else "아직 서버에 저장된 게 없어요. 하루 한 번 알아서 올라가지만, 지금 바로 챙기려면 아래 [서버에 백업]을 눌러주세요.",
-                color = if (recent) Color(0xFF0E9F56) else Color(0xFFB8780A),
-                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Spacer(Modifier.height(9.dp))
-
-        // ☁️ 서버에 백업 — 파일 없이 서버에 안전 보관 → 폰 바꿔도/지워도 복원.
-        //   (2026-08-21 사장님 · 로컬 파일 내보내기/가져오기는 제거 2026-08-31 사장님 "서버 백업만")
+        // 🔴 전엔 **같은 말을 두 번** 했다 — 위 띠에 "알아서 저장하고 있어요", 바로 아래 카드에 또
+        //   "파일 없이 서버에 안전하게 보관해요…". 한 덩어리로 합쳤다. (2026-09-22 사장님)
+        //   그리고 [서버에 백업하기]가 화면에서 **제일 큰 버튼**이었다. 바로 위에서 "알아서 되고 있다"고
+        //   해놓고 손으로 누르는 버튼이 제일 크면 앞뒤가 안 맞는다 → 작은 버튼으로.
+        //   색도 앱에 뜻이 없던 짙은 청록(#1E6E6A) 대신 **초록** — 잘 되고 있다는 뜻이다.
         Column(
             Modifier.fillMaxWidth()
                 .tossCardShadow(RoundedCornerShape(16.dp))
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color.White)
-                .padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(15.dp)
         ) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(Color(0xFF1E6E6A))
-                    .clickable(enabled = !busy) { onServerBackup() }
-                    .padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (busy) androidx.compose.material3.CircularProgressIndicator(
-                    color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
-                ) else Text("서버에 백업하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("마지막 백업: $lastLabel", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-                Text(
-                    "서버에서 복원하기",
-                    fontSize = 13.sp, color = Color(0xFF1E6E6A), fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !busy) { onServerRestore() }
-                        .padding(horizontal = 8.dp, vertical = 10.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Top) {
+                Icon(
+                    if (recent) Icons.Filled.CheckCircle else Icons.Filled.Warning, null,
+                    tint = if (recent) AppTheme.colors.done else AppTheme.colors.caution,
+                    modifier = Modifier.size(18.dp)
                 )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (recent) "알아서 지키고 있어요" else "아직 서버에 저장된 게 없어요",
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = if (recent) AppTheme.colors.doneText else AppTheme.colors.cautionText
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        if (recent) "하루 한 번 서버에 저장해요. 폰을 바꾸거나 앱을 지워도 되살릴 수 있어요. (사진 제외)"
+                        else "하루 한 번 알아서 올라가지만, 지금 바로 챙기려면 [지금 백업]을 눌러주세요.",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                    )
+                }
             }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            Spacer(Modifier.height(11.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "마지막 백업 · $lastLabel",
+                    fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.weight(1f)
+                )
+                if (busy) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = AppTheme.colors.primary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    BackupBtn("지금 백업") { onServerBackup() }
+                    Spacer(Modifier.width(6.dp))
+                    BackupBtn("되살리기") { onServerRestore() }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            // 카테고리·태그만 — 카테고리가 사라졌을 때만 쓰는 드문 일이라 **조용하게**.
             Text(
-                "파일 없이 서버에 안전하게 보관해요. 폰을 바꾸거나 앱을 지워도, 새 폰에서 '서버에서 복원'으로 되살려요. (사진 제외)",
-                fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
-            )
-            // 카테고리·태그만 복원 — 일당 등 카테고리가 사라졌을 때, 다른 데이터는 안 되돌리고 태그만. (2026-09-01 사장님)
-            Text(
-                "카테고리·태그만 복원 (일당 등)",
-                fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                "카테고리·태그만 되살리기 (일당 등)",
+                fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(enabled = !busy) { onRestoreCategories() }
-                    .padding(horizontal = 8.dp, vertical = 9.dp)
+                    .padding(horizontal = 6.dp, vertical = 6.dp)
             )
         }
     }
+}
+
+/** 백업 카드의 작은 버튼 — 자주 하는 일이 아니라 크게 둘 이유가 없다. (2026-09-22) */
+@Composable
+private fun BackupBtn(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primaryText,
+        modifier = Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(AppTheme.colors.primaryBg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 9.dp)
+    )
 }
 
 /**
@@ -4072,24 +4064,10 @@ private fun SetupCheckCard(
     val all = doneN == total
     var collapsed by remember { mutableStateOf(true) }
 
-    if (all && collapsed) {
-        val checkInteraction = remember { MutableInteractionSource() }
-        Row(
-            Modifier.fillMaxWidth()
-                .pressScale(checkInteraction)
-                .tossCardShadow(RoundedCornerShape(12.dp))
-                // 다 끝난 안내는 **조용해야 한다.** 전엔 초록이라, 할 일이 없는 줄이 화면 위쪽에서
-                //   제일 밝았다. 누르면 지금처럼 다시 펼쳐진다. (2026-09-20 사장님)
-                .clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surface)
-                .clickable(interactionSource = checkInteraction, indication = null) { collapsed = false }.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("시작 준비 다 됐어요 ($doneN/$total)", fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                color = TossTextTertiary, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
-        }
-        return
-    }
+    // 다 끝나면 **아예 안 띄운다.** (2026-09-22 사장님)
+    //   전엔 "시작 준비 다 됐어요 (5/5)" 한 줄이 남았는데, **할 일이 없는 줄**이 화면 위쪽에서
+    //   카드 하나를 계속 먹었다. 여기 있던 항목은 전부 설정 안에서 따로 열 수 있다.
+    if (all && collapsed) return
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {

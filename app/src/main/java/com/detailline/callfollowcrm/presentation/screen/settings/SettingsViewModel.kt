@@ -164,7 +164,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
         // 첫날에도 **못 한다고 말하지 않는다** — 실력은 처음부터 높고, 모르는 건 '사장님 스타일' 하나뿐.
         val line = when {
-            tonePct >= 80 -> "사장님 말투, 이제 거의 다 외웠어요!"
+            tonePct >= 80 -> "사장님 말투, 이제 거의 다 외웠어요"
             tonePct >= 40 -> "사장님 말투를 부지런히 익히는 중이에요"
             tonePct >= 1 -> "사장님 말투를 막 익히기 시작했어요"
             else -> "상담이랑 일정은 오늘부터 제가 할게요"
