@@ -94,7 +94,7 @@ object IncomingCallOverlay {
                 currentNumber = number
                 if (currentView == null) actuallyShow(appCtx)
             }
-            onRinging(appCtx, number)
+            onRinging(appCtx, number, preview = true)
         }
     }
 
@@ -112,7 +112,7 @@ object IncomingCallOverlay {
     }
 
     /** 벨 울림 — 이 번호의 상대 정보 카드를 띄운다. 권한/토글 없으면 조용히 무시. */
-    fun onRinging(context: Context, rawNumber: String?) {
+    fun onRinging(context: Context, rawNumber: String?, preview: Boolean = false) {
         val appCtx = context.applicationContext
         val app = appCtx as? CallFollowCrmApplication ?: return
         val enabled = app.container.preferences.incomingCallerCardEnabled
@@ -126,8 +126,10 @@ object IncomingCallOverlay {
         android.util.Log.d(TAG, "onRinging: showing card")
 
         currentNumber = number
-        // 진짜 전화다 — 미리보기 딱지·닫기는 없앤다. (2026-09-22)
-        previewMode = false
+        // 🔴 여기서 무조건 previewMode = false 를 했더니, **[showPreview] 가 자기가 켠 걸 바로 껐다.**
+        //   showPreview 가 마지막에 이 함수를 부르기 때문이다 — 그래서 딱지도 [닫기]도 안 떴다.
+        //   (2026-09-22 폰에서 확인) → 진짜 전화(preview=false)일 때만 끈다.
+        if (!preview) previewMode = false
         // 우선 번호만으로 즉시 카드 표시(로딩) → 뒤이어 고객/일정/대화 채움.
         _state.value = CallerState(
             phoneNumber = number,
