@@ -1930,7 +1930,7 @@ private fun AutoLearningCard(
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                "어떤 상황에서 사장님이 그대로 보내는지, 어떤 상황은 개선이 필요한지 시공막내 가 직접 분석합니다.",
+                "어떤 상황에서 사장님이 그대로 보내는지, 어떤 건 손봐야 하는지 막내가 알아서 봐요.",
                 fontSize = 11.sp,
                 color = TossTextSecondary
             )
@@ -3065,7 +3065,7 @@ private fun OwnerToneCard(sampleCount: Int) {
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "AI 가 답변 추천을 만들 때 사장님이 평소 보낸 메시지를 함께 참고해서, 봇 답변이 아니라 사장님 본인이 쓴 것처럼 자연스러운 답을 만들어요.",
+                "막내가 답변 추천을 만들 때 사장님이 평소 보낸 문자를 같이 봐서, 로봇 답이 아니라 사장님이 쓴 것처럼 만들어요.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TossTextSecondary
             )
@@ -3225,7 +3225,8 @@ private fun OwnerToneRagCard(
             } else {
                 // 동의 전 — 첫 진입
                 Text(
-                    "동의하면 사장님이 보낸 메시지 ${formatThousands(available)}건이 자체 Mac mini 서버 (사장님 본인 데이터, 외부 전송 X) 로 전송돼요.",
+                    // "Mac mini" 는 개발 장비 이름이다. 사장님 화면에 있을 말이 아니다. (2026-09-22)
+                    "동의하면 사장님이 보낸 문자 ${formatThousands(available)}건을 사장님 전용 서버에 올려 말투를 배워요. 밖으로는 안 나가요.",
                     fontSize = 11.sp,
                     color = TossTextTertiary
                 )
@@ -4251,7 +4252,7 @@ private fun ToneLearnProtoSection(
                     Text("$sent / $totalN 건 학습 중…", fontSize = 11.sp, color = TossTextSecondary)
                 }
                 ragUploadedCount == 0 && !ragConsented -> {
-                    Text("동의하면 보낸 문자 ${formatThousands(ragAvailable)}건이 사장님 전용 서버로 올라가 말투를 배워요. (외부 전송 X)",
+                    Text("동의하면 보낸 문자 ${formatThousands(ragAvailable)}건을 사장님 전용 서버에 올려 말투를 배워요. 밖으로는 안 나가요.",
                         fontSize = 11.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
                     TossPrimaryButton(text = "동의하고 학습 시작", onClick = onConsentAndUpload)
@@ -4327,7 +4328,7 @@ private fun ToneLearnProtoSection(
         ToneInputDialog(
             title = "꼭 쓰는 인사말",
             sub = "답장 끝에 자동으로 붙일 시그니처예요.",
-            placeholder = "편하게 문의주세요!",
+            placeholder = "편하게 물어보세요",
             initial = signature,
             onDismiss = { showSignatureDialog = false },
             onConfirm = { v -> signature = v.trim(); prefs.toneSignature = v.trim(); showSignatureDialog = false }

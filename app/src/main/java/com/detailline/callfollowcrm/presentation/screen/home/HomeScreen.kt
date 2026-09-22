@@ -555,7 +555,7 @@ fun HomeScreen(
                 ) {
                     com.detailline.callfollowcrm.presentation.theme.AiMark(Color.White, 15.dp, 6.dp)
                     Text(
-                        if (updateDateLabel.isNotBlank()) "${updateDateLabel} 새 버전이 나왔어요!" else "새 버전이 나왔어요!",
+                        if (updateDateLabel.isNotBlank()) "${updateDateLabel} 새 버전이 나왔어요" else "새 버전이 나왔어요",
                         color = Color.White, fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
                     // 버튼은 둥근 네모(12). 알약 버튼을 만들지 않는다. (2026-09-20 사장님)
@@ -3043,7 +3043,7 @@ private fun CompletionDialog(
                 .padding(20.dp)
         ) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()  // 다이얼로그 키보드 가림 방지(갤S9)
-            Text("시공 완료 · 고생하셨습니다!", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text("시공 끝 · 고생하셨어요", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text(subtitle, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlueDark)
             Spacer(Modifier.height(14.dp))
@@ -3861,7 +3861,7 @@ private fun CategoryAddDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
-                    "이름만 적으면 AI 가 대화 내용 보고 알아서 분류해드려요.",
+                    "이름만 적으면 막내가 대화 내용 보고 알아서 나눠드려요.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossTextSecondary
                 )
@@ -4581,7 +4581,8 @@ private fun WaitingEmptyMascot(newUser: Boolean = false) {
                 ) {
                     Text(
                         // 완전 신규(대화 이력 0)에게 "다 끝냈어요"는 앞뒤가 안 맞음 → 환영 문구로 분기. 기존 문구(프로토)는 그대로.
-                        if (newUser) "사장님, 잘 부탁드려요! 👋" else "사장님, 오늘 상담 다 끝냈어요! 👏",
+                        // 👏 👋 도 뺐다 — 폰마다 다르게 그려진다(앱 전체 규칙). (2026-09-22 사장님)
+                        if (newUser) "사장님, 오늘도 잘 부탁드려요" else "사장님, 오늘 상담 다 끝냈어요",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TossBlueDark

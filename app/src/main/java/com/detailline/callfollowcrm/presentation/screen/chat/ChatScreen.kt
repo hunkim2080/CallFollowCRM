@@ -1437,7 +1437,7 @@ fun ChatScreen(
         if (p.phone.filter { it.isDigit() }.takeLast(8) == mySuffix) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { com.detailline.callfollowcrm.recording.CallSummaryReprompt.answer(false) },
-                title = { Text("이미 처리된 통화내용입니다") },
+                title = { Text("이미 처리한 통화예요") },
                 text = { Text("다시 요약해드릴까요?") },
                 confirmButton = {
                     androidx.compose.material3.TextButton(
@@ -2373,7 +2373,7 @@ private fun CallSegment(
                         Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
                             .background(AppTheme.colors.bg).padding(12.dp)
                     ) {
-                        Text("통화 녹음을 연결하면 요약된 내용을 확인할 수 있어요!",
+                        Text("통화 녹음을 연결하면 요약까지 해드려요",
                             color = TossTextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
                         Spacer(Modifier.height(8.dp))
                         Box(
@@ -5413,7 +5413,7 @@ private fun SendConfirmDialog(
         ) {
             SheetGrabber()
             Text(
-                "$recipient 에게 보낼까요?",
+                "${recipient}님에게 보낼까요?",
                 color = TossTextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp
             )
             Spacer(Modifier.height(14.dp))

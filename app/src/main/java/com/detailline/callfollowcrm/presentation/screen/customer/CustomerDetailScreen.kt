@@ -1546,7 +1546,7 @@ fun CustomerDetailScreen(
             if (detailTab == 3) androidx.compose.foundation.layout.Row(
                 Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White)
                     .clickable {
-                        android.widget.Toast.makeText(bottomCtx, "블로그 후기 글 만들기는 비즈니스 요금제 기능이에요. 곧 제공돼요!", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(bottomCtx, "블로그 후기 글 만들기는 비즈니스 요금제 기능이에요. 곧 열려요", android.widget.Toast.LENGTH_SHORT).show()
                     }
                     .padding(16.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -1855,7 +1855,7 @@ fun CustomerDetailScreen(
     // 예약 확정 축하 오버레이 — Scaffold 위에 떠서 콘페티 + 메시지 표시. 2.5초 뒤 자동 닫힘.
     if (celebrationVisible) {
         CelebrationOverlay(
-            title = "예약 확정!",
+            title = "예약 잡았어요",
             subtitle = "축하해요 🎉",
             onFinished = { celebrationVisible = false }
         )
@@ -3635,7 +3635,7 @@ private fun CategoryNameInputDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
-                    "이름만 적으면 AI 가 대화 내용 보고 알아서 분류해드려요.",
+                    "이름만 적으면 막내가 대화 내용 보고 알아서 나눠드려요.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossTextSecondary
                 )
@@ -4123,7 +4123,7 @@ private fun CollabAfterCard(
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
             Text("이 기록은 계속 남아요", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
             Spacer(Modifier.height(5.dp))
-            Text("사진·메모·진행 기록은 이 고객 정보에 영구 보관돼요. 3개월 뒤 고객이 또 연락해도 이걸 바로 꺼내 보고 응대할 수 있어요. 협업을 해제해도 안 지워집니다.",
+            Text("사진·메모·진행 기록은 이 고객 정보에 영구 보관돼요. 3개월 뒤 고객이 또 연락해도 이걸 바로 꺼내 보고 응대할 수 있어요. 협업을 풀어도 안 지워져요.",
                 fontSize = 12.sp, color = Color(0xFF3A4A66), lineHeight = 18.sp)
         }
         Spacer(Modifier.height(10.dp))
@@ -4372,7 +4372,7 @@ private fun CollabShareSheet(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(4.dp))
-                Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 됩니다.", fontSize = 11.sp, color = TossTextTertiary)
+                Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 돼요.", fontSize = 11.sp, color = TossTextTertiary)
 
                 // 출근 시간 — 상대 사장님이 "몇 시까지 가면 되는지" 알게. 정시 칩으로 빠르게.
                 Spacer(Modifier.height(14.dp))
@@ -4395,7 +4395,7 @@ private fun CollabShareSheet(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     if (startHour in 0..23) "출발 2시간 전에 상대 사장님께 '오늘 ${hourLabel(startHour)} ○○ 현장' 알림이 가요."
-                    else "정하면 상대 사장님께 시작 시간이 보여요. 안 정해도 됩니다.",
+                    else "정하면 상대 사장님께 시작 시간이 보여요. 안 정해도 돼요.",
                     fontSize = 11.sp, color = TossTextTertiary
                 )
 

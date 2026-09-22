@@ -1335,7 +1335,7 @@ class ChatViewModel(
                         // 왜 안 되는지를 말해준다 — "실패" 한 마디면 고장으로 오해한다. (2026-09-18 사장님)
                         _toast.value = when {
                             e is com.detailline.callfollowcrm.ai.RefineQuotaException && e.daily ->
-                                "오늘 다듬기 한도를 다 썼어요 — 내일 다시 됩니다"
+                                "오늘 다듬기를 다 썼어요 — 내일 다시 돼요"
                             e is com.detailline.callfollowcrm.ai.RefineQuotaException ->
                                 "다듬기가 잠깐 몰렸어요 — 1분 뒤 다시 해보세요"
                             else ->
