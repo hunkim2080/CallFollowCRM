@@ -10805,3 +10805,13 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - 달력 칸에 지역명 띠 (색=종류, 글자=어디). 여러날은 첫날만 글자, 칸 높이 52→62dp 균일
 - ⊕ 메뉴 A2안: 네모 빼고 아이콘만 색(파랑/보라/초록) + 뒤 어둡게
   ⚠️ 네모를 되살리지 말 것 — 넓은 면의 색은 앱에서 '상태 딱지'로 읽힌다
+
+## 2026-09-22 16:10 · android
+전화 올 때 뜨는 팝업 — 밝은 바탕으로 + 다이어트 + 신규 크게, 안 쓰던 카드 삭제
+- 변경: `IncomingCallOverlay.kt` 한 파일. CallerState 에 `moneyOwed: Boolean` 한 칸 추가(기본 false).
+  `moneyLabelOf` 가 '아직 받을 돈'을 먼저 돌려줌 — 세는 규칙은 `SettlementCalc.rowOf().outstanding`,
+  마감 브리핑과 같이 **시공 끝난 건(workCompletedAt != null)만**.
+- 삭제: 안 불리던 `IncomingCallCard(@Composable)` + 팔레트 5개 + `paletteFor` + `OverlayLifecycleOwner`
+  + Compose/lifecycle/savedstate import 54개. (서버·다른 화면과 무관)
+- commit: 145ff783
+- ⚠️ 폰 검증 못 함 — 테스트폰이 안 꽂혀 있었음. 확인법: 설정 > '카드 미리보기' 버튼.
