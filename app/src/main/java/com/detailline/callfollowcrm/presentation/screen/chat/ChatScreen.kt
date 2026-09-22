@@ -8,6 +8,8 @@ import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.outlined.Info
@@ -1203,16 +1205,17 @@ fun ChatScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            "📌 사용 방법\n" +
+                            // 📌 🔖 💡 를 뺐다 — 안내 글에 그림문자가 섞이면 읽는 흐름이 끊긴다. (2026-09-22 사장님)
+                            "사용 방법\n" +
                                 "채팅 말풍선을 길~게 누르면 메뉴가 떠요.\n" +
-                                "‘🔖 저장’ 누르면 여기에 모아 보여드려요.\n" +
+                                "‘저장’ 누르면 여기에 모아 보여드려요.\n" +
                                 "‘복사’ 도 같이 있어요.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TossTextSecondary,
                             lineHeight = 18.sp
                         )
                         Text(
-                            "💡 언제 쓰면 좋나요\n" +
+                            "언제 쓰면 좋나요\n" +
                                 "약속 시각, 견적 금액, 분쟁 시 증거가 될 메시지 등 나중에 다시 찾고 싶은 내용.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TossTextTertiary,
@@ -3464,9 +3467,11 @@ private fun TradeAskCard(
                 fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                 modifier = Modifier.weight(1f)
             )
-            Text(
-                "✕", fontSize = 13.sp, color = TossTextTertiary,
-                modifier = Modifier.clickable(onClick = onDismiss).padding(start = 8.dp, end = 2.dp)
+            // 글자 ✕ 대신 앱이 그리는 닫기 아이콘. (2026-09-22 사장님)
+            Icon(
+                Icons.Default.Close, "닫기", tint = TossTextTertiary,
+                modifier = Modifier.clickable(onClick = onDismiss)
+                    .padding(start = 8.dp, end = 2.dp).size(26.dp)
             )
         }
         Spacer(Modifier.height(3.dp))
@@ -3617,7 +3622,9 @@ private fun SuggestionArea(
                     )
                     CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(9.dp))
-                    Text("✕ 중지", color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
+                    Icon(Icons.Default.Close, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("중지", color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
                 }
             } else if (showGenerate) {
                 // '받기' 띠 — 탭하면 생성 시작(onRegenerate). 미리 안 만들어 비용 절감. 끝나면 자동 펼침(호출부 expanded=true). (2026-08-14 사장님)
@@ -3796,11 +3803,12 @@ private fun PrincipleDiscoveryCard(
             onDismiss()
         }
         val style = when (discovery.resolved) {
-            PrincipleResolved.OK -> ResolvedStyle("✅", "기억했어요! 막내가 사장님을 하나 더 알게 됐어요 🌱",
+            // 이모지(✅ 🙇 ⏭️ 🌱)를 앱이 그리는 아이콘으로. 폰마다 다르게 그려졌다. (2026-09-22 사장님)
+            PrincipleResolved.OK -> ResolvedStyle(Icons.Default.CheckCircle, "기억했어요! 막내가 사장님을 하나 더 알게 됐어요",
                 AppTheme.colors.doneBg, Color(0xFF0A7D72), Color(0xFFBFE7E1))
-            PrincipleResolved.NO -> ResolvedStyle("🙇", "알겠어요, 잊을게요. 더 지켜보고 다시 배울게요.",
+            PrincipleResolved.NO -> ResolvedStyle(Icons.Default.Close, "알겠어요, 잊을게요. 더 지켜보고 다시 배울게요.",
                 AppTheme.colors.bg, TossTextSecondary, lineColor)
-            PrincipleResolved.LATER -> ResolvedStyle("⏭️", "다음에 또 보이면 그때 여쭤볼게요.",
+            PrincipleResolved.LATER -> ResolvedStyle(Icons.Default.Schedule, "다음에 또 보이면 그때 여쭤볼게요.",
                 AppTheme.colors.bg, TossTextSecondary, lineColor)
         }
         Row(
@@ -3814,7 +3822,7 @@ private fun PrincipleDiscoveryCard(
                 .padding(15.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Text(style.emoji, fontSize = 18.sp)
+            Icon(style.icon, null, tint = style.fg, modifier = Modifier.size(19.dp))
             Spacer(Modifier.width(9.dp))
             Text(style.msg, color = style.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 20.sp)
         }
@@ -3847,7 +3855,8 @@ private fun PrincipleDiscoveryCard(
         Text(q, color = TossTextPrimary, fontSize = 14.5.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(7.dp))
         Text(
-            "맞으면 앞으로 막내가 이렇게 답해요. (아니면 ❌ 눌러요)",
+            // "(아니면 ❌ 눌러요)" 를 뺐다 — 버튼에 이미 [아니에요] 라고 적혀 있다. (2026-09-22 사장님)
+            "맞으면 앞으로 막내가 이렇게 답해요.",
             color = TossTextTertiary, fontSize = 11.5.sp, lineHeight = 16.sp
         )
         Spacer(Modifier.height(14.dp))
@@ -3860,7 +3869,14 @@ private fun PrincipleDiscoveryCard(
                     .clickable(onClick = onAccept)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("⭕ 맞아요", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+            ) {
+                // ⭕ ❌ 는 폰마다 크기가 제각각이라 두 버튼 높이가 어긋나 보였다. (2026-09-22 사장님)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("맞아요", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
             Box(
                 Modifier
                     .weight(1f)
@@ -3870,7 +3886,7 @@ private fun PrincipleDiscoveryCard(
                     .clickable(onClick = onReject)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("❌ 아니에요", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+            ) { Text("아니에요", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
             Box(
                 Modifier
                     .weight(0.7f)
@@ -3886,7 +3902,7 @@ private fun PrincipleDiscoveryCard(
 }
 
 private data class ResolvedStyle(
-    val emoji: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val msg: String,
     val bg: Color,
     val fg: Color,
@@ -5908,9 +5924,10 @@ private fun EstimateBuilderDialog(
                             visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
                         )
                     }
-                    Text(
-                        "✕", fontSize = 17.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 8.dp).clickable { customItems.removeAt(idx) }
+                    Icon(
+                        Icons.Default.Close, "지우기", tint = TossTextTertiary,
+                        modifier = Modifier.padding(start = 8.dp)
+                            .clickable { customItems.removeAt(idx) }.size(20.dp)
                     )
                 }
             }
@@ -6076,7 +6093,7 @@ private fun EstimateItemRow(
                         .clickable(onClick = onToggle),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (checked) Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    if (checked) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(15.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 if (editingTitle) {
@@ -6104,8 +6121,8 @@ private fun EstimateItemRow(
                             }
                         )
                     }
-                    Text("✓", fontSize = 17.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                    Icon(Icons.Default.Check, "다 썼어요", tint = TossBlue, modifier = Modifier.size(21.dp)
+                        .clip(RoundedCornerShape(8.dp)).clickable {
                             onEditTitle(draftT.text); editingTitle = false; keyboard?.hide()
                         }.padding(horizontal = 7.dp, vertical = 4.dp))
                 } else {
@@ -6163,9 +6180,9 @@ private fun EstimateItemRow(
                 }
                 Spacer(Modifier.width(2.dp))
                 Text(if (isPyeong) "만원/평" else "만원", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
-                Text(
-                    "✓", fontSize = 17.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                Icon(
+                    Icons.Default.Check, "다 썼어요", tint = TossBlue,
+                    modifier = Modifier.size(21.dp).clip(RoundedCornerShape(8.dp)).clickable {
                         editingPrice = false   // 값은 입력 즉시 이미 반영됨 — ✓ 는 편집칸 닫기/키보드 내리기.
                         keyboard?.hide()
                     }.padding(horizontal = 7.dp, vertical = 4.dp)

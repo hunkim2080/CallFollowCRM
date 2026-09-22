@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.HomeWork
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.CheckCircle
@@ -2051,7 +2052,8 @@ private fun CompletedHeroJobCard(
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
-            Text("오늘 시공 완료 ✓", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.textHint)
+            // ✓ 는 바로 왼쪽 동그라미 안 체크 아이콘이 이미 하는 말이다. (2026-09-22)
+            Text("오늘 시공 완료", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.textHint)
             Text(
                 name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6B7280),
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -2162,7 +2164,7 @@ private fun CollabHeroJobCard(
             }
             HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(s.ownerPhone) }
             if (isCompleted) {
-                HeroBtn("완료됨 ✓", Icons.Default.CheckCircle, light = false, modifier = Modifier.weight(1f)) {}
+                HeroBtn("완료됨", Icons.Default.CheckCircle, light = false, modifier = Modifier.weight(1f)) {}
             } else {
                 HeroBtn("완료", Icons.Default.CheckCircle, light = false, modifier = Modifier.weight(1f)) { onComplete(s) }
             }
@@ -2233,7 +2235,8 @@ private fun TodayBand(
                     val addr = target.address?.trim()?.takeIf { it.isNotBlank() }
                     BandShell(
                         bg = Color(0xFF0B7C5E), fg = Color.White, subFg = Color(0xFFA8E6CE),
-                        icon = "🔨",
+                        // 🔨 → 앱이 그리는 아이콘. 이 띠의 다른 네 경우는 이미 iconVector 를 쓴다. (2026-09-22)
+                        icon = "", iconVector = Icons.Default.HomeWork,
                         line1 = buildString {
                             append(timeText)
                             if (passed) append(" (지났어요)")
@@ -2266,7 +2269,7 @@ private fun TodayBand(
                 } else if (doneToday) {
                     BandShell(
                         bg = AppTheme.colors.doneBg, fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
-                        icon = "✅", border = Color(0xFFA8E6C9),
+                        icon = "", iconVector = Icons.Default.CheckCircle, border = Color(0xFFA8E6C9),
                         line1 = "오늘 시공 끝났어요",
                         line2 = next?.let { nextLine(it) } ?: "다음 시공은 아직 없어요",
                         action = null, onAction = {}, onTap = onOpenSchedule
@@ -2872,7 +2875,7 @@ private fun CollabSettleCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("협업 작업 완료 ✅", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Text("협업 작업 완료", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 Text(
                     "${bossLabel(up.partnerName)} · ${up.timeLabel}",
                     fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
@@ -3145,7 +3148,7 @@ private fun OutstandingCard(
                     )
                 } else {
                     Text(
-                        "못 받은 돈 없어요 👍",
+                        "다 받으셨어요",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossSuccess
@@ -3234,7 +3237,7 @@ private fun RemindCard(
                                 .clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
                                 .clickable { editing = false; kb?.hide() }
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) { Text("✓ 수정 완료", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
+                        ) { Text("수정 완료", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
                     }
                     LaunchedEffect(Unit) { editFocus.requestFocus(); kb?.show() }
                 } else {
@@ -3273,17 +3276,19 @@ private data class TeamUpdateStyle(
 
 // ⚠️ @Composable 이 아니라 AppTheme.colors 를 못 읽는다 → 밝은 화면 값을 직접(앱은 밝은 화면 고정).
 private fun teamUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
-    "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "팀원 현장 도착 📍", "도착")
-    "completed" -> TeamUpdateStyle(LightColors.category, LightColors.categoryBg, Icons.Default.CheckCircle, "작업 완료 ✅", "작업 완료")
-    "note" -> TeamUpdateStyle(LightColors.caution, LightColors.cautionBg, Icons.Default.Edit, "현장 메모 📝", "")
-    else -> TeamUpdateStyle(TossSuccess, LightColors.doneBg, Icons.Default.Navigation, "팀원 출발 🚗", "출발")
+    // 제목 끝 이모지(📍 ✅ 📝 🚗)를 뺐다 — **바로 왼쪽 아이콘이 이미 하는 말**이라 같은 걸 두 번 했다.
+    //   이모지는 폰마다 다르게 그려지기도 한다. (2026-09-22 사장님)
+    "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "팀원 현장 도착", "도착")
+    "completed" -> TeamUpdateStyle(LightColors.category, LightColors.categoryBg, Icons.Default.CheckCircle, "작업 완료", "작업 완료")
+    "note" -> TeamUpdateStyle(LightColors.caution, LightColors.cautionBg, Icons.Default.Edit, "현장 메모", "")
+    else -> TeamUpdateStyle(TossSuccess, LightColors.doneBg, Icons.Default.Navigation, "팀원 출발", "출발")
 }
 
 // ⚠️ 위와 같은 이유로 LightColors 직접.
 private fun collabUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
-    "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "협업 현장 도착 📍", "도착")
-    "completed" -> TeamUpdateStyle(LightColors.category, LightColors.categoryBg, Icons.Default.CheckCircle, "협업 작업 완료 ✅", "작업 완료")
-    else -> TeamUpdateStyle(TossSuccess, LightColors.doneBg, Icons.Default.Navigation, "협업 현장 출발 🚗", "출발")
+    "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "협업 현장 도착", "도착")
+    "completed" -> TeamUpdateStyle(LightColors.category, LightColors.categoryBg, Icons.Default.CheckCircle, "협업 작업 완료", "작업 완료")
+    else -> TeamUpdateStyle(TossSuccess, LightColors.doneBg, Icons.Default.Navigation, "협업 현장 출발", "출발")
 }
 
 @Composable

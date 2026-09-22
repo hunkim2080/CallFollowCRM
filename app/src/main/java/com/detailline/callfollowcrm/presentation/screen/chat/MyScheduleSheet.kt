@@ -201,7 +201,7 @@ fun MyScheduleSheet(
                     Spacer(Modifier.height(if (jobsForSelected.isEmpty()) 7.dp else 12.dp))
                     if (jobsForSelected.isEmpty()) {
                         Text(
-                            if (day < todayStart) "이 날은 시공이 없었어요" else "이 날 비어있어요 — 약속 잡기 좋아요 👍",
+                            if (day < todayStart) "이 날은 시공이 없었어요" else "이 날 비어있어요 — 약속 잡기 좋아요",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (day < todayStart) TossTextTertiary else TossSuccess,
                             fontWeight = FontWeight.Medium

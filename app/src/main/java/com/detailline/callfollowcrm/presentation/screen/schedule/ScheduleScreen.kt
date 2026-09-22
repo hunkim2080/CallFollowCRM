@@ -2133,7 +2133,7 @@ private fun AssignTeamSheet(
                                     .clickable { selectedDays = if (on) (selectedDays - dayMs).ifEmpty { selectedDays } else selectedDays + dayMs }
                                     .padding(horizontal = 13.dp, vertical = 8.dp)
                             ) {
-                                Text((if (on) "✓ " else "") + "$md($dow)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                Text((if (on) "● " else "") + "$md($dow)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
                                     color = if (on) Color.White else TossTextSecondary, maxLines = 1)
                             }
                         }
