@@ -423,12 +423,17 @@ object IncomingCallOverlay {
         // ⚠️ Compose 오버레이는 이 창(수동 lifecycle)에서 렌더가 안 됐음 — 창은 맨 위(z-order #7)인데
         //   화면캡처 결과 테두리가 하나도 안 그려짐(2026-08-31 실측). → 그냥 커스텀 View 로 Canvas 에 직접
         //   테두리를 그린다(뷰 시스템이 onDraw 를 확실히 호출). (사장님 — 최신폰 대응)
+        // 🛑 **채울 내용이 없으면 카드를 안 띄운다.** 빈 카드(상자만 있고 글씨 없음)가 뜨는 게
+        //   아무것도 안 뜨는 것보다 나쁘다 — 사장님이 "고장났나" 하신다. (2026-09-22 신고)
+        //   내용이 생기면 onRinging 쪽 post 가 다시 불러서 그때 뜬다.
+        val st0 = state.value
+        if (st0 == null) {
+            android.util.Log.w(TAG, "actuallyShow: state==null — 빈 카드는 안 띄운다")
+            return
+        }
         val view = CallerCardView(appContext) { onOpenRecord() }.apply {
-            // 🛑 bind 가 터지면 카드가 **글자 없이 빈 채로** 뜬다(상자만 보이고 글씨가 없음).
-            //   그때 원인을 알 수 있게 삼키고 기록한다. (2026-09-22 사장님 "전화 오니까 이렇게 떠")
-            val st0 = state.value
-            android.util.Log.d(TAG, "actuallyShow: state=${if (st0 == null) "null" else "loading=" + st0.loading}")
-            if (st0 != null) runCatching { bind(st0) }
+            // bind 가 터지면 글자 없는 카드가 된다. 그때 원인을 알 수 있게 삼키고 기록한다.
+            runCatching { bind(st0) }
                 .onFailure { android.util.Log.e(TAG, "bind FAILED (1st)", it) }
         }
 
