@@ -10873,3 +10873,10 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - 변경: UI만. CollabRecordViewModel.monthLabel 이 빈 값일 때 이번 달로 폴백(표시용).
 - commit: (아래 push 참조)
 - 다음 액션: 없음
+
+## 2026-09-22 23:20 · android
+일정 협업카드 · 자동으로챙기기 카드묶기 · 같이할사장님 시트(키보드 버그) · 이모지 24곳
+- 변경: UI + AddressExtractor.tidyAddress 가 말미 낱자(ㄱ~ㅎ,ㅏ~ㅣ)를 떼어냄.
+  ⚠️ tidyAddress 는 앱 전체 공용 — 단위테스트 AddressTidyTailTest 로 고정함.
+- commit: c5fc12b9 (+ da176224, 1b346c61, 6abbeb0c)
+- 다음 액션: 폰 연결되면 docs/PHONE_CHECK_TODO.md 부터 확인 (사장님 지시)
