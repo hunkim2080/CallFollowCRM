@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
@@ -123,26 +125,34 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                     Text(
                         "알림 종류를 눌러서 소리를 고르세요.",
                         fontSize = 13.sp, color = TossTextSecondary,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp)
                     )
                 }
-                item { SectionDivider() }
-                items(NotificationHelper.SOUND_SLOTS, key = { it.key }) { s ->
-                    val cur = selections[s.key] ?: s.defaultRes
-                    val curLabel = NotificationHelper.SOUND_OPTIONS.find { it.first == cur }?.second ?: "무음"
-                    Row(
-                        Modifier.fillMaxWidth().background(Color.White)
-                            .clickable { picking = s }
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // 🔴 전엔 줄이 **화면 양 끝까지 붙어** 있었다. 바로 위 방해금지는 여백을 두고 떠 있는데
+                //   아래 목록만 가장자리에 붙어, 한 화면에 두 규칙이 섞여 보였다. (2026-09-22 사장님)
+                item(key = "slot-card") {
+                    Column(
+                        Modifier.padding(horizontal = 16.dp).fillMaxWidth()
+                            .clip(AppShape.lg).background(Color.White)
                     ) {
-                        Text(s.label, fontSize = 15.sp, color = TossTextPrimary, modifier = Modifier.weight(1f))
-                        // 소리 이름은 **값**이다 — 검정으로. (2026-09-21 사장님)
-                        Text(curLabel, fontSize = 14.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+                        NotificationHelper.SOUND_SLOTS.forEachIndexed { idx, s ->
+                            if (idx > 0) RowDivider()
+                            val cur = selections[s.key] ?: s.defaultRes
+                            val curLabel = NotificationHelper.SOUND_OPTIONS.find { it.first == cur }?.second ?: "무음"
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clickable { picking = s }
+                                    .padding(horizontal = 16.dp, vertical = 15.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(s.label, fontSize = 15.sp, color = TossTextPrimary, modifier = Modifier.weight(1f))
+                                // 소리 이름은 **값**이다 — 검정으로. (2026-09-21 사장님)
+                                Text(curLabel, fontSize = 14.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+                            }
+                        }
                     }
-                    RowDivider()
                 }
                 item { Spacer(Modifier.height(24.dp)) }
             }
@@ -160,14 +170,21 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                 contentPadding = PaddingValues(vertical = 12.dp)
             ) {
                 item { GroupHeader("알림음") }
-                items(NotificationHelper.SOUND_OPTIONS.filter { it.first != "silent" }, key = { it.first }) { (res, label) ->
-                    SoundRow(label = label, selected = res == current, onClick = { choose(res) })
-                    RowDivider()
+                // 묶음 하나 = 카드 하나. 전엔 줄이 화면 끝까지 붙어 있었다. (2026-09-22 사장님)
+                item(key = "tone-card") {
+                    SoundCard {
+                        val tones = NotificationHelper.SOUND_OPTIONS.filter { it.first != "silent" }
+                        tones.forEachIndexed { idx, (res, label) ->
+                            if (idx > 0) RowDivider()
+                            SoundRow(label = label, selected = res == current, onClick = { choose(res) })
+                        }
+                    }
                 }
                 item { GroupHeader("기타") }
-                item {
-                    SoundRow(label = "무음", selected = current == "silent", onClick = { choose("silent") })
-                    RowDivider()
+                item(key = "silent-card") {
+                    SoundCard {
+                        SoundRow(label = "무음", selected = current == "silent", onClick = { choose("silent") })
+                    }
                 }
                 item {
                     Text(
@@ -246,10 +263,11 @@ private fun quietHourLabel(h: Int): String {
 
 @Composable
 private fun SoundRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    // 자기 흰 바탕을 버렸다 — 이제 [SoundCard] **안에 사는 줄**이다. (2026-09-22)
     Row(
-        Modifier.fillMaxWidth().background(Color.White)
+        Modifier.fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -278,9 +296,18 @@ private fun GroupHeader(text: String) {
 
 @Composable
 private fun RowDivider() {
-    Box(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp)) {
+    Box(Modifier.fillMaxWidth().padding(start = 16.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
     }
+}
+
+/** 묶음 하나 = 카드 하나. 줄들은 이 안에 산다. (2026-09-22 사장님) */
+@Composable
+private fun SoundCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(AppShape.lg).background(Color.White),
+        content = content
+    )
 }
 
 @Composable
