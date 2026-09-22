@@ -156,13 +156,27 @@ fun ScheduleScreen(
     val state by viewModel.state.collectAsState()
     val asList by viewModel.asScheduled.collectAsState()           // A/S 예약 고객(시공과 별개 흐름). (DB v43)
     val asDays by viewModel.asDayStarts.collectAsState()           // 캘린더 A/S 주황 점
-    val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
+    val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라 띠 (#7)
     val simpleEvents by viewModel.simpleEvents.collectAsState()    // 번호 없는 간단 일정 (2026-09-16)
     val simpleDays by viewModel.simpleDayStarts.collectAsState()   // 캘린더 회색 점
     val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "🤝 이름"
     val collabSites by viewModel.collabSites.collectAsState()
+    // 협업 현장에도 **주소가 있다**. 달력 칸에 지역명을 적으려고 날짜→지역명으로 바꿔둔다.
+    //   (2026-09-22 사장님 "협업도 주소지가 있는데 왜 이렇게 하니" — 내가 없다고 잘못 알았다.)
+    val collabRegions = remember(collabSites) {
+        collabSites.filter { it.scheduledAtMs > 0L }.associate { site ->
+            DateTimeUtils.startOfDay(site.scheduledAtMs) to
+                (com.detailline.callfollowcrm.util.RegionName.shortRegion(site.addr) ?: "협업")
+        }
+    }
+    val pendingRegions = remember(pendingCollabSites) {
+        pendingCollabSites.filter { it.scheduledAtMs > 0L }.associate { site ->
+            DateTimeUtils.startOfDay(site.scheduledAtMs) to
+                (com.detailline.callfollowcrm.util.RegionName.shortRegion(site.addr) ?: "요청")
+        }
+    }
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
@@ -358,6 +372,8 @@ fun ScheduleScreen(
                                         cells = monthCells.subList(week * 7, week * 7 + 7),
                                         selectedDayMs = selectedDayMs,
                                         collabDays = collabDays,
+                                        collabRegions = collabRegions,
+                                        pendingRegions = pendingRegions,
                                         pendingCollabDays = pendingCollabDays,
                                         asDays = asDays,
                                         simpleDays = simpleDays,
@@ -1036,6 +1052,8 @@ private fun CalendarWeekRow(
     cells: List<CalendarCell>,
     selectedDayMs: Long?,
     collabDays: Set<Long>,
+    collabRegions: Map<Long, String> = emptyMap(),
+    pendingRegions: Map<Long, String> = emptyMap(),
     pendingCollabDays: Set<Long>,
     asDays: Set<Long>,
     simpleDays: Set<Long>,
@@ -1048,6 +1066,8 @@ private fun CalendarWeekRow(
                 cell = cell,
                 isSelected = selectedDayMs == cell.dayStartMs,
                 isCollab = cell.dayStartMs in collabDays,
+                collabRegion = collabRegions[cell.dayStartMs],
+                pendingRegion = pendingRegions[cell.dayStartMs],
                 isPendingCollab = cell.dayStartMs in pendingCollabDays,
                 isAs = cell.dayStartMs in asDays,
                 isSimple = cell.dayStartMs in simpleDays,
@@ -1065,6 +1085,10 @@ private fun CalendarDay(
     cell: CalendarCell,
     isSelected: Boolean,
     isCollab: Boolean = false,
+    /** 협업 현장 지역명 — 없으면 "협업". */
+    collabRegion: String? = null,
+    /** 아직 응답 안 한 협업 요청의 지역명 — 없으면 "요청". */
+    pendingRegion: String? = null,
     isPendingCollab: Boolean = false,
     isAs: Boolean = false,
     /** 간단 일정(번호 없는 메모형)이 있는 날 — 회색 점. (2026-09-16 사장님) */
@@ -1094,8 +1118,9 @@ private fun CalendarDay(
     val lastLane = minOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), CAL_MAX_LANE) // 최대 3줄
     Box(
         modifier = modifier
-            // 52 → 62dp: 맨 윗줄을 **지역명 띠**(13dp)로 키운 만큼. 모든 칸이 같은 높이라야 행이 안 흐트러진다.
-            .height(62.dp)
+            // 모든 막대를 같은 13dp 띠로 통일 → 두 줄(26dp) + 날짜 원(32dp) + 사이(4dp) = 62, 여유 4 = 66dp.
+            //   ⚠️ 종류마다 높이를 다르게 하지 말 것 — 층이 어긋나 **깨져 보인다**. (2026-09-22 사장님)
+            .height(66.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1119,17 +1144,18 @@ private fun CalendarDay(
                         when {
                             // 막대는 날짜 동그라미 '밖(아래)' 흰 배경 위 → 선택돼도 흰색이면 안 보임(사장님 신고).
                             //   선택 여부와 무관하게 색 유지(협업=보라/지난=회색/다가올=초록).
-                            lane == pendingLane -> PendingCalBar()   // 응답 대기 협업 = 주황 + 은은한 깜빡임(눈길 끌기)
-                            lane == collabLane -> CalBar(BarSeg.SINGLE, AppTheme.colors.category)
+                            // 종류는 **색**으로만 가른다. 높이는 다 같아야 줄이 안 어긋난다.
+                            lane == pendingLane -> PendingCalBar(pendingRegion ?: "요청")
+                            lane == collabLane ->
+                                CalRegionBar(BarSeg.SINGLE, AppTheme.colors.category, collabRegion ?: "협업")
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
                                 if (bar != null) {
                                     val c = if (bar.past) TossTextTertiary else TossSuccess
-                                    // 맨 윗줄만 **지역명 띠**. 아랫줄까지 키우면 칸이 3배가 된다.
-                                    if (lane == 0) CalRegionBar(bar.seg, c, bar.label) else CalBar(bar.seg, c)
+                                    CalRegionBar(bar.seg, c, bar.label)
                                 } else {
                                     // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 막대가 가로로 이어지게.
-                                    Box(Modifier.fillMaxWidth().height(if (lane == 0) 13.dp else 4.dp))
+                                    Box(Modifier.fillMaxWidth().height(13.dp))
                                 }
                             }
                         }
@@ -1155,7 +1181,7 @@ private fun CalendarDay(
 /** 응답 대기 협업 막대 — 주황 + 은은한 깜빡임(알파 0.3↔1.0). "뭐지?" 하고 눈길 가서 탭하게. (2026-07-08 사장님)
  *   pending 칸에서만 렌더 → 애니메이션도 그 칸만 (전체 42칸 부하 없음). */
 @Composable
-private fun PendingCalBar() {
+private fun PendingCalBar(label: String) {
     val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pendingCollabPulse")
     val alpha by pulse.animateFloat(
         initialValue = 0.3f,
@@ -1166,7 +1192,7 @@ private fun PendingCalBar() {
         ),
         label = "pendingCollabAlpha"
     )
-    CalBar(BarSeg.SINGLE, TossWarning.copy(alpha = alpha))
+    CalRegionBar(BarSeg.SINGLE, TossWarning.copy(alpha = alpha), label)
 }
 
 /** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
@@ -1560,7 +1586,8 @@ private fun koreanMonthDay(ms: Long): String =
 
 /** 캘린더 막대 한 칸 — 일정 1건 = 막대 1줄(lane). 여러 날 시공은 START/MID/END 로 이어 그림. (프로토 jbar) */
 /** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~2 = 최대 3줄). 칸 렌더러와 반드시 같은 값. */
-private const val CAL_MAX_LANE = 2
+// 막대가 13dp 띠가 되면서 3줄은 칸이 너무 커진다 → 2줄(lane 0~1).
+private const val CAL_MAX_LANE = 1
 
 /** 달력 막대 모서리 — 여러 날 시공이 가로로 이어져 보이게 끝만 둥글린다. CalBar/CalRegionBar 공용. */
 private fun calBarShape(seg: BarSeg) = when (seg) {
