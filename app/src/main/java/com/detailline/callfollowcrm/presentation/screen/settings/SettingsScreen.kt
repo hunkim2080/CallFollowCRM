@@ -419,7 +419,7 @@ fun SettingsScreen(
                 //   항목은 하나도 안 없앴다. **자리만 옮겼다.**
                 SettingsGroup("자주 쓰는 것") {
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
-                        "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
+                        "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자", first = true) { subPage = "autosms" }
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
                         "자주 쓰는 문구 관리", onClick = onOpenTemplates)
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
@@ -427,7 +427,7 @@ fun SettingsScreen(
                 }
                 SettingsGroup("일이 생기면") {
                     LockRow(Icons.Filled.Group, AppTheme.colors.categoryBg, AppTheme.colors.category, "협업 현장",
-                        "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
+                        "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", first = true, onClick = onOpenCollabSites)
                     // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
                     LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
                         "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
@@ -438,7 +438,7 @@ fun SettingsScreen(
                 }
                 SettingsGroup("한 번 해두면 끝") {
                     LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보",
-                        "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
+                        "상호·대표·사업자번호·직인 · 견적서에 자동 표시", first = true, onClick = onOpenBusinessInfo)
                     LockRow(Icons.Filled.DateRange, TossBlueSoft, TossBlue, "구글 캘린더 연동",
                         "시공·A/S 일정을 구글 캘린더에") { subPage = "mirror" }
                     LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
@@ -469,7 +469,7 @@ fun SettingsScreen(
                 )
                 SettingsGroup("막히거나 이상하면") {
                     LockRow(Icons.Filled.Block, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "스팸 차단 번호",
-                        "스팸 등록한 번호 · 여기서 풀기", onClick = onOpenSpamList)
+                        "스팸 등록한 번호 · 여기서 풀기", first = true, onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "사생활 번호",
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고.
@@ -3776,7 +3776,15 @@ private fun SettingsGroup(label: String, content: @Composable () -> Unit) {
     Column {
         SectionLabel(label)
         Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+        // 🔴 묶음 하나 = **카드 한 장**. (2026-09-22 사장님 "정리 없이 나열된 느낌")
+        //   전엔 **줄마다 카드**라 17개가 각자 떠 있었다. 묶음 이름만 붙었을 뿐
+        //   줄끼리 묶여 보이지 않았다. 그림자도 17개였다.
+        Column(
+            Modifier.fillMaxWidth()
+                .tossCardShadow(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+        ) { content() }
     }
 }
 
@@ -3913,27 +3921,29 @@ private fun LockRow(
     subtitle: String? = null,
     tier: String? = null,
     locked: Boolean = false,
+    /** 묶음의 **첫 줄**이면 위 구분선을 안 긋는다. (2026-09-22) */
+    first: Boolean = false,
     onClick: () -> Unit
 ) {
     val rowInteraction = remember { MutableInteractionSource() }
+    // 자기 카드(그림자+흰 바탕)를 버렸다 — 이제 묶음 카드 **안에 사는 줄**이다.
+    if (!first) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
     Row(
         Modifier
             .fillMaxWidth()
             .pressScale(rowInteraction)
             .graphicsLayer { alpha = if (locked) 0.6f else 1f }
-            .tossCardShadow(RoundedCornerShape(18.dp))
-            .background(Color.White, RoundedCornerShape(18.dp))
             .clickable(interactionSource = rowInteraction, indication = null, onClick = onClick)
-            .padding(16.dp),
+            .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(42.dp).background(iconBg, RoundedCornerShape(13.dp)),
+            Modifier.size(36.dp).background(iconBg, RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = iconTint, modifier = Modifier.size(21.dp))
+            Icon(icon, null, tint = iconTint, modifier = Modifier.size(19.dp))
         }
-        Spacer(Modifier.width(13.dp))
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             if (!subtitle.isNullOrBlank()) {
