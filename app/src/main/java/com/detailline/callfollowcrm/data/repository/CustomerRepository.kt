@@ -33,15 +33,17 @@ class CustomerRepository(
      */
     private suspend fun mutate(id: Long, transform: (CustomerEntity) -> CustomerEntity?) {
         var moneyChanged = false
+        var addrChanged = false
         writeMutex.withLock {
             val c = dao.findById(id) ?: return@withLock
             val updated = transform(c) ?: return@withLock
             val saved = updated.copy(updatedAt = System.currentTimeMillis())
             dao.update(saved)
             moneyChanged = moneyOf(c) != moneyOf(saved)
+            addrChanged = c.address != saved.address
         }
         // 잠금 밖에서 — 고객 잠금과 건 갱신을 겹치지 않게.
-        if (moneyChanged) runCatching { mirrorMoneyToRepresentativeJob(id) }
+        if (moneyChanged || addrChanged) runCatching { mirrorToRepresentativeJob(id) }
     }
 
     /** 돈 5칸 묶음 — 이 중 하나라도 바뀌면 '건'에도 옮겨 적어야 한다. */
@@ -50,7 +52,7 @@ class CustomerRepository(
     )
 
     /**
-     * 고객 카드의 **돈**을 그 고객의 대표 건(jobs)에 밀어넣는다.
+     * 고객 카드의 **돈과 현장 주소**를 그 고객의 대표 건(jobs)에 밀어넣는다.
      *
      * 🔴 왜 필요한가 (2026-09-17 사장님: "잔금 다 받았다고 눌렀는데 못 받았다고 알람이 오네")
      *   Stage A 주석에 이렇게 적혀 있었다 — "일정 필드만 미러링한다. 돈은 기존처럼 고객 단위 유지.
@@ -58,19 +60,29 @@ class CustomerRepository(
      *   → 고객 카드엔 '받음'인데 건에는 안 받은 채로 남아 **잘못된 미수 알람**이 나갔다.
      *   [[reference_room_entity_index_must_match_migration]] 과 같은 뿌리: 출처를 옮길 땐 **딸린 값도 같이** 옮긴다.
      *
+     * 🔴 주소도 같이 (2026-09-22 사장님: "주소를 고덕으로 했다가 다시 수정했는데 일정에 주소가 안 바뀌네")
+     *   일정·달력은 **건의 주소를 먼저** 쓴다(ScheduleViewModel: `j.address ?: c.address`).
+     *   고객 카드만 고치면 건에 박힌 옛 주소가 계속 이긴다. 게다가 JobRepository.recomputeMirror 가
+     *   **건 → 고객** 방향으로 주소를 되쓰기 때문에, 돈을 찍거나 완료만 눌러도 방금 고친 주소가
+     *   **옛 주소로 되돌아간다.** 안 보이는 게 아니라 지워지는 것이다.
+     *   주소를 고치는 경로가 5군데라 여기 한 곳에서 막는다.
+     *
      * 대표 건 = recomputeMirror 와 **같은 규칙**(오늘 이후 가장 가까운 건, 없으면 가장 최근 건)이라야
      * 고객 카드가 보여주는 그 건에 찍힌다.
-     * 지난(아카이브된) 건의 돈은 안 건드린다 — 그건 그 시절 값이다.
+     * 지난(아카이브된) 건의 돈·주소는 안 건드린다 — 그건 그 시절 값이다.
      */
-    private suspend fun mirrorMoneyToRepresentativeJob(customerId: Long) {
+    private suspend fun mirrorToRepresentativeJob(customerId: Long) {
         val dao2 = jobDao ?: return
         val c = dao.findById(customerId) ?: return
         val jobs = dao2.scheduledByCustomerOnce(customerId)
         if (jobs.isEmpty()) return
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
         val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
-        if (moneyOf(c) == listOf(rep.totalAmount, rep.depositAmount, rep.depositPaidAt,
-                                 rep.balanceAmount, rep.balancePaidAt)) return
+        val addr = c.address?.trim()?.takeIf { it.isNotBlank() }
+        val sameMoney = moneyOf(c) == listOf(rep.totalAmount, rep.depositAmount, rep.depositPaidAt,
+                                             rep.balanceAmount, rep.balancePaidAt)
+        val sameAddr = rep.address?.trim()?.takeIf { it.isNotBlank() } == addr
+        if (sameMoney && sameAddr) return
         dao2.update(
             rep.copy(
                 totalAmount = c.totalAmount,
@@ -78,6 +90,7 @@ class CustomerRepository(
                 depositPaidAt = c.depositPaidAt,
                 balanceAmount = c.balanceAmount,
                 balancePaidAt = c.balancePaidAt,
+                address = addr,
                 updatedAt = System.currentTimeMillis()
             )
         )
@@ -291,7 +304,14 @@ class CustomerRepository(
      * 현장 주소 설정/변경/지움(null) — 사장님 수동 등록 (2026-05-28, DB v15).
      *   AddressExtractor 자동 추출보다 우선. 길찾기/§13 가 이 값을 1순위로 활용.
      */
-    suspend fun updateAddress(id: Long, address: String?) =
+    /**
+     * 현장 주소 저장. **같은 주소를 다시 저장해도 건(jobs)에 밀어넣는다.**
+     *   이미 어긋나 있던 건(고객=새 주소 / 건=옛 주소)을 고칠 길이 이것뿐이다 —
+     *   값이 안 바뀌면 mutate 가 미러를 안 돌리기 때문. (2026-09-22 사장님 신고 복구용)
+     */
+    suspend fun updateAddress(id: Long, address: String?) {
         mutate(id) { it.copy(address = address?.trim()?.takeIf { s -> s.isNotEmpty() }) }
+        runCatching { mirrorToRepresentativeJob(id) }
+    }
 
 }
