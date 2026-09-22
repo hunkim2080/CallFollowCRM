@@ -82,7 +82,7 @@ fun InlineDiagPrompt(
         Text(prompt, fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(7.dp))
         Text(
-            if (sending) "보내는 중…" else "🩺 $action",
+            if (sending) "보내는 중…" else "$action",
             fontSize = 13.sp, color = TossBlueDark, fontWeight = FontWeight.Bold
         )
     }

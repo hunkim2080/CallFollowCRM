@@ -164,13 +164,13 @@ object NotificationHelper {
     //    바꿀 땐 res/raw 에 파일이 실제로 있어야 함 — SoundSlotDefaultsTest 가 오타·누락을 잡는다.
     val SOUND_SLOTS = listOf(
         SoundSlot("new_inquiry", "신규 문의 문자", "sound_new_inquiry_2",
-            "📩 신규 문의", "처음 연락온 신규 고객 문자 — 바로 답장해요"),
+            "신규 문의", "처음 연락온 신규 고객 문자 — 바로 답장해요"),
         SoundSlot("reply", "고객 답장 문자", "sound_reply_sabu",
-            "📩 새 문자", "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"),
+            "새 문자", "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"),
         SoundSlot("auto_reply", "자동 응답 발송", "sound_auto_reply",
             "자동 응답 문자", "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"),
         SoundSlot("intake", "접수서 작성 완료", "sound_intake_arrived",
-            "📋 접수서 작성됨", "고객이 시공접수서를 작성하면 알려줘요"),
+            "접수서 작성됨", "고객이 시공접수서를 작성하면 알려줘요"),
         // 남은 리마인더 = 잔금 미수 · 현장 5km 도착 안내 · 본폰 일정공유 신청 · 팀원 소식(분리 예정).
         //   기본값 sound_auto_reply 는 사장님이 직접 고른 값 그대로.
         SoundSlot("reminder", "시공·정산 리마인더", "sound_auto_reply",
@@ -178,37 +178,37 @@ object NotificationHelper {
         // ── 리마인더에서 분리 (2026-07-15 사장님). 내일시공/마감브리핑은 사장님 전용 소리(내일시공은 2안).
         //    정기문자는 아직 소리 없음 → 기본 리마인더 소리 유지(사장님 "정기문자 빼고").
         SoundSlot("install_d1", "내일 시공 안내", "sound_install_d1",
-            "📅 내일 시공 안내", "시공 하루 전, 고객에게 안내 문자를 보낼지 알려줘요"),
+            "내일 시공 안내", "시공 하루 전, 고객에게 안내 문자를 보낼지 알려줘요"),
         SoundSlot("daily_brief", "마감 브리핑", "sound_daily_brief",
-            "🌙 마감 브리핑", "저녁에 오늘 하루를 정리해서 알려줘요"),
+            "마감 브리핑", "저녁에 오늘 하루를 정리해서 알려줘요"),
         SoundSlot("recurring", "정기문자", "sound_reminder",
-            "🔁 정기문자", "정기문자 보낼 때가 되면 알려줘요"),
+            "정기문자", "정기문자 보낼 때가 되면 알려줘요"),
         SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary_2",
-            "✨ 통화 요약 완료", "통화 내용 요약이 준비되면 알려줘요"),
+            "통화 요약 완료", "통화 내용 요약이 준비되면 알려줘요"),
         SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted",
-            "🤝 협업 수락", "상대 사장님이 협업을 수락하면 알려줘요"),
+            "협업 수락", "상대 사장님이 협업을 수락하면 알려줘요"),
         SoundSlot("collab_declined", "협업 거절", "sound_collab_declined_ppaenji",
             "협업 거절", "상대 사장님이 협업을 거절하면 알려줘요"),
         // ── 협업 현장 세분화 (2026-07-15 사장님) — 사장님이 만든 전용 소리가 기본값.
         //    요청/출발/완료는 2안씩 만드셔서 기본은 첫 안, 나머지는 목록(SOUND_OPTIONS)에서 고르면 됨.
         SoundSlot("collab_comment", "협업 현장 댓글·사진", "sound_collab_comment",
-            "💬 협업 현장 댓글·사진", "협업 사장님이 현장에 댓글을 달거나 사진을 올리면 알려줘요"),
+            "협업 현장 댓글·사진", "협업 사장님이 현장에 댓글을 달거나 사진을 올리면 알려줘요"),
         SoundSlot("collab_invite", "협업 요청 옴", "sound_collab_invite",
-            "🤝 협업 요청", "다른 사장님이 나에게 협업을 요청하면 알려줘요"),
+            "협업 요청", "다른 사장님이 나에게 협업을 요청하면 알려줘요"),
         SoundSlot("collab_departed", "협업 상대 출발", "sound_collab_departed",
-            "🚗 협업 상대 출발", "협업 사장님이 현장으로 출발하면 알려줘요"),
+            "협업 상대 출발", "협업 사장님이 현장으로 출발하면 알려줘요"),
         SoundSlot("collab_arrived", "협업 상대 도착", "sound_collab_arrived",
-            "📍 협업 상대 도착", "협업 사장님이 현장에 도착(또는 거의 도착)하면 알려줘요"),
+            "협업 상대 도착", "협업 사장님이 현장에 도착(또는 거의 도착)하면 알려줘요"),
         SoundSlot("collab_completed", "협업 작업 완료", "sound_collab_completed",
-            "✅ 협업 작업 완료", "협업 사장님이 현장 작업을 끝내면 알려줘요"),
+            "협업 작업 완료", "협업 사장님이 현장 작업을 끝내면 알려줘요"),
         SoundSlot("collab_ended", "협업 해제", "sound_collab_ended",
             "협업 해제", "상대가 협업을 해제하면 알려줘요 (기록은 남아요)"),
         SoundSlot("collab_paid", "협업 입금 완료", "sound_collab_paid",
-            "💰 협업 입금 완료", "협업 현장 정산 입금이 완료되면 알려줘요"),
+            "협업 입금 완료", "협업 현장 정산 입금이 완료되면 알려줘요"),
         // 일정이 바뀐 건데 댓글과 같은 소리가 나서 사장님이 "댓글 달렸나?" 로 오해했다. (2026-09-15 사장님 신고)
         //   기본값은 일정 느낌의 '내일시공' 소리 — 목록에서 바꿀 수 있다.
         SoundSlot("collab_reschedule", "협업 일정 변경", "sound_install_d1",
-            "📅 협업 일정 변경", "협업 현장의 시공 날짜·시간이 바뀌면 알려줘요"),
+            "협업 일정 변경", "협업 현장의 시공 날짜·시간이 바뀌면 알려줘요"),
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
     val SOUND_OPTIONS = listOf(
@@ -469,7 +469,7 @@ object NotificationHelper {
             // 문자함(고객 아님) 새 문자 — 조용히: 헤드업 X, 소리 X, 알림함에만 + 배지. (2026-07-11 사장님)
             if (manager.getNotificationChannel(CHANNEL_GENERAL_SMS) == null) {
                 manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_GENERAL_SMS, "🗂️ 문자함", NotificationManager.IMPORTANCE_LOW
+                    CHANNEL_GENERAL_SMS, "문자함", NotificationManager.IMPORTANCE_LOW
                 ).apply {
                     description = "고객이 아닌 문자(광고·인증·알림) — 조용히 알림함에만 표시"
                     setSound(null, null)
@@ -532,7 +532,7 @@ object NotificationHelper {
         val msg = "${name}님 · $dateLabel${timeLabel?.let { " $it" } ?: ""} · $address"
         showProtoPush(
             context, notifId, CHANNEL_INSTALL_D1, ACCENT_AMBER,
-            title = "📅 내일 시공 — 안내 문자 보낼까요?",
+            title = "내일 시공 — 안내 문자 보낼까요?",
             msg = msg,
             note = "무음 자동발송 안 해요 · 사장님이 확인하면 보내요",
             contentIntent = pending,
@@ -566,7 +566,7 @@ object NotificationHelper {
         )
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, ACCENT_AMBER,
-            title = "🔧 오늘 A/S 있어요",
+            title = "오늘 A/S 있어요",
             msg = "${name}님 · $whenLabel · $address · 무료",
             note = "시공과 별개인 A/S 예약이에요 (무료)",
             contentIntent = pending,
@@ -619,7 +619,7 @@ object NotificationHelper {
         val pending = appOpenPending(context, CALL_SUMMARY_CONSENT_ID)
         showProtoPush(
             context, CALL_SUMMARY_CONSENT_ID, CHANNEL_REMINDER, ACCENT_PINK,
-            title = "✨ 통화 요약이 꺼져 있어요",
+            title = "통화 요약이 꺼져 있어요",
             msg = "더보기 → 자동 문자 → '통화 자동 요약'을 켜면 다시 요약해드려요 (한 번만 확인하면 돼요)",
             contentIntent = pending,
             actions = listOf(PushAction("켜러 가기", pending))
@@ -651,7 +651,7 @@ object NotificationHelper {
         )
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
-            title = "📍 현장 도착 — 안내 문자 보낼까요?",
+            title = "현장 도착 — 안내 문자 보낼까요?",
             msg = "${name}님 현장 5km 안에 들어왔어요",
             note = "확인 후 보내요 · 무음 자동발송 아니에요",
             contentIntent = pending,
@@ -798,7 +798,7 @@ object NotificationHelper {
             "${homePhoneLabel}가 일정 공유를 신청했어요. 더보기 → 본폰에서 일정 보기에서 수락하세요."
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, ACCENT_BLUE,
-            title = "📩 일정 공유 신청",
+            title = "일정 공유 신청",
             msg = msg,
             contentIntent = pending,
             actions = listOf(PushAction("확인", pending))
@@ -830,7 +830,7 @@ object NotificationHelper {
         val where = siteTitle.ifBlank { "협업 현장" }
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_PURPLE,
-            title = "💬 협업 현장 새 댓글",
+            title = "협업 현장 새 댓글",
             msg = "${who}님 · ${where}: ${body.ifBlank { "(내용 없음)" }}",
             contentIntent = pending,
             actions = listOf(PushAction("댓글 보기", pending))
@@ -859,7 +859,7 @@ object NotificationHelper {
         val where = siteTitle.ifBlank { "협업 현장" }
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_BLUE,   // 댓글과 한 칸 (사장님 지시)
-            title = "📸 협업 현장 새 사진",
+            title = "협업 현장 새 사진",
             msg = "${who}님이 '${where}'에 현장 사진을 올렸어요",
             contentIntent = pending,
             actions = listOf(PushAction("사진 보기", pending))
@@ -886,7 +886,7 @@ object NotificationHelper {
         val site = title.takeIf { it.isNotBlank() } ?: "현장"
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
-            title = "🤝 협업 요청이 왔어요",
+            title = "협업 요청이 왔어요",
             msg = "${who}이 '${site}' 협업을 요청했어요. 눌러서 수락하기",
             contentIntent = pending,
             actions = listOf(PushAction("수락하러 가기", pending))
@@ -919,7 +919,7 @@ object NotificationHelper {
             // 소리 = 자동응답과 같은 칸 (사장님 지시 2026-07-15): 둘 다 "막내가 나 대신 해줬어요" 성격이라
             //   새 소리를 따로 만들지 않고 CHANNEL_AUTO_REPLY 를 그대로 쓴다.
             context, notifId, CHANNEL_AUTO_REPLY, ACCENT_GREEN,
-            title = "📍 사장님께 알려드렸어요",
+            title = "사장님께 알려드렸어요",
             msg = "${site} 3km 진입 · 자동으로 전송됐어요. 도착 버튼은 안 눌러도 돼요",
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
@@ -967,7 +967,7 @@ object NotificationHelper {
         val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_PAID, ACCENT_GREEN,
-            title = "💰 입금 완료",
+            title = "입금 완료",
             msg = "'${site}' 정산 입금이 완료됐어요",
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
@@ -989,7 +989,7 @@ object NotificationHelper {
         val room = roomName.takeIf { it.isNotBlank() } ?: "박람회"
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
-            title = "🔨 시공 배정",
+            title = "시공 배정",
             msg = "'${room}'에서 시공이 배정됐어요",
             note = "박람회 > 내 접수서함에서 확인하세요.",
             contentIntent = pending,
@@ -1032,7 +1032,7 @@ object NotificationHelper {
         }
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_RESCHEDULE, ACCENT_PURPLE,
-            title = "📅 협업 현장 일정 변경",
+            title = "협업 현장 일정 변경",
             msg = msg,
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
@@ -1070,7 +1070,7 @@ object NotificationHelper {
         } else CHANNEL_DAILY_BRIEF
         showProtoPush(
             context, BRIEF_ID, briefChannel, ACCENT_BLUE,
-            title = "🌙 오늘 하루 마감 브리핑",
+            title = "오늘 하루 마감 브리핑",
             msg = msg, note = note,
             contentIntent = pending,
             actions = listOf(PushAction("오늘 정리 보기", pending))
@@ -1083,7 +1083,7 @@ object NotificationHelper {
         val prefix = if (ruleNames.isNotBlank()) "$ruleNames · " else ""
         showProtoPush(
             context, RECUR_ID, CHANNEL_RECURRING, ACCENT_TEAL,
-            title = "🔁 오늘 정기 문자 보낼 고객 ${count}명",
+            title = "오늘 정기 문자 보낼 고객 ${count}명",
             msg = "${prefix}오늘 ${count}명 · 고객 이름은 자동으로 채워드려요 · 보내기 전에 한 번 봐주세요",
             contentIntent = pending,
             actions = listOf(PushAction("검토하고 보내기", pending))
@@ -1148,7 +1148,7 @@ object NotificationHelper {
      */
     fun showTodaySites(context: Context, count: Int, lines: List<String>, openPhone: String?) {
         if (lines.isEmpty()) { clearTodaySites(context); return }
-        val title = if (count <= 1) "🧭 오늘의 현장" else "🧭 오늘의 현장 ${count}곳"
+        val title = if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
         // 왜 안 지워지는지 + 언제 사라지는지 알려준다 — 상시(ongoing) 알림이라 스와이프로 안 지워져서
         //   안내가 없으면 "이거 왜 계속 있지?" 가 된다. (2026-07-15 사장님 "안내가 어디 있으면 좋을듯")
         val body = lines.joinToString("\n") + "\n\n잔금까지 받으면 자동으로 사라져요"
@@ -1202,7 +1202,7 @@ object NotificationHelper {
             id = MMS_FAIL_ID,
             channelId = CHANNEL_INCOMING_SMS,
             accent = ACCENT_AMBER,
-            title = "📷 사진이 깨져서 왔어요",
+            title = "사진이 깨져서 왔어요",
             msg = "두 번 받아봤는데 깨진 채로 와요.",
             note = "손님께 한 장씩 다시 보내달라고 하면 잘 올 거예요. 여러 장을 한 번에 보내면 통신사가 줄이면서 깨지기도 해요."
         )
@@ -1215,7 +1215,7 @@ object NotificationHelper {
             id = MMS_FAIL_ID,
             channelId = CHANNEL_INCOMING_SMS,
             accent = ACCENT_AMBER,
-            title = "📷 사진을 못 받았어요",
+            title = "사진을 못 받았어요",
             msg = "${who}이 보낸 사진(MMS)을 받지 못했어요.",
             note = "삼성 메시지 앱을 '기본 문자앱'으로 두면 사진이 잘 들어와요. 시공막내가 그 사진을 그대로 보여줘요."
         )
@@ -1251,7 +1251,7 @@ object NotificationHelper {
         }
         showProtoPush(
             context, notifId, CHANNEL_INTAKE, ACCENT_PURPLE,
-            title = "🎉 시공접수서 회신 도착",
+            title = "시공접수서 회신 도착",
             msg = msg,
             note = "📍 $address\n주소·시공일이 고객 카드에 자동 반영됐어요.",
             contentIntent = pending,
@@ -1333,7 +1333,7 @@ object NotificationHelper {
         )
         val replyAction = NotificationCompat.Action.Builder(
             R.drawable.ic_notification,
-            "💬 직접 답장",
+            "직접 답장",
             replyPending
         )
             .addRemoteInput(remoteInput)
@@ -1378,7 +1378,7 @@ object NotificationHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             builder.addAction(
-                NotificationCompat.Action.Builder(R.drawable.ic_notification, "📋 $code 복사", copyPending).build()
+                NotificationCompat.Action.Builder(R.drawable.ic_notification, "$code 복사", copyPending).build()
             )
         }
 
@@ -1448,7 +1448,7 @@ object NotificationHelper {
         //   비-슬롯 채널이라 평소엔 CHANNEL_POSTCALL 그대로. (2026-08-11 알림 감사)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_POSTCALL))
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("📩 ${who}님께 문자 보낼까요?")
+            .setContentTitle("${who}님께 문자 보낼까요?")
             .setContentText("보낼 문자를 고르면 확인 후 보낼 수 있어요")
             .setColor(NOTIFICATION_BG_COLOR)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -1535,7 +1535,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (isMissed) "📵 아직 답장 못 한 고객이 부재중 전화했어요" else "📞 아직 답장 못 한 고객이 다시 전화했어요"
+        val title = if (isMissed) "아직 답장 못 한 고객이 부재중 전화했어요" else "아직 답장 못 한 고객이 다시 전화했어요"
         val text = "${formatPhone(phoneNumber)} · 문자 확인하기"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP_QUIET)
@@ -1586,7 +1586,7 @@ object NotificationHelper {
         // 에이닷 벤치마킹 — 깔끔하게: 짧은 제목 + 본문에 요약 한 줄 · 누구. (2026-07-06 사장님)
         //   기존 제목("막내가 X님 통화를 요약했어요")이 너무 길어 지저분 + 요약이 접힌 알림에서 잘림.
         //   에이닷처럼 제목은 짧게("통화요약 완료!"), 요약 주제는 본문 한 줄로. (앱 상단에 이미 '시공막내' 표시됨)
-        val title = "✨ 통화 요약 완료!"
+        val title = "통화 요약 완료!"
         val summaryLine = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() }
         val body = if (summaryLine != null) "$summaryLine · ${who}님"
                    else "${who}님 통화 요약이 준비됐어요 · 눌러서 확인"
@@ -1725,7 +1725,7 @@ object NotificationHelper {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII 가림
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
-            .setContentTitle("📨 10초 뒤 자동문자 보낼게요")
+            .setContentTitle("10초 뒤 자동문자 보낼게요")
             .setContentText("$phoneNumber · 취소하지 않으면 자동 발송")
             .setStyle(NotificationCompat.BigTextStyle().bigText(
                 "$phoneNumber 에게 설정해둔 자동문자를 ${secs}초 뒤 보낼게요. 안 보내려면 '취소'를 눌러요."
@@ -1747,7 +1747,7 @@ object NotificationHelper {
         // 프로토 PUSH.missed (초록) — 부재중 → 막내가 대신 답장.
         showProtoPush(
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_GREEN,
-            title = "📨 부재중 전화 — 막내가 대신 답장했어요",
+            title = "부재중 전화 — 막내가 대신 답장했어요",
             msg = "${formatPhone(phoneNumber)} 님께 자동으로 답장을 보냈어요.",
             note = "누르면 보낸 내용을 볼 수 있어요.",
             contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId)),
@@ -1767,7 +1767,7 @@ object NotificationHelper {
     fun showAutoReplyFailed(context: Context, callRecordId: Long, phoneNumber: String) {
         showProtoPush(
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_PINK,
-            title = "⚠️ 자동 응답 발송 실패",
+            title = "자동 응답 발송 실패",
             msg = "${formatPhone(phoneNumber)} — 눌러서 직접 보내주세요.",
             contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId))
         )
@@ -1782,7 +1782,7 @@ object NotificationHelper {
         val id = famId(FAM_MMS_FAIL, phoneNumber.filter { it.isDigit() }.takeLast(8).hashCode())
         showProtoPush(
             context, id, CHANNEL_AUTO_REPLY, ACCENT_PINK,
-            title = "⚠️ 사진이 안 보내졌어요",
+            title = "사진이 안 보내졌어요",
             msg = "${formatPhone(phoneNumber)} — 신호 확인 후 눌러서 다시 보내주세요.",
             contentIntent = chatPending(context, phoneNumber, id)
         )

@@ -170,7 +170,7 @@ fun TradeSelectScreen(
                     Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
                         .clickable { selected.clear() }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) { Text("★ $customSel   ✕", color = TossBlue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
+                ) { Text("$customSel   ✕", color = TossBlue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
             }
 
             Spacer(Modifier.height(24.dp))

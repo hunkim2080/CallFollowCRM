@@ -55,7 +55,7 @@ fun CollabCommentSection(
     var input by remember { mutableStateOf("") }
     val fmt = remember { java.text.SimpleDateFormat("M/d HH:mm", java.util.Locale.KOREA) }
     Column(modifier.fillMaxWidth()) {
-        Text("💬 현장 한마디" + (if (comments.isNotEmpty()) " (${comments.size})" else ""),
+        Text("현장 한마디" + (if (comments.isNotEmpty()) " (${comments.size})" else ""),
             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CTextTertiary,
             modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
         Column(

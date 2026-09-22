@@ -410,7 +410,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 val ok = container.backupRepository.push(b64)
                 if (ok) {
                     _lastBackupAt.value = System.currentTimeMillis()
-                    _backupMessage.value = "☁️ 서버에 백업했어요! (${bytes.size / 1024}KB) 이제 폰을 바꿔도 안전해요."
+                    _backupMessage.value = "서버에 백업했어요! (${bytes.size / 1024}KB) 이제 폰을 바꿔도 안전해요."
                 } else {
                     _backupMessage.value = "서버 백업에 실패했어요 — 인터넷을 확인하고 다시 시도해주세요."
                 }
@@ -439,7 +439,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
                     val r = DataBackup.importBytes(container.appContext, bytes)
-                    _backupMessage.value = "☁️ 서버에서 복원 완료! 고객 ${r.customers}명 · ${r.rows}건을 되살렸어요."
+                    _backupMessage.value = "서버에서 복원 완료! 고객 ${r.customers}명 · ${r.rows}건을 되살렸어요."
                     _restartNeeded.value = true
                 }
             } catch (e: DataBackup.NewerBackupException) {
@@ -464,7 +464,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
                     val r = DataBackup.importCategoriesOnly(container.appContext, bytes)
-                    _backupMessage.value = "☁️ 카테고리 복원 완료! 카테고리 ${r.categories}개 · 태그 ${r.tagged}명을 되살렸어요."
+                    _backupMessage.value = "카테고리 복원 완료! 카테고리 ${r.categories}개 · 태그 ${r.tagged}명을 되살렸어요."
                     _restartNeeded.value = true
                 }
             } catch (e: DataBackup.NewerBackupException) {

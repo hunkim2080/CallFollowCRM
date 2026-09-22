@@ -194,8 +194,8 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         val imageCount = mms.imageUris.size
         val videoCount = mms.videoUris.size
         val attachLabel = buildString {
-            if (imageCount > 0) append("📎 사진 ${imageCount}장")
-            if (videoCount > 0) { if (isNotEmpty()) append(" · "); append("🎬 동영상 ${videoCount}개") }
+            if (imageCount > 0) append("사진 ${imageCount}장")
+            if (videoCount > 0) { if (isNotEmpty()) append(" · "); append("동영상 ${videoCount}개") }
         }
         val displayBody = when {
             attachLabel.isNotEmpty() && rawBody.isNotBlank() -> "$attachLabel\n\n$rawBody"

@@ -177,7 +177,7 @@ fun QuoteDocScreen(
         }
         // 안내
         Text(
-            "📩 고객에게 이 이미지(직인 포함)가 문자로 가요",
+            "고객에게 이 이미지(직인 포함)가 문자로 가요",
             fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium,
             modifier = Modifier.fillMaxWidth().background(AppTheme.colors.primaryBg).padding(horizontal = 18.dp, vertical = 11.dp)
         )
@@ -371,7 +371,7 @@ fun QuoteDocScreen(
                     .clickable { captureAndShare() }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("📩 이미지로 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("이미지로 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

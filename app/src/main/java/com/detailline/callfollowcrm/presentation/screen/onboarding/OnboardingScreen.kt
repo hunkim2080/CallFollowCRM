@@ -640,7 +640,7 @@ private fun storySlides(): List<Slide> = listOf(
         Column(Modifier.fillMaxWidth()) {
             RiseIn(active, 0) {
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp)).padding(14.dp)) {
-                Text("📍 현장 5km 진입 · 도착 30분 전", fontSize = 11.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
+                Text("현장 5km 진입 · 도착 30분 전", fontSize = 11.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text("고객님, 30분 뒤 도착 예정입니다 😊", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }

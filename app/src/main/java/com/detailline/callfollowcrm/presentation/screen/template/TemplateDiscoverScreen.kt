@@ -93,7 +93,7 @@ fun TemplateDiscoverScreen(
                 }
                 TemplateDiscoverViewModel.Phase.LIST -> Column(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxWidth().background(Color.White).padding(20.dp)) {
-                        Text("💬  이 문자들을 자주 보내셨네요", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        Text("이 문자들을 자주 보내셨네요", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                         Spacer(Modifier.height(6.dp))
                         Text(
                             "템플릿으로 저장하면 다음부턴 채팅·자동문자에서 한 번에 불러 써요.\n" +

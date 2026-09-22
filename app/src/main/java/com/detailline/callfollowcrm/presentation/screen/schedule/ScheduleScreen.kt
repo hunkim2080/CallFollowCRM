@@ -161,7 +161,7 @@ fun ScheduleScreen(
     val simpleDays by viewModel.simpleDayStarts.collectAsState()   // 캘린더 회색 점
     val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
-    val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "🤝 이름"
+    val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "이름"
     val collabSites by viewModel.collabSites.collectAsState()
     // 협업 현장에도 **주소가 있다**. 달력 칸에 지역명을 적으려고 날짜→지역명으로 바꿔둔다.
     //   (2026-09-22 사장님 "협업도 주소지가 있는데 왜 이렇게 하니" — 내가 없다고 잘못 알았다.)
@@ -1494,7 +1494,7 @@ private fun DayJobCard(
                         Text(
                             // 수락된 협업 = "🤝 이름", 아직 수락 안 된(pending) = "🤝 이름 · 요청 중". (2026-07-09 사장님)
                             (assignedMembers.map { it.memberName } +
-                                collabPartnerNames.map { (nm, acc) -> if (acc) "🤝 $nm" else "🤝 $nm · 요청 중" }).joinToString(", "),
+                                collabPartnerNames.map { (nm, acc) -> if (acc) "$nm" else "$nm · 요청 중" }).joinToString(", "),
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -1884,7 +1884,7 @@ private fun AssignTeamSheet(
 
             // ── 👷 팀원 ── (토글 + 끝에 + 추가) — 숨김(부활 가능). (2026-07-18 사장님)
             if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS) {
-            Text("👷 팀원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+            Text("팀원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1932,7 +1932,7 @@ private fun AssignTeamSheet(
             }
 
             // ── 🤝 일당사장(= 협업 사장) ──
-            Text("🤝 일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+            Text("일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             Text("누르면 부를 사장님 선택, 다시 누르면 취소. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
@@ -1997,7 +1997,7 @@ private fun AssignTeamSheet(
                 Spacer(Modifier.height(14.dp))
                 // 현장 주소 — 협업 보낼 땐 필수. 고객에 주소 없을 때만 노출(있으면 자동 사용). (2026-06-20 사장님)
                 if (invitingNewCollab && siteAddress.isNullOrBlank()) {
-                    SheetFieldLabel("📍 현장 주소 (협업엔 꼭 필요해요)")
+                    SheetFieldLabel("현장 주소 (협업엔 꼭 필요해요)")
                     SheetTextField(
                         siteAddrInput, { siteAddrInput = it },
                         placeholder = "예: 인천 미추홀구 매소홀로 137", singleLine = false, minHeightDp = 50

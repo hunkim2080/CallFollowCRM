@@ -1003,7 +1003,7 @@ fun HomeScreen(
                             accent = AppTheme.colors.category,
                             accentTint = AppTheme.colors.categoryBg,
                             icon = Icons.Default.Person,
-                            title = "🤝 받은 협업 요청",
+                            title = "받은 협업 요청",
                             tagText = "수락 대기",
                             tagBg = AppTheme.colors.categoryBg, tagFg = AppTheme.colors.category,
                             // 주소는 짧게 — 이름·주소·일당이 한 줄에 다 들어가게 roughSite(대충 어디)로 축약.
@@ -1341,7 +1341,7 @@ fun HomeScreen(
 
                 // 📌 고정 — 사장님이 맨 위에 고정한 거래처. 팁 없이 방들만, 밀기(스팸) 없이 꾹 눌러 해제. (2026-08-24 사장님)
                 if (pinned.isNotEmpty()) {
-                    item(key = "pinned-head") { SecSub("📌 고정") }
+                    item(key = "pinned-head") { SecSub("고정") }
                     item(key = "pinned-card") {
                         Column(
                             Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
@@ -1637,7 +1637,7 @@ fun HomeScreen(
                                     .padding(14.dp)
                             ) {
                                 Column {
-                                    Text("🚫 스팸으로 등록", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossError)
+                                    Text("스팸으로 등록", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossError)
                                     Text("앞으로 상담함·신규에서 안 보여요", fontSize = 12.sp, color = TossTextTertiary)
                                 }
                             }
@@ -1655,7 +1655,7 @@ fun HomeScreen(
                                     .padding(14.dp)
                             ) {
                                 Column {
-                                    Text("🧹 대기목록에서 정리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                    Text("대기목록에서 정리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                                     Text("이 목록에서만 빼요 (고객·대화는 그대로)", fontSize = 12.sp, color = TossTextTertiary)
                                 }
                             }
@@ -1698,7 +1698,7 @@ fun HomeScreen(
                             ) {
                                 Column {
                                     Text(
-                                        if (isPinnedNow) "📌 고정 해제" else "📌 맨 위에 고정",
+                                        if (isPinnedNow) "고정 해제" else "맨 위에 고정",
                                         fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
                                     )
                                     Text(
@@ -2889,7 +2889,7 @@ private fun CollabSettleCard(
         if (up.title.isNotBlank()) {
             Spacer(Modifier.height(7.dp))
             Text(
-                "📍 ${up.title}", fontSize = 12.5.sp, color = TossTextSecondary, maxLines = 2,
+                "${up.title}", fontSize = 12.5.sp, color = TossTextSecondary, maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
@@ -2931,7 +2931,7 @@ private fun CollabSettleCard(
                 Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
                     .clickable { onPaid() }.padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("💸 입금했어요", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold) }
+            ) { Text("입금했어요", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -3042,7 +3042,7 @@ private fun CompletionDialog(
                 .padding(20.dp)
         ) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()  // 다이얼로그 키보드 가림 방지(갤S9)
-            Text("🎉 시공 완료 · 고생하셨습니다!", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text("시공 완료 · 고생하셨습니다!", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text(subtitle, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlueDark)
             Spacer(Modifier.height(14.dp))
@@ -3199,7 +3199,7 @@ private fun RemindCard(
             // 주소 한 줄 — "이 번호가 내일 고객 맞나?" 눈으로 확인 (2026-06-21 사장님). 주소 없으면 숨김.
             if (reminder.addressLabel.isNotBlank()) {
                 Text(
-                    "📍 ${reminder.addressLabel}",
+                    "${reminder.addressLabel}",
                     fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TossTextSecondary,
                     letterSpacing = (-0.2).sp,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -3239,7 +3239,7 @@ private fun RemindCard(
                 } else {
                     Column(Modifier.fillMaxWidth()) {
                         Text(draft, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp)
-                        Text("✏️ 꾹 눌러 수정", fontSize = 10.5.sp, color = TossTextTertiary,
+                        Text("꾹 눌러 수정", fontSize = 10.5.sp, color = TossTextTertiary,
                             modifier = Modifier.padding(top = 6.dp))
                     }
                 }
@@ -3410,7 +3410,7 @@ private fun AutoReplyCard(
                         Spacer(Modifier.height(2.dp))
                         Text(
                             buildString {
-                                append(if (ar.failed) "⚠ 발송 실패 — 직접 보내주세요" else "✅ 보냄")
+                                append(if (ar.failed) "발송 실패 — 직접 보내주세요" else "보냄")
                                 append(" · ")
                                 append(DateTimeUtils.formatShort(ar.createdAt))
                             },
@@ -3567,7 +3567,7 @@ private fun HomeRow(
                 c.scheduledWorkDate?.let { scheduled ->
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "🗓 ${DateTimeUtils.formatDateOnly(scheduled)} 시공 예약 · ${DateTimeUtils.dDayLabel(scheduled)}",
+                        "${DateTimeUtils.formatDateOnly(scheduled)} 시공 예약 · ${DateTimeUtils.dDayLabel(scheduled)}",
                         style = MaterialTheme.typography.labelMedium,
                         color = TossBlue,
                         fontWeight = FontWeight.SemiBold
@@ -4216,7 +4216,7 @@ private fun AdBoxHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
             .clip(RoundedCornerShape(10.dp)).clickable { onToggle() }.padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("📁 광고 ${count}건 자동으로 치웠어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
+        Text("광고 ${count}건 자동으로 치웠어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
             color = TossTextTertiary, modifier = Modifier.weight(1f))
         Text(if (expanded) "접기 ▾" else "확인 ▸", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
     }

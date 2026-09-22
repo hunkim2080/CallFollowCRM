@@ -233,7 +233,7 @@ fun ReportScreen(
                     val imp = s.improveScenario
                     Text(
                         if (imp != null) "💡 ‘${imp.label}’ 상황 채택률이 ${imp.rate}%로 낮아요.\n이 상황의 답변 문구를 다듬으면 계약률이 올라가요."
-                        else "💡 이번 기간엔 딱히 손 갈 상황이 없었어요. 막내가 잘 돕고 있어요.",
+                        else "이번 기간엔 딱히 손 갈 상황이 없었어요. 막내가 잘 돕고 있어요.",
                         fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
                     )
                 }

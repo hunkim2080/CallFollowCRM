@@ -811,7 +811,7 @@ fun CustomerDetailScreen(
                             .border(1.5.dp, TossBlue, RoundedCornerShape(18.dp))
                             .padding(16.dp)
                     ) {
-                        Text("📩 방금 문자에서 이런 주소를 봤어요",
+                        Text("방금 문자에서 이런 주소를 봤어요",
                             fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                         Spacer(Modifier.height(6.dp))
                         Text(caught, fontSize = 15.sp, fontWeight = FontWeight.Bold,
@@ -1713,7 +1713,7 @@ fun CustomerDetailScreen(
                             ),
                             title = {
                                 Text(
-                                    "🔧 A/S 예약 — 시작일 → 끝날 (하루면 시작일만) · 무료",
+                                    "A/S 예약 — 시작일 → 끝날 (하루면 시작일만) · 무료",
                                     fontSize = 13.sp, color = Color(0xFFF5920B), fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
                                 )
@@ -2798,7 +2798,7 @@ private fun AmountChangeReasonDialog(oldWon: Long, newWon: Long, onRecord: (Stri
     androidx.compose.ui.window.Dialog(onDismissRequest = onSkip) {   // 바깥/뒤로 = 그냥 넘어가기(이력은 남김)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-            Text("💰 시공금액을 바꿨어요", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text("시공금액을 바꿨어요", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(6.dp))
             Text(arrow, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
             Spacer(Modifier.height(12.dp))
@@ -2912,7 +2912,7 @@ private fun PaymentRow(
                             contentAlignment = androidx.compose.ui.Alignment.Center
                         ) {
                             Text(
-                                "💸 입금 받았어요",
+                                "입금 받았어요",
                                 color = TossBlue,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 15.sp
@@ -2946,7 +2946,7 @@ private fun PaymentRow(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    if (isAutoCalculated) "💡 자동 계산 (수정 가능)" else "💵 약속됨",
+                                    if (isAutoCalculated) "자동 계산 (수정 가능)" else "약속됨",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (isAutoCalculated) TossBlue else TossTextSecondary
                                 )
@@ -3164,7 +3164,7 @@ private fun TotalAmountRow(
                 contentAlignment = androidx.compose.ui.Alignment.Center
             ) {
                 Text(
-                    "💡 총금액 입력 → 잔금 자동 계산",
+                    "총금액 입력 → 잔금 자동 계산",
                     color = TossTextSecondary,
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp
@@ -3728,7 +3728,7 @@ private fun AddressEditDialog(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "🔍 주소 다시 검색",
+                        "주소 다시 검색",
                         color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp,
                         modifier = Modifier
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
@@ -3763,7 +3763,7 @@ private fun AddressEditDialog(
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
                         Text(
-                            "📩 $extractedSuggestion",
+                            "$extractedSuggestion",
                             style = MaterialTheme.typography.bodySmall,
                             color = TossBlue,
                             fontWeight = FontWeight.SemiBold
@@ -3777,7 +3777,7 @@ private fun AddressEditDialog(
                 ) {
                     if (onCopyExisting != null) {
                         androidx.compose.material3.TextButton(onClick = onCopyExisting) {
-                            Text("📋 복사", color = TossTextSecondary)
+                            Text("복사", color = TossTextSecondary)
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -3887,7 +3887,7 @@ private fun CollabAfterCard(
                 .border(1.dp, Color(0xFFF0E4C8), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("🤝 ${partnerName} 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                Text("${partnerName} 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.weight(1f))
                 Box(Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 10.dp, vertical = 4.dp)) {
@@ -3928,7 +3928,7 @@ private fun CollabAfterCard(
     ) {
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             // 제목 = 업체명(협업 사장 이름) — 2명 이상일 때 한눈에 구분(사장님 2026-08-09). 상태는 오른쪽 알약에.
-            Text("🤝 $partnerName", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, maxLines = 1)
+            Text("$partnerName", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, maxLines = 1)
             Spacer(Modifier.weight(1f))
             Box(Modifier.clip(RoundedCornerShape(999.dp)).background(if (completed) AppTheme.colors.doneBg else purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
                 Text(if (completed) "협업 완료" else "협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else Color(0xFF6B4FD8))
@@ -3937,7 +3937,7 @@ private fun CollabAfterCard(
         wage?.let {
             Spacer(Modifier.height(9.dp))
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("💰 그날 일당", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                Text("그날 일당", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.weight(1f))
                 Text("${it}만원", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }
@@ -3979,7 +3979,7 @@ private fun CollabAfterCard(
         }
         Spacer(Modifier.height(14.dp))
         // 📸 협업 사장님이 올린 증거사진 (proto a-after) — A 는 보기만.
-        Text("📸 ${partnerName}이 올린 현장 사진 · 증거용", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+        Text("${partnerName}이 올린 현장 사진 · 증거용", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
         Spacer(Modifier.height(2.dp))
         Text("시공 전·작업 중 상태를 남겨둔 사진이에요. '원래 그랬어요' 증거 → 두 분 다 분쟁에서 보호돼요.",
             fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp)
@@ -4040,7 +4040,7 @@ private fun CollabAfterCard(
         Spacer(Modifier.height(14.dp))
         // 영구보관 안내 (proto a-after verbatim)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
-            Text("🗂 이 기록은 계속 남아요", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+            Text("이 기록은 계속 남아요", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
             Spacer(Modifier.height(5.dp))
             Text("사진·메모·진행 기록은 이 고객 정보에 영구 보관돼요. 3개월 뒤 고객이 또 연락해도 이걸 바로 꺼내 보고 응대할 수 있어요. 협업을 해제해도 안 지워집니다.",
                 fontSize = 12.sp, color = Color(0xFF3A4A66), lineHeight = 18.sp)
@@ -4350,7 +4350,7 @@ private fun CollabShareSheet(
                         .clickable(enabled = !sending) { send() }.padding(vertical = 15.dp),
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-                    Text(if (sending) "보내는 중…" else "🤝 협업 요청 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(if (sending) "보내는 중…" else "협업 요청 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
                 }
                 Spacer(Modifier.height(10.dp))
                 Text("자동 발송 아님 · 상대가 수락해야 시작돼요", fontSize = 11.5.sp, color = TossTextTertiary,
@@ -4664,7 +4664,7 @@ private fun PastJobPanel(job: com.detailline.callfollowcrm.data.local.entity.Job
             )
             if (!job.address.isNullOrBlank()) {
                 Spacer(Modifier.height(5.dp))
-                Text("📍 ${job.address}", fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                Text("${job.address}", fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 17.sp)
             }
             if (settle.total > 0L) {
                 Spacer(Modifier.height(12.dp))

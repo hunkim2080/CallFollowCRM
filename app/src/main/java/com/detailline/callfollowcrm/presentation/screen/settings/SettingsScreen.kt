@@ -871,7 +871,7 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("📞 통화 후 문자 보내기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("통화 후 문자 보내기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(2.dp))
                     Text("새 번호와 통화가 끝나면 ‘문자 보낼까요?’ 알림 → 3개 중 하나 누르면 바로 보내져요",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
@@ -907,7 +907,7 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
                         }.padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("👀 통화 후 카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Text("통화 후 카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("비워둔 칸은 알림에 버튼으로 안 나와요. 사진만 넣어도 보낼 수 있어요. (한 템플릿 5장까지)", fontSize = 11.sp, color = TossTextTertiary)
@@ -1003,7 +1003,7 @@ private fun DefaultSmsAppCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "📱 시공막내를 기본 메시지 앱으로 사용하기",
+                        "시공막내를 기본 메시지 앱으로 사용하기",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -1011,7 +1011,7 @@ private fun DefaultSmsAppCard(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         if (isDefault)
-                            "✅ 시공막내 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
+                            "시공막내 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
                         else
                             "SMS/MMS 수신을 시공막내 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다.",
                         fontSize = 12.sp,
@@ -1067,7 +1067,7 @@ private fun DefaultSmsAppCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "🔧 MMS 서버 수동 입력 (선택)",
+                    "MMS 서버 수동 입력 (선택)",
                     fontSize = 12.sp,
                     color = TossTextSecondary,
                     fontWeight = FontWeight.Medium,
@@ -1258,7 +1258,7 @@ private fun WebViewerSection(container: AppContainer) {
                                 cm.setPrimaryClip(android.content.ClipData.newPlainText("시공막내 웹 주소", "si0in.kr/web"))
                                 toast("주소 복사했어요 — PC 주소창에 붙여넣기 하세요")
                             }.padding(horizontal = 12.dp, vertical = 7.dp)
-                    ) { Text("📋 복사", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold) }
+                    ) { Text("복사", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold) }
                 }
                 Spacer(Modifier.height(4.dp))
                 Text("주소를 치면 화면에 QR이 떠요.", fontSize = 11.5.sp, color = TossTextTertiary)
@@ -1274,7 +1274,7 @@ private fun WebViewerSection(container: AppContainer) {
                         .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFFFE2A8), RoundedCornerShape(12.dp))
                         .padding(14.dp)
                 ) {
-                    Text("🔑  먼저 웹 로그인 인증 (한 번만)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8A6100))
+                    Text("먼저 웹 로그인 인증 (한 번만)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8A6100))
                     Spacer(Modifier.height(4.dp))
                     Text("보안 강화로 웹 로그인엔 인증이 한 번 필요해요. 인증 후 QR을 찍으면 로그인돼요.",
                         fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp)
@@ -1287,7 +1287,7 @@ private fun WebViewerSection(container: AppContainer) {
                 }
                 Spacer(Modifier.height(12.dp))
             } else {
-                Text("🔑 웹 로그인 인증됨 ✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Text("웹 로그인 인증됨 ✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                 Spacer(Modifier.height(10.dp))
             }
             TossPrimaryButton(
@@ -1596,7 +1596,7 @@ private fun MirrorSection(container: AppContainer) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("📱 본폰에서 일정 보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("본폰에서 일정 보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(2.dp))
                     Text("본폰(빈 달력)에서 내 공유 코드를 넣고 신청하면, 여기서 수락해요. 수락하면 내 일정이 본폰에 읽기전용으로 보여요.",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
@@ -1639,7 +1639,7 @@ private fun MirrorSection(container: AppContainer) {
                     Text("공유 신청", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     pending.forEach { req ->
                         Spacer(Modifier.height(8.dp))
-                        Text("📩 ${fmtPhone(req.homePhone)}가 일정 공유를 신청했어요",
+                        Text("${fmtPhone(req.homePhone)}가 일정 공유를 신청했어요",
                             fontSize = 13.sp, color = TossTextPrimary)
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1756,7 +1756,7 @@ private fun SuggestionStatsCard(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "💡 추천 답변 채택률",
+                    "추천 답변 채택률",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = TossTextPrimary,
@@ -1841,7 +1841,7 @@ private fun SuggestionStatsCard(
                 if (stats.edited > 0) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "✏️ 수정한 답변 평균 ${stats.averageEditDistance.toInt()}자 고침",
+                        "수정한 답변 평균 ${stats.averageEditDistance.toInt()}자 고침",
                         fontSize = 11.sp,
                         color = TossTextSecondary,
                         fontWeight = FontWeight.Medium
@@ -1850,13 +1850,13 @@ private fun SuggestionStatsCard(
                 Spacer(Modifier.height(14.dp))
 
                 // 4가지 action 분포
-                StatsBar(label = "✅ 그대로", count = stats.adopted, total = stats.total, color = TossSuccess)
+                StatsBar(label = "그대로", count = stats.adopted, total = stats.total, color = TossSuccess)
                 Spacer(Modifier.height(6.dp))
-                StatsBar(label = "✏️ 수정", count = stats.edited, total = stats.total, color = TossBlue)
+                StatsBar(label = "수정", count = stats.edited, total = stats.total, color = TossBlue)
                 Spacer(Modifier.height(6.dp))
-                StatsBar(label = "🤷 무시", count = stats.ignored, total = stats.total, color = TossTextTertiary)
+                StatsBar(label = "무시", count = stats.ignored, total = stats.total, color = TossTextTertiary)
                 Spacer(Modifier.height(6.dp))
-                StatsBar(label = "👋 떠남", count = stats.dismissed, total = stats.total, color = TossTextTertiary)
+                StatsBar(label = "떠남", count = stats.dismissed, total = stats.total, color = TossTextTertiary)
             }
         }
     }
@@ -1940,7 +1940,7 @@ private fun AutoLearningCard(
             if (scenarios.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "📊 시나리오별 채택률",
+                    "시나리오별 채택률",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TossTextPrimary
@@ -1963,7 +1963,7 @@ private fun AutoLearningCard(
                     ) {
                         Column {
                             Text(
-                                "💡 개선 후보 ${needsImprovement.size}개 시나리오",
+                                "개선 후보 ${needsImprovement.size}개 시나리오",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFB8780A)
@@ -1990,7 +1990,7 @@ private fun AutoLearningCard(
             if (intents.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "🏷️ 의도별 채택 순위",
+                    "의도별 채택 순위",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TossTextPrimary
@@ -2249,7 +2249,7 @@ private fun AutoSmsSection(
                 if (autoSumOn && !consented) {
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "⚠️ 아직 동의 전이라 요약이 안 돌아요 — 눌러서 내용을 확인해주세요",
+                        "아직 동의 전이라 요약이 안 돌아요 — 눌러서 내용을 확인해주세요",
                         fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold,
                         lineHeight = 16.sp,
                         modifier = Modifier.clickable { showConsent = true }
@@ -2379,7 +2379,7 @@ private fun AutoSmsSection(
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Column {
-                        Text("⚠️ '다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
+                        Text("'다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
                             fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
                         Text("여기를 눌러 허용하면 전화 올 때 고객 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
                     }
@@ -2397,7 +2397,7 @@ private fun AutoSmsSection(
                         .padding(vertical = 11.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("👀 카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Text("카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
             }
         }
@@ -2458,7 +2458,7 @@ private fun AutoSmsSection(
                     Text("통화 녹음 자동 찾기${if (recFolderConnected) " · 연결됨" else ""}", fontSize = 15.sp,
                         fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Text(
-                        if (recFolderConnected) (recLabel?.let { "✅ $it" } ?: "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)")
+                        if (recFolderConnected) (recLabel?.let { "$it" } ?: "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)")
                         else "버튼 한 번이면 통화 녹음을 앱이 알아서 찾아드려요. 폴더 안 찾아도 돼요.",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                     )
@@ -3172,7 +3172,7 @@ private fun OwnerToneRagCard(
                 ) {
                     Column {
                         Text(
-                            "✅ 학습됨 ${formatThousands(uploadedCount)}건",
+                            "학습됨 ${formatThousands(uploadedCount)}건",
                             color = TossBlue,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
@@ -3195,7 +3195,7 @@ private fun OwnerToneRagCard(
                             .padding(12.dp)
                     ) {
                         Text(
-                            "⚠️ 임베딩 검색 비활성 — Mac mini 에 'pip install FlagEmbedding sqlite-vec' 후 launchctl reload 필요. " +
+                            "임베딩 검색 비활성 — Mac mini 에 'pip install FlagEmbedding sqlite-vec' 후 launchctl reload 필요. " +
                                 "메시지는 저장되어 있어 install 후 자동 활성화됩니다.",
                             fontSize = 11.sp,
                             color = Color(0xFFB8780A)
@@ -3286,7 +3286,7 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
             ) {
                 Column {
                     Text(
-                        "⚠️ 갤메시지 알림은 직접 꺼주세요",
+                        "갤메시지 알림은 직접 꺼주세요",
                         color = Color(0xFFB8780A),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
@@ -4561,7 +4561,7 @@ private fun DiagnosticsDialog(
                             )
                         )
                     }) {
-                        Text(if (shot == null) "🖼  스크린샷 첨부" else "🖼  스크린샷 첨부됨 ✓",
+                        Text(if (shot == null) "스크린샷 첨부" else "스크린샷 첨부됨 ✓",
                             color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                     if (shot != null) {

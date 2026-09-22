@@ -128,7 +128,7 @@ fun PhotoPickerSheet(
                 Spacer(Modifier.weight(1f))
                 // 권한 거부/구형 기기 안전망 — 기존 시스템 피커로.
                 Text(
-                    "📁 파일에서", color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    "파일에서", color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onOpenFiles() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )

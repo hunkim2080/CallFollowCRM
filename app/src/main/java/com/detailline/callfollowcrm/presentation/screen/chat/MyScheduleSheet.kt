@@ -215,7 +215,7 @@ fun MyScheduleSheet(
                     // 탭하면 이 날짜가 대화창에 들어간다는 안내.
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "👆 눌러서 이 날짜를 대화창에 넣기",
+                        "눌러서 이 날짜를 대화창에 넣기",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossBlue, fontWeight = FontWeight.SemiBold
                     )

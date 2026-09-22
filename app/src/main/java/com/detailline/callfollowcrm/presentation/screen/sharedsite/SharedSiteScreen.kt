@@ -775,7 +775,7 @@ private fun PendingInbox(
 ) {
     // 헤더: 🤝 새 협업 요청 [N] · 응답 기다려요
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 2.dp, bottom = 9.dp)) {
-        Text("🤝 새 협업 요청 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+        Text("새 협업 요청 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
         Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurple).padding(horizontal = 7.dp, vertical = 1.dp)) {
             Text("${sites.size}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
         }
@@ -790,7 +790,7 @@ private fun PendingInbox(
                 .clickable { onOpen(site) }
                 .padding(14.dp)
         ) {
-            Text("🤝 ${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Text("${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
             Spacer(Modifier.height(4.dp))
             val line = buildString {
                 append(siteDisplayName(site)); append(" · "); append(dayLabel(site.scheduledAtMs))
@@ -808,7 +808,7 @@ private fun PendingInbox(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("💰 그날 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                Text("그날 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
                 Spacer(Modifier.weight(1f))
                 Text(
                     site.dailyWage?.let { "${it}만원" } ?: "미정",
@@ -922,7 +922,7 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Uni
             }
             Spacer(Modifier.height(3.dp))
             // 누구랑 — 사장님 핵심 요청. partner_name(서버) 있으면 이름, 없으면 상태 안내.
-            val who = site.partnerName?.let { "🤝 $it 사장님과 함께" }
+            val who = site.partnerName?.let { "$it 사장님과 함께" }
                 ?: if (site.status == "pending") "함께할 사장님 수락 대기 중" else "함께하는 사장님과"
             Text(who, fontSize = 12.5.sp, color = Color(0xFF6B4FD8), fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -1110,9 +1110,9 @@ private fun DetailBody(
     // 날짜·시공 카드
     Card {
         InfoRow("날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
-        site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
+        site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("시공", it) }
         // 수락 전(pending)엔 아래 큰 강조 박스에서 일당을 보여주므로 여기선 생략(중복 방지). 수락 후엔 여기서 표기.
-        if (site.status != "pending") site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
+        if (site.status != "pending") site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("그날 일당", "${it}만원") }
     }
 
     // 대표님 전달사항
@@ -1122,7 +1122,7 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
-            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+            Text("대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
             // 전달사항 안 전화번호는 탭하면 다이얼러에 바로 채워져 통화 편하게. (2026-07-01 사장님)
             LinkifiedMemo(site.memo, baseColor = Color(0xFF5A4A1F))
@@ -1136,7 +1136,7 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(14.dp)
         ) {
-            Text("🤝 ${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Text("${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
             Spacer(Modifier.height(4.dp))
             // "이 현장" 대신 실제 현장명(주소) + 날짜를 보여줌(사장님 요청 2026-06-18·06-20).
             Text("${siteDisplayName(site)} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
@@ -1146,7 +1146,7 @@ private fun DetailBody(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("💰 그날 일당", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                Text("그날 일당", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
                 Spacer(Modifier.weight(1f))
                 Text(
                     site.dailyWage?.let { "${it}만원" } ?: "미정",
@@ -1156,7 +1156,7 @@ private fun DetailBody(
             }
             site.timeLabel?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(7.dp))
-                Text("🕘 출근 $it", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                Text("출근 $it", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
             }
             Spacer(Modifier.height(10.dp))
             if (acceptExpired) {
@@ -1213,7 +1213,7 @@ private fun DetailBody(
             //   실제 클릭 차단은 onProgress 가 그날 아니면 안내 토스트로 이미 함(억지 클릭 무해).
             val beforeDay = isBeforeScheduledDay(site.scheduledAtMs)
             StepActionButton(
-                if (beforeDay) "🚗 출발 알리기 (시공 당일부터)" else "🚗 출발 알리기",
+                if (beforeDay) "출발 알리기 (시공 당일부터)" else "출발 알리기",
                 if (beforeDay) Color(0xFFE2E6EC) else ProtoBlue,
                 if (beforeDay) TossTextTertiary else Color.White
             ) {
@@ -1227,24 +1227,24 @@ private fun DetailBody(
                 modifier = Modifier.padding(horizontal = 2.dp))
         }
         SharedSiteRepository.Progress.DEPARTED -> {
-            StepActionButton("📍 도착 알리기", ProtoBlue, Color.White) {
+            StepActionButton("도착 알리기", ProtoBlue, Color.White) {
                 onProgress(SharedSiteRepository.Progress.ARRIVED)
             }
             Spacer(Modifier.height(7.dp))
-            Text("📍 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
+            Text("현장 3km에 들어가면 '거의 도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
                 fontSize = 11.5.sp, color = ProtoSuccess, lineHeight = 16.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
         }
         SharedSiteRepository.Progress.ARRIVED -> {
             StepActionButton(
-                if (hasAccount) "✅ 완료 알리기" else "계좌 등록 후 완료 알리기",
+                if (hasAccount) "완료 알리기" else "계좌 등록 후 완료 알리기",
                 if (hasAccount) ProtoSuccess else Color(0xFFE2E6EC),
                 if (hasAccount) Color.White else TossTextSecondary
             ) { onProgress(SharedSiteRepository.Progress.COMPLETED) }
             Spacer(Modifier.height(7.dp))
             Text(
                 if (hasAccount) "완료를 누르면 주인 사장님께 '완료 + 내 입금 계좌'가 전달돼요."
-                else "⚠️ 입금받을 계좌가 없어요. 맨 아래 '일당 지급계좌'를 먼저 등록하면 완료 시 자동 전달돼요.",
+                else "입금받을 계좌가 없어요. 맨 아래 '일당 지급계좌'를 먼저 등록하면 완료 시 자동 전달돼요.",
                 fontSize = 11.5.sp, color = if (hasAccount) TossTextTertiary else com.detailline.callfollowcrm.presentation.theme.TossError,
                 lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 2.dp)
             )
@@ -1274,7 +1274,7 @@ private fun DetailBody(
                 .background(AppTheme.colors.doneBg).border(1.dp, Color(0xFFBFEBD4), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("💰 이 현장 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A8C63))
+                Text("이 현장 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A8C63))
                 Spacer(Modifier.weight(1f))
                 Text(
                     site.dailyWage?.let { "${it}만원" } ?: "미정",
@@ -1285,7 +1285,7 @@ private fun DetailBody(
             Spacer(Modifier.height(6.dp))
             Text(
                 if (hasAccount) "완료할 때 주인 사장님께 내 입금 계좌가 전달됐어요. 입금을 기다려요."
-                else "⚠️ 계좌가 없어 전달 못 했어요. 맨 아래 '일당 지급계좌'를 등록하고 완료를 다시 눌러주세요.",
+                else "계좌가 없어 전달 못 했어요. 맨 아래 '일당 지급계좌'를 등록하고 완료를 다시 눌러주세요.",
                 fontSize = 11.5.sp, color = if (hasAccount) Color(0xFF3A8C63) else com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 16.sp
             )
         }
@@ -1300,7 +1300,7 @@ private fun DetailBody(
                 .background(AppTheme.colors.primaryBg).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                Text("현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                 Spacer(Modifier.weight(1f))
                 // 복사 아이콘 버튼 — 주소를 클립보드로.
                 Row(
@@ -1314,7 +1314,7 @@ private fun DetailBody(
                         .padding(horizontal = 11.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("📋 복사", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = ProtoBlue)
+                    Text("복사", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = ProtoBlue)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -1324,12 +1324,12 @@ private fun DetailBody(
 
     // 📸 증거 사진 (proto b-detail) — 시공 전·작업 중 상태 = "원래 그랬어요" 증거.
     Spacer(Modifier.height(18.dp))
-    SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
+    SectionSub("현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
             .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
     ) {
-        Text("📌 왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+        Text("왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
         Spacer(Modifier.height(5.dp))
         Text("시공 전·작업 중 현장 상태를 미리 찍어두면 \"이건 원래 그랬어요\" 증거가 돼요. 나중에 \"여기 망가뜨렸죠?\" 같은 누명·분쟁을 막아줍니다.",
             fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
@@ -1374,13 +1374,13 @@ private fun OwnerSharedDetail(
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
         PillStrong("내가 공유한 현장")
         Spacer(Modifier.width(8.dp))
-        site.partnerName?.let { Text("🤝 ${it} 사장님과", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium) }
+        site.partnerName?.let { Text("${it} 사장님과", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium) }
     }
     Spacer(Modifier.height(10.dp))
     Card {
         InfoRow("날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
-        site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
-        site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
+        site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("시공", it) }
+        site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("그날 일당", "${it}만원") }
     }
     site.memo?.takeIf { it.isNotBlank() }?.let { memo ->
         Spacer(Modifier.height(10.dp))
@@ -1388,7 +1388,7 @@ private fun OwnerSharedDetail(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
-            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+            Text("대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
             LinkifiedMemo(memo, baseColor = Color(0xFF5A4A1F))
         }
@@ -1406,7 +1406,7 @@ private fun OwnerSharedDetail(
 
     // 📸 현장 사진 — 협업 사장(B)이 올린 증거사진을 A 도 여기서 보고, 필요하면 직접 추가. (2026-07-02 사장님: 사진 푸시 탭 → 여기)
     Spacer(Modifier.height(18.dp))
-    SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
+    SectionSub("현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
     PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
         myKind = "owner", onDelete = onDeletePhoto)      // A(주인) 화면 → 내가 올린 = owner
 
@@ -1543,7 +1543,7 @@ private fun CollabPayoutAccountSection(
             .background(AppTheme.colors.primaryBg).border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
             .padding(14.dp)
     ) {
-        Text("💰 일이 끝난 후 일당 지급계좌를 확인해주세요!", fontSize = 13.5.sp,
+        Text("일이 끝난 후 일당 지급계좌를 확인해주세요!", fontSize = 13.5.sp,
             fontWeight = FontWeight.ExtraBold, color = CollabPurple)
         Spacer(Modifier.height(10.dp))
         if (registered && !editing) {

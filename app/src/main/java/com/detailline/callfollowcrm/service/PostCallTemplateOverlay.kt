@@ -244,7 +244,7 @@ private fun PostCallCard(
                 Box(
                     Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFE8F1FE))
                         .padding(horizontal = 11.dp, vertical = 5.dp)
-                ) { Text("✨ 시공막내", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = PBlue) }
+                ) { Text("시공막내", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = PBlue) }
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier.size(38.dp).clip(CircleShape).background(PGrayBg).clickable { onClose() },
@@ -258,7 +258,7 @@ private fun PostCallCard(
             }
             Spacer(Modifier.height(14.dp))
             Text(
-                "📞 ${state.title}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                "${state.title}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
                 color = PInk, maxLines = 2, overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(14.dp))
@@ -332,7 +332,7 @@ private fun TemplatePage(index: Int, total: Int, tpl: PostCallTemplateOverlay.Tp
                 .clickable { onSend() }.padding(vertical = 14.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("👆 이 문자 바로 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+            Text("이 문자 바로 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }

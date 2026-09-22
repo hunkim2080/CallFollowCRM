@@ -78,7 +78,7 @@ class IntakeSyncManager(private val container: AppContainer) {
                     "after setDate cid=${c.id} readBack=${container.customerRepository.findById(c.id)?.scheduledWorkDate}"
                 )
                 if (!s.memo.isNullOrBlank() && c.memo.isNullOrBlank()) {
-                    container.customerRepository.updateMemo(c.id, "📋 접수: ${s.memo}")
+                    container.customerRepository.updateMemo(c.id, "접수: ${s.memo}")
                 }
                 // 견적금액도 고객 카드 총금액에 반영 (주소·시공일과 동일). s.total = 만원 → totalAmount = 원(×10,000).
                 //   단, import 시점에 이미 수동 입력해둔 총금액이 있으면 존중(수동 우선). (2026-06-14 사장님)

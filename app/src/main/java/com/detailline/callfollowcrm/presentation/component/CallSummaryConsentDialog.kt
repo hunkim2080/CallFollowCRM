@@ -54,7 +54,7 @@ fun CallSummaryConsentDialog(onAgree: () -> Unit, onDecline: () -> Unit) {
                 .padding(22.dp)
         ) {
             Text(
-                "📞 통화 요약을 켜면", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                "통화 요약을 켜면", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
                 color = TossTextPrimary, letterSpacing = (-0.4).sp
             )
             Spacer(Modifier.height(14.dp))

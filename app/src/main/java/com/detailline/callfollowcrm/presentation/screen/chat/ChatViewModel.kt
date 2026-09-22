@@ -1241,7 +1241,7 @@ class ChatViewModel(
                             phoneNumber = phoneNumber,
                             customerId = c.id,
                             templateId = null,
-                            body = if (body.isBlank()) "📷 사진 ${uris.size}장" else body,
+                            body = if (body.isBlank()) "사진 ${uris.size}장" else body,
                             status = MessageStatus.INLINE_SENT
                         )
                     }

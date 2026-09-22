@@ -409,8 +409,8 @@ object IncomingCallOverlay {
         c ?: return null
         val date = c.scheduledWorkDate?.takeIf { it > 0L } ?: c.workCompletedAt?.takeIf { it > 0L } ?: return null
         val dday = DateTimeUtils.dDayLabel(date)   // "오늘" / "D-3" / "D+5"
-        return if (c.workCompletedAt != null) "✅ ${monthDay(date)} 시공 완료 · $dday"
-        else "🔨 ${monthDay(date)} 시공 · $dday"
+        return if (c.workCompletedAt != null) "${monthDay(date)} 시공 완료 · $dday"
+        else "${monthDay(date)} 시공 · $dday"
     }
 
     /** 돈 한 줄 — 받은 돈 우선(사장님: "얼마 냈는지"). 없으면 견적/계약금. 단위 원. */
@@ -532,7 +532,7 @@ object IncomingCallOverlay {
         val phoneNumber: String,
         val displayName: String,
         val isKnown: Boolean,
-        val scheduleLabel: String?,   // "🔨 시공 D-3" / "✅ 3월 15일 시공 완료"
+        val scheduleLabel: String?,   // "시공 D-3" / "3월 15일 시공 완료"
         val address: String?,         // 현장 주소
         val moneyLabel: String?,      // "받은 돈 200만원" / "견적 150만원"
         val messages: List<MsgPreview>,
@@ -580,8 +580,8 @@ private data class CardPalette(val bg: Color, val soft: Color, val accent: Color
 
 private val NeutralPalette = CardPalette(Color.White, CardBlueSoft, CardBlue, "전화 오는 중")
 private val NewPalette = CardPalette(Color(0xFFFFF3B0), Color(0xFFFCE588), Color(0xFFB7791F), "🆕 처음 오는 전화")
-private val ScheduledPalette = CardPalette(Color(0xFFDBF4E3), Color(0xFFAEE9C3), Color(0xFF128A50), "📅 시공 예정 고객")
-private val CompletedPalette = CardPalette(Color(0xFFFBDEDE), Color(0xFFF5C4C6), Color(0xFFD83A40), "✅ 시공했던 고객")
+private val ScheduledPalette = CardPalette(Color(0xFFDBF4E3), Color(0xFFAEE9C3), Color(0xFF128A50), "시공 예정 고객")
+private val CompletedPalette = CardPalette(Color(0xFFFBDEDE), Color(0xFFF5C4C6), Color(0xFFD83A40), "시공했던 고객")
 
 private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = when (status) {
     IncomingCallOverlay.CallerStatus.NEW -> NewPalette
@@ -826,13 +826,13 @@ private class CallerCardView(
 
     private fun applySchedVisibility() {
         schedBox.visibility = if (schedExpanded) View.VISIBLE else View.GONE
-        schedToggleTv.text = if (schedExpanded) "📅  일정 접기" else schedToggleLabel()
+        schedToggleTv.text = if (schedExpanded) "일정 접기" else schedToggleLabel()
         if (!schedExpanded) hideDayDetail()
     }
 
     private fun schedToggleLabel(): String {
         val free = lastDays.count { it.isFree }
-        return if (free > 0) "📅  내 일정 보기 · 2주 안에 빈 날 $free" else "📅  내 일정 보기"
+        return if (free > 0) "내 일정 보기 · 2주 안에 빈 날 $free" else "내 일정 보기"
     }
 
     private fun hideDayDetail() {
@@ -941,7 +941,7 @@ private class CallerCardView(
             setPadding(dp(9f), 0, 0, 0)
         }
         val head = mkText(11f, 0xFFFFFFFF.toInt(), bold = true)
-        val mark = if (item.tone == TwoWeekSchedule.Tone.AS) "🔧 A/S · " else ""
+        val mark = if (item.tone == TwoWeekSchedule.Tone.AS) "A/S · " else ""
         head.text = mark + item.time + " · " + item.who
         texts.addView(head)
         val detail = item.detail.trim()
@@ -1018,16 +1018,16 @@ private class CallerCardView(
         val isRepeat = !st.loading && st.status == IncomingCallOverlay.CallerStatus.REPEAT
         val chipLabel = when {
             st.loading -> "찾는 중…"
-            isNew -> "✨ 신규"
+            isNew -> "신규"
             // 🔁 **그 숫자 자체가 신호**다 — 세 번 거는 사람은 사려는 사람.
-            isRepeat -> "🔁 ${st.callNo}번째 통화"
+            isRepeat -> "${st.callNo}번째 통화"
             // 다음 시공이 잡혀 있으면 그 날짜가 제일 급하다.
             st.scheduleUpcoming && st.scheduleLabel != null -> st.scheduleLabel
             // 아니면 **"2번 시공"** — "기존 손님" 보다 훨씬 많은 말을 한다. (2026-09-19 사장님)
             //   언제 했는지는 바로 밑 '지난 시공' 줄에 있으니 칩에서 또 말하지 않는다.
             st.doneCount > 0 -> "${st.doneCount}번 시공"
             st.scheduleLabel != null -> st.scheduleLabel
-            st.status == IncomingCallOverlay.CallerStatus.COMPLETED -> "✅ 시공 완료"
+            st.status == IncomingCallOverlay.CallerStatus.COMPLETED -> "시공 완료"
             else -> "기존 손님"
         }
         chipTv.text = chipLabel
@@ -1044,8 +1044,8 @@ private class CallerCardView(
         } else base
         subTv.visibility = View.VISIBLE
 
-        show(addrTv, st.address?.let { "📍  $it" })
-        show(moneyTv, st.moneyLabel?.let { "💰  $it" })
+        show(addrTv, st.address?.let { "$it" })
+        show(moneyTv, st.moneyLabel?.let { "$it" })
 
         newBox.visibility = if (isNew) View.VISIBLE else View.GONE
         if (isNew) {
@@ -1086,7 +1086,7 @@ private class CallerCardView(
         }
 
         footTv.text = when {
-            st.talking -> "📌 통화 중 · 끊을 때까지 남아 있어요"
+            st.talking -> "통화 중 · 끊을 때까지 남아 있어요"
             isNew -> "누르면 열려요 · 끊으면 바로 손님 등록"
             else -> "누르면 이 손님 대화로"
         }
@@ -1154,14 +1154,14 @@ private fun IncomingCallCard(
             state.address?.let { addr ->
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "📍 $addr", fontSize = 16.sp, color = TextSecondary,
+                    "$addr", fontSize = 16.sp, color = TextSecondary,
                     maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
             }
 
             state.moneyLabel?.let { money ->
                 Spacer(Modifier.height(8.dp))
-                Text("💰 $money", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Text("$money", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             }
 
             when {

@@ -1438,7 +1438,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                             if (suf.isBlank() || suf in smsMap) return@mapNotNull null
                             val latest = rows.maxByOrNull { it.recordedAt ?: it.updatedAt }
                             val line = latest?.let { callSummaryOneLine(it) }
-                            if (line.isNullOrBlank()) null else suf to ("📞 $line")
+                            if (line.isNullOrBlank()) null else suf to ("$line")
                         }.toMap()
                     callMap + smsMap   // SMS 요약 우선
                 }

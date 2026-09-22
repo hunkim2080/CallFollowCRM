@@ -619,7 +619,7 @@ class SmsRepository(
             val preview = when {
                 t.isNotBlank() && images.isNotEmpty() -> "📷 " + t.take(40)
                 t.isNotBlank() -> t.take(60)
-                images.isNotEmpty() -> "📷 사진 ${images.size}장을 보냈어요"
+                images.isNotEmpty() -> "사진 ${images.size}장을 보냈어요"
                 else -> "새 문자를 보냈어요"
             }
             out += IncomingMms(id, sender, preview, dateMs, read)
@@ -1367,7 +1367,7 @@ class SmsRepository(
         private const val MMS_ADDR_CACHE_MAX = 3000
 
         /** MMS 스캔(fillFromMms)이 본문 대신 붙이는 표식 — 이게 lastBody 면 실제 본문이 가려진 것. (2026-09-01) */
-        const val MMS_PLACEHOLDER_BODY = "📎 사진/첨부 메시지"
+        const val MMS_PLACEHOLDER_BODY = "사진/첨부 메시지"
         private const val COL_ID = "_id"
         private const val COL_ADDRESS = "address"
         private const val COL_BODY = "body"
