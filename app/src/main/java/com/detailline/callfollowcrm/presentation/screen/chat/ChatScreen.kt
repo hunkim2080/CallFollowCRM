@@ -2,6 +2,9 @@
 
 package com.detailline.callfollowcrm.presentation.screen.chat
 
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Check
@@ -1182,8 +1185,8 @@ fun ChatScreen(
             onDismissRequest = { starredViewerOpen = false },
             title = {
                 Text(
-                    if (starred.isEmpty()) "🔖 저장된 메시지"
-                    else "🔖 저장된 메시지 ${starred.size}건",
+                    if (starred.isEmpty()) "저장된 메시지"
+                    else "저장된 메시지 ${starred.size}건",
                     color = TossTextPrimary,
                     fontWeight = FontWeight.Bold
                 )
@@ -1203,7 +1206,7 @@ fun ChatScreen(
                             "📌 사용 방법\n" +
                                 "채팅 말풍선을 길~게 누르면 메뉴가 떠요.\n" +
                                 "‘🔖 저장’ 누르면 여기에 모아 보여드려요.\n" +
-                                "‘📋 복사’ 도 같이 있어요.",
+                                "‘복사’ 도 같이 있어요.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TossTextSecondary,
                             lineHeight = 18.sp
@@ -1288,10 +1291,10 @@ fun ChatScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                         Spacer(Modifier.height(4.dp))
-                        BubbleActionRow(Icons.Default.Phone, TossBlue, "📞 전화 걸기", "이 번호로 전화해요", onClick = {
+                        BubbleActionRow(Icons.Default.Phone, TossBlue, "전화 걸기", "이 번호로 전화해요", onClick = {
                             dialPhone(context, target.digits); linkActionTarget = null
                         })
-                        BubbleActionRow(Icons.Default.Info, TossTextSecondary, "📋 번호 복사", "전화번호를 클립보드에", onClick = {
+                        BubbleActionRow(Icons.Default.Info, TossTextSecondary, "번호 복사", "전화번호를 클립보드에", onClick = {
                             clipboard.setText(AnnotatedString(pretty)); linkActionTarget = null
                         })
                     }
@@ -1319,19 +1322,19 @@ fun ChatScreen(
                         val todayStart = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
                         if (target.epochMs < todayStart) {
                             Text(
-                                "⚠️ 이미 지난 날짜예요 — 확인하고 등록하세요",
+                                "이미 지난 날짜예요 — 확인하고 등록하세요",
                                 fontSize = 12.sp, color = TossError, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 3.dp)
                             )
                         }
                         Spacer(Modifier.height(10.dp))
-                        BubbleActionRow(Icons.Default.DateRange, TossBlue, "🗓️ 시공일로 등록", "이 고객 시공 예약일로", onClick = {
+                        BubbleActionRow(Icons.Default.DateRange, TossBlue, "시공일로 등록", "이 고객 시공 예약일로", onClick = {
                             viewModel.setScheduledWorkDate(target.epochMs); linkActionTarget = null
                         })
-                        BubbleActionRow(Icons.Default.DateRange, Color(0xFFB8780A), "🔧 A/S일로 등록", "이 고객 A/S 예약일로", onClick = {
+                        BubbleActionRow(Icons.Default.DateRange, Color(0xFFB8780A), "A/S일로 등록", "이 고객 A/S 예약일로", onClick = {
                             viewModel.setAsScheduleDate(target.epochMs); linkActionTarget = null
                         })
-                        BubbleActionRow(Icons.Default.Info, TossTextSecondary, "📋 날짜 복사", "날짜를 클립보드에", onClick = {
+                        BubbleActionRow(Icons.Default.Info, TossTextSecondary, "날짜 복사", "날짜를 클립보드에", onClick = {
                             clipboard.setText(AnnotatedString(label)); linkActionTarget = null
                         })
                     }
@@ -1380,7 +1383,7 @@ fun ChatScreen(
                 BubbleActionRow(
                     icon = Icons.Default.Bookmarks,
                     tint = TossBlue,
-                    label = if (alreadyStarred) "🔖 저장 해제" else "🔖 저장",
+                    label = if (alreadyStarred) "저장 해제" else "저장",
                     subtitle = if (alreadyStarred) "북마크 목록에서 삭제" else "분쟁/약속·금액·중요 문자 보관",
                     onClick = {
                         viewModel.toggleStar(msg.body, msg.dateMs, msg.sent)
@@ -1391,7 +1394,7 @@ fun ChatScreen(
                     BubbleActionRow(
                         icon = Icons.Default.Info,
                         tint = TossTextSecondary,
-                        label = "📋 복사",
+                        label = "복사",
                         subtitle = "문자 본문을 클립보드에",
                         onClick = {
                             clipboard.setText(AnnotatedString(msg.body))
@@ -1552,7 +1555,7 @@ fun ChatScreen(
                                     .onFailure { runCatching { adotFolderLauncher.launch(null) } }
                             }.padding(vertical = 13.dp),
                         contentAlignment = Alignment.Center
-                    ) { Text("📁 자동으로 받기 — 폴더 한 번만 연결", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+                    ) { Text("자동으로 받기 — 폴더 한 번만 연결", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "열린 폴더에서 그대로 ‘이 폴더 사용’을 눌러주세요.",
@@ -1575,7 +1578,7 @@ fun ChatScreen(
                     Box(
                         Modifier.clip(RoundedCornerShape(8.dp)).background(TossGrayBg)
                             .clickable { clip.getText()?.let { pasteText = it.text } }.padding(horizontal = 12.dp, vertical = 7.dp)
-                    ) { Text("📋 클립보드에서 붙여넣기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                    ) { Text("클립보드에서 붙여넣기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
@@ -2370,7 +2373,7 @@ private fun CallSegment(
                         Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
                             .background(AppTheme.colors.bg).padding(12.dp)
                     ) {
-                        Text("🎙️ 통화 녹음을 연결하면 요약된 내용을 확인할 수 있어요!",
+                        Text("통화 녹음을 연결하면 요약된 내용을 확인할 수 있어요!",
                             color = TossTextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
                         Spacer(Modifier.height(8.dp))
                         Box(
@@ -2822,7 +2825,7 @@ private fun IntakeSegment(
             Spacer(Modifier.width(9.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    "📋 접수서 작성을 완료했어요",
+                    "접수서 작성을 완료했어요",
                     fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark
                 )
                 Text(
@@ -2837,13 +2840,13 @@ private fun IntakeSegment(
                 event.dateLabel?.let { append("시공일 $it") }
                 event.totalManwon?.let {
                     if (isNotEmpty()) append("  ·  ")
-                    append("💰 ${it}만원")
+                    append("${it}만원")
                 }
             }
             if (sched.isNotEmpty()) add(sched)
-            event.address?.let { add("📍 $it") }
+            event.address?.let { add(it) }
             // 고객이 접수서에 남긴 메모(현관 비번·요청사항 등) — "다 뒤지지 않게" 카드에 바로 표시. (2026-09-02 사장님)
-            event.customerMemo?.takeIf { it.isNotBlank() }?.let { add("📝 남긴 메모: $it") }
+            event.customerMemo?.takeIf { it.isNotBlank() }?.let { add("남긴 메모 · $it") }
         }
         if (detailLines.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -2866,7 +2869,7 @@ private fun IntakeSegment(
                     .clickable { onConfirm() }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✅ 확인했어요 — 고객에게 알리기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                Text("확인했어요 — 고객에게 알리기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
             }
         } else {
             Box(
@@ -2875,7 +2878,7 @@ private fun IntakeSegment(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "✅ 확인함 · ${DateTimeUtils.formatShort(confirmedAt)} 고객에게 알림 보냄",
+                    "확인함 · ${DateTimeUtils.formatShort(confirmedAt)} 고객에게 알림 보냄",
                     color = TossBlueDark, fontSize = 12.sp, fontWeight = FontWeight.Bold
                 )
             }
@@ -3523,7 +3526,7 @@ private fun PayClaimCard(
             .padding(horizontal = 15.dp, vertical = 13.dp)
     ) {
         Text(
-            "💰 입금하셨다고 하네요",
+            "입금하셨다고 하네요",
             fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0B5E3C)
         )
         Spacer(Modifier.height(4.dp))
@@ -3838,7 +3841,7 @@ private fun PrincipleDiscoveryCard(
                 .background(blueSoft)
                 .padding(horizontal = 9.dp, vertical = 4.dp)
         ) {
-            Text("💡 막내가 하나 배웠어요", color = blueDeep, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+            Text("막내가 하나 배웠어요", color = blueDeep, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
         }
         Spacer(Modifier.height(9.dp))
         Text(q, color = TossTextPrimary, fontSize = 14.5.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
@@ -4436,7 +4439,7 @@ private fun SummaryFailedPlaceholder(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "⚠️ 요약을 못 만들었어요 · 다시",
+                "요약을 못 만들었어요 · 다시",
                 color = TossError,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -4910,7 +4913,7 @@ private fun TemplatePickerDialog(
                                         Spacer(Modifier.height(3.dp))
                                         Text(
                                             // 본문이 흐린 회색이면 "아직 안 쓴 칸"처럼 보인다 — 저장된 내용인데. (2026-09-16 사장님)
-                                            tpl.body.ifBlank { "📷 사진" }, color = TossTextSecondary, fontSize = 12.5.sp,
+                                            tpl.body.ifBlank { "사진" }, color = TossTextSecondary, fontSize = 12.5.sp,
                                             maxLines = 2, overflow = TextOverflow.Ellipsis
                                         )
                                     }
@@ -4961,13 +4964,13 @@ private fun TemplateActionSheet(
             Text(template.title, color = TossTextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
             Spacer(Modifier.height(3.dp))
             Text(
-                template.body.replace("\n", " ").ifBlank { "📷 사진" },
+                template.body.replace("\n", " ").ifBlank { "사진" },
                 color = TossTextTertiary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(12.dp))
-            TemplateActionRow("✏️", "문구 수정", TossTextPrimary, onEdit)
-            TemplateActionRow("🏷️", "이름 수정", TossTextPrimary, onRename)
-            TemplateActionRow("🗑️", "삭제", com.detailline.callfollowcrm.presentation.theme.TossError, onDelete)
+            TemplateActionRow(Icons.Default.Edit, "문구 수정", TossTextPrimary, onEdit)
+            TemplateActionRow(Icons.Default.LocalOffer, "이름 수정", TossTextPrimary, onRename)
+            TemplateActionRow(Icons.Default.Delete, "삭제", com.detailline.callfollowcrm.presentation.theme.TossError, onDelete)
             Spacer(Modifier.height(6.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
@@ -4979,13 +4982,19 @@ private fun TemplateActionSheet(
 }
 
 @Composable
-private fun TemplateActionRow(emoji: String, label: String, tint: Color, onTap: () -> Unit) {
+private fun TemplateActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    onTap: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .clickable { onTap() }.padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(emoji, fontSize = 15.sp)
+        // 아이콘 자리엔 **앱이 그리는 아이콘**. 이모지는 폰마다 다르게 그려진다. (2026-09-22)
+        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(11.dp))
         Text(label, color = tint, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
     }
@@ -5409,7 +5418,7 @@ private fun SendConfirmDialog(
             )
             Spacer(Modifier.height(14.dp))
             if (body.isNotBlank()) {
-                Text("✏️ 여기서 바로 고칠 수 있어요", fontSize = 11.sp, color = TossTextTertiary,
+                Text("여기서 바로 고칠 수 있어요", fontSize = 11.sp, color = TossTextTertiary,
                     modifier = Modifier.padding(bottom = 5.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
@@ -5430,7 +5439,7 @@ private fun SendConfirmDialog(
             }
             if (photoCount > 0) {
                 if (body.isNotBlank()) Spacer(Modifier.height(8.dp))
-                Text("📷 사진 ${photoCount}장 첨부", color = TossTextSecondary, fontSize = 13.sp)
+                Text("사진 ${photoCount}장 첨부", color = TossTextSecondary, fontSize = 13.sp)
             }
             Spacer(Modifier.height(18.dp))
             // sheet-cta 보내기 — 수정된 본문(editBody)으로 발송. (2026-08-29 사장님)
@@ -5927,7 +5936,7 @@ private fun EstimateBuilderDialog(
             // 프로토 .sheet-cta — 탭별 라벨/동작
             val ctaText = when (mode) {
                 "accept" -> "시공접수서 링크 보내기"
-                "quote" -> "📜 견적서(직인) 보내기"
+                "quote" -> "견적서(직인) 보내기"
                 else -> "문자에 견적 넣기"
             }
             EstSheetCta(ctaText, enabled = anySelected, filled = true) {
