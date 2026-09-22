@@ -137,6 +137,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.presentation.component.TossBadge
+import com.detailline.callfollowcrm.presentation.component.NavAppPickerDialog
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.component.tossCardShadow
@@ -3636,68 +3637,6 @@ private fun HomeRow(
                             onClick = onOpenChat
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 첫 [📍 길찾기] 탭 시 사장님이 어느 네비 앱 쓸지 고르는 다이얼로그.
- *   탭 = 즉시 선택 + dismiss + launch (확인 버튼 따로 X = 1탭).
- *   이후엔 prefs.defaultNavAppKey 가 박혀서 같은 화면 안 뜨고 바로 launch.
- *   설정 화면에서 언제든 변경 가능.
- */
-@Composable
-private fun NavAppPickerDialog(
-    onPick: (com.detailline.callfollowcrm.util.NavApp) -> Unit,
-    onDismiss: () -> Unit
-) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    "어느 네비 앱을 쓰세요?",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = TossTextPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "선택한 앱이 다음부터 한 번에 열려요. 설정 → 기본 네비 앱 에서 언제든 변경 가능.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextSecondary
-                )
-                Spacer(Modifier.height(16.dp))
-                com.detailline.callfollowcrm.util.NavApp.values().forEach { app ->
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(AppTheme.colors.surfaceMuted)
-                            .clickable { onPick(app) }
-                            .padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            app.label,
-                            color = TossTextPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-                Spacer(Modifier.height(4.dp))
-                androidx.compose.material3.TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("닫기", color = TossTextSecondary)
                 }
             }
         }

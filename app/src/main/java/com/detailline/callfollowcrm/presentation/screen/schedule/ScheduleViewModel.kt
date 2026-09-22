@@ -573,22 +573,6 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         return res.isSuccess
     }
 
-    /**
-     * 사장님 요청 (2026-05-24): 캘린더 셀 탭 시 시공 카드에 "어떤 내용으로 예약 확정인지" 한 줄.
-     * → AiSummaryEntity.cardSummary 재사용 (HomeScreen 카드의 ✨ 한 줄 요약과 같은 데이터).
-     * Map<phoneSuffix, summary>. 서버 미구현이면 빈 맵 → UI 가 silent 숨김.
-     */
-    val cardSummariesByPhoneSuffix: StateFlow<Map<String, String>> = state
-        .flatMapLatest { st ->
-            val suffixes = st.all.map { phoneSuffix(it.phoneNumber) }.distinct().filter { it.length >= 7 }
-            if (suffixes.isEmpty()) flowOf(emptyMap())
-            else container.conversationAiRepository.observeMany(suffixes).map { list ->
-                list.mapNotNull { e ->
-                    com.detailline.callfollowcrm.util.SummaryText.stripLeadingEmoji(e.cardSummary)?.let { e.phoneSuffix to it }
-                }.toMap()
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
-
     private fun phoneSuffix(phone: String): String =
         phone.filter { it.isDigit() }.takeLast(8)
 

@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
@@ -177,9 +179,39 @@ fun ScheduleScreen(
                 (com.detailline.callfollowcrm.util.RegionName.shortRegion(site.addr) ?: "요청")
         }
     }
-    val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
+
+    // [길찾기] — 그 날 카드에 붙은 버튼. 주소가 카드에 이미 있어서 번호 조회 없이 바로 연다.
+    //   처음 한 번만 네비 앱을 고르고(prefs.defaultNavAppKey), 그 뒤로는 1탭. 홈과 같은 방식.
+    val scheduleCtx = androidx.compose.ui.platform.LocalContext.current
+    val navScope = androidx.compose.runtime.rememberCoroutineScope()
+    val navPrefs = remember(scheduleCtx) {
+        (scheduleCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
+            .container.preferences
+    }
+    var navDialogAddr by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<String?>(null)
+    }
+    fun launchNavigationForAddr(addr: String?) {
+        val navApp = com.detailline.callfollowcrm.util.NavApp.fromKey(navPrefs.defaultNavAppKey)
+        if (navApp == null) navDialogAddr = addr
+        else navScope.launch {
+            com.detailline.callfollowcrm.util.NavLauncher.launch(scheduleCtx, navApp, addr)
+        }
+    }
+    navDialogAddr?.let { pending ->
+        com.detailline.callfollowcrm.presentation.component.NavAppPickerDialog(
+            onPick = { picked ->
+                navPrefs.defaultNavAppKey = picked.key
+                navDialogAddr = null
+                navScope.launch {
+                    com.detailline.callfollowcrm.util.NavLauncher.launch(scheduleCtx, picked, pending)
+                }
+            },
+            onDismiss = { navDialogAddr = null }
+        )
+    }
     // 협업(수락/요청) 실시간 반영 — 일정탭 보는 동안 주기 폴링. 탭 벗어나면(컴포지션 해제) 자동 정지, 돌아오면 재개.
     //   (다른 폰에서 방금 보낸 협업 요청도 화면 그대로 두고 ~12초 안에 주황 마커로 뜸.) (2026-07-08 사장님)
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -463,7 +495,6 @@ fun ScheduleScreen(
                     ) {
                         DayJobCard(
                             customer = c,
-                            cardSummary = cardSummaries[suffix],
                             selectedDayMs = selectedDayMs,
                             todayStart = todayStart,
                             assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
@@ -479,6 +510,8 @@ fun ScheduleScreen(
                             onAssign = { assignTarget = c },
                             // 시공 카드 탭 = 그날 그 고객한테 문자 보내려는 경우가 대부분 → 고객정보 대신 문자(채팅)로 바로.
                             //   고객정보가 필요하면 채팅 헤더에서 열 수 있음(onOpenCustomerDetail). (2026-08-30 사장님)
+                            onNavigate = { addr -> launchNavigationForAddr(addr) },
+                            onCall = { phone -> dialFromSchedule(scheduleCtx, phone) },
                             onClick = { onOpenChat(c.phoneNumber, c.id) }
                         )
                     }
@@ -1372,7 +1405,6 @@ private fun DayAddButton(label: String, onClick: () -> Unit) {
 @Composable
 private fun DayJobCard(
     customer: CustomerEntity,
-    cardSummary: String?,
     selectedDayMs: Long?,
     todayStart: Long,
     assignedMembers: List<com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity> = emptyList(),
@@ -1380,6 +1412,8 @@ private fun DayJobCard(
     collabPartnerNames: List<Pair<String, Boolean>> = emptyList(),
     teamAvailable: Boolean = false,
     onAssign: () -> Unit = {},
+    onNavigate: (String) -> Unit = {},
+    onCall: (String) -> Unit = {},
     onClick: () -> Unit
 ) {
     val scheduled = customer.scheduledWorkDate ?: return
@@ -1387,93 +1421,86 @@ private fun DayJobCard(
     val isPast = s < todayStart
     val totalDays = customer.scheduledWorkDays.coerceAtLeast(1)
     val dayN = selectedDayMs?.let { ((it - s) / DateTimeUtils.DAY_MS).toInt() + 1 }?.coerceIn(1, totalDays) ?: 1
-    val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(customer)
-    val hasMoney = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.hasMoney(customer)
+    val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address)
+    // 이름·일차는 주소 밑 작은 줄. 둘 다 없으면 그 줄이 아예 안 나온다.
+    val who = listOfNotNull(
+        customer.name?.takeIf { it.isNotBlank() },
+        if (totalDays > 1) "${totalDays}일 중 ${dayN}일차" else null
+    ).joinToString(" · ")
+    // 초록 = 끝난 것 · 회색 = 그냥 지나간 것 · 파랑 = 앞으로 올 것. (2026-09-20 사장님)
+    //   며칠 남았는지는 날짜 칸이 말해주지만 **끝낸 건지 아닌지는 카드만 안다** → 딱지는 남긴다.
+    val isDone = customer.workCompletedAt != null
+    val tagText = if (isDone) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
+    val tagBg = when {
+        isDone -> AppTheme.colors.doneBg
+        isPast -> TossGrayBg
+        else -> AppTheme.colors.primaryBg
+    }
+    val tagFg = when {
+        isDone -> AppTheme.colors.doneText
+        isPast -> TossTextTertiary
+        else -> AppTheme.colors.primaryText
+    }
 
     TossCard(onClick = onClick) {
         Column {
-            // 1행: hd 점 + 이름 + N일차 + 시간 + 태그 + 수정
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 달력 막대와 **같은 색**. 전엔 앞으로 올 시공이 빨강이었는데, 빨강은 미수·위험 색이고
-                //   범례에 있지도 않았다. (2026-09-20 사장님)
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                // 몇 시에 — 시각을 안 정해둔 시공이면 이 칸은 빈 채로 둔다. (끝 시각은 앱에 없다)
+                Column(Modifier.width(56.dp)) {
+                    customer.scheduledWorkMinutes?.let {
+                        Text(
+                            DateTimeUtils.formatWorkMinutes(it),
+                            fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                            color = if (isPast) TossTextTertiary else TossTextPrimary
+                        )
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                // 달력 막대와 **같은 색**. 지난 건 회색.
                 Box(
-                    Modifier.size(9.dp).clip(CircleShape)
+                    Modifier.width(3.dp).fillMaxHeight().clip(AppShape.sm)
                         .background(if (isPast) Color(0xFFC2C9D2) else AppTheme.colors.done)
                 )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber),
-                    fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                    color = if (isPast) TossTextSecondary else TossTextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                if (totalDays > 1) {
-                    Box(
-                        Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg).padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text("${totalDays}일 중 ${dayN}일차", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category)
+                Spacer(Modifier.width(11.dp))
+                // 주소가 주인공 — 일정 탭에서 묻는 건 "어디로 몇 시에 가지?" 하나다. (2026-09-22 사장님)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        addr.takeIf { it.isNotBlank() } ?: "주소 미입력",
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = if (isPast) TossTextSecondary else TossTextPrimary,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    if (who.isNotBlank()) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            who, fontSize = 12.5.sp, color = TossTextTertiary, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
                     }
-                    Spacer(Modifier.width(7.dp))
+                    // 주소를 보는 가장 큰 이유가 "가야 해서"인데 갈 방법이 없었다. (2026-09-22 사장님)
+                    Spacer(Modifier.height(11.dp))
+                    Row {
+                        if (addr.isNotBlank()) {
+                            GoBtn("길찾기", primary = true) { onNavigate(addr) }
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        // 카드를 누르면 **문자**, 이 버튼은 **전화** — 둘이 겹치지 않는다.
+                        if (customer.phoneNumber.isNotBlank()) {
+                            GoBtn("전화", primary = false) { onCall(customer.phoneNumber) }
+                        }
+                    }
                 }
-                customer.scheduledWorkMinutes?.let {
-                    Text(DateTimeUtils.formatWorkMinutes(it), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextInfo,
-                        modifier = Modifier.padding(end = 8.dp))
-                }
-                // 태그 (완료 / D-day)
-                // 날짜만 지나면 "완료"라 놓친 현장도 완료로 보이던 것 → 진짜 완료 처리만 "완료", 나머지 지난 건 "지남". 2026-07-30
-                // 초록 = **끝난 것** · 파랑 = **앞으로 올 것** · 회색 = 그냥 지나간 것. (2026-09-20 사장님)
-                //   전엔 [완료] 가 회색이고 [D-5] 가 초록이라 거꾸로였다.
-                val isDone = customer.workCompletedAt != null
-                val tagText = if (isDone) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
-                val tagBg = when {
-                    isDone -> AppTheme.colors.doneBg
-                    isPast -> TossGrayBg
-                    else -> AppTheme.colors.primaryBg
-                }
-                val tagFg = when {
-                    isDone -> AppTheme.colors.doneText
-                    isPast -> TossTextTertiary
-                    else -> AppTheme.colors.primaryText
-                }
+                Spacer(Modifier.width(8.dp))
                 Box(
-                    Modifier.clip(RoundedCornerShape(8.dp)).background(tagBg)
+                    Modifier.clip(AppShape.sm).background(tagBg)
                         .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
                     Text(tagText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = tagFg)
                 }
-                // 연필 아이콘 제거(2026-06-11): 카드 전체 탭 = 연필 탭 = 고객 상세로, 기능 동일해 중복이었음.
             }
-            // 📍 주소
-            Spacer(Modifier.height(9.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() } ?: "주소 미입력",
-                    fontSize = 13.sp, color = TossTextSecondary, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-            // ✨ AI 요약
-            if (!cardSummary.isNullOrBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 글자 ✨ 는 갤럭시에서 남색 타일로 그려진다 → 앱이 그리는 아이콘으로. (2026-09-20 사장님)
-                    Icon(
-                        Icons.Filled.AutoAwesome, null,
-                        tint = if (isPast) TossTextTertiary else TossBlue,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(cardSummary, fontSize = 13.sp, color = if (isPast) TossTextTertiary else TossBlue, fontWeight = FontWeight.Medium, maxLines = 2)
-                }
-            }
-            // 입금 상태 (읽기 전용)
-            if (hasMoney) {
-                Spacer(Modifier.height(10.dp))
-                PayStatusReadOnly(row)
-            }
-            // "정산·현금흐름에서 보기" 링크 제거(2026-06-11): 카드 탭하면 고객 상세에 정산이 이미 다 있어 불필요했음.
+            // 🗑 뺀 것 (2026-09-22 사장님): 번호 제목줄 · ✨ 문자 요약 · 총액/계약금/잔금.
+            //    번호는 눌러서 문자로 가니 제목 자리 값이 아니고, 요약은 대화방에, 돈은 정산 탭에 있다.
             // 프로토 .assign-line — 전문가 배정. 항상 노출(팀원·일당사장 0명이어도) → 시트의 "+추가"로 바로 등록. (2026-06-14 사장님)
             run {
                 @Suppress("UNUSED_EXPRESSION") teamAvailable  // (게이팅 제거 — 빈 상태에서도 배정/추가 진입 가능해야 함)
@@ -1504,6 +1531,33 @@ private fun DayJobCard(
                 }
             }
         }
+    }
+}
+
+/** [길찾기] 파랑 채움 / [전화] 회색 채움. 둘 다 둥근 네모 — 알약은 '고르는 칩'에만. */
+@Composable
+private fun GoBtn(label: String, primary: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+        color = if (primary) Color.White else TossTextSecondary,
+        modifier = Modifier
+            .clip(AppShape.sm)
+            .background(if (primary) TossBlue else TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 15.dp, vertical = 8.dp)
+    )
+}
+
+/** 시스템 전화 앱을 연다. ACTION_DIAL 은 권한이 필요 없고, 저절로 걸리지도 않는다. */
+private fun dialFromSchedule(context: android.content.Context, phoneNumber: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.content.Intent.ACTION_DIAL,
+                android.net.Uri.parse("tel:$phoneNumber")
+            )
+        )
     }
 }
 
