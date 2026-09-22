@@ -1463,8 +1463,7 @@ private fun GoogleCalendarSection(container: AppContainer) {
 
     TossCard {
         Column {
-            Text("구글 캘린더 연동", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Spacer(Modifier.height(2.dp))
+            // 제목은 바로 위 앱바가 이미 말하고 있다. 같은 말을 두 번 하지 않는다. (2026-09-22 사장님)
             Text(
                 "시공·A/S 일정이 구글 캘린더에 자동으로 올라가요.\n폰 위젯에서 보거나, 가족·직원과 나눠 보거나, 폰을 바꿔도 그대로 남아요.",
                 fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp

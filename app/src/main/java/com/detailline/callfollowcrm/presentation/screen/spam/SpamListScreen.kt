@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.spam
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +49,7 @@ import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.SpamPhoneEntity
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -89,7 +91,8 @@ fun SpamListScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                // 앱의 다른 26개 화면과 같은 회색. 흰 띠면 바탕과 사이에 이음매가 생긴다. (2026-09-22 사장님)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         }
     ) { padding ->
@@ -98,14 +101,30 @@ fun SpamListScreen(
                 Modifier.fillMaxSize().padding(padding).padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (isPersonal) "👤" else "🛡️", fontSize = 42.sp)
+                // 🔴 전엔 **진짜 이모지**(👤 🛡️)를 42sp 로 띄웠다 — 폰마다 다르게 그려진다.
+                //   앱이 그리는 아이콘으로, 협업 현장 빈 화면과 같은 모양. (2026-09-22 사장님)
+                Column(
+                    Modifier.fillMaxWidth().clip(AppShape.lg).background(Color.White)
+                        .padding(vertical = 26.dp, horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        Modifier.size(46.dp).clip(AppShape.md)
+                            .background(if (isPersonal) AppTheme.colors.categoryBg else AppTheme.colors.unpaidBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (isPersonal) Icons.Filled.Person else Icons.Filled.Block, null,
+                            tint = if (isPersonal) AppTheme.colors.category else AppTheme.colors.unpaid,
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     Text(emptyTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "상담함에서 카드를 밀어 $swipeWord 을 누르면 여기 모여요.\n잘못 넣어도 여기서 바로 풀 수 있어요.",
-                        fontSize = 12.5.sp, color = TossTextTertiary, textAlign = TextAlign.Center
+                        fontSize = 12.5.sp, color = TossTextTertiary, textAlign = TextAlign.Center, lineHeight = 19.sp
                     )
                 }
             }
@@ -113,7 +132,7 @@ fun SpamListScreen(
             LazyColumn(
                 Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
                     val intro = if (isPersonal)
@@ -125,18 +144,25 @@ fun SpamListScreen(
                         modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
                     )
                 }
-                items(list, key = { it.phoneSuffix }) { entry ->
-                    SpamRow(
-                        entry = entry,
-                        onUnmark = {
-                            scope.launch {
-                                container.spamPhoneRepository.unmark(entry.phoneSuffix)
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, undoToast, Toast.LENGTH_SHORT).show()
+                // 🔴 전엔 **줄마다 흰 카드**가 따로 떠 있었다 — 더보기·가격표·문자 템플릿에 이어 네 번째.
+                //   묶음 하나 = 카드 하나, 줄 사이는 가는 선. (2026-09-22 사장님)
+                item(key = "spam-card") {
+                    Column(Modifier.fillMaxWidth().clip(AppShape.lg).background(Color.White)) {
+                        list.forEachIndexed { idx, entry ->
+                            if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                            SpamRow(
+                                entry = entry,
+                                onUnmark = {
+                                    scope.launch {
+                                        container.spamPhoneRepository.unmark(entry.phoneSuffix)
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, undoToast, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
                                 }
-                            }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
@@ -156,11 +182,9 @@ private fun SpamRow(entry: SpamPhoneEntity, onUnmark: () -> Unit) {
     val iconBg = if (isPersonal) AppTheme.colors.categoryBg else AppTheme.colors.unpaidBg
     val iconTint = if (isPersonal) AppTheme.colors.category else AppTheme.colors.unpaid
 
+    // 자기 카드(흰 바탕+둥근 모서리)를 버렸다 — 이제 묶음 카드 **안에 사는 줄**이다. (2026-09-22)
     Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(16.dp))
-            .padding(14.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

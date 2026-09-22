@@ -99,7 +99,8 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                // 앱의 다른 화면들처럼 바닥과 같은 회색 — 흰 띄면 이음매가 생긴다. (2026-09-22 사장님)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         }
     ) { padding ->

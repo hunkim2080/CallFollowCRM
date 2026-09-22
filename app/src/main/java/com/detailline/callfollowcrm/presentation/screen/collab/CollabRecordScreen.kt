@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.collab
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.content.Intent
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -26,6 +28,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -147,7 +151,10 @@ fun CollabRecordScreen(viewModel: CollabRecordViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("⬇ 이 달 '${if (showReceived) "받은" else "준"}' 내역 저장하기",
+                        // 🔴 ⬇ 는 **글자**라 폰 글꼴에 따라 네모로 깨진다. 버튼 안 작은따옴표도 읽기를 더듬게 한다.
+                        Icon(Icons.Filled.FileDownload, null, tint = TossBlue, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text("이 달 ${if (showReceived) "받은" else "준"} 내역 저장하기",
                             fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                     }
                     Spacer(Modifier.height(20.dp))
@@ -171,7 +178,7 @@ private fun MonthSelector(s: CollabRecordViewModel.UiState, vm: CollabRecordView
     ) {
         ArrowBtn("‹", enabled = s.canPrev) { vm.prevMonth() }
         Text(
-            s.monthLabel.ifBlank { "협업 기록" },
+            s.monthLabel,
             fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
             letterSpacing = (-0.2).sp,
             modifier = Modifier.padding(horizontal = 20.dp).width(140.dp),
@@ -199,12 +206,12 @@ private fun ArrowBtn(sym: String, enabled: Boolean, onClick: () -> Unit) {
 private fun DirectionTabs(received: DirectionAgg, given: DirectionAgg, showReceived: Boolean, onSelect: (Boolean) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DirTab(
-            selected = showReceived, isReceived = true,
+            selected = showReceived, isReceived = true, zero = received.totalWage == 0,
             amount = "+${received.totalWage}만원", count = received.count, people = received.partners.size,
             modifier = Modifier.weight(1f)
         ) { onSelect(true) }
         DirTab(
-            selected = !showReceived, isReceived = false,
+            selected = !showReceived, isReceived = false, zero = given.totalWage == 0,
             amount = "−${given.totalWage}만원", count = given.count, people = given.partners.size,
             modifier = Modifier.weight(1f)
         ) { onSelect(false) }
@@ -212,7 +219,17 @@ private fun DirectionTabs(received: DirectionAgg, given: DirectionAgg, showRecei
 }
 
 @Composable
-private fun DirTab(selected: Boolean, isReceived: Boolean, amount: String, count: Int, people: Int, modifier: Modifier, onClick: () -> Unit) {
+private fun DirTab(
+    selected: Boolean,
+    isReceived: Boolean,
+    /** 0원이면 색을 안 쓴다 — 초록은 "잘 됐다"는 뜻이라 0원이 축하받는 꼴이 된다. (2026-09-22 사장님) */
+    zero: Boolean,
+    amount: String,
+    count: Int,
+    people: Int,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
     val accent = if (isReceived) TossSuccess else TossError
     val accentDeep = if (isReceived) GreenDeep else RedDeep
     val bg = if (selected) (if (isReceived) GreenBg else RedBg) else Color.White
@@ -233,7 +250,7 @@ private fun DirTab(selected: Boolean, isReceived: Boolean, amount: String, count
                 color = if (selected) accentDeep else TossTextSecondary)
         }
         Text(amount, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
-            color = if (selected) accent else TossTextTertiary, modifier = Modifier.padding(top = 5.dp))
+            color = if (selected && !zero) accent else TossTextTertiary, modifier = Modifier.padding(top = 5.dp))
         Text("${count}건 · ${people}명", fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 1.dp))
     }
 }
@@ -317,26 +334,45 @@ private fun PayBadge(paid: Boolean, received: Boolean) {
 
 /* ─────────────── 빈 상태 ─────────────── */
 
+/**
+ * 빈 달.
+ *
+ * 🔴 전엔 **진짜 이모지**(🤝)를 40sp 로 띄우고 화면 **위에 붙여** 놨다. 폰마다 다르게 그려지고,
+ *   아래는 텅 비어 보였다. 협업 현장 빈 화면과 **같은 얼굴**로 맞춘다 — 두 화면은 형제다. (2026-09-22 사장님)
+ */
 @Composable
 private fun EmptyState(showReceived: Boolean, hasMonths: Boolean) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text("🤝", fontSize = 40.sp)
-        Text(
-            when {
-                !hasMonths -> "아직 협업 기록이 없어요"
-                showReceived -> "이 달 받은 협업이 없어요"
-                else -> "이 달 준 협업이 없어요"
-            },
-            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-            modifier = Modifier.padding(top = 12.dp)
-        )
-        Text(
-            if (showReceived) "다른 사장님이 나를 부른 협업이 여기 모여요." else "내가 다른 사장님을 부른 협업이 여기 모여요.",
-            fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp)
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth().clip(AppShape.lg).background(Color.White)
+                .padding(vertical = 26.dp, horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier.size(46.dp).clip(AppShape.md).background(AppTheme.colors.primaryBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp))
+            }
+            Text(
+                when {
+                    !hasMonths -> "아직 협업 기록이 없어요"
+                    showReceived -> "이 달 받은 협업이 없어요"
+                    else -> "이 달 준 협업이 없어요"
+                },
+                fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            Text(
+                if (showReceived) "다른 사장님이 나를 부른 협업이\n여기 모여요." else "내가 다른 사장님을 부른 협업이\n여기 모여요.",
+                fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 19.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
     }
 }
 

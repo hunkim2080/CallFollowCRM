@@ -86,7 +86,9 @@ class CollabRecordViewModel(private val container: AppContainer) : ViewModel() {
             it.copy(
                 loading = false,
                 ym = ym,
-                monthLabel = monthLabel(ym),
+                // 🔴 기록이 없으면 라벨이 비고, 화면이 그 자리에 제목을 대신 넣어 같은 말을 두 번 했다.
+                //   월 칸은 **지금 어느 달을 보는지** 를 말하는 자리다. (2026-09-22 사장님)
+                monthLabel = monthLabel(ym).ifBlank { monthLabel(ymOf(System.currentTimeMillis())) },
                 availableMonths = months,
                 canPrev = idx in 0 until (months.size - 1),   // 더 예전 있음
                 canNext = idx > 0,                             // 더 최근 있음
