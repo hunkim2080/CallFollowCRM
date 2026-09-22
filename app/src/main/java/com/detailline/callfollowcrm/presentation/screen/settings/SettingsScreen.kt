@@ -228,7 +228,7 @@ fun SettingsScreen(
     var showDiagnostics by remember { mutableStateOf(false) }
     val subTitle = when (subPage) {
         "tone" -> "내 말투 학습"
-        "autosms" -> "자동 문자"
+        "autosms" -> "자동으로 챙기기"
         "nav" -> "기본 네비 앱"
         "smsapp" -> "기본 문자 앱"
         "noti" -> "고객 사진(문자) 받기"
@@ -418,8 +418,8 @@ fun SettingsScreen(
                 //   있을지 짐작이 안 됐다. → 잣대를 하나로: **얼마나 자주 여는가.**
                 //   항목은 하나도 안 없앴다. **자리만 옮겼다.**
                 SettingsGroup("자주 쓰는 것") {
-                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
-                        "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자", first = true) { subPage = "autosms" }
+                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동으로 챙기기",
+                        "부재중 문자 · 시공 D-1 · 통화 요약 · 답변 준비", first = true) { subPage = "autosms" }
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
                         "자주 쓰는 문구 관리", onClick = onOpenTemplates)
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
@@ -449,6 +449,8 @@ fun SettingsScreen(
                         navLabel) { subPage = "nav" }
                     LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
                         "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
+                    // 보안 설정 — 한 번 켜두면 끝이라 여기가 맞다. 전엔 자동 문자 화면 한가운데 있었다.
+                    ScreenCaptureRow(container.preferences)
                     LockRow(Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category, "내 말투 학습",
                         "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
                     // 기본 문자 앱이면 채팅+가 꺼져 있어 이 안내 불필요 → 숨김. (2026-08-02 사장님)
@@ -2180,7 +2182,9 @@ private fun AutoSmsSection(
     Text("전화·시공으로 바쁠 때 고객을 놓치지 않게 자동으로 챙겨요.",
         fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
 
-    Text("상황이 되면 자동으로", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+    // 🔴 전엔 라벨이 "상황이 되면 자동으로" 하나뿐이라, 문자·통화·보안이 다 한 덩어리로 보였다.
+    //   이름과 속을 맞춰 넷으로 갈랐다. (2026-09-22 사장님)
+    Text("문자로 챙기기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
         modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 6.dp))
 
     // ① 부재중 자동 응답
@@ -2219,6 +2223,8 @@ private fun AutoSmsSection(
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
         AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
     }
+
+    SettingsSubLabel("통화 때 챙기기")
 
     // ④ 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 녹음/텍스트를 자동 요약(공유 안 눌러도 됨).
     var autoSumOn by remember { mutableStateOf(prefs.autoSummaryEnabled) }
@@ -2278,34 +2284,6 @@ private fun AutoSmsSection(
                 showConsent = false
             }
         )
-    }
-
-    // ④-b 화면 캡처 막기 (2026-08-20 사장님) — 기본 OFF(베타 버그 캡처 위해). 켜면 릴리스에서 스샷/녹화 차단. live-apply.
-    val capCtx = LocalContext.current
-    var blockCapOn by remember { mutableStateOf(prefs.blockScreenCapture) }
-    TossCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.unpaidBg),
-                contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Lock, null, tint = AppTheme.colors.unpaid, modifier = Modifier.size(17.dp))
-                }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("켜면 고객 정보·통화·돈 화면의 스크린샷·화면 녹화를 막아요 (보안). 지금은 버그 캡처를 위해 꺼둠",
-                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
-            }
-            Spacer(Modifier.width(8.dp))
-            Switch(checked = blockCapOn, onCheckedChange = { want ->
-                blockCapOn = want; prefs.blockScreenCapture = want
-                (capCtx as? android.app.Activity)?.window?.let { w ->
-                    if (want) w.setFlags(
-                        android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                        android.view.WindowManager.LayoutParams.FLAG_SECURE
-                    ) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-                }
-            })
-        }
     }
 
     // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 화면 '테두리'에 상태색을 둘러 신규/예정/기존/완료를 한눈에. (2026-08-31 카드→테두리)
@@ -2493,7 +2471,7 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(14.dp))
 
-    Text("정해둔 주기로", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+    Text("정해둔 때마다", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
         modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
 
     // ④ 정기 문자 예약 (링크)
@@ -2510,6 +2488,8 @@ private fun AutoSmsSection(
         }
     }
     Spacer(Modifier.height(14.dp))
+
+    SettingsSubLabel("문자가 오면")
 
     // 받은 문자 알림 (보존) — 설명 명확화: 이건 '알림창'만 담당(AI 준비와 별개). (2026-07-16 사장님 혼동)
     TossCard {
@@ -2659,6 +2639,15 @@ private fun AutoSmsSection(
             }
         }
     }
+}
+
+/** 자동으로 챙기기 화면의 소제목 — 묶음 이름이 곧 "언제". (2026-09-22) */
+@Composable
+private fun SettingsSubLabel(text: String) {
+    Text(
+        text, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, top = 14.dp, bottom = 2.dp)
+    )
 }
 
 @Composable
@@ -3883,6 +3872,44 @@ private fun DataBackupSection(
             )
         }
     }
+}
+
+
+/**
+ * 화면 캡처 막기 — 기본 OFF(베타 버그 캡처 위해). 켜면 릴리스에서 스샷/녹화 차단. live-apply.
+ *
+ * 🔴 전엔 **자동 문자 화면 한가운데** 있었다. 보안 설정인데 문자 설정들 사이에 끼어 있었다.
+ *   (2026-09-22 사장님 "디자인?? 안 건든 거 같은데 체크") → 더보기 "한 번 해두면 끝" 으로 옮겼다.
+ */
+@Composable
+private fun ScreenCaptureRow(prefs: com.detailline.callfollowcrm.data.preferences.AppPreferences) {
+    val capCtx = LocalContext.current
+    var blockCapOn by remember { mutableStateOf(prefs.blockScreenCapture) }
+    TossCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.unpaidBg),
+                contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Lock, null, tint = AppTheme.colors.unpaid, modifier = Modifier.size(17.dp))
+                }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text("켜면 고객 정보·통화·돈 화면의 스크린샷·화면 녹화를 막아요 (보안). 지금은 버그 캡처를 위해 꺼둠",
+                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = blockCapOn, onCheckedChange = { want ->
+                blockCapOn = want; prefs.blockScreenCapture = want
+                (capCtx as? android.app.Activity)?.window?.let { w ->
+                    if (want) w.setFlags(
+                        android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                        android.view.WindowManager.LayoutParams.FLAG_SECURE
+                    ) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                }
+            })
+        }
+    }
+
 }
 
 /** 백업 카드의 작은 버튼 — 자주 하는 일이 아니라 크게 둘 이유가 없다. (2026-09-22) */
