@@ -439,7 +439,7 @@ fun ScheduleScreen(
                             Triple(TossTextTertiary, "지난", true),
                             Triple(AppTheme.colors.category, "협업", true),
                             Triple(AppTheme.colors.caution, "요청", true),
-                            Triple(AppTheme.colors.primary, "A/S", false),
+                            Triple(AppTheme.colors.primary, "A/S", true),
                             Triple(TossTextTertiary, "간단", false)
                         ).forEach { (col, lbl, isBar) ->
                             if (isBar) Box(
@@ -1130,17 +1130,14 @@ private fun CalendarDay(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bgColor = when {
-        isSelected -> TossBlue
-        cell.isToday -> TossBlueSoft
-        else -> Color.Transparent
-    }
+    // 날짜는 **작게 왼쪽 위**. 오늘만 작은 동그라미, 고른 날은 칸 전체를 연하게.
+    //   전엔 32dp 동그라미가 칸 한가운데를 다 먹어서 띠가 두 줄밖에 못 들어갔다. (2026-09-22 사장님, 레퍼런스)
     val fgColor = when {
-        isSelected -> Color.White
+        cell.isToday -> Color.White
         !cell.isCurrentMonth -> TossTextTertiary
         cell.dayOfWeek == Calendar.SUNDAY -> TossError
         cell.dayOfWeek == Calendar.SATURDAY -> TossBlue
-        else -> TossTextPrimary
+        else -> TossTextSecondary
     }
     // 프로토 jbar: 점 대신 일정 1건 = 막대 1줄(lane). 1건/2건/여러날이 한눈에 구분됨. (2026-06-11)
     //   선택칸 막대는 흰색, 지난 시공은 회색, 다가올 시공은 초록, 협업은 보라.
@@ -1148,46 +1145,58 @@ private fun CalendarDay(
     val collabLane = if (isCollab) schedMaxLane + 1 else -1
     // 응답 안 한 협업 요청 = 주황 막대(초록 일정·보라 협업과 확실히 구분). 푸시 놓쳐도 일정 보다 눈에 띄게. (2026-07-08 사장님)
     val pendingLane = if (isPendingCollab) maxOf(schedMaxLane, collabLane) + 1 else -1
-    val lastLane = minOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), CAL_MAX_LANE) // 최대 3줄
+    // A/S 도 띠로. 점은 **어디인지를 못 적는다.** (2026-09-22, 레퍼런스 그림)
+    val asLane = if (isAs) maxOf(maxOf(schedMaxLane, collabLane), pendingLane) + 1 else -1
+    val lastLane = minOf(maxOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), asLane), CAL_MAX_LANE)
     Box(
         modifier = modifier
-            // 모든 막대를 같은 13dp 띠로 통일 → 두 줄(26dp) + 날짜 원(32dp) + 사이(4dp) = 62, 여유 4 = 66dp.
-            //   ⚠️ 종류마다 높이를 다르게 하지 말 것 — 층이 어긋나 **깨져 보인다**. (2026-09-22 사장님)
-            .height(66.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        contentAlignment = Alignment.Center
+            // 날짜 15dp + 사이 2 + 띠 세 줄(13×3 + 1.5×2) = 59, 여유 3 = 62dp.
+            //   ⚠️ 종류마다 띠 높이를 다르게 하지 말 것 — 층이 어긋나 **깨져 보인다**. (2026-09-22 사장님)
+            .height(62.dp)
+            .padding(horizontal = 1.dp)
+            .clip(AppShape.sm)
+            .background(if (isSelected) AppTheme.colors.primaryBg else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // 날짜 숫자 — 선택/오늘만 원형 배경(프로토 .num). 막대는 원 밖, 아래에.
+        Column(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+            // 날짜 — 작게, 왼쪽 위. 오늘만 동그라미.
             Box(
-                Modifier.size(32.dp).clip(CircleShape).background(bgColor),
+                Modifier.padding(start = 3.dp).size(15.dp).clip(CircleShape)
+                    .background(if (cell.isToday) TossBlue else Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     cell.dayOfMonth.toString(),
                     color = fgColor,
-                    fontSize = 14.sp,
-                    fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
+                    fontSize = 10.sp,
+                    lineHeight = 10.sp,   // 테마 lineHeight 를 물려받으면 동그라미 안에서 글자가 내려앉는다
+                    fontWeight = FontWeight.Bold
                 )
             }
             if (lastLane >= 0) {
-                Spacer(Modifier.height(3.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.height(2.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(1.5.dp), modifier = Modifier.fillMaxWidth()) {
                     for (lane in 0..lastLane) {
                         when {
-                            // 막대는 날짜 동그라미 '밖(아래)' 흰 배경 위 → 선택돼도 흰색이면 안 보임(사장님 신고).
-                            //   선택 여부와 무관하게 색 유지(협업=보라/지난=회색/다가올=초록).
-                            // 종류는 **색**으로만 가른다. 높이는 다 같아야 줄이 안 어긋난다.
+                            // 종류는 **색**으로만 가른다. 연한 바탕 + 진한 글자 — 세 줄이 쌓여도 안 답답하다.
+                            lane == asLane ->
+                                CalRegionBar(
+                                    BarSeg.SINGLE, AppTheme.colors.primaryBg, AppTheme.colors.primaryText, "A/S"
+                                )
                             lane == pendingLane -> PendingCalBar(pendingRegion ?: "요청")
                             lane == collabLane ->
-                                CalRegionBar(BarSeg.SINGLE, AppTheme.colors.category, collabRegion ?: "협업")
+                                CalRegionBar(
+                                    BarSeg.SINGLE, AppTheme.colors.categoryBg, AppTheme.colors.categoryText,
+                                    collabRegion ?: "협업"
+                                )
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
                                 if (bar != null) {
-                                    val c = if (bar.past) TossTextTertiary else TossSuccess
-                                    CalRegionBar(bar.seg, c, bar.label)
+                                    val bg = if (bar.past) AppTheme.colors.surfaceMuted else AppTheme.colors.doneBg
+                                    val fg = if (bar.past) TossTextSecondary else AppTheme.colors.doneText
+                                    CalRegionBar(bar.seg, bg, fg, bar.label)
                                 } else {
-                                    // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 막대가 가로로 이어지게.
+                                    // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 띠가 가로로 이어지게.
                                     Box(Modifier.fillMaxWidth().height(13.dp))
                                 }
                             }
@@ -1196,17 +1205,12 @@ private fun CalendarDay(
                 }
             }
         }
-        // 칸 맨 아래 점들 — A/S(파랑) · 간단 일정(회색). 시공 초록막대·협업 보라막대와 별개.
-        //   둘 다 있으면 나란히 찍힌다(겹쳐서 하나로 보이면 A/S 를 놓친다).
-        if (isAs || isSimple) {
-            Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                // A/S 는 파랑 점 — '요청'(주황 막대)과 색까지 같으면 구분이 안 된다. (2026-09-20 사장님)
-                if (isAs) Box(Modifier.size(6.dp).clip(CircleShape).background(AppTheme.colors.primary))
-                if (isSimple) Box(Modifier.size(6.dp).clip(CircleShape).background(TossTextTertiary))
-            }
+        // 간단 일정(번호 없는 메모형)은 점 그대로 — 적을 지역명이 없어서 띠로 만들 게 없다.
+        if (isSimple) {
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 4.dp)
+                    .size(5.dp).clip(CircleShape).background(TossTextTertiary)
+            )
         }
     }
 }
@@ -1217,7 +1221,8 @@ private fun CalendarDay(
 private fun PendingCalBar(label: String) {
     val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pendingCollabPulse")
     val alpha by pulse.animateFloat(
-        initialValue = 0.3f,
+        // 연한 바탕이라 0.3 까지 내리면 아예 안 보인다. 0.45 부터.
+        initialValue = 0.45f,
         targetValue = 1f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
             animation = androidx.compose.animation.core.tween(750),
@@ -1225,7 +1230,7 @@ private fun PendingCalBar(label: String) {
         ),
         label = "pendingCollabAlpha"
     )
-    CalRegionBar(BarSeg.SINGLE, TossWarning.copy(alpha = alpha), label)
+    CalRegionBar(BarSeg.SINGLE, AppTheme.colors.cautionBg.copy(alpha = alpha), AppTheme.colors.cautionText, label)
 }
 
 /** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
@@ -1242,27 +1247,28 @@ private fun CalBar(seg: BarSeg, color: Color) {
 }
 
 /**
- * 달력 칸 맨 윗줄 — **색=종류, 글자=어디**. (2026-09-22 사장님 "지역명 정도")
+ * 달력 칸 띠 한 줄 — **색=종류, 글자=어디**. (2026-09-22 사장님 "지역명 정도")
+ *   연한 바탕 + 진한 글자. 진한 띠가 세 줄 쌓이면 달력이 답답해지고 글자도 덜 읽힌다(레퍼런스).
  *   여러 날 시공은 첫날에만 글자가 오고(label != null) 이어지는 날은 같은 높이 빈 띠라
  *   막대가 가로로 끊기지 않는다.
  */
 @Composable
-private fun CalRegionBar(seg: BarSeg, color: Color, label: String?) {
+private fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?) {
     val shape = calBarShape(seg)
     Box(
-        Modifier.fillMaxWidth().height(13.dp).clip(shape).background(color),
-        contentAlignment = Alignment.Center
+        Modifier.fillMaxWidth().height(13.dp).clip(shape).background(bg),
+        contentAlignment = Alignment.CenterStart
     ) {
         if (!label.isNullOrBlank()) {
             Text(
                 label,
-                color = Color.White,
+                color = fg,
                 fontSize = CAL_REGION_TEXT_SP,
                 lineHeight = CAL_REGION_TEXT_SP,   // 테마 lineHeight(24sp)를 물려받으면 띠 안에서 글자가 잘린다
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 2.dp)
+                modifier = Modifier.padding(horizontal = 3.dp)
             )
         }
     }
@@ -1641,7 +1647,7 @@ private fun koreanMonthDay(ms: Long): String =
 /** 캘린더 막대 한 칸 — 일정 1건 = 막대 1줄(lane). 여러 날 시공은 START/MID/END 로 이어 그림. (프로토 jbar) */
 /** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~2 = 최대 3줄). 칸 렌더러와 반드시 같은 값. */
 // 막대가 13dp 띠가 되면서 3줄은 칸이 너무 커진다 → 2줄(lane 0~1).
-private const val CAL_MAX_LANE = 1
+private const val CAL_MAX_LANE = 2
 
 /** 달력 막대 모서리 — 여러 날 시공이 가로로 이어져 보이게 끝만 둥글린다. CalBar/CalRegionBar 공용. */
 private fun calBarShape(seg: BarSeg) = when (seg) {
@@ -1652,7 +1658,7 @@ private fun calBarShape(seg: BarSeg) = when (seg) {
 }
 
 /** 달력 칸 지역명 글자 크기 — 46dp 칸에 2~3글자가 들어가는 한계값. 여기 한 곳에서만 정한다. */
-private val CAL_REGION_TEXT_SP = 9.sp
+private val CAL_REGION_TEXT_SP = 8.5.sp
 
 /** "방금 · 35건" / "오후 2:10 · 35건" / "어제 · 35건" — 버튼 밑 한 줄. (2026-09-15 사장님) */
 private fun lastSyncLabel(atMs: Long, count: Int): String {
