@@ -76,6 +76,10 @@ object IncomingCallOverlay {
         val appCtx = context.applicationContext
         val app = appCtx as? CallFollowCrmApplication ?: return
         if (!PermissionHelper.hasOverlay(appCtx)) return
+        // 🔴 전엔 띄우고 나면 **닫을 수가 없었다.** 이 카드는 전화가 끊길 때 내려가는데
+        //   미리보기엔 끊길 전화가 없다. (2026-09-22 사장님 "안꺼짐...")
+        //   → 미리보기로 띄운 카드에만 [닫기]를 달고 뒤로가기도 받는다.
+        previewMode = true
         ioScope.launch {
             // 가장 **가까운 다음 시공** 손님으로 — 정보가 제일 많이 차 있는 게 그 손님이라
             //   미리보기에서 카드가 어떻게 보이는지 제대로 확인된다. (옛 손님을 고르면 빈 카드가 뜬다)
@@ -94,6 +98,19 @@ object IncomingCallOverlay {
         }
     }
 
+    /**
+     * 지금 뜬 카드가 **미리보기**인가. 진짜 전화가 아니라 설정에서 [카드 미리보기]로 띄운 것.
+     *   미리보기일 때만 카드에 [닫기]가 붙고 뒤로가기가 먹는다. (2026-09-22 사장님)
+     */
+    private var previewMode = false
+
+    /** 미리보기 카드 닫기 — 진짜 통화엔 안 쓴다(전화가 끊길 때 알아서 내려간다). */
+    private fun closePreview() {
+        previewMode = false
+        currentNumber = null
+        main.post { actuallyHide() }
+    }
+
     /** 벨 울림 — 이 번호의 상대 정보 카드를 띄운다. 권한/토글 없으면 조용히 무시. */
     fun onRinging(context: Context, rawNumber: String?) {
         val appCtx = context.applicationContext
@@ -109,6 +126,8 @@ object IncomingCallOverlay {
         android.util.Log.d(TAG, "onRinging: showing card")
 
         currentNumber = number
+        // 진짜 전화다 — 미리보기 딱지·닫기는 없앤다. (2026-09-22)
+        previewMode = false
         // 우선 번호만으로 즉시 카드 표시(로딩) → 뒤이어 고객/일정/대화 채움.
         _state.value = CallerState(
             phoneNumber = number,
@@ -438,8 +457,11 @@ object IncomingCallOverlay {
             onTap = { onOpenRecord() },
             // 메모를 열면 창이 키보드를 받아야 한다. 닫으면 **반드시** 되돌린다.
             onMemoFocus = { want -> setWindowFocusable(appContext, want) },
-            onMemoSave = { text -> saveCallMemo(appContext, text) }
+            onMemoSave = { text -> saveCallMemo(appContext, text) },
+            onClosePreview = { closePreview() }
         ).apply {
+            // 미리보기로 띄운 카드에만 [미리보기] 딱지 + [닫기]. 진짜 통화 카드엔 안 붙는다. (2026-09-22 사장님)
+            setPreview(previewMode)
             // bind 가 터지면 글자 없는 카드가 된다. 그때 원인을 알 수 있게 삼키고 기록한다.
             runCatching { bind(st0) }
                 .onFailure { android.util.Log.e(TAG, "bind FAILED (1st)", it) }
@@ -633,8 +655,13 @@ private class CallerCardView(
     /** 메모를 열고 닫을 때 — 창이 키보드를 받게/안 받게. */
     private val onMemoFocus: (Boolean) -> Unit = {},
     /** 적은 메모를 고객 메모에 붙여달라고. */
-    private val onMemoSave: (String) -> Unit = {}
+    private val onMemoSave: (String) -> Unit = {},
+    /** 미리보기 카드의 [닫기]·뒤로가기. 진짜 통화 카드에선 안 불린다. (2026-09-22) */
+    private val onClosePreview: () -> Unit = {}
 ) : LinearLayout(context) {
+
+    /** 지금 이 카드가 미리보기로 떠 있나. [setPreview] 로 정한다. */
+    private var isPreview = false
 
     private val dm = context.resources.displayMetrics
     private fun dp(v: Float): Int = (v * dm.density + 0.5f).toInt()
@@ -650,6 +677,12 @@ private class CallerCardView(
     private val sumBox = LinearLayout(context)
     private val divider = View(context)
     private val footTv = mkText(10.5f, SUB)
+
+    // ── 미리보기 띠 (2026-09-22 사장님 "안꺼짐...") ──
+    //   진짜 전화 카드엔 **안 붙는다.** 통화 중에 [닫기]가 떠 있으면 전화를 끊는 건지 헷갈린다.
+    private val previewBar = LinearLayout(context)
+    private val previewTagTv = mkText(10.5f, NEW_ORANGE, bold = true)
+    private val previewCloseTv = mkText(12f, BODY, bold = true)
 
     // ── ✎ 통화 중 메모 (2026-09-22 사장님) ──
     //   들은 걸 그 자리에서 적어두면 끊고 나서 고객 메모에 들어가 있다.
@@ -722,6 +755,7 @@ private class CallerCardView(
             setOnClickListener { onTap() }
         }
         card.addView(strip, LayoutParams(LayoutParams.MATCH_PARENT, dp(4f)))
+        card.addView(buildPreviewBar())
         card.addView(buildNewHead())
 
         val body = LinearLayout(context).apply {
@@ -868,7 +902,45 @@ private class CallerCardView(
             if (event.action == android.view.KeyEvent.ACTION_UP) openMemo(false)
             return true
         }
+        // 미리보기는 뒤로가기로도 닫힌다. 진짜 통화 카드는 안 받는다 —
+        //   통화 중에 뒤로가기로 카드가 사라지면 다시 띄울 방법이 없다. (2026-09-22 사장님)
+        if (isPreview && event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) onClosePreview()
+            return true
+        }
         return super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * 미리보기 띠 — [미리보기] 딱지 + [닫기]. **미리보기로 띄웠을 때만** 보인다.
+     *   진짜 전화 카드엔 안 붙는다(통화 중 [닫기]는 전화를 끊는 것처럼 보여 위험하다). (2026-09-22 사장님)
+     */
+    private fun buildPreviewBar(): LinearLayout {
+        previewBar.orientation = HORIZONTAL
+        previewBar.gravity = android.view.Gravity.CENTER_VERTICAL
+        previewBar.setPadding(dp(13f), dp(10f), dp(10f), dp(2f))
+        previewBar.visibility = View.GONE
+
+        previewTagTv.text = "미리보기"
+        previewTagTv.background = roundBg(0x22F59F0B, 7f)
+        previewTagTv.setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
+        previewBar.addView(previewTagTv)
+
+        previewBar.addView(View(context), LayoutParams(0, 1, 1f))
+
+        previewCloseTv.text = "닫기"
+        previewCloseTv.background = roundBg(PANEL_BG, 9f)
+        previewCloseTv.setPadding(dp(13f), dp(6f), dp(13f), dp(6f))
+        previewCloseTv.isClickable = true
+        previewCloseTv.setOnClickListener { onClosePreview() }
+        previewBar.addView(previewCloseTv)
+        return previewBar
+    }
+
+    /** 미리보기인지 알려준다 — 띠를 보이고, 발밑 문구를 바꾸고, 뒤로가기를 받는다. */
+    fun setPreview(on: Boolean) {
+        isPreview = on
+        previewBar.visibility = if (on) View.VISIBLE else View.GONE
     }
 
     /**
@@ -1233,6 +1305,8 @@ private class CallerCardView(
         if (st.loading) { memoBox.visibility = View.GONE }
 
         footTv.text = when {
+            // 미리보기에서 "누르면 이 손님 대화로" 는 헷갈린다 — 진짜 전화가 온 게 아니다. (2026-09-22 사장님)
+            isPreview -> "진짜 전화가 오면 이렇게 떠요"
             st.talking -> "통화 중 · 끊을 때까지 남아 있어요"
             isNew -> "누르면 열려요 · 끊으면 바로 손님 등록"
             else -> "누르면 이 손님 대화로"
