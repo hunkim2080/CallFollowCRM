@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.CheckCircle
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -52,6 +53,7 @@ import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -2182,158 +2184,136 @@ private fun AutoSmsSection(
     Text("문자로 챙기기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
         modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 6.dp))
 
-    // ① 부재중 자동 응답
-    //   ⚠️ 카드 사이에 Spacer 를 넣지 말 것 — 바깥 Column 이 spacedBy(12.dp) 로 이미 띄운다.
-    //     Spacer 도 그 Column 의 '자식'이라 앞뒤로 12dp 가 또 붙어 **12+10+12 = 34dp** 가 됐다.
-    //     (2026-09-21 사장님 "왜 이렇게 간격이 넓어?")
-    AutoCard(Icons.Filled.Phone, TossBlueSoft, TossBlue, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
-        autoReplyOn, onAutoReplyToggle, initiallyExpanded = expandMissed) {
-        AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
-        AutoTextArea(missedNew) { missedNew = it; prefs.autoMissedNewText = it }
-        Spacer(Modifier.height(10.dp))
-        AutoDotLabel(TossSuccess, "다시 연락한 고객 (단골·기존)")
-        AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
-        AutoNote("전화를 못 받으면 자동으로 나가요. 보내기 전 10초 안에 취소할 수 있어요.\n같은 번호엔 하루 한 번만 — 하루 안에 이미 문자가 오갔으면 건너뛰어요.")
-    }
-
-    // ② 시공 하루 전 안내 (D-1)
-    AutoCard(Icons.Filled.CalendarMonth, Color(0xFFFFF1E6), Color(0xFFB8780A), "시공 하루 전 안내 (D-1)", null,
-        "시공 전날 ${hourLabel(d1Hour)} · 보내기 전 확인",
-        d1On, { d1On = it; prefs.d1AutoEnabled = it }) {
-        Text("전날 몇 시에 물어볼까요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-            modifier = Modifier.padding(bottom = 6.dp))
-        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf(8, 9, 10, 11, 18, 19).forEach { h ->
-                AutoChip(hourLabel(h), d1Hour == h) { d1Hour = h; prefs.d1SendHour = h }
-            }
+    // 묶음 하나 = 카드 하나. 소제목이 이미 묶음을 말하니 줄마다 카드가 뜰 이유가 없다. (2026-09-22 사장님)
+    AutoGroup {
+        // ① 부재중 자동 응답
+        //   줄 사이 간격은 [AutoGroup] 의 가는 선이 맡는다 — Spacer 를 넣지 말 것.
+        AutoCard(Icons.Filled.Phone, TossBlueSoft, TossBlue, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
+            autoReplyOn, onAutoReplyToggle, initiallyExpanded = expandMissed, first = true) {
+            AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
+            AutoTextArea(missedNew) { missedNew = it; prefs.autoMissedNewText = it }
+            Spacer(Modifier.height(10.dp))
+            AutoDotLabel(TossSuccess, "다시 연락한 고객 (단골·기존)")
+            AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
+            AutoNote("전화를 못 받으면 자동으로 나가요. 보내기 전 10초 안에 취소할 수 있어요.\n같은 번호엔 하루 한 번만 — 하루 안에 이미 문자가 오갔으면 건너뛰어요.")
         }
-        Spacer(Modifier.height(8.dp))
-        AutoTextArea(d1Text) { d1Text = it; prefs.d1AutoText = it }
-        AutoNote("전날 이 시각에 막내가 “보낼까요?” 하고 먼저 물어봐요. 사장님이 확인 눌러야 고객에게 나가요 — 무음 자동발송이 아니에요.")
-    }
 
-    // ③ 오늘 시공 도착 안내
-    AutoCard(Icons.Filled.Place, AppTheme.colors.doneBg, AppTheme.colors.doneText, "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
-        arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it; onArrivalToggle(it) }) {
-        AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
-        AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
+        // ② 시공 하루 전 안내 (D-1)
+        AutoCard(Icons.Filled.CalendarMonth, Color(0xFFFFF1E6), Color(0xFFB8780A), "시공 하루 전 안내 (D-1)", null,
+            "시공 전날 ${hourLabel(d1Hour)} · 보내기 전 확인",
+            d1On, { d1On = it; prefs.d1AutoEnabled = it }) {
+            Text("전날 몇 시에 물어볼까요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                modifier = Modifier.padding(bottom = 6.dp))
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf(8, 9, 10, 11, 18, 19).forEach { h ->
+                    AutoChip(hourLabel(h), d1Hour == h) { d1Hour = h; prefs.d1SendHour = h }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            AutoTextArea(d1Text) { d1Text = it; prefs.d1AutoText = it }
+            AutoNote("전날 이 시각에 막내가 “보낼까요?” 하고 먼저 물어봐요. 사장님이 확인 눌러야 고객에게 나가요 — 무음 자동발송이 아니에요.")
+        }
+
+        // ③ 오늘 시공 도착 안내
+        AutoCard(Icons.Filled.Place, AppTheme.colors.doneBg, AppTheme.colors.doneText, "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
+            arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it; onArrivalToggle(it) }) {
+            AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
+            AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
+        }
     }
 
     SettingsSubLabel("통화 때 챙기기")
 
-    // ④ 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 녹음/텍스트를 자동 요약(공유 안 눌러도 됨).
-    var autoSumOn by remember { mutableStateOf(prefs.autoSummaryEnabled) }
-    // 🔴 녹음을 **서버로 보내는 것**은 고지 + 명시적 동의를 받은 뒤에만. (2026-09-17 플레이 정책 점검)
-    //   전엔 이 토글이 기본 ON 이라, 아무 고지 없이 녹음 파일이 올라갔다. 구글 정책 위반이다:
-    //     "Must be granted by the user **before** your app can begin to collect or access
-    //      the personal and sensitive user data" (Play · User Data policy)
-    //   토글만으로는 안 켜진다 — prefs.callSummaryAllowed = 토글 ON **그리고** 동의 완료.
-    var consented by remember { mutableStateOf(prefs.callSummaryConsented) }
-    var showConsent by remember { mutableStateOf(false) }
-    TossCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
-                contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(17.dp))
-                }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("통화가 끝나면 통화 녹음을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
-                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
-                if (autoSumOn && !consented) {
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        "아직 동의 전이라 요약이 안 돌아요 — 눌러서 내용을 확인해주세요",
-                        fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.clickable { showConsent = true }
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            Switch(
-                checked = autoSumOn && consented,
-                onCheckedChange = { want ->
-                    if (want && !consented) {
-                        // 켜려는데 아직 동의 전 → 고지부터. 여기서 바로 켜지 않는다.
-                        showConsent = true
-                    } else {
-                        autoSumOn = want
-                        prefs.autoSummaryEnabled = want
+
+    // 묶음 하나 = 카드 하나. 여긴 손으로 짠 카드 세 장이었다 — 껍데기만 벗겨 줄로. (2026-09-22 사장님)
+    AutoGroup {
+        // ④ 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 녹음/텍스트를 자동 요약(공유 안 눌러도 됨).
+        var autoSumOn by remember { mutableStateOf(prefs.autoSummaryEnabled) }
+        // 🔴 녹음을 **서버로 보내는 것**은 고지 + 명시적 동의를 받은 뒤에만. (2026-09-17 플레이 정책 점검)
+        //   전엔 이 토글이 기본 ON 이라, 아무 고지 없이 녹음 파일이 올라갔다. 구글 정책 위반이다:
+        //     "Must be granted by the user **before** your app can begin to collect or access
+        //      the personal and sensitive user data" (Play · User Data policy)
+        //   토글만으로는 안 켜진다 — prefs.callSummaryAllowed = 토글 ON **그리고** 동의 완료.
+        var consented by remember { mutableStateOf(prefs.callSummaryConsented) }
+        var showConsent by remember { mutableStateOf(false) }
+        AutoRow(first = true) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
+                    contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(17.dp))
                     }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("통화가 끝나면 통화 녹음을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                    if (autoSumOn && !consented) {
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            "아직 동의 전이라 요약이 안 돌아요 — 눌러서 내용을 확인해주세요",
+                            fontSize = 11.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Bold,
+                            lineHeight = 16.sp,
+                            modifier = Modifier.clickable { showConsent = true }
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = autoSumOn && consented,
+                    onCheckedChange = { want ->
+                        if (want && !consented) {
+                            // 켜려는데 아직 동의 전 → 고지부터. 여기서 바로 켜지 않는다.
+                            showConsent = true
+                        } else {
+                            autoSumOn = want
+                            prefs.autoSummaryEnabled = want
+                        }
+                    }
+                )
+            }
+        }
+        if (showConsent) {
+            CallSummaryConsentDialog(
+                onAgree = {
+                    prefs.callSummaryConsented = true; consented = true
+                    prefs.autoSummaryEnabled = true; autoSumOn = true
+                    showConsent = false
+                },
+                onDecline = {
+                    prefs.callSummaryConsented = false; consented = false
+                    prefs.autoSummaryEnabled = false; autoSumOn = false
+                    showConsent = false
                 }
             )
         }
-    }
-    if (showConsent) {
-        CallSummaryConsentDialog(
-            onAgree = {
-                prefs.callSummaryConsented = true; consented = true
-                prefs.autoSummaryEnabled = true; autoSumOn = true
-                showConsent = false
-            },
-            onDecline = {
-                prefs.callSummaryConsented = false; consented = false
-                prefs.autoSummaryEnabled = false; autoSumOn = false
-                showConsent = false
-            }
-        )
-    }
 
-    // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 화면 '테두리'에 상태색을 둘러 신규/예정/기존/완료를 한눈에. (2026-08-31 카드→테두리)
-    //   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한 필요 → 켰는데 없으면 안내+허용 버튼.
-    var callerCardOn by remember { mutableStateOf(prefs.incomingCallerCardEnabled) }
-    var overlayGranted by remember { mutableStateOf(com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx)) }
-    val overlayPermLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { overlayGranted = com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx) }
-    // 통화 스크리닝 역할 — 새 안드로이드(10+)서 벨 중 수신번호를 잡으려면 필요(전화 안 막고 테두리만 얹음). (2026-08-31 사장님)
-    val screeningRoleLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { }
-    TossCard {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.primaryBg),
-                    contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Phone, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text("전화가 오면 손님 카드가 떠요 — 현장 주소·돈·지난 통화 요약·마지막 문자. 받은 뒤에도 통화 내내 남아요 (전화 화면은 안 가림 · 신규는 노란 띠)",
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
-                }
-                Spacer(Modifier.width(8.dp))
-                Switch(checked = callerCardOn, onCheckedChange = { want ->
-                    callerCardOn = want; prefs.incomingCallerCardEnabled = want
-                    // 켜는데 '다른 앱 위에 표시' 권한 없으면 바로 승인 창으로. (2026-07-12 사장님)
-                    if (want && !overlayGranted) {
-                        runCatching {
-                            overlayPermLauncher.launch(
-                                android.content.Intent(
-                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    android.net.Uri.parse("package:${ctx.packageName}")
-                                )
-                            )
-                        }
+        // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 화면 '테두리'에 상태색을 둘러 신규/예정/기존/완료를 한눈에. (2026-08-31 카드→테두리)
+        //   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한 필요 → 켰는데 없으면 안내+허용 버튼.
+        var callerCardOn by remember { mutableStateOf(prefs.incomingCallerCardEnabled) }
+        var overlayGranted by remember { mutableStateOf(com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx)) }
+        val overlayPermLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { overlayGranted = com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx) }
+        // 통화 스크리닝 역할 — 새 안드로이드(10+)서 벨 중 수신번호를 잡으려면 필요(전화 안 막고 테두리만 얹음). (2026-08-31 사장님)
+        val screeningRoleLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { }
+        AutoRow {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.primaryBg),
+                        contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Phone, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(11.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        Text("전화가 오면 손님 카드가 떠요 — 현장 주소·돈·지난 통화 요약·마지막 문자. 받은 뒤에도 통화 내내 남아요 (전화 화면은 안 가림 · 신규는 노란 띠)",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
                     }
-                    // 통화 스크리닝 역할도 요청 — 있어야 벨 중 수신번호를 잡아 테두리가 뜬다. 이미 있으면 스킵(무해). (2026-08-31 사장님)
-                    if (want && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        runCatching {
-                            val rm = ctx.getSystemService(android.app.role.RoleManager::class.java)
-                            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)
-                                && !rm.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
-                                screeningRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
-                            }
-                        }
-                    }
-                })
-            }
-            if (callerCardOn && !overlayGranted) {
-                Spacer(Modifier.height(10.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.cautionBg)
-                        .clickable {
+                    Spacer(Modifier.width(8.dp))
+                    Switch(checked = callerCardOn, onCheckedChange = { want ->
+                        callerCardOn = want; prefs.incomingCallerCardEnabled = want
+                        // 켜는데 '다른 앱 위에 표시' 권한 없으면 바로 승인 창으로. (2026-07-12 사장님)
+                        if (want && !overlayGranted) {
                             runCatching {
                                 overlayPermLauncher.launch(
                                     android.content.Intent(
@@ -2343,124 +2323,151 @@ private fun AutoSmsSection(
                                 )
                             }
                         }
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Column {
-                        Text("'다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
-                        Text("여기를 눌러 허용하면 전화 올 때 고객 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
+                        // 통화 스크리닝 역할도 요청 — 있어야 벨 중 수신번호를 잡아 테두리가 뜬다. 이미 있으면 스킵(무해). (2026-08-31 사장님)
+                        if (want && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            runCatching {
+                                val rm = ctx.getSystemService(android.app.role.RoleManager::class.java)
+                                if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+                                    && !rm.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
+                                    screeningRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
+                                }
+                            }
+                        }
+                    })
+                }
+                if (callerCardOn && !overlayGranted) {
+                    Spacer(Modifier.height(10.dp))
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.cautionBg)
+                            .clickable {
+                                runCatching {
+                                    overlayPermLauncher.launch(
+                                        android.content.Intent(
+                                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            android.net.Uri.parse("package:${ctx.packageName}")
+                                        )
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Column {
+                            Text("'다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
+                            Text("여기를 눌러 허용하면 전화 올 때 고객 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
+                        }
+                    }
+                }
+                // 미리보기 — 전화를 기다리지 않고 카드를 바로 확인. (2026-09-17)
+                //   오버레이는 실제 전화가 와야만 볼 수 있어서 만들고도 확인이 어려웠다.
+                if (callerCardOn && overlayGranted) {
+                    Spacer(Modifier.height(10.dp))
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossBlueSoft)
+                            .clickable {
+                                com.detailline.callfollowcrm.service.IncomingCallOverlay.showPreview(ctx)
+                            }
+                            .padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                     }
                 }
             }
-            // 미리보기 — 전화를 기다리지 않고 카드를 바로 확인. (2026-09-17)
-            //   오버레이는 실제 전화가 와야만 볼 수 있어서 만들고도 확인이 어려웠다.
-            if (callerCardOn && overlayGranted) {
-                Spacer(Modifier.height(10.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossBlueSoft)
-                        .clickable {
-                            com.detailline.callfollowcrm.service.IncomingCallOverlay.showPreview(ctx)
-                        }
-                        .padding(vertical = 11.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                }
-            }
         }
-    }
 
-    // 통화 녹음 자동 찾기 — 오디오 권한 한 번이면 MediaStore 에서 통화녹음(에이닷·T전화·삼성)을 앱이 알아서 찾는다.
-    //   폴더를 직접 고를 필요 X (연세 있으신 분 배려, 2026-06-30). 폴더 직접 고르기는 fallback 으로 남김.
-    val recAppContainer = (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
-    var recFolderConnected by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(ctx)) }
-    // 무엇이 연결됐는지 사람이 읽는 한 줄(폴더 이름/자동찾기 + 녹음 개수) — 사장님이 확인 가능하게. (2026-07-12 사장님)
-    var recLabel by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)) }
-    val recScope = androidx.compose.runtime.rememberCoroutineScope()
-    val recFolderLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            com.detailline.callfollowcrm.recording.AdotFolderScanner.connectFolder(ctx, uri)
-            recFolderConnected = true
-            recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
-            android.widget.Toast.makeText(
-                ctx, recLabel?.let { "연결됐어요 $it" } ?: "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-    val recAudioPermLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            com.detailline.callfollowcrm.recording.AdotFolderScanner.enableMediaStore(ctx)
-            recFolderConnected = true
-            recScope.launch {
-                val label = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
-                }
-                recLabel = label
-                val n = label?.substringAfter("녹음 ", "")?.substringBefore("개")?.toIntOrNull() ?: 0
+        // 통화 녹음 자동 찾기 — 오디오 권한 한 번이면 MediaStore 에서 통화녹음(에이닷·T전화·삼성)을 앱이 알아서 찾는다.
+        //   폴더를 직접 고를 필요 X (연세 있으신 분 배려, 2026-06-30). 폴더 직접 고르기는 fallback 으로 남김.
+        val recAppContainer = (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
+        var recFolderConnected by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(ctx)) }
+        // 무엇이 연결됐는지 사람이 읽는 한 줄(폴더 이름/자동찾기 + 녹음 개수) — 사장님이 확인 가능하게. (2026-07-12 사장님)
+        var recLabel by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)) }
+        val recScope = androidx.compose.runtime.rememberCoroutineScope()
+        val recFolderLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree()
+        ) { uri ->
+            if (uri != null) {
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.connectFolder(ctx, uri)
+                recFolderConnected = true
+                recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
                 android.widget.Toast.makeText(
-                    ctx,
-                    if (n > 0) "통화 녹음 ${n}개를 찾았어요. 이제 통화 끝나면 자동으로 요약돼요"
-                    else "연결됐어요. 이제 통화 끝나면 녹음을 자동으로 요약해요.",
+                    ctx, recLabel?.let { "연결됐어요 $it" } ?: "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }
-        } else {
-            android.widget.Toast.makeText(
-                ctx, "오디오 권한을 허용해야 통화 녹음을 찾을 수 있어요.", android.widget.Toast.LENGTH_LONG
-            ).show()
         }
-    }
-    TossCard {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
-                    contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Mic, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("통화 녹음 자동 찾기${if (recFolderConnected) " · 연결됨" else ""}", fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text(
-                        if (recFolderConnected) (recLabel?.let { "$it" } ?: "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)")
-                        else "버튼 한 번이면 통화 녹음을 앱이 알아서 찾아드려요. 폴더 안 찾아도 돼요.",
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                    )
+        val recAudioPermLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.enableMediaStore(ctx)
+                recFolderConnected = true
+                recScope.launch {
+                    val label = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
+                    }
+                    recLabel = label
+                    val n = label?.substringAfter("녹음 ", "")?.substringBefore("개")?.toIntOrNull() ?: 0
+                    android.widget.Toast.makeText(
+                        ctx,
+                        if (n > 0) "통화 녹음 ${n}개를 찾았어요. 이제 통화 끝나면 자동으로 요약돼요"
+                        else "연결됐어요. 이제 통화 끝나면 녹음을 자동으로 요약해요.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 }
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    Modifier.clip(RoundedCornerShape(10.dp))
-                        .background(if (recFolderConnected) AppTheme.colors.surfaceMuted else AppTheme.colors.primary)
-                        .clickable {
-                            if (recFolderConnected) {
-                                com.detailline.callfollowcrm.recording.AdotFolderScanner.scanIfConnected(ctx, recAppContainer) { }
-                                recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
-                                android.widget.Toast.makeText(ctx,
-                                    recLabel?.let { "확인했어요 $it" } ?: "통화 녹음을 보고 있어요",
-                                    android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                recAudioPermLauncher.launch(
-                                    com.detailline.callfollowcrm.recording.AdotFolderScanner.audioPermission()
-                                )
-                            }
-                        }
-                        .padding(horizontal = 14.dp, vertical = 9.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(if (recFolderConnected) "다시 확인" else "자동으로 찾기",
-                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        color = if (recFolderConnected) TossTextSecondary else Color.White)
-                }
+            } else {
+                android.widget.Toast.makeText(
+                    ctx, "오디오 권한을 허용해야 통화 녹음을 찾을 수 있어요.", android.widget.Toast.LENGTH_LONG
+                ).show()
             }
-            // fallback — 자동으로 안 잡히는 기기/상황엔 폴더 직접 고르기.
-            if (!recFolderConnected) {
-                Spacer(Modifier.height(8.dp))
-                Text("자동으로 안 되면 → 폴더 직접 고르기",
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primary,
-                    modifier = Modifier.clickable { recFolderLauncher.launch(null) }.padding(vertical = 2.dp))
+        }
+        AutoRow {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.categoryBg),
+                        contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Mic, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(11.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("통화 녹음 자동 찾기${if (recFolderConnected) " · 연결됨" else ""}", fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        Text(
+                            if (recFolderConnected) (recLabel?.let { "$it" } ?: "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)")
+                            else "버튼 한 번이면 통화 녹음을 앱이 알아서 찾아드려요. 폴더 안 찾아도 돼요.",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(10.dp))
+                            .background(if (recFolderConnected) AppTheme.colors.surfaceMuted else AppTheme.colors.primary)
+                            .clickable {
+                                if (recFolderConnected) {
+                                    com.detailline.callfollowcrm.recording.AdotFolderScanner.scanIfConnected(ctx, recAppContainer) { }
+                                    recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
+                                    android.widget.Toast.makeText(ctx,
+                                        recLabel?.let { "확인했어요 $it" } ?: "통화 녹음을 보고 있어요",
+                                        android.widget.Toast.LENGTH_LONG).show()
+                                } else {
+                                    recAudioPermLauncher.launch(
+                                        com.detailline.callfollowcrm.recording.AdotFolderScanner.audioPermission()
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (recFolderConnected) "다시 확인" else "자동으로 찾기",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            color = if (recFolderConnected) TossTextSecondary else Color.White)
+                    }
+                }
+                // fallback — 자동으로 안 잡히는 기기/상황엔 폴더 직접 고르기.
+                if (!recFolderConnected) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("자동으로 안 되면 → 폴더 직접 고르기",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primary,
+                        modifier = Modifier.clickable { recFolderLauncher.launch(null) }.padding(vertical = 2.dp))
+                }
             }
         }
     }
@@ -2486,150 +2493,150 @@ private fun AutoSmsSection(
 
     SettingsSubLabel("문자가 오면")
 
-    // 받은 문자 알림 (보존) — 설명 명확화: 이건 '알림창'만 담당(AI 준비와 별개). (2026-07-16 사장님 혼동)
-    TossCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("받은 문자 알림", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("고객 문자가 오면 알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)", fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
-            }
-            Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
-        }
-    }
-    Spacer(Modifier.height(14.dp))
 
-    // AI 답변 준비 (2026-07-16 사장님) — 문자 오면 막내가 추천 답변을 미리 만들지 여부. '받은 문자 알림'과 별개.
-    //   OFF = 마스코트 '답변 준비 중' 애니·홈 "AI 답변 준비 중"·서버 호출 전부 없음.
-    TossCard {
-        Column {
+    // 묶음 하나 = 카드 하나. 사이 Spacer 는 뺐다 — 가는 선이 대신한다. (2026-09-22 사장님)
+    AutoGroup {
+        // 받은 문자 알림 (보존) — 설명 명확화: 이건 '알림창'만 담당(AI 준비와 별개). (2026-07-16 사장님 혼동)
+        AutoRow(first = true) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.categoryBg),
-                    contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(15.dp)) }
-                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("AI 답변 준비", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text(
-                        if (aiPrepOn) "문자가 오면 막내가 추천 답변을 미리 만들어둬요 (문자방 열면 바로 보여요)"
-                        else "꺼짐 — 추천을 안 만들어요. 마스코트 '준비 중' 애니도 안 떠요",
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                    )
+                    Text("받은 문자 알림", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("고객 문자가 오면 알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)", fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
                 }
-                Spacer(Modifier.width(8.dp))
-                Switch(checked = aiPrepOn, onCheckedChange = {
-                    aiPrepOn = it
-                    prefs.aiReplyPrepEnabled = it
-                })
+                Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
             }
         }
-    }
-    Spacer(Modifier.height(14.dp))
-
-    // 광고·스팸 번호 앞자리 — 비주얼 정리(2026-06-14 사장님: 디자인 개선). 기능 동일.
-    TossCard {
-        Column {
-            // 아이콘 헤더
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.unpaidBg),
-                    contentAlignment = Alignment.Center
-                ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Block, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) }
-                Spacer(Modifier.width(10.dp))
-                Text("광고·스팸 번호 앞자리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            }
-            Text(
-                "이 앞자리로 시작하는 번호는 자동답장·AI 추천을 안 하고 신규 목록에서도 빼요.",
-                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            Spacer(Modifier.height(14.dp))
-
-            // ── 등록된 앞자리 ──
-            Text("등록된 앞자리", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-            Spacer(Modifier.height(8.dp))
-            if (spamPrefixes.isEmpty()) {
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("아직 등록한 앞자리가 없어요", fontSize = 12.5.sp, color = TossTextTertiary) }
-            } else {
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    spamPrefixes.sorted().forEach { p ->
-                        Row(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.unpaidBg)
-                                .border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(999.dp))
-                                .clickable { spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes }
-                                .padding(start = 13.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError)
-                            Spacer(Modifier.width(6.dp))
-                            Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossError.copy(alpha = 0.6f))
-                        }
+        // AI 답변 준비 (2026-07-16 사장님) — 문자 오면 막내가 추천 답변을 미리 만들지 여부. '받은 문자 알림'과 별개.
+        //   OFF = 마스코트 '답변 준비 중' 애니·홈 "AI 답변 준비 중"·서버 호출 전부 없음.
+        AutoRow {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.categoryBg),
+                        contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(15.dp)) }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("AI 답변 준비", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        Text(
+                            if (aiPrepOn) "문자가 오면 막내가 추천 답변을 미리 만들어둬요 (문자방 열면 바로 보여요)"
+                            else "꺼짐 — 추천을 안 만들어요. 마스코트 '준비 중' 애니도 안 떠요",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                        )
                     }
+                    Spacer(Modifier.width(8.dp))
+                    Switch(checked = aiPrepOn, onCheckedChange = {
+                        aiPrepOn = it
+                        prefs.aiReplyPrepEnabled = it
+                    })
                 }
             }
+        }
+        // 광고·스팸 번호 앞자리 — 비주얼 정리(2026-06-14 사장님: 디자인 개선). 기능 동일.
+        AutoRow {
+            Column {
+                // 아이콘 헤더
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.unpaidBg),
+                        contentAlignment = Alignment.Center
+                    ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Block, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) }
+                    Spacer(Modifier.width(10.dp))
+                    Text("광고·스팸 번호 앞자리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                }
+                Text(
+                    "이 앞자리로 시작하는 번호는 자동답장·AI 추천을 안 하고 신규 목록에서도 빼요.",
+                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Spacer(Modifier.height(14.dp))
 
-            // ── 추천 앞자리 ──
-            val suggested = com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.filter { it !in spamPrefixes }
-            if (suggested.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Text("추천 앞자리 · 눌러서 추가", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                // ── 등록된 앞자리 ──
+                Text("등록된 앞자리", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                 Spacer(Modifier.height(8.dp))
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    suggested.forEach { p ->
-                        Row(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
-                                .border(1.dp, TossDivider, RoundedCornerShape(999.dp))
-                                .clickable { spamPrefixes = spamPrefixes + p; prefs.spamPrefixes = spamPrefixes }
-                                .padding(start = 10.dp, end = 13.dp, top = 7.dp, bottom = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("＋", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                            Spacer(Modifier.width(5.dp))
-                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                if (spamPrefixes.isEmpty()) {
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("아직 등록한 앞자리가 없어요", fontSize = 12.5.sp, color = TossTextTertiary) }
+                } else {
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        spamPrefixes.sorted().forEach { p ->
+                            Row(
+                                Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.unpaidBg)
+                                    .border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(999.dp))
+                                    .clickable { spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes }
+                                    .padding(start = 13.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError)
+                                Spacer(Modifier.width(6.dp))
+                                Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossError.copy(alpha = 0.6f))
+                            }
                         }
                     }
                 }
-            }
 
-            // ── 직접 입력 ──
-            Spacer(Modifier.height(16.dp))
-            Text("직접 입력", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)) {
-                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                        value = newSpamPrefix,
-                        onValueChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
-                        placeholder = "예: 070",
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                    )
-                }
-                Box(
-                    Modifier.clip(RoundedCornerShape(12.dp))
-                        .background(if (newSpamPrefix.isNotBlank()) TossBlue else TossGrayBg)
-                        .clickable(enabled = newSpamPrefix.isNotBlank()) {
-                            val p = newSpamPrefix
-                            // 저장 됐는지 사장님이 헷갈리던 통점(2026-06-16): 추가 결과를 토스트로 분명히 알림 + 중복 안내.
-                            if (p in spamPrefixes) {
-                                android.widget.Toast.makeText(ctx, "‘$p’ 는 이미 등록돼 있어요", android.widget.Toast.LENGTH_SHORT).show()
-                            } else {
-                                spamPrefixes = spamPrefixes + p
-                                prefs.spamPrefixes = spamPrefixes   // .commit() = 즉시 저장
-                                android.widget.Toast.makeText(ctx, "‘$p’ 저장됐어요 — 위 ‘등록된 앞자리’에 추가됐어요", android.widget.Toast.LENGTH_SHORT).show()
+                // ── 추천 앞자리 ──
+                val suggested = com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.filter { it !in spamPrefixes }
+                if (suggested.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text("추천 앞자리 · 눌러서 추가", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        suggested.forEach { p ->
+                            Row(
+                                Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                                    .border(1.dp, TossDivider, RoundedCornerShape(999.dp))
+                                    .clickable { spamPrefixes = spamPrefixes + p; prefs.spamPrefixes = spamPrefixes }
+                                    .padding(start = 10.dp, end = 13.dp, top = 7.dp, bottom = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("＋", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                                Spacer(Modifier.width(5.dp))
+                                Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                             }
-                            newSpamPrefix = ""
                         }
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (newSpamPrefix.isNotBlank()) Color.White else TossTextTertiary)
+                    }
+                }
+
+                // ── 직접 입력 ──
+                Spacer(Modifier.height(16.dp))
+                Text("직접 입력", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)) {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            value = newSpamPrefix,
+                            onValueChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
+                            placeholder = "예: 070",
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    }
+                    Box(
+                        Modifier.clip(RoundedCornerShape(12.dp))
+                            .background(if (newSpamPrefix.isNotBlank()) TossBlue else TossGrayBg)
+                            .clickable(enabled = newSpamPrefix.isNotBlank()) {
+                                val p = newSpamPrefix
+                                // 저장 됐는지 사장님이 헷갈리던 통점(2026-06-16): 추가 결과를 토스트로 분명히 알림 + 중복 안내.
+                                if (p in spamPrefixes) {
+                                    android.widget.Toast.makeText(ctx, "‘$p’ 는 이미 등록돼 있어요", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    spamPrefixes = spamPrefixes + p
+                                    prefs.spamPrefixes = spamPrefixes   // .commit() = 즉시 저장
+                                    android.widget.Toast.makeText(ctx, "‘$p’ 저장됐어요 — 위 ‘등록된 앞자리’에 추가됐어요", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                newSpamPrefix = ""
+                            }
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (newSpamPrefix.isNotBlank()) Color.White else TossTextTertiary)
+                    }
                 }
             }
         }
@@ -2656,11 +2663,16 @@ private fun AutoCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     initiallyExpanded: Boolean = false,
+    /** 묶음의 **첫 줄**이면 위 구분선을 안 긋는다. (2026-09-22) */
+    first: Boolean = false,
     body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
-    TossCard {
-        Column {
+    // 🔴 전엔 줄마다 자기 카드(그림자+흰 바탕)였다. 앱의 다른 목록은 다 '묶음 하나 = 카드 하나' 인데
+    //   여기만 남아 있었다. (2026-09-22 사장님 "여기도 정리") → [AutoGroup] 안에 사는 줄이 된다.
+    Column {
+        if (!first) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+        Column(Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }
@@ -2691,6 +2703,27 @@ private fun AutoCard(
             }
         }
     }
+}
+
+/**
+ * 자동으로 챙기기 — **묶음 하나에 카드 한 장.** 줄들은 이 안에 산다. (2026-09-22 사장님 "여기도 정리")
+ *   더보기 목록·가격표·문자 템플릿·스팸·알림 소리와 같은 규칙.
+ */
+/** [AutoGroup] 안의 줄 하나 — 손으로 짠 카드에서 껍데기만 벗긴 것. (2026-09-22) */
+@Composable
+private fun AutoRow(first: Boolean = false, content: @Composable () -> Unit) {
+    Column {
+        if (!first) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+        Box(Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) { content() }
+    }
+}
+
+@Composable
+private fun AutoGroup(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(AppShape.lg).background(Color.White),
+        content = content
+    )
 }
 
 @Composable
