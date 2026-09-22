@@ -36,6 +36,9 @@ object AddressExtractor {
                 "이고요", "이구요", "에요.", "에요", "이요.", "이요", "이라고요", "이라네요")) {
             if (s.endsWith(t)) { s = s.dropLast(t.length).trim(); break }
         }
+        // 말미에 자음·모음만 남은 꼬리("…2905호ㄴㄴ") — 고객이 잘못 친 글자다. (2026-09-22 사장님)
+        //   완성된 글자(가~힣)는 안 건드린다. 낱자(ㄱ~ㅎ, ㅏ~ㅣ)만 떼어낸다.
+        s = s.trimEnd { it in '\u3131'..'\u3163' }
         return s.trim()
     }
 

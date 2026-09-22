@@ -91,6 +91,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1982,6 +1983,10 @@ private fun AssignTeamSheet(
     val needAddress = invitingNewCollab && siteAddress.isNullOrBlank() && siteAddrInput.isBlank()
     val purple = AppTheme.colors.category; val purpleLight = AppTheme.colors.categoryBg
 
+    // 🔴 일당 칸을 누르면 키보드가 올라오는데 그 아래 [취소]·[추가]가 **키보드에 덮였다.**
+    //   칸까지만 보이고 누를 게 없었다 — 디자인이 아니라 막힌 것. (2026-09-22 사장님)
+    //   → 폼에 손이 닿으면 맨 아래까지 따라 내려간다. [QuickAddForm] 의 scrollState.
+    val sheetScroll = rememberScrollState()
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
     Box(
         Modifier.fillMaxSize()
@@ -1999,7 +2004,7 @@ private fun AssignTeamSheet(
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 660.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(sheetScroll)
         ) {
             // grip
             Box(
@@ -2067,6 +2072,7 @@ private fun AssignTeamSheet(
                     name = newName, onName = { newName = it },
                     phone = newPhone, onPhone = { newPhone = it },
                     wage = "", onWage = {}, accent = TossBlue,
+                    scrollState = sheetScroll,
                     onCancel = { addTeamOpen = false },
                     onSubmit = { onAddTeamMember(newName, newPhone); addTeamOpen = false; newName = ""; newPhone = "" }
                 )
@@ -2151,11 +2157,13 @@ private fun AssignTeamSheet(
             }
             if (addWorkerOpen) {
                 QuickAddForm(
-                    title = "새 일당사장 추가", showWage = true,
+                    // 시트 제목·빈 화면 버튼과 **같은 말**. 지난번 이름 통일 때 여기만 빠졌다. (2026-09-22 사장님)
+                    title = "사장님 등록", showWage = true,
                     name = newName, onName = { newName = it },
                     phone = newPhone, onPhone = { newPhone = it },
                     wage = newWage, onWage = { newWage = it.filter { c -> c.isDigit() }.take(4) },
                     accent = purple,
+                    scrollState = sheetScroll,
                     onCancel = { addWorkerOpen = false },
                     onSubmit = {
                         onAddWorker(newName, newPhone, newWage.toIntOrNull())
@@ -2238,7 +2246,9 @@ private fun AssignTeamSheet(
                 val selectedPartnerList = collabPartners.filter { key(it.phone) in selectedPartners }
                 if (selectedPartnerList.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    SheetFieldLabel("협업 사장님 (일당 전달용)")
+                    // '일당'을 세 이름으로 부르고 있었다 — "(일당 전달용)" · "일당 (전달용)" · "그날 일당".
+                    //   "(전달용)" 은 개발자 말이다. (2026-09-22 사장님)
+                    SheetFieldLabel("고른 사장님")
                     selectedPartnerList.forEach { p ->
                         val k = key(p.phone)
                         val wasReq = k in reqKeys
@@ -2247,12 +2257,13 @@ private fun AssignTeamSheet(
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 if (wasReq) "이미 요청 보냈어요. 상대 사장님이 수락하면 협업 현장이 돼요."
-                                else "상대 사장님께 협업 요청을 보내요. 수락해야 성립하고, 정산엔 안 잡혀요.",
+                                // 바로 위 제목이 이미 협업이라고 했다. (2026-09-22 사장님)
+                                else "요청을 보내요. 수락해야 성립하고, 정산엔 안 잡혀요.",
                                 fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp
                             )
                             Spacer(Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("일당 (전달용)",
+                                Text("보낼 일당",
                                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
                                     modifier = Modifier.weight(1f))
                                 Box(Modifier.width(120.dp)) {
@@ -2390,12 +2401,23 @@ private fun QuickAddForm(
     phone: String, onPhone: (String) -> Unit,
     wage: String, onWage: (String) -> Unit,
     accent: Color,
+    /** 이 폼이 들어앉은 시트의 스크롤 — 칸에 손이 닿으면 맨 아래까지 내려간다. (2026-09-22 사장님) */
+    scrollState: androidx.compose.foundation.ScrollState,
     onCancel: () -> Unit,
     onSubmit: () -> Unit
 ) {
+    val formScope = androidx.compose.runtime.rememberCoroutineScope()
     Spacer(Modifier.height(10.dp))
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.bg).padding(14.dp)
+            // 🔴 전엔 [취소]·[추가]가 키보드에 덮여 **누를 수가 없었다.** (2026-09-22 사장님)
+            //   어느 칸이든 손이 닿으면 맨 아래까지 내려간다. 키보드가 다 올라온 뒤에 재야 해서 잠깐 기다린다.
+            .onFocusChanged { st ->
+                if (st.hasFocus) formScope.launch {
+                    kotlinx.coroutines.delay(280)
+                    runCatching { scrollState.animateScrollTo(scrollState.maxValue) }
+                }
+            }
     ) {
         Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = TossTextPrimary)
         Spacer(Modifier.height(10.dp))
@@ -2410,7 +2432,7 @@ private fun QuickAddForm(
         )
         if (showWage) {
             Spacer(Modifier.height(10.dp))
-            SheetFieldLabel("그날 일당 (만원, 선택)")
+            SheetFieldLabel("그날 일당 · 만원 (선택)")
             SheetTextField(wage, onWage, placeholder = "예: 25", keyboardType = KeyboardType.Number,
                 visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
         }
