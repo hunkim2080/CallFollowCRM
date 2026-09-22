@@ -1522,7 +1522,7 @@ private fun DayJobCard(
                 ) {
                     if (assignedMembers.isEmpty() && collabPartnerNames.isEmpty()) {
                         Text("아직 배정 안 함", fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
-                        AssignBtn("팀원·일당 배정", filled = true, onClick = onAssign)
+                        AssignBtn("같이 할 사장님", filled = true, onClick = onAssign)
                     } else {
                         if (assignedMembers.isNotEmpty()) {
                             AssignAvatars(assignedMembers)
@@ -1940,11 +1940,26 @@ private fun AssignTeamSheet(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
                     .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
             )
-            Text("전문가 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(4.dp))
-            Text("${siteTitle}에 누구를 부를까요?  누르면 선택, 다시 누르면 취소예요.",
-                fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
-            Spacer(Modifier.height(18.dp))
+            // 이름은 **하나로**. 카드 버튼도 여기도 "같이 할 사장님". (2026-09-22 사장님)
+            //   전엔 카드는 [팀원·일당 배정], 제목은 "전문가 배정", 안은 "일당사장" — 같은 걸 세 이름으로 불렀다.
+            Text("같이 할 사장님", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            // 어느 현장인지 **확인만** 하면 되는 자리 — 설명문에 섞여 두 줄을 먹던 걸 회색 한 칸으로.
+            //   주소가 없으면 아예 안 띄운다 — 빈 칸에 "이 현장"만 남아 자리만 먹는다. (2026-09-22 폰에서 확인)
+            val siteLine = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(siteAddress)
+            if (siteLine.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        siteLine,
+                        fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 18.sp,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
 
             // ── 👷 팀원 ── (토글 + 끝에 + 추가) — 숨김(부활 가능). (2026-07-18 사장님)
             if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS) {
@@ -1995,12 +2010,47 @@ private fun AssignTeamSheet(
             Spacer(Modifier.height(16.dp))
             }
 
-            // ── 🤝 일당사장(= 협업 사장) ──
-            Text("일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
-                modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-            Text("누르면 부를 사장님 선택, 다시 누르면 취소. 고객 번호·대화는 안 보내요.",
-                fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
-            FlowRow(
+            // ── 같이 할 사장님(= 협업 사장) ──
+            //   섹션 이름표("일당사장")는 없앴다 — 칸이 하나뿐이라 이름표가 필요 없다.
+            //   설명도 **한 줄만**. 전엔 제목 밑과 여기 두 군데에서 같은 말을 했다.
+            val noPartners = collabPartners.isEmpty()
+            if (noPartners && !addWorkerOpen) {
+                // 빈 상태 — 할 일이 하나뿐이니 **버튼도 하나**. 전엔 [+ 추가] 칩 바로 밑에서
+                //   "위 '+ 추가'로 등록해보세요" 라고 같은 말을 또 했다. (2026-09-22 사장님)
+                Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("아직 등록한 사장님이 없어요",
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                        Spacer(Modifier.height(5.dp))
+                        Text("한 번 등록해두면 다음 현장부터 이름만 눌러서 부를 수 있어요.",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Spacer(Modifier.height(13.dp))
+                        Row(
+                            modifier = Modifier.clip(AppShape.md).background(purple)
+                                .clickable {
+                                    newName = ""; newPhone = ""; newWage = ""
+                                    addTeamOpen = false; addWorkerOpen = true
+                                }
+                                .padding(horizontal = 20.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text("사장님 등록", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+            if (!noPartners) {
+                Text("누르면 고르고, 다시 누르면 빼요. 고객 번호·대화는 안 보내요.",
+                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+            }
+            if (!noPartners) FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -2016,9 +2066,11 @@ private fun AssignTeamSheet(
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (on) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                        else Text("🤝", fontSize = 12.sp)
-                        Spacer(Modifier.width(5.dp))
+                        // 🤝 를 뺐다 — 칩 안 이모지는 폰마다 다르게 그려진다. (앱 전체 규칙)
+                        if (on) {
+                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(5.dp))
+                        }
                         Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
                             color = if (on) Color.White else purple)
                         if (on && wasReq) {
@@ -2027,14 +2079,9 @@ private fun AssignTeamSheet(
                         }
                     }
                 }
-                AddChip("일당사장 추가", purpleLight, purple) {
+                AddChip("등록", purpleLight, purple) {
                     newName = ""; newPhone = ""; newWage = ""; addTeamOpen = false; addWorkerOpen = !addWorkerOpen
                 }
-            }
-            if (collabPartners.isEmpty() && !addWorkerOpen) {
-                Spacer(Modifier.height(8.dp))
-                Text("아직 등록된 일당사장이 없어요. 위 ‘+ 일당사장 추가’로 등록해보세요.",
-                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
             }
             if (addWorkerOpen) {
                 QuickAddForm(
@@ -2189,6 +2236,8 @@ private fun AssignTeamSheet(
                 }
                 onDismiss()
             }
+            // 등록한 사람이 0명이고 뺄 것도 없으면 이 버튼은 **영원히 못 누른다** → 안 띄운다. (2026-09-22 사장님)
+            if (canSubmit || !noPartners) {
             Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -2224,6 +2273,7 @@ private fun AssignTeamSheet(
                     },
                     fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
                 )
+            }
             }
 
             // 보낸 협업 취소 확인 — "정말 취소?" (상대에 알림 감). (2026-06-20 사장님)
