@@ -544,7 +544,13 @@ fun ScheduleScreen(
                             }
                         }
                     ) {
-                        CollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
+                        CollabDayCard(
+                            site = site,
+                            onNavigate = { addr -> launchNavigationForAddr(addr) },
+                            // 전화는 **부른 사장님**께. 고객 번호가 아니다. (2026-09-22 사장님)
+                            onCall = { phone -> dialFromSchedule(scheduleCtx, phone) },
+                            onClick = { onOpenCollabSites(site.shareId) }
+                        )
                     }
                 }
             }
@@ -676,36 +682,81 @@ fun ScheduleScreen(
 @Composable
 private fun CollabDayCard(
     site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite,
+    onNavigate: (String) -> Unit = {},
+    onCall: (String) -> Unit = {},
     onClick: () -> Unit
 ) {
+    // 🔴 전엔 시공 카드와 **딴 모양**이었다. 같은 날 같은 목록인데 뼈대가 달랐다. (2026-09-22 사장님)
+    //   ① 시각이 아랫줄 한가운데 묻혀 있었고 ② 주소가 제목과 아랫줄에 **두 번** 나왔고
+    //   ③ "사장님 사장님" 이 됐고 ④ 갈 방법(길찾기·전화)이 없었다.
+    val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(site.addr)
+    val title = addr.takeIf { it.isNotBlank() } ?: com.detailline.callfollowcrm.ai.siteDisplayName(site)
     TossCard(onClick = onClick) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(9.dp).clip(CircleShape).background(AppTheme.colors.category))
-                Spacer(Modifier.width(10.dp))
-                Text(com.detailline.callfollowcrm.ai.siteDisplayName(site), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
-                Text(
-                    "협업",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = AppTheme.colors.category,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg).padding(horizontal = 9.dp, vertical = 4.dp)
-                )
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                // 시공 카드와 같은 56칸 시각 열.
+                Column(Modifier.width(56.dp)) {
+                    site.timeLabel?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                // 달력의 협업 막대와 **같은 보라**.
+                Box(Modifier.width(3.dp).fillMaxHeight().clip(AppShape.sm).background(AppTheme.colors.category))
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    // 주소는 제목이 이미 말했다 — 여기선 **누가 불렀는지**만.
+                    Text(
+                        collabBossLabel(site.ownerName)?.let { "${it}이 부름" } ?: "같이 하는 현장",
+                        fontSize = 12.5.sp, color = TossTextTertiary, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    // 협업 현장도 찾아가야 한다. 전화는 **부른 사장님**께 — 고객 번호가 아니다.
+                    if (addr.isNotBlank() || site.ownerPhone.isNotBlank()) {
+                        Spacer(Modifier.height(11.dp))
+                        Row {
+                            if (addr.isNotBlank()) {
+                                GoBtn("길찾기", primary = true) { onNavigate(addr) }
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            if (site.ownerPhone.isNotBlank()) {
+                                GoBtn("전화", primary = false) { onCall(site.ownerPhone) }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier.clip(AppShape.sm).background(AppTheme.colors.categoryBg)
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                ) {
+                    Text("협업", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category)
+                }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                listOfNotNull(site.ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" }, site.timeLabel, site.addr).joinToString(" · "),
-                fontSize = 13.sp,
-                color = TossTextSecondary,
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
             site.workSummary?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, fontSize = 13.sp, color = TossTextTertiary, maxLines = 2)
+                Spacer(Modifier.height(8.dp))
+                Text(it, fontSize = 13.sp, color = TossTextTertiary, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
     }
+}
+
+/**
+ * 부른 사장님 이름표. 이름이 없으면 null.
+ *
+ * 🔴 전엔 이름이 그냥 "사장님" 일 때 "$it 사장님" 을 또 붙여 **"사장님 사장님"** 이 됐다.
+ *   (2026-09-22 폰에서 확인)
+ */
+private fun collabBossLabel(name: String): String? = when {
+    name.isBlank() -> null
+    name.contains("사장") -> name
+    else -> "$name 사장님"
 }
 
 /** 응답 안 한 협업 요청 카드 — 주황(눈에 띄게) + '확인하기'. 탭 시 협업 화면(수락/거절). 푸시 놓쳐도 일정에서 catch. (2026-07-08 사장님) */
@@ -714,26 +765,41 @@ private fun PendingCollabDayCard(
     site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite,
     onClick: () -> Unit
 ) {
+    // 수락한 협업 카드와 **같은 뼈대**. 다만 아직 내 일이 아니라 [길찾기]·[전화]는 안 단다 —
+    //   수락하고 나서 생긴다. (2026-09-22 사장님)
+    val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(site.addr)
+    val title = addr.takeIf { it.isNotBlank() } ?: com.detailline.callfollowcrm.ai.siteDisplayName(site)
     TossCard(onClick = onClick) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(9.dp).clip(CircleShape).background(TossWarning))
-                Spacer(Modifier.width(10.dp))
-                Text(com.detailline.callfollowcrm.ai.siteDisplayName(site), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
-                Text(
-                    "요청 · 확인하기",
-                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 9.dp, vertical = 4.dp)
-                )
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Column(Modifier.width(56.dp)) {
+                    site.timeLabel?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                Box(Modifier.width(3.dp).fillMaxHeight().clip(AppShape.sm).background(TossWarning))
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        (collabBossLabel(site.ownerName)?.let { "${it}이 요청" } ?: "협업 요청") + " · 눌러서 수락/거절",
+                        fontSize = 12.5.sp, color = Color(0xFFB8780A), fontWeight = FontWeight.Medium,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier.clip(AppShape.sm).background(AppTheme.colors.cautionBg)
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                ) {
+                    Text("요청", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+                }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                listOfNotNull(site.ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님이 요청" }, site.timeLabel, site.addr).joinToString(" · "),
-                fontSize = 13.sp, color = TossTextSecondary, maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(6.dp))
-            Text("눌러서 수락/거절하기 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
         }
     }
 }
