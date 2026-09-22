@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -646,10 +647,32 @@ private fun ListArea(
     onOpen: (SharedSiteRepository.SharedSite) -> Unit,
     onTrash: (SharedSiteRepository.SharedSite) -> Unit
 ) {
+    // 빈 화면에서 "내가 먼저 같이 하자고 하려면" — 어디서 하는지만 알려준다. (2026-09-22 사장님)
+    var howToShare by remember { mutableStateOf(false) }
+    if (howToShare) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { howToShare = false },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = { Text("같이 할 사장님 부르기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary) },
+            text = {
+                Text(
+                    "일정에서 현장을 고르고 [같이 할 사장님]을 누르면 돼요.\n\n" +
+                        "고른 사장님한테 알림이 가고, 수락하면 '내가 공유한 현장'에 쌓여요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
+                )
+            },
+            confirmButton = {
+                Text("알겠어요", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.primary,
+                    modifier = Modifier.clickable { howToShare = false }.padding(horizontal = 14.dp, vertical = 10.dp))
+            }
+        )
+    }
     when {
         noBizPhone -> EmptyCard(
             "먼저 사업자 전화를 등록해주세요",
-            "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면, 다른 사장님이 그 번호로 현장을 공유할 수 있어요."
+            "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면,\n다른 사장님이 그 번호로 현장을 공유할 수 있어요.",
+            tall = true
         )
         sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
         // 위 inbox 에 응답 안 한 요청이 있으면 큰 빈 카드 대신 가벼운 안내(모순 방지).
@@ -660,8 +683,11 @@ private fun ListArea(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
         )
         sites.isEmpty() -> EmptyCard(
-            "공유받은 현장이 없어요",
-            "다른 사장님이 'OO 현장 같이 하자'고 공유하면 여기에 모여요. 초대받은 현장만 보이고, 그 사장님의 다른 고객은 안 보여요."
+            "아직 공유받은 현장이 없어요",
+            "다른 사장님이 현장을 공유하면 여기에 모여요.\n그 사장님의 다른 고객은 안 보여요.",
+            tall = true,
+            action = "내가 먼저 같이 하자고 하려면",
+            onAction = { howToShare = true }
         )
         // 업체별 → 사장님 한 명 선택: 그 사장님과 한 현장 전부 + 받은 일당 합계
         openPartner != null -> {
@@ -1650,19 +1676,58 @@ private fun CollabPayoutAccountSection(
     }
 }
 
-@Composable private fun EmptyCard(title: String, sub: String) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
-            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp)).padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+/**
+ * 빈 화면 카드.
+ *
+ * 🔴 전엔 ①아이콘이 **회색 민낯 글리프**라 그림이 깨진 것처럼 보였고 ②카드가 **화면 위에 붙어** 아래가 텅 비었고
+ *   ③**할 일이 없어** 뭘 해야 현장이 생기는지 안 알려줬다. (2026-09-22 사장님)
+ *
+ * @param tall 진짜 '아무것도 없음' 이면 화면 가운데로 내린다. 불러오는 중 같은 잠깐짜리는 그대로 위에.
+ * @param action 있으면 아래에 할 일 한 줄.
+ */
+@Composable private fun EmptyCard(
+    title: String,
+    sub: String,
+    tall: Boolean = false,
+    action: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Box(
+        Modifier.fillMaxWidth().let { if (tall) it.heightIn(min = 440.dp) else it },
+        contentAlignment = Alignment.Center
     ) {
-        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = TossTextSecondary, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(8.dp))
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-        if (sub.isNotBlank()) {
-            Spacer(Modifier.height(6.dp))
-            Text(sub, fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 19.sp,
-                modifier = Modifier.padding(horizontal = 6.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+                .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp))
+                .padding(vertical = 26.dp, horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 민낯 글리프 대신 앱의 다른 아이콘들처럼 **둥근 타일 안에**.
+            Box(
+                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.primaryBg),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Filled.Handshake, null,
+                    tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            if (sub.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(sub, fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 19.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 6.dp))
+            }
+            if (action != null && onAction != null) {
+                Spacer(Modifier.height(15.dp))
+                Text(
+                    action, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.primary,
+                    modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(AppTheme.colors.primaryBg)
+                        .clickable { onAction() }.padding(horizontal = 18.dp, vertical = 11.dp)
+                )
+            }
         }
     }
 }

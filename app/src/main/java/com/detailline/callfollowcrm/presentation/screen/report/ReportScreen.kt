@@ -58,7 +58,7 @@ private fun manwon(won: Long): String {
 }
 
 /**
- * 비즈니스 리포트 — 번 돈 → 못 받은 돈+누가 → 추천 채택률 → 상황별 → 전환 → 활동 → 종류/지역 → 개선.
+ * 상세 리포트 — 번 돈 → 못 받은 돈+누가 → 추천 채택률 → 상황별 → 전환 → 활동 → 종류/지역 → 개선.
  *   기존 데이터만으로 집계. 매출=입금일 기준, 미수=현재 시점. (2026-07-05 사장님 "깊이" 요청, 설계 워크플로우 합성)
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,7 +76,8 @@ fun ReportScreen(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
-                title = { Text("비즈니스 리포트", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                // 더보기 줄도 "상세 리포트" 다. 누르기 전과 후의 이름이 다르면 멈칫하게 된다. (2026-09-22 사장님)
+                title = { Text("상세 리포트", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
@@ -102,7 +103,9 @@ fun ReportScreen(
                 BigStat(
                     caption = "${s.periodLabel} 번 돈",
                     value = manwon(s.revenue),
-                    valueColor = TossSuccess,
+                    // 🔴 0원인데 초록이었다. 초록은 "잘 됐다"는 뜻이라 **0원이 축하받는 꼴**이었다.
+                    //   들어온 돈이 있을 때만 초록. (2026-09-22 사장님)
+                    valueColor = if (s.revenue > 0L) TossSuccess else TossTextTertiary,
                     desc = if (s.revenue <= 0L) "이 기간엔 아직 들어온 돈이 없어요"
                     else buildString {
                         append("현장 ${s.jobs}곳에서 받았어요")

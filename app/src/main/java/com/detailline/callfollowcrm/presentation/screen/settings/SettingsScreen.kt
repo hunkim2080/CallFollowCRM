@@ -234,7 +234,7 @@ fun SettingsScreen(
         "noti" -> "고객 사진(문자) 받기"
         "server" -> "AI 서버 상태"
         "mirror" -> "구글 캘린더 연동"
-        "web" -> "시공막내 웹 (PC)"
+        "web" -> "시공막내 웹 (PC 사진)"
         else -> "더보기"
     }
     BackHandler(enabled = subPage != null) { subPage = null }
@@ -1231,11 +1231,7 @@ private fun WebViewerSection(container: AppContainer) {
 
     TossCard {
         Column(Modifier.padding(4.dp)) {
-            Text(
-                "시공막내 웹 (PC 사진 캘린더)",
-                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
-            )
-            Spacer(Modifier.height(10.dp))
+            // 제목은 바로 위 앱바가 이미 말하고 있다. 같은 말을 두 번 하지 않는다. (2026-09-22 사장님)
             Text(
                 "PC 큰 화면에서 시공 사진을 날짜별로 보고 블로그용으로 내려받아요. 딱 2단계예요:",
                 fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
@@ -3885,31 +3881,36 @@ private fun DataBackupSection(
 private fun ScreenCaptureRow(prefs: com.detailline.callfollowcrm.data.preferences.AppPreferences) {
     val capCtx = LocalContext.current
     var blockCapOn by remember { mutableStateOf(prefs.blockScreenCapture) }
-    TossCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.unpaidBg),
-                contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Lock, null, tint = AppTheme.colors.unpaid, modifier = Modifier.size(17.dp))
-                }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("켜면 고객 정보·통화·돈 화면의 스크린샷·화면 녹화를 막아요 (보안). 지금은 버그 캡처를 위해 꺼둠",
-                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
-            }
-            Spacer(Modifier.width(8.dp))
-            Switch(checked = blockCapOn, onCheckedChange = { want ->
-                blockCapOn = want; prefs.blockScreenCapture = want
-                (capCtx as? android.app.Activity)?.window?.let { w ->
-                    if (want) w.setFlags(
-                        android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                        android.view.WindowManager.LayoutParams.FLAG_SECURE
-                    ) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-                }
-            })
+    // 🔴 이사 올 때 **자기 카드를 그대로 들고 왔다.** 묶음 카드 안에 카드가 또 있어 혼자 튀어나와 보였다.
+    //   (2026-09-22 폰 확인) → LockRow 와 같은 줄 모양. 설명도 석 줄이라 혼자 키가 컸어서 한 줄로.
+    Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(36.dp).background(AppTheme.colors.unpaidBg, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.Lock, null, tint = AppTheme.colors.unpaid, modifier = Modifier.size(19.dp))
         }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text("고객 정보·돈 화면 스크린샷 막기", fontSize = 12.sp, color = TossTextTertiary)
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(checked = blockCapOn, onCheckedChange = { want ->
+            blockCapOn = want; prefs.blockScreenCapture = want
+            (capCtx as? android.app.Activity)?.window?.let { w ->
+                if (want) w.setFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                    android.view.WindowManager.LayoutParams.FLAG_SECURE
+                ) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        })
     }
-
 }
 
 /** 백업 카드의 작은 버튼 — 자주 하는 일이 아니라 크게 둘 이유가 없다. (2026-09-22) */
