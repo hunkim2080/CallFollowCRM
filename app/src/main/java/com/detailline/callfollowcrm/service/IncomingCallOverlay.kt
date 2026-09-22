@@ -16,60 +16,6 @@ import android.view.WindowManager
 import kotlinx.coroutines.flow.first
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.lifecycle.setViewTreeViewModelStoreOwner
-import androidx.savedstate.SavedStateRegistry
-import androidx.savedstate.SavedStateRegistryController
-import androidx.savedstate.SavedStateRegistryOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.MainActivity
 import com.detailline.callfollowcrm.util.DateTimeUtils
@@ -97,7 +43,7 @@ import kotlinx.coroutines.launch
  *  - "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 권한 + 설정 토글 ON 일 때만 뜬다. 아니면 조용히 무시.
  *  - 모든 전화에 뜸(모르는 번호 포함). 기록 없으면 "처음 보는 번호" 로 표시(사장님 2026-07-01 선택).
  *
- * 재활용: WindowManager + ComposeView + 커스텀 LifecycleOwner 플럼빙은 예전 PostCallOverlay(제거됨) 패턴을 그대로 따름.
+ * 그리기: WindowManager 에 얹은 **커스텀 View**(CallerCardView). Compose 는 이 창에서 렌더가 안 됐다(2026-08-31 실측).
  */
 object IncomingCallOverlay {
 
@@ -108,7 +54,6 @@ object IncomingCallOverlay {
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var currentView: View? = null
-    private var currentOwner: OverlayLifecycleOwner? = null
     @Volatile private var currentNumber: String? = null
     private var loadJob: Job? = null
     private var safetyJob: Job? = null
@@ -282,6 +227,7 @@ object IncomingCallOverlay {
                     scheduleLabel = schedule,
                     address = addr,
                     moneyLabel = if (locked) null else money,
+                    moneyOwed = if (locked) false else owedOf(customer) > 0L,
                     messages = if (locked) emptyList() else msgs,
                     customerId = customer?.id,
                     loading = false,
@@ -393,9 +339,7 @@ object IncomingCallOverlay {
             runCatching {
                 (appCtx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.removeView(v)
             }
-            currentOwner?.onDestroy()
             currentView = null
-            currentOwner = null
             actuallyShow(appCtx)   // _state 그대로 → 같은 테두리를 위로 다시
         }
     }
@@ -413,9 +357,14 @@ object IncomingCallOverlay {
         else "${monthDay(date)} 시공 · $dday"
     }
 
-    /** 돈 한 줄 — 받은 돈 우선(사장님: "얼마 냈는지"). 없으면 견적/계약금. 단위 원. */
+    /**
+     * 돈 한 줄 — **아직 받을 돈이 먼저**다. 통화 중 돈 얘기가 나오면 궁금한 건 그 값이다. (2026-09-22 사장님)
+     *   받을 게 없으면 예전 그대로: 받은 돈 / 견적 / 계약금.
+     */
     private fun moneyLabelOf(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?): String? {
         c ?: return null
+        val owed = owedOf(c)
+        if (owed > 0L) return "잔금 ${wonText(owed)} 받을 것"
         val received = (if (c.depositPaidAt != null) c.depositAmount ?: 0L else 0L) +
             (if (c.balancePaidAt != null) c.balanceAmount ?: 0L else 0L)
         return when {
@@ -424,6 +373,17 @@ object IncomingCallOverlay {
             (c.depositAmount ?: 0L) > 0L -> "계약금 ${wonText(c.depositAmount!!)}"
             else -> null
         }
+    }
+
+    /**
+     * 못 받은 돈 — **시공이 끝난 건만** 센다. 아직 시공 전인데 "받을 것"이라 적으면 겁을 준다.
+     *   세는 규칙은 앱 전체가 쓰는 SettlementCalc 그대로 — 여기서 따로 세면 홈 '못 받은 돈'과 숫자가 갈린다.
+     *   (마감 브리핑도 workCompletedAt != null 로 같은 선을 긋는다)
+     */
+    private fun owedOf(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?): Long {
+        c ?: return 0L
+        if (c.workCompletedAt == null) return 0L
+        return com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding
     }
 
     private fun wonText(won: Long): String =
@@ -508,8 +468,6 @@ object IncomingCallOverlay {
                 wm?.removeView(v)
             }
         }
-        currentOwner?.onDestroy()
-        currentOwner = null
         currentView = null
         _state.value = null
     }
@@ -539,6 +497,8 @@ object IncomingCallOverlay {
         val customerId: Long?,
         val loading: Boolean,
         val status: CallerStatus = CallerStatus.EXISTING,
+        /** 위 [moneyLabel] 이 **아직 받을 돈**인지 — 맞으면 카드가 빨갛게 적는다. (2026-09-22 사장님) */
+        val moneyOwed: Boolean = false,
         /** 지난 통화 요약 한 줄 — "지난번에 뭐라 했더라"를 바로 푼다. (2026-09-17 사장님) */
         val lastSummary: String? = null,
         /** 그 요약이 언제 통화 건지 ("9월 13일"). */
@@ -565,42 +525,40 @@ object IncomingCallOverlay {
     data class MsgPreview(val body: String, val sent: Boolean)
 }
 
-// ----- 카드 UI -----
+// ── 카드 색 (2026-09-22 사장님 "배경색은 전에 것이 눈에 잘 들어왔던 것 같아") ──
+//   통화 화면이 원래 어두워서 **어두운 카드는 배경에 섞였다.** 어두운 화면 위에 흰 종이 한 장을
+//   올린 모양으로 바꾼다. 앱 안 나머지 화면도 전부 흰 카드라 이제 따로 놀지 않는다.
+//   ⚠️ 바탕만 칠하면 흰 글씨가 안 보인다. 아래 색을 **같이** 써야 한다.
+private val CARD_BG = 0xFFFFFFFF.toInt()
+private val CARD_LINE = 0xFFE9ECF1.toInt()
+private val INK = 0xFF14181F.toInt()          // 이름·제목
+private val SUB = 0xFF8A929C.toInt()          // 옅은 설명
+private val BODY = 0xFF4B5563.toInt()         // 본문
+private val PANEL_BG = 0xFFF4F6F9.toInt()
+private val DIVIDER_C = 0xFFEDEFF3.toInt()
+private val MONEY_OWED = 0xFFD93B4C.toInt()   // 흰 바탕에선 분홍이 안 읽힌다
+private val WHITE = 0xFFFFFFFF.toInt()
+// 달력
+private val SCHED_BG = 0xFFECF8F2.toInt()
+private val SCHED_LINE = 0xFFBFE8D5.toInt()
+private val SCHED_LABEL = 0xFF0C7A4B.toInt()
+private val WEEK_HEAD = 0xFF98A2AE.toInt()
+private val CELL_BG = 0xFFF1F4F8.toInt()
+private val CELL_LINE = 0xFFE4E9F0.toInt()
+private val CELL_DAY = 0xFF6B7684.toInt()
+private val FREE_BG = 0xFFDAF2E6.toInt()
+private val FREE_LINE = 0xFF93D9BB.toInt()
+private val PICK_BG = 0xFF3182F6.toInt()      // 누른 칸 — 앱 안 다른 화면과 같은 파랑
+private val TODAY_LINE = 0xFF3182F6.toInt()
+private val HINT_C = 0xFF1F63C8.toInt()
+private val DETAIL_LINE = 0xFFE3E8EF.toInt()
+// 칸 글자 — **규칙은 그대로**(시공=회색·A/S=주황·내 일정=보라·비었음=초록), 밝은 바탕에서 읽히게 진하게만
+private val TONE_JOB = 0xFF6B7684.toInt()
+private val TONE_AS = 0xFFB87500.toInt()
+private val TONE_EVENT = 0xFF6742D8.toInt()
+private val TONE_EMPTY = 0xFF0C7A4B.toInt()
+private val NEW_ORANGE = 0xFFF59F0B.toInt()
 
-private val CardBlue = Color(0xFF3182F6)
-private val CardBlueSoft = Color(0xFFE8F1FE)
-private val TextPrimary = Color(0xFF191F28)
-private val TextSecondary = Color(0xFF4E5968)
-private val TextTertiary = Color(0xFF8B95A1)
-private val GrayBg = Color(0xFFF2F4F6)
-
-// 상태별 카드 색(2026-07-02 사장님) — 벨 울릴 때 멀리서도 알아보게. 부드러운 배경 + 굵은 강조·라벨.
-//   완료=빨강 / 예정=초록 / 신규=노랑 / 그 외 기존=파랑(중립). 촌스럽지 않게 톤다운.
-private data class CardPalette(val bg: Color, val soft: Color, val accent: Color, val label: String)
-
-private val NeutralPalette = CardPalette(Color.White, CardBlueSoft, CardBlue, "전화 오는 중")
-private val NewPalette = CardPalette(Color(0xFFFFF3B0), Color(0xFFFCE588), Color(0xFFB7791F), "🆕 처음 오는 전화")
-private val ScheduledPalette = CardPalette(Color(0xFFDBF4E3), Color(0xFFAEE9C3), Color(0xFF128A50), "시공 예정 고객")
-private val CompletedPalette = CardPalette(Color(0xFFFBDEDE), Color(0xFFF5C4C6), Color(0xFFD83A40), "시공했던 고객")
-
-private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = when (status) {
-    IncomingCallOverlay.CallerStatus.NEW -> NewPalette
-    IncomingCallOverlay.CallerStatus.REPEAT -> NewPalette
-    IncomingCallOverlay.CallerStatus.SCHEDULED -> ScheduledPalette
-    IncomingCallOverlay.CallerStatus.COMPLETED -> CompletedPalette
-    IncomingCallOverlay.CallerStatus.EXISTING -> NeutralPalette
-}
-
-/**
- * 전화 미리보기 카드 — 프로토 확정안(2026-09-17 사장님: "b랑 c 안을 좀 복합", "통화내내 사라지지않았으면",
- * "신규인지 구분도 확실해야함"). 검은 유리 카드에 B안 내용을 담는다.
- *
- * ⚠️ 왜 Compose 가 아니라 옛날 View 인가 — 이 오버레이 창(수동 lifecycle)에서는 **Compose 가 안 그려졌다**.
- *   창은 맨 위인데 화면캡처에 아무것도 안 나왔다(2026-08-31 실측). View.onDraw 는 확실히 호출된다.
- *   같은 실수를 다시 하지 말 것.
- *
- * 신규 구분: 색만으로 하지 않는다(햇빛·색약). **띠 색 + 칩 + "처음 걸려온 번호예요" 상자**로 글자까지 말해준다.
- */
 private class CallerCardView(
     context: Context,
     private val onTap: () -> Unit
@@ -610,44 +568,45 @@ private class CallerCardView(
     private fun dp(v: Float): Int = (v * dm.density + 0.5f).toInt()
 
     private val strip = View(context)
-    private val nameTv = mkText(17f, 0xFFFFFFFF.toInt(), bold = true)
-    private val chipTv = mkText(10.5f, 0xFFFFFFFF.toInt(), bold = true)
-    private val subTv = mkText(11.5f, 0xFF8E9BAC.toInt())
-    private val addrTv = mkText(12.5f, 0xFFC3CDDA.toInt())
-    private val moneyTv = mkText(12.5f, 0xFFC3CDDA.toInt())
-    private val newTitleTv = mkText(12.5f, 0xFFFFC24D.toInt(), bold = true)
-    private val newDescTv = mkText(11.5f, 0xFFE3D3B4.toInt())
-    private val newBox = LinearLayout(context)
-    private val sumLabelTv = mkText(9.5f, 0xFF8E9BAC.toInt(), bold = true)
-    private val sumTextTv = mkText(11.5f, 0xFFD5DDE7.toInt())
+    private val head = LinearLayout(context)
+    private val nameTv = mkText(17f, INK, bold = true)
+    private val chipTv = mkText(10.5f, INK, bold = true)
+    private val subTv = mkText(11.5f, SUB)
+    private val moneyTv = mkText(13f, BODY, bold = true)
+    private val sumLabelTv = mkText(9.5f, SUB, bold = true)
+    private val sumTextTv = mkText(11.5f, BODY)
     private val sumBox = LinearLayout(context)
-    private val msgLabelTv = mkText(9.5f, 0xFF8E9BAC.toInt(), bold = true)
-    private val msgTextTv = mkText(11.5f, 0xFFD5DDE7.toInt())
-    private val msgBox = LinearLayout(context)
     private val divider = View(context)
-    private val footTv = mkText(10.5f, 0xFF8E9BAC.toInt())
+    private val footTv = mkText(10.5f, SUB)
+
+    // ── 신규 머리 (2026-09-22) ──
+    //   가는 주황 띠 + [신규] 칩 + "처음 걸려온 번호예요 · 새 문의" 상자, **셋이 다 같은 말**이었다.
+    //   셋 다 작아서 폰이 멀리 있으면 그냥 글씨 덩어리로 보였다. 하나로 합쳐 크게 적는다.
+    private val newHead = LinearLayout(context)
+    private val newTitleTv = mkText(28f, WHITE, bold = true)
+    private val newNumTv = mkText(19f, WHITE, bold = true)
 
     // ── 🧾 지난 시공 (2026-09-19) ──
-    private val pastBox = LinearLayout(context)
-    private val pastLabelTv = mkText(9.5f, 0xFF7FB4FF.toInt(), bold = true)
-    private val pastBigTv = mkText(12.5f, 0xFFFFFFFF.toInt(), bold = true)
-    private val pastSmallTv = mkText(10.5f, 0xFF9FB4D0.toInt())
+    //   파란 상자에서 **한 줄**로 줄였다(2026-09-22). 없애지 않았다 —
+    //   "이걸 모르면 통화가 안 된다"고 하셨던 자리다. 필요한 건 "언제 뭘 했나" 한 줄이라
+    //   "그 전 —" 둘째 줄만 뺐다.
+    private val pastTv = mkText(12f, BODY)
 
     // ── 📅 2주 일정 (2026-09-19) ──
     private val schedBox = LinearLayout(context)
-    private val schedLabelTv = mkText(9.5f, 0xFF5FD9B2.toInt(), bold = true)
-    private val schedFreeTv = mkText(12f, 0xFFFFFFFF.toInt(), bold = true)
-    private val schedHintTv = mkText(9.5f, 0xFF7FB4FF.toInt(), bold = true)
+    private val schedLabelTv = mkText(9.5f, SCHED_LABEL, bold = true)
+    private val schedFreeTv = mkText(12f, INK, bold = true)
+    private val schedHintTv = mkText(9.5f, HINT_C, bold = true)
     private val weekHeadRow = LinearLayout(context)
     private val weekRow1 = LinearLayout(context)
     private val weekRow2 = LinearLayout(context)
     private val dayDetailBox = LinearLayout(context)
-    private val dayDetailTitleTv = mkText(11.5f, 0xFFFFFFFF.toInt(), bold = true)
+    private val dayDetailTitleTv = mkText(11.5f, INK, bold = true)
     private val dayDetailBody = LinearLayout(context)
     /** 칸 14개 — 한 번 만들고 다시 칠한다. */
     private val dayCells = ArrayList<DayCell>(14)
     /** 접었다 폈다 하는 버튼 — 시공했던 손님은 기억이 먼저라 일정을 접어 둔다. */
-    private val schedToggleTv = mkText(11.5f, 0xFFCFE0FF.toInt(), bold = true)
+    private val schedToggleTv = mkText(11.5f, HINT_C, bold = true)
     private var schedExpanded = false
     /** 신규는 접기 버튼 없이 항상 펼친다 — 볼 게 일정밖에 없다. */
     private var schedAlwaysOpen = false
@@ -674,7 +633,7 @@ private class CallerCardView(
 
         val card = LinearLayout(context).apply {
             orientation = VERTICAL
-            background = roundBg(0xEE0F141C.toInt(), 17f, 0x22FFFFFF, 1f)
+            background = roundBg(CARD_BG, 17f, CARD_LINE, 1f)
             clipToOutline = true
             outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
             elevation = dp(8f).toFloat()
@@ -682,13 +641,14 @@ private class CallerCardView(
             setOnClickListener { onTap() }
         }
         card.addView(strip, LayoutParams(LayoutParams.MATCH_PARENT, dp(4f)))
+        card.addView(buildNewHead())
 
         val body = LinearLayout(context).apply {
             orientation = VERTICAL
             setPadding(dp(13f), dp(11f), dp(13f), dp(12f))
         }
 
-        val head = LinearLayout(context).apply {
+        head.apply {
             orientation = HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
         }
@@ -699,32 +659,19 @@ private class CallerCardView(
         })
         body.addView(head)
         body.addView(subTv, rowLp(2f))
-        body.addView(addrTv, rowLp(6f))
-        body.addView(moneyTv, rowLp(2f))
+        body.addView(moneyTv, rowLp(5f))
 
-        // 신규 상자 — 색이 아니라 **글자로** 신규임을 말한다.
-        newBox.orientation = VERTICAL
-        newBox.background = roundBg(0x24F59F0B, 12f, 0x52F59F0B, 1f)
-        newBox.setPadding(dp(11f), dp(9f), dp(11f), dp(10f))
-        newBox.addView(newTitleTv)
-        newBox.addView(newDescTv, rowLp(2f))
-        body.addView(newBox, rowLp(9f))
-
-        // 🧾 지난 시공 — 요약·문자보다 **위**에. 이걸 모르면 통화가 안 된다. (2026-09-19 사장님)
-        pastBox.orientation = VERTICAL
-        pastBox.background = roundBg(0x213182F6, 11f, 0x4D3182F6, 1f)
-        pastBox.setPadding(dp(10f), dp(8f), dp(10f), dp(9f))
-        pastBox.addView(pastLabelTv)
-        pastBox.addView(pastBigTv, rowLp(3f))
-        pastBox.addView(pastSmallTv, rowLp(2f))
-        body.addView(pastBox, rowLp(8f))
+        // 🧾 지난 시공 — 요약보다 **위**에. 이걸 모르면 통화가 안 된다. (2026-09-19 사장님)
+        body.addView(pastTv, rowLp(5f))
 
         body.addView(panel(sumBox, sumLabelTv, sumTextTv), rowLp(9f))
-        body.addView(panel(msgBox, msgLabelTv, msgTextTv), rowLp(7f))
+        // 🗑 '마지막 받은 문자' 상자는 뺐다(2026-09-22) — 바로 위 '지난 통화 요약'과
+        //    같은 말을 두 번 하는 경우가 많았다. 문자는 끊고 나서 대화방에서 본다.
+        // 🗑 주소 한 줄도 뺐다 — 전화 받으면서 주소를 읽지는 않는다. 갈 때 필요한 거라 일정·고객 정보에 있다.
 
         // 📅 2주 일정 — 접기 버튼 + 달력. (2026-09-19 사장님)
         schedToggleTv.gravity = android.view.Gravity.CENTER
-        schedToggleTv.background = roundBg(0x17FFFFFF, 11f, 0x29FFFFFF, 1f)
+        schedToggleTv.background = roundBg(PANEL_BG, 11f, CELL_LINE, 1f)
         schedToggleTv.setPadding(0, dp(9f), 0, dp(9f))
         schedToggleTv.isClickable = true
         schedToggleTv.setOnClickListener {
@@ -734,7 +681,7 @@ private class CallerCardView(
         body.addView(schedToggleTv, rowLp(9f))
         body.addView(buildSchedBox(), rowLp(9f))
 
-        divider.setBackgroundColor(0x1FFFFFFF)
+        divider.setBackgroundColor(DIVIDER_C)
         body.addView(divider, LayoutParams(LayoutParams.MATCH_PARENT, dp(1f)).apply { topMargin = dp(9f) })
         body.addView(footTv, rowLp(7f))
 
@@ -742,12 +689,31 @@ private class CallerCardView(
         addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
+    /**
+     * 신규 머리 — 주황을 **카드 머리 전체**에 칠한다.
+     * 글자를 못 읽는 거리에서도 주황 덩어리면 새 문의다. 신규일 때만 보이고, 그때는 가는 띠·이름줄을 감춘다.
+     */
+    private fun buildNewHead(): LinearLayout {
+        newHead.orientation = VERTICAL
+        newHead.setBackgroundColor(NEW_ORANGE)
+        newHead.setPadding(dp(13f), dp(12f), dp(13f), dp(13f))
+        newTitleTv.text = "새 문의"
+        newHead.addView(newTitleTv)
+        newHead.addView(newNumTv, rowLp(5f))
+        newHead.visibility = View.GONE
+        return newHead
+    }
+
     /** 칸 하나 — 날짜 + 최대 두 줄. 누르면 그날이 펴진다. */
     private inner class DayCell(context: Context) {
         val root = LinearLayout(context)
-        val dayTv = mkText(11f, 0xFFB6C2D0.toInt(), bold = true)
-        val line1 = mkText(8f, 0xFF8E9BAC.toInt(), bold = true)
-        val line2 = mkText(8f, 0xFF8E9BAC.toInt(), bold = true)
+        val dayTv = mkText(11f, CELL_DAY, bold = true)
+        val line1 = mkText(8f, TONE_JOB, bold = true)
+        val line2 = mkText(8f, TONE_JOB, bold = true)
+
+        /** 두 줄이 원래 무슨 색이었는지 — 누른 칸(파랑)에서 흰 글씨로 바꿨다가 되돌릴 때 쓴다. */
+        var c1 = TONE_JOB
+        var c2 = TONE_JOB
 
         init {
             root.orientation = VERTICAL
@@ -773,7 +739,7 @@ private class CallerCardView(
      */
     private fun buildSchedBox(): LinearLayout {
         schedBox.orientation = VERTICAL
-        schedBox.background = roundBg(0x1712B886, 12f, 0x4212B886, 1f)
+        schedBox.background = roundBg(SCHED_BG, 12f, SCHED_LINE, 1f)
         schedBox.setPadding(dp(9f), dp(9f), dp(9f), dp(10f))
         // 🛑 **달력 안을 누른 건 카드를 누른 게 아니다.**
         //   칸 사이 빈 곳을 누르면 카드 전체 클릭으로 새어나가 대화가 열리고 **카드가 닫혔다.**
@@ -790,7 +756,7 @@ private class CallerCardView(
             row.setOnClickListener { }
         }
         for (i in 0 until 7) {
-            val h = mkText(8.5f, 0xFF6C7888.toInt(), bold = true)
+            val h = mkText(8.5f, WEEK_HEAD, bold = true)
             h.gravity = android.view.Gravity.CENTER
             weekHeadRow.addView(h, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         }
@@ -814,7 +780,7 @@ private class CallerCardView(
         dayDetailBox.orientation = VERTICAL
         dayDetailBox.isClickable = true
         dayDetailBox.setOnClickListener { }
-        dayDetailBox.background = roundBg(0x59000000, 11f, 0x24FFFFFF, 1f)
+        dayDetailBox.background = roundBg(CARD_BG, 11f, DETAIL_LINE, 1f)
         dayDetailBox.setPadding(dp(11f), dp(9f), dp(11f), dp(10f))
         dayDetailBody.orientation = VERTICAL
         dayDetailBox.addView(dayDetailTitleTv)
@@ -865,30 +831,33 @@ private class CallerCardView(
             val cell = dayCells[i]
             cell.dayTv.text = day.dayOfMonth.toString()
             val lines = TwoWeekSchedule.cellLines(day)
-            bindLine(cell.line1, lines.getOrNull(0))
-            bindLine(cell.line2, lines.getOrNull(1))
+            cell.c1 = bindLine(cell.line1, lines.getOrNull(0))
+            cell.c2 = bindLine(cell.line2, lines.getOrNull(1))
             cell.root.setOnClickListener { onDayTap(day) }
         }
         paintCells()
         applySchedVisibility()
     }
 
+    /** 한 줄을 그리고, **그 줄 색을 돌려준다** — 누른 칸에서 흰 글씨로 바꿨다가 되돌려야 해서. */
     private fun bindLine(
         tv: TextView,
         line: TwoWeekSchedule.Line?
-    ) {
-        if (line == null) { tv.visibility = View.GONE; return }
+    ): Int {
+        if (line == null) { tv.visibility = View.GONE; return TONE_JOB }
         tv.visibility = View.VISIBLE
         tv.text = line.text
-        tv.setTextColor(toneColor(line.tone))
+        val c = toneColor(line.tone)
+        tv.setTextColor(c)
+        return c
     }
 
     /** 시공=회색 · A/S=주황 · 내 일정=보라 · 비었음=초록. 색이 셋이라 안 헷갈린다. */
     private fun toneColor(tone: TwoWeekSchedule.Tone): Int = when (tone) {
-        TwoWeekSchedule.Tone.JOB -> 0xFF8E9BAC.toInt()
-        TwoWeekSchedule.Tone.AS -> 0xFFFFC24D.toInt()
-        TwoWeekSchedule.Tone.EVENT -> 0xFFC4AFFF.toInt()
-        TwoWeekSchedule.Tone.EMPTY -> 0xFF3FE0AE.toInt()
+        TwoWeekSchedule.Tone.JOB -> TONE_JOB
+        TwoWeekSchedule.Tone.AS -> TONE_AS
+        TwoWeekSchedule.Tone.EVENT -> TONE_EVENT
+        TwoWeekSchedule.Tone.EMPTY -> TONE_EMPTY
     }
 
     private fun paintCells() {
@@ -897,14 +866,21 @@ private class CallerCardView(
             val cell = dayCells[i]
             val picked = day.dayStartMs == selectedDay
             cell.root.background = when {
-                picked -> roundBg(0x38FFFFFF, 8f, 0x99FFFFFF.toInt(), 1f)
-                day.isFree -> roundBg(0x3D12B886, 8f, 0x733FE0AE, 1f)
-                day.isToday -> roundBg(0x0DFFFFFF, 8f, 0x66FFFFFF, 1.5f)
-                else -> roundBg(0x0DFFFFFF, 8f)
+                picked -> roundBg(PICK_BG, 8f, PICK_BG, 1f)
+                day.isFree -> roundBg(FREE_BG, 8f, FREE_LINE, 1f)
+                day.isToday -> roundBg(CELL_BG, 8f, TODAY_LINE, 1.5f)
+                else -> roundBg(CELL_BG, 8f, CELL_LINE, 1f)
             }
             cell.dayTv.setTextColor(
-                if (picked || day.isFree || day.isToday) 0xFFFFFFFF.toInt() else 0xFFB6C2D0.toInt()
+                when {
+                    picked -> WHITE
+                    day.isFree || day.isToday -> INK
+                    else -> CELL_DAY
+                }
             )
+            // 파랗게 칠한 칸 위에선 초록·회색 글씨가 안 읽힌다. 흰 글씨로 바꾸고, 풀리면 되돌린다.
+            cell.line1.setTextColor(if (picked) WHITE else cell.c1)
+            cell.line2.setTextColor(if (picked) WHITE else cell.c2)
         }
     }
 
@@ -915,7 +891,7 @@ private class CallerCardView(
         dayDetailTitleTv.text = "${monthOfDay(day.dayStartMs)} ${day.dayOfMonth}일 (${day.weekday})"
         dayDetailBody.removeAllViews()
         if (day.isFree) {
-            val tv = mkText(11f, 0xFF8E9BAC.toInt())
+            val tv = mkText(11f, SUB)
             tv.text = "아무것도 없어요. 이 날 받으시면 됩니다."
             dayDetailBody.addView(tv)
         } else {
@@ -940,13 +916,13 @@ private class CallerCardView(
             orientation = VERTICAL
             setPadding(dp(9f), 0, 0, 0)
         }
-        val head = mkText(11f, 0xFFFFFFFF.toInt(), bold = true)
+        val head = mkText(11f, INK, bold = true)
         val mark = if (item.tone == TwoWeekSchedule.Tone.AS) "A/S · " else ""
         head.text = mark + item.time + " · " + item.who
         texts.addView(head)
         val detail = item.detail.trim()
         if (detail.isNotEmpty()) {
-            val sub = mkText(10f, 0xFF8E9BAC.toInt())
+            val sub = mkText(10f, SUB)
             sub.text = detail
             sub.maxLines = 2
             sub.ellipsize = android.text.TextUtils.TruncateAt.END
@@ -982,7 +958,7 @@ private class CallerCardView(
 
     private fun panel(box: LinearLayout, label: TextView, text: TextView): LinearLayout {
         box.orientation = VERTICAL
-        box.background = roundBg(0x12FFFFFF, 11f)
+        box.background = roundBg(PANEL_BG, 11f)
         box.setPadding(dp(10f), dp(8f), dp(10f), dp(9f))
         box.addView(label)
         box.addView(text, rowLp(2f))
@@ -1001,11 +977,11 @@ private class CallerCardView(
     }
 
     private fun chipTextColor(st: IncomingCallOverlay.CallerState): Int = when (st.status) {
-        IncomingCallOverlay.CallerStatus.NEW -> 0xFFFFC24D.toInt()
-        IncomingCallOverlay.CallerStatus.REPEAT -> 0xFFC4AFFF.toInt()
-        IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF3FE0AE.toInt()
-        IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFFF8FA9.toInt()
-        else -> 0xFF7FB4FF.toInt()
+        IncomingCallOverlay.CallerStatus.NEW -> 0xFFA96A06.toInt()
+        IncomingCallOverlay.CallerStatus.REPEAT -> 0xFF5B3BC4.toInt()
+        IncomingCallOverlay.CallerStatus.SCHEDULED -> 0xFF0C7A4B.toInt()
+        IncomingCallOverlay.CallerStatus.COMPLETED -> 0xFFC23934.toInt()
+        else -> 0xFF1F63C8.toInt()
     }
 
     fun bind(st: IncomingCallOverlay.CallerState) {
@@ -1013,7 +989,6 @@ private class CallerCardView(
         strip.setBackgroundColor(stripColor(st))
 
         nameTv.text = st.displayName
-        nameTv.textSize = if (isNew) 19f else 17f
 
         val isRepeat = !st.loading && st.status == IncomingCallOverlay.CallerStatus.REPEAT
         val chipLabel = when {
@@ -1032,7 +1007,7 @@ private class CallerCardView(
         }
         chipTv.text = chipLabel
         chipTv.setTextColor(chipTextColor(st))
-        chipTv.background = roundBg((stripColor(st) and 0x00FFFFFF) or (0x38 shl 24), 999f)
+        chipTv.background = roundBg((stripColor(st) and 0x00FFFFFF) or (0x24 shl 24), 999f)
 
         // 이름이 번호 그대로면 아래 번호줄은 중복이라 안 띄운다.
         val formatted = PhoneNumberFormatter.format(st.phoneNumber)
@@ -1042,18 +1017,16 @@ private class CallerCardView(
             val since = st.firstContactAt?.let { " · ${monthDayOf(it)}부터 문의 중" } ?: ""
             "아직 시공 전$since"
         } else base
-        subTv.visibility = View.VISIBLE
 
-        show(addrTv, st.address?.let { "$it" })
-        show(moneyTv, st.moneyLabel?.let { "$it" })
+        show(moneyTv, st.moneyLabel)
+        moneyTv.setTextColor(if (st.moneyOwed) MONEY_OWED else BODY)
 
-        newBox.visibility = if (isNew) View.VISIBLE else View.GONE
-        if (isNew) {
-            newTitleTv.text = "처음 걸려온 번호예요 · 새 문의"
-            // "주고받은 문자도, 지난 통화도 없어요"는 뺐다 — **이미 아는 얘기**라 자리만 먹는다.
-            //   그 자리에 2주 일정이 들어간다. (2026-09-19 사장님)
-            newDescTv.visibility = View.GONE
-        }
+        // 신규면 머리를 통째로 주황으로 — 그때는 가는 띠도 이름줄도 감춘다. 같은 말을 두 번 안 한다.
+        newHead.visibility = if (isNew) View.VISIBLE else View.GONE
+        strip.visibility = if (isNew) View.GONE else View.VISIBLE
+        head.visibility = if (isNew) View.GONE else View.VISIBLE
+        subTv.visibility = if (isNew) View.GONE else View.VISIBLE
+        if (isNew) newNumTv.text = formatted
 
         // 📅 처음 거는 사람은 보여줄 과거가 없으니 **일정을 바로 펼친다.**
         //   시공했던 손님은 기억(요약·문자)이 먼저라 버튼으로 접어 둔다.
@@ -1061,28 +1034,14 @@ private class CallerCardView(
         schedAlwaysOpen = isNew || isRepeat
         bindSchedule(st.schedule)
 
-        // 🧾 지난 시공 — 없으면 아예 안 띄운다.
-        pastBox.visibility = if (st.pastJobLines.isEmpty()) View.GONE else View.VISIBLE
-        if (st.pastJobLines.isNotEmpty()) {
-            pastLabelTv.text = "지난 시공"
-            pastBigTv.text = st.pastJobLines[0]
-            val more = st.pastJobLines.getOrNull(1)
-            pastSmallTv.visibility = if (more == null) View.GONE else View.VISIBLE
-            if (more != null) pastSmallTv.text = "그 전 — $more"
-        }
+        // 🧾 지난 시공 한 줄 — 없으면 아예 안 띄운다.
+        show(pastTv, st.pastJobLines.firstOrNull()?.let { "지난 시공 · $it" })
 
         val hasSum = !st.lastSummary.isNullOrBlank()
         sumBox.visibility = if (hasSum) View.VISIBLE else View.GONE
         if (hasSum) {
             sumLabelTv.text = "지난 통화 요약" + (st.lastSummaryWhen?.let { " · $it" } ?: "")
             sumTextTv.text = st.lastSummary
-        }
-
-        val lastMsg = st.messages.lastOrNull()
-        msgBox.visibility = if (lastMsg != null) View.VISIBLE else View.GONE
-        if (lastMsg != null) {
-            msgLabelTv.text = if (lastMsg.sent) "내가 보낸 마지막 문자" else "마지막 받은 문자"
-            msgTextTv.text = lastMsg.body.take(90)
         }
 
         footTv.text = when {
@@ -1094,153 +1053,5 @@ private class CallerCardView(
 
     private fun show(tv: TextView, text: String?) {
         if (text.isNullOrBlank()) { tv.visibility = View.GONE } else { tv.visibility = View.VISIBLE; tv.text = text }
-    }
-}
-
-
-@Composable
-private fun IncomingCallCard(
-    state: IncomingCallOverlay.CallerState,
-    onOpen: () -> Unit,
-    onClose: () -> Unit
-) {
-    // 로딩 중엔 중립(흰/파랑) → 값 확정되면 상태색으로 전환(깜빡임 방지). 완료=빨강·예정=초록·신규=노랑.
-    val pal = if (state.loading) NeutralPalette else paletteFor(state.status)
-    val isNew = !state.loading && state.status == IncomingCallOverlay.CallerStatus.NEW
-    val cardBg = pal.bg
-    val accent = pal.accent
-    val accentSoft = pal.soft
-    Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .shadow(18.dp, RoundedCornerShape(26.dp), clip = false)
-                .clip(RoundedCornerShape(26.dp))
-                .background(cardBg)
-                .padding(22.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(56.dp).clip(CircleShape).background(accentSoft),
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Call, "전화", tint = accent, modifier = Modifier.size(28.dp)) }
-                Spacer(Modifier.size(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        pal.label,
-                        fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = accent
-                    )
-                    Text(
-                        state.displayName, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Box(
-                    Modifier.size(38.dp).clip(CircleShape).background(GrayBg).clickable { onClose() },
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Close, "닫기", tint = TextTertiary, modifier = Modifier.size(22.dp)) }
-            }
-
-            state.scheduleLabel?.let { label ->
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    label,
-                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = accent,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(accentSoft)
-                        .padding(horizontal = 15.dp, vertical = 9.dp)
-                )
-            }
-
-            state.address?.let { addr ->
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "$addr", fontSize = 16.sp, color = TextSecondary,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            state.moneyLabel?.let { money ->
-                Spacer(Modifier.height(8.dp))
-                Text("$money", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            }
-
-            when {
-                state.messages.isNotEmpty() -> {
-                    Spacer(Modifier.height(16.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(GrayBg))
-                    Spacer(Modifier.height(13.dp))
-                    Text("최근 대화", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextTertiary)
-                    Spacer(Modifier.height(8.dp))
-                    state.messages.forEach { m ->
-                        Row(Modifier.padding(vertical = 3.dp)) {
-                            Text(
-                                if (m.sent) "나 " else "고객 ",
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                color = if (m.sent) accent else TextTertiary
-                            )
-                            Text(
-                                m.body, fontSize = 15.sp, color = TextSecondary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-                state.loading -> {
-                    Spacer(Modifier.height(14.dp))
-                    Text("정보 불러오는 중…", fontSize = 15.sp, color = TextTertiary)
-                }
-                !state.isKnown -> {
-                    Spacer(Modifier.height(14.dp))
-                    Text("처음 보는 번호예요", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Text("저장·문자 기록이 없어요", fontSize = 14.sp, color = TextTertiary)
-                }
-                else -> {
-                    Spacer(Modifier.height(14.dp))
-                    Text("아직 나눈 대화가 없어요", fontSize = 15.sp, color = TextTertiary)
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-            // 신규면 열 '기록'이 없으니 "신규 전화예요!" 로. 앰버 하이라이트(카드색과 통일). 눌러도 대화는 열림. (2026-07-02 사장님)
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(if (isNew) accentSoft else GrayBg)
-                    .clickable { onOpen() }.padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    if (isNew) "신규 전화예요!" else "기록 열기",
-                    fontSize = 17.sp, fontWeight = FontWeight.Bold,
-                    color = if (isNew) accent else TextSecondary
-                )
-            }
-        }
-    }
-}
-
-// ----- WindowManager 안 ComposeView 용 커스텀 LifecycleOwner (PostCallOverlay 패턴 재사용) -----
-
-private class OverlayLifecycleOwner :
-    LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
-
-    private val lifecycleRegistry = LifecycleRegistry(this)
-    private val store = ViewModelStore()
-    private val savedStateController = SavedStateRegistryController.create(this)
-
-    override val lifecycle: Lifecycle get() = lifecycleRegistry
-    override val viewModelStore: ViewModelStore get() = store
-    override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
-
-    fun onCreate() {
-        savedStateController.performAttach()
-        savedStateController.performRestore(null)
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
-    }
-
-    fun onStart() { lifecycleRegistry.currentState = Lifecycle.State.STARTED }
-    fun onResume() { lifecycleRegistry.currentState = Lifecycle.State.RESUMED }
-    fun onDestroy() {
-        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
-        store.clear()
     }
 }
