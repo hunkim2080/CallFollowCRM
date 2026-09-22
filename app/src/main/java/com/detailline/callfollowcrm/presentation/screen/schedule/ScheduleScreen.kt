@@ -1428,9 +1428,13 @@ private fun DayJobCard(
     val totalDays = customer.scheduledWorkDays.coerceAtLeast(1)
     val dayN = selectedDayMs?.let { ((it - s) / DateTimeUtils.DAY_MS).toInt() + 1 }?.coerceIn(1, totalDays) ?: 1
     val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address)
-    // 이름·일차는 주소 밑 작은 줄. 둘 다 없으면 그 줄이 아예 안 나온다.
+    // 이름·일차는 주소 밑 작은 줄.
+    //   ⚠️ 이름이 없으면 **번호**라도 적는다. 안 그러면 주소도 이름도 없는 손님은 카드에
+    //      "주소 미입력" 한 줄만 남아 **누군지 알 수가 없다.** (2026-09-22 폰에서 확인)
+    //      번호를 제목 자리에서 뺀 것과 다른 얘기다 — 여기는 작은 줄이다.
     val who = listOfNotNull(
-        customer.name?.takeIf { it.isNotBlank() },
+        customer.name?.takeIf { it.isNotBlank() }
+            ?: PhoneNumberFormatter.format(customer.phoneNumber).takeIf { it.isNotBlank() },
         if (totalDays > 1) "${totalDays}일 중 ${dayN}일차" else null
     ).joinToString(" · ")
     // 초록 = 끝난 것 · 회색 = 그냥 지나간 것 · 파랑 = 앞으로 올 것. (2026-09-20 사장님)
