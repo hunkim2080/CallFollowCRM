@@ -5681,15 +5681,14 @@ private fun EstimateBuilderDialog(
             Spacer(Modifier.height(4.dp))
             Text("항목을 고르고, 어떻게 보낼지 정하세요", fontSize = 13.sp, color = TossTextTertiary)
             Spacer(Modifier.height(12.dp))
-            // 프로토 .seg 탭
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                EstSegTab("문자 견적", mode == "text", Modifier.weight(1f)) { mode = "text" }
-                EstSegTab("시공접수서", mode == "accept", Modifier.weight(1f)) { mode = "accept" }
-                EstSegTab("견적서", mode == "quote", Modifier.weight(1f)) { mode = "quote" }
-            }
+            // 앱 어디서나 **같은 탭**. 여기만 혼자 다른 모양(회색 바탕+흰 알약)이었다. (2026-09-22 사장님)
+            //   AppTabs = 고객 정보·정산·통계·협업이 쓰는 그 탭.
+            val estModes = listOf("text", "accept", "quote")
+            com.detailline.callfollowcrm.presentation.component.AppTabs(
+                tabs = listOf("문자 견적", "시공접수서", "견적서"),
+                selected = estModes.indexOf(mode).coerceAtLeast(0),
+                onSelect = { i -> mode = estModes[i] }
+            )
             // ── 여기서부터 스크롤. 제목·탭은 위에 **고정**한다. (2026-09-16 사장님)
             //   "창에 내용을 올리는데 뭔가 디자인이 깨지는 느낌이랄까?"
             //   전에는 시트 전체가 한 덩어리로 스크롤돼서, 항목을 내리면 제목과 탭이 같이 밀려 올라갔다.
@@ -5840,7 +5839,7 @@ private fun EstimateBuilderDialog(
             }
             Spacer(Modifier.height(6.dp))
             // 가격을 그 자리에서 고칠 수 있다는 힌트 한 줄 — 줄마다 ✏️ 빼고 여기로만 안내. (2026-06-25 사장님)
-            Text("💡 이름·가격을 꾹 누르면 고칠 수 있어요",
+            Text("이름·가격을 꾹 누르면 고칠 수 있어요",
                 fontSize = 11.5.sp, color = TossTextTertiary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             // 항목 리스트 (프로토 est-row + 평당 est-area)
@@ -6167,6 +6166,9 @@ private fun EstimateItemRow(
                 Text(
                     if (isPyeong) "${formatWon(price)}/평" else formatWon(price),
                     color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    // 숫자를 **고정폭**으로 — 안 그러면 50/85/100 처럼 자릿수가 다를 때
+                    //   글자 폭이 달라져 금액이 세로로 안 맞는다. (2026-09-22 사장님)
+                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
                         .combinedClickable(onClick = {}, onLongClick = { editingPrice = true })
                         .padding(horizontal = 6.dp, vertical = 4.dp)
