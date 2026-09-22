@@ -424,7 +424,12 @@ object IncomingCallOverlay {
         //   화면캡처 결과 테두리가 하나도 안 그려짐(2026-08-31 실측). → 그냥 커스텀 View 로 Canvas 에 직접
         //   테두리를 그린다(뷰 시스템이 onDraw 를 확실히 호출). (사장님 — 최신폰 대응)
         val view = CallerCardView(appContext) { onOpenRecord() }.apply {
-            state.value?.let { bind(it) }
+            // 🛑 bind 가 터지면 카드가 **글자 없이 빈 채로** 뜬다(상자만 보이고 글씨가 없음).
+            //   그때 원인을 알 수 있게 삼키고 기록한다. (2026-09-22 사장님 "전화 오니까 이렇게 떠")
+            val st0 = state.value
+            android.util.Log.d(TAG, "actuallyShow: state=${if (st0 == null) "null" else "loading=" + st0.loading}")
+            if (st0 != null) runCatching { bind(st0) }
+                .onFailure { android.util.Log.e(TAG, "bind FAILED (1st)", it) }
         }
 
         val params = WindowManager.LayoutParams(
@@ -449,7 +454,12 @@ object IncomingCallOverlay {
                 // 상태(loading→확정) 반영 — _state 관찰해 색 갱신.
                 colorJob?.cancel()
                 colorJob = ioScope.launch {
-                    state.collect { s -> if (s != null) main.post { (currentView as? CallerCardView)?.bind(s) } }
+                    state.collect { s ->
+                        if (s != null) main.post {
+                            runCatching { (currentView as? CallerCardView)?.bind(s) }
+                                .onFailure { android.util.Log.e(TAG, "bind FAILED", it) }
+                        }
+                    }
                 }
             }
             .onFailure {
@@ -820,7 +830,9 @@ private class CallerCardView(
         schedLabelTv.text = "내 일정 · 2주"
         val free = TwoWeekSchedule.freeDaysLabel(days)
         schedFreeTv.text = if (free != null) "빈 날 — $free" else "2주가 꽉 찼어요"
-        schedFreeTv.setTextColor(if (free != null) 0xFFFFFFFF.toInt() else 0xFFFFC24D.toInt())
+        // ⚠️ 여기서 색을 **다시 칠한다.** 카드를 흰 바탕으로 바꿨을 때 이 줄을 놓쳐
+        //   "빈 날 — …"이 흰 글씨 그대로 남아 **흰 바탕에 흰 글씨**가 됐다. (2026-09-22 사장님 신고)
+        schedFreeTv.setTextColor(if (free != null) INK else MONEY_OWED)
         schedHintTv.text = "칸을 누르면 그날이 열려요"
 
         for (i in 0 until 7) {
