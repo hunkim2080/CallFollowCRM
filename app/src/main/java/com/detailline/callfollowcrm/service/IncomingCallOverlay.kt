@@ -51,6 +51,8 @@ object IncomingCallOverlay {
     private const val MAX_MESSAGES = 3
 
     private val main = Handler(Looper.getMainLooper())
+    /** 메모를 열 때 창 플래그를 바꾸려면 붙여둔 params 가 필요하다. (2026-09-22) */
+    private var currentParams: WindowManager.LayoutParams? = null
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var currentView: View? = null
@@ -431,7 +433,13 @@ object IncomingCallOverlay {
             android.util.Log.w(TAG, "actuallyShow: state==null — 빈 카드는 안 띄운다")
             return
         }
-        val view = CallerCardView(appContext) { onOpenRecord() }.apply {
+        val view = CallerCardView(
+            appContext,
+            onTap = { onOpenRecord() },
+            // 메모를 열면 창이 키보드를 받아야 한다. 닫으면 **반드시** 되돌린다.
+            onMemoFocus = { want -> setWindowFocusable(appContext, want) },
+            onMemoSave = { text -> saveCallMemo(appContext, text) }
+        ).apply {
             // bind 가 터지면 글자 없는 카드가 된다. 그때 원인을 알 수 있게 삼키고 기록한다.
             runCatching { bind(st0) }
                 .onFailure { android.util.Log.e(TAG, "bind FAILED (1st)", it) }
@@ -455,6 +463,7 @@ object IncomingCallOverlay {
         runCatching { wm.addView(view, params) }
             .onSuccess {
                 currentView = view
+                currentParams = params
                 android.util.Log.d(TAG, "actuallyShow: addView OK")
                 // 상태(loading→확정) 반영 — _state 관찰해 색 갱신.
                 colorJob?.cancel()
@@ -477,6 +486,8 @@ object IncomingCallOverlay {
         loadJob?.cancel(); loadJob = null
         safetyJob?.cancel(); safetyJob = null
         colorJob?.cancel(); colorJob = null
+        // 적다가 저장을 안 누른 채 끊으면 메모가 날아간다. 내려가기 전에 건져낸다. (2026-09-22)
+        runCatching { (currentView as? CallerCardView)?.flushPendingMemo() }
         currentView?.let { v ->
             runCatching {
                 val wm = v.context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
@@ -484,7 +495,47 @@ object IncomingCallOverlay {
             }
         }
         currentView = null
+        currentParams = null
         _state.value = null
+    }
+
+    /**
+     * 메모를 열 때만 창이 키보드를 받게 한다. 닫으면 **반드시** 원래대로.
+     *   평소에 키보드를 안 받게 막아둔 건 받기·거절 버튼을 지키기 위해서다.
+     *   창 높이가 카드만큼이라 아래 버튼은 우리 창 밖 — 포커스를 받아도 안 가린다.
+     */
+    private fun setWindowFocusable(appContext: Context, focusable: Boolean) {
+        val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        val v = currentView ?: return
+        val p = currentParams ?: return
+        p.flags =
+            if (focusable) p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            else p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        runCatching { wm.updateViewLayout(v, p) }
+            .onFailure { android.util.Log.w(TAG, "메모 창 전환 실패", it) }
+    }
+
+    /**
+     * 통화 중에 적은 메모를 **고객 메모**에 붙인다. (2026-09-22 사장님)
+     *   · 처음 걸려온 번호면 그 번호로 손님을 만들어서 붙인다(upsertByPhone).
+     *   · 이미 메모가 있으면 **덮어쓰지 않고 밑에 덧붙인다** — 예전 메모가 사라지면 안 된다.
+     *   · 언제 적은 건지 한 줄 붙인다. 나중에 보면 어느 통화 때 들은 말인지 알 수 있게.
+     */
+    private fun saveCallMemo(appContext: Context, text: String) {
+        val body = text.trim()
+        if (body.isBlank()) return
+        val app = appContext.applicationContext as? CallFollowCrmApplication ?: return
+        val phone = _state.value?.phoneNumber?.takeIf { it.isNotBlank() } ?: return
+        ioScope.launch {
+            runCatching {
+                val repo = app.container.customerRepository
+                val c = repo.upsertByPhone(phone)
+                val cal = java.util.Calendar.getInstance()
+                val stamp = "${cal.get(java.util.Calendar.MONTH) + 1}월 ${cal.get(java.util.Calendar.DAY_OF_MONTH)}일 통화"
+                val old = c.memo.trimEnd()
+                repo.updateMemo(c.id, if (old.isBlank()) "$stamp\n$body" else "$old\n\n$stamp\n$body")
+            }.onFailure { android.util.Log.w(TAG, "통화 메모 저장 실패", it) }
+        }
     }
 
     private fun startSafetyTimeout() {
@@ -573,10 +624,16 @@ private val TONE_AS = 0xFFB87500.toInt()
 private val TONE_EVENT = 0xFF6742D8.toInt()
 private val TONE_EMPTY = 0xFF0C7A4B.toInt()
 private val NEW_ORANGE = 0xFFF59F0B.toInt()
+/** [메모 남기기] 줄 바탕 — 연한 파랑(앱 다른 화면의 primaryBg 와 같은 값). */
+private val AppTheme_primaryBgLike = 0xFFE7F0FE.toInt()
 
 private class CallerCardView(
     context: Context,
-    private val onTap: () -> Unit
+    private val onTap: () -> Unit,
+    /** 메모를 열고 닫을 때 — 창이 키보드를 받게/안 받게. */
+    private val onMemoFocus: (Boolean) -> Unit = {},
+    /** 적은 메모를 고객 메모에 붙여달라고. */
+    private val onMemoSave: (String) -> Unit = {}
 ) : LinearLayout(context) {
 
     private val dm = context.resources.displayMetrics
@@ -593,6 +650,15 @@ private class CallerCardView(
     private val sumBox = LinearLayout(context)
     private val divider = View(context)
     private val footTv = mkText(10.5f, SUB)
+
+    // ── ✎ 통화 중 메모 (2026-09-22 사장님) ──
+    //   들은 걸 그 자리에서 적어두면 끊고 나서 고객 메모에 들어가 있다.
+    private val memoBtn = mkText(13f, HINT_C, bold = true)
+    private val memoBox = LinearLayout(context)
+    private val memoEdit = android.widget.EditText(context)
+    private val memoCloseTv = mkText(12.5f, BODY, bold = true)
+    private val memoSaveTv = mkText(12.5f, WHITE, bold = true)
+    private var memoOpen = false
 
     // ── 신규 머리 (2026-09-22) ──
     //   가는 주황 띠 + [신규] 칩 + "처음 걸려온 번호예요 · 새 문의" 상자, **셋이 다 같은 말**이었다.
@@ -696,12 +762,113 @@ private class CallerCardView(
         body.addView(schedToggleTv, rowLp(9f))
         body.addView(buildSchedBox(), rowLp(9f))
 
+        body.addView(buildMemoRow(), rowLp(9f))
+        body.addView(buildMemoBox(), rowLp(9f))
+
         divider.setBackgroundColor(DIVIDER_C)
         body.addView(divider, LayoutParams(LayoutParams.MATCH_PARENT, dp(1f)).apply { topMargin = dp(9f) })
         body.addView(footTv, rowLp(7f))
 
         card.addView(body)
         addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    /** [메모 남기기] 한 줄 — 누르면 그 자리에서 입력칸이 열린다. */
+    private fun buildMemoRow(): TextView {
+        memoBtn.text = "메모 남기기"
+        memoBtn.gravity = android.view.Gravity.CENTER
+        memoBtn.background = roundBg(AppTheme_primaryBgLike, 11f)
+        memoBtn.setPadding(0, dp(11f), 0, dp(11f))
+        memoBtn.isClickable = true
+        memoBtn.setOnClickListener { openMemo(true) }
+        return memoBtn
+    }
+
+    /** 메모 입력칸 — 평소엔 접혀 있다. */
+    private fun buildMemoBox(): LinearLayout {
+        memoBox.orientation = VERTICAL
+        memoBox.background = roundBg(CARD_BG, 11f, PICK_BG, 1.5f)
+        memoBox.setPadding(dp(10f), dp(9f), dp(10f), dp(10f))
+        memoBox.isClickable = true
+        memoBox.setOnClickListener { }   // 카드 전체 클릭으로 새어나가지 않게
+
+        memoEdit.setTextColor(INK)
+        memoEdit.textSize = 12.5f
+        memoEdit.setHintTextColor(SUB)
+        memoEdit.hint = "들은 거 적어두세요 — 평수·시공 부위·원하는 날"
+        memoEdit.background = null
+        memoEdit.setPadding(0, 0, 0, 0)
+        memoEdit.minLines = 2
+        memoEdit.maxLines = 4
+        memoEdit.gravity = android.view.Gravity.TOP
+        memoEdit.setLineSpacing(0f, 1.3f)
+        memoBox.addView(memoEdit, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        val row = LinearLayout(context).apply { orientation = HORIZONTAL }
+        memoCloseTv.text = "닫기"
+        memoCloseTv.gravity = android.view.Gravity.CENTER
+        memoCloseTv.background = roundBg(PANEL_BG, 9f)
+        memoCloseTv.setPadding(0, dp(9f), 0, dp(9f))
+        memoCloseTv.isClickable = true
+        memoCloseTv.setOnClickListener { openMemo(false) }
+        memoSaveTv.text = "저장"
+        memoSaveTv.gravity = android.view.Gravity.CENTER
+        memoSaveTv.background = roundBg(PICK_BG, 9f)
+        memoSaveTv.setPadding(0, dp(9f), 0, dp(9f))
+        memoSaveTv.isClickable = true
+        memoSaveTv.setOnClickListener {
+            val t = memoEdit.text?.toString().orEmpty()
+            if (t.isBlank()) { openMemo(false); return@setOnClickListener }
+            onMemoSave(t)
+            memoEdit.setText("")
+            memoBtn.text = "메모 적어뒀어요 · 더 적기"
+            android.widget.Toast.makeText(context, "이 손님 메모에 적어뒀어요", android.widget.Toast.LENGTH_SHORT).show()
+            openMemo(false)
+        }
+        row.addView(memoCloseTv, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(
+            memoSaveTv,
+            LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(6f) }
+        )
+        memoBox.addView(row, rowLp(9f))
+        memoBox.visibility = View.GONE
+        return memoBox
+    }
+
+    /** 메모 열기/닫기 — 열 때만 창이 키보드를 받는다. 닫으면 **반드시** 되돌린다. */
+    private fun openMemo(open: Boolean) {
+        memoOpen = open
+        memoBtn.visibility = if (open) View.GONE else View.VISIBLE
+        memoBox.visibility = if (open) View.VISIBLE else View.GONE
+        onMemoFocus(open)
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+        if (open) {
+            memoEdit.requestFocus()
+            memoEdit.post { imm?.showSoftInput(memoEdit, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT) }
+        } else {
+            imm?.hideSoftInputFromWindow(memoEdit.windowToken, 0)
+            memoEdit.clearFocus()
+        }
+    }
+
+    /**
+     * 적다가 저장을 안 누른 채 통화가 끝났을 때 — 그 글을 버리지 않고 저장한다.
+     *   사장님이 친 글이 조용히 사라지는 건 제일 나쁘다.
+     */
+    fun flushPendingMemo() {
+        val t = memoEdit.text?.toString().orEmpty()
+        if (t.isBlank()) return
+        memoEdit.setText("")
+        onMemoSave(t)
+    }
+
+    /** 뒤로가기 — 메모가 열려 있으면 **메모만** 닫는다. 통화 화면으로 새어나가지 않게. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (memoOpen && event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) openMemo(false)
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /**
@@ -1060,6 +1227,10 @@ private class CallerCardView(
             sumLabelTv.text = "지난 통화 요약" + (st.lastSummaryWhen?.let { " · $it" } ?: "")
             sumTextTv.text = st.lastSummary
         }
+
+        // 조회 중엔 누가 누군지도 모르니 메모 줄을 안 띄운다.
+        memoBtn.visibility = if (st.loading || memoOpen) View.GONE else View.VISIBLE
+        if (st.loading) { memoBox.visibility = View.GONE }
 
         footTv.text = when {
             st.talking -> "통화 중 · 끊을 때까지 남아 있어요"
