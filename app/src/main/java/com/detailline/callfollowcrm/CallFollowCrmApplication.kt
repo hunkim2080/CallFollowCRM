@@ -159,6 +159,15 @@ class CallFollowCrmApplication : Application() {
             }
         }
 
+        // 주소 보정 — 고객 카드에서 고친 주소가 '건'에 안 내려가 일정·달력이 옛 주소이던 것.
+        //   (2026-09-22 사장님 "주소를 고덕으로 했다가 수정했는데 일정에 주소가 안 바뀌네")
+        //   미러 자체는 고쳤지만 **이미 어긋난 것**은 안 고쳐져서, 앱 켤 때 한 번 훑는다. 싸다(로컬 비교).
+        appScope.launch {
+            runCatching { container.customerRepository.repairAddressMirror() }
+                .onSuccess { n -> android.util.Log.i("AddrRepair", "주소 어긋난 건 ${n}개 맞춤") }
+                .onFailure { android.util.Log.w("AddrRepair", "주소 보정 실패", it) }
+        }
+
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
         // READ_SMS 권한 없으면 silent skip.
         //   ⚠️ 콜드 스타트 직후 몇 초 미룸(2026-07-02 사장님): 재실행 직후 사용자가 사진방을 바로 열면 Coil 이 그 사진들을

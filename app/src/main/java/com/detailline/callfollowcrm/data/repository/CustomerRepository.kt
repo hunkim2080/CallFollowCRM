@@ -96,6 +96,36 @@ class CustomerRepository(
         )
     }
 
+    /**
+     * 고객 카드 주소와 **대표 건** 주소가 어긋난 걸 한 번 훑어 맞춘다. (2026-09-22)
+     *
+     * 🔴 왜 (사장님: "왜 아직도 안 바뀌지")
+     *   미러를 고친 건 **앞으로 고치는 주소**만이다. 이미 어긋나 있던 건은 사장님이
+     *   주소를 **다시 저장해야** 맞춰졌다. 그걸 사장님한테 시키는 게 잘못이다.
+     *
+     *   고객 주소가 비어 있으면 안 건드린다 — 건에만 있는 주소를 지우면 안 된다.
+     *   지난(아카이브) 건도 안 건드린다 — 그건 그 시절 값이다.
+     *
+     * @return 맞춘 건수.
+     */
+    suspend fun repairAddressMirror(): Int {
+        val dao2 = jobDao ?: return 0
+        val list = runCatching { dao.allOnce() }.getOrDefault(emptyList())
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+        var fixed = 0
+        for (c in list) {
+            val addr = c.address?.trim()?.takeIf { it.isNotBlank() } ?: continue
+            val jobs = runCatching { dao2.scheduledByCustomerOnce(c.id) }.getOrDefault(emptyList())
+            if (jobs.isEmpty()) continue
+            val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
+            if (rep.address?.trim()?.takeIf { it.isNotBlank() } == addr) continue
+            runCatching {
+                dao2.update(rep.copy(address = addr, updatedAt = System.currentTimeMillis()))
+            }.onSuccess { fixed++ }
+        }
+        return fixed
+    }
+
     fun observeAll(): Flow<List<CustomerEntity>> = dao.observeAll()
     fun observeById(id: Long): Flow<CustomerEntity?> = dao.observeById(id)
 
