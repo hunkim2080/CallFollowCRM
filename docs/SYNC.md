@@ -10880,3 +10880,15 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   ⚠️ tidyAddress 는 앱 전체 공용 — 단위테스트 AddressTidyTailTest 로 고정함.
 - commit: c5fc12b9 (+ da176224, 1b346c61, 6abbeb0c)
 - 다음 액션: 폰 연결되면 docs/PHONE_CHECK_TODO.md 부터 확인 (사장님 지시)
+
+## 2026-09-23 00:00 · android
+통화 요약 프롬프트 — 이모지 금지를 bullets 에서 **전체 규칙**으로 올림
+- 변경: server/main.py CALL_SUMMARY_SYSTEM 프롬프트 문자열만. 코드 로직 무변경.
+  이유: 폰 확인 중 상담함에서 실제로 봄 — "9/17 예약취소, 기존업체 완료🚫 예약금 미…"
+  기존엔 "이모지 금지" 가 bullets 규칙 **안에만** 있어 title·one_line·tags 는 무방비였다.
+  ⚠️ suggested_followup_sms 는 고객에게 나가는 문자라 사장님 말투(^^) 예외로 명시.
+- 라이브 서버 상태: ~/ringgo-server/main.py.new 로 업로드 + py_compile 통과까지만 함.
+  **아직 swap·reload 안 했음** (배포 권한 막힘 — 사장님 승인 필요).
+  백업: ~/ringgo-server/main.py.bak-20260922-2359
+  적용하려면: cd ~/ringgo-server && mv main.py.new main.py && launchctl unload/load
+- 다음 액션: 사장님이 배포 승인하면 위 한 줄. 되돌리려면 bak 파일을 main.py 로.
