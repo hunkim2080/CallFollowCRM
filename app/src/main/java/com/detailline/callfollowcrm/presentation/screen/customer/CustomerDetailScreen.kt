@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Add
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import androidx.compose.material.icons.filled.Check
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.util.copyToClip
@@ -219,10 +221,8 @@ fun CustomerDetailScreen(
     var pendingWorkDays by remember { mutableStateOf(1) }
     // A/S 예약(시공과 별개, 무료) 범위선택 다이얼로그. (2026-08-01 사장님)
     var asPickerOpen by remember { mutableStateOf(false) }
-    // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
-    var photoToDelete by remember { mutableStateOf<Long?>(null) }
-    // 팀원(서버) 사진 삭제 확인 — 사장님이 퇴사한 팀원 사진도 지울 수 있게. (2026-06-07)
-    var teamPhotoToDelete by remember { mutableStateOf<Long?>(null) }
+    // 고른 사진 여러 장 지우기 확인 — (내 사진 id들, 팀원 사진 id들). null 이면 닫힘. (2026-09-22)
+    var picksToDelete by remember { mutableStateOf<Pair<Set<Long>, Set<Long>>?>(null) }
     // 발행 이력(견적서/접수서) 다시 열람·삭제 상태. (2026-07-07 사장님)
     var reviewQuoteDoc by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocData?>(null) }
     var intakeReviewDoc by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
@@ -1230,6 +1230,16 @@ fun CustomerDetailScreen(
                     photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
             }
+            // 사진이 많아도 카드가 화면을 통째로 먹지 않게 — 두 줄까지만 보이고 나머지는 접는다.
+            var photosExpanded by remember(shownJobId) { mutableStateOf(false) }
+            // [고르기] 를 눌렀을 때만 동그라미가 뜬다. 평소엔 사진을 눌러 크게 본다. (2026-09-22 사장님)
+            var pickMode by remember(shownJobId) { mutableStateOf(false) }
+            var pickedMine by remember(shownJobId) { mutableStateOf(setOf<Long>()) }
+            var pickedTeam by remember(shownJobId) { mutableStateOf(setOf<Long>()) }
+            val pickedCount = pickedMine.size + pickedTeam.size
+            fun exitPickMode() {
+                pickMode = false; pickedMine = emptySet(); pickedTeam = emptySet()
+            }
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1237,107 +1247,167 @@ fun CustomerDetailScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(
                             // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
-                            (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
+                            if (pickMode) "사진 고르는 중"
+                            else (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
                                 (if (photoTotal == 0) "" else " ${photoTotal}장 / ${photoMax}"),
-                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // 버튼은 **제목 줄에**. 전엔 사진이 늘수록 아래로 도망갔고, 20장이 차면
+                        //   [올리기] 타일이 아예 사라져서 왜 못 올리는지도 안 보였다. (2026-09-22 사장님)
+                        if (pickMode) {
+                            PhotoHeadBtn("취소", filled = false) { exitPickMode() }
+                        } else {
+                            if (photoTotal > 0) {
+                                PhotoHeadBtn("고르기", filled = false) { pickMode = true }
+                                Spacer(Modifier.width(4.dp))
+                            }
+                            if (photoTotal < photoMax) {
+                                PhotoHeadBtn("올리기", filled = true) { launchPhotoPicker() }
+                            } else {
+                                Text(
+                                    "${photoMax}장 다 찼어요",
+                                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary
+                                )
+                            }
+                        }
+                    }
+                    // 안내문은 **처음 한 번만** — 파란 이름표는 파란 이름표를 보면 알게 된다.
+                    if (photoTotal == 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "현장 사진을 올리면 팀원과 같이 봐요. 팀원이 올린 사진엔 파란 이름표가 붙어요. (한 현장 ${photoMax}장까지)",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "현장 사진을 올리면 팀원과 같이 봐요. 팀원이 올린 사진엔 파란 이름표가 붙어요. (한 현장 ${photoMax}장까지)",
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    // photo-grid (3열) — 내 사진 + 팀 사진 + 맨 끝 [올리기] 타일(20장 미만일 때만).
-                    val cells: List<Any> =
-                        sitePhotos + teamPhotos + (if (photoTotal < photoMax) listOf("UPLOAD") else emptyList())
-                    cells.chunked(3).forEachIndexed { rowIdx, row ->
-                        if (rowIdx > 0) Spacer(Modifier.height(8.dp))
-                        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            row.forEach { cell ->
-                                when (cell) {
-                                    is com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity -> {
-                                        androidx.compose.foundation.layout.Box(
-                                            Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                                        ) {
-                                            coil.compose.AsyncImage(
-                                                model = java.io.File(cell.filePath),
-                                                contentDescription = "현장 사진",
-                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize().clickable {
-                                                    fullscreenImageUri = android.net.Uri.fromFile(java.io.File(cell.filePath))
-                                                }
-                                            )
-                                            // 삭제 ✕ 배지 (우상단) — 내가 올린 사진만 삭제 가능.
-                                            androidx.compose.foundation.layout.Box(
-                                                Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(4.dp)
-                                                    .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
-                                                    .clickable { photoToDelete = cell.id },
-                                                contentAlignment = androidx.compose.ui.Alignment.Center
-                                            ) {
-                                                androidx.compose.material3.Icon(
-                                                    Icons.Default.Close, "삭제", tint = Color.White, modifier = Modifier.size(13.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto -> {
-                                        androidx.compose.foundation.layout.Box(
-                                            Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                                        ) {
-                                            val bmp = cell.bitmap
-                                            if (bmp != null) {
-                                                androidx.compose.foundation.Image(
-                                                    bitmap = bmp.asImageBitmap(),
-                                                    contentDescription = "현장 사진 (${cell.uploaderName})",
+                    val cells: List<Any> = sitePhotos + teamPhotos
+                    // 두 줄(6장)까지만. 더 있으면 마지막 칸이 "+N장" 이 되고, 누르면 다 펴진다.
+                    val collapsed = !photosExpanded && cells.size > PHOTO_COLLAPSED
+                    val shown = if (collapsed) cells.take(PHOTO_COLLAPSED) else cells
+                    val hiddenCount = cells.size - shown.size
+                    if (shown.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        shown.chunked(3).forEachIndexed { rowIdx, row ->
+                            if (rowIdx > 0) Spacer(Modifier.height(8.dp))
+                            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEachIndexed { colIdx, cell ->
+                                    val flatIdx = rowIdx * 3 + colIdx
+                                    val isLastShown = flatIdx == shown.lastIndex
+                                    androidx.compose.foundation.layout.Box(
+                                        Modifier.weight(1f).aspectRatio(1f).clip(AppShape.md).background(TossGrayBg)
+                                    ) {
+                                        val picked: Boolean
+                                        when (cell) {
+                                            is com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity -> {
+                                                picked = cell.id in pickedMine
+                                                coil.compose.AsyncImage(
+                                                    model = java.io.File(cell.filePath),
+                                                    contentDescription = "현장 사진",
                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize().clickable { fullscreenBitmap = bmp }
+                                                    modifier = Modifier.fillMaxSize().clickable {
+                                                        if (pickMode) {
+                                                            pickedMine =
+                                                                if (picked) pickedMine - cell.id else pickedMine + cell.id
+                                                        } else {
+                                                            fullscreenImageUri =
+                                                                android.net.Uri.fromFile(java.io.File(cell.filePath))
+                                                        }
+                                                    }
                                                 )
                                             }
-                                            // 업로더 이름표 — 팀원=파랑, 사장님=회색 (프로토: 팀원 사진 파란 이름표).
-                                            androidx.compose.foundation.layout.Box(
-                                                Modifier.align(androidx.compose.ui.Alignment.BottomStart).padding(4.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(if (cell.isOwner) Color.Black.copy(alpha = 0.5f) else TossBlue)
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                                            ) {
-                                                Text(cell.uploaderName, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto -> {
+                                                picked = cell.photoId in pickedTeam
+                                                val bmp = cell.bitmap
+                                                if (bmp != null) {
+                                                    androidx.compose.foundation.Image(
+                                                        bitmap = bmp.asImageBitmap(),
+                                                        contentDescription = "현장 사진 (${cell.uploaderName})",
+                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize().clickable {
+                                                            if (pickMode) {
+                                                                pickedTeam =
+                                                                    if (picked) pickedTeam - cell.photoId
+                                                                    else pickedTeam + cell.photoId
+                                                            } else fullscreenBitmap = bmp
+                                                        }
+                                                    )
+                                                }
+                                                // 업로더 이름표 — 팀원=파랑, 사장님=회색. 그대로 둔다.
+                                                androidx.compose.foundation.layout.Box(
+                                                    Modifier.align(androidx.compose.ui.Alignment.BottomStart).padding(4.dp)
+                                                        .clip(AppShape.sm)
+                                                        .background(if (cell.isOwner) Color.Black.copy(alpha = 0.5f) else TossBlue)
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        cell.uploaderName, fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold, color = Color.White
+                                                    )
+                                                }
                                             }
-                                            // 삭제 ✕ 배지 — 사장님은 팀원(퇴사 포함) 사진도 삭제 가능. (2026-06-07)
+                                            else -> picked = false
+                                        }
+                                        // 고르는 중일 때만 동그라미. 평소엔 사진 위에 아무것도 안 얹는다.
+                                        if (pickMode) {
+                                            if (picked) {
+                                                androidx.compose.foundation.layout.Box(
+                                                    Modifier.fillMaxSize().background(TossBlue.copy(alpha = 0.22f))
+                                                )
+                                            }
                                             androidx.compose.foundation.layout.Box(
-                                                Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(4.dp)
-                                                    .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
-                                                    .clickable { teamPhotoToDelete = cell.photoId },
+                                                Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(5.dp)
+                                                    .size(19.dp).clip(CircleShape)
+                                                    .background(if (picked) TossBlue else Color.Black.copy(alpha = 0.3f))
+                                                    .border(2.dp, Color.White, CircleShape),
                                                 contentAlignment = androidx.compose.ui.Alignment.Center
                                             ) {
-                                                androidx.compose.material3.Icon(
-                                                    Icons.Default.Close, "삭제", tint = Color.White, modifier = Modifier.size(13.dp)
+                                                if (picked) androidx.compose.material3.Icon(
+                                                    Icons.Default.Check, null, tint = Color.White,
+                                                    modifier = Modifier.size(12.dp)
                                                 )
                                             }
                                         }
-                                    }
-                                    else -> {
-                                        // [올리기] 타일
-                                        androidx.compose.foundation.layout.Box(
-                                            Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-                                                .background(TossGrayBg)
-                                                .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(12.dp))
-                                                .clickable { launchPhotoPicker() },
-                                            contentAlignment = androidx.compose.ui.Alignment.Center
-                                        ) {
-                                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                                                androidx.compose.material3.Icon(
-                                                    Icons.Default.PhotoCamera, null, tint = TossBlue, modifier = Modifier.size(22.dp)
+                                        // 마지막 칸 "+N장" — 누르면 나머지가 다 펴진다.
+                                        if (collapsed && isLastShown && hiddenCount > 0) {
+                                            androidx.compose.foundation.layout.Box(
+                                                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
+                                                    .clickable { photosExpanded = true },
+                                                contentAlignment = androidx.compose.ui.Alignment.Center
+                                            ) {
+                                                Text(
+                                                    "+${hiddenCount}장", fontSize = 13.sp,
+                                                    fontWeight = FontWeight.ExtraBold, color = Color.White
                                                 )
-                                                Spacer(Modifier.height(2.dp))
-                                                Text("올리기", fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
                                 }
+                                // 마지막 줄 빈칸 채우기 (3열 정렬 유지)
+                                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                             }
-                            // 마지막 줄 빈칸 채우기 (3열 정렬 유지)
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    // 고른 장수 + [지우기] — 여러 장을 한 번에. 전엔 ✕ → 확인 을 장마다 반복해야 했다.
+                    if (pickMode) {
+                        Spacer(Modifier.height(11.dp))
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (pickedCount == 0) "지울 사진을 눌러 고르세요" else "${pickedCount}장 고름",
+                                fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                color = if (pickedCount == 0) TossTextTertiary else TossTextSecondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (pickedCount > 0) {
+                                Text(
+                                    "지우기",
+                                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                                    modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.unpaid)
+                                        .clickable { picksToDelete = pickedMine to pickedTeam }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1942,36 +2012,29 @@ fun CustomerDetailScreen(
         )
     }
 
-    // 현장 사진 삭제 확인
-    photoToDelete?.let { id ->
+    // 고른 사진 여러 장 삭제 확인 — 한 장씩 ✕ → 확인 을 반복하던 걸 한 번으로. (2026-09-22 사장님)
+    picksToDelete?.let { (mine, team) ->
+        val n = mine.size + team.size
         AlertDialog(
-            onDismissRequest = { photoToDelete = null },
-            title = { Text("사진을 삭제할까요?", fontWeight = FontWeight.Bold) },
-            text = { Text("이 현장 사진을 지웁니다. 되돌릴 수 없어요.") },
+            onDismissRequest = { picksToDelete = null },
+            title = { Text("사진 ${n}장을 지울까요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (team.isEmpty()) "고른 현장 사진을 지웁니다. 되돌릴 수 없어요."
+                    else "고른 현장 사진을 지웁니다. 팀원이 올린 사진은 팀원 화면에서도 사라져요. 되돌릴 수 없어요."
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { viewModel.deleteSitePhoto(id); photoToDelete = null }) {
+                TextButton(onClick = {
+                    mine.forEach { viewModel.deleteSitePhoto(it) }
+                    team.forEach { viewModel.deleteTeamPhoto(it) }
+                    picksToDelete = null
+                }) {
                     Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { photoToDelete = null }) { Text("취소", color = TossTextSecondary) }
-            }
-        )
-    }
-
-    // 팀원 사진 삭제 확인 (서버) — 사장님이 퇴사한 팀원 사진도 정리.
-    teamPhotoToDelete?.let { pid ->
-        AlertDialog(
-            onDismissRequest = { teamPhotoToDelete = null },
-            title = { Text("이 사진을 삭제할까요?", fontWeight = FontWeight.Bold) },
-            text = { Text("팀원이 올린 현장 사진을 지웁니다. 팀원 화면에서도 사라지고 되돌릴 수 없어요.") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.deleteTeamPhoto(pid); teamPhotoToDelete = null }) {
-                    Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { teamPhotoToDelete = null }) { Text("취소", color = TossTextSecondary) }
+                TextButton(onClick = { picksToDelete = null }) { Text("취소", color = TossTextSecondary) }
             }
         )
     }
@@ -2819,6 +2882,24 @@ private fun AmountChangeReasonDialog(oldWon: Long, newWon: Long, onRecord: (Stri
             }
         }
     }
+}
+
+/** 사진 카드가 화면을 통째로 먹지 않게 — 두 줄까지만 보이고 나머지는 "+N장" 으로 접는다. */
+private const val PHOTO_COLLAPSED = 6
+
+/** 사진 카드 제목 줄의 작은 버튼 — [올리기] 파랑 채움 / [고르기]·[취소] 회색. */
+@Composable
+private fun PhotoHeadBtn(label: String, filled: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+        color = if (filled) TossBlue else TossTextSecondary,
+        modifier = Modifier
+            .clip(AppShape.sm)
+            .background(if (filled) TossBlueSoft else TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 6.dp)
+    )
 }
 
 /** 주소로 지도 앱 길찾기 — geo: 쿼리. 설치된 지도 앱(카카오내비/구글지도 등) 선택. */
