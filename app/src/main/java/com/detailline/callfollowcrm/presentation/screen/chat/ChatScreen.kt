@@ -5828,10 +5828,26 @@ private fun EstimateBuilderDialog(
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)
         ) {
             SheetGrabber()
-            Text("견적 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
-                color = TossTextPrimary, letterSpacing = (-0.4).sp)
+            // 🔴 제목이 늘 "견적 만들기" 였다. 그래서 [접수서 보내기] 를 눌러도
+            //   접수서 탭에 와 있는데 **제목은 견적**이라 "왜 견적이 나오지?" 하게 됐다.
+            //   (2026-09-23 사장님) → 제목이 **지금 탭을 따라간다.**
+            Text(
+                when (mode) {
+                    "accept" -> "접수서 보내기"
+                    "quote" -> "견적서 만들기"
+                    else -> "견적 만들기"
+                },
+                fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                color = TossTextPrimary, letterSpacing = (-0.4).sp
+            )
             Spacer(Modifier.height(4.dp))
-            Text("항목을 고르고, 어떻게 보낼지 정하세요", fontSize = 13.sp, color = TossTextTertiary)
+            Text(
+                when (mode) {
+                    "accept" -> "항목을 고르면, 고객이 링크에서 주소·날짜를 적어요"
+                    else -> "항목을 고르고, 어떻게 보낼지 정하세요"
+                },
+                fontSize = 13.sp, color = TossTextTertiary
+            )
             Spacer(Modifier.height(12.dp))
             // 앱 어디서나 **같은 탭**. 여기만 혼자 다른 모양(회색 바탕+흰 알약)이었다. (2026-09-22 사장님)
             //   AppTabs = 고객 정보·정산·통계·협업이 쓰는 그 탭.
