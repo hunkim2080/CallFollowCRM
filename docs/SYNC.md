@@ -10915,3 +10915,13 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   py_compile 통과. **아직 swap·reload 안 했음** (배포 권한 막힘 — 사장님 승인 필요).
   백업: ~/ringgo-server/main.py.bak-20260922-2359
 - 다음 액션: cd ~/ringgo-server && mv main.py.new main.py && launchctl unload/load
+
+## 2026-09-23 09:40 · android
+라이브 서버 배포 완료 — 프롬프트 이모지 + 앱버전 추적 + 멤버 '들어온 길' 칸
+- 적용: ~/ringgo-server/main.py 교체 + launchctl reload. healthz 200 확인.
+- 확인: beta_whitelist 에 app_version/app_version_seen_ms 생성됨.
+  /admin/user/{phone}/data 200, signup_device = "갤럭시 S23 (SM-S911N) · Android 16".
+- 🐞 1차 배포 때 NameError(`re` 미import)로 멤버상세 500 → 즉시 고쳐 재배포.
+  main.py 에 import re 가 아예 없었다(상단 import 블록 확인 필수).
+- 백업: ~/ringgo-server/main.py.bak-20260922-2359 (배포 전 원본)
+- 다음 액션: 없음. 앱 버전 값은 upload-20260923-0932 가 사장님들 폰에 깔린 뒤부터 쌓인다.
