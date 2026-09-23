@@ -550,15 +550,28 @@ private fun SettleRow(
     onUndoPaid: () -> Unit
 ) {
     val c = item.calc
-    val name = item.name ?: PhoneNumberFormatter.format(item.phone)
+    // 제목은 **어느 현장인지** — 이름 → 주소(줄여서) → 번호 순. 번호는 밑에 작게. (2026-09-23 사장님)
+    val name = com.detailline.callfollowcrm.util.SiteLabel.of(item.name, item.address, item.phone)
+    val tel = com.detailline.callfollowcrm.util.SiteLabel.sub(item.name, item.address, item.phone)
     TossCard(onClick = onOpenCustomer, contentPadding = PaddingValues(16.dp)) {
         Column {
             // 상단: 아바타 + 이름 + 시공일
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(item.name, index)
                 Spacer(Modifier.width(13.dp))
-                Text(name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Spacer(Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    tel?.let {
+                        Text(
+                            it, style = com.detailline.callfollowcrm.presentation.theme.AppType.caption,
+                            color = TossTextTertiary, maxLines = 1
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
                 item.scheduledWorkDate?.let {
                     Text("시공 ${DateTimeUtils.formatDateOnly(it)}", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold)
                 }
@@ -677,7 +690,8 @@ private fun PayAct(label: String, onClick: () -> Unit) {
 
 @Composable
 private fun SettleDoneRow(item: SettleItem, index: Int) {
-    val name = item.name ?: PhoneNumberFormatter.format(item.phone)
+    // 여기도 현장이 먼저 — 한 줄짜리라 번호는 생략한다. (2026-09-23)
+    val name = com.detailline.callfollowcrm.util.SiteLabel.of(item.name, item.address, item.phone)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -689,7 +703,10 @@ private fun SettleDoneRow(item: SettleItem, index: Int) {
     ) {
         Avatar(item.name, index, small = true)
         Spacer(Modifier.width(11.dp))
-        Text(name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+        Text(
+            name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)
+        )
         Spacer(Modifier.weight(1f))
         item.calc.let {
             Text("${manwon(it.total)}만원", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,

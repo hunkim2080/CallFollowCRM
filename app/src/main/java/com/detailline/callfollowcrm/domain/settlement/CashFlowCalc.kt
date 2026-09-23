@@ -6,6 +6,7 @@ import com.detailline.callfollowcrm.data.local.entity.JobEntity
 import com.detailline.callfollowcrm.data.local.entity.ManualCashEntity
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.util.SiteLabel
 
 /** 현금흐름 한 항목 (날짜에 잡히는 돈). */
 data class CashItem(
@@ -80,12 +81,15 @@ object CashFlowCalc {
             if (c.id in customerIdsWithJobs) continue
             if (!SettlementCalc.hasMoney(c)) continue
             val row = SettlementCalc.rowOf(c)
-            val hasName = c.name?.isNotBlank() == true
-            val title = if (hasName) c.name!!.trim()
-                else PhoneNumberFormatter.format(c.phoneNumber)
-            // 이름이 없어 번호로만 뜨면 "어딘지" 모름 → 현장 주소·시공일을 단서로 붙인다.
-            // 이름 있으면 null = 프로토 그대로(이름+금액). (사장님 결정 2026-06-23)
-            val hint = if (hasName) null else identifyHint(c.address, c.scheduledWorkDate)
+            // 제목은 **어느 현장인지** — 이름 → 주소(줄여서) → 번호 순.
+            //   전엔 이름 없으면 바로 번호가 제목이라 사장님이 구분을 못 하셨다. (2026-09-23)
+            val title = SiteLabel.of(c.name, c.address, c.phoneNumber)
+            // 곁줄 = 번호(작게) · 시공일. 제목이 이미 번호면 번호는 빼고 주소를 보인다.
+            val hint = cashHint(
+                SiteLabel.sub(c.name, c.address, c.phoneNumber),
+                if (title == PhoneNumberFormatter.format(c.phoneNumber)) c.address else null,
+                c.scheduledWorkDate
+            )
 
             val depositPaidAt = c.depositPaidAt
             if (depositPaidAt != null && row.depositAmount > 0L) {
@@ -117,24 +121,34 @@ object CashFlowCalc {
         }
         // 재방문 이력(jobs)의 입금도 확정 수입으로 — 재방문 시 완료 건이 jobs 로 옮겨지며 달력에서 그 매출이 증발하던 것 복원. (2026-08-11 돈감사 rank1)
         //   jobs 는 이름이 없어 현재 customers 에서 이름을 찾아 붙인다(고객 레코드는 archive 후에도 남음).
-        val nameById = customers.associate {
-            it.id to (it.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(it.phoneNumber))
-        }
+        val custById = customers.associateBy { it.id }
         for (j in jobs) {
             val jDeposit = (j.depositAmount ?: 0L).coerceAtLeast(0L)
             val jBalance = if (j.totalAmount != null) (j.totalAmount - jDeposit).coerceAtLeast(0L)
                            else (j.balanceAmount?.coerceAtLeast(0L) ?: 0L)
-            val jTitle = nameById[j.customerId] ?: "지난 시공"
+            // 지난 시공 줄은 **단서가 아예 없었다** — 번호만 덩그러니 뗠 있었다. (2026-09-23 사장님)
+            //   주소는 그 시공 건의 주소를 먼저 쓴다 — 재방문이면 현장이 다를 수 있다.
+            val jc = custById[j.customerId]
+            val jAddr = j.address?.takeIf { it.isNotBlank() } ?: jc?.address
+            val jTitle = if (jc == null) "지난 시공"
+                else SiteLabel.of(jc.name, jAddr, jc.phoneNumber)
+            val jHint = if (jc == null) null else cashHint(
+                SiteLabel.sub(jc.name, jAddr, jc.phoneNumber),
+                if (jTitle == PhoneNumberFormatter.format(jc.phoneNumber)) jAddr else null,
+                j.scheduledWorkDate
+            )
             j.depositPaidAt?.let { pa ->
                 if (jDeposit > 0L) out += CashItem(
                     dayStartMs = DateTimeUtils.startOfDay(pa), amount = jDeposit, isIncome = true, isDone = true,
-                    title = jTitle, tag = "계약금", refType = CashRefType.CUSTOMER, refId = j.customerId
+                    title = jTitle, tag = "계약금", subtitle = jHint,
+                    refType = CashRefType.CUSTOMER, refId = j.customerId
                 )
             }
             j.balancePaidAt?.let { pa ->
                 if (jBalance > 0L) out += CashItem(
                     dayStartMs = DateTimeUtils.startOfDay(pa), amount = jBalance, isIncome = true, isDone = true,
-                    title = jTitle, tag = "잔금", refType = CashRefType.CUSTOMER, refId = j.customerId
+                    title = jTitle, tag = "잔금", subtitle = jHint,
+                    refType = CashRefType.CUSTOMER, refId = j.customerId
                 )
             }
         }
@@ -180,6 +194,19 @@ object CashFlowCalc {
      * 이름 없는(번호로만 뜨는) 고객을 알아볼 단서 — "현장 주소 · M/d 시공".
      * 둘 다 없으면 null = 붙일 단서가 없어 번호만 남는다(주소·시공일 미등록 고객의 한계).
      */
+    /**
+     * 제목 밑에 **작게** 붙는 곁줄 — 번호 · 주소 · 시공일 중 있는 것만. (2026-09-23)
+     *   사장님: "번호는 작게 표현해도 되는데" — 그래서 제목이 아니라 여기 놓는다.
+     */
+    private fun cashHint(tel: String?, address: String?, scheduledWorkDate: Long?): String? {
+        val parts = ArrayList<String>(3)
+        tel?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+        address?.trim()?.takeIf { it.isNotEmpty() }?.let { parts.add(it) }
+        scheduledWorkDate?.takeIf { it > 0L }
+            ?.let { parts.add(DateTimeUtils.formatDateOnly(it) + " 시공") }
+        return parts.joinToString("  ·  ").ifEmpty { null }
+    }
+
     private fun identifyHint(address: String?, scheduledWorkDate: Long?): String? {
         val parts = ArrayList<String>(2)
         address?.trim()?.takeIf { it.isNotEmpty() }?.let { parts.add(it) }

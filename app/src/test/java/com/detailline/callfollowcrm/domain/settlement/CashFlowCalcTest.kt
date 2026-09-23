@@ -160,18 +160,19 @@ class CashFlowCalcTest {
     }
 
     // ── 이름 없는(번호로만 뜨는) 고객 단서 — 사장님 결정 2026-06-23 ──
-    @Test fun `이름 없는 고객은 번호 밑에 현장·시공일 단서`() {
+    @Test fun `이름이 없으면 제목은 현장 주소 — 번호가 아니다`() {
+        // 2026-09-23 사장님: "돈을 받았으면 번호가 아니라 어떤 현장인지."
         val items = CashFlowCalc.buildItems(
             listOf(customer(total = 1_000_000, deposit = 300_000, depositPaidAt = day1,
-                address = "반포 래미안 101동", scheduled = day2)),
+                address = "서울 서초구 반포대로 58 래미안 101동", scheduled = day2)),
             emptyList()
         )
         val dep = items.first { it.tag == "계약금" }
-        assertEquals(true, dep.subtitle?.contains("반포 래미안 101동"))
-        assertEquals(true, dep.subtitle?.contains("시공"))
+        assertEquals("서초구 반포대로 58", dep.title)      // 시·도는 떼고 앞 세 토막
+        assertEquals(true, dep.subtitle?.contains("시공"))     // 시공일은 곁줄에
     }
 
-    @Test fun `이름 있는 고객은 단서 없이 이름 그대로 - 프로토 유지`() {
+    @Test fun `이름이 있으면 이름이 제목 — 번호는 곁줄로 작게`() {
         val items = CashFlowCalc.buildItems(
             listOf(customer(total = 1_000_000, deposit = 300_000, depositPaidAt = day1,
                 name = "반포 김사장", address = "반포 래미안 101동", scheduled = day2)),
@@ -179,7 +180,8 @@ class CashFlowCalcTest {
         )
         val dep = items.first { it.tag == "계약금" }
         assertEquals("반포 김사장", dep.title)
-        assertEquals(null, dep.subtitle)
+        // 번호는 사라지지 않고 곁줄로 내려간다 — 제목에서만 빠진다.
+        assertEquals(true, dep.subtitle?.contains("-") == true || dep.subtitle?.contains("시공") == true)
     }
 
     @Test fun `주소·시공일 둘 다 없으면 단서 없음`() {

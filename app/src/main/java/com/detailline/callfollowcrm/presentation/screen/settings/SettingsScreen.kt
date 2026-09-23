@@ -208,6 +208,10 @@ fun SettingsScreen(
 
     // 접수서 되찾기 — 두 번 눌러 두 번 도는 걸 막는다. (2026-09-23)
     var intakeResyncBusy by remember { mutableStateOf(false) }
+    // 되찾은 접수서 목록 — 숫자만 말하면 사장님이 확인할 수 없다. (2026-09-23)
+    var resyncFound by remember {
+        mutableStateOf<List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>?>(null)
+    }
     // 갈라진 손님 합치기 — 미리보기를 먼저 띄운다. 이 값이 null 이면 창이 안 뜬다.
     var mergePlans by remember {
         mutableStateOf<List<com.detailline.callfollowcrm.data.repository.CustomerMergeManager.Plan>?>(null)
@@ -341,22 +345,27 @@ fun SettingsScreen(
                 TextButton(enabled = !mergeBusy, onClick = {
                     mergeBusy = true
                     settingsScope.launch {
-                        val r = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        // 백업과 합치기를 **따로** 잡는다 — 한 덤어리로 묶으면
+                        //   합치다 터져도 "백업이 안 돼서" 라고 **거짓말**을 하게 된다. (2026-09-23)
+                        val backedUp = withContext(kotlinx.coroutines.Dispatchers.IO) {
                             runCatching {
-                                // ① 백업 먼저. 실패하면 **합치지 않는다.**
                                 val bytes = com.detailline.callfollowcrm.util.DataBackup.serverBlobBytes(context)
                                 val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                                if (!container.backupRepository.push(b64)) return@runCatching null
-                                // ② 그다음에 합친다.
-                                container.customerMergeManager.merge(plans)
-                            }.getOrNull()
+                                container.backupRepository.push(b64)
+                            }.getOrDefault(false)
+                        }
+                        val r = if (!backedUp) null else withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { container.customerMergeManager.merge(plans) }
+                                .onFailure { android.util.Log.e("Merge", "합치기 실패", it) }
+                                .getOrNull()
                         }
                         mergeBusy = false
                         mergePlans = null
                         Toast.makeText(
                             context,
                             when {
-                                r == null -> "백업이 안 돼서 합치지 않았어요 — 인터넷 확인하고 다시"
+                                !backedUp -> "백업이 안 돼서 합치지 않았어요 — 인터넷 확인하고 다시"
+                                r == null -> "합치다 막혔어요 — 백업은 떠놓았으니 안전해요. 저한테 알려주세요"
                                 r.clashingJobs > 0 ->
                                     r.mergedPairs.toString() + "쌍 합쳤어요. 같은 날 일정이 " +
                                         r.clashingJobs + "건 겹쳤으니 일정 탭에서 확인해주세요"
@@ -370,6 +379,38 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(enabled = !mergeBusy, onClick = { mergePlans = null }) {
                     Text("그만두기", color = TossTextTertiary)
+                }
+            }
+        )
+    }
+
+    // 되찾은 접수서 — 누구 것인지 그대로 보여준다. 숫자만 주면 확인을 못 한다.
+    resyncFound?.let { found ->
+        AlertDialog(
+            onDismissRequest = { resyncFound = null },
+            title = { Text("접수서 " + found.size + "건을 되찾았어요", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    found.joinToString("\n\n") { e ->
+                        val suf = e.phoneSuffix
+                        val tel = if (suf.length >= 8) suf.take(4) + "-" + suf.drop(4) else suf
+                        val head = listOfNotNull(
+                            tel,
+                            e.dateLabel?.takeIf { it.isNotBlank() }?.let { it + " 시공" },
+                            e.totalManwon?.takeIf { it > 0 }?.let { it.toString() + "만원" }
+                        ).joinToString(" · ")
+                        val body = listOfNotNull(
+                            e.address?.takeIf { it.isNotBlank() },
+                            e.itemsText?.takeIf { it.isNotBlank() }
+                        ).joinToString("\n")
+                        if (body.isBlank()) head else head + "\n" + body
+                    } + "\n\n상담함에서 그 번호를 열면 접수서 카드가 보여요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { resyncFound = null }) {
+                    Text("확인", color = TossBlue, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -573,20 +614,19 @@ fun SettingsScreen(
                         if (!intakeResyncBusy) {
                             intakeResyncBusy = true
                             settingsScope.launch {
-                                val n = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                val found = withContext(kotlinx.coroutines.Dispatchers.IO) {
                                     runCatching {
                                         com.detailline.callfollowcrm.ai.IntakeSyncManager(container)
                                             .resyncMissing(context)
                                     }.getOrNull()
                                 }
                                 intakeResyncBusy = false
-                                Toast.makeText(
+                                // 들어온 게 있으면 **무엇이 들어왔는지** 창으로 보여준다.
+                                if (found != null && found.isNotEmpty()) resyncFound = found
+                                else Toast.makeText(
                                     context,
-                                    when {
-                                        n == null -> "서버에 잠깐 연결이 안 돼요 — 잠시 후 다시"
-                                        n > 0 -> "접수서 ${n}건을 다시 가져왔어요"
-                                        else -> "빠진 접수서가 없어요 — 다 들어와 있어요"
-                                    },
+                                    if (found == null) "서버에 잠깐 연결이 안 돼요 — 잠시 후 다시"
+                                    else "빠진 접수서가 없어요 — 다 들어와 있어요",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }

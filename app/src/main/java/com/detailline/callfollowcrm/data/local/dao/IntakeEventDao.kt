@@ -27,4 +27,8 @@ interface IntakeEventDao {
     /** 이미 받아둔 접수서 token 전부 — 복원된 폰에서 '빠진 건'을 가려내는 데 쓴다. (2026-09-23) */
     @Query("SELECT token FROM intake_events")
     suspend fun allTokens(): List<String>
+
+    /** 방금 되찾은 것을 **눈으로 확인**하게 보여주려고. (2026-09-23 사장님) */
+    @Query("SELECT * FROM intake_events WHERE token IN (:tokens) ORDER BY submittedAtMs DESC")
+    suspend fun byTokens(tokens: List<String>): List<IntakeEventEntity>
 }

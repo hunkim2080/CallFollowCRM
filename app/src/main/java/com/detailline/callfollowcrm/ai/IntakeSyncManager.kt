@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.ai
 
 import android.content.Context
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity
 import com.detailline.callfollowcrm.service.NotificationHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -23,20 +24,27 @@ class IntakeSyncManager(private val container: AppContainer) {
      *
      * @return 가져온 건수. 빠진 게 없으면 0.
      */
-    suspend fun resyncMissing(context: Context): Int {
+    suspend fun resyncMissing(context: Context): List<IntakeEventEntity> {
         val prefs = container.preferences
-        if (prefs.bizPhone.isBlank()) return 0
+        if (prefs.bizPhone.isBlank()) return emptyList()
         val known = runCatching { container.intakeEventRepository.allTokens() }.getOrDefault(emptySet())
         // '이미 본 것' 표시에서 **앱에 없는 token 을 빼준다** — 그래야 평소 경로가 다시 가져온다.
         prefs.intakeImportedTokens = prefs.intakeImportedTokens.filter { it in known }.toSet()
-        val before = known.size
         prefs.intakeSyncSinceMs = 1L      // 처음부터 다시 훑기(0 은 '첫 실행' 이라 기준선만 세운다)
-        sync(context)
-        val after = runCatching { container.intakeEventRepository.allTokens().size }.getOrDefault(before)
-        return (after - before).coerceAtLeast(0)
+        sync(context, notify = false)   // 알림은 안 울린다 — 결과는 창으로 보여준다
+        // **숫자가 아니라 무엇이 들어왔는지**를 돌려준다 — 사장님이 눈으로 확인해야 한다.
+        //   (2026-09-23 사장님: "1건이라는데 무슨 1건인지 보이지앚으니 확인할수가없네")
+        val nowTokens = runCatching { container.intakeEventRepository.allTokens() }.getOrDefault(known)
+        val added = (nowTokens - known).toList()
+        return runCatching { container.intakeEventRepository.byTokens(added) }.getOrDefault(emptyList())
     }
 
-    suspend fun sync(context: Context) {
+    /**
+     * @param notify 알림을 울릴지. 평소 폴링은 true — **모르고 있던 새 접수서**를 알려야 하니까.
+     *   되찾기(`resyncMissing`)는 false — 사장님이 직접 누른 것이라 이미 보고 계시고,
+     *   결과는 창으로 보여준다. 여기서 울리면 진짜 새 접수서 알림이 묻힌다. (2026-09-23)
+     */
+    suspend fun sync(context: Context, notify: Boolean = true) {
         val prefs = container.preferences
         val devicePhone = prefs.bizPhone
         if (devicePhone.isBlank()) return // 사업자정보 미설정 — 폴링 키(devicePhone) 없음
@@ -162,11 +170,13 @@ class IntakeSyncManager(private val container: AppContainer) {
                     )
                 }
 
-                NotificationHelper.showIntakeSubmitted(
-                    context, s.token, s.customerPhone, nm,
-                    address = fullAddr.ifBlank { "주소 미입력" },
-                    dateLabel = dateLabel, totalManwon = s.total
-                )
+                if (notify) {
+                    NotificationHelper.showIntakeSubmitted(
+                        context, s.token, s.customerPhone, nm,
+                        address = fullAddr.ifBlank { "주소 미입력" },
+                        dateLabel = dateLabel, totalManwon = s.total
+                    )
+                }
             }.onFailure {
                 android.util.Log.e("IntakeSync", "process token=${s.token} FAILED", it)
             }.isSuccess
