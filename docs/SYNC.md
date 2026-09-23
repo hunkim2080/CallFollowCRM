@@ -11157,3 +11157,13 @@ Python 3.9 파싱 통과 · PEP 604 없음 · `_dt` 별칭 지킴 · 비밀값 r
 - 바뀐 곳: 앞단 가드 3 · 실제 비교 3 · 문자함 목록 2. (보낸문자 어휘수확 필터는 그대로 — 서비스번호는 코퍼스에서 빼는 게 맞다)
 - 검증: `PhoneMatchTest` 5개 통과(딸려오기 오탐 케이스 포함), assembleRelease 통과(style 2823/2934).
 - ⚠️ **폰 눈 확인 못 함** — 업무폰은 플레이 서명이라 직접 설치 불가, 테스트폰은 분리됨. docs/PHONE_CHECK_TODO.md #6 에 등록.
+
+## 2026-09-23 19:50 · server — 🚨 배포가 서버를 과거로 되돌렸다 (복구 완료)
+- 맥미니 작업폴더(`~/paperclip-company/workspaces/CallFollowCRM`)에서 `deploy_phase1.sh` 를 돌렸더니
+  **origin 보다 1,205 커밋 뒤(2026-07-02)** 인 main.py 가 라이브로 갔다. 그 폴더는 로컬 수정 3,693줄이
+  얹힌 **별개 사본**이라 git pull 도 안 먹는다. 배포 스크립트는 healthz 200 으로 "성공"했다.
+- 사라졌던 것: 접수서 리뉴얼 디자인 · owner_phone 숫자매칭(접수서 **44건 → 16건**) · INTAKE_BASE_COLS · 알림/deep.
+  **옛 코드끼리는 앞뒤가 맞아 smoke 도 9/10 통과했다** — "배포 성공"이 "최신이 올라갔다"가 아니다.
+- 복구: 데스크탑 repo 의 main.py 를 scp → 라이브 venv python 파싱 → 교체 → reload.
+  검증 ✅ smoke 10/10 · 접수서 44건 · `/healthz/deep` ok:true (disk 297GB, intake_read 정상, 최근 500 0건).
+- 교훈은 메모리 `reference_ringgo_server_live_hotfix` 에 박았다. **맥미니 작업폴더는 배포 원본이 아니다.**
