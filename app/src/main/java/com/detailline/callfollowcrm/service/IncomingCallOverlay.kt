@@ -182,11 +182,16 @@ object IncomingCallOverlay {
                 container.callSummaryRepository
                     .observeByPhoneSuffix(digits.takeLast(8)).first().firstOrNull()
             }.getOrNull()
-            // 전화가 울리는 3초 안에 보는 카드다. **한 줄 제목을 먼저** 쓴다 —
-            //   전엔 통화 전문(summaryText)을 먼저 써서 "고객:/사장님 답:" 이 아홉 줄 깔렸다.
-            //   전문은 카드를 눌러 대화창에서 본다. (2026-09-23 사장님 사진)
-            val lastSumText = lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
-                ?: lastSum?.summaryText?.trim()?.takeIf { it.isNotBlank() }?.let { briefSummary(it) }
+            // 전화가 울리는 3초 안에 보는 카드다. 전엔 통화 전문을 통째로 걸어
+            //   "고객:/사장님 답:" 이 아홉 줄 깔렸다. (2026-09-23 사장님 사진)
+            //
+            //   요약 글은 **첫 줄이 이미 '요약의 요약'** 이다 — 그 아래가 대화 나열이다.
+            //   실측(사장님 통화 566건): 첫 줄 길이 최소 11 · 중앙 28 · **최대 41자**.
+            //   금액이 들어간 첫 줄이 41%(231건) — 단지·평수·금액이 한 번에 들어온다.
+            //   제목(title)은 "신축 줄눈 및 탄성 견적 문의" 처럼 **뭘 문의했는지만** 있어 금액이 빠진다.
+            //   → **첫 줄을 먼저**, 없을 때만 제목. (2026-09-23 사장님 "b 가자")
+            val lastSumText = lastSum?.summaryText?.trim()?.takeIf { it.isNotBlank() }?.let { firstLineOf(it) }
+                ?: lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
             val lastSumWhen = lastSum?.recordedAt?.takeIf { it > 0L }?.let { monthDay(it) }
 
             // 🧾 **지난 시공** — 사장님: "기존고객은 언제 시공했었는지.. 얼마를 받았었는지.."
@@ -627,16 +632,36 @@ object IncomingCallOverlay {
 }
 
 /**
- * 통화 전문에서 **카드에 걸 앞부분**만. (2026-09-23 사장님 사진)
- *   "고객: …" / "사장님 답: …" 이 줄줄이 오는 글이라, 통째로 걸면 카드가 벽이 된다.
- *   말하는 사람 표시를 떼고 앞 두 문장만. 길면 말줄임. 전문은 카드를 눌러 대화창에서 본다.
+ * 두 글이 사실상 **같은 말**인가. (2026-09-23)
+ *   마지막 문자와 통화 요약이 같은 말이면 카드에 두 번 적을 이유가 없다 —
+ *   2026-09-22 에 '마지막 문자'를 뺐던 이유가 정확히 그것이었다.
+ *   띄어쓰기·문장부호를 걷어내고, 한쪽이 다른 쪽을 품고 있으면 같은 말로 본다.
  */
-private fun briefSummary(full: String): String {
+private fun saysSameAs(a: String, b: String?): Boolean {
+    if (b.isNullOrBlank()) return false
+    fun norm(x: String) = x.filter { it.isLetterOrDigit() }
+    val x = norm(a)
+    val y = norm(b)
+    if (x.isEmpty() || y.isEmpty()) return false
+    return x.contains(y) || y.contains(x)
+}
+
+/**
+ * 통화 요약의 **첫 줄**만. (2026-09-23 사장님 "b 가자")
+ *
+ * 요약 글은 `첫 줄 = 요약의 요약` + 그 아래 "고객:/사장님 답:" 대화 나열 구조다.
+ * 첫 줄만 떼면 단지·평수·금액이 한 번에 들어온다 — 전화받으며 알아야 할 게 그것이다.
+ *
+ * 실측(566건): 최소 11 · 중앙 28 · **최대 41자**라 아무리 길어야 두 줄이다.
+ * 그래도 90자 자르기를 남겨둔다 — 요약 형식이 바뀌어도 카드가 벽이 되지 않게.
+ */
+private fun firstLineOf(full: String): String {
     val head = full.lineSequence()
-        .map { it.trim().removePrefix("고객:").removePrefix("사장님 답:").removePrefix("사장님:").trim() }
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString(" ")
+        .map { it.trim() }
+        .firstOrNull { it.isNotBlank() }
+        ?.removePrefix("고객:")?.removePrefix("사장님 답:")?.removePrefix("사장님:")
+        ?.trim()
+        .orEmpty()
     return if (head.length > 90) head.take(88).trimEnd() + "…" else head
 }
 
@@ -706,6 +731,13 @@ private class CallerCardView(
         ellipsize = android.text.TextUtils.TruncateAt.END
     }
     private val sumBox = LinearLayout(context)
+    // 마지막 문자 한 줄 — 2026-09-22 에 뺐다가, 요약을 한 줄로 줄이고 되살림. (2026-09-23 사장님)
+    private val msgLabelTv = mkText(9.5f, SUB, bold = true)
+    private val msgTextTv = mkText(12.5f, BODY).apply {
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
+    }
+    private val msgBox = LinearLayout(context)
     private val divider = View(context)
     private val footTv = mkText(10.5f, SUB)
 
@@ -811,9 +843,13 @@ private class CallerCardView(
         body.addView(pastTv, rowLp(5f))
 
         body.addView(panel(sumBox, sumLabelTv, sumTextTv), rowLp(9f))
-        // 🗑 '마지막 받은 문자' 상자는 뺐다(2026-09-22) — 바로 위 '지난 통화 요약'과
-        //    같은 말을 두 번 하는 경우가 많았다. 문자는 끊고 나서 대화방에서 본다.
+        // 💬 마지막 문자 한 줄 — 2026-09-22 에 뺐다가 되살림. (2026-09-23 사장님)
+        //    뺀 이유는 "바로 위 요약과 같은 말을 두 번 한다" 였는데, 그땐 요약이 통화 전문이라
+        //    문자 내용이 그 안에 거의 다 들어 있었다. 요약을 첫 줄 한 줄로 줄인 지금은 겹치지 않는다.
+        //    그래도 **겹치면 안 띄운다**(bind 에서 검사).
         // 🗑 주소 한 줄도 뺐다 — 전화 받으면서 주소를 읽지는 않는다. 갈 때 필요한 거라 일정·고객 정보에 있다.
+
+        body.addView(panel(msgBox, msgLabelTv, msgTextTv), rowLp(9f))
 
         // 📅 2주 일정 — 접기 버튼 + 달력. (2026-09-19 사장님)
         schedToggleTv.gravity = android.view.Gravity.CENTER
@@ -1329,6 +1365,19 @@ private class CallerCardView(
         if (hasSum) {
             sumLabelTv.text = "지난 통화 요약" + (st.lastSummaryWhen?.let { " · $it" } ?: "")
             sumTextTv.text = st.lastSummary
+        }
+
+        // 💬 마지막 문자 — 손님이 보낸 마지막 한 통. 없으면 내가 보낸 마지막 한 통.
+        //    요약과 같은 말이면 안 띄운다 — 2026-09-22 에 이걸 뺐던 이유가 그거였다.
+        val lastMsg = st.messages.lastOrNull { !it.sent } ?: st.messages.lastOrNull()
+        val msgLine = lastMsg?.body?.trim()?.takeIf { it.isNotBlank() }
+            ?.takeIf { !saysSameAs(it, st.lastSummary) }
+        if (msgLine == null) {
+            msgBox.visibility = View.GONE
+        } else {
+            msgBox.visibility = View.VISIBLE
+            msgLabelTv.text = if (lastMsg?.sent == false) "마지막 문자 · 손님" else "마지막 문자 · 내가 보냄"
+            msgTextTv.text = msgLine
         }
 
         // 조회 중엔 누가 누군지도 모르니 메모 줄을 안 띄운다.
