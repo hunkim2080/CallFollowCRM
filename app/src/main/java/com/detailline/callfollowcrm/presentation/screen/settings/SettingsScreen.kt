@@ -205,6 +205,9 @@ fun SettingsScreen(
         }
     }
 
+    // 접수서 되찾기 — 두 번 눌러 두 번 도는 걸 막는다. (2026-09-23)
+    var intakeResyncBusy by remember { mutableStateOf(false) }
+
     // 현장 도착(지오펜싱) 위치 권한.
     val settingsScope = rememberCoroutineScope()
     val locationPermLauncher = rememberLauncherForActivityResult(
@@ -478,8 +481,34 @@ fun SettingsScreen(
                     onRestoreCategories = { viewModel.serverRestoreCategoriesOnly() }
                 )
                 SettingsGroup("막히거나 이상하면") {
+                    // 접수서 되찾기 — 서버는 접수서를 하나도 안 지운다. 앱에만 없을 때 여기서 다시 가져온다.
+                    //   (2026-09-23 사장님: 복원한 폰에서 한 건이 조용히 빠져 고객 전화로 알게 됨)
+                    LockRow(Icons.Filled.Refresh, TossBlueSoft, TossBlue, "접수서 다시 가져오기",
+                        "고객이 낸 접수서가 안 보이면 눌러주세요", first = true) {
+                        if (!intakeResyncBusy) {
+                            intakeResyncBusy = true
+                            settingsScope.launch {
+                                val n = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    runCatching {
+                                        com.detailline.callfollowcrm.ai.IntakeSyncManager(container)
+                                            .resyncMissing(context)
+                                    }.getOrNull()
+                                }
+                                intakeResyncBusy = false
+                                Toast.makeText(
+                                    context,
+                                    when {
+                                        n == null -> "서버에 잠깐 연결이 안 돼요 — 잠시 후 다시"
+                                        n > 0 -> "접수서 ${n}건을 다시 가져왔어요"
+                                        else -> "빠진 접수서가 없어요 — 다 들어와 있어요"
+                                    },
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
                     LockRow(Icons.Filled.Block, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "스팸 차단 번호",
-                        "스팸 등록한 번호 · 여기서 풀기", first = true, onClick = onOpenSpamList)
+                        "스팸 등록한 번호 · 여기서 풀기", onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "사생활 번호",
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고.

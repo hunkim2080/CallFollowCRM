@@ -18977,6 +18977,12 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
     return {"ok": True, "submitted_at_ms": now, "phone": phone}
 
 
+#: `_INTAKE_SELECT_COLS` 의 칸 수. 이 SELECT 를 **잘라 쓰는 곳**이 있어서 상수로 묶는다.
+#:   2026-09-23: 20 → 23 (biz_owner/biz_no/biz_phone) 으로 늘리며 자르는 쪽을 안 고쳐
+#:   /api/quote/submissions 가 하루 동안 500 이었다. 다시는 손으로 적지 않는다.
+INTAKE_BASE_COLS = 23
+
+
 def _intake_row_to_dict(row: tuple) -> dict:
     """SELECT * FROM intake_forms 결과 → API 응답 dict.
 
@@ -20757,8 +20763,11 @@ async def quote_submissions_list(
     where_parts: list[str] = []
     params: list = []
     if devicePhone:
-        where_parts.append("owner_phone = ?")
-        params.append(devicePhone)
+        # ⚠️ owner_phone 은 **두 형식**으로 쌓여 있다 — '010-6461-0131'(~08-13) 과 '01064610131'(07-27~).
+        #   전엔 정확히 일치로만 찾아서, 앱이 숫자만으로 물으면 하이픈 시절 접수서가 **안 보였다.**
+        #   숫자만 남겨 비교한다 — 옛 건까지 되찾을 수 있어야 한다. (2026-09-23 사장님 "사라진 접수서 어떻게 찾아")
+        where_parts.append("REPLACE(REPLACE(owner_phone, '-', ''), ' ', '') = ?")
+        params.append("".join(ch for ch in devicePhone if ch.isdigit()))
     if deviceId:
         where_parts.append("device_id = ?")
         params.append(deviceId)
@@ -20779,9 +20788,9 @@ async def quote_submissions_list(
         ).fetchall()
     items = []
     for r in rows:
-        base = _intake_row_to_dict(r[:20])  # 추가102 — vat_included 포함 20 컬럼
-        # 새 컬럼 12 개 (work_month..survey_json)
-        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[20:32]
+        base = _intake_row_to_dict(r[:INTAKE_BASE_COLS])
+        # 뒤에 이어 붙인 12 개 (work_month..survey_json)
+        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[INTAKE_BASE_COLS:INTAKE_BASE_COLS + 12]
         survey = None
         if sj:
             try:
@@ -20962,8 +20971,9 @@ async def quote_doc_page(token: str) -> HTMLResponse:
         ).fetchone()
     if not row:
         return _quote_status_page("❌ 유효하지 않은 견적서 링크", "사장님께 다시 링크를 받아 주세요.", 404)
-    base = _intake_row_to_dict(row[:20])  # 추가102 — vat_included 포함 20 컬럼
-    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[20:25]
+    base = _intake_row_to_dict(row[:INTAKE_BASE_COLS])
+    # ⚠️ 여기도 _INTAKE_SELECT_COLS 뒤에 이어 붙인 자리다 — 손으로 20 을 적어두지 않는다. (2026-09-23)
+    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[INTAKE_BASE_COLS:INTAKE_BASE_COLS + 5]
 
     biz = _biz_display_name(base.get("biz_name"), base.get("biz_phone"))
     customer = (base["customer_name"] or base["phone"] or "고객")

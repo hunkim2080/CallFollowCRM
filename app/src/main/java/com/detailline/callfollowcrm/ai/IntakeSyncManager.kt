@@ -15,6 +15,27 @@ import java.util.TimeZone
  */
 class IntakeSyncManager(private val container: AppContainer) {
 
+    /**
+     * 사장님이 직접 누르는 **되찾기**. (2026-09-23 사장님 "사라진 접수서 어떻게 찾아 / 나 불안하네")
+     *
+     * 서버는 접수서를 하나도 안 지운다. 사라졌다면 앱에만 없는 것이라, **앱에 없는 token 만** 다시 태운다.
+     * 이미 있는 건은 손대지 않고, 주소·시공일·금액도 기존 가드대로 **적어둔 값을 안 덮는다.**
+     *
+     * @return 가져온 건수. 빠진 게 없으면 0.
+     */
+    suspend fun resyncMissing(context: Context): Int {
+        val prefs = container.preferences
+        if (prefs.bizPhone.isBlank()) return 0
+        val known = runCatching { container.intakeEventRepository.allTokens() }.getOrDefault(emptySet())
+        // '이미 본 것' 표시에서 **앱에 없는 token 을 빼준다** — 그래야 평소 경로가 다시 가져온다.
+        prefs.intakeImportedTokens = prefs.intakeImportedTokens.filter { it in known }.toSet()
+        val before = known.size
+        prefs.intakeSyncSinceMs = 1L      // 처음부터 다시 훑기(0 은 '첫 실행' 이라 기준선만 세운다)
+        sync(context)
+        val after = runCatching { container.intakeEventRepository.allTokens().size }.getOrDefault(before)
+        return (after - before).coerceAtLeast(0)
+    }
+
     suspend fun sync(context: Context) {
         val prefs = container.preferences
         val devicePhone = prefs.bizPhone
