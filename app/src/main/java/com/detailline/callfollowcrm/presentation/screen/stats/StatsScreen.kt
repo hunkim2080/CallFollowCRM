@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.stats
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -231,6 +232,18 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
                 "${t.prevLabel} ${t.prevTotal}건 → ${t.unitLabel} ${t.curTotal}건",
                 fontSize = 13.sp, color = TossTextInfo, modifier = Modifier.padding(top = 4.dp)
             )
+            // 양쪽 다 0이면 **빈 그래프**다 — 막대 하나 없는 140dp 판이 화면 한가운데를 먹는다.
+            //   그릴 게 없으면 한 줄로 접는다. 데이터가 생기면 그때 편다. (2026-09-23 화면 점검)
+            //   '시장 비교'를 한 줄로 접어 둔 것(2026-09-21 사장님)과 같은 방식.
+            val hasBars = t.bars.any { it.cur > 0 || it.prev > 0 }
+            if (!hasBars) {
+                Text(
+                    "아직 그릴 게 없어요 — 문의가 들어오면 여기 쌓여요",
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.padding(top = 14.dp)
+                )
+                return@Column
+            }
             // gbars — 프로토 .gbars(height)+.pair(flex:1): 막대 영역이 위 숫자·아래 요일 빼고 남는 높이에 비례.
             val max = (t.bars.maxOfOrNull { maxOf(it.cur, it.prev) } ?: 1).coerceAtLeast(1)
             Row(

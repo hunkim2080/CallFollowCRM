@@ -3481,13 +3481,32 @@ private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): Annotated
             if (s.start > last) append(body.substring(last, s.start))
             pushStringAnnotation(s.tag, s.value)
             withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
-                append(body.substring(s.start, s.end))
+                // URL 은 **보이는 글자만** 줄인다 — 원문은 그대로다.
+                //   복사(msg.body)와 탭해서 열기(firstUrlIn(body))는 둘 다 원문을 쓰므로 안 깨진다.
+                //   (2026-09-23 화면 점검: 링크 한 줄이 말풍선을 세 줄로 먹고 있었다)
+                append(
+                    if (s.tag == "URL") shortUrlLabel(body.substring(s.start, s.end))
+                    else body.substring(s.start, s.end)
+                )
             }
             pop()
             last = s.end
         }
         if (last < body.length) append(body.substring(last))
     }
+}
+
+/**
+ * 말풍선에 보일 링크 글자 — `https://` 는 떼고, 그래도 길면 가운데를 줄인다. (2026-09-23 사장님 화면 점검)
+ *
+ * ⚠️ **표시용일 뿐이다.** 복사·열기는 원문 URL 을 쓴다. 여기서 줄인 글자가 클립보드에 들어가면 안 된다.
+ */
+private fun shortUrlLabel(raw: String): String {
+    val noScheme = raw.removePrefix("https://").removePrefix("http://").removePrefix("HTTPS://").removePrefix("HTTP://")
+    if (noScheme.length <= 36) return noScheme          // 대부분의 우리 링크는 여기서 끝
+    val host = noScheme.substringBefore('/')
+    val tail = noScheme.takeLast(12)
+    return "$host/…$tail"
 }
 
 /**
@@ -5986,11 +6005,22 @@ private fun EstimateBuilderDialog(
                     }
                     val depW = totalSum * (depVal.toIntOrNull() ?: 0) / 100
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (합계의 ${depVal.ifBlank { "0" }}%)",
-                        fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
+                    // 항목을 하나도 안 골랐으면 합계가 0이라 "계약금 0원 (합계의 30%)" 가 뜬다 —
+                    //   비율은 골랐는데 0원이라 뭘 잘못한 줄 안다. 할 일을 알려주는 문장으로 바꾼다.
+                    //   (2026-09-23 화면 점검)
+                    if (totalSum <= 0L) {
+                        Text(
+                            "항목을 고르면 계약금이 계산돼요",
+                            fontSize = 12.5.sp, color = TossTextTertiary,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    } else {
+                        Text(
+                            "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (합계의 ${depVal.ifBlank { "0" }}%)",
+                            fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
                 } else if (depMode == "fixed") {
                     Spacer(Modifier.height(8.dp))
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
