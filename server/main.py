@@ -11010,12 +11010,23 @@ async def admin_user_detail_data(
 
     with db_conn() as con:
         # ── 1) 프로필 (whitelist + registered) ──
-        wl_row = con.execute(
-            """SELECT phone, name, memo, added_at_ms, first_seen_ms,
-                       last_seen_ms, use_count, owner_trade
-               FROM beta_whitelist WHERE phone = ?""",
-            (target,),
-        ).fetchone()
+        # app_version 은 2026-09-23 에 생긴 칸이다. db_init() 이 매 기동마다 ALTER 를 돌려
+        #   정상적으론 있지만, **돌아가던 화면**이 칸 하나 때문에 통째로 깨지면 안 된다.
+        try:
+            wl_row = con.execute(
+                """SELECT phone, name, memo, added_at_ms, first_seen_ms,
+                           last_seen_ms, use_count, owner_trade,
+                           app_version, app_version_seen_ms
+                   FROM beta_whitelist WHERE phone = ?""",
+                (target,),
+            ).fetchone()
+        except Exception:
+            wl_row = con.execute(
+                """SELECT phone, name, memo, added_at_ms, first_seen_ms,
+                           last_seen_ms, use_count, owner_trade
+                   FROM beta_whitelist WHERE phone = ?""",
+                (target,),
+            ).fetchone()
         if wl_row:
             profile = {
                 "phone": _fmt_phone(target),
@@ -11052,6 +11063,33 @@ async def admin_user_detail_data(
         profile["industry"] = owner_trade_from_app or signup_industry  # 표시용 우선순위
         profile["industry_source"] = "app" if owner_trade_from_app else ("signup" if signup_industry else "")
         profile["region"] = (signup_row[1] if signup_row else None) or ""
+
+        # 2026-09-23 사장님 "이 부분 다 홈페이지에서 볼 수 있게 해줘"
+        #   — 어디로 들어왔고, 무슨 폰으로 신청했고, 앱을 실제로 깔았는지, 지금 몇 버전인지.
+        #   전엔 이걸 알려면 sqlite 를 직접 열어야 했다.
+        try:
+            sg = con.execute(
+                "SELECT source, ua, created_at_ms, status FROM beta_signups WHERE phone = ?",
+                (target,),
+            ).fetchone()
+        except Exception:
+            sg = None
+        profile["signup_source"] = (sg[0] if sg else None) or ""
+        profile["signup_at_ms"] = (sg[2] if sg else None)
+        profile["signup_status"] = (sg[3] if sg else None) or ""
+        profile["signup_device"] = _ua_device(sg[1] if sg else None)
+        try:
+            pt = con.execute(
+                "SELECT platform, registered_at_ms FROM push_tokens WHERE phone = ? "
+                "ORDER BY registered_at_ms DESC LIMIT 1",
+                (target,),
+            ).fetchone()
+        except Exception:
+            pt = None
+        profile["push_platform"] = (pt[0] if pt else None) or ""
+        profile["push_at_ms"] = (pt[1] if pt else None)
+        profile["app_version"] = (wl_row[8] if wl_row and len(wl_row) > 8 else None) or ""
+        profile["app_version_seen_ms"] = (wl_row[9] if wl_row and len(wl_row) > 9 else None)
 
         # ── 2) 등록한 접수서 (intake_forms.owner_phone) ──
         intake_rows = con.execute(
@@ -11428,6 +11466,22 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
     <div class="meta-row" id="heroMeta"></div>
   </div>
 
+  <!-- 2026-09-23 사장님 "이 부분 다 홈페이지에서 볼 수 있게 해줘"
+       — 전엔 sqlite 를 직접 열어야 알 수 있던 것들. 들어온 길·기기·앱 버전. -->
+  <style>
+    /* 값이 없으면 줄 자체를 안 그린다 — 빈 칸이 더 헷갈린다. */
+    .origin{background:#fff;border:1px solid #E8EDF3;border-radius:14px;padding:14px 16px;margin:12px 0 0}
+    .origin h4{margin:0 0 10px;font-size:13px;color:#5B6675;font-weight:800}
+    .origin table{width:100%;border-collapse:collapse}
+    .origin td{padding:7px 0;font-size:13px;vertical-align:top;border-top:1px solid #F1F4F8}
+    .origin tr:first-child td{border-top:0}
+    .origin td.k{width:96px;color:#8A94A6;font-weight:700;white-space:nowrap}
+    .origin td.v{color:#1B2430}
+    .origin .dim{color:#B8C2D0}
+    .origin code{background:#F4F6F9;border-radius:5px;padding:1px 6px;font-size:12px}
+  </style>
+  <div class="origin" id="originBox" style="display:none"></div>
+
   <!-- ② 핵심 숫자 4 (추가55 — "현장"→"시공일" 라벨 변경: 캘린더 KPI) -->
   <div class="big-grid">
     <div class="big-card"><div class="v" id="nSchedule">-</div><div class="lab">시공일</div></div>
@@ -11666,6 +11720,54 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         '<span class="badge ' + grade[0] + '">' + grade[1] + '</span>'
         + '<span>· ' + lastTxt + '</span>'
         + '<span>· 누적 <b>' + (p.use_count||0) + '</b>번 실행</span>';
+
+      // ── ①-b 들어온 길 (2026-09-23 사장님) ────────────
+      //   값이 있는 줄만 그린다. 다 비면 칸 자체를 안 띄운다.
+      (function(){
+        var rows = [];
+        function add(k, v){ if (v) rows.push([k, v]); }
+
+        var srcMap = {
+          'landing/si0in.kr': '홈페이지 베타 신청',
+          'admin': '사장님이 직접 추가',
+          'app': '앱에서 자동 가입'
+        };
+        var src = p.signup_source
+          ? (srcMap[p.signup_source] || esc(p.signup_source))
+            + ' <code>' + esc(p.signup_source) + '</code>'
+          : '';
+        add('신청 경로', src);
+        add('신청 기기', p.signup_device ? esc(p.signup_device) : '');
+        add('신청일', p.signup_at_ms ? fmtDate(p.signup_at_ms) : '');
+
+        // 푸시가 등록됐다 = 앱을 실제로 깔고 한 번은 켰다는 증거.
+        var pushTxt = '';
+        if (p.push_platform) {
+          pushTxt = esc(p.push_platform)
+            + (p.push_at_ms ? ' · ' + fmtDate(p.push_at_ms) : '');
+        }
+        add('앱 설치', pushTxt || '<span class="dim">푸시 등록 없음 — 앱을 안 깔았거나 알림을 껐어요</span>');
+
+        // 앱 버전 — 2026-09-23 부터 쌓인다. 그전 사람은 빈칸.
+        var verTxt;
+        if (p.app_version) {
+          verTxt = '<b>' + esc(p.app_version) + '</b>'
+            + (p.app_version_seen_ms ? ' <span class="dim">· ' + fmtShort(p.app_version_seen_ms) + '</span>' : '');
+        } else {
+          verTxt = '<span class="dim">아직 안 올라옴 — 새 앱을 깔면 그때부터 보여요</span>';
+        }
+        add('앱 버전', verTxt);
+        add('업종', p.industry ? esc(p.industry) : '');
+        add('지역', p.region ? esc(p.region) : '');
+
+        if (rows.length) {
+          var h = '<h4>들어온 길</h4><table>';
+          for (var i=0;i<rows.length;i++)
+            h += '<tr><td class="k">' + rows[i][0] + '</td><td class="v">' + rows[i][1] + '</td></tr>';
+          document.getElementById('originBox').innerHTML = h + '</table>';
+          document.getElementById('originBox').style.display = '';
+        }
+      })();
 
       // ── ② 숫자 4 ─────────────────────────────────────
       var totalCollab = d.shared_sent.length + d.shared_received.length;
@@ -20569,6 +20671,51 @@ def _touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = Non
     except Exception:
         # 가벼운 heartbeat — 실패해도 본 endpoint 동작 막으면 안 됨
         pass
+
+
+def _ua_device(ua: Optional[str]) -> str:
+    """브라우저 user agent 에서 **기종·안드로이드 버전만** 뽑는다. (2026-09-23 사장님)
+
+    원문은 200자 넘는 기계어라 화면에 그대로 두면 못 읽는다.
+      "Mozilla/5.0 (Linux; Android 16; SM-S911N Build/…) …"  →  "갤럭시 S23 · Android 16"
+    못 알아보면 있는 그대로 짧게 돌려준다 — 거짓말보다 낫다.
+    """
+    if not ua:
+        return ""
+    u = str(ua)
+    m_os = re.search(r"Android\s+([0-9.]+)", u)
+    m_ios = re.search(r"(?:iPhone )?OS ([0-9_]+) like Mac", u)
+    model = ""
+    m_md = re.search(r";\s*(SM-[A-Z0-9]+|LM-[A-Z0-9]+|Pixel [0-9A-Za-z ]+)", u)
+    if m_md:
+        model = m_md.group(1).strip()
+    elif "iPhone" in u:
+        model = "iPhone"
+    parts = []
+    nice = _SAMSUNG_MODELS.get(model)
+    if nice:
+        parts.append(f"{nice} ({model})")
+    elif model:
+        parts.append(model)
+    if m_os:
+        parts.append("Android " + m_os.group(1))
+    elif m_ios:
+        parts.append("iOS " + m_ios.group(1).replace("_", "."))
+    if parts:
+        return " · ".join(parts)
+    return u[:60]
+
+
+# 사장님이 아는 이름으로. 없으면 모델명 그대로 보여준다(틀린 이름보다 낫다).
+_SAMSUNG_MODELS = {
+    "SM-S911N": "갤럭시 S23", "SM-S916N": "갤럭시 S23+", "SM-S918N": "갤럭시 S23 울트라",
+    "SM-S921N": "갤럭시 S24", "SM-S926N": "갤럭시 S24+", "SM-S928N": "갤럭시 S24 울트라",
+    "SM-S931N": "갤럭시 S25", "SM-S938N": "갤럭시 S25 울트라",
+    "SM-G965N": "갤럭시 S9+", "SM-G991N": "갤럭시 S21", "SM-G998N": "갤럭시 S21 울트라",
+    "SM-A325N": "갤럭시 A32", "SM-A536N": "갤럭시 A53", "SM-A546S": "갤럭시 A54",
+    "SM-F731N": "갤럭시 Z 플립5", "SM-F946N": "갤럭시 Z 폴드5",
+    "SM-F741N": "갤럭시 Z 플립6", "SM-F956N": "갤럭시 Z 폴드6",
+}
 
 
 def _ensure_and_touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = None) -> None:
