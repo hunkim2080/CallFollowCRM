@@ -100,6 +100,11 @@ class AppContainer(context: Context) {
     val jobCrewRepository = com.detailline.callfollowcrm.data.repository.JobCrewRepository(db.jobCrewDao())
     // 시공 건(이력) (DB v42) — 재방문/추가 시공 시 첫 시공 유실 방지(완료 건을 이력으로 보관). (2026-07-20)
     val jobRepository = com.detailline.callfollowcrm.data.repository.JobRepository(db.jobDao(), db.customerDao())
+
+    /** 번호 모양 때문에 둘로 갈라진 손님 합치기. (2026-09-23) 되돌릴 수 없어서 부르는 쪽이 백업을 먼저 뜬다. */
+    val customerMergeManager by lazy {
+        com.detailline.callfollowcrm.data.repository.CustomerMergeManager(db.customerMergeDao(), db.customerDao())
+    }
     // 정기문자 (DB v25) — 시공 후 주기 안부/점검. 포그라운드 계산, 자동발송 X.
     val recurringMessageRepository = com.detailline.callfollowcrm.data.repository.RecurringMessageRepository(db.recurringMessageDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())

@@ -141,10 +141,22 @@ class CustomerMergeManager(
     private fun fillBlanks(keep: CustomerEntity, other: CustomerEntity): CustomerEntity {
         val extraName = other.name?.trim()
             ?.takeIf { it.isNotBlank() && it != keep.name?.trim() && !keep.name.isNullOrBlank() }
+        // 남는 쪽에 이미 값이 있어 **덮이는 값**들 — 지우지 않고 메모에 적어 남긴다.
+        //   실측(2026-09-23): 한쪽 금액 45만이 남는 쪽 15만에 가려 조용히 사라질 뻔했다.
+        val shadowed = ArrayList<String>()
+        if (extraName != null) shadowed += "이름 " + extraName
+        other.address?.trim()?.takeIf {
+            it.isNotBlank() && !keep.address.isNullOrBlank() && it != keep.address?.trim()
+        }?.let { shadowed += "주소 " + it }
+        other.totalAmount?.takeIf { it > 0 && (keep.totalAmount ?: 0L) > 0 && it != keep.totalAmount }
+            ?.let { shadowed += "금액 " + it + "원" }
+        other.depositAmount?.takeIf { it > 0 && (keep.depositAmount ?: 0L) > 0 && it != keep.depositAmount }
+            ?.let { shadowed += "계약금 " + it + "원" }
         val notes = buildList {
             if (keep.memo.isNotBlank()) add(keep.memo)
             if (other.memo.isNotBlank() && other.memo != keep.memo) add(other.memo)
-            if (extraName != null) add("(합치면서 남긴 다른 이름: $extraName)")
+            if (shadowed.isNotEmpty())
+                add("(합치기 전 다른 쪽에 있던 것 — " + shadowed.joinToString(", ") + ")")
         }.joinToString("\n---\n")
         return keep.copy(
             name = keep.name?.takeIf { it.isNotBlank() } ?: other.name,
@@ -204,7 +216,10 @@ object CustomerMergeScore {
         if (hasMemo) s += 20
         if (hasMoney) s += 30
         if (hasCalendar) s += 25   // 구글 캘린더에 이미 걸려 있으면 그쪽이 '살아있는' 쪽이다
-        s += jobs * 50             // 일정이 제일 무겁다 — 돈과 약속이 달려 있다
+        // 일정이 붙은 쪽이 **진짜 그 손님 칸**이다 — 돈·구글캘린더·약속이 거기 매달려 있다.
+        //   이름·주소·메모를 다 합친 것(90)보다 무겁게 둬서, 일정 있는 쪽이 반드시 남게 한다.
+        //   남기지 않은 쪽의 빈칸 값은 어차피 fillBlanks 가 옮겨오므로 잃는 게 없다.
+        s += jobs * 120
         return s * 1000 + olderTiebreak
     }
 }

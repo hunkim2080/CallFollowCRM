@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Merge
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Mic
@@ -207,6 +208,11 @@ fun SettingsScreen(
 
     // 접수서 되찾기 — 두 번 눌러 두 번 도는 걸 막는다. (2026-09-23)
     var intakeResyncBusy by remember { mutableStateOf(false) }
+    // 갈라진 손님 합치기 — 미리보기를 먼저 띄운다. 이 값이 null 이면 창이 안 뜬다.
+    var mergePlans by remember {
+        mutableStateOf<List<com.detailline.callfollowcrm.data.repository.CustomerMergeManager.Plan>?>(null)
+    }
+    var mergeBusy by remember { mutableStateOf(false) }
 
     // 현장 도착(지오펜싱) 위치 권한.
     val settingsScope = rememberCoroutineScope()
@@ -307,6 +313,66 @@ fun SettingsScreen(
             }
             viewModel.consumeShareRequest()
         }
+    }
+
+    // 갈라진 손님 합치기 — **여기선 아직 아무것도 안 바뀐다.** 무엇이 어떻게 될지만 보여준다.
+    mergePlans?.let { plans ->
+        val lines = plans.joinToString("\n") { p ->
+            val bits = ArrayList<String>()
+            if (p.movingJobs > 0) bits += "일정 " + p.movingJobs + "건 옮김"
+            if (p.clashingJobs > 0) bits += "⚠️ 같은 날 일정 " + p.clashingJobs + "건 겹침"
+            if (p.droppedNames.isNotEmpty()) bits += "이름 '" + p.droppedNames.first() + "' 은 메모에 남김"
+            "· " + p.displayPhone + "  (" + (p.loserIds.size + 1) + "명 → 1명)" +
+                if (bits.isEmpty()) "" else "\n   " + bits.joinToString(" · ")
+        }
+        AlertDialog(
+            onDismissRequest = { if (!mergeBusy) mergePlans = null },
+            title = { Text("갈라진 손님 " + plans.size + "쌍", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    lines + "\n\n" +
+                        "일정·문자·통화요약·사진은 전부 옮겨요. 적어둔 주소·금액은 안 덮어요." +
+                        "\n합치기 직전에 백업을 먼저 떠요 — 백업이 안 되면 합치지 않아요." +
+                        "\n\n되돌릴 수 없어요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = !mergeBusy, onClick = {
+                    mergeBusy = true
+                    settingsScope.launch {
+                        val r = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching {
+                                // ① 백업 먼저. 실패하면 **합치지 않는다.**
+                                val bytes = com.detailline.callfollowcrm.util.DataBackup.serverBlobBytes(context)
+                                val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                if (!container.backupRepository.push(b64)) return@runCatching null
+                                // ② 그다음에 합친다.
+                                container.customerMergeManager.merge(plans)
+                            }.getOrNull()
+                        }
+                        mergeBusy = false
+                        mergePlans = null
+                        Toast.makeText(
+                            context,
+                            when {
+                                r == null -> "백업이 안 돼서 합치지 않았어요 — 인터넷 확인하고 다시"
+                                r.clashingJobs > 0 ->
+                                    r.mergedPairs.toString() + "쌍 합쳤어요. 같은 날 일정이 " +
+                                        r.clashingJobs + "건 겹쳤으니 일정 탭에서 확인해주세요"
+                                else -> r.mergedPairs.toString() + "쌍 합쳤어요 — 이력이 한곳에 모였어요"
+                            },
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }) { Text(if (mergeBusy) "합치는 중…" else "합치기", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(enabled = !mergeBusy, onClick = { mergePlans = null }) {
+                    Text("그만두기", color = TossTextTertiary)
+                }
+            }
+        )
     }
 
     if (showImportConfirm) {
@@ -483,8 +549,27 @@ fun SettingsScreen(
                 SettingsGroup("막히거나 이상하면") {
                     // 접수서 되찾기 — 서버는 접수서를 하나도 안 지운다. 앱에만 없을 때 여기서 다시 가져온다.
                     //   (2026-09-23 사장님: 복원한 폰에서 한 건이 조용히 빠져 고객 전화로 알게 됨)
+                    // 같은 사람이 손님 둘로 갈라진 것 합치기 — 번호를 하이픈 있게/없게 적어서 생긴 자국이다.
+                    //   (고침 b53e9bcf 로 새로 생기진 않지만 옛 것은 그대로 남아 이력이 쪼개져 쌓인다)
+                    LockRow(Icons.Filled.Merge, TossBlueSoft, TossBlue, "갈라진 손님 합치기",
+                        "같은 번호인데 손님이 둘로 나뉘어 있으면", first = true) {
+                        if (!mergeBusy) {
+                            mergeBusy = true
+                            settingsScope.launch {
+                                val plans = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    runCatching { container.customerMergeManager.findPlans() }.getOrNull()
+                                }
+                                mergeBusy = false
+                                when {
+                                    plans == null -> Toast.makeText(context, "찾다가 막혔어요 — 잠시 후 다시", Toast.LENGTH_LONG).show()
+                                    plans.isEmpty() -> Toast.makeText(context, "갈라진 손님이 없어요 — 다 하나로 되어 있어요", Toast.LENGTH_LONG).show()
+                                    else -> mergePlans = plans
+                                }
+                            }
+                        }
+                    }
                     LockRow(Icons.Filled.Refresh, TossBlueSoft, TossBlue, "접수서 다시 가져오기",
-                        "고객이 낸 접수서가 안 보이면 눌러주세요", first = true) {
+                        "고객이 낸 접수서가 안 보이면 눌러주세요") {
                         if (!intakeResyncBusy) {
                             intakeResyncBusy = true
                             settingsScope.launch {
