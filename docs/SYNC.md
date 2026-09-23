@@ -10925,3 +10925,14 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   main.py 에 import re 가 아예 없었다(상단 import 블록 확인 필수).
 - 백업: ~/ringgo-server/main.py.bak-20260922-2359 (배포 전 원본)
 - 다음 액션: 없음. 앱 버전 값은 upload-20260923-0932 가 사장님들 폰에 깔린 뒤부터 쌓인다.
+
+## 2026-09-23 09:55 · android
+설치 경로(Play / 직접) 구분 — 배포 완료
+- 앱: SessionAuthInterceptor 가 X-App-Install: play|sideload 를 같이 보냄.
+  Application.onCreate 에서 getInstallSourceInfo(R+)/getInstallerPackageName 로 1회 판정.
+  **못 알아내면 헤더를 아예 안 보낸다** — 모르는 걸 sideload 로 단정하면 통계가 거짓말을 한다.
+- 서버: beta_whitelist.install_source 칸. 버전 저장하는 자리에서 같이 저장.
+  멤버 목록에 [설치] 칸(Play 초록 / 직접 설치 주황 / 아직 모름 회색), 멤버 상세에 '설치 경로' 줄.
+- 실측: 업무폰(adb 설치) → install_source=sideload, app_version=0.2.2063 확인.
+- 백업: ~/ringgo-server/main.py.bak-20260923-0953
+- 다음 액션: 없음. 다른 사장님들은 플레이 업데이트 받는 대로 채워진다.

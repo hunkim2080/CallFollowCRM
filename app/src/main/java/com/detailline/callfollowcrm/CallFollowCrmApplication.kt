@@ -33,6 +33,28 @@ class CallFollowCrmApplication : Application() {
     /** 앱 수명 동안 도는 IO 스코프 — SmsSender 등 컴포넌트의 fire-and-forget 보존 작업용. */
     val applicationScope: CoroutineScope get() = appScope
 
+    /**
+     * 이 앱을 **어디서 깔았나** — 플레이스토어냐 APK 직접이냐. (2026-09-23 사장님)
+     *
+     * 서버가 "진짜 바깥 회원" 과 "내부 테스터" 를 갈라 세려면 이게 있어야 한다.
+     * 안드로이드 11+ 는 getInstallSourceInfo, 그 아래는 옛 API. 못 알아내면 **빈 값**으로 둔다 —
+     * 모르는 걸 '직접 설치' 라고 단정하면 통계가 거짓말을 한다.
+     */
+    private fun detectInstallSource(): String = runCatching {
+        val installer = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            packageManager.getInstallSourceInfo(packageName).installingPackageName
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getInstallerPackageName(packageName)
+        }
+        when {
+            installer == "com.android.vending" -> "play"
+            // 빈 값 = adb·파일에서 직접. 그 밖의 값 = 다른 스토어·패키지 설치기.
+            installer.isNullOrBlank() -> "sideload"
+            else -> "sideload"
+        }
+    }.getOrDefault("")
+
     companion object {
         /** 앱이 포그라운드(화면에 보임)인지 — 백그라운드 폴링/헬스 ping 네트워크 낭비를 막는 게이트. (2026-08-11 성능감사 rank1·4) */
         @Volatile @JvmStatic var isForeground: Boolean = false
@@ -55,6 +77,8 @@ class CallFollowCrmApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         registerForegroundTracking()  // 앱 포그라운드 여부 추적(백그라운드 폴링/헬스 낭비 게이트). (2026-08-11 성능감사)
+        // 어디서 깔았나(Play/직접) — 서버가 '진짜 바깥 회원' 을 갈라 세는 데 쓴다. 한 번만 읽는다. (2026-09-23 사장님)
+        com.detailline.callfollowcrm.ai.SessionAuthInterceptor.installSource = detectInstallSource()
         installMainThreadHoverCrashGuard()  // 마우스 휠/hover 크래시(Compose) 안전망 — 다이얼로그·바텀시트 등 모든 윈도우 커버
         container = AppContainer(this)
         NotificationHelper.ensureChannels(this)

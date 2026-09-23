@@ -1372,7 +1372,10 @@ def db_init() -> None:
         # 2026-09-23 사장님 — 이 사장님이 **어느 버전**을 쓰고 있나.
         #   전엔 [문제 신고] 눌러야만 버전이 올라왔다(총 8건, 전부 한 사람).
         #   이제 앱이 모든 요청에 X-App-Version 을 얹고, 여기에 마지막 값만 남는다.
-        for _col, _type in (("app_version", "TEXT"), ("app_version_seen_ms", "INTEGER")):
+        # install_source: "play" = 플레이스토어, "sideload" = APK 직접. 빈 값 = 아직 모름.
+        #   9/18 에 "이제 플레이에서 받으세요" 안내했는데 안 옮긴 사람은 업데이트가 영영 안 간다.
+        for _col, _type in (("app_version", "TEXT"), ("app_version_seen_ms", "INTEGER"),
+                            ("install_source", "TEXT")):
             try:
                 con.execute(f"ALTER TABLE beta_whitelist ADD COLUMN {_col} {_type}")
             except Exception:
@@ -6675,12 +6678,18 @@ async def admin_logout():
 _req_app_version: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
     "_req_app_version", default=None
 )
+_req_install_source: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
+    "_req_install_source", default=None
+)
 
 
 @app.middleware("http")
 async def _app_version_middleware(request: Request, call_next):
     v = (request.headers.get("X-App-Version") or "").strip()[:40]
     _req_app_version.set(v or None)
+    # 어디서 깔았나 — 앱이 아는 경우에만 보낸다. 모르면 헤더 자체가 없다.
+    i = (request.headers.get("X-App-Install") or "").strip()[:16].lower()
+    _req_install_source.set(i if i in ("play", "sideload") else None)
     return await call_next(request)
 
 
@@ -8946,7 +8955,8 @@ async def admin_beta_dashboard_data(
         wl_rows = con.execute(
             """
             SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count,
-                   owner_trade, free_until_ms, app_version, app_version_seen_ms
+                   owner_trade, free_until_ms, app_version, app_version_seen_ms,
+                   install_source
             FROM beta_whitelist ORDER BY added_at_ms DESC
             """
         ).fetchall()
@@ -9285,7 +9295,7 @@ async def admin_beta_dashboard_data(
         users = []
         for r in wl_rows:
             # 추가50 — owner_trade / 추가86 — free_until_ms / 2026-09-23 — app_version 2개. unpack 11개.
-            phone, name, memo, added, first, last, uc, _ot, _fu, _av, _avs = r
+            phone, name, memo, added, first, last, uc, _ot, _fu, _av, _avs, _is = r
             calls = per_user_calls.get(phone, 0)
             ai_days = len(per_user_ai_days.get(phone, set()))
             app_days = len(per_user_app_days.get(phone, set()))
@@ -9330,6 +9340,7 @@ async def admin_beta_dashboard_data(
             # 2026-09-23 — 이 사장님이 마지막으로 쓴 앱 버전. 없으면 아직 새 앱을 안 깐 것.
             users[-1]["app_version"] = _av
             users[-1]["app_version_seen_ms"] = _avs
+            users[-1]["install_source"] = _is or ""   # "play" / "sideload" / "" (아직 모름)
         # 추가84 — 등업대기자 (beta_signups 에만 있고 whitelist 에 없는 신청자) 도 명단에 포함
         wl_set = set(wl_phones)
         signup_rows = con.execute(
@@ -9857,6 +9868,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       <table>
         <thead><tr>
           <th>폰 · 이름</th>
+          <th title="어디서 깔았나 — Play 스토어냐, APK 직접이냐. 앱이 알려줘야 채워진다 (2026-09-23)">설치</th>
           <th>등급</th>
           <th>업종</th>
           <th>메모</th>
@@ -9869,7 +9881,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>상태</th>
           <th>관리</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="13" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
     </div>
     <div style="margin-top:8px; font-size:11px; color:#9AA3AF;">
@@ -10287,7 +10299,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     });
     document.getElementById('memberCount').textContent = list.length + '명';
     if (list.length === 0) {
-      document.getElementById('userRows').innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">' + (q ? '검색 결과 없음' : '등록된 멤버 없음') + '</td></tr>';
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="13" style="text-align:center; padding:30px; color:#9AA3AF">' + (q ? '검색 결과 없음' : '등록된 멤버 없음') + '</td></tr>';
       return;
     }
     var html2 = '';
@@ -10328,8 +10340,19 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
               : '<span style="color:#F0436A; font-weight:800;">무료 만료 ' + Math.abs(freeD) + '일 지남</span>')
           + '</div>';
       }
+      // 어디서 깔았나 — Play(초록) / 직접 설치(주황) / 아직 모름(회색). (2026-09-23 사장님)
+      //   "아직 모름" = 새 앱을 아직 안 깐 사람. 모르는 걸 '직접 설치' 라고 단정하지 않는다.
+      function installPill(src) {
+        var base = 'display:inline-block;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800;white-space:nowrap;';
+        if (src === 'play')
+          return '<span style="' + base + 'background:#E8F7EE;color:#0B7A3B" title="플레이스토어에서 받음">Play</span>';
+        if (src === 'sideload')
+          return '<span style="' + base + 'background:#FFF4E0;color:#B8780A" title="APK 직접 설치 — 내부 테스터·사장님 폰. 플레이 업데이트가 안 간다">직접 설치</span>';
+        return '<span style="' + base + 'background:#F2F4F8;color:#A6AEBA" title="새 앱을 아직 안 깐 사람 — 앱이 알려주면 채워져요">아직 모름</span>';
+      }
       html2 += '<tr>'
             + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
+            + '<td>' + installPill(u.install_source) + '</td>'
             + '<td>' + gradeSel + billingHtml + '</td>'
             + '<td>' + industryHtml + '</td>'
             + '<td style="font-size:11px; color:#5A6472; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escape(u.memo || '') + '">' + escape(u.memo || '-') + '</td>'
@@ -11017,7 +11040,7 @@ async def admin_user_detail_data(
             wl_row = con.execute(
                 """SELECT phone, name, memo, added_at_ms, first_seen_ms,
                            last_seen_ms, use_count, owner_trade,
-                           app_version, app_version_seen_ms
+                           app_version, app_version_seen_ms, install_source
                    FROM beta_whitelist WHERE phone = ?""",
                 (target,),
             ).fetchone()
@@ -11091,6 +11114,7 @@ async def admin_user_detail_data(
         profile["push_at_ms"] = (pt[1] if pt else None)
         profile["app_version"] = (wl_row[8] if wl_row and len(wl_row) > 8 else None) or ""
         profile["app_version_seen_ms"] = (wl_row[9] if wl_row and len(wl_row) > 9 else None)
+        profile["install_source"] = (wl_row[10] if wl_row and len(wl_row) > 10 else None) or ""
 
         # ── 2) 등록한 접수서 (intake_forms.owner_phone) ──
         intake_rows = con.execute(
@@ -11758,6 +11782,19 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
           verTxt = '<span class="dim">아직 안 올라옴 — 새 앱을 깔면 그때부터 보여요</span>';
         }
         add('앱 버전', verTxt);
+
+        // 어디서 깔았나 — Play 면 바깥 회원, 직접 설치면 내부 테스터·사장님 폰. (2026-09-23 사장님)
+        var inst = p.install_source;
+        var instTxt;
+        if (inst === 'play') {
+          instTxt = '<b style="color:#0B7A3B">Play 스토어</b>';
+        } else if (inst === 'sideload') {
+          instTxt = '<b style="color:#B8780A">APK 직접 설치</b>'
+            + ' <span class="dim">· 플레이 업데이트가 안 가요</span>';
+        } else {
+          instTxt = '<span class="dim">아직 모름 — 새 앱을 깔면 그때부터 보여요</span>';
+        }
+        add('설치 경로', instTxt);
         add('업종', p.industry ? esc(p.industry) : '');
         add('지역', p.region ? esc(p.region) : '');
 
@@ -20641,11 +20678,20 @@ def _touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = Non
     except Exception:
         _ver = None
     try:
+        _inst = _req_install_source.get()
+    except Exception:
+        _inst = None
+    try:
         with db_conn() as con:
             if _ver:
                 con.execute(
                     "UPDATE beta_whitelist SET app_version = ?, app_version_seen_ms = ? WHERE phone = ?",
                     (_ver, now, phone_digits),
+                )
+            if _inst:
+                con.execute(
+                    "UPDATE beta_whitelist SET install_source = ? WHERE phone = ?",
+                    (_inst, phone_digits),
                 )
             if trade_clean:
                 # 추가50 — owner_trade 도 같이 (가장 최근 값으로 덮어쓰기)

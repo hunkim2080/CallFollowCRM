@@ -20,6 +20,16 @@ object SessionAuthInterceptor : Interceptor {
 
     private const val API_HOST = "api.si0in.kr"
 
+    /**
+     * 어디서 깔았나 — "play" / "sideload" / "" (모름). [CallFollowCrmApplication] 이 시작할 때 한 번 채운다.
+     *
+     * 여기에 Context 가 없어서 앱이 넣어준다. 값이 비면 헤더를 아예 안 붙인다 —
+     * 모르는 걸 "sideload" 라고 단정하면 통계가 거짓말을 한다. (2026-09-23 사장님)
+     */
+    @Volatile
+    @JvmStatic
+    var installSource: String = ""
+
     /** "0.2.1631 (1631)" — 서버 대시보드에서 누가 옛 버전인지 보려고. (2026-09-23) */
     private val APP_VERSION: String =
         "${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME} (${com.detailline.callfollowcrm.BuildConfig.VERSION_CODE})"
@@ -37,6 +47,8 @@ object SessionAuthInterceptor : Interceptor {
             //   그래서 "누가 옛날 버전에 머물러 있나" 를 알 방법이 없었다. 하루에 여섯 번 올리는데.
             //   서버는 이 헤더를 사람별로 마지막 값만 저장한다(요청 1건당 글자 20개 남짓).
             b.header("X-App-Version", APP_VERSION)
+            // 어디서 깔았나 — 모르면 안 붙인다(서버가 옛 값을 지우지 않게).
+            installSource.takeIf { it.isNotBlank() }?.let { b.header("X-App-Install", it) }
             if (hadToken && original.header("Authorization") == null) {
                 b.header("Authorization", "Bearer $token")
             }
