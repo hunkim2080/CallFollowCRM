@@ -1471,8 +1471,17 @@ private fun DayAddButton(label: String, onClick: () -> Unit) {
     }
 }
 
+/** 원 → 딱지용 짧은 금액. "120만" / "1,250만" (만원 미만은 원 그대로). */
+private fun manwonTag(won: Long): String =
+    if (won >= 10_000L) {
+        java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
+            .format(Math.round(won / 10_000.0)) + "만"
+    } else {
+        java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(won) + "원"
+    }
+
 /**
- * 프로토 day-job 카드 — hd 점 + 이름 + N일차 + 시간 + D-day/완료 태그 + 수정,
+ * 프로토 day-job 카드 — hd 점 + 이름 + N일차 + 시간 + 금액 태그 + 수정,
  *   📍 주소, 입금 상태(읽기), "정산·현금흐름에서 보기", 팀원 배정 줄(팀원 있을 때).
  */
 @Composable
@@ -1507,7 +1516,11 @@ private fun DayJobCard(
     // 초록 = 끝난 것 · 회색 = 그냥 지나간 것 · 파랑 = 앞으로 올 것. (2026-09-20 사장님)
     //   며칠 남았는지는 날짜 칸이 말해주지만 **끝낸 건지 아닌지는 카드만 안다** → 딱지는 남긴다.
     val isDone = customer.workCompletedAt != null
-    val tagText = if (isDone) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
+    // 딱지 = **얼마짜리 일인지.** 며칠 남았는지는 달력 칸이 이미 말한다. (2026-09-24 사장님)
+    //   금액을 아직 안 적은 일만 예전처럼 D-day/완료/지남 을 보여준다(빈 딱지보다 낫다).
+    val moneyTag = customer.totalAmount?.takeIf { it > 0L }?.let { manwonTag(it) }
+    val tagText = moneyTag
+        ?: if (isDone) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
     val tagBg = when {
         isDone -> AppTheme.colors.doneBg
         isPast -> TossGrayBg

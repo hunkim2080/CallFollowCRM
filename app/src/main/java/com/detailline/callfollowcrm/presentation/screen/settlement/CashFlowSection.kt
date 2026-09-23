@@ -41,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -314,35 +316,41 @@ private fun SummaryRow(title: String, sub: String, value: String, valueColor: Co
 
 @Composable
 private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bg = when {
-        isSelected -> TossBlueSoft
-        cell.isToday -> TossGrayBg
-        else -> Color.Transparent
-    }
+    // 일정 탭 달력(ScheduleScreen.CalendarDay)과 **같은 모양**. (2026-09-24 사장님)
+    //   날짜는 칸 왼쪽 위 작은 원 안에 · 오늘만 파란 원(흰 글자) · 고른 칸은 연한 파랑.
+    //   같은 앱에서 달력이 두 종류면 "여긴 왜 다르지?" 가 된다.
     val fg = when {
+        cell.isToday -> Color.White
         !cell.isCurrentMonth -> TossTextTertiary
         cell.isPast -> TossTextTertiary   // 지난날 회색 (프로토 cc-past)
         cell.dayOfWeek == Calendar.SUNDAY -> TossError
         cell.dayOfWeek == Calendar.SATURDAY -> TossBlue
-        else -> TossTextPrimary
+        else -> TossTextSecondary
     }
     Box(
         modifier = modifier
-            .padding(2.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
+            .padding(horizontal = 1.dp)
+            .clip(AppShape.sm)
+            .background(if (isSelected) AppTheme.colors.primaryBg else Color.Transparent)
             .clickable { onClick() }
             .heightIn(min = 44.dp)
-            .padding(top = 4.dp, bottom = 3.dp),
-        contentAlignment = Alignment.TopCenter
+            .padding(top = 2.dp, bottom = 3.dp)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                cell.dayOfMonth.toString(),
-                color = fg, fontSize = 13.sp,
-                fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
-            )
-            // 프로토 cc-in/inp/out/outp — 만원 금액 (확정/예정, 색)
+        Column(Modifier.fillMaxWidth()) {
+            // 날짜 — 작게 왼쪽 위. 오늘만 동그라미. (일정 탭과 같음)
+            Box(
+                Modifier.padding(start = 3.dp).size(15.dp).clip(CircleShape)
+                    .background(if (cell.isToday) TossBlue else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    cell.dayOfMonth.toString(),
+                    color = fg, fontSize = 10.sp,
+                    lineHeight = 10.sp,   // 테마 lineHeight 물려받으면 동그라미 안에서 글자가 내려앉는다
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            // 프로토 cc-in/inp/out/outp — 만원 금액 (확정/예정, 색). 날짜가 왼쪽이니 돈도 왼쪽으로.
             val a = cell.agg
             if (a.inDone > 0) CashAmt("+${man(a.inDone)}", CashIn)
             if (a.inPlan > 0) CashAmt("+${man(a.inPlan)}", CashInPlan)
@@ -356,7 +364,7 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
 private fun CashAmt(text: String, color: Color) {
     Text(text, color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold,
         maxLines = 1, overflow = TextOverflow.Ellipsis,  // 큰글씨서 달력 돈 하드클립(잘려서 안 보임) 방지. (2026-08-11 접근성 감사)
-        modifier = Modifier.padding(top = 1.dp))
+        modifier = Modifier.padding(top = 1.dp, start = 3.dp))
 }
 
 /** 원 → 만원(반올림) 문자열 (달력 셀·순이익 단위 표시용). */

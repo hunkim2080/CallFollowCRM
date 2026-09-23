@@ -133,6 +133,7 @@ import com.detailline.callfollowcrm.presentation.component.pressScale
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.ui.draw.clip
@@ -5666,7 +5667,8 @@ private class EstimateDraft(initialCalMonth: Long) {
     val depVal = androidx.compose.runtime.mutableStateOf("30")
     val depCustom = androidx.compose.runtime.mutableStateOf(false)
     val workDateMs = androidx.compose.runtime.mutableStateOf<Long?>(null)
-    val workDays = androidx.compose.runtime.mutableStateOf(1)
+    /** 시공 **끝날**. null = 당일. 며칠 걸리는지는 여기서 저절로 나온다 — 따로 고르지 않는다. (2026-09-24 사장님) */
+    val workEndMs = androidx.compose.runtime.mutableStateOf<Long?>(null)
     val estCalMonth = androidx.compose.runtime.mutableStateOf(initialCalMonth)
     val vatIncluded = androidx.compose.runtime.mutableStateOf(false) // 견적서 부가세 별도(false)/포함(true). (2026-07-03 사장님)
     val recipient = androidx.compose.runtime.mutableStateOf("")      // 견적서 받는 분(빈값=기본/고객님)
@@ -5680,7 +5682,7 @@ private class EstimateDraft(initialCalMonth: Long) {
     /** 견적을 보냈거나(또는 진짜 닫았을 때) 다음을 위해 초기화. 미리보기 왕복 때는 호출 안 함. */
     fun reset(initialCalMonth: Long) {
         mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
-        workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
+        workDateMs.value = null; workEndMs.value = null; estCalMonth.value = initialCalMonth
         vatIncluded.value = false; recipient.value = ""; memo.value = ""
         selectedQty.clear(); customItems.clear(); priceOverrides.clear(); titleOverrides.clear()
     }
@@ -5701,7 +5703,7 @@ private class EstimateDraft(initialCalMonth: Long) {
         depVal.value = data.depVal.toString()
         depCustom.value = false
         workDateMs.value = data.workDateMs ?: doc.workDateMs
-        workDays.value = 1
+        workEndMs.value = null
         vatIncluded.value = data.vatIncluded
         recipient.value = data.recipient ?: doc.recipient ?: ""
         memo.value = (data.memo ?: doc.memo).orEmpty()
@@ -5795,7 +5797,10 @@ private fun EstimateBuilderDialog(
     var depCustom by draft.depCustom // 비율 '기타' 직접입력 여부
     // 시공일 (접수서/견적서) — null=미정.
     var workDateMs by draft.workDateMs
-    var workDays by draft.workDays
+    var workEndMs by draft.workEndMs
+    // 며칠 걸리는 공사인지 = **고르는 값이 아니라 달력에서 나오는 값.** (2026-09-24 사장님)
+    //   "시공기간 며칠걸리는공사인지는 사실 캘린더로 고르면 알아서 설정이 되는부분이라 생략할수도 있는 부분"
+    val workDays = estDaysBetween(workDateMs, workEndMs)
     var estCalMonth by draft.estCalMonth
     var vatIncluded by draft.vatIncluded
     var recipient by draft.recipient
@@ -5911,26 +5916,30 @@ private fun EstimateBuilderDialog(
             // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력
             if (mode != "text") {
                 Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("시공일", workDateMs?.let { DateTimeUtils.formatKoreanDate(it) } ?: "고르지 않음",
-                    dim = workDateMs == null)
+                EstLabelRow("시공일", estDateLabel(workDateMs, workEndMs), dim = workDateMs == null)
                 Spacer(Modifier.height(AppSpace.s12))
-                EstInlineCalendar(estCalMonth, workDateMs,
+                EstInlineCalendar(
+                    estCalMonth, workDateMs, workEndMs,
                     onShiftMonth = { estCalMonth = estShiftMonth(estCalMonth, it) },
-                    onSelect = { workDateMs = it })
-                // 시공 기간(며칠 걸리는 공사) — 라벨 없이 칩만 있으면 "이게 뭐지?" 혼란. (2026-07-02 사장님)
-                Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("시공 기간", when (workDays) {
-                    1 -> "당일"; 7 -> "일주일"; else -> "${workDays}일"
-                })
-                Spacer(Modifier.height(AppSpace.s12))
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    listOf("당일" to 1, "2일" to 2, "3일" to 3, "4일" to 4, "5일" to 5, "일주일" to 7).forEach { (lbl, d) ->
-                        EstSmallChip(lbl, workDays == d) { workDays = d }
+                    onPick = { day ->
+                        // 한 번 = 시작일, 그 뒤 **더 나중 날을 한 번 더** = 끝날. 그 외에는 다시 시작.
+                        //   (프로토는 마우스로 끄는 방식이지만, 폰에선 끄는 게 안 먹는다 — 두 번 누르기로 옮겼다.)
+                        val st0 = workDateMs
+                        if (st0 == null || workEndMs != null || day <= st0) { workDateMs = day; workEndMs = null }
+                        else workEndMs = day
                     }
-                }
+                )
+                Spacer(Modifier.height(AppSpace.s8))
+                Text(
+                    when {
+                        workDateMs == null -> "하루면 한 번, 여러 날이면 끝날을 한 번 더 눌러주세요"
+                        workEndMs == null -> "당일 공사예요 · 끝날을 한 번 더 누르면 기간이 돼요"
+                        else -> "${workDays}일 공사로 잡혔어요 · 다시 고르려면 시작일을 눌러요"
+                    },
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
             // 받는 분 (견적서 전용) — (2026-07-03 사장님)
             if (mode == "quote") {
@@ -5944,112 +5953,16 @@ private fun EstimateBuilderDialog(
                     placeholder = defaultRecipient.ifBlank { "고객님" }
                 )
             }
-            // 부가세 (견적서 + 시공접수서 공용) — 나중에 분쟁 없게 접수서에도 별도/포함 명시. (2026-07-06 사장님)
-            if (mode != "text") {
-                Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("부가세", if (vatIncluded) "포함" else "별도")
-                Spacer(Modifier.height(AppSpace.s12))
-                Row(
-                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    // "별도 (+10%)" → "별도". 문서엔 네 글자만 나간다. (2026-09-23 사장님)
-                    EstSegTab("별도", !vatIncluded, Modifier.weight(1f)) { vatIncluded = false }
-                    EstSegTab("포함", vatIncluded, Modifier.weight(1f)) { vatIncluded = true }
-                }
-            }
-            // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
-            if (mode != "text") {
-                Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("계약금", when (depMode) {
-                    "none" -> "없음"
-                    "fixed" -> "${depVal.ifBlank { "0" }}만원"
-                    else -> "${depVal.ifBlank { "0" }}%"
-                }, dim = depMode == "none")
-                Spacer(Modifier.height(AppSpace.s12))
-                Row(
-                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    EstSegTab("비율(%)", depMode == "ratio", Modifier.weight(1f)) { depMode = "ratio" }
-                    // 정액 진입 시 10만원 프리필 — depVal 은 비율(%)과 공유되므로, 비율값(예 30)이 그대로
-                    //   넘어와 "30만원"으로 뜨던 혼란 방지. 이미 정액이면(재탭) 사용자가 고친 값 보존. (2026-07-03 사장님)
-                    EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { if (depMode != "fixed") depVal = "10"; depMode = "fixed" }
-                    EstSegTab("없음", depMode == "none", Modifier.weight(1f)) { depMode = "none" }
-                }
-                if (depMode == "ratio") {
-                    // 비율 — 숫자패드 대신 알약(10/20/30/기타). 기타만 직접입력.
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        listOf("10", "20", "30").forEach { v ->
-                            EstSmallChip("$v%", !depCustom && depVal == v) { depVal = v; depCustom = false }
-                        }
-                        EstSmallChip("기타", depCustom) { depCustom = true }
-                    }
-                    if (depCustom) {
-                        Spacer(Modifier.height(8.dp))
-                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                            depVal, { depVal = it.filter { c -> c.isDigit() } },
-                            placeholder = "예: 25 (%)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                        )
-                    }
-                    val depW = totalSum * (depVal.toIntOrNull() ?: 0) / 100
-                    Spacer(Modifier.height(6.dp))
-                    // 항목을 하나도 안 골랐으면 합계가 0이라 "계약금 0원 (합계의 30%)" 가 뜬다 —
-                    //   비율은 골랐는데 0원이라 뭘 잘못한 줄 안다. 할 일을 알려주는 문장으로 바꾼다.
-                    //   (2026-09-23 화면 점검)
-                    if (totalSum <= 0L) {
-                        Text(
-                            "항목을 고르면 계약금이 계산돼요",
-                            fontSize = 12.5.sp, color = TossTextTertiary,
-                            modifier = Modifier.padding(start = 2.dp)
-                        )
-                    } else {
-                        Text(
-                            "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (합계의 ${depVal.ifBlank { "0" }}%)",
-                            fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 2.dp)
-                        )
-                    }
-                } else if (depMode == "fixed") {
-                    Spacer(Modifier.height(8.dp))
-                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                        depVal, { depVal = it.filter { c -> c.isDigit() } },
-                        placeholder = "만원 (예: 10)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
-                    )
-                    val depW = (depVal.toIntOrNull() ?: 0) * 10_000L
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (정액)",
-                        fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
-                }
-            }
-            // 특이사항 메모 (시공접수서/견적서 공용) — 견적서 비고에 표시 + 접수서엔 ownerMemo 로 전송. (2026-07-06 사장님)
-            //   ⚠️ 의미: 사장님이 고객에게 '미리 알릴' 약속·고지사항 (고객이 주는 정보 X). (2026-07-06 사장님 정정)
-            if (mode != "text") {
-                Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("특이사항", if (memo.isBlank()) "안 적어도 돼요" else "적었어요",
-                    dim = memo.isBlank())
-                Spacer(Modifier.height(AppSpace.s4))
-                Text("고객에게 미리 알릴 약속·안내를 적어요 (견적서·접수서에 표시)",
-                    style = AppType.caption, color = TossTextTertiary,
-                    modifier = Modifier.padding(start = 2.dp))
-                Spacer(Modifier.height(AppSpace.s12))
-                com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                    memo, { memo = it },
-                    placeholder = "예: 사다리차 비용은 별도예요 · 주차공간 미리 부탁드려요"
-                )
-            }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpace.s24))
+            // 이 구역이 뭔지 + 지금 몇 개 골랐는지. 다른 구역과 같은 라벨 줄. (2026-09-24 사장님)
+            val pickedCount = selectedQty.values.count { it > 0 } +
+                customItems.count { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
+            EstLabelRow("시공 항목", if (pickedCount > 0) "${pickedCount}개 골랐어요" else "고르지 않음",
+                dim = pickedCount == 0)
+            Spacer(Modifier.height(AppSpace.s12))
             // 가격을 그 자리에서 고칠 수 있다는 힌트 한 줄 — 줄마다 ✏️ 빼고 여기로만 안내. (2026-06-25 사장님)
             Text("이름·가격을 꾹 누르면 고칠 수 있어요",
-                fontSize = 11.5.sp, color = TossTextTertiary,
+                style = AppType.caption, color = TossTextTertiary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             // 항목 리스트 (프로토 est-row + 평당 est-area)
             // 전체 시트가 한 번에 스크롤되도록 항목은 일반 Column(내부 LazyColumn 제거).
@@ -6125,15 +6038,106 @@ private fun EstimateBuilderDialog(
             ) {
                 Text("＋ 직접 항목 추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
             }
-            // 프로토 .est-total
-            Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.5.dp).background(TossDivider))
-            Row(Modifier.fillMaxWidth().padding(top = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("합계", fontSize = 15.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                Text(formatWon(totalSum), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+            // ── 합계가 주인공. 부가세는 합계와 **한 덩어리**라 그 카드 안에 둔다. (2026-09-24 사장님)
+            //    "부가세는 맨 마지막에 총금액 나오고 별도인지 포함인지 설정"
+            Spacer(Modifier.height(AppSpace.s24))
+            EstTotalCard(
+                total = totalSum,
+                vatIncluded = vatIncluded,
+                showVat = mode != "text",
+                onVat = { vatIncluded = it }
+            )
+            // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
+            if (mode != "text") {
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("계약금", when (depMode) {
+                    "none" -> "없음"
+                    "fixed" -> "${depVal.ifBlank { "0" }}만원"
+                    else -> "${depVal.ifBlank { "0" }}%"
+                }, dim = depMode == "none")
+                Spacer(Modifier.height(AppSpace.s12))
+                Row(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    // 순서 = **정액 → 비율 → 없음.** 가장 많이 쓰는 걸 맨 앞에. (2026-09-24 사장님)
+                    //   "계약금은 정액을 가장 앞에 두고 뒤에 비율 그리고 없음"
+                    // 정액 진입 시 10만원 프리필 — depVal 은 비율(%)과 공유되므로, 비율값(예 30)이 그대로
+                    //   넘어와 "30만원"으로 뜨던 혼란 방지. 이미 정액이면(재탭) 사용자가 고친 값 보존. (2026-07-03 사장님)
+                    EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { if (depMode != "fixed") depVal = "10"; depMode = "fixed" }
+                    EstSegTab("비율", depMode == "ratio", Modifier.weight(1f)) { depMode = "ratio" }
+                    EstSegTab("없음", depMode == "none", Modifier.weight(1f)) { depMode = "none" }
+                }
+                if (depMode == "ratio") {
+                    // 비율 — 숫자패드 대신 알약(10/20/30/기타). 기타만 직접입력.
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf("10", "20", "30").forEach { v ->
+                            EstSmallChip("$v%", !depCustom && depVal == v) { depVal = v; depCustom = false }
+                        }
+                        EstSmallChip("기타", depCustom) { depCustom = true }
+                    }
+                    if (depCustom) {
+                        Spacer(Modifier.height(8.dp))
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            depVal, { depVal = it.filter { c -> c.isDigit() } },
+                            placeholder = "예: 25 (%)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    }
+                    val depW = totalSum * (depVal.toIntOrNull() ?: 0) / 100
+                    Spacer(Modifier.height(6.dp))
+                    // 항목을 하나도 안 골랐으면 합계가 0이라 "계약금 0원 (합계의 30%)" 가 뜬다 —
+                    //   비율은 골랐는데 0원이라 뭘 잘못한 줄 안다. 할 일을 알려주는 문장으로 바꾼다.
+                    //   (2026-09-23 화면 점검)
+                    if (totalSum <= 0L) {
+                        Text(
+                            "항목을 고르면 계약금이 계산돼요",
+                            fontSize = 12.5.sp, color = TossTextTertiary,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    } else {
+                        Text(
+                            "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (합계의 ${depVal.ifBlank { "0" }}%)",
+                            fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
+                } else if (depMode == "fixed") {
+                    Spacer(Modifier.height(8.dp))
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                        depVal, { depVal = it.filter { c -> c.isDigit() } },
+                        placeholder = "만원 (예: 10)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
+                    )
+                    val depW = (depVal.toIntOrNull() ?: 0) * 10_000L
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (정액)",
+                        fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
             }
-            Spacer(Modifier.height(17.dp))
+            // 특이사항 메모 (시공접수서/견적서 공용) — 견적서 비고에 표시 + 접수서엔 ownerMemo 로 전송. (2026-07-06 사장님)
+            //   ⚠️ 의미: 사장님이 고객에게 '미리 알릴' 약속·고지사항 (고객이 주는 정보 X). (2026-07-06 사장님 정정)
+            if (mode != "text") {
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("특이사항", if (memo.isBlank()) "안 적어도 돼요" else "적었어요",
+                    dim = memo.isBlank())
+                Spacer(Modifier.height(AppSpace.s4))
+                Text("고객에게 미리 알릴 약속·안내를 적어요 (견적서·접수서에 표시)",
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp))
+                Spacer(Modifier.height(AppSpace.s12))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    memo, { memo = it },
+                    placeholder = "예: 사다리차 비용은 별도예요 · 주차공간 미리 부탁드려요"
+                )
+            }
+            Spacer(Modifier.height(AppSpace.s24))
             // 프로토 .sheet-cta — 탭별 라벨/동작
             val ctaText = when (mode) {
                 "accept" -> "시공접수서 링크 보내기"
@@ -6499,9 +6503,27 @@ private fun buildEstCells(anchor: Long): List<EstCell> {
     }
 }
 
-/** 견적 시트 시공일 선택용 인라인 월 달력. */
+/**
+ * 시공일 달력 — **일정 탭 달력의 축소판.** (2026-09-24 사장님)
+ *   "우리 달력 디자인 일정에 나오는 그 달력이 이쁜데 그 달력 축소판이 깔끔하지 않을까?"
+ *
+ * 일정 탭(ScheduleScreen.CalendarDay)과 같은 인상으로 맞췄다 —
+ *   흰 바탕 카드 · 일=빨강/토=파랑 · 날짜는 칸 **왼쪽 위 작은 원** 안에 · 오늘은 파란 원 ·
+ *   고른 칸은 연한 파랑(primaryBg).
+ * 다른 건 **칸 높이 하나뿐**이다. 일정 탭은 날짜 밑에 일정 막대가 들어가야 해서 62dp 인데,
+ * 여기선 막대가 없으니 34dp 로 낮췄다. 그래서 축소판이다.
+ *
+ * 그리고 **기간**을 받는다 — 한 번 누르면 시작일, 더 나중 날을 한 번 더 누르면 끝날.
+ * 며칠 걸리는 공사인지는 여기서 저절로 나오므로 '시공 기간' 칩은 없앴다.
+ */
 @Composable
-private fun EstInlineCalendar(monthAnchor: Long, selectedMs: Long?, onShiftMonth: (Int) -> Unit, onSelect: (Long) -> Unit) {
+private fun EstInlineCalendar(
+    monthAnchor: Long,
+    startMs: Long?,
+    endMs: Long?,
+    onShiftMonth: (Int) -> Unit,
+    onPick: (Long) -> Unit
+) {
     // 월 전환 = HorizontalPager (일정 탭처럼 옆으로 쓸면 한 달씩). monthAnchor = 시작 월. (2026-06-30 사장님)
     val base = remember { monthAnchor }
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = EST_PAGER_CENTER) { EST_PAGER_COUNT }
@@ -6509,7 +6531,13 @@ private fun EstInlineCalendar(monthAnchor: Long, selectedMs: Long?, onShiftMonth
     val viewed by remember {
         androidx.compose.runtime.derivedStateOf { estShiftMonth(base, pagerState.currentPage - EST_PAGER_CENTER) }
     }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(8.dp)) {
+    // 회색 상자가 아니라 **흰 카드** — 일정 탭 달력과 같은 바탕. (2026-09-24 사장님)
+    Column(
+        Modifier.fillMaxWidth().clip(AppShape.lg)
+            .background(Color.White)
+            .border(1.dp, TossDivider, AppShape.lg)
+            .padding(horizontal = 10.dp, vertical = AppSpace.s12)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White)
                 .clickable { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
@@ -6528,32 +6556,129 @@ private fun EstInlineCalendar(monthAnchor: Long, selectedMs: Long?, onShiftMonth
                     color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary }, fontWeight = FontWeight.SemiBold)
             }
         }
+        val s0 = startMs?.let { DateTimeUtils.startOfDay(it) }
+        val e0 = endMs?.let { DateTimeUtils.startOfDay(it) }
         androidx.compose.foundation.pager.HorizontalPager(state = pagerState, verticalAlignment = Alignment.Top) { page ->
             val cells = buildEstCells(estShiftMonth(base, page - EST_PAGER_CENTER))
             Column(Modifier.fillMaxWidth()) {
                 repeat(6) { w ->
                     Row(Modifier.fillMaxWidth()) {
                         cells.subList(w * 7, w * 7 + 7).forEach { cell ->
-                            val isSel = selectedMs?.let { DateTimeUtils.startOfDay(it) == cell.dayMs } == true
-                            val bg = when { isSel -> TossBlue; cell.isToday -> TossBlueSoft; else -> Color.Transparent }
+                            // 고른 날 = 시작일, 끝날, 그리고 그 사이 모든 날. 셋 다 같은 연파랑 —
+                            //   프로토 .pick 과 같다. 기간이 '한 덩어리'로 보여야 며칠인지 눈에 들어온다.
+                            val picked = s0 != null && (
+                                cell.dayMs == s0 || (e0 != null && cell.dayMs > s0 && cell.dayMs <= e0)
+                            )
                             val fg = when {
-                                isSel -> Color.White
+                                cell.isToday -> Color.White
+                                picked -> TossBlue
                                 !cell.inMonth || cell.isPast -> TossTextTertiary
                                 cell.dow == java.util.Calendar.SUNDAY -> TossError
                                 cell.dow == java.util.Calendar.SATURDAY -> TossBlue
-                                else -> TossTextPrimary
+                                else -> TossTextSecondary
                             }
                             Box(
-                                Modifier.weight(1f).height(34.dp).padding(2.dp).clip(RoundedCornerShape(8.dp))
-                                    .background(bg).clickable { onSelect(cell.dayMs) },
-                                contentAlignment = Alignment.Center
+                                Modifier.weight(1f).height(34.dp).padding(horizontal = 1.dp)
+                                    .clip(AppShape.sm)
+                                    .background(if (picked) AppTheme.colors.primaryBg else Color.Transparent)
+                                    .clickable { onPick(cell.dayMs) }
                             ) {
-                                Text(cell.dom.toString(), color = fg, fontSize = 12.sp,
-                                    fontWeight = if (isSel || cell.isToday) FontWeight.Bold else FontWeight.Medium)
+                                // 날짜 = 칸 **왼쪽 위 작은 원** 안에. 오늘만 파란 원. (일정 탭과 같음)
+                                Box(
+                                    Modifier.padding(start = 3.dp, top = 4.dp).size(20.dp).clip(CircleShape)
+                                        .background(if (cell.isToday) TossBlue else Color.Transparent),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        cell.dom.toString(), color = fg,
+                                        fontSize = 11.sp,
+                                        lineHeight = 11.sp,   // 테마 lineHeight 물려받으면 원 안에서 글자가 내려앉는다
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** 시작일~끝날이 **며칠짜리 공사**인지. 끝날이 없으면 당일(1일). */
+private fun estDaysBetween(startMs: Long?, endMs: Long?): Int {
+    if (startMs == null) return 1
+    if (endMs == null) return 1
+    val a = DateTimeUtils.startOfDay(startMs)
+    val b = DateTimeUtils.startOfDay(endMs)
+    if (b <= a) return 1
+    // 날짜 차이는 '하루 = 86400초' 로 세면 서머타임·윤초에서 하루씩 틀어질 수 있어 달력으로 센다.
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = a }
+    var n = 1
+    while (cal.timeInMillis < b && n < 400) {
+        cal.add(java.util.Calendar.DAY_OF_MONTH, 1); n++
+    }
+    return n
+}
+
+/** 시공일 라벨 — "9/16(수) · 당일" / "9/16(수)~9/18(금) · 3일" / "고르지 않음". */
+private fun estDateLabel(startMs: Long?, endMs: Long?): String {
+    if (startMs == null) return "고르지 않음"
+    val head = DateTimeUtils.formatShortKoreanDate(startMs)
+    if (endMs == null) return "$head · 당일"
+    return "$head~${DateTimeUtils.formatShortKoreanDate(endMs)} · ${estDaysBetween(startMs, endMs)}일"
+}
+
+/**
+ * 합계 카드 — **이 창의 주인공.** (2026-09-24 사장님)
+ *   "부가세는 맨 마지막에 총금액 나오고 별도인지 포함인지 설정"
+ *
+ * 부가세를 합계와 **한 덩어리**로 둔 이유: 별도/포함은 그 숫자가 얼마가 되는지를 정하는 것이지,
+ * 따로 떨어진 설정이 아니다. 전엔 창 위쪽에 부가세 칸이 따로 있어서, 합계를 보는 순간엔
+ * 그게 별도인지 포함인지 다시 위로 올라가 확인해야 했다.
+ */
+@Composable
+private fun EstTotalCard(total: Long, vatIncluded: Boolean, showVat: Boolean, onVat: (Boolean) -> Unit) {
+    if (total <= 0L) {
+        Box(
+            Modifier.fillMaxWidth().clip(AppShape.lg).background(TossGrayBg).padding(vertical = 18.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("항목을 고르면 금액이 나와요", style = AppType.body, color = TossTextTertiary)
+        }
+        return
+    }
+    Column(
+        Modifier.fillMaxWidth().clip(AppShape.lg)
+            .background(AppTheme.colors.primaryBg)
+            .padding(AppSpace.s16)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text("합계", style = AppType.label, color = TossBlue, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.weight(1f))
+            Text(
+                formatWon(total),
+                style = AppType.display, color = TossBlue, fontWeight = FontWeight.Black, maxLines = 1
+            )
+        }
+        Spacer(Modifier.height(AppSpace.s4))
+        Text(
+            // 부가세는 **네 글자만** — 세금계산서·현금영수증을 조건으로 적지 않는다. (2026-09-23 사장님)
+            if (vatIncluded) "부가세 포함"
+            else "부가세 별도 · 붙이면 ${formatWon(total + Math.round(total * 0.1))}",
+            style = AppType.caption, color = TossBlue.copy(alpha = 0.75f),
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End
+        )
+        if (showVat) {
+            Spacer(Modifier.height(AppSpace.s12))
+            Row(
+                Modifier.fillMaxWidth().clip(AppShape.md)
+                    .background(Color.White.copy(alpha = 0.7f)).padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                EstSegTab("부가세 별도", !vatIncluded, Modifier.weight(1f)) { onVat(false) }
+                EstSegTab("부가세 포함", vatIncluded, Modifier.weight(1f)) { onVat(true) }
             }
         }
     }

@@ -487,7 +487,12 @@ class CallFollowCrmApplication : Application() {
                 try {
                     android.os.Looper.loop()
                 } catch (t: Throwable) {
-                    if (!isComposeHoverCrash(t)) throw t   // 우리가 모르는 진짜 크래시 → 그대로 던져 시스템 기본 처리
+                    // 삼킬 대상인지 + 그물이 폭주 중은 아닌지 — 판단은 ComposeCrashNet (폰 없이 시험 가능한 자리).
+                    if (!com.detailline.callfollowcrm.util.ComposeCrashNet.isKnownHarmless(t)) throw t
+                    if (!swallowThrottle.allow(android.os.SystemClock.elapsedRealtime())) {
+                        android.util.Log.e("HoverCrashGuard", "10초에 30번 넘게 삼켰다 — 진짜 고장으로 보고 그대로 터뜨림")
+                        throw t
+                    }
                     android.util.Log.w("HoverCrashGuard", "Compose 프레임워크 무해 예외 삼킴(hover/prefetch) — 앱 유지", t)
                     // 루프 재진입 → 앱 계속 살아있음.
                 }
@@ -495,31 +500,8 @@ class CallFollowCrmApplication : Application() {
         }
     }
 
-    /**
-     * 안전망이 삼킬 대상 = Compose 프레임워크의 *알려진 무해* 메인스레드 크래시 2종. 그 외는 false → 정상 크래시.
-     *   ① ACTION_HOVER_EXIT 버그(마우스/미러링/DeX hover).
-     *   ② LazyLayoutPrefetcher(리스트 '미리 그리기') SlotTable AIOOBE(음수 index) — 화면을 빠르게 전환/스크롤할 때
-     *      화면 밖 항목을 미리 그리던 prefetch 가, 막 dispose 된 컴포지션을 건드려 터지는 Compose 1.6.x 레이스.
-     *      스택에 앱 코드가 전혀 없고(전부 compose runtime), 대상이 '화면 밖 미리그리기'라 삼켜도 무해 —
-     *      실제로 그 항목까지 스크롤하면 그때 정상 구성된다. (2026-07-30 사장님 점검 중 재현: 탭 빠른 전환)
-     *      ※ 근본 수정은 Compose 1.7+ 로 업(별도 결정). 그 전까지 이 그물로 앱을 살린다.
-     */
-    private fun isComposeHoverCrash(t: Throwable): Boolean {
-        var e: Throwable? = t
-        while (e != null) {
-            if (e is IllegalStateException && e.message?.contains("HOVER_EXIT", ignoreCase = true) == true) return true
-            if (e.stackTrace.any {
-                    it.className.contains("AndroidComposeView") &&
-                        it.methodName.contains("HoverExit", ignoreCase = true)
-                }) return true
-            // ② LazyLayout prefetch 레이스 — 스택에 LazyLayoutPrefetcher 가 있는 IndexOutOfBounds 만(매우 구체적, 실제 앱 크래시엔 안 걸림).
-            if (e is IndexOutOfBoundsException && e.stackTrace.any {
-                    it.className.contains("LazyLayoutPrefetcher")
-                }) return true
-            e = e.cause
-        }
-        return false
-    }
+    /** 그물이 폭주하지 않게 하는 한도 — 판단은 [ComposeCrashNet.Throttle]. */
+    private val swallowThrottle = com.detailline.callfollowcrm.util.ComposeCrashNet.Throttle()
 
     /** content://mms 변경 감시 debounce 용 잡. */
     private var mmsSyncJob: kotlinx.coroutines.Job? = null
