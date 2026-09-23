@@ -21,16 +21,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 보안감사(2026-08-17): 릴리스에서 민감화면 스크린샷·화면녹화·최근앱 미리보기 차단.
-        //   ⚠️ 베타 중엔 버그 캡처가 필요 → 기본 OFF(캡처 허용). 설정 '화면 캡처 막기' 켠 사람만 차단. (2026-08-20 사장님)
-        //   debug 는 항상 제외 → adb screencap/화면검증 유지.
-        if (!BuildConfig.DEBUG &&
-            (application as CallFollowCrmApplication).container.preferences.blockScreenCapture) {
-            window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE
-            )
-        }
+        // 화면 캡처 차단(FLAG_SECURE)은 없앴다. (2026-09-24 사장님 "그냥 없애줘")
+        //   2026-08-20 에 넣었지만 기본 꺼짐이었고, 회원 백업을 확인하니 아무도 켠 적이 없었다.
+        //   켜면 사장님이 버그 사진을 못 보내시는 것이 제일 크다. 필요해지면 그때 다시 넣는다.
         // 2026-05-24: setDecorFitsSystemWindows(false) 박았다가 다른 화면들의 bottomBar 가
         // nav bar 영역에 잘리는 문제 발생 → 롤백. manifest 의 adjustResize 가 시스템 측에서
         // 키보드 처리. 각 화면은 Scaffold inner padding + 필요 시 imePadding 으로 대응.

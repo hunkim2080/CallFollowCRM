@@ -38,6 +38,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -115,9 +123,13 @@ object PostCallTemplateOverlay {
     }
 
     /** 템플릿 탭 = 바로 발송 (확인 없이). 사장님 2026-07-12: "복붙 말고 바로 전송". 사진 있으면 MMS, 없으면 SMS. */
-    private fun onPick(index: Int) {
+    private fun onPick(index: Int, overrideText: String? = null) {
         val st = _state.value ?: return
-        val tpl = st.templates.getOrNull(index) ?: return
+        val tpl0 = st.templates.getOrNull(index) ?: return
+        // 사장님이 창에서 고친 글이 있으면 **이번 발송에만** 쓴다. 저장된 템플릿은 안 건드린다.
+        //   (한 손님한테 깎아준 값이 다음 손님한테도 나가면 안 된다. 2026-09-24 사장님)
+        val tpl = overrideText?.trim()?.takeIf { it.isNotBlank() }
+            ?.let { tpl0.copy(text = it) } ?: tpl0
         val ctx = currentView?.context?.applicationContext ?: return
         if (st.preview) {
             main.post {
@@ -148,6 +160,9 @@ object PostCallTemplateOverlay {
         }
         main.post { actuallyHide() }
     }
+
+    /** 창에서 고친 글로 보낸다. 저장된 템플릿은 안 바뀐다. (2026-09-24 사장님) */
+    fun sendEdited(index: Int, text: String) = onPick(index, text)
 
     private fun onClose() { main.post { actuallyHide() } }
 
@@ -194,6 +209,10 @@ object PostCallTemplateOverlay {
         _state.value = null
     }
 
+    /** 고치는 동안은 안 닫는다 — 쓰던 글이 날아가면 안 된다. (2026-09-24 사장님) */
+    fun pauseSafety() { safetyJob?.cancel(); safetyJob = null }
+    fun resumeSafety() { startSafety() }
+
     private fun startSafety() {
         safetyJob?.cancel()
         safetyJob = ioScope.launch {
@@ -205,11 +224,14 @@ object PostCallTemplateOverlay {
 
 // ----- 카드 UI -----
 
-private val PBlue = Color(0xFF3182F6)
-private val PInk = Color(0xFF191F28)
-private val PSub = Color(0xFF4E5968)
-private val PTertiary = Color(0xFF8B95A1)
-private val PGrayBg = Color(0xFFF2F4F6)
+// 색은 **디자인 시스템에서 가져온다.** 이 파일이 따로 들고 있던 값들을 옮긴 것이다. (2026-09-24 사장님)
+//   파란색은 원래 같았다(#3182F6 = colors.primary). 나머지는 몇 단위 차이라 보기엔 그대로다.
+//   LocalAppColors 는 기본값(LightColors)이 있어 오버레이(WindowManager)에서도 그냥 읽힌다.
+private val PBlue @Composable get() = AppTheme.colors.primary
+private val PInk @Composable get() = AppTheme.colors.text
+private val PSub @Composable get() = AppTheme.colors.textSub
+private val PTertiary @Composable get() = AppTheme.colors.textHint
+private val PGrayBg @Composable get() = AppTheme.colors.neutralBg
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -219,32 +241,43 @@ private fun PostCallCard(
     onPick: (Int) -> Unit,
     onClose: () -> Unit
 ) {
-    // 자동 닫힘 카운트다운 — 가로 바가 1f→0f 로 줄어듦(사장님 2026-07-12). 안전타임아웃과 동기.
+    // 고치는 중인가 — 그 동안은 창이 안 닫힌다.
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
+    var editIndex by remember { mutableStateOf(0) }
+
+    // 자동 닫힘 카운트다운. **회색**이다 — 파란 막대는 "다 차면 보내진다"로 읽힌다. (2026-09-24 사장님)
     val progress = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(Unit) {
-        progress.animateTo(
-            0f,
-            animationSpec = androidx.compose.animation.core.tween(
-                durationMillis = timeoutMs.toInt(),
-                easing = androidx.compose.animation.core.LinearEasing
+    LaunchedEffect(editing) {
+        if (editing) {
+            progress.stop()                                   // 그 자리에 멈춘다
+            PostCallTemplateOverlay.pauseSafety()
+        } else {
+            PostCallTemplateOverlay.resumeSafety()
+            progress.animateTo(
+                0f,
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = (timeoutMs * progress.value).toInt().coerceAtLeast(1),
+                    easing = androidx.compose.animation.core.LinearEasing
+                )
             )
-        )
+        }
     }
     Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .shadow(20.dp, RoundedCornerShape(26.dp), clip = false)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Color.White)
+                .shadow(20.dp, AppShape.xl, clip = false)
+                .clip(AppShape.xl)
+                .background(AppTheme.colors.surface)
                 .padding(20.dp)
         ) {
             // ── 시공막내 브랜딩 헤더 + 닫기 ──
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFE8F1FE))
+                    Modifier.clip(AppShape.pill).background(AppTheme.colors.primaryBg)
                         .padding(horizontal = 11.dp, vertical = 5.dp)
-                ) { Text("시공막내", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = PBlue) }
+                ) { Text("시공막내", style = AppType.label, color = PBlue) }
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier.size(38.dp).clip(CircleShape).background(PGrayBg).clickable { onClose() },
@@ -252,63 +285,144 @@ private fun PostCallCard(
                 ) { Icon(Icons.Filled.Close, "닫기", tint = PTertiary, modifier = Modifier.size(22.dp)) }
             }
             Spacer(Modifier.height(10.dp))
-            // 카운트다운 바 (점점 줄어듦)
-            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFEDF0F3))) {
-                Box(Modifier.fillMaxWidth(progress.value).height(4.dp).clip(RoundedCornerShape(2.dp)).background(PBlue))
+            // 카운트다운 바 (점점 줄어듦) — 회색. 자리·굵기는 그대로.
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(PGrayBg)) {
+                Box(
+                    Modifier.fillMaxWidth(progress.value).height(4.dp).clip(RoundedCornerShape(2.dp))
+                        .background(AppTheme.colors.neutral.copy(alpha = if (editing) 0.28f else 0.55f))
+                )
             }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (editing) "고치는 동안은 안 닫혀요" else "그냥 두면 닫혀요",
+                style = AppType.caption, color = PTertiary
+            )
             Spacer(Modifier.height(14.dp))
             Text(
-                "${state.title}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                "${state.title}", style = AppType.title,
                 color = PInk, maxLines = 2, overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(14.dp))
 
-            // 옆으로 넘기는 템플릿 카드(페이저) — 한 장씩 깔끔하게. (사장님 2026-07-12)
-            val pager = rememberPagerState(pageCount = { state.templates.size })
-            HorizontalPager(
-                state = pager,
-                pageSpacing = 10.dp,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    end = if (state.templates.size > 1) 30.dp else 0.dp
-                )
-            ) { page ->
-                TemplatePage(page + 1, state.templates.size, state.templates[page], onSend = { onPick(page) })
-            }
-
-            if (state.templates.size > 1) {
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    repeat(state.templates.size) { i ->
-                        Box(
-                            Modifier.padding(horizontal = 3.dp)
-                                .size(if (i == pager.currentPage) 8.dp else 6.dp)
-                                .clip(CircleShape)
-                                .background(if (i == pager.currentPage) PBlue else Color(0xFFD1D6DB))
+            if (editing) {
+                // ── 고치는 중 — 저장된 템플릿은 안 바뀐다 ──
+                Column(
+                    Modifier.fillMaxWidth().clip(AppShape.lg).background(PGrayBg).padding(16.dp)
+                ) {
+                    Text("${editIndex + 1} / ${state.templates.size} · 고치는 중",
+                        style = AppType.label, color = PBlue)
+                    Spacer(Modifier.height(7.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 220.dp),
+                        textStyle = AppType.headline.copy(fontWeight = FontWeight.Medium),
+                        shape = AppShape.md,
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = AppTheme.colors.surface,
+                            unfocusedContainerColor = AppTheme.colors.surface,
+                            focusedBorderColor = PBlue,
+                            unfocusedBorderColor = PBlue
                         )
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.clip(AppShape.md).clickable { editing = false }
+                                .padding(horizontal = 14.dp, vertical = 14.dp)
+                        ) { Text("되돌리기", style = AppType.headline, color = PSub) }
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            Modifier.weight(1f).clip(AppShape.md).background(PBlue)
+                                .clickable { onPickEdited(onPick, editIndex, draft) }
+                                .padding(vertical = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "이대로 보내기", color = AppTheme.colors.textOnPrimary,
+                                style = AppType.headline.copy(fontWeight = FontWeight.ExtraBold)
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(5.dp))
-                Text("← 옆으로 넘겨 다른 문자 보기", fontSize = 11.5.sp, color = PTertiary,
-                    modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "고친 건 이번 한 번만 써요 · 저장된 문자는 그대로예요",
+                    style = AppType.caption, color = PTertiary,
+                    modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            } else {
+                // 옆으로 넘기는 템플릿 카드(페이저) — 한 장씩 깔끔하게. (사장님 2026-07-12)
+                val pager = rememberPagerState(pageCount = { state.templates.size })
+                HorizontalPager(
+                    state = pager,
+                    pageSpacing = 10.dp,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        end = if (state.templates.size > 1) 30.dp else 0.dp
+                    )
+                ) { page ->
+                    TemplatePage(
+                        page + 1, state.templates.size, state.templates[page],
+                        onSend = { onPick(page) },
+                        onEdit = { editIndex = page; draft = state.templates[page].text; editing = true }
+                    )
+                }
+
+                if (state.templates.size > 1) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        repeat(state.templates.size) { i ->
+                            Box(
+                                Modifier.padding(horizontal = 3.dp)
+                                    .size(if (i == pager.currentPage) 8.dp else 6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (i == pager.currentPage) PBlue
+                                        else AppTheme.colors.neutral.copy(alpha = 0.45f)
+                                    )
+                            )
+                        }
+                    }
+                }
             }
             Spacer(Modifier.height(12.dp))
-            Text("시공막내가 도와드리는 서비스예요", fontSize = 11.5.sp, color = PTertiary,
+            Text("시공막내가 도와드리는 서비스예요", style = AppType.caption, color = PTertiary,
                 modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
 
+/** 고쳐서 보내기 — 창의 onPick 은 index 만 받으므로 편집본은 오버레이에 직접 넘긴다. */
+private fun onPickEdited(onPick: (Int) -> Unit, index: Int, text: String) {
+    PostCallTemplateOverlay.sendEdited(index, text)
+}
+
 @Composable
-private fun TemplatePage(index: Int, total: Int, tpl: PostCallTemplateOverlay.Tpl, onSend: () -> Unit) {
-    val preview = tpl.text.replace("\n", " ").trim()
+private fun TemplatePage(
+    index: Int,
+    total: Int,
+    tpl: PostCallTemplateOverlay.Tpl,
+    onSend: () -> Unit,
+    onEdit: () -> Unit
+) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(PGrayBg).padding(16.dp)
+        Modifier.fillMaxWidth().clip(AppShape.lg).background(PGrayBg).padding(16.dp)
     ) {
-        Text("$index / $total", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PBlue)
-        if (preview.isNotBlank()) {
+        Text("$index / $total", style = AppType.label, color = PBlue)
+        if (tpl.text.isNotBlank()) {
             Spacer(Modifier.height(7.dp))
-            Text(preview, fontSize = 15.sp, color = PInk, maxLines = 4, overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Medium, lineHeight = 21.sp)
+            // **줄바꿈을 살리고 안 자른다** — 길면 이 칸 안에서 스크롤해 끝까지 읽는다. (2026-09-24 사장님
+            //   "그냥 스크롤로 다 보여줄수있는거아닌가"). 전엔 replace("\n"," ") + 4줄 컷이었다.
+            Text(
+                tpl.text,
+                color = PInk,
+                style = AppType.headline.copy(fontWeight = FontWeight.Medium),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 147.dp)
+                    .verticalScroll(rememberScrollState())
+                    .clickable { onEdit() }
+            )
         }
         if (tpl.photos.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
@@ -321,19 +435,36 @@ private fun TemplatePage(index: Int, total: Int, tpl: PostCallTemplateOverlay.Tp
                         model = android.net.Uri.parse(uri),
                         contentDescription = "보낼 사진",
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
+                        modifier = Modifier.size(58.dp).clip(AppShape.sm).background(AppTheme.colors.surface)
                     )
                 }
             }
         }
         Spacer(Modifier.height(14.dp))
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(PBlue)
-                .clickable { onSend() }.padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("이 문자 바로 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.clip(AppShape.md).clickable { onEdit() }
+                    .padding(horizontal = 14.dp, vertical = 14.dp)
+            ) { Text("고치기", style = AppType.headline, color = PSub) }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.weight(1f).clip(AppShape.md).background(PBlue)
+                    .clickable { onSend() }.padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "바로 보내기", color = AppTheme.colors.textOnPrimary,
+                    style = AppType.headline.copy(fontWeight = FontWeight.ExtraBold)
+                )
+            }
         }
+        Spacer(Modifier.height(8.dp))
+        // 오해가 나는 자리는 **버튼 옆**이라 여기서 못을 박는다. (2026-09-24 사장님)
+        Text(
+            "눌러야 나갑니다 · 그냥 두면 안 보내고 닫혀요",
+            style = AppType.caption, color = PTertiary,
+            modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }
 

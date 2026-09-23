@@ -37,6 +37,10 @@ class CustomerMergeManager(
 
     data class Result(val mergedPairs: Int, val movedJobs: Int, val clashingJobs: Int, val movedOthers: Int)
 
+    /** 갈라진 쌍이 있나. **설정 줄을 그릴지 말지**에만 쓴다(가벼운 SQL 한 번). */
+    suspend fun hasSplits(): Boolean =
+        runCatching { mergeDao.splitPairCount() > 0 }.getOrDefault(false)
+
     /** 합칠 쌍 찾기 — 바꾸는 건 없다. 미리보기용. */
     suspend fun findPlans(): List<Plan> {
         val all = runCatching { mergeDao.allCustomers() }.getOrDefault(emptyList())

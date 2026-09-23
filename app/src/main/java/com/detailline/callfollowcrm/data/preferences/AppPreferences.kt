@@ -146,10 +146,6 @@ class AppPreferences(context: Context) {
     /** 녹음을 서버로 보내도 되는가 — **토글 ON + 동의 완료** 둘 다일 때만. */
     val callSummaryAllowed: Boolean
         get() = autoSummaryEnabled && callSummaryConsented
-    /** 릴리스에서 민감화면 스크린샷·화면녹화 차단(FLAG_SECURE). 베타엔 버그 캡처가 필요 → 기본 OFF(캡처 허용). (2026-08-20 사장님) */
-    var blockScreenCapture: Boolean
-        get() = prefs.getBoolean("block_screen_capture", false)
-        set(value) = prefs.edit().putBoolean("block_screen_capture", value).apply()
     /**
      * 전화 오는 순간 "상대 정보 카드"(둥둥 뜨는 오버레이) on/off. **기본 OFF** (2026-07-12 사장님).
      *   전화벨 울릴 때 번호로 고객·시공일정·최근 대화를 즉시 조회해 화면 위에 카드로 띄운다. (2026-07-01 사장님)

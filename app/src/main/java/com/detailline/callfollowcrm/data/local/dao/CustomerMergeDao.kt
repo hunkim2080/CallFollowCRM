@@ -20,6 +20,20 @@ interface CustomerMergeDao {
     @Query("SELECT * FROM customers")
     suspend fun allCustomers(): List<CustomerEntity>
 
+    /**
+     * 갈라진 쌍이 **몇 쌍이나 있나**. 설정 화면이 줄을 그릴지 말지 정하는 데만 쓴다.
+     *   고객 전체를 앱으로 끌어오지 않고 SQL 에서 센다 — 화면 열 때마다 도는 것이라 가벼워야 한다.
+     *   끝 8자리로 묶는다(= upsertByPhone 이 같은 사람으로 보는 기준).
+     */
+    @Query(
+        "SELECT COUNT(*) FROM (" +
+            "SELECT substr(REPLACE(REPLACE(REPLACE(phoneNumber,'-',''),' ',''),'+',''), -8) AS k " +
+            "FROM customers " +
+            "WHERE length(REPLACE(REPLACE(REPLACE(phoneNumber,'-',''),' ',''),'+','')) >= 7 " +
+            "GROUP BY k HAVING COUNT(*) > 1)"
+    )
+    suspend fun splitPairCount(): Int
+
     /** 한 손님의 일정 — 같은 날 일정이 겹치는지 보려고 시공일만 본다. */
     @Query("SELECT id AS jobId, scheduledWorkDate AS workDate FROM jobs WHERE customerId = :customerId")
     suspend fun jobDatesOf(customerId: Long): List<JobDateRow>

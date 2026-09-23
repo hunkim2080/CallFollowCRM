@@ -217,6 +217,14 @@ fun SettingsScreen(
         mutableStateOf<List<com.detailline.callfollowcrm.data.repository.CustomerMergeManager.Plan>?>(null)
     }
     var mergeBusy by remember { mutableStateOf(false) }
+    // 갈라진 손님이 **있을 때만** 줄을 그린다. 합치고 나면 다음부터 안 보인다. (2026-09-24 사장님)
+    //   갈라지는 원인은 이미 막혀 있어(b53e9bcf) 한 번 쓰면 다시 쓸 일이 없는 버튼이다.
+    var hasSplits by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        hasSplits = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { container.customerMergeManager.hasSplits() }.getOrDefault(false)
+        }
+    }
 
     // 현장 도착(지오펜싱) 위치 권한.
     val settingsScope = rememberCoroutineScope()
@@ -361,6 +369,8 @@ fun SettingsScreen(
                         }
                         mergeBusy = false
                         mergePlans = null
+                        hasSplits = runCatching { container.customerMergeManager.hasSplits() }
+                            .getOrDefault(false)   // 합쳤으면 줄이 바로 사라진다
                         Toast.makeText(
                             context,
                             when {
@@ -562,7 +572,6 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
                         "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
                     // 보안 설정 — 한 번 켜두면 끝이라 여기가 맞다. 전엔 자동 문자 화면 한가운데 있었다.
-                    ScreenCaptureRow(container.preferences)
                     // 내 업종 — 2026-08-31 '더보기 정리' 때 같이 빠져서 **들어갈 길이 없어졌다.**
                     //   온보딩에서 한 번 놓치면 다시 고칠 방법이 없고, 그동안 AI 답변이 계속
                     //   '일반 시공 사장님' 톤으로 나간다. (2026-09-23 사장님 확인 후 되살림)
@@ -592,7 +601,7 @@ fun SettingsScreen(
                     //   (2026-09-23 사장님: 복원한 폰에서 한 건이 조용히 빠져 고객 전화로 알게 됨)
                     // 같은 사람이 손님 둘로 갈라진 것 합치기 — 번호를 하이픈 있게/없게 적어서 생긴 자국이다.
                     //   (고침 b53e9bcf 로 새로 생기진 않지만 옛 것은 그대로 남아 이력이 쪼개져 쌓인다)
-                    LockRow(Icons.Filled.Merge, TossBlueSoft, TossBlue, "갈라진 손님 합치기",
+                    if (hasSplits) LockRow(Icons.Filled.Merge, TossBlueSoft, TossBlue, "갈라진 손님 합치기",
                         "같은 번호인데 손님이 둘로 나뉘어 있으면", first = true) {
                         if (!mergeBusy) {
                             mergeBusy = true
@@ -4062,48 +4071,6 @@ private fun DataBackupSection(
     }
 }
 
-
-/**
- * 화면 캡처 막기 — 기본 OFF(베타 버그 캡처 위해). 켜면 릴리스에서 스샷/녹화 차단. live-apply.
- *
- * 🔴 전엔 **자동 문자 화면 한가운데** 있었다. 보안 설정인데 문자 설정들 사이에 끼어 있었다.
- *   (2026-09-22 사장님 "디자인?? 안 건든 거 같은데 체크") → 더보기 "한 번 해두면 끝" 으로 옮겼다.
- */
-@Composable
-private fun ScreenCaptureRow(prefs: com.detailline.callfollowcrm.data.preferences.AppPreferences) {
-    val capCtx = LocalContext.current
-    var blockCapOn by remember { mutableStateOf(prefs.blockScreenCapture) }
-    // 🔴 이사 올 때 **자기 카드를 그대로 들고 왔다.** 묶음 카드 안에 카드가 또 있어 혼자 튀어나와 보였다.
-    //   (2026-09-22 폰 확인) → LockRow 와 같은 줄 모양. 설명도 석 줄이라 혼자 키가 컸어서 한 줄로.
-    Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(36.dp).background(AppTheme.colors.unpaidBg, RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Filled.Lock, null, tint = AppTheme.colors.unpaid, modifier = Modifier.size(19.dp))
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Spacer(Modifier.height(2.dp))
-            Text("고객 정보·돈 화면 스크린샷 막기", fontSize = 12.sp, color = TossTextTertiary)
-        }
-        Spacer(Modifier.width(8.dp))
-        Switch(checked = blockCapOn, onCheckedChange = { want ->
-            blockCapOn = want; prefs.blockScreenCapture = want
-            (capCtx as? android.app.Activity)?.window?.let { w ->
-                if (want) w.setFlags(
-                    android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                    android.view.WindowManager.LayoutParams.FLAG_SECURE
-                ) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-            }
-        })
-    }
-}
 
 /** 백업 카드의 작은 버튼 — 자주 하는 일이 아니라 크게 둘 이유가 없다. (2026-09-22) */
 @Composable
