@@ -104,9 +104,20 @@ class CallAudioSummaryRepository(
 
     /** 서버 응답 → Result. 동기·비동기 두 경로가 **같은 파서**를 쓴다(두 벌 금지). */
     private fun parse(obj: JSONObject): Result {
-        val bullets = obj.optJSONArray("bullets")?.let { arr ->
+        // 서버가 주는 새 모양 — [{time,speaker,text}]. 있으면 `시작-끝|화자|문장` 줄로 만든다.
+        //   없으면(옛 통화·옛 서버) 지금처럼 bullets 를 그대로. (2026-09-24)
+        val rows = obj.optJSONArray("bullet_rows")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val text = o.optString("text").trim()
+                if (text.isBlank()) return@mapNotNull null
+                o.optString("time").trim() + "|" + o.optString("speaker").trim() + "|" + text
+            }
+        }.orEmpty()
+        val legacy = obj.optJSONArray("bullets")?.let { arr ->
             (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }
         } ?: emptyList()
+        val bullets = rows.ifEmpty { legacy }
         val tags = obj.optJSONArray("tags")?.let { arr ->
             (0 until arr.length()).mapNotNull {
                 arr.optString(it).trim().removePrefix("#").trim().takeIf { s -> s.isNotBlank() }

@@ -126,9 +126,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
                     r != null && r >= callStart - win && r <= rec.endedAt + win
                 }
                 val bullets = matched?.summaryText
-                    ?.split("\n")
-                    ?.map { it.trim().trimStart('•', '·', '-', '*', ' ') }
-                    ?.filter { it.isNotEmpty() }
+                    ?.let { com.detailline.callfollowcrm.util.CallSummaryLines.parse(it).map { r -> r.text } }
                     ?: emptyList()
                 items += PeekItem.Call(rec, bullets, summarized = matched != null)
             }

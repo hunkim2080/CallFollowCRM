@@ -73,9 +73,20 @@ class CallSummaryServerRepository(
                 val body = resp.body?.string().orEmpty()
                 if (body.isBlank()) throw IOException("empty body")
                 val obj = JSONObject(body)
-                val bullets = obj.optJSONArray("bullets")?.let { arr ->
+                // 서버가 주는 새 모양 — [{time,speaker,text}]. 있으면 `시작-끝|화자|문장` 줄로 만든다.
+                //   없으면(옛 통화·옛 서버) 지금처럼 bullets 를 그대로. (2026-09-24)
+                val rows = obj.optJSONArray("bullet_rows")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { i ->
+                                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                                val text = o.optString("text").trim()
+                                if (text.isBlank()) return@mapNotNull null
+                                o.optString("time").trim() + "|" + o.optString("speaker").trim() + "|" + text
+                    }
+                }.orEmpty()
+                val legacy = obj.optJSONArray("bullets")?.let { arr ->
                     (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }
                 } ?: emptyList()
+                val bullets = rows.ifEmpty { legacy }
                 Summary(
                     oneLine = obj.optString("one_line").takeIf { it.isNotBlank() },
                     bullets = bullets,

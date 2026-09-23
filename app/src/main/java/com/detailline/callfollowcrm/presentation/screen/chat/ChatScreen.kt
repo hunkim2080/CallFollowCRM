@@ -2389,9 +2389,7 @@ private fun CallSegment(
 
         // 프로토 callCardHtml(m,i): m.summarized 여부로 분기.
         val bullets = summary?.summaryText
-            ?.split("\n")
-            ?.map { it.trim().trimStart('•', '·', '-', '*', ' ') }
-            ?.filter { it.isNotEmpty() }
+            ?.let { com.detailline.callfollowcrm.util.CallSummaryLines.parse(it).map { r -> r.text } }
             ?: emptyList()
         // 한눈에 보는 제목(2026-06-28 사장님) — summary.title 을 굵게 헤더로. 본문(불릿)에서 제목과 같은 줄은
         //   빼서 중복 표시 방지(서버가 짧은 제목을 주기 전엔 title=한줄요약 이라 첫 줄과 겹칠 수 있음).

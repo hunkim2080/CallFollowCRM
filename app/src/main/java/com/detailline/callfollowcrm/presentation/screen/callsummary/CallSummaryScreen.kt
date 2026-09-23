@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +44,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -280,9 +283,52 @@ fun CallSummaryScreen(
                             Spacer(Modifier.height(6.dp))
                             Text(it, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)
                         }
+                        // 시간 구간으로 그린다 — 왼쪽에 시각, 옵에 점(손님/나), 그다음 문장. (2026-09-24 사장님)
+                        //   시각이 없는 옛 요약은 지금처럼 "· 문장" 으로.
                         bullets.forEach { b ->
-                            Spacer(Modifier.height(5.dp))
-                            Text("· $b", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
+                            val row = com.detailline.callfollowcrm.util.CallSummaryLines.parseOne(b)
+                            if (row == null) return@forEach
+                            Spacer(Modifier.height(7.dp))
+                            if (row.time.isBlank() && row.speaker.isBlank()) {
+                                Text("· " + row.text, style = com.detailline.callfollowcrm.presentation.theme.AppType.body, color = TossTextSecondary)
+                            } else {
+                                Row(verticalAlignment = Alignment.Top) {
+                                    if (row.time.isNotBlank()) {
+                                        Text(
+                                            row.time, color = TossTextTertiary,
+                                            style = com.detailline.callfollowcrm.presentation.theme.AppType.caption.copy(
+                                                fontWeight = FontWeight.SemiBold, lineHeight = 19.sp
+                                            ),
+                                            modifier = Modifier.width(66.dp)
+                                        )
+                                    }
+                                    if (row.speaker.isNotBlank()) {
+                                        Box(
+                                            Modifier
+                                                .padding(top = 6.dp, end = 7.dp)
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (row.speaker == "손님") TossBlue
+                                                    else AppTheme.colors.primary
+                                                )
+                                        )
+                                    }
+                                    Text(
+                                        row.text, style = com.detailline.callfollowcrm.presentation.theme.AppType.body, color = TossTextSecondary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                        // 점은 **AI 짐작**이다 — 녹음 소리가 아니라 글을 읽고 고른다.
+                        //   후속 문자가 고객에게 나가니, 미심적으면 전문에서 확인하시라고 적어둔다.
+                        if (bullets.any { it.count { c -> c == '|' } >= 2 }) {
+                            Spacer(Modifier.height(9.dp))
+                            Text(
+                                "손님/나 구분은 AI 짐작이에요 · 미심적으면 아래 통화 전문을 봐주세요",
+                                style = com.detailline.callfollowcrm.presentation.theme.AppType.caption, color = TossTextTertiary
+                            )
                         }
                     }
                     Spacer(Modifier.height(14.dp))

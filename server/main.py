@@ -15294,15 +15294,20 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
 - one_line: 18~28자. 이 통화의 핵심 결과 1줄 (예: "24평 화장실 줄눈 견적 65만원 안내", "수원-인천 출장비 협의 필요").
   단순 "견적 요청" 식 키워드 X — 결과까지 들어가야 한다.
 
-- bullets: **4~7줄**. 각 줄은 "고객:" / "사장님 답:" 처럼 **글자로** 시작. 한 문장, 40자 이내.
-  **누가 누구한테 무엇을 했는지** 박아라.
+- bullets: **4~6줄**. 각 줄은 반드시 아래 **세 칸을 `|` 로 나눠** 써라.
+    〈시작-끝〉|〈화자〉|〈한 문장〉
+
+  · 〈시작-끝〉 = 받아쓰기에 붙은 `[m:ss]` 표시에서 **그대로 골라 쓴다. 새로 만들지 마라.**
+    한 줄 = 한 덩어리 얘기. 시작은 그 덩어리 첫 `[m:ss]`, 끝은 **다음 덩어리의 첫 `[m:ss]`**.
+    마지막 줄의 끝은 위 [통화 메타]의 길이(초)를 m:ss 로 바꿔 쓴다.
+    받아쓰기에 `[m:ss]` 가 **없으면 시간 칸을 비운다** (예: `|손님|…`). 짐작 금지.
+  · 〈화자〉 = `손님` 또는 `나` 둘 중 하나. 받아쓰기에 적힌 화자를 따른다. 모르면 비운다.
+  · 〈한 문장〉 = 40자 이내. **"고객:" "사장님 답:" 같은 머리말을 붙이지 마라** — 칸이 따로 있다.
   좋은 예:
-    "고객: 24평 화장실 2곳 줄눈 견적 문의"
-    "사장님 답: 65만원 안내"
-    "고객: 사무실 어디인지 질문"
-    "사장님 답: 수원이라고 안내"
-    "고객: 본인은 인천 거주라고 알림"
-    "견적 65만원 / 사장님=수원, 고객=인천 / 첫입주 시기 확인 필요"
+    "0:00-0:35|손님|욕조가 깨졌는데 고칠 수 있냐고 물어봄"
+    "0:35-1:20|나|철거와 방수까지 하면 값이 올라간다고 설명"
+    "1:20-2:05|손님|세입자가 살아 큰 공사는 부담된다고"
+    "2:05-2:47|나|깨진 데만 15~20만원, 전문 업체 추천"
   나쁜 예 (현재 약점):
     "수원 위치"  ← 누가 수원인지 모름
     "65만원 견적"  ← 누가 제시한 가격인지 모름
@@ -15340,7 +15345,7 @@ __OWNER_TONE_SAMPLES__
 
 답 형식 — 반드시:
 - 응답 첫 글자는 '{' 로. 다른 텍스트 X.
-- {"title":"...","one_line":"...","bullets":["고객: ...","사장님 답: ..."],"suggested_followup_sms":"...","tags":["화장실","줄눈","다음주"]}
+- {"title":"...","one_line":"...","bullets":["0:00-0:35|손님|...","0:35-1:20|나|..."],"suggested_followup_sms":"...","tags":["화장실","줄눈","다음주"]}
 """
 
 
@@ -15366,14 +15371,32 @@ def _coerce_call_summary(parsed: dict) -> dict:
         # 폴백 = one_line 앞 14자 (앱이 헤더 표시할 게 필요)
         title = one_line[:14].rstrip() + ("…" if len(one_line) > 14 else "")
 
+    # 모델은 `시작-끝|화자|문장` 으로 준다. (2026-09-24)
+    #   여기서 **둘로 나눈다** — 구조(bullet_rows) 와 옛 문자열(bullets).
+    #   이미 깔린 앱은 bullets 만 읽으니 **지금과 똑같이** 보이고,
+    #   새 앱만 bullet_rows 로 시간 구간을 그린다.
     raw_bullets = parsed.get("bullets")
     bullets: list[str] = []
+    bullet_rows: list[dict] = []
     if isinstance(raw_bullets, list):
-        # §26 (2026-06-10) — 5 → 7줄로 확장 (Q&A 흐름 + 화자 구분 박을 공간 확보)
         for b in raw_bullets[:7]:
             s = str(b).strip()
-            if s:
-                bullets.append(s if len(s) <= 80 else s[:80].rstrip() + "…")
+            if not s:
+                continue
+            time_s, who, text = "", "", s
+            if s.count("|") >= 2:
+                a, b2, c = s.split("|", 2)
+                time_s, who, text = a.strip(), b2.strip(), c.strip()
+                if who not in ("나", "손님"):
+                    who = ""
+            if not text:
+                continue
+            if len(text) > 80:
+                text = text[:80].rstrip() + "…"
+            bullet_rows.append({"time": time_s, "speaker": who, "text": text})
+            # 옛 앱용 — 지금과 같은 모양으로 되돌린다.
+            head = "고객: " if who == "손님" else ("사장님 답: " if who == "나" else "")
+            bullets.append(head + text)
     # bullets 비어있으면 최소 one_line 한 줄이라도 — 앱 측 안전망
     if not bullets:
         bullets = [one_line]
@@ -15401,7 +15424,8 @@ def _coerce_call_summary(parsed: dict) -> dict:
     return {
         "title": title,  # 추가61 — 6~12자 짧은 제목
         "one_line": one_line,
-        "bullets": bullets,
+        "bullets": bullets,          # 옛 앱용 (모양 그대로)
+        "bullet_rows": bullet_rows,  # 새 앱용 — [{time,speaker,text}] (2026-09-24)
         "suggested_followup_sms": fup,
         "tags": tags,   # 통화 카드 해시태그 (프로토)
     }
@@ -15927,7 +15951,23 @@ async def call_audio_summary_endpoint(
         user_lines.append(f"시작 시각(epoch ms): {started_at_ms}")
         user_lines.append("")
         user_lines.append("[통화 받아쓰기 — Whisper STT]")
+        # 시각을 붙여서 넣는다 — 그래야 요약이 "몇 초부터"를 인용할 수 있다. (2026-09-24 사장님)
+        #   지금까지는 평문만 넣어서, 재료는 있는데 요약이 시각을 모르는 상태였다.
         raw = transcript
+        if transcript_segments:
+            _tl = []
+            for _sg in transcript_segments:
+                _ms = _sg.get("start_ms")
+                _head = ""
+                if isinstance(_ms, int) and _ms >= 0:
+                    _head = "[%d:%02d] " % (_ms // 60000, (_ms // 1000) % 60)
+                _sp = str(_sg.get("speaker") or "").strip()
+                _sp = (_sp + ": ") if _sp in ("나", "손님") else ""
+                _tx = str(_sg.get("text") or "").strip()
+                if _tx:
+                    _tl.append(_head + _sp + _tx)
+            if _tl:
+                raw = "\n".join(_tl)
         if len(raw) > 8000:
             raw = raw[:8000] + "\n…(truncated)"
         user_lines.append(raw)

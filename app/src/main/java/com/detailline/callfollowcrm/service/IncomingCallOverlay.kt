@@ -656,13 +656,11 @@ private fun saysSameAs(a: String, b: String?): Boolean {
  * 그래도 90자 자르기를 남겨둔다 — 요약 형식이 바뀌어도 카드가 벽이 되지 않게.
  */
 private fun firstLineOf(full: String): String {
-    val head = full.lineSequence()
-        .map { it.trim() }
-        .firstOrNull { it.isNotBlank() }
-        ?.removePrefix("고객:")?.removePrefix("사장님 답:")?.removePrefix("사장님:")
-        ?.trim()
-        .orEmpty()
-    return if (head.length > 90) head.take(88).trimEnd() + "…" else head
+    // 요약 한 줄 읽기는 **한 군데서**만 한다. (2026-09-24)
+    //   새 모양(`0:00-0:35|손님|…`)과 옛 모양(`고객: …`)이 섮여 들어오는데,
+    //   여기서 따로 쌍으면 전화 올 때 카드에 `|` 가 그대로 보인다.
+    //   (2026-09-24 사장님이 먼저 짚음: "전화오면 뜼는 그 화면 … 그건 문제없겠지~?")
+    return com.detailline.callfollowcrm.util.CallSummaryLines.firstSentence(full, max = 90).orEmpty()
 }
 
 // ── 카드 색 (2026-09-22 사장님 "배경색은 전에 것이 눈에 잘 들어왔던 것 같아") ──
