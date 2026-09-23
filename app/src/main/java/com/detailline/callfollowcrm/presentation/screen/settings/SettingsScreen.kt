@@ -453,6 +453,12 @@ fun SettingsScreen(
                         "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
                     // 보안 설정 — 한 번 켜두면 끝이라 여기가 맞다. 전엔 자동 문자 화면 한가운데 있었다.
                     ScreenCaptureRow(container.preferences)
+                    // 내 업종 — 2026-08-31 '더보기 정리' 때 같이 빠져서 **들어갈 길이 없어졌다.**
+                    //   온보딩에서 한 번 놓치면 다시 고칠 방법이 없고, 그동안 AI 답변이 계속
+                    //   '일반 시공 사장님' 톤으로 나간다. (2026-09-23 사장님 확인 후 되살림)
+                    //   말투와 함께 AI 답변을 정하는 것이라 '내 말투 학습' 바로 위에 둔다.
+                    LockRow(Icons.Filled.Category, AppTheme.colors.categoryBg, AppTheme.colors.category, "내 업종",
+                        "골라두면 AI 답변이 내 업종 말로 나와요", onClick = onOpenTradeSelect)
                     LockRow(Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category, "내 말투 학습",
                         "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
                     // 기본 문자 앱이면 채팅+가 꺼져 있어 이 안내 불필요 → 숨김. (2026-08-02 사장님)
