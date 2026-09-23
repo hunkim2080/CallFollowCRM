@@ -124,6 +124,15 @@ STATS_EXCLUDE_PHONES = set(
     p.strip() for p in os.environ.get(
         "STATS_EXCLUDE_PHONES", _DEFAULT_EXCLUDE).split(",") if p.strip()
 )
+
+# 베타 대시보드용 — **봇·합성번호만** 뺀다. (2026-09-23 감사 ⑨)
+#   위 STATS_EXCLUDE_PHONES 에는 사장님 본인 폰 2대도 들어 있다. 그걸 그대로 쓰면
+#   "회원 14명" 이 갑자기 12명이 된다 — 사장님은 **진짜 회원**이다(제일 많이 쓴다).
+#   그래서 사람이 아닌 것(합성 번호·외부 봇)만 거른다.
+DASHBOARD_EXCLUDE_PHONES = set(
+    p for p in STATS_EXCLUDE_PHONES
+    if p not in ("01080056674", "01064610131")
+)
 FREE_TRIAL_DAYS = int(os.environ.get("FREE_TRIAL_DAYS", "60"))    # 무료 체험 기간 (2개월)
 AUTH_CODE_TTL_SEC = 300           # 인증번호 유효 5분
 AUTH_CODE_MAX_PER_DAY = 5         # 번호당 하루 발송 한도 (문자폭탄 방지)
@@ -9541,11 +9550,14 @@ async def admin_beta_dashboard_data(
                 base = segs[-1] if segs else base.rsplit("/", 1)[-1]
             return base.lower()
 
+        # 🔴 전엔 **회원 아닌 번호까지** 셌다 (일정 8명 → 실제 회원은 6명). (2026-09-23 감사)
+        _ph89 = ",".join(["?"] * len(wl_phones)) if wl_phones else "''"
         scr_rows89 = con.execute(
-            "SELECT screen, owner_phone FROM app_events "
-            "WHERE event_name = 'screen_view' AND created_at_ms >= ?",
-            (cutoff,),
-        ).fetchall()
+            f"SELECT screen, owner_phone FROM app_events "
+            f"WHERE event_name = 'screen_view' AND created_at_ms >= ? "
+            f"AND owner_phone IN ({_ph89})",
+            (cutoff, *wl_phones),
+        ).fetchall() if wl_phones else []
         scr_agg89: dict = {}
         for s89, p89 in scr_rows89:
             nrm = _norm_screen89(s89)
@@ -9571,15 +9583,33 @@ async def admin_beta_dashboard_data(
             ("report",    "리포트",        {"report"}),
             ("search",    "검색",          {"search"}),
         ]
+        # 🔴 접수서는 **화면이 없다.** 채팅에서 링크로 발급하는 거라 screen_view 가 안 생긴다.
+        #   그래서 늘 "0명(묻힌 기능)" 으로 나왔는데, 묻힌 게 아니라 **잴 수가 없었다.**
+        #   → 실제 발급 기록(intake_forms)으로 센다. (2026-09-23 감사 ⑥)
+        _intake_users: dict = {}
+        try:
+            for _ip, _ic in con.execute(
+                f"SELECT owner_phone, COUNT(*) FROM intake_forms "
+                f"WHERE issued_at_ms >= ? AND owner_phone IN ({_ph89}) GROUP BY 1",
+                (cutoff, *wl_phones),
+            ).fetchall() if wl_phones else []:
+                _intake_users[_ip] = _ic
+        except Exception:
+            pass
+
         feature_discovery = []
         for _fk, _fl, _aliases in _FEATURE_CATALOG:
             pm_all: dict = {}
             for _al in _aliases:
                 for _p, _cnt in (scr_agg89.get(_al) or {}).items():
                     pm_all[_p] = pm_all.get(_p, 0) + _cnt
+            if _fk == "intake":
+                pm_all = dict(_intake_users)   # 화면이 아니라 **발급 기록** 기준
             _users = len(pm_all)
             feature_discovery.append({
                 "key": _fk, "label": _fl,
+                # 접수서만 세는 방식이 다르다 — 화면에 그렇게 적어준다.
+                "measured_by": "발급 기록" if _fk == "intake" else "화면 열기",
                 "users": _users,
                 "users_pct": round(_users / len(wl_phones) * 100) if wl_phones else 0,
                 "total": sum(pm_all.values()),
@@ -10244,17 +10274,24 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     }
 
     // LLM 비용 — 추가88: 일평균 + 사용자당 (유료화 마진 계산 직결)
+    // 🔴 이 카드는 **회사 전체 AI 비용**이다 — 회원이 쓴 것 말고 웹 글만들기·카카오 주소·
+    //   말투 학습·외부 봇까지 다 들어간다. 바로 위 멤버 목록의 "비용" 열(회원 것만)과
+    //   **다른 장부**인데 이름표가 없어 같은 걸로 보였다. (2026-09-23 감사 ⑦⑧)
     var c = d.cost;
     var activeMembersCnt = members.filter(function(u){ return (u.calls || 0) > 0; }).length;
     var dailyAvgKrw = d.days > 0 ? c.period_krw / d.days : 0;
     var perUserKrw = activeMembersCnt > 0 ? c.period_krw / activeMembersCnt : 0;
     document.getElementById('costBox').innerHTML =
-      '<div style="margin-bottom:12px"><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">기간 (' + d.days + '일)</div>'
+      '<div style="font-size:11px; color:#8A94A6; background:#F4F6F9; border-radius:8px; padding:6px 9px; margin-bottom:10px; line-height:1.5">'
+      + '회사 전체 AI 비용이에요 — 회원이 쓴 것 + 웹 글만들기·주소 찾기·말투 학습까지.<br>'
+      + '<b>멤버 목록의 "비용" 열은 회원이 쓴 것만</b>이라 숫자가 달라요.</div>'
+      + '<div style="margin-bottom:12px"><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">기간 (' + d.days + '일)</div>'
       + '<div style="font-size:24px; font-weight:800; color:#1B64DA">' + Math.round(c.period_krw).toLocaleString() + '원</div>'
       + '<div style="font-size:11.5px; color:#5A6472">' + c.period_calls + '회 호출 · 일평균 ' + Math.round(dailyAvgKrw).toLocaleString() + '원</div></div>'
       + '<div style="margin-bottom:12px"><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">사용자당 (' + d.days + '일, 활성 ' + activeMembersCnt + '명)</div>'
       + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(perUserKrw).toLocaleString() + '원</div>'
-      + '<div style="font-size:11.5px; color:#5A6472">월 5만원 구독 대비 ' + (perUserKrw > 0 ? (perUserKrw / 50000 * 100).toFixed(1) : '0') + '% 원가</div></div>'
+      + '<div style="font-size:11.5px; color:#5A6472">월 5만원 구독 대비 ' + (perUserKrw > 0 ? (perUserKrw / 50000 * 100).toFixed(1) : '0') + '% 원가</div>'
+      + '<div style="font-size:10.5px; color:#B8C2D0; margin-top:3px">회사 전체 비용 ÷ AI 쓴 회원 ' + activeMembersCnt + '명</div></div>'
       + '<div><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">누적</div>'
       + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(c.all_krw).toLocaleString() + '원</div>'
       + '<div style="font-size:11.5px; color:#5A6472">' + c.all_calls + '회 호출</div></div>';
