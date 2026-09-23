@@ -3997,29 +3997,26 @@ private fun ChatTopActions(
         Modifier.fillMaxWidth().background(Color.White)
             .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-        ) {
-            Icon(
-                Icons.Default.LocationOn, null,
-                tint = if (addr.isNotBlank()) TossTextTertiary else AppTheme.colors.textHint,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(Modifier.width(5.dp))
-            Text(
-                addr.takeIf { it.isNotBlank() } ?: "주소 아직 없어요",
-                fontSize = 12.sp,
-                color = if (addr.isNotBlank()) TossTextSecondary else AppTheme.colors.textHint,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(6.dp))
-            if (addr.isNotBlank()) {
+        // 🔴 주소가 없으면 **줄 자체를 안 그린다.** (2026-09-23 사장님)
+        //   전엔 "주소 아직 없어요 [주소 넣기]" 가 자리를 먹었다. 두 가지가 잘못이었다:
+        //     ① 없는 걸 알리자고 한 줄을 쓰는 건 아깝다 — 대화가 그만큼 좁아진다.
+        //     ② [주소 넣기]는 결국 **접수서를 보내는 것**이라, 바로 아래 [접수서 보내기]와
+        //        **같은 동작**이었다. 같은 일을 두 버튼이 하고 있었다.
+        if (addr.isNotBlank()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary,
+                    modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    addr, fontSize = 12.sp, color = TossTextSecondary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(6.dp))
                 ChatTopBtn("길찾기", primary = true) { onNavigate(addr) }
-            } else {
-                // 주소를 대신 받아오는 길 — 접수서를 보내면 고객이 직접 적는다.
-                ChatTopBtn("주소 넣기", primary = false, onClick = onIntake)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
