@@ -10936,3 +10936,23 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - 실측: 업무폰(adb 설치) → install_source=sideload, app_version=0.2.2063 확인.
 - 백업: ~/ringgo-server/main.py.bak-20260923-0953
 - 다음 액션: 없음. 다른 사장님들은 플레이 업데이트 받는 대로 채워진다.
+
+## 2026-09-23 10:30 · android
+대시보드 숫자 감사(페이블) 후 ①②③④⑤ 수정 — 배포 완료
+- ① api_usage 첫 칸에 **고객 번호**를 적던 3곳(prepare-reply / call-summary / call-audio-summary)
+  → owner_phone 으로. 헬퍼 _usage_owner(). 옛 앱(owner_phone 없음)은 예전대로 fallback.
+  ⚠️ 지난 행은 복구 불가(고객 번호만 남음).
+- ② subscribers 를 통째로 읽어 테스트 2줄(+82test*)이 유료 2명·198,000원으로 잡히던 것
+  → 진짜 번호(숫자 10~11자리) + 화이트리스트에 있는 사람만. team_99k 등급 매핑도 수정.
+  ⚠️ 테스트 행은 **지우지 않았다** — 화면에서 안 셀 뿐.
+- ③ _compute_cost_usd 가 모델 무관 Sonnet 단가 → response.model 기준 _resolve_pricing.
+  ⚠️ **과거 행은 아직 Sonnet 단가.** 재계산은 사장님 승인 후 별도.
+- ④ 출석부 신설 app_opens(phone, day_kst) — beta/check(앱 onResume)에서 upsert.
+  앱 사용일·추세 배지가 이걸 본다. app_events 는 '어느 화면 봤나' 전용으로 남김.
+  기동 시 app_events 로 과거분 1회 백필(375줄/18명).
+- ⑤ 기간 경계를 KST 자정 기준으로(_kst_midnight_before). 7일이 8일치로 걸치던 것 해소.
+- 실측 전/후: 유료 2명·198,000원 → 0명·0원 / 활성 10(배지9) → 9(배지9) /
+  차트합 396 vs KPI 506 → 396 = 396 / 앱사용일 최대 8일 → 7일 / 멤버비용 12,215 → 9,318원
+- 백업: ~/ringgo-server/main.py.bak-20260923-1026
+- 남은 것(감사 ⑥⑦⑧⑨): 기능발견율 화이트리스트 필터, 비용카드 장부 구분, 평균 분모,
+  STATS_EXCLUDE_PHONES 미적용. 사장님 판단 대기.

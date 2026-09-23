@@ -1374,6 +1374,36 @@ def db_init() -> None:
         #   이제 앱이 모든 요청에 X-App-Version 을 얹고, 여기에 마지막 값만 남는다.
         # install_source: "play" = 플레이스토어, "sideload" = APK 직접. 빈 값 = 아직 모름.
         #   9/18 에 "이제 플레이에서 받으세요" 안내했는데 안 옮긴 사람은 업데이트가 영영 안 간다.
+        # 2026-09-23 감사 — **출석부 하나.** 앱을 켤 때마다(beta/check) 그 날짜를 찍는다.
+        #   전엔 '앱 사용일' 을 app_events(30초마다 모아 보냄, 앱이 먼저 닫히면 유실)로 셌다.
+        #   그래서 어제 앱을 켠 사장님이 "앱 사용일 0일" 로 나왔다.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_opens (
+                phone    TEXT NOT NULL,
+                day_kst  TEXT NOT NULL,     -- "2026-09-23"
+                opens    INTEGER NOT NULL DEFAULT 1,
+                last_ms  INTEGER,
+                PRIMARY KEY (phone, day_kst)
+            )
+            """
+        )
+        con.execute("CREATE INDEX IF NOT EXISTS idx_app_opens_day ON app_opens(day_kst)")
+        # 지난 기록은 아는 만큼만 채운다 — app_events 가 있는 날. 한 번만 돈다(INSERT OR IGNORE).
+        try:
+            con.execute(
+                """
+                INSERT OR IGNORE INTO app_opens (phone, day_kst, opens, last_ms)
+                SELECT owner_phone,
+                       date(created_at_ms/1000, 'unixepoch', '+9 hours'),
+                       COUNT(*), MAX(created_at_ms)
+                FROM app_events
+                WHERE owner_phone IS NOT NULL AND owner_phone != ''
+                GROUP BY 1, 2
+                """
+            )
+        except Exception:
+            pass
         for _col, _type in (("app_version", "TEXT"), ("app_version_seen_ms", "INTEGER"),
                             ("install_source", "TEXT")):
             try:
@@ -1776,12 +1806,24 @@ def _compute_cost_usd(
     cached_input_tokens: int,
     cache_creation_tokens: int,
     output_tokens: int,
+    model: Optional[str] = None,
 ) -> float:
-    # cache_creation 은 정가 input 과 동일 가격
+    """이 호출에 든 돈($). **쓴 모델의 단가**로 계산한다.
+
+    🔴 전엔 모델과 무관하게 위쪽 상수(COST_*_PER_M = **Sonnet 단가**)로만 쟀다.
+      그런데 카드요약·대화요약·다음행동·통화요약은 **Haiku**(1/10 값)로 돈다.
+      그래서 멤버별 "비용" 열이 실제의 2.6~3배로 부풀었다 —
+      같은 페이지 안에서 멤버 합 12,295원 vs 비용 카드 5,798원. (2026-09-23 감사)
+
+    [_resolve_pricing] 은 모델을 못 알아보면 Sonnet(제일 비싼 쪽)으로 떨어진다 —
+    적게 잡아 안심하는 것보다 많이 잡아 놀라는 쪽이 낫다.
+    """
+    pr = _resolve_pricing(model or "")
     return (
-        ((input_tokens + cache_creation_tokens) / 1_000_000) * COST_INPUT_PER_M
-        + (cached_input_tokens / 1_000_000) * COST_CACHED_INPUT_PER_M
-        + (output_tokens / 1_000_000) * COST_OUTPUT_PER_M
+        (input_tokens / 1_000_000) * pr["input"]
+        + (cache_creation_tokens / 1_000_000) * pr["cache_write"]
+        + (cached_input_tokens / 1_000_000) * pr["cache_read"]
+        + (output_tokens / 1_000_000) * pr["output"]
     )
 
 
@@ -1797,6 +1839,8 @@ def log_usage(phone: str, endpoint: str, response: "anthropic.types.Message") ->
         cached_input_tokens=cached_input_tokens,
         cache_creation_tokens=cache_creation,
         output_tokens=output_tokens,
+        # 어떤 모델로 돌았는지 — 이게 없으면 전부 Sonnet 단가로 재서 2~3배 부푼다. (2026-09-23 감사)
+        model=getattr(response, "model", None),
     )
     with db_conn() as conn:
         conn.execute(
@@ -3061,7 +3105,10 @@ async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") ->
     async def _run_sonnet():
         v2, response = await call_claude_for_suggestions_with_meta(req)
         sec = (_now_ms() - start_ms) / 1000.0
-        log_usage(phone, "prepare-reply", response)
+        # 🔴 전엔 log_usage(phone, ...) — phone 은 **고객** 번호다.
+        #   이 장부는 "어느 사장님이 썼나" 를 세는 곳이라, 고객 번호를 적으면 안 잡힌다.
+        #   (2026-09-23 감사: 답장 추천 6건이 화면에 0건으로 나왔다)
+        log_usage(_usage_owner(req.owner_phone, phone), "prepare-reply", response)
         _log_llm_usage_from_response("prepare-reply", response)
         saved = db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
         usage = response.usage
@@ -8500,6 +8547,19 @@ async def beta_check(req: BetaCheckRequest) -> dict:
             """,
             (now, now, phone_digits),
         )
+        # 출석부 — 앱을 켠 날짜를 찍는다. 이게 '앱 사용일' 의 유일한 근거가 된다. (2026-09-23 감사)
+        #   beta/check 는 앱 onResume 마다 확실히 온다. app_events 처럼 모아 보내다 잃지 않는다.
+        try:
+            _day = _dt.datetime.fromtimestamp(now / 1000, tz=_KST).strftime("%Y-%m-%d")
+            con.execute(
+                """
+                INSERT INTO app_opens (phone, day_kst, opens, last_ms) VALUES (?, ?, 1, ?)
+                ON CONFLICT(phone, day_kst) DO UPDATE SET opens = opens + 1, last_ms = ?
+                """,
+                (phone_digits, _day, now, now),
+            )
+        except Exception:
+            pass   # 출석 기록이 실패해도 앱은 돌아야 한다
         con.commit()
     print(f"[beta/check] {phone_digits} → OK (name={name}, use_count={(use_count or 0) + 1})")
     return {"ok": True, "name": name or "테스터"}
@@ -8925,8 +8985,17 @@ async def admin_beta_dashboard_data(
     _admin_auth_bearer_from_header(authorization)
     days = max(1, min(days, 365))
     now = _now_ms()
-    cutoff = now - days * 86_400_000
-    cutoff_7d = now - 7 * 86_400_000
+    # 🔴 전엔 cutoff = now - days*86400000 — "지금부터 정확히 168시간 전" 이라
+    #   7일인데 **날짜가 8개** 걸쳤다. 그래서 "7일 화면에 앱 사용일 8일",
+    #   30일 화면에 31일, 차트 합(396)과 KPI 총호출(509)이 안 맞았다. (2026-09-23 감사)
+    #   → **KST 자정 기준**으로 자른다. days=7 이면 오늘 포함 7일(오늘-6일 자정부터).
+    def _kst_midnight_before(n_days: int) -> int:
+        t = _dt.datetime.fromtimestamp(now / 1000, tz=_KST)
+        d0 = t.replace(hour=0, minute=0, second=0, microsecond=0) - _dt.timedelta(days=n_days - 1)
+        return int(d0.timestamp() * 1000)
+
+    cutoff = _kst_midnight_before(days)
+    cutoff_7d = _kst_midnight_before(7)
 
     # 폰 format helper (module-level _fmt_phone 가 다른 함수 nested 라 사용 불가)
     def _fmt_phone(p):
@@ -9223,29 +9292,39 @@ async def admin_beta_dashboard_data(
         per_user_app_days: dict = {}
         if wl_phones:
             placeholders_ap = ",".join(["?"] * len(wl_phones))
+            # 🔴 전엔 app_events(30초마다 모아 보냄, 앱이 먼저 닫히면 유실)로 셌다.
+            #   그래서 **어제 앱을 켠 사장님이 "앱 사용일 0일"** 로 나왔다. (2026-09-23 감사)
+            #   → 출석부(app_opens)로. beta/check 는 앱 켤 때마다 확실히 온다.
+            _cut_day = _dt.datetime.fromtimestamp(cutoff / 1000, tz=_KST).strftime("%Y-%m-%d")
             ap_rows = con.execute(
-                f"""SELECT owner_phone, created_at_ms FROM app_events
-                    WHERE owner_phone IN ({placeholders_ap}) AND created_at_ms >= ?""",
-                wl_phones + [cutoff],
+                f"""SELECT phone, day_kst FROM app_opens
+                    WHERE phone IN ({placeholders_ap}) AND day_kst >= ?""",
+                wl_phones + [_cut_day],
             ).fetchall()
             for ar_row in ap_rows:
-                try:
-                    dt = _dt.datetime.utcfromtimestamp(ar_row[1] / 1000) + _dt.timedelta(hours=9)
-                    per_user_app_days.setdefault(ar_row[0], set()).add(dt.strftime("%Y-%m-%d"))
-                except Exception:
-                    pass
+                per_user_app_days.setdefault(ar_row[0], set()).add(ar_row[1])
 
         # 추가84 (2026-07-03) — 등급 4단계 (사장님 설계):
         #   applicant = 등업대기 (beta_signups 만) / tester = 베타 테스터 (whitelist, 무료)
         #   standard = 일반 사장님 (5만) / premium = 특별 사장님 (10만)
         # subscribers 활성 행 기준: 10만+ 또는 premium tier → premium, 유료(>0) → standard.
+        # 🔴 전엔 subscribers 를 **통째로** 읽었다. 그 안엔 연습용 두 줄뿐인데
+        #   ("+82test", "+82test99k") 그게 "유료 2명 · 이번 달 198,000원" 으로 잡혔다.
+        #   (2026-09-23 감사) → 진짜 번호(숫자 10~11자리) + 회원 명단에 있는 사람만 센다.
+        _wl_phones_set = {r[0] for r in wl_rows}
         sub_map: dict = {}
+        _sub_skipped: list = []
         for sr in con.execute(
             "SELECT phone, plan_tier, monthly_price_krw, churned_at_ms, started_at_ms "
             "FROM subscribers"
         ).fetchall():
-            sub_map[sr[0]] = {"tier": sr[1] or "", "price": sr[2] or 0,
-                              "churned": sr[3], "started": sr[4]}
+            _p = (sr[0] or "").strip()
+            _real = _p.isdigit() and 10 <= len(_p) <= 11
+            if not _real or _p not in _wl_phones_set:
+                _sub_skipped.append(_p)
+                continue
+            sub_map[_p] = {"tier": sr[1] or "", "price": sr[2] or 0,
+                           "churned": sr[3], "started": sr[4]}
 
         # 추가85 (2026-07-03) — 결제 주기 계산 (사장님: 결제일 + 재결제 D-00).
         # 결제일 앵커 = 구독 시작일의 '일(day)'. 매달 그 날 재결제로 간주.
@@ -9286,7 +9365,9 @@ async def admin_beta_dashboard_data(
         def _grade_of(phone: str) -> str:
             s = sub_map.get(phone)
             if s and s["churned"] is None:
-                if s["price"] >= 100_000 or s["tier"] == "premium_100k":
+                # team_99k(99,000원) 가 "일반(5만)" 으로 나오던 것도 같이 바로잡는다.
+                #   값이 10만에 가까우면 특별로. (2026-09-23 감사)
+                if s["price"] >= 90_000 or s["tier"] in ("premium_100k", "team_99k"):
                     return "premium"
                 if s["price"] > 0 or s["tier"] in ("standard_50k", "pro"):
                     return "standard"
@@ -9534,12 +9615,19 @@ async def admin_beta_dashboard_data(
         _ph = ",".join(["?"] * len(wl_phones)) if wl_phones else ""
 
         def _active_between(a_ms, b_ms):
+            """이 기간에 앱을 켠 사람 수 — **출석부 기준.** (2026-09-23 감사)
+
+            전엔 app_events 를 셌다. 그건 앱이 30초마다 모아 보내는 거라 먼저 닫히면 유실된다.
+            그래서 같은 카드 안에서 "활성 10명" 옆 배지가 9명, 차트는 4명이었다.
+            """
             if not wl_phones:
                 return 0
+            a_day = _dt.datetime.fromtimestamp(a_ms / 1000, tz=_KST).strftime("%Y-%m-%d")
+            b_day = _dt.datetime.fromtimestamp(b_ms / 1000, tz=_KST).strftime("%Y-%m-%d")
             return con.execute(
-                f"SELECT COUNT(DISTINCT owner_phone) FROM app_events "
-                f"WHERE owner_phone IN ({_ph}) AND created_at_ms >= ? AND created_at_ms < ?",
-                (*wl_phones, a_ms, b_ms),
+                f"SELECT COUNT(DISTINCT phone) FROM app_opens "
+                f"WHERE phone IN ({_ph}) AND day_kst >= ? AND day_kst < ?",
+                (*wl_phones, a_day, b_day),
             ).fetchone()[0]
 
         def _sincere_between(a_ms, b_ms):
@@ -15061,7 +15149,8 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
         print(f"[call-summary] {req.phone} Claude 호출 실패: {type(e).__name__}: {e} → {code} '{msg}'")
         raise HTTPException(code, msg)
 
-    log_usage(req.phone, "call-summary", response)
+    # 🔴 req.phone 은 **고객** 번호다. 사장님 번호로 적는다. (2026-09-23 감사)
+    log_usage(_usage_owner(req.owner_phone, req.phone), "call-summary", response)
     _log_llm_usage_from_response("call-summary", response)
     usage = response.usage
     print(
@@ -15571,7 +15660,9 @@ async def call_audio_summary_endpoint(
 
         # 비용 로깅: Haiku 일 때만 (Gemini Paid 비용은 별도 추적 안 함 — 매우 저렴)
         if response is not None:
-            log_usage(phone_digits, "call-audio-summary", response)
+            # 🔴 phone_digits 는 **고객** 번호에서 나온 값이다. (2026-09-23 감사)
+            #   7일 79건 중 3건만 화면에 잡히던 원인.
+            log_usage(_usage_owner(owner_phone, phone_digits), "call-audio-summary", response)
             _log_llm_usage_from_response("call-audio-summary", response)
             usage = response.usage
             print(
@@ -20718,6 +20809,19 @@ def _touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = Non
     except Exception:
         # 가벼운 heartbeat — 실패해도 본 endpoint 동작 막으면 안 됨
         pass
+
+
+def _usage_owner(owner_phone: Optional[str], fallback: Optional[str]) -> str:
+    """AI 사용 장부(api_usage)에 적을 번호 — **사장님 번호**. (2026-09-23 감사)
+
+    api_usage 는 "어느 사장님이 AI 를 얼마나 썼나" 를 세는 장부다. 그런데 세 엔드포인트가
+    첫 칸에 **고객 번호**를 적고 있어서, 사장님별로 모으면 대부분 빠졌다
+    (7일 녹음요약 79건 중 3건만 잡힘).
+
+    owner_phone 이 안 오면(옛 앱) 예전처럼 fallback 을 쓴다 — 기록을 아예 잃는 것보단 낫다.
+    """
+    p = _norm_phone(owner_phone or "")
+    return p or (fallback or "")
 
 
 def _ua_device(ua: Optional[str]) -> str:
