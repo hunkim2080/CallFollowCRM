@@ -28,8 +28,10 @@ import contextvars
 import re
 import sqlite3
 import sys
+import threading
 import time
 import urllib.parse
+import urllib.request
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Optional
@@ -5687,6 +5689,67 @@ async def admin_recharge_status(
 # 사장님이 stderr.log 를 열지 않아도 "서버 아픈지"를 대시보드에서 알 수 있게.
 # ============================================================================
 
+#: 500 자기신고 — 주소는 코드에 안 적는다(노출되면 아무나 그 채널에 글 쓴다).
+#:   서버에 ~/.ringgo_alert_webhook 파일을 두거나 ALERT_WEBHOOK 환경변수를 준다. 없으면 조용히 꺼진다.
+def _alert_webhook_url():
+    u = (os.environ.get("ALERT_WEBHOOK") or "").strip()
+    if u:
+        return u
+    try:
+        with open(os.path.expanduser("~/.ringgo_alert_webhook"), "r") as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+_alert_last_by_path = {}
+_alert_hour_bucket = [0, 0]  # [시각(시간단위), 그 시간에 보낸 수]
+_ALERT_PER_PATH_MS = 10 * 60 * 1000
+_ALERT_MAX_PER_HOUR = 12
+
+
+def _alert_500(path: str, status: int, detail: str) -> None:
+    """500 을 슬랙으로 즉시 알린다. **실패해도 요청엔 아무 영향 없다.**
+
+    오늘(2026-09-23) 접수서 폴링이 2시간 깨져 있었는데 서버는 아무 말도 안 했다.
+    버그는 또 난다 — 2시간이냐 2분이냐는 **누가 먼저 아느냐**로 갈린다.
+    """
+    try:
+        url = _alert_webhook_url()
+        if not url:
+            return
+        now = _now_ms()
+        # ① 같은 길은 10분에 한 번 — 한 곳이 터지면 초당 수십 개가 온다.
+        if now - _alert_last_by_path.get(path, 0) < _ALERT_PER_PATH_MS:
+            return
+        # ② 전체도 시간당 12번까지 — 알림이 폭탄이 되면 아무도 안 본다.
+        hour = int(now // 3600000)
+        if _alert_hour_bucket[0] != hour:
+            _alert_hour_bucket[0], _alert_hour_bucket[1] = hour, 0
+        if _alert_hour_bucket[1] >= _ALERT_MAX_PER_HOUR:
+            return
+        _alert_last_by_path[path] = now
+        _alert_hour_bucket[1] += 1
+
+        when = _dt.datetime.now().strftime("%m/%d %H:%M:%S")
+        text = (u"🚨 *서버 %d* `%s`" % (status, (path or "?")[:120])
+                + chr(10) + (detail or u"(내용 없음)")[:300]
+                + chr(10) + u"_%s_" % when)
+        body = json.dumps({"text": text}).encode("utf-8")
+
+        def _send():
+            try:
+                req = urllib.request.Request(url, data=body,
+                                             headers={"Content-Type": "application/json; charset=utf-8"})
+                urllib.request.urlopen(req, timeout=5).read()
+            except Exception:
+                pass  # 알림이 안 가도 서버는 계속 돈다
+
+        threading.Thread(target=_send, daemon=True).start()
+    except Exception:
+        pass
+
+
 def _record_system_error(path: str, status: int, detail: str) -> None:
     """에러 기록 — 절대 요청을 죽이지 않음 (기록 실패는 조용히 무시)."""
     try:
@@ -5702,6 +5765,9 @@ def _record_system_error(path: str, status: int, detail: str) -> None:
             con.commit()
     except Exception:
         pass
+    # 기록만 하면 아무도 안 본다. 500 은 **그 자리에서 알린다.** (2026-09-23)
+    if status >= 500:
+        _alert_500(path, status, detail)
 
 
 # ─────────── 방문 발자국 (2026-09-14 사장님) ───────────
