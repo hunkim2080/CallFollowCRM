@@ -133,6 +133,8 @@ import com.detailline.callfollowcrm.presentation.component.pressScale
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -5908,30 +5910,19 @@ private fun EstimateBuilderDialog(
                 modifier = Modifier.padding(horizontal = 2.dp))
             // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력
             if (mode != "text") {
-                Spacer(Modifier.height(11.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("시공일", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                        modifier = Modifier.padding(start = 2.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        workDateMs?.let { DateTimeUtils.formatKoreanDate(it) } ?: "미정 · 날짜를 골라주세요",
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        color = if (workDateMs != null) TossBlue else TossTextTertiary
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("시공일", workDateMs?.let { DateTimeUtils.formatKoreanDate(it) } ?: "고르지 않음",
+                    dim = workDateMs == null)
+                Spacer(Modifier.height(AppSpace.s12))
                 EstInlineCalendar(estCalMonth, workDateMs,
                     onShiftMonth = { estCalMonth = estShiftMonth(estCalMonth, it) },
                     onSelect = { workDateMs = it })
                 // 시공 기간(며칠 걸리는 공사) — 라벨 없이 칩만 있으면 "이게 뭐지?" 혼란. (2026-07-02 사장님)
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("시공 기간", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                        modifier = Modifier.padding(start = 2.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("며칠 걸리는 공사인지 골라주세요", fontSize = 12.sp, color = TossTextTertiary)
-                }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("시공 기간", when (workDays) {
+                    1 -> "당일"; 7 -> "일주일"; else -> "${workDays}일"
+                })
+                Spacer(Modifier.height(AppSpace.s12))
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -5943,10 +5934,11 @@ private fun EstimateBuilderDialog(
             }
             // 받는 분 (견적서 전용) — (2026-07-03 사장님)
             if (mode == "quote") {
-                Spacer(Modifier.height(11.dp))
-                Text("받는 분", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                    modifier = Modifier.padding(start = 2.dp))
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("받는 분",
+                    recipient.ifBlank { defaultRecipient.ifBlank { "고객님" } },
+                    dim = recipient.isBlank())
+                Spacer(Modifier.height(AppSpace.s12))
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     recipient, { recipient = it },
                     placeholder = defaultRecipient.ifBlank { "고객님" }
@@ -5954,26 +5946,29 @@ private fun EstimateBuilderDialog(
             }
             // 부가세 (견적서 + 시공접수서 공용) — 나중에 분쟁 없게 접수서에도 별도/포함 명시. (2026-07-06 사장님)
             if (mode != "text") {
-                Spacer(Modifier.height(11.dp))
-                Text("부가세", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                    modifier = Modifier.padding(start = 2.dp))
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("부가세", if (vatIncluded) "포함" else "별도")
+                Spacer(Modifier.height(AppSpace.s12))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(4.dp),
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    EstSegTab("별도 (+10%)", !vatIncluded, Modifier.weight(1f)) { vatIncluded = false }
+                    // "별도 (+10%)" → "별도". 문서엔 네 글자만 나간다. (2026-09-23 사장님)
+                    EstSegTab("별도", !vatIncluded, Modifier.weight(1f)) { vatIncluded = false }
                     EstSegTab("포함", vatIncluded, Modifier.weight(1f)) { vatIncluded = true }
                 }
             }
             // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
             if (mode != "text") {
-                Spacer(Modifier.height(11.dp))
-                Text("계약금", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                    modifier = Modifier.padding(start = 2.dp))
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("계약금", when (depMode) {
+                    "none" -> "없음"
+                    "fixed" -> "${depVal.ifBlank { "0" }}만원"
+                    else -> "${depVal.ifBlank { "0" }}%"
+                }, dim = depMode == "none")
+                Spacer(Modifier.height(AppSpace.s12))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(4.dp),
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     EstSegTab("비율(%)", depMode == "ratio", Modifier.weight(1f)) { depMode = "ratio" }
@@ -6038,14 +6033,14 @@ private fun EstimateBuilderDialog(
             // 특이사항 메모 (시공접수서/견적서 공용) — 견적서 비고에 표시 + 접수서엔 ownerMemo 로 전송. (2026-07-06 사장님)
             //   ⚠️ 의미: 사장님이 고객에게 '미리 알릴' 약속·고지사항 (고객이 주는 정보 X). (2026-07-06 사장님 정정)
             if (mode != "text") {
-                Spacer(Modifier.height(11.dp))
-                Text("특이사항 (선택)", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                    modifier = Modifier.padding(start = 2.dp))
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(AppSpace.s24))
+                EstLabelRow("특이사항", if (memo.isBlank()) "안 적어도 돼요" else "적었어요",
+                    dim = memo.isBlank())
+                Spacer(Modifier.height(AppSpace.s4))
                 Text("고객에게 미리 알릴 약속·안내를 적어요 (견적서·접수서에 표시)",
-                    fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp,
+                    style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp))
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpace.s12))
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     memo, { memo = it },
                     placeholder = "예: 사다리차 비용은 별도예요 · 주차공간 미리 부탁드려요"
@@ -6201,6 +6196,33 @@ private fun EstimateBuilderDialog(
 }
 
 /** 프로토 .seg .sg — 보내는 방식 탭. */
+/**
+ * 시트 안 라벨 줄 — **왼쪽은 이름, 오른쪽은 늘 지금 고른 값.** (2026-09-24 사장님)
+ *
+ * 전엔 같은 자리에 시공일은 **값**("미정 · 날짜를 골라주세요"),
+ * 시공 기간은 **설명**("며칠 걸리는 공사인지")이 와서, 눈이 매번
+ * "여기가 뭘 보여주는 자리지?" 하고 판단해야 했다.
+ * 이제 오른쪽은 언제나 값이라 **스크롤하면서도 뭘 골랐는지 보인다.**
+ *
+ * 그리고 같은 라벨 코드가 여섯 군데 복사돼 있던 것을 여기 하나로 모았다.
+ */
+@Composable
+private fun EstLabelRow(name: String, value: String, dim: Boolean = false) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name, style = AppType.label, color = TossTextTertiary)
+        Spacer(Modifier.weight(1f))
+        Text(
+            value,
+            style = AppType.body.copy(fontWeight = if (dim) FontWeight.Bold else FontWeight.ExtraBold),
+            color = if (dim) TossTextTertiary else TossTextPrimary,
+            maxLines = 1
+        )
+    }
+}
+
 @Composable
 private fun EstSegTab(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
