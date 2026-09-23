@@ -257,8 +257,16 @@ object IncomingCallOverlay {
                     status = status,
                     lastSummary = if (locked) null else lastSumText,
                     lastSummaryWhen = if (locked) null else lastSumWhen,
-                    // 잠금화면에선 일정도 가린다 — 돈·문자와 같은 이유(옆 사람 노출).
-                    schedule = if (locked) emptyList() else twoWeeks,
+                    // 🔴 전엔 잠금화면에서 일정도 가렸다(돈·문자와 한 묶음). 그런데 전화가 올 때
+                    //   폰은 **거의 항상 잠금**이다 — 화면이 켜져 있어도 잠금화면 위에 통화 화면이 뜬다.
+                    //   결과: **진짜 전화에선 달력이 거의 안 떴다.** 미리보기에서만 보였다.
+                    //   (2026-09-23 사장님 "새 문의 전화왔는데 왜 캘린더가 안뜨지")
+                    //
+                    //   내 일정은 **고객 개인정보가 아니다** — 칸에 들어가는 건 지역명("동탄")뿐이고
+                    //   고객 이름·번호·금액은 안 들어간다. "시공 언제 되세요?" 에 그 자리에서
+                    //   답하라고 만든 카드라, 가려두면 카드를 만든 이유가 없어진다.
+                    //   → 잠금화면에서도 띄운다. **돈·문자·통화요약·지난시공은 계속 가린다.**
+                    schedule = twoWeeks,
                     callNo = callNo,
                     firstContactAt = firstAt,
                     doneCount = doneCount,
