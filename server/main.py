@@ -5981,8 +5981,10 @@ async def _auth_enforce_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-@app.get("/healthz")
-@app.get("/health")
+# HEAD 도 받는다 — 바깥 감시(업타임로봇 등)는 몸통이 필요 없어 HEAD 로 두드리는데,
+#   GET 만 받으면 405 를 돌려줘서 **멀쩡한 서버가 죽은 걸로 읽힌다.** (2026-09-23)
+@app.api_route("/healthz", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 def healthz():
     """헬스체크. 앱은 /health, 서버 자체 테스트는 /healthz 둘 다 받는다.
     ⚠️ 이건 "켜졌다"만 본다. 손님 길이 멀쩡한지는 /healthz/deep."""
@@ -6085,7 +6087,7 @@ async def _deep_health_check() -> dict:
     return info
 
 
-@app.get("/healthz/deep")
+@app.api_route("/healthz/deep", methods=["GET", "HEAD"])
 async def healthz_deep():
     """깊은 건강검진 — 손님 길을 실제로 돌려보고, 하나라도 아프면 503 + 이유."""
     r = await _deep_health_check()
