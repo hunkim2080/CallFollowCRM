@@ -7,6 +7,7 @@ import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.repository.SuggestionEventRepository
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.util.AddressExtractor
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -207,7 +208,11 @@ object ReportCalc {
             if (!SettlementCalc.hasMoney(c) || row.outstanding <= 0L) return@mapNotNull null
             OverdueRow(
                 customerId = c.id,
-                name = c.name?.takeIf { it.isNotBlank() } ?: "이름 없음",
+                // 이름이 없으면 **번호**를 보여준다 — "이름 없음"이라 적으면 누군지 알 길이 없다.
+                //   앱 다른 곳(정산·마감 브리핑·통화요약·채팅)은 전부 번호로 fallback 한다.
+                //   여기만 달랐다. (2026-09-23 화면 점검에서 발견)
+                name = c.name?.takeIf { it.isNotBlank() }
+                    ?: PhoneNumberFormatter.format(c.phoneNumber),
                 site = AddressExtractor.roughSite(c.address).orEmpty(),
                 amount = row.outstanding,
                 days = SettlementCalc.overdueDays(c, todayStart)

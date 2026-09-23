@@ -1,7 +1,9 @@
 package com.detailline.callfollowcrm.presentation.screen.settlement
 
 import androidx.compose.material.icons.filled.Person
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -183,7 +185,8 @@ fun SettlementScreen(
                 onOpenScheduleAtDay = onOpenScheduleAtDay,
                 onConfirmDeposit = { confirmDeposit = it },
                 onConfirmBalance = { confirmPayOff = it },
-                onUndoPaid = { viewModel.setBalancePaid(it.customerId, false, it.jobId) }
+                onUndoPaid = { viewModel.setBalancePaid(it.customerId, false, it.jobId) },
+                onSeeAllDone = { viewModel.setFilter(SettleFilter.PAID_OFF) }
             )
             item(key = "tail") { Spacer(Modifier.height(12.dp)) }
         }
@@ -465,12 +468,16 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
     onOpenScheduleAtDay: (Long) -> Unit,
     onConfirmDeposit: (SettleItem) -> Unit,
     onConfirmBalance: (SettleItem) -> Unit,
-    onUndoPaid: (SettleItem) -> Unit
+    onUndoPaid: (SettleItem) -> Unit,
+    onSeeAllDone: () -> Unit
 ) {
     val showActive = filter != SettleFilter.PAID_OFF
     val showDone = filter != SettleFilter.OUTSTANDING
     val activeShown = if (showActive) active else emptyList()
-    val doneShown = if (showDone) done else emptyList()
+    // [전체]는 훑는 자리다 — 완납은 맛보기 몇 건만. 전부는 [완료] 탭에 있다. (2026-09-23)
+    //   전엔 52건이 통째로 쏟아져 미수가 안 보였다.
+    val doneAll = if (showDone) done else emptyList()
+    val doneShown = if (filter == SettleFilter.ALL) doneAll.take(DONE_PEEK) else doneAll
 
     if (activeShown.isEmpty() && doneShown.isEmpty()) {
         item(key = "empty") { EmptyMini(filter) }
@@ -494,7 +501,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
         if (filter == SettleFilter.ALL) {
             item(key = "done-sec") {
                 Text(
-                    "완납 ${doneShown.size}건",
+                    "완납 ${doneAll.size}건",
                     fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 11.dp)
                 )
@@ -506,8 +513,31 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
                 Spacer(Modifier.height(8.dp))
             }
         }
+        // 가린 게 있으면 어디로 가면 되는지 알려준다. 그냥 자르면 "왜 몇 개만 있지?" 가 된다.
+        if (filter == SettleFilter.ALL && doneAll.size > doneShown.size) {
+            item(key = "done-more") {
+                Row(
+                    Modifier.fillMaxWidth().clip(AppShape.md)
+                        .clickable(onClick = onSeeAllDone)
+                        .padding(vertical = 13.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "완납 ${doneAll.size}건 전부 보기",
+                        style = AppType.label, color = TossBlue
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("›", style = AppType.headline, color = TossBlue)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
     }
 }
+
+/** [전체] 탭에서 맛보기로 보여줄 완납 건수. 나머지는 [완료] 탭. (2026-09-23 사장님 화면 점검) */
+private const val DONE_PEEK = 5
 
 @Composable
 private fun SettleRow(
