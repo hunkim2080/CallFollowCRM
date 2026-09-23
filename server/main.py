@@ -14140,9 +14140,15 @@ __OWNER_TONE_SAMPLES__
 """
 
 
-def _build_summary_system_prompt(template: str, owner_tone_samples: list[str]) -> str:
+def _build_summary_system_prompt(
+    template: str, owner_tone_samples: list[str], biz_name: str = ""
+) -> str:
+    # 상호를 모르면 빈 칸이 아니라 **모른다고 적어준다** —
+    #   빈 칸이면 모델이 그 자리를 메우려고 업종명을 지어낸다. (2026-09-24 실측)
+    biz = (biz_name or "").strip() or "(모름 — 문자에 이름을 쓰지 말 것)"
     return (
         template
+        .replace("__BIZ_NAME__", biz)
         .replace("__PRICING__", load_pricing())
         .replace("__OWNER_TONE_SAMPLES__", format_owner_tone(owner_tone_samples))
     )
@@ -15303,16 +15309,28 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
   - **고객 고민 1줄(있으면)**: 왜 이 시공을 원하는지·어떤 상황인지(이사 준비·노후·곰팡이·미관/색상·비용 걱정 등)가 통화에 드러나면 "고객 고민: ~" 한 줄 추가 — 블로그 스토리의 핵심 재료다. 단 통화에 근거 있을 때만, 창작 금지.
 
 - suggested_followup_sms: 통화 후 고객에게 보낼 정리 문자 (사장님이 ▶ 발송).
-  · "고객님, 통화 내용 정리드립니다." 로 시작 + \\n.
-  · 그 뒤 "- " 로 시작하는 2~5줄. **통화에서 합의·확인된 사항 + 추가로 보낼 정보**.
-  · 사장님 → 고객 관점 (예: "- 양쪽 화장실 줄눈 65만원으로 안내드렸어요").
-  · 통화에서 나온 사실만. 가격·날짜·평수 창작·추측 금지.
-  · 마무리 한 줄 사장님 톤 (예: "확인 부탁드립니다 ^^" / "감사합니다 ~").
+  · **"- " 불릿 금지.** 사람이 쓴 것처럼 **이어지는 줄글**로 써라.
+    (2026-09-24 사장님: "좀 자연스럽게 못하나. 지금은 딱딱 끊어지는데")
+    불릿은 계약서처럼 읽힌다. 줄마다 "안내드렸어요"가 반복되는 것도 금지.
+  · 첫 줄 인사. 상호는 아래 ‘상호’ 칸에 적힌 것만 쓴다.
+    상호가 있으면: "고객님 안녕하세요~ 방금 통화드렸던 〈상호〉입니다."
+    비어 있으면: "고객님 안녕하세요~ 방금 통화드렸습니다."
+    ⚠️ **업종명·직업을 이름처럼 쓰지 마라** — "줄눈/타일 시공 사장입니다" 같은 것 금지.
+    고객에게 나가는 글이다. **없는 이름을 만들지 마라.**
+  · 그 뒤 **빈 줄로 나눈 2~3 문단**, 한 문단은 1~3문장.
+    흐름: [왜 그렇게 정했는지 → 얼마·언제 → 다음에 하실 것]
+    예: "철거하고 방수까지 다시 하면 비용이 꼽 올라가서, 깨진 부분만
+     보수하시는 쪽으로 말씀드렸습니다. 그렇게 하시면 15~20만원 정도 보시면 돼요."
+  · 사장님 → 고객 관점. 통화에서 나온 사실만. 가격·날짜·평수 창작·추측 금지.
+  · 마지막 문단은 한 줄 인사 (예: "더 궁금하신 거 있으시면 편하게 연락 주세요 ^^").
   · 길이 320자 이내. 자동 발송 절대 X — 사장님 ▶ 검수 후 발송.
 
 - 통화 방향(direction): missed 면 one_line 에 "부재중" 명시.
 - 원문에 명시된 가격·일정·약속만 답에 박아라. 추측·창작 일절 금지.
 - tags: 통화 카드용 짧은 키워드 최대 3개(각 2~7자). 부위·문제·일정 위주 (예: ["화장실","줄눈","다음주"]). 통화에 나온 것만. '#' 없이 단어만.
+
+────── 상호 (비어 있으면 문자에 이름을 안 씁니다) ──────
+__BIZ_NAME__
 
 ────── 가격표 (참고용) ──────
 __PRICING__
@@ -15434,7 +15452,8 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
 
     # 시스템 프롬프트 빌드 (가격표 + 톤 샘플 inject)
     system_prompt = _build_summary_system_prompt(
-        CALL_SUMMARY_SYSTEM, req.owner_tone_samples or []
+        CALL_SUMMARY_SYSTEM, req.owner_tone_samples or [],
+        biz_name=_web_owner_biz_suggested(_norm_phone(req.owner_phone or "")),
     )
     user_msg = _build_call_summary_user_message(req)
 
@@ -15914,7 +15933,10 @@ async def call_audio_summary_endpoint(
         user_lines.append(raw)
         user_msg = "\n".join(user_lines)
 
-        system_prompt = _build_summary_system_prompt(CALL_SUMMARY_SYSTEM, samples_list)
+        system_prompt = _build_summary_system_prompt(
+            CALL_SUMMARY_SYSTEM, samples_list,
+            biz_name=_web_owner_biz_suggested(_norm_phone(owner_phone or "")),
+        )
 
         # §26 (2026-06-10) — 사장님 결정: 1차 Gemini 2.5 Flash + 2차 Haiku fallback
         # Gemini Flash = Haiku 의 ~1/10 비용 + 정확도 동급/우수 + Paid tier 데이터 학습 X
