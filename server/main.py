@@ -18989,7 +18989,8 @@ def _intake_row_to_dict(row: tuple) -> dict:
      payload_json, device_id, owner_phone, created_at_ms,
      scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
      deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name,
-     owner_memo, vat_included) = row  # 추가95③ owner_memo + 추가102 vat_included (20개)
+     owner_memo, vat_included,
+     biz_owner, biz_no, biz_phone) = row  # +2026-09-23 레터헤드 3개 (23개)
     payload = None
     if payload_json:
         try:
@@ -19021,6 +19022,10 @@ def _intake_row_to_dict(row: tuple) -> dict:
         "biz_name": biz_name or "",
         "owner_memo": owner_memo or "",  # 추가95③
         "vat_included": bool(vat_included),  # 추가102 — NULL/0=별도, 1=포함
+        # 레터헤드용 — 없으면 빈 문자열. 렌더가 빈 줄을 통째로 뺀다. (2026-09-23 사장님)
+        "biz_owner": (biz_owner or "").strip(),
+        "biz_no": (biz_no or "").strip(),
+        "biz_phone": (biz_phone or "").strip(),
     }
 
 
@@ -19029,7 +19034,8 @@ _INTAKE_SELECT_COLS = (
     "payload_json, device_id, owner_phone, created_at_ms, "
     "scheduled_at_ms, scheduled_days, estimate_items_json, total_man, "
     "deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name, "
-    "owner_memo, vat_included"  # 추가95③ + 추가102 (20컬럼)
+    "owner_memo, vat_included, "  # 추가95③ + 추가102
+    "biz_owner, biz_no, biz_phone"  # 2026-09-23 — 접수서 레터헤드 (23컬럼)
 )
 
 
@@ -19167,6 +19173,81 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   .q-addr-field.filled {{ color:var(--t1); }}
   .q-addr-field .ico {{ color:var(--blue); }}
 
+  /* ───── 문서 한 장 (①시공일 + ②견적) — 앱 견적서와 같은 모양. 2026-09-23 ───── */
+  .q-doc {{ background:#fff; border:1px solid #CFD6DF; border-radius:16px; padding:20px 18px 22px; margin-bottom:12px; }}
+  .q-money {{ font-variant-numeric:tabular-nums; }}
+  .q-lh {{ display:flex; align-items:flex-start; gap:10px; }}
+  .q-lh-tt {{ font-size:21px; font-weight:800; color:#111; letter-spacing:-.02em; line-height:1.15; }}
+  .q-lh-en {{ font-size:9.5px; font-weight:700; color:var(--t3); letter-spacing:.28em; margin-top:3px; }}
+  .q-lh-co {{ margin-left:auto; text-align:right; min-width:0; }}
+  .q-lh-co .q-lh-nm {{ font-size:13px; font-weight:800; color:#111; line-height:1.35; }}
+  .q-lh-co div {{ font-size:10px; color:var(--t3); margin-top:1px; line-height:1.45; }}
+  .q-rule {{ height:2.5px; border-radius:2px; background:var(--blue); margin:13px 0 15px; }}
+  .q-to {{ font-size:14px; font-weight:800; color:#111; }}
+  .q-tos {{ font-size:11.5px; color:var(--t2); margin-top:2px; }}
+  .q-dday {{ display:flex; align-items:center; gap:12px; border:1px solid #CFD6DF; border-radius:12px; padding:12px 14px; margin-top:14px; }}
+  .q-dday-k {{ font-size:10px; font-weight:800; color:var(--t3); letter-spacing:.06em; }}
+  .q-dday-v {{ font-size:18px; font-weight:800; color:#111; letter-spacing:-.02em; margin-top:2px; line-height:1.3; }}
+  .q-dday-b {{ margin-left:auto; font-size:10.5px; font-weight:800; color:#0a8f44; background:#E7F8EF; padding:4px 10px; border-radius:999px; flex-shrink:0; }}
+  .q-th {{ display:flex; border-bottom:1.5px solid #111; padding-bottom:6px; margin-top:18px; font-size:10px; font-weight:800; color:var(--t2); letter-spacing:.08em; }}
+  .q-th .q-c1 {{ flex:1; }}
+  .q-th .q-c2 {{ width:96px; text-align:right; }}
+  .q-tr {{ display:flex; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--line); }}
+  .q-tr .q-c1 {{ flex:1; font-size:13.5px; color:#111; line-height:1.35; min-width:0; }}
+  .q-tr .q-c1 em {{ display:block; font-style:normal; font-size:10.5px; color:var(--t3); margin-top:2px; }}
+  .q-tr .q-c2 {{ width:96px; text-align:right; font-size:13.5px; font-weight:700; color:#111; font-variant-numeric:tabular-nums; }}
+  .q-gt {{ display:flex; align-items:baseline; margin-top:13px; padding-top:11px; border-top:2px solid #111; }}
+  .q-gt span {{ font-size:13px; font-weight:800; color:#111; }}
+  .q-gt b {{ margin-left:auto; font-size:20px; font-weight:800; color:var(--blue); font-variant-numeric:tabular-nums; }}
+  .q-gvat {{ text-align:right; font-size:10.5px; color:var(--t3); margin-top:3px; }}
+  .q-pay {{ border:1px solid #CFD6DF; border-radius:12px; margin-top:14px; overflow:hidden; }}
+  .q-pr {{ display:flex; align-items:center; padding:11px 13px; font-size:12.5px; }}
+  .q-pr-b {{ border-top:1px solid var(--line); background:#FAFBFC; }}
+  .q-pk {{ font-weight:800; line-height:1.35; }}
+  .q-pk em {{ display:block; font-style:normal; font-size:10px; font-weight:400; color:var(--t3); margin-top:1px; }}
+  .q-pv {{ margin-left:auto; font-weight:800; font-size:14px; flex-shrink:0; padding-left:10px; font-variant-numeric:tabular-nums; }}
+  .q-pr-a .q-pk, .q-pr-a .q-pv {{ color:#C8352E; }}
+  .q-pr-b .q-pk, .q-pr-b .q-pv {{ color:#111; }}
+  .q-rem {{ margin-top:14px; font-size:11px; color:var(--t2); line-height:1.85; }}
+  .q-rem-h {{ font-size:10px; font-weight:800; color:var(--t3); letter-spacing:.06em; margin-bottom:3px; }}
+  .q-rd {{ color:#C8352E; font-weight:700; }}
+  .q-sig {{ display:flex; align-items:flex-end; margin-top:16px; padding-top:13px; border-top:1px solid #CFD6DF; }}
+  .q-sig-d {{ font-size:12px; font-weight:800; color:#111; }}
+  .q-sig-s {{ font-size:10.5px; color:var(--t3); margin-top:2px; }}
+  .q-sig-b {{ font-size:10px; color:var(--t3); margin-top:3px; }}
+  .q-sl {{ margin-left:auto; text-align:right; flex-shrink:0; }}
+  .q-sl-nm {{ font-size:13.5px; font-weight:800; color:#111; }}
+  .q-sl-sub {{ font-size:10px; color:var(--t3); margin-top:2px; }}
+  .q-sl-ln {{ width:98px; height:1px; background:#111; opacity:.35; margin:8px 0 0 auto; }}
+
+  /* 헤더 진행 막대 — 고객이 실제로 할 일은 주소 하나뿐 */
+  .q-steps {{ display:flex; gap:5px; margin-top:13px; }}
+  .q-steps i {{ flex:1; height:3px; border-radius:2px; background:rgba(255,255,255,.22); }}
+  .q-steps i.on {{ background:#8FD6FF; }}
+
+  /* 입력 — 주소가 주인공이 되게. 2026-09-23 */
+  .q-label2 {{ font-size:12.5px; font-weight:800; color:var(--t2); margin:14px 2px 7px; display:flex; align-items:center; gap:5px; }}
+  .q-label2:first-child {{ margin-top:0; }}
+  .q-req {{ width:5px; height:5px; border-radius:50%; background:var(--error); display:inline-block; }}
+  .q-opt {{ font-size:10.5px; font-weight:800; color:var(--t3); background:var(--bg); padding:2px 8px; border-radius:999px; }}
+  .q-addr2 {{ width:100%; border:1.5px solid var(--blue); background:var(--blue-tint); border-radius:13px; padding:13px 14px;
+             font-size:14.5px; font-weight:700; color:var(--blue-dark); display:flex; align-items:center; gap:8px; cursor:pointer; min-height:50px; }}
+  .q-addr2 .go {{ margin-left:auto; font-size:12px; font-weight:800; background:var(--blue); color:#fff; border-radius:8px; padding:5px 10px; flex-shrink:0; }}
+  .q-addr2.filled {{ border-color:var(--success); background:#E7F8EF; color:#0B3D22; }}
+  .q-addr2.filled .go {{ background:var(--success); }}
+  .q-addr2 .tx {{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  .q-units {{ display:flex; gap:8px; margin-top:9px; }}
+  .q-unit {{ flex:1; display:flex; align-items:center; background:var(--bg); border:1.5px solid var(--line); border-radius:12px; padding:0 13px; min-height:50px; }}
+  .q-unit input {{ flex:1; border:0; background:transparent; outline:none; font-size:16px; font-weight:700; font-family:inherit; color:var(--t1); width:100%; padding:12px 0; }}
+  .q-unit input::placeholder {{ color:#C4CAD2; font-weight:400; }}
+  .q-unit b {{ font-size:14px; font-weight:800; color:var(--t2); flex-shrink:0; margin-left:6px; }}
+  .q-unit.focus {{ border-color:var(--blue); background:#fff; }}
+  .q-uhint {{ font-size:11.5px; color:var(--t3); margin-top:7px; }}
+  .q-prev {{ margin-top:11px; background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:11px 13px; font-size:13px; line-height:1.55; }}
+  .q-prev-k {{ font-size:10.5px; font-weight:800; color:var(--t3); display:block; margin-bottom:3px; }}
+  .q-prev-v {{ font-weight:700; }}
+  .q-prev-v .dim {{ color:var(--t3); font-weight:400; }}
+
   /* 카드 4 — 유입경로 설문 */
   .qs-head {{ display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:var(--blue); margin-bottom:11px; }}
   .qs-q {{ font-size:15px; font-weight:800; color:var(--t1); letter-spacing:-.01em; }}
@@ -19183,6 +19264,9 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   .qs-done.muted {{ color:var(--t2); }}
   .qs-done .ic {{ color:var(--success); flex-shrink:0; margin-top:1px; }}
   .qs-detail {{ font-size:12px; color:var(--t3); margin-top:4px; font-weight:600; }}
+  .q-card.q-card-soft {{ background:#FAFBFC; box-shadow:none; border:1.5px dashed #DFE3E8; }}
+  .qs-note {{ font-size:11.5px; color:var(--t3); margin-top:11px; text-align:center; }}
+  .qs-skiplink {{ font-size:11.5px; color:var(--t3); margin-top:10px; text-align:center; cursor:pointer; text-decoration:underline; }}
 
   /* 동의 + 제출 */
   .q-agree {{ display:flex; align-items:center; gap:10px; background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; cursor:pointer; font-size:13.5px; font-weight:700; color:var(--t1); min-height:52px; }}
@@ -19217,48 +19301,75 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   <div class="q-hero">
     <div class="q-biz">{biz_html}</div>
     <div class="q-title">시공일 확정을 위해<br>접수서를 <b>정확하게</b> 작성해주세요 😊</div>
-    <div class="q-hero-sub">✓ 3가지만 확인하면 끝나요</div>
+    <div class="q-hero-sub">✓ 주소만 넣으면 끝나요</div>
+    <div class="q-steps"><i class="on"></i><i class="on"></i><i id="q-step3"></i></div>
   </div>
 
   <div class="q-body">
 
-    <!-- 카드 1: 시공일 (표시만) -->
-    <div class="q-card q-card-date">
-      <div class="q-card-h"><span class="q-step">1</span>시공일 <span class="q-step-ok">확정</span></div>
-      <div class="q-fixed">
-        <span class="qf-ic">📅</span>
-        <div class="qf-b">
-          <div class="qf-l">사장님과 정한 확정 시공일</div>
-          <div class="qf-d">{schedule_label_html}</div>
+    <!-- ①시공일 + ②견적 = 문서 한 장. 앱 견적서(QuoteDocScreen)와 같은 모양. (2026-09-23 사장님) -->
+    <div class="q-doc">
+      <div class="q-lh">
+        <div>
+          <div class="q-lh-tt">시공접수서</div>
+          <div class="q-lh-en">WORK ORDER</div>
         </div>
-        <span class="qf-badge">확정</span>
+        {letterhead_html}
       </div>
+      <div class="q-rule"></div>
+      <div class="q-to">{recipient_html}</div>
+      <div class="q-tos">아래 내용으로 시공을 접수합니다.</div>
+
+      <div class="q-dday">
+        <div>
+          <div class="q-dday-k">확정 시공일</div>
+          <div class="q-dday-v">{schedule_label_html}</div>
+        </div>
+        <span class="q-dday-b">확정</span>
+      </div>
+
+      <div class="q-th"><span class="q-c1">시공 항목</span><span class="q-c2">금액</span></div>
+      {items_html}
+      <div class="q-gt"><span>합계</span><b>{total_won_html}원</b></div>
+      <div class="q-gvat">{vat_label_html}</div>
+      {deposit_html}
+      {remark_html}
+      {signature_html}
     </div>
 {owner_memo_html}
-    <!-- 카드 2: 견적 내역 (표시만) -->
-    <div class="q-card">
-      <div class="q-card-h"><span class="q-step">2</span>견적 내역</div>
-      {items_html}
-      <div class="q-total"><span>합계</span><b>{total_man_html}만원</b></div>
-      <div class="q-vat">{vat_label_html}</div>
-      {deposit_html}
-    </div>
 
     <!-- 카드 3: 연락처·현장 정보 (고객 입력) -->
     <div class="q-card">
       <div class="q-card-h"><span class="q-step">3</span>연락처 · 현장 정보</div>
-      <div class="q-label">전화번호</div>
+      <div class="q-label2"><span class="q-req"></span>전화번호</div>
       <input class="q-input" id="q-phone" inputmode="numeric" value="{phone_html}" autocomplete="tel">
-      <div class="q-label">현장 주소</div>
-      <div class="q-addr-field" id="q-addr-field" onclick="openAddr()"><span class="ico">🔍</span><span id="q-addr-text">주소 검색 (탭)</span></div>
-      <input class="q-input" id="q-dong" placeholder="동/호수 (선택)" style="margin-top:8px">
-      <div class="q-label">현장 메모 (선택)</div>
+
+      <!-- 주소가 이 화면의 주인공인데 메모칸과 똑같은 회색 박스였다 → 파란 버튼. (2026-09-23 사장님) -->
+      <div class="q-label2"><span class="q-req"></span>현장 주소</div>
+      <div class="q-addr2" id="q-addr-field" onclick="openAddr()">
+        <span>🔍</span><span class="tx" id="q-addr-text">주소 찾기</span><span class="go" id="q-addr-go">찾기</span>
+      </div>
+
+      <!-- 동/호수 두 칸 — 빈 칸 하나면 "103동 1103호" "103-1103" "103/1103" "1103" 이 제각각
+           들어온다. 갈라두면 저장은 늘 한 가지 모양. (2026-09-23 사장님 "동호수도 통일되서 들어올 수 있게") -->
+      <div class="q-units">
+        <div class="q-unit" id="q-u1"><input id="q-dong" inputmode="numeric" placeholder="103"
+             onfocus="uf('q-u1',1)" onblur="uf('q-u1',0)" oninput="addrPrev()"><b>동</b></div>
+        <div class="q-unit" id="q-u2"><input id="q-ho" inputmode="numeric" placeholder="1103"
+             onfocus="uf('q-u2',1)" onblur="uf('q-u2',0)" oninput="addrPrev()"><b>호</b></div>
+      </div>
+      <div class="q-uhint">단독·빌라라 동이 없으면 <b>호</b>만 적어주세요</div>
+
+      <div class="q-prev"><span class="q-prev-k">기사님이 받는 주소</span>
+        <span class="q-prev-v" id="q-addr-prev"><span class="dim">주소를 넣으면 여기 보여요</span></span></div>
+
+      <div class="q-label2" style="color:var(--t3)">현장 메모 <span class="q-opt">선택</span></div>
       <textarea class="q-input" id="q-memo" style="height:62px;resize:none" placeholder="현관 비밀번호·주차 안내 등 편하게 남겨주세요"></textarea>
     </div>
 
     <!-- 카드 4: 유입경로 설문 (선택, 건너뛰기 가능) -->
-    <div class="q-card" id="quote-survey">
-      <div class="qs-head"><span>✨</span>마케팅에 도움돼요 (선택)</div>
+    <div class="q-card q-card-soft" id="quote-survey">
+      <div class="qs-head"><span>✨</span>마케팅에 도움돼요<span class="q-opt" style="margin-left:auto">선택</span></div>
       <div id="qs-body"></div>
     </div>
 
@@ -19335,12 +19446,40 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         quoteAddr = data.roadAddress || data.jibunAddress || data.address || '';
         var el = document.getElementById('q-addr-field');
         var t = document.getElementById('q-addr-text');
-        if (t) t.textContent = '📍 ' + quoteAddr;
+        if (t) t.textContent = quoteAddr;
+        var g = document.getElementById('q-addr-go');
+        if (g) g.textContent = '✓';
         el.classList.add('filled');
         document.getElementById('q-dong').focus();
+        addrPrev();
         updateSubmit();
       }}
     }}).open();
+  }}
+
+  // 동/호수 — 숫자만 남긴다. 고객이 "103동"이라 적어도 저장은 "103동" 한 모양. (2026-09-23)
+  function dongHoText() {{
+    var d = (document.getElementById('q-dong').value || '').replace(/[^0-9A-Za-z가-힣]/g, '').trim();
+    var h = (document.getElementById('q-ho').value || '').replace(/[^0-9A-Za-z가-힣]/g, '').trim();
+    d = d.replace(/동$/, ''); h = h.replace(/호$/, '');
+    return ((d ? d + '동 ' : '') + (h ? h + '호' : '')).trim();
+  }}
+  function uf(id, on) {{
+    var e = document.getElementById(id);
+    if (e) e.classList.toggle('focus', !!on);
+  }}
+  // 제출 전에 고객이 자기 눈으로 확인하는 줄.
+  function addrPrev() {{
+    var p = document.getElementById('q-addr-prev');
+    if (!p) return;
+    if (!quoteAddr) {{ p.innerHTML = '<span class="dim">주소를 넣으면 여기 보여요</span>'; }}
+    else {{
+      var t = dongHoText();
+      p.textContent = quoteAddr + (t ? ' ' + t : '');
+      if (!t) p.innerHTML = p.textContent + '<span class="dim"> · 동/호수 없음</span>';
+    }}
+    var st = document.getElementById('q-step3');
+    if (st) st.classList.toggle('on', !!quoteAddr);
   }}
 
   // 동의 체크
@@ -19394,31 +19533,40 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         + '</div></div>';
     }} else if (s.busy) {{
       h = '<div class="qs-done muted"><span class="ic">✓</span>괜찮아요! 바쁘신데 봐주셔서 감사합니다 🙏</div>';
-    }} else if (!s.asked) {{
-      h = '<div class="qs-q">혹시 질문 하나 드려도 될까요?</div>'
-        + '<div class="qs-sub">저희 같은 작은 업체엔 정말 큰 도움이 돼요!</div>'
-        + '<div class="qs-btns"><button class="qs-skip" onclick="surveyBusy()">지금은 바빠요</button>'
-        + '<button class="qs-ok" onclick="surveyAsk()">네, 좋아요!</button></div>';
     }} else if (!s.source) {{
-      h = '<div class="qs-q">어떤 경로로 저희를 알게 되셨어요?</div>'
+      // 물어보는 단계를 없애고 바로 알약. 고르기 전에 "고를지 말지"를 또 고르게 하면
+      //   거기서 반이 빠진다. (2026-09-23 사장님)
+      h = '<div class="qs-q">저희를 어디서 보셨어요?</div>'
         + '<div class="qs-chips">'
-        + chip('네이버 검색', "surveySource('네이버 검색')")
-        + chip('인스타그램', "surveySource('인스타그램')")
-        + chip('구글', "surveySource('구글')")
-        + chip('기타', "surveySource('기타')")
-        + '</div>';
-    }} else if ((s.source === '네이버 검색' || s.source === '구글') && !s.keyword) {{
-      h = '<div class="qs-q">어떤 키워드로 검색하셨어요?</div>'
-        + '<input class="q-input" id="qs-kw" placeholder="예: 천호동 줄눈">'
-        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyKeyword()">다음</button>';
-    }} else if ((s.source === '네이버 검색' || s.source === '구글') && !s.category) {{
-      h = '<div class="qs-q">어디서 저희를 보셨어요?</div>'
+        + chip('🟢 네이버', "surveySource('네이버')")
+        + chip('📸 인스타', "surveySource('인스타그램')")
+        + chip('🥕 당근', "surveySource('당근')")
+        + chip('🔎 구글', "surveySource('구글')")
+        + chip('💬 기타', "surveySource('기타')")
+        + '</div>'
+        + '<div class="qs-note">안 고르고 제출하셔도 접수돼요</div>';
+    }} else if (s.source === '네이버' && !s.category) {{
+      // 카페를 **먼저** 묻는다 — 카페 보고 온 사람에겐 검색어가 없다.
+      h = '<div class="qs-q">네이버 어디서 보셨어요?</div>'
         + '<div class="qs-chips">'
-        + chip('파워링크', "surveyCategory('파워링크')")
-        + chip('블로그', "surveyCategory('블로그')")
         + chip('카페', "surveyCategory('카페')")
+        + chip('블로그', "surveyCategory('블로그')")
+        + chip('파워링크', "surveyCategory('파워링크')")
+        + chip('지도·플레이스', "surveyCategory('지도·플레이스')")
         + chip('웹사이트', "surveyCategory('웹사이트')")
         + '</div>';
+    }} else if (s.source === '네이버' && s.category === '카페' && !s.etc && !s.etcAsked) {{
+      h = '<div class="qs-q">어느 카페였어요?</div>'
+        + '<div class="qs-sub">안 적으셔도 괜찮아요</div>'
+        + '<input class="q-input" id="qs-etc" placeholder="예: OO맘카페, 지역 아파트 카페">'
+        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyEtc()">다 됐어요</button>'
+        + '<div class="qs-skiplink" onclick="surveyEtc()">그냥 넘어갈래요</div>';
+    }} else if ((s.source === '네이버' || s.source === '구글') && !s.keyword && !s.kwAsked) {{
+      h = '<div class="qs-q">어떤 키워드로 검색하셨어요?</div>'
+        + '<div class="qs-sub">안 적으셔도 괜찮아요</div>'
+        + '<input class="q-input" id="qs-kw" placeholder="예: 천호동 줄눈">'
+        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyKeyword()">다 됐어요</button>'
+        + '<div class="qs-skiplink" onclick="surveyKeyword()">그냥 넘어갈래요</div>';
     }} else if (s.source === '인스타그램' && !s.category) {{
       h = '<div class="qs-q">인스타그램에서 어떻게 보셨어요?</div>'
         + '<div class="qs-chips">'
@@ -19426,15 +19574,17 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         + chip('알고리즘으로 우연히', "surveyCategory('알고리즘 우연히')")
         + chip('기타', "surveyCategory('기타')")
         + '</div>';
-    }} else if ((s.source === '기타' || (s.source === '인스타그램' && s.category === '기타')) && !s.done) {{
+    }} else if ((s.source === '기타' || (s.source === '인스타그램' && s.category === '기타')) && !s.done && !s.etcAsked) {{
       h = '<div class="qs-q">어떻게 알게 되셨는지 알려주실래요?</div>'
+        + '<div class="qs-sub">안 적으셔도 괜찮아요</div>'
         + '<input class="q-input" id="qs-etc" placeholder="예: 아파트 게시판 전단, 친구 추천 등">'
-        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyEtc()">완료</button>';
+        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyEtc()">다 됐어요</button>'
+        + '<div class="qs-skiplink" onclick="surveyEtc()">그냥 넘어갈래요</div>';
     }}
     // 추가115 (핸드오프③) — 제출 전 오조작 복구: 뒤로가기/재선택
     if (s.done || s.busy) {{
       h += '<button class="qs-skip" style="margin-top:10px;width:100%" onclick="surveyReset()">↺ 다시 선택할래요</button>';
-    }} else if (s.asked) {{
+    }} else if (s.source) {{
       h += '<div style="margin-top:8px;text-align:center"><span onclick="surveyBack()" style="font-size:12.5px;color:var(--t3);cursor:pointer;text-decoration:underline">← 이전으로</span></div>';
     }}
     b.innerHTML = h;
@@ -19445,6 +19595,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   }}
   function surveyBack() {{
     var s = quoteSurvey;
+    s.etcAsked = false; s.kwAsked = false;
     if (s.done) {{ s.done = false; if (s.etc) {{ s.etc = ''; }} else if (s.category) {{ s.category = null; }} }}
     else if (s.etc) {{ s.etc = ''; }}
     else if (s.category) {{ s.category = null; }}
@@ -19455,20 +19606,33 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   }}
   function surveyAsk()   {{ quoteSurvey.asked = true;  renderSurvey(); }}
   function surveyBusy()  {{ quoteSurvey.busy  = true;  renderSurvey(); }}
-  function surveySource(src) {{ quoteSurvey.source = src; renderSurvey(); }}
+  function surveySource(src) {{
+    quoteSurvey.source = src;
+    quoteSurvey.category = null; quoteSurvey.keyword = ''; quoteSurvey.etc = '';
+    quoteSurvey.kwAsked = false; quoteSurvey.etcAsked = false;
+    // 당근은 더 물을 게 없다 — 고르는 즉시 끝. (2026-09-23 사장님)
+    if (src === '당근') quoteSurvey.done = true;
+    renderSurvey();
+  }}
   function surveyKeyword() {{
     var i = document.getElementById('qs-kw');
-    quoteSurvey.keyword = (i && i.value.trim()) || '(미입력)';
+    quoteSurvey.keyword = (i && i.value.trim()) || '';
+    quoteSurvey.kwAsked = true;    // 빈칸으로 넘어가도 다시 묻지 않게
+    quoteSurvey.done = true;
     renderSurvey();
   }}
   function surveyCategory(cat) {{
     quoteSurvey.category = cat;
+    // 네이버는 여기서 안 끝난다 — 카페면 '어느 카페', 나머지는 '검색 키워드'를 한 번 더.
+    //   (둘 다 안 적어도 넘어간다. 2026-09-23 사장님)
+    if (quoteSurvey.source === '네이버') {{ renderSurvey(); return; }}
     if (cat !== '기타') quoteSurvey.done = true;
     renderSurvey();
   }}
   function surveyEtc() {{
     var i = document.getElementById('qs-etc');
-    quoteSurvey.etc = (i && i.value.trim()) || '(미입력)';
+    quoteSurvey.etc = (i && i.value.trim()) || '';
+    quoteSurvey.etcAsked = true;   // 빈칸으로 넘어가도 다시 묻지 않게
     quoteSurvey.done = true;
     renderSurvey();
   }}
@@ -19507,7 +19671,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     if (!quoteSel.privacy) {{ alert('개인정보 수집·이용 동의에 체크해주세요'); return; }}
     if (!quoteSel.agree) {{ alert('맨 아래 확인에 체크해주세요'); return; }}
     if (!quoteAddr)      {{ alert('현장 주소를 검색해 주세요'); return; }}
-    var dong = (document.getElementById('q-dong').value || '').trim();
+    var dong = dongHoText();
     var full = quoteAddr + (dong ? (' ' + dong) : '');
     openConfirm(
       '이 주소가 정확한가요?',
@@ -19520,7 +19684,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     var btn = document.getElementById('q-submit');
     btn.disabled = true;
     btn.textContent = '제출 중...';
-    var dong = (document.getElementById('q-dong').value || '').trim();
+    var dong = dongHoText();
     var memo = (document.getElementById('q-memo').value || '').trim();
     var phone = (document.getElementById('q-phone').value || '').trim();
     var payload = {{
@@ -19613,7 +19777,11 @@ def _format_won(amount_krw: int) -> str:
 
 
 def _build_items_html(items: list[dict]) -> str:
-    """견적 항목 → HTML <div class='q-item'> 리스트."""
+    """견적 항목 → 문서 표 행. (2026-09-23 — 앱 견적서 표와 같은 모양)
+
+    금액은 **원 단위**(450,000). 규격(2개소·평수)은 이름 밑에 작은 글씨로.
+    평 단가 항목은 앱과 같은 식: 금액 = 평단가 × 평수.
+    """
     import html as _html
     if not items:
         return '<div class="q-empty">견적 항목이 등록되지 않았어요.</div>'
@@ -19621,15 +19789,15 @@ def _build_items_html(items: list[dict]) -> str:
     for it in items:
         name = _html.escape(str(it.get("name") or ""))
         price = int(it.get("price_man") or 0)
-        unit_html = ""
+        spec_html = ""
+        amount = price * 10000
         if (it.get("unit") == "pyeong") and it.get("area"):
-            unit_html = (
-                f' <span class="unit">({int(price)}만원/평 × '
-                f'{it.get("area")}평)</span>'
-            )
+            area = it.get("area")
+            amount = int(round(price * 10000 * float(area)))
+            spec_html = f'<em>{int(price)}만원/평 × {_html.escape(str(area))}평</em>'
         rows.append(
-            f'<div class="q-item"><span class="qi-n">{name}{unit_html}</span>'
-            f'<span class="qi-p">{price}만원</span></div>'
+            f'<div class="q-tr"><span class="q-c1">{name}{spec_html}</span>'
+            f'<span class="q-c2">{_format_won(amount)}</span></div>'
         )
     return "".join(rows)
 
@@ -19646,14 +19814,22 @@ def _build_deposit_html(deposit_mode: str, deposit_amount_krw: int,
     amount = _format_won(deposit_amount_krw)
     suffix = ""
     if deposit_mode == "ratio" and deposit_ratio_pct:
-        suffix = f" (총액의 {int(deposit_ratio_pct)}%)"
+        suffix = f" ({int(deposit_ratio_pct)}%)"
+    # 잔금 = 합계 − 계약금. 한 가지 식만 쓴다. (2026-09-23 사장님
+    #   "잔금은 계약금을 뺀 잔금에 맞춰야지")
     remain = max(int(total_won or 0) - int(deposit_amount_krw or 0), 0)
-    if total_won and remain > 0:
-        tail = f' · 시공 종료 후 잔금 {_format_won(remain)}원을 입금해주시면 됩니다'
-    else:
-        tail = ' · 시공 종료 후 잔금을 입금해주시면 됩니다'
-    return f'<div class="q-deposit">계약금 {amount}원{suffix}{tail}</div>'
-
+    remain_html = (f'{_format_won(remain)}원' if (total_won and remain > 0)
+                   else '시공 후 안내')
+    return (
+        '<div class="q-pay">'
+        f'<div class="q-pr q-pr-a"><span class="q-pk">계약금{suffix}'
+        '<em>이미 받았어요</em></span>'
+        f'<span class="q-pv">{amount}원</span></div>'
+        '<div class="q-pr q-pr-b"><span class="q-pk">시공 후 잔금'
+        '<em>시공이 끝난 뒤 입금</em></span>'
+        f'<span class="q-pv">{remain_html}</span></div>'
+        '</div>'
+    )
 
 @app.get("/intake/{token}", response_class=HTMLResponse)
 async def intake_form_page(token: str) -> HTMLResponse:
@@ -19690,7 +19866,7 @@ async def intake_form_page(token: str) -> HTMLResponse:
             status_code=410,
         )
 
-    biz = (data["biz_name"] or "").strip() or "RING-GO 시공"
+    biz = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
     schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
     items_html = _build_items_html(data["estimate_items"])
     deposit_html = _build_deposit_html(
@@ -19709,8 +19885,74 @@ async def intake_form_page(token: str) -> HTMLResponse:
         phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
         owner_memo_html=_build_owner_memo_html(data.get("owner_memo")),  # 추가95③
         vat_label_html=_vat_label(data.get("vat_included")),  # 추가102
+        letterhead_html=_build_letterhead_html(data),
+        recipient_html=_build_recipient_html(data.get("customer_name")),
+        remark_html=_build_remark_html(data, schedule_label),
+        signature_html=_build_signature_html(data),
+        total_won_html=_html.escape(_format_won(int(data.get("total_man") or 0) * 10000)),
     )
     return HTMLResponse(content=page)
+
+
+def _biz_display_name(biz_name, owner_phone) -> str:
+    """고객에게 보일 업체 이름. (2026-09-23 사장님 — 상호 안 적은 회원 대비)
+
+    상호 → 없으면 사장님 전화번호(고객은 그 번호로 문자를 받았으니 누군지 안다)
+         → 그것도 없으면 "시공 담당자".
+    ⚠️ 절대 "RING-GO 시공"(없어진 옛 이름)이나 "상호 미설정"을 쓰지 않는다.
+       이 값은 개인정보 동의문의 **수집·이용 주체**로도 들어간다.
+    """
+    n = (biz_name or "").strip()
+    if n:
+        return n
+    p = _fmt_phone_dashed(owner_phone) if (owner_phone or "").strip() else ""
+    return p or "시공 담당자"
+
+
+def _build_letterhead_html(data: dict) -> str:
+    """문서 오른쪽 위 회사 블록 — 상호 / 대표 / 사업자 / 연락처. (2026-09-23 사장님)
+
+    **있는 줄만 그린다.** 사업자번호가 없는 사장님(간이·미등록)이 많아서,
+    없는 칸은 빈 자리도 남기지 않고 통째로 뺀다.
+    """
+    import html as _html
+    name = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
+    rows = [f'<div class="q-lh-nm">{_html.escape(name)}</div>']
+    owner = (data.get("biz_owner") or "").strip()
+    if owner:
+        rows.append(f"<div>대표 {_html.escape(owner)}</div>")
+    bno = (data.get("biz_no") or "").strip()
+    if bno:
+        rows.append(f"<div>사업자 {_html.escape(bno)}</div>")
+    # 연락처는 상호 자리에 이미 쓴 경우(=상호 없음) 두 번 적지 않는다.
+    phone = (data.get("biz_phone") or "").strip()
+    if phone and (data.get("biz_name") or "").strip():
+        rows.append(f"<div>{_html.escape(_fmt_phone_dashed(phone))}</div>")
+    return '<div class="q-lh-co">' + "".join(rows) + "</div>"
+
+
+def _build_signature_html(data: dict) -> str:
+    """문서 맨 아래 — 발행일 + 서명란. 도장은 안 넣는다. (2026-09-23 사장님 A안)
+
+    접수서는 업체가 날인해 보내는 문서가 아니라 **고객이 채워서 제출하는 문서**라,
+    어설픈 도장은 오히려 신뢰를 깎는다. 대신 상호·대표·사업자번호를 서명란 모양으로.
+    """
+    import html as _html
+    _now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+    today = f"{_now.year}년 {_now.month}월 {_now.day}일"
+    name = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
+    owner = (data.get("biz_owner") or "").strip()
+    bno = (data.get("biz_no") or "").strip()
+    left = [f'<div class="q-sig-d">{today}</div>',
+            '<div class="q-sig-s">위와 같이 접수합니다.</div>']
+    if bno:
+        left.append(f'<div class="q-sig-b">사업자 {_html.escape(bno)}</div>')
+    right = [f'<div class="q-sl-nm">{_html.escape(name)}</div>']
+    if owner:
+        right.append(f'<div class="q-sl-sub">대표 {_html.escape(owner)}</div>')
+    right.append('<div class="q-sl-ln"></div>')
+    return ('<div class="q-sig"><div>' + "".join(left) + "</div>"
+            '<div class="q-sl">' + "".join(right) + "</div></div>")
 
 
 def _vat_label(vat_included) -> str:
@@ -19721,7 +19963,35 @@ def _vat_label(vat_included) -> str:
       포함(true):  합계 = 총액 (VAT 역산 포함)     → 표기 "부가세 포함"
     NULL(옛 발급분) = 별도 취급 (기존 폼 하드코딩과 동일).
     """
-    return "부가세 포함" if vat_included else "부가세 별도 (공급가의 10% 별도)"
+    return "부가세 포함" if vat_included else "부가세 별도"
+
+
+def _build_remark_html(data: dict, schedule_label: str) -> str:
+    """문서 비고 — 앱 견적서의 '비고' 블록과 같은 항목. (2026-09-23)"""
+    import html as _html
+    lines = [f"· 시공 예정일 : {_html.escape(schedule_label)}"]
+    dep = int(data.get("deposit_amount_krw") or 0)
+    if (data.get("deposit_mode") or "none") != "none" and dep > 0:
+        lines.append('· <span class="q-rd">계약금 입금으로 시공일이 확정되었습니다</span>')
+        dep_label = (f"{dep // 10000}만원" if dep % 10000 == 0 else f"{_format_won(dep)}원")
+        lines.append(f"· 시공이 끝난 뒤 계약금 {dep_label}을 제외하고 입금해주시면 됩니다")
+    else:
+        lines.append("· 시공이 끝난 뒤 입금해주세요")
+    exp = int(data.get("expires_at_ms") or 0)
+    iss = int(data.get("issued_at_ms") or 0)
+    if exp and iss and exp > iss:
+        days = max(1, int(round((exp - iss) / 86400000.0)))
+        lines.append(f"· 이 접수서는 발행일로부터 {days}일간 유효합니다")
+    # 특이사항은 📌 카드(_build_owner_memo_html)가 따로 보여준다 — 여기 또 적지 않는다.
+    return ('<div class="q-rem"><div class="q-rem-h">비 고</div>'
+            + "<br>".join(lines) + "</div>")
+
+
+def _build_recipient_html(customer_name) -> str:
+    """TO. ○○ 귀하 — 이름이 없으면 '고객님'. (2026-09-23)"""
+    import html as _html
+    n = (customer_name or "").strip()
+    return f"TO.&nbsp; {_html.escape(n) if n else '고객님'} 귀하"
 
 
 def _build_owner_memo_html(memo) -> str:
@@ -20069,7 +20339,8 @@ async def quote_issue(req: QuoteIssueRequest) -> dict:
     _persist_quote_issue_to_db(token, req, biz_dict, now, expires_at)
 
     url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/q/{token}"
-    biz_name = biz_dict.get("name") or _fetch_owner_biz_name(req.devicePhone) or "RING-GO 시공"
+    biz_name = (biz_dict.get("name") or _fetch_owner_biz_name(req.devicePhone)
+                or _biz_display_name("", req.devicePhone))
     sms_draft = (
         f"안녕하세요{(' ' + req.customerName + '님') if req.customerName else ''}, {biz_name} 입니다.\n"
         f"시공일 확정을 위해 접수서를 작성 부탁드려요. 1분이면 끝나요 😊\n"
@@ -20104,7 +20375,7 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
     """
     import html as _html
     data = _intake_row_to_dict(row)
-    biz = (data["biz_name"] or "").strip() or "RING-GO 시공"
+    biz = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
     schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
     items_html = _build_items_html(data["estimate_items"])
     deposit_html = _build_deposit_html(
@@ -20126,6 +20397,11 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
                 phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
                 owner_memo_html=_build_owner_memo_html(data.get("owner_memo")),  # 추가95③
                 vat_label_html=_vat_label(data.get("vat_included")),  # 추가102
+                letterhead_html=_build_letterhead_html(data),
+                recipient_html=_build_recipient_html(data.get("customer_name")),
+                remark_html=_build_remark_html(data, schedule_label),
+                signature_html=_build_signature_html(data),
+                total_won_html=_html.escape(_format_won(int(data.get("total_man") or 0) * 10000)),
             ))
     return page
 
@@ -20148,7 +20424,7 @@ def _render_intake_receipt_html(data: dict) -> str:
     """
     import datetime
     import html as _html
-    biz = _html.escape((data.get("biz_name") or "").strip() or "RING-GO 시공")
+    biz = _html.escape(_biz_display_name(data.get("biz_name"), data.get("biz_phone")))
     schedule_label = _html.escape(
         _format_schedule_label(data.get("scheduled_at_ms") or 0, data.get("scheduled_days") or 1))
     payload = data.get("payload") or {}
@@ -20685,7 +20961,7 @@ async def quote_doc_page(token: str) -> HTMLResponse:
     base = _intake_row_to_dict(row[:20])  # 추가102 — vat_included 포함 20 컬럼
     (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[20:25]
 
-    biz = (base["biz_name"] or "").strip() or "RING-GO 시공"
+    biz = _biz_display_name(base.get("biz_name"), base.get("biz_phone"))
     customer = (base["customer_name"] or base["phone"] or "고객")
     items = base["estimate_items"]
     items_rows = _format_quote_doc_items_rows(items)
