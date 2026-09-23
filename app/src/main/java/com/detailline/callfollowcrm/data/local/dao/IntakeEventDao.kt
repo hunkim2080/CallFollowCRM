@@ -23,4 +23,8 @@ interface IntakeEventDao {
     /** 사장님이 '확인했어요' 눌러 고객에게 확인 문자 발송 → 확인 시각 기록(버튼 1회·상태 표시). (2026-06-28) */
     @Query("UPDATE intake_events SET confirmedAt = :ts WHERE token = :token")
     suspend fun markConfirmed(token: String, ts: Long)
+
+    /** 이미 받아둔 접수서 token 전부 — 복원된 폰에서 '빠진 건'을 가려내는 데 쓴다. (2026-09-23) */
+    @Query("SELECT token FROM intake_events")
+    suspend fun allTokens(): List<String>
 }

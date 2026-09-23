@@ -26,19 +26,37 @@ class IntakeSyncManager(private val container: AppContainer) {
         // 🔴 첫 실행(재설치 포함) — 기준선만 세우고 이번 판은 가져오지 않는다. (2026-09-14 사장님 신고)
         //   since 기본값이 0 이라 "태초부터" 를 달라고 하게 되고, 서버에 쌓여 있던 옛 접수서가
         //   전부 '새 제출'로 들어와 고객이 새로 생기고 알림이 쏟아졌다("접수서가 엄청 쌓이네").
-        //   → 지금 서버에 있는 건 전부 '이미 본 것'으로 찍어두고, 기준을 now 로 올린다.
-        //     (옛 접수서의 실제 내용은 [서버에서 복원]으로 들어온다 — 여기서 또 만들 필요가 없다)
+        //
+        // 🔴🔴 그런데 **복원한 폰**에서 이게 접수서를 통째로 삼켰다. (2026-09-23 사장님 신고 — 4027)
+        //   09-16 고객 제출 → 09-18 앱 삭제 → 복원(백업은 09-17 이전 것이라 그 건이 없음)
+        //   → 복원 뒤 첫 폴링이 그 건까지 '이미 본 것'으로 찍어버려 **양쪽 어디에도 없게** 됐다.
+        //   옛 주석의 "복원으로 들어온다" 는 가정이 틀렸다 — 복원은 **하루 한 번 뜨는 백업**이라
+        //   백업 이후에 들어온 제출은 복원에도 없다.
+        //
+        //   → 첫 실행을 두 경우로 가른다:
+        //     · 앱에 접수서 기록이 하나도 없다 = **진짜 새 설치** → 예전처럼 기준선만 (쏟아짐 방지 유지)
+        //     · 기록이 있다 = **복원된 폰** → 앱에 없는 token 만 골라 정상 임포트, 나머지는 본 것으로.
         if (since <= 0L) {
+            val known = runCatching { container.intakeEventRepository.allTokens() }.getOrDefault(emptySet())
             val seen = prefs.intakeImportedTokens.toMutableSet()
             var floor = System.currentTimeMillis()
+            var gap = 0
             for (s in list) {
-                seen.add(s.token)
                 s.submittedAtMs?.let { if (it > floor) floor = it }
+                // 복원된 폰(known 이 비어있지 않다)에서 **앱에 없는 건**은 넘기지 않는다 — 그게 이번 사고다.
+                if (known.isNotEmpty() && s.token !in known) { gap++; continue }
+                seen.add(s.token)
             }
             prefs.intakeImportedTokens = seen
-            prefs.intakeSyncSinceMs = floor
-            println("[intake] 첫 실행 — 기존 제출 ${list.size}건을 '이미 본 것'으로 기준선만 세움")
-            return
+            if (gap > 0) {
+                // 빠진 게 있으면 기준선을 올리지 않는다 — 바로 아래 평소 경로가 이번 판에서 가져간다.
+                prefs.intakeSyncSinceMs = 1L
+                println("[intake] 복원된 폰 — 앱에 없는 접수서 ${gap}건 발견, 이번 판에서 가져온다")
+            } else {
+                prefs.intakeSyncSinceMs = floor
+                println("[intake] 첫 실행 — 기존 제출 ${list.size}건을 '이미 본 것'으로 기준선만 세움")
+                return
+            }
         }
 
         val imported = prefs.intakeImportedTokens.toMutableSet()
