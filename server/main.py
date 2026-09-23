@@ -19177,9 +19177,11 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   .q-doc {{ background:#fff; border:1px solid #CFD6DF; border-radius:16px; padding:20px 18px 22px; margin-bottom:12px; }}
   .q-money {{ font-variant-numeric:tabular-nums; }}
   .q-lh {{ display:flex; align-items:flex-start; gap:10px; }}
-  .q-lh-tt {{ font-size:21px; font-weight:800; color:#111; letter-spacing:-.02em; line-height:1.15; }}
+  /* 상호가 길면("줄눈시공 탄성코트의 시작, 하우스픽") 제목이 두 줄로 쪼개진다 — 제목은 한 줄 고정,
+     회사 블록이 대신 줄바꿈한다. (2026-09-23 실측) */
+  .q-lh-tt {{ font-size:21px; font-weight:800; color:#111; letter-spacing:-.02em; line-height:1.15; white-space:nowrap; }}
   .q-lh-en {{ font-size:9.5px; font-weight:700; color:var(--t3); letter-spacing:.28em; margin-top:3px; }}
-  .q-lh-co {{ margin-left:auto; text-align:right; min-width:0; }}
+  .q-lh-co {{ margin-left:auto; text-align:right; min-width:0; max-width:58%; }}
   .q-lh-co .q-lh-nm {{ font-size:13px; font-weight:800; color:#111; line-height:1.35; }}
   .q-lh-co div {{ font-size:10px; color:var(--t3); margin-top:1px; line-height:1.45; }}
   .q-rule {{ height:2.5px; border-radius:2px; background:var(--blue); margin:13px 0 15px; }}
@@ -19938,7 +19940,9 @@ def _build_signature_html(data: dict) -> str:
     어설픈 도장은 오히려 신뢰를 깎는다. 대신 상호·대표·사업자번호를 서명란 모양으로.
     """
     import html as _html
-    _now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+    # ⚠️ 이 파일은 `import datetime as _dt` 다 — 맨 위 import 를 확인하고 쓸 것.
+    #    (2026-09-23 배포 직후 /intake/{token} 이 NameError 500 났다)
+    _now = _dt.datetime.utcnow() + _dt.timedelta(hours=9)
     today = f"{_now.year}년 {_now.month}월 {_now.day}일"
     name = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
     owner = (data.get("biz_owner") or "").strip()

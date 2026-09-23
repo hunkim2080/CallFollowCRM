@@ -11028,3 +11028,18 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   · 로그인 — `SMS_SIGNUP_ENABLED=true` 라 안 뜸. 문자 인증이 막히면 되돌아갈 비상 스위치
   · 수첩 — 화면만 뺐고 **데이터(notebook_contacts)는 일정 추가의 거래처·일당이 지금도 쓴다**
   · 정기 문자 — 길 있음(더보기 › 자동으로 챙기기 › 정해둔 때마다). 내 조사가 부족했던 것
+
+## 2026-09-23 16:30 · android (server/ 직접 배포)
+시공접수서 리뉴얼 **라이브 배포 완료**
+- 배포: scp → py_compile → 백업(main.py.bak-20260923-intake) → swap → launchctl reload
+- 🔴 **배포 직후 /intake/{token} 이 500** — `_build_signature_html` 에서 `datetime.datetime` 을 썼는데
+  이 파일은 `import datetime as _dt` 다. NameError. **즉시 `_dt` 로 고쳐 재배포.**
+  (교훈: 새 함수에서 날짜 쓸 땐 이 파일 맨 위 import 별칭을 먼저 확인)
+- 🟡 상호가 긴 회원("줄눈시공 탄성코트의 시작, 하우스픽")은 제목 "시공접수서"가 두 줄로 쪼개졌다.
+  → `.q-lh-tt { white-space:nowrap }` + `.q-lh-co { max-width:58% }` 로 회사 블록이 대신 줄바꿈.
+- 검증(라이브 공개 URL https://api.si0in.kr/intake/ydvwJrqs):
+  시공접수서·WORK ORDER·부가세 별도(공급가의 10% 0회)·당근·지도·플레이스·그냥 넘어갈래요·
+  q-ho(동/호 두 칸)·안 고르고 제출·비 고·위와 같이 접수합니다 전부 확인.
+  "지금은 바빠요" 0회, "RING-GO" 0회. 가로 넘침 0(390px). 이후 요청 전부 200.
+- ⚠️ **DB 변경 없음** — biz_owner/biz_no/biz_phone 컬럼은 원래 있었고 저장도 되고 있었다.
+  SELECT 에만 추가. 앱도 Room 버전 그대로(v57).
