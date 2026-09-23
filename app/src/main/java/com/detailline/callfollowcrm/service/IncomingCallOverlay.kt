@@ -182,8 +182,11 @@ object IncomingCallOverlay {
                 container.callSummaryRepository
                     .observeByPhoneSuffix(digits.takeLast(8)).first().firstOrNull()
             }.getOrNull()
-            val lastSumText = lastSum?.summaryText?.trim()?.takeIf { it.isNotBlank() }
-                ?: lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
+            // 전화가 울리는 3초 안에 보는 카드다. **한 줄 제목을 먼저** 쓴다 —
+            //   전엔 통화 전문(summaryText)을 먼저 써서 "고객:/사장님 답:" 이 아홉 줄 깔렸다.
+            //   전문은 카드를 눌러 대화창에서 본다. (2026-09-23 사장님 사진)
+            val lastSumText = lastSum?.title?.trim()?.takeIf { it.isNotBlank() }
+                ?: lastSum?.summaryText?.trim()?.takeIf { it.isNotBlank() }?.let { briefSummary(it) }
             val lastSumWhen = lastSum?.recordedAt?.takeIf { it > 0L }?.let { monthDay(it) }
 
             // 🧾 **지난 시공** — 사장님: "기존고객은 언제 시공했었는지.. 얼마를 받았었는지.."
@@ -623,6 +626,20 @@ object IncomingCallOverlay {
     data class MsgPreview(val body: String, val sent: Boolean)
 }
 
+/**
+ * 통화 전문에서 **카드에 걸 앞부분**만. (2026-09-23 사장님 사진)
+ *   "고객: …" / "사장님 답: …" 이 줄줄이 오는 글이라, 통째로 걸면 카드가 벽이 된다.
+ *   말하는 사람 표시를 떼고 앞 두 문장만. 길면 말줄임. 전문은 카드를 눌러 대화창에서 본다.
+ */
+private fun briefSummary(full: String): String {
+    val head = full.lineSequence()
+        .map { it.trim().removePrefix("고객:").removePrefix("사장님 답:").removePrefix("사장님:").trim() }
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString(" ")
+    return if (head.length > 90) head.take(88).trimEnd() + "…" else head
+}
+
 // ── 카드 색 (2026-09-22 사장님 "배경색은 전에 것이 눈에 잘 들어왔던 것 같아") ──
 //   통화 화면이 원래 어두워서 **어두운 카드는 배경에 섞였다.** 어두운 화면 위에 흰 종이 한 장을
 //   올린 모양으로 바꾼다. 앱 안 나머지 화면도 전부 흰 카드라 이제 따로 놀지 않는다.
@@ -683,7 +700,11 @@ private class CallerCardView(
     private val subTv = mkText(11.5f, SUB)
     private val moneyTv = mkText(13f, BODY, bold = true)
     private val sumLabelTv = mkText(9.5f, SUB, bold = true)
-    private val sumTextTv = mkText(11.5f, BODY)
+    // 울리는 전화 앞에서 읽는 글자라 조금 키운다. **세 줄에서 끊는다** — 요약이 길어도 카드가 안 커진다.
+    private val sumTextTv = mkText(12.5f, BODY).apply {
+        maxLines = 3
+        ellipsize = android.text.TextUtils.TruncateAt.END
+    }
     private val sumBox = LinearLayout(context)
     private val divider = View(context)
     private val footTv = mkText(10.5f, SUB)

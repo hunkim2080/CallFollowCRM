@@ -11073,3 +11073,15 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   · 기록이 있다 = **복원된 폰** → 앱에 없는 token 은 넘기지 않고 그 판에서 정상 임포트.
   `IntakeEventDao.allTokens()` 추가.
 - ⚠️ 사장님은 이미 손으로 다시 등록해 두셨다. 이 수정은 **다음에 또 안 생기게** 하는 것.
+
+## 2026-09-23 18:00 · android
+통화 카드 가독성 — 지난 통화 요약이 전문으로 쏟아지던 것 (사장님 사진)
+- 전화 울리는 3초 안에 보는 카드인데 "고객:/사장님 답:" 이 **아홉 줄 넘게** 깔렸다.
+- 뿌리: 주석엔 "지난 통화 요약 **한 줄**"인데 코드는 **전문(summaryText)을 먼저**,
+  한 줄 제목(title)을 뒤로 밀어놨다. 거꾸로였다.
+- 수정: ① title 먼저 ② 없으면 전문의 앞 두 문장만(briefSummary, 90자 말줄임)
+  ③ 칸을 maxLines=3 으로 묶음 ④ 11.5 → 12.5sp.
+- ⚠️ **업무폰(1cba…)은 Play 빌드다** (installerPackageName=com.android.vending,
+  firstInstallTime 2026-09-18 21:26 = 그 삭제 사고 때 재설치된 것).
+  우리 키로 만든 APK 는 **서명이 달라 adb install -r 이 안 된다** → Play 업로드로만 간다.
+  (이 firstInstallTime 이 접수서 유실의 직접 증거다 — 재설치 = intakeSyncSinceMs 0)
