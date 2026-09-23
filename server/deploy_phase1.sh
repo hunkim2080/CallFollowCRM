@@ -26,6 +26,58 @@ ok()   { echo -e "${GREEN}✓ $*${NC}"; }
 warn() { echo -e "${YELLOW}! $*${NC}"; }
 fail() { echo -e "${RED}✗ $*${NC}"; }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# (2026-09-23) 배포한 코드가 아프면 **사람 손 없이** 이전 코드로 돌아간다.
+#   오늘 접수서 폴링이 2시간 500 이었다 — 배포 직후 눌러보고 되돌렸으면 1분이었다.
+#   그리고 그동안 /healthz 대기 실패 시엔 exit 1 로 **깨진 코드를 그대로 두고** 끝났다(= 100% 먹통).
+# ─────────────────────────────────────────────────────────────────────────────
+alert_slack() {
+    # 웹훅 주소는 서버의 ~/.ringgo_alert_webhook (또는 ALERT_WEBHOOK). 없으면 조용히 건너뜀. 주소는 절대 출력 안 함.
+    local url="${ALERT_WEBHOOK:-}"
+    if [ -z "$url" ] && [ -f "$HOME/.ringgo_alert_webhook" ]; then
+        url="$(tr -d '[:space:]' < "$HOME/.ringgo_alert_webhook")"
+    fi
+    [ -z "$url" ] && return 0
+    local payload
+    payload="$(python3 -c 'import json,sys;print(json.dumps({"text":sys.argv[1]}, ensure_ascii=False))' "$1" 2>/dev/null)" || return 0
+    curl -s -m 5 -X POST -H 'Content-Type: application/json; charset=utf-8' -d "$payload" "$url" >/dev/null 2>&1 || true
+}
+
+wait_healthz() {   # 최대 15초 기다림. 0 = 응답함
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        if curl --max-time 2 -fsS http://localhost:8000/healthz >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+rollback_and_die() {
+    local why="$1"
+    fail "$why"
+    if [ ! -f "$TARGET/main.py.prev" ]; then
+        fail "되돌릴 main.py.prev 가 없습니다. 서버가 아플 수 있습니다 — 직접 확인 필요."
+        alert_slack "🔴 배포 실패($why) — 되돌릴 사본이 없어 서버가 아플 수 있음. 직접 확인 필요."
+        exit 1
+    fi
+    warn "이전 코드(main.py.prev)로 되돌립니다..."
+    cp "$TARGET/main.py.prev" "$TARGET/main.py"
+    launchctl unload "$PLIST" 2>/dev/null || true
+    sleep 1
+    launchctl load "$PLIST"
+    if wait_healthz && bash "$SRC/smoke.sh" http://localhost:8000; then
+        ok "되돌림 완료 — 서버는 **이전 코드**로 정상. 새 코드는 배포 안 됐습니다."
+        alert_slack "🟠 배포 실패 → 이전 코드로 자동 되돌림. 서버 정상. 이유: $why"
+    else
+        fail "되돌리기도 실패했습니다! 서버가 지금 아픕니다. stderr.log 마지막 30줄:"
+        tail -n 30 "$TARGET/stderr.log" 2>/dev/null || true
+        alert_slack "🔴 배포 실패하고 되돌리기도 실패 — 서버 지금 아픔. 이유: $why"
+    fi
+    exit 1
+}
+
 SRC="$(cd "$(dirname "$0")" && pwd)"
 TARGET="$HOME/ringgo-server"
 PLIST="$HOME/Library/LaunchAgents/com.detailline.ringgo-server.plist"
@@ -42,6 +94,18 @@ if [ ! -d "$TARGET/venv" ]; then
     exit 1
 fi
 ok "기존 ~/ringgo-server 발견"
+
+# -----------------------------------------------------------------------------
+step "0.5 새 main.py 를 라이브 파이썬(3.9)으로 먼저 읽어본다"
+# -----------------------------------------------------------------------------
+# (2026-09-23) 개발 PC 는 3.14 인데 라이브는 3.9 — 여기서만 되는 문법이 섞이면 서버가 아예 안 켜진다.
+#   복사하기 **전에** 라이브 venv 파이썬으로 파싱해 본다. 실패하면 아무것도 안 건드리고 끝.
+#   (`str | None` 같은 건 파싱은 되고 켤 때 죽는다 — 그건 아래 5.5 되돌리기가 받는다)
+if ! "$TARGET/venv/bin/python" -c 'import ast,io,sys; ast.parse(io.open(sys.argv[1], encoding="utf-8").read())' "$SRC/main.py"; then
+    fail "새 main.py 가 라이브 파이썬에서 안 읽힙니다. 배포 중단 (서버는 안 건드렸음)."
+    exit 1
+fi
+ok "문법 OK (라이브 python $("$TARGET/venv/bin/python" -c 'import sys;print(sys.version.split()[0])'))"
 
 # 무엇을 배포하는지 지금 잡아둔다.
 # ⚠️ 로컬 HEAD 는 cowork 의 push 방식(원격만 갱신) 탓에 옛날에 멈춰있을 수 있음 →
@@ -65,8 +129,20 @@ DEPLOY_STARTED="$(date '+%Y-%m-%d %H:%M:%S')"
 # -----------------------------------------------------------------------------
 step "1. main.py / requirements.txt 갱신"
 # -----------------------------------------------------------------------------
+# (2026-09-23) 덮어쓰기 전에 지금 돌고 있는 main.py 를 옆에 둔다 — 새 코드가 아프면 이걸로 되돌린다.
+if [ -f "$TARGET/main.py" ]; then
+    cp "$TARGET/main.py" "$TARGET/main.py.prev"
+    ok "지금 도는 main.py → main.py.prev (되돌리기용 사본)"
+fi
 cp "$SRC/main.py"          "$TARGET/main.py"
 cp "$SRC/requirements.txt" "$TARGET/requirements.txt"
+# 서버가 켜질 때 슬랙에 "🟢 서버 켜짐 · <이 첫 줄>" 로 읽어주는 파일 — 그래서 재기동 **전에** 써 둔다.
+#   (맨 끝에서 배포 완료 시각으로 한 번 더 덮어쓴다)
+{
+    echo "commit   : $DEPLOY_COMMIT  $DEPLOY_SUBJECT$DEPLOY_DIRTY"
+    echo "committed: $DEPLOY_CDATE"
+    echo "deployed : $DEPLOY_STARTED (배포 중)"
+} > "$TARGET/DEPLOYED.txt" 2>/dev/null || true
 # 통화 STT 서브프로세스 워커 — 이걸 안 올리면 세그먼트 시각(start_ms) 못 나와 탭재생 X (2026-08-15)
 if [ -f "$SRC/whisper_worker.py" ]; then
     cp "$SRC/whisper_worker.py" "$TARGET/whisper_worker.py"
@@ -137,10 +213,27 @@ done
 if [ "$HEALTHZ_OK" -ne 1 ]; then
     fail "서버가 응답하지 않습니다. stderr.log 마지막 30줄:"
     tail -n 30 "$TARGET/stderr.log" 2>/dev/null || true
-    exit 1
+    rollback_and_die "새 코드로 서버가 15초 안에 안 켜짐"
 fi
 echo "--- /healthz ---"
 curl -s http://localhost:8000/healthz; echo ""
+
+# -----------------------------------------------------------------------------
+step "5.5 손님이 쓰는 길 눌러보기 (smoke.sh) — 하나라도 깨지면 자동 되돌림"
+# -----------------------------------------------------------------------------
+# (2026-09-23) /healthz 200 은 "켜졌다"일 뿐이다. 오늘 접수서 폴링이 500 인 동안에도 200 이었다.
+#   smoke.sh 는 /healthz/deep(서버 자가검진) + 앱·손님이 실제로 쓰는 길을 내용까지 본다.
+if ! bash "$SRC/smoke.sh" http://localhost:8000; then
+    rollback_and_die "배포 직후 점검(smoke.sh) 실패"
+fi
+ok "손님 길 전부 정상 (localhost)"
+# 밖에서 들어오는 길(클라우드플레어 터널)도 한 번 — 여기 실패는 코드 탓이 아니라 터널 탓일 수 있어 경고만.
+PUB_DEEP="$(curl -s -m 15 -o /dev/null -w '%{http_code}' https://api.si0in.kr/healthz/deep 2>/dev/null || echo 000)"
+if [ "$PUB_DEEP" = "200" ]; then
+    ok "바깥 길(api.si0in.kr/healthz/deep) 200"
+else
+    warn "바깥 길 응답 $PUB_DEEP — 터널(cloudflared) 확인. 코드는 localhost 에서 정상."
+fi
 
 # =============================================================================
 # §8 검증 시나리오
@@ -332,4 +425,6 @@ $(git -C "$SRC" log -5 --pretty='  %h  %cd  %s' --date=format:'%m-%d %H:%M' orig
   1. '배포 검증'에 ✓(main.py 일치) 와 HTTP 200 둘 다면 → 확실히 배포됨. (이게 진짜 신호)
   2. 위 '방금 배포한 코드' 커밋/마커가 내가 방금 작업한 그거면 최신까지 반영된 것.
   3. §8 검증 결과(위쪽)도 통과면 기능도 정상.
+  4. 5.5 손님 길 점검이 실패했으면 이미 **이전 코드로 되돌아가 있다** — 새 코드를 고쳐서 다시 배포.
+     (되돌리기 사본: $TARGET/main.py.prev · 아무 때나 손으로: bash server/smoke.sh)
 EOF

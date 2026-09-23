@@ -22,6 +22,7 @@ import asyncio
 import base64
 import binascii
 import datetime as _dt
+import io
 import json
 import os
 import contextvars
@@ -3183,7 +3184,12 @@ async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") ->
 # ============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db_init()
+    # (2026-09-23 밤) 기동이 안 되면 500 조차 없다 — 아무도 모른다. 여기서 먼저 소리를 낸다.
+    try:
+        db_init()
+    except Exception as e:
+        _alert_send(u"🔴 서버 기동 실패(DB 초기화) — %s: %s" % (type(e).__name__, str(e)[:200]))
+        raise
     load_pricing()
     print(f"[boot] DB at {DB_PATH}")
     print(f"[boot] pricing.md mtime = {_pricing_cache['mtime']}")
@@ -3197,11 +3203,20 @@ async def lifespan(app: FastAPI):
     # 추가137 P2 — 비용 폭주 경보 (COST_ALERT_KRW_PER_DAY 기준, 슬랙)
     cost_alert_task = asyncio.create_task(_cost_alert_loop())
     print(f"[boot] cost alert scheduled (threshold=₩{COST_ALERT_KRW})")
+    # (2026-09-23 밤) 일꾼들에 이름표를 붙여 보관 — /healthz/deep 이 "죽은 일꾼"을 짚는다.
+    #   일꾼이 죽어도 HTTP 는 멀쩡해서, 알림 poller 가 멈춘 걸 아무도 모르던 구조였다.
+    selfcheck_task = asyncio.create_task(_selfcheck_loop())
+    app.state.bg_tasks = {"remind": remind_task, "blog": blog_task,
+                          "cost_alert": cost_alert_task, "selfcheck": selfcheck_task}
+    # 켜졌다고 한 줄 — 내가 배포한 게 아닌데 이 줄이 오면 "혼자 죽었다 살아난 것"이다.
+    _alert_send(u"🟢 서버 켜짐 · " + _deployed_line())
     try:
         yield
     finally:
         remind_task.cancel()
         blog_task.cancel()
+        cost_alert_task.cancel()
+        selfcheck_task.cancel()
 
 
 # 보안 §B-4 — API 문서(/docs·/redoc·/openapi.json) 비활성 (엔드포인트 목록 노출 차단)
@@ -5689,7 +5704,7 @@ async def admin_recharge_status(
 # 사장님이 stderr.log 를 열지 않아도 "서버 아픈지"를 대시보드에서 알 수 있게.
 # ============================================================================
 
-#: 500 자기신고 — 주소는 코드에 안 적는다(노출되면 아무나 그 채널에 글 쓴다).
+#: 자기신고(슬랙) — 주소는 코드에 안 적는다(노출되면 아무나 그 채널에 글 쓴다).
 #:   서버에 ~/.ringgo_alert_webhook 파일을 두거나 ALERT_WEBHOOK 환경변수를 준다. 없으면 조용히 꺼진다.
 def _alert_webhook_url():
     u = (os.environ.get("ALERT_WEBHOOK") or "").strip()
@@ -5706,35 +5721,23 @@ _alert_last_by_path = {}
 _alert_hour_bucket = [0, 0]  # [시각(시간단위), 그 시간에 보낸 수]
 _ALERT_PER_PATH_MS = 10 * 60 * 1000
 _ALERT_MAX_PER_HOUR = 12
+#: 손님·앱이 돈 버는 데 직접 쓰는 길. 여기가 깨지면 **시간당 상한과 무관하게** 알린다.
+#:   (2026-09-23 밤) 봇이 엉뚱한 주소를 두드려 500 이 12번 쌓이면, 정작 접수서 폴링이 깨졌을 때
+#:   상한에 걸려 조용히 삼켜진다 — 그 한 번이 오늘 같은 2시간이다.
+_ALERT_CRITICAL_PREFIXES = (
+    "/api/quote/", "/api/intake-form/", "/q/", "/intake/",
+    "/api/app-backup/", "/suggestions/", "/prepare-reply",
+)
+_PROCESS_STARTED_MS = _now_ms()
 
 
-def _alert_500(path: str, status: int, detail: str) -> None:
-    """500 을 슬랙으로 즉시 알린다. **실패해도 요청엔 아무 영향 없다.**
-
-    오늘(2026-09-23) 접수서 폴링이 2시간 깨져 있었는데 서버는 아무 말도 안 했다.
-    버그는 또 난다 — 2시간이냐 2분이냐는 **누가 먼저 아느냐**로 갈린다.
-    """
+def _alert_send(text: str) -> None:
+    """슬랙 웹훅으로 한 줄. 백그라운드 스레드라 요청을 안 늦추고, **실패해도 아무 영향 없다.**
+    상한 없음 — 부르는 쪽(_alert_500·건강검진·기동)이 각자 조절한다."""
     try:
         url = _alert_webhook_url()
         if not url:
             return
-        now = _now_ms()
-        # ① 같은 길은 10분에 한 번 — 한 곳이 터지면 초당 수십 개가 온다.
-        if now - _alert_last_by_path.get(path, 0) < _ALERT_PER_PATH_MS:
-            return
-        # ② 전체도 시간당 12번까지 — 알림이 폭탄이 되면 아무도 안 본다.
-        hour = int(now // 3600000)
-        if _alert_hour_bucket[0] != hour:
-            _alert_hour_bucket[0], _alert_hour_bucket[1] = hour, 0
-        if _alert_hour_bucket[1] >= _ALERT_MAX_PER_HOUR:
-            return
-        _alert_last_by_path[path] = now
-        _alert_hour_bucket[1] += 1
-
-        when = _dt.datetime.now().strftime("%m/%d %H:%M:%S")
-        text = (u"🚨 *서버 %d* `%s`" % (status, (path or "?")[:120])
-                + chr(10) + (detail or u"(내용 없음)")[:300]
-                + chr(10) + u"_%s_" % when)
         body = json.dumps({"text": text}).encode("utf-8")
 
         def _send():
@@ -5750,8 +5753,70 @@ def _alert_500(path: str, status: int, detail: str) -> None:
         pass
 
 
-def _record_system_error(path: str, status: int, detail: str) -> None:
-    """에러 기록 — 절대 요청을 죽이지 않음 (기록 실패는 조용히 무시)."""
+def _route_key(request) -> str:
+    """알림 묶음 열쇠 = 경로에서 토큰·번호를 이름으로 되돌린 것 (`/q/abc123/doc` → `/q/{token}/doc`).
+
+    (2026-09-23 밤) 같은 버그라도 토큰마다 다른 주소로 보이면 '같은 길 10분 1번' 묶음이 안 먹는다 —
+    손님 12명이 각자 링크를 열면 12번 다 나가 시간당 상한을 그 자리에서 써버리고,
+    그 뒤에 정작 접수서 폴링이 깨져도 조용하다.
+    """
+    try:
+        path = request.url.path
+        for k, v in (request.scope.get("path_params") or {}).items():
+            path = path.replace("/" + str(v), "/{" + str(k) + "}", 1)
+        return path
+    except Exception:
+        try:
+            return request.url.path
+        except Exception:
+            return "?"
+
+
+def _alert_500(path: str, status: int, detail: str, key: Optional[str] = None) -> None:
+    """500 을 슬랙으로 즉시 알린다. **실패해도 요청엔 아무 영향 없다.** key = 묶음용 경로 틀(없으면 path).
+
+    오늘(2026-09-23) 접수서 폴링이 2시간 깨져 있었는데 서버는 아무 말도 안 했다.
+    버그는 또 난다 — 2시간이냐 2분이냐는 **누가 먼저 아느냐**로 갈린다.
+    """
+    try:
+        if not _alert_webhook_url():
+            return
+        key = key or path or "?"
+        now = _now_ms()
+        # ① 같은 길은 10분에 한 번 — 한 곳이 터지면 초당 수십 개가 온다.
+        if now - _alert_last_by_path.get(key, 0) < _ALERT_PER_PATH_MS:
+            return
+        critical = any(key.startswith(p) for p in _ALERT_CRITICAL_PREFIXES)
+        # ② 전체도 시간당 12번까지 — 알림이 폭탄이 되면 아무도 안 본다. 단, 손님 길은 예외(위 주석).
+        hour = int(now // 3600000)
+        if _alert_hour_bucket[0] != hour:
+            _alert_hour_bucket[0], _alert_hour_bucket[1] = hour, 0
+        if not critical and _alert_hour_bucket[1] >= _ALERT_MAX_PER_HOUR:
+            return
+        _alert_last_by_path[key] = now
+        _alert_hour_bucket[1] += 1
+
+        when = _dt.datetime.now().strftime("%m/%d %H:%M:%S")
+        head = (u"🔴 *손님 길 %d*" % status) if critical else (u"🚨 *서버 %d*" % status)
+        _alert_send(head + u" `%s`" % (path or "?")[:120]
+                    + chr(10) + (detail or u"(내용 없음)")[:300]
+                    + chr(10) + u"_%s_" % when)
+    except Exception:
+        pass
+
+
+def _deployed_line() -> str:
+    """배포 스크립트가 남긴 DEPLOYED.txt 첫 줄(커밋·제목) + 파이썬 버전. '지금 도는 게 뭔지' 한 줄."""
+    try:
+        with io.open(str(BASE_DIR / "DEPLOYED.txt"), "r", encoding="utf-8") as f:
+            line = (f.readline() or "").strip() or u"(DEPLOYED.txt 비었음)"
+    except Exception:
+        line = u"(DEPLOYED.txt 없음)"
+    return u"%s · py%s" % (line, sys.version.split()[0])
+
+
+def _record_system_error(path: str, status: int, detail: str, route: Optional[str] = None) -> None:
+    """에러 기록 — 절대 요청을 죽이지 않음 (기록 실패는 조용히 무시). route = 알림 묶음용 경로 틀."""
     try:
         now = _now_ms()
         with db_conn() as con:
@@ -5767,7 +5832,7 @@ def _record_system_error(path: str, status: int, detail: str) -> None:
         pass
     # 기록만 하면 아무도 안 본다. 500 은 **그 자리에서 알린다.** (2026-09-23)
     if status >= 500:
-        _alert_500(path, status, detail)
+        _alert_500(path, status, detail, key=route)
 
 
 # ─────────── 방문 발자국 (2026-09-14 사장님) ───────────
@@ -5836,10 +5901,11 @@ async def _error_tracking_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        _record_system_error(request.url.path, 500, f"{type(e).__name__}: {e}")
+        _record_system_error(request.url.path, 500, f"{type(e).__name__}: {e}", route=_route_key(request))
         raise
-    if response.status_code >= 500:
-        _record_system_error(request.url.path, response.status_code, "")
+    # /healthz/deep 의 503 은 "아프다는 보고"지 사고가 아니다 — 기록하면 자가검진이 자기 자신을 신고한다. (2026-09-23 밤)
+    if response.status_code >= 500 and not request.url.path.startswith("/healthz"):
+        _record_system_error(request.url.path, response.status_code, "", route=_route_key(request))
     return response
 
 
@@ -5852,7 +5918,7 @@ async def _json_500_handler(request: Request, exc: Exception):
     print(f"[UNHANDLED 500] {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
     traceback.print_exc()
     try:
-        _record_system_error(request.url.path, 500, f"{type(exc).__name__}: {exc}")
+        _record_system_error(request.url.path, 500, f"{type(exc).__name__}: {exc}", route=_route_key(request))
     except Exception:
         pass
     return JSONResponse(status_code=500,
@@ -5918,12 +5984,135 @@ async def _auth_enforce_middleware(request: Request, call_next):
 @app.get("/healthz")
 @app.get("/health")
 def healthz():
-    """헬스체크. 앱은 /health, 서버 자체 테스트는 /healthz 둘 다 받는다."""
+    """헬스체크. 앱은 /health, 서버 자체 테스트는 /healthz 둘 다 받는다.
+    ⚠️ 이건 "켜졌다"만 본다. 손님 길이 멀쩡한지는 /healthz/deep."""
     return {
         "ok": True,
         "model": CLAUDE_MODEL,
         "pricing_loaded": PRICING_PATH.exists(),
     }
+
+
+# ─────────── 깊은 건강검진 — /healthz/deep (2026-09-23 밤, 운영 자문) ───────────
+#  /health 는 무슨 일이 나도 200 이다. 오늘 접수서 폴링이 2시간 500 인 동안에도 200 이었다.
+#  여기는 **손님·앱이 실제로 쓰는 길을 실제 데이터로 돌려본다.** 하나라도 아프면 503 + 이유.
+#   · 배포 스크립트(deploy_phase1.sh → smoke.sh)가 배포 직후 보고, 아프면 이전 코드로 되돌린다
+#   · 5분마다 스스로도 돌려서(_selfcheck_loop) 아픔↔회복이 **바뀌는 순간만** 슬랙에 알린다
+#   · 밖(무료 업타임 감시 서비스)에서 이 주소를 누르면 — 프로세스·맥미니·터널이 죽은 것까지 잡힌다
+#  ⚠️ 여기서 뭔가를 **쓰거나 바꾸면 안 된다** — 열람 기록(open_count)·last_seen 이 오염된다.
+_DEEP_DISK_MIN_GB = 2.0
+_DEEP_RECENT_500_MS = 10 * 60 * 1000
+
+
+async def _deep_health_check() -> dict:
+    problems: list = []
+    info: dict = {}
+    t0 = time.time()
+
+    # ① DB 가 열리고 **쓸 수 있나** — 잠금·읽기전용·디스크 꽉참이 여기서 걸린다. 쓰진 않고 잠금만 잡아본다.
+    try:
+        con = sqlite3.connect(str(DB_PATH), timeout=3)
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            con.execute("ROLLBACK")
+        finally:
+            con.close()
+    except Exception as e:  # noqa: BLE001
+        problems.append(u"DB 쓰기 불가: %s: %s" % (type(e).__name__, str(e)[:120]))
+
+    # ② 디스크 — cache.db 가 사는 곳. 꽉 차면 접수서 제출이 조용히 실패한다.
+    try:
+        import shutil
+        free_gb = shutil.disk_usage(str(BASE_DIR)).free / 1e9
+        info["disk_free_gb"] = round(free_gb, 1)
+        if free_gb < _DEEP_DISK_MIN_GB:
+            problems.append(u"디스크 여유 %.1fGB (기준 %.0fGB)" % (free_gb, _DEEP_DISK_MIN_GB))
+    except Exception as e:  # noqa: BLE001
+        problems.append(u"디스크 확인 실패: %s" % type(e).__name__)
+
+    # ③ 접수서 읽기 길 — 오늘(2026-09-23) 2시간 깨졌던 **바로 그 코드**를 실제 최신 행으로 돌린다.
+    #    SELECT 칸 수와 _intake_row_to_dict 풀어쓰기가 어긋나면 여기서 ValueError 로 걸린다.
+    try:
+        with db_conn() as con:
+            info["intake_total"] = con.execute("SELECT COUNT(*) FROM intake_forms").fetchone()[0]
+            newest = con.execute(
+                f"SELECT {_INTAKE_SELECT_COLS} FROM intake_forms ORDER BY issued_at_ms DESC LIMIT 1"
+            ).fetchone()
+        if newest is None:
+            info["intake_read"] = u"행 없음(건너뜀)"
+        else:
+            if len(newest) != INTAKE_BASE_COLS:
+                problems.append(u"접수서 SELECT 칸 %d ≠ INTAKE_BASE_COLS %d" % (len(newest), INTAKE_BASE_COLS))
+            d = _intake_row_to_dict(tuple(newest))  # /intake/{token}·/q/{token} 이 쓰는 길
+            # /api/quote/submissions = 앱이 60초마다 두드리는 창구 — **진짜 핸들러**를 부른다.
+            #   devicePhone 은 안 준다(last_seen 오염 금지). 최신 발급 직전부터 물으면 ≥1건이어야 한다.
+            res = await quote_submissions_list(sinceMs=int(d.get("issued_at_ms") or 1) - 1, limit=3)
+            if not res.get("items"):
+                problems.append(u"접수서 폴링(/api/quote/submissions)이 최신 건을 못 돌려준다")
+            info["intake_read"] = u"정상"
+    except Exception as e:  # noqa: BLE001
+        problems.append(u"접수서 읽기 길 깨짐: %s: %s" % (type(e).__name__, str(e)[:160]))
+
+    # ④ 이 프로세스가 켜진 뒤, 최근 10분 안에 손님 길에서 난 500 — 슬랙이 죽어 있어도 여기엔 남는다.
+    try:
+        now = _now_ms()
+        since = max(now - _DEEP_RECENT_500_MS, _PROCESS_STARTED_MS)
+        with db_conn() as con:
+            rows = con.execute(
+                "SELECT path, COUNT(*) FROM system_errors WHERE ts_ms >= ? AND status >= 500 "
+                "GROUP BY path ORDER BY 2 DESC LIMIT 20", (since,),
+            ).fetchall()
+        crit = [(p, n) for p, n in rows if any((p or "").startswith(x) for x in _ALERT_CRITICAL_PREFIXES)]
+        info["recent_500_paths"] = len(rows)
+        if crit:
+            problems.append(u"최근 10분 손님 길 500: " + u", ".join(u"%s×%d" % (p, n) for p, n in crit[:5]))
+    except Exception as e:  # noqa: BLE001
+        problems.append(u"에러 기록 확인 실패: %s" % type(e).__name__)
+
+    # ⑤ 백그라운드 일꾼(알림 poller 등)이 죽어 있지 않나 — 죽어도 HTTP 는 멀쩡해서 아무도 모른다.
+    try:
+        dead = [name for name, t in (getattr(app.state, "bg_tasks", None) or {}).items() if t.done()]
+        if dead:
+            problems.append(u"백그라운드 일꾼 죽음: " + u", ".join(dead))
+    except Exception:
+        pass
+
+    info["ok"] = not problems
+    info["problems"] = problems
+    info["uptime_min"] = int((_now_ms() - _PROCESS_STARTED_MS) / 60000)
+    info["took_ms"] = int((time.time() - t0) * 1000)
+    info["deployed"] = _deployed_line()
+    return info
+
+
+@app.get("/healthz/deep")
+async def healthz_deep():
+    """깊은 건강검진 — 손님 길을 실제로 돌려보고, 하나라도 아프면 503 + 이유."""
+    r = await _deep_health_check()
+    return JSONResponse(status_code=200 if r["ok"] else 503, content=r)
+
+
+_selfcheck_last_ok = [True]
+
+
+async def _selfcheck_loop() -> None:
+    """5분마다 스스로 깊은 건강검진. **상태가 바뀔 때만** 슬랙 — 아프기 시작할 때 한 번, 나을 때 한 번.
+    (배포 직후 90초는 쉰다 — 그 사이는 배포 스크립트가 본다.)"""
+    await asyncio.sleep(90)
+    while True:
+        try:
+            r = await _deep_health_check()
+            ok = bool(r.get("ok"))
+            if ok != _selfcheck_last_ok[0]:
+                _selfcheck_last_ok[0] = ok
+                if ok:
+                    _alert_send(u"🟢 건강검진 회복 — 손님 길 다시 정상")
+                else:
+                    _alert_send(u"🔴 건강검진 실패 (5분마다 자가검진)" + chr(10)
+                                + chr(10).join(u"· " + p for p in (r.get("problems") or [])[:6]))
+        except Exception as e:  # noqa: BLE001
+            print(f"[selfcheck] 오류(무시): {type(e).__name__}: {e}")
+        await asyncio.sleep(300)
 
 
 # ============================================================================
@@ -19043,12 +19232,6 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
     return {"ok": True, "submitted_at_ms": now, "phone": phone}
 
 
-#: `_INTAKE_SELECT_COLS` 의 칸 수. 이 SELECT 를 **잘라 쓰는 곳**이 있어서 상수로 묶는다.
-#:   2026-09-23: 20 → 23 (biz_owner/biz_no/biz_phone) 으로 늘리며 자르는 쪽을 안 고쳐
-#:   /api/quote/submissions 가 하루 동안 500 이었다. 다시는 손으로 적지 않는다.
-INTAKE_BASE_COLS = 23
-
-
 def _intake_row_to_dict(row: tuple) -> dict:
     """SELECT * FROM intake_forms 결과 → API 응답 dict.
 
@@ -19109,6 +19292,13 @@ _INTAKE_SELECT_COLS = (
     "owner_memo, vat_included, "  # 추가95③ + 추가102
     "biz_owner, biz_no, biz_phone"  # 2026-09-23 — 접수서 레터헤드 (23컬럼)
 )
+
+#: `_INTAKE_SELECT_COLS` 의 칸 수 — 이 SELECT 를 **잘라 쓰는 곳**이 있어서 상수가 필요하다.
+#:   2026-09-23: 20 → 23 으로 늘리며 자르는 쪽을 안 고쳐 /api/quote/submissions 가 2시간 500 이었다.
+#:   같은 날 저녁 `= 23` 으로 손으로 적어 묶었는데, 그것도 다음에 칸을 늘릴 때 또 잊는 숫자다.
+#:   → 위 문자열에서 **세어서** 만든다. 칸을 늘리면 저절로 따라온다. (2026-09-23 밤, 운영 자문)
+#:   `_intake_row_to_dict` 의 풀어쓰기 개수는 여전히 사람 몫 — 그건 /healthz/deep 이 실제 행으로 돌려 잡는다.
+INTAKE_BASE_COLS = len([c for c in _INTAKE_SELECT_COLS.split(",") if c.strip()])
 
 
 def _fmt_phone_dashed(p: Optional[str]) -> str:
@@ -19906,7 +20096,7 @@ def _build_deposit_html(deposit_mode: str, deposit_amount_krw: int,
     )
 
 @app.get("/intake/{token}", response_class=HTMLResponse)
-async def intake_form_page(token: str) -> HTMLResponse:
+async def intake_form_page(token: str, request: Request) -> HTMLResponse:
     """고객 브라우저용 폼 HTML (프로토 openQuote 1:1).
 
     토큰 유효/만료/이미 제출 상태에 따라 다른 페이지 반환.
@@ -19925,7 +20115,7 @@ async def intake_form_page(token: str) -> HTMLResponse:
             status_code=404,
         )
 
-    _intake_mark_opened(token)
+    _intake_mark_opened(token, request)
     data = _intake_row_to_dict(row)
     now = _now_ms()
     if data["submitted_at_ms"] is not None:
@@ -20608,9 +20798,15 @@ def _render_intake_receipt_html(data: dict) -> str:
 </div></body></html>"""
 
 
-def _intake_mark_opened(token: str) -> None:
-    """접수서 링크가 열렸다고 남긴다. 실패해도 폼은 떠야 하므로 통째로 삼킨다. (2026-09-14 사장님)"""
+def _intake_mark_opened(token: str, request=None) -> None:
+    """접수서 링크가 열렸다고 남긴다. 실패해도 폼은 떠야 하므로 통째로 삼킨다. (2026-09-14 사장님)
+
+    (2026-09-23 밤) 배포 점검(smoke.sh)이 여는 건 손님이 아니다 — `X-Ringgo-Smoke` 헤더면 안 남긴다.
+    안 그러면 배포할 때마다 진짜 손님 접수서에 "열어봤음 +1" 이 찍혀 사장님이 오판한다.
+    """
     try:
+        if request is not None and request.headers.get("x-ringgo-smoke"):
+            return
         now = _now_ms()
         with db_conn() as con:
             con.execute(
@@ -20627,7 +20823,7 @@ def _intake_mark_opened(token: str) -> None:
 
 
 @app.get("/q/{token}", response_class=HTMLResponse)
-async def quote_page(token: str) -> HTMLResponse:
+async def quote_page(token: str, request: Request) -> HTMLResponse:
     """고객 브라우저용 접수서 폼 (프로토 openQuote 1:1)."""
     with db_conn() as con:
         row = con.execute(
@@ -20636,7 +20832,7 @@ async def quote_page(token: str) -> HTMLResponse:
         ).fetchone()
     if not row:
         return _quote_status_page("❌ 유효하지 않은 링크", "사장님께 다시 링크를 받아 주세요.", 404)
-    _intake_mark_opened(token)
+    _intake_mark_opened(token, request)
     data = _intake_row_to_dict(row)
     now = _now_ms()
     if data["submitted_at_ms"] is not None:
