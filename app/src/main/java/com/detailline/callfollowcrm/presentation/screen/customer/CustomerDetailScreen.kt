@@ -3779,53 +3779,43 @@ private fun AddressEditDialog(
                 //   (2026-06-10 사장님: 자유입력 칸 없애고 무조건 주소검색 한 번 하게.) 동/호수만 수동.
                 //   2026-06-11 UI 개선: 회색 박스 + 검색 버튼이 둘 다 "검색 열기"라 헷갈림 →
                 //     비었을 땐 검색 버튼 하나만, 고르면 주소 카드 + [변경] + 동·호수 (단계식).
-                if (text.isBlank()) {
-                    // ① 주소 미선택 — 큰 검색 버튼 하나(유일한 동작). 헷갈릴 여지 없음.
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                            .background(TossBlueSoft)
-                            .clickable { showSearch = true }
-                            .padding(vertical = 15.dp),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text("🔍", fontSize = 15.sp)
-                        Spacer(Modifier.width(7.dp))
-                        Text("주소 검색", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                // 앱 안 모든 주소 칸이 같은 부품을 쓴다. (2026-09-23 사장님)
+                val (dDong, dHo) = com.detailline.callfollowcrm.util.splitDongHo(detail)
+                com.detailline.callfollowcrm.presentation.component.SiteAddressField(
+                    address = text,
+                    dong = dDong,
+                    ho = dHo,
+                    onSearch = { showSearch = true },
+                    onDong = { detail = com.detailline.callfollowcrm.util.joinDongHo(it, dHo) },
+                    onHo = { detail = com.detailline.callfollowcrm.util.joinDongHo(dDong, it) },
+                )
+                // 도로명 **직접 고치기** — 접어둔다. 평소엔 검색만 쓰지만, 문자에서 자동으로 뽑은
+                //   주소에 잡텍스트가 끼는 일이 있어 사장님이 요청해 만든 기능이라 없애지 않는다.
+                //   (2026-06-14 사장님: 읽기전용이라 "아직 뮥바음" 같은 걸 못 지웠음)
+                if (text.isNotBlank()) {
+                    var editRoad by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
+                        mutableStateOf(false)
                     }
-                } else {
-                    // ② 주소 선택됨 — 도로명 주소(직접 편집 가능) + [다시 검색].
-                    //    (2026-06-14 사장님: 읽기전용이라 주소에 낀 오타·잡텍스트("아직 뮥바음" 등)를 못 지우고
-                    //     동호수만 고치려 해도 [변경]으로 전체 재검색해야 했음 → 도로명도 직접 고치게 편집칸으로.)
-                    androidx.compose.material3.OutlinedTextField(
-                        value = text,
-                        onValueChange = { text = it },
-                        label = { Text("도로명 주소") },
-                        leadingIcon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Place, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) },
-                        singleLine = false,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "주소 다시 검색",
-                        color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                            .clickable { showSearch = true }
-                            .padding(horizontal = 9.dp, vertical = 6.dp)
-                    )
-                    // 동·호수 — 도로명만 채워지니 여기에 이어 적음. 별도 칸이라 동호수만 따로 고칠 수 있음.
-                    Spacer(Modifier.height(10.dp))
-                    androidx.compose.material3.OutlinedTextField(
-                        value = detail,
-                        onValueChange = { detail = it },
-                        label = { Text("동·호수 (선택)") },
-                        placeholder = { Text("예: 101동 1502호", color = TossTextTertiary) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().focusRequester(detailFocus)
-                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (!editRoad) {
+                        Text(
+                            "주소 글자 직접 고치기",
+                            color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 12.5.sp,
+                            modifier = Modifier
+                                .clip(AppShape.sm)
+                                .clickable { editRoad = true }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                    } else {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            label = { Text("도로명 주소") },
+                            leadingIcon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Place, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) },
+                            singleLine = false,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
                 // 자동 추출 후보 — 사장님 한 탭에 input 박힘.
                 if (extractedSuggestion != null) {

@@ -365,30 +365,17 @@ fun ScheduleAddScreen(
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("현장 주소")
-            // 프로토 as-addr-display — 탭하면 주소 검색(Daum). 채워지면 핀+주소.
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
-                    .clickable { showAddrSearch = true }
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    if (address.isBlank()) Icons.Default.Search else Icons.Default.Place, null,
-                    tint = if (address.isBlank()) TossTextTertiary else TossBlue, modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    address.ifBlank { "눌러서 주소 찾기" },
-                    fontSize = 15.sp, color = if (address.isBlank()) TossTextTertiary else TossTextPrimary
-                )
-            }
-            // 동·호수 — 주소(도로명) 고른 뒤에만. 고객정보 화면과 동일 흐름. (2026-06-11)
-            if (address.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                FieldLabel("동·호수 (선택)")
-                SheetTextField(addrDetail, { addrDetail = it }, placeholder = "예: 101동 1502호")
-            }
+            // 앱 안 모든 주소 칸이 같은 부품을 쓴다. (2026-09-23 사장님)
+            //   동·호수는 따로 담지 않고 저장값 한 줄에서 갈랐다 다시 합친다 — 저장 로직 그대로.
+            val (addrDong, addrHo) = com.detailline.callfollowcrm.util.splitDongHo(addrDetail)
+            com.detailline.callfollowcrm.presentation.component.SiteAddressField(
+                address = address,
+                dong = addrDong,
+                ho = addrHo,
+                onSearch = { showAddrSearch = true },
+                onDong = { addrDetail = com.detailline.callfollowcrm.util.joinDongHo(it, addrHo) },
+                onHo = { addrDetail = com.detailline.callfollowcrm.util.joinDongHo(addrDong, it) },
+            )
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("총 금액 (만원)")

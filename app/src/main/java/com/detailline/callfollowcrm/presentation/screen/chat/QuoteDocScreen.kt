@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.chat
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Context
@@ -236,30 +237,28 @@ fun QuoteDocScreen(
                     QuoteTableRow(line.name, line.spec, won(line.amountWon), i == data.lines.lastIndex)
                 }
                 Spacer(Modifier.height(14.dp))
-                // ── 합계 요약 (우측 3줄, 부가세 명시) ──
-                //   미포함=공급가에 10% 더함 / 포함=총액에서 역산. (2026-07-03 사장님)
-                val supply: Long
-                val vat: Long
-                val grand: Long
-                if (data.vatIncluded) {
-                    grand = data.totalWon
-                    supply = Math.round(data.totalWon / 1.1)
-                    vat = grand - supply
-                } else {
-                    supply = data.totalWon
-                    vat = Math.round(data.totalWon / 10.0)
-                    grand = supply + vat
-                }
+                // ── 합계 — 한 줄 + 작게 "부가세 별도". (2026-09-23 사장님) ──
+                //
+                //   전엔 공급가/부가세/합계 세 줄로 쪼개 **부가세 포함 총액(126.5만)**을 크게 보여줬다.
+                //   그런데 접수서는 부가세를 통째로 무시하고 공급가(115만)로 나가서, **같은 건인데
+                //   두 문서의 잔금이 115,000원 달랐다.**
+                //
+                //   사장님 판단: 다른 업체는 부가세를 나중에 말하는데 우리만 처음부터 다 보여주면
+                //   혼자 비싸 보인다. 그렇다고 안 밝히면 나중에 싸운다.
+                //   → **큰 숫자는 그대로 두고 "부가세 별도" 네 글자로 고지**한다. 업계 표준 표기이고
+                //     법적 고지로도 충분하다. 증빙(세금계산서·현금영수증) 얘기는 문서에 안 적는다 —
+                //     적으면 "증빙 주는 대가로 돈을 더 받는다"로 읽혀 고객이 캡처해 들고 갈 수 있다.
+                val grand = data.totalWon
                 Row(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.weight(1f))
                     Column(Modifier.width(215.dp)) {
-                        SummaryRow("공급가액", "${won(supply)}원", false)
-                        Spacer(Modifier.height(5.dp))
-                        SummaryRow("부가세 (10%)", "${won(vat)}원", false)
-                        Spacer(Modifier.height(7.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfacePressed))
-                        Spacer(Modifier.height(7.dp))
-                        SummaryRow("합계 (부가세 포함)", "${won(grand)}원", true)
+                        SummaryRow("합계", "${won(grand)}원", true)
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            if (data.vatIncluded) "부가세 포함" else "부가세 별도",
+                            style = AppType.micro, color = TossTextTertiary,
+                            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
                 // ── 계약금 / 잔금 ──
@@ -282,7 +281,7 @@ fun QuoteDocScreen(
                         Row(Modifier.fillMaxWidth()) {
                             Text("잔금", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111),
                                 modifier = Modifier.weight(1f))
-                            Text("${won(grand - depWon)}원", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                            Text("${won((grand - depWon).coerceAtLeast(0L))}원", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF111111), textAlign = TextAlign.End)
                         }
                     }

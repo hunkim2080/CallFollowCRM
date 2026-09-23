@@ -1961,6 +1961,19 @@ fun ChatScreen(
     // P3 — 견적서 작성기 (send_estimate 액션). 항목 체크 + 수량 + 자동 합산 → composer 본문 합성.
     if (showEstimateBuilder) {
         val estCtx = androidx.compose.ui.platform.LocalContext.current
+        // 상호가 비었으면 발행 전에 딱 한 번 묻는다. 채워져 있으면 그냥 지나간다. (2026-09-23 사장님)
+        var bizPending by remember { mutableStateOf<(() -> Unit)?>(null) }
+        fun askBizThen(run: () -> Unit) {
+            val p = (estCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
+                .container.preferences
+            if (p.bizName.isBlank()) bizPending = run else run()
+        }
+        bizPending?.let { pending ->
+            com.detailline.callfollowcrm.presentation.component.BizIdentitySheet(
+                onDone = { bizPending = null; pending() },
+                onDismiss = { bizPending = null },
+            )
+        }
         val estPrefs = remember {
             (estCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
         }
@@ -1999,10 +2012,14 @@ fun ChatScreen(
             },
             onQuoteDoc = { data ->
                 // 미리보기로 — sheet 만 닫고 draft 는 유지(닫기 시 복귀 위해). editingIssuedDoc 도 유지.
-                quoteDocData = data
-                showEstimateBuilder = false
+                //   상호가 비었으면 먼저 한 번 묻는다 — 문서 맨 위에 찍힐 이름이라. (2026-09-23 사장님)
+                askBizThen {
+                    quoteDocData = data
+                    showEstimateBuilder = false
+                }
             },
             onIssueIntake = { issItems, total, y, mo, d, days, dm, dv, mmo, vat ->
+                askBizThen {
                 val wasEditing = editingIssuedDoc != null
                 viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv, mmo, vat) { result ->
                     result.onSuccess { (draftLink, reused) ->
@@ -2018,6 +2035,7 @@ fun ChatScreen(
                     }.onFailure {
                         android.widget.Toast.makeText(estCtx, "서버에 잠깐 연결이 안 돼요 — 잠시 후 다시 해주세요", android.widget.Toast.LENGTH_SHORT).show()
                     }
+                }
                 }
             },
             // 뒤로/바깥 탭 = 채팅으로 복귀, 선택은 유지(다시 열면 그대로). 초기화는 발송 시에만. (2026-06-23 사장님)

@@ -1973,6 +1973,20 @@ private fun AssignTeamSheet(
     var newWage by remember { mutableStateOf("") }
     // 협업 보낼 때 현장 주소가 없으면 여기서 입력 → 고객에 저장 + 공유에 사용. (2026-06-20 사장님)
     var siteAddrInput by remember { mutableStateOf("") }
+    // 2026-09-23 — 여긴 **주소 검색이 아예 없어** 통째로 손타이핑이었다.
+    //   상대 사장님이 이 주소로 길찾기를 해서 찾아가는데, 오타 한 글자면 못 간다.
+    var collabAddrSearch by remember { mutableStateOf(false) }
+    if (collabAddrSearch) {
+        com.detailline.callfollowcrm.presentation.component.AddressSearchDialog(
+            onPicked = { picked ->
+                // 이미 적어둔 동·호수는 지키고 도로명만 갈아끼운다.
+                val keep = com.detailline.callfollowcrm.util.splitSiteAddress(siteAddrInput).second
+                siteAddrInput = (picked + if (keep.isBlank()) "" else " $keep").trim()
+                collabAddrSearch = false
+            },
+            onDismiss = { collabAddrSearch = false },
+        )
+    }
     val noRipple = remember { MutableInteractionSource() }
     val assignSheetCtx = androidx.compose.ui.platform.LocalContext.current
 
@@ -2183,9 +2197,19 @@ private fun AssignTeamSheet(
                 // 현장 주소 — 협업 보낼 땐 필수. 고객에 주소 없을 때만 노출(있으면 자동 사용). (2026-06-20 사장님)
                 if (invitingNewCollab && siteAddress.isNullOrBlank()) {
                     SheetFieldLabel("현장 주소 (협업엔 꼭 필요해요)")
-                    SheetTextField(
-                        siteAddrInput, { siteAddrInput = it },
-                        placeholder = "예: 인천 미추홀구 매소홀로 137", singleLine = false, minHeightDp = 50
+                    val (cBase, cDetail) = com.detailline.callfollowcrm.util.splitSiteAddress(siteAddrInput)
+                    val (cDong, cHo) = com.detailline.callfollowcrm.util.splitDongHo(cDetail)
+                    fun putDetail(d: String, h: String) {
+                        val tail = com.detailline.callfollowcrm.util.joinDongHo(d, h)
+                        siteAddrInput = (cBase + if (tail.isBlank()) "" else " $tail").trim()
+                    }
+                    com.detailline.callfollowcrm.presentation.component.SiteAddressField(
+                        address = cBase,
+                        dong = cDong,
+                        ho = cHo,
+                        onSearch = { collabAddrSearch = true },
+                        onDong = { putDetail(it, cHo) },
+                        onHo = { putDetail(cDong, it) },
                     )
                     Text("주소가 있어야 상대 사장님이 길찾기로 찾아가고, 현장 이름도 주소로 떠요. 한 번 넣으면 이 고객에 저장돼요.",
                         fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
