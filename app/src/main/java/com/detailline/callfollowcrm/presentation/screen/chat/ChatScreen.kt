@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.outlined.Info
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -85,6 +86,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.DateRange
@@ -731,6 +733,26 @@ fun ChatScreen(
             // 2026-05-27 사장님 결정: 템플릿 chip row 의 [액션] 토글 칩과 공유.
             //   action_type 별 분기 — RINGGO_SERVER_P0P1P2_UPGRADE.md §4 매칭 시나리오.
             //   AI 자동 추천 (next-action-suggest) + 사장님 수동 [액션] 토글 둘 다 같은 trigger 사용.
+            // 길찾기 — 기본 네비 앱이 정해져 있으면 바로, 아니면 한 번 고르게. (일정 탭과 같은 방식)
+            val navPrefs = remember {
+                (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
+            }
+            var navDialogAddr by remember { mutableStateOf<String?>(null) }
+            fun launchNavFromChat(addr: String?) {
+                val navApp = com.detailline.callfollowcrm.util.NavApp.fromKey(navPrefs.defaultNavAppKey)
+                if (navApp == null) navDialogAddr = addr
+                else scope.launch { com.detailline.callfollowcrm.util.NavLauncher.launch(context, navApp, addr) }
+            }
+            navDialogAddr?.let { pending ->
+                com.detailline.callfollowcrm.presentation.component.NavAppPickerDialog(
+                    onPick = { picked ->
+                        navPrefs.defaultNavAppKey = picked.key
+                        navDialogAddr = null
+                        scope.launch { com.detailline.callfollowcrm.util.NavLauncher.launch(context, picked, pending) }
+                    },
+                    onDismiss = { navDialogAddr = null }
+                )
+            }
             val triggerActionByType: (String) -> Unit = { actionType ->
                 when (actionType) {
                     "send_estimate" ->
@@ -794,6 +816,28 @@ fun ChatScreen(
                     prevIndex = idx; prevOffset = off
                 }
             }
+            // ── 할 일 줄 (2026-09-23 사장님) ──────────────────────────────
+            //   전엔 ⊕ 를 눌러야 견적·일정·문구가 나왔다. 있는 줄 모르면 영영 안 쓴다.
+            //   특히 **접수서**는 [견적 작성] 안 두 번째 탭이라 세 번 눌러야 닿았다
+            //   (30일에 3명·18건뿐 — 안 쓰는 게 아니라 못 찾는 것일 수 있다).
+            //   주소도 여기 둔다 — 전엔 어디 현장인지 보려면 ⓘ 로 **대화를 나가야** 했다.
+            //   아이콘 없이 글자만. 사장님: "아이콘 없는게 더 깔끔해보이네. 줄 차지도 많이 안하고"
+            if (!isPlainThread && !searchMode) {
+                androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
+                    ChatTopActions(
+                        address = customer?.address,
+                        onNavigate = { addr -> launchNavFromChat(addr) },
+                        onIntake = {
+                            // 접수서 탭으로 **바로** 연다. (전엔 견적 시트를 열고 탭을 또 눌러야 했다)
+                            estimateDraft.mode.value = "accept"
+                            showEstimateBuilder = true
+                        },
+                        onSchedule = { myScheduleOpen = true },
+                        onTemplate = { tplPickerOpen = true }
+                    )
+                }
+            }
+
             // 대화 안 검색 바 — 앱바 🔍 누르면 뜸. 입력 + N/M + ▲▼ + ✕. (2026-09-02 사장님)
             if (searchMode) {
                 InChatSearchBar(
@@ -3929,6 +3973,92 @@ private fun ActChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label
         Spacer(Modifier.width(5.dp))
         Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
     }
+}
+
+/**
+ * 대화 바로 위 **할 일 줄** — 주소 한 줄 + [접수서 보내기][일정 확인][문구 넣기]. (2026-09-23 사장님)
+ *
+ * 왜 여기인가: ⊕ 안에 있으면 **있는 줄 모른다.** 특히 접수서는 [견적 작성] 안 두 번째 탭이라
+ *   세 번 눌러야 닿았다 — 30일에 3명·18건뿐이었다.
+ * 왜 아이콘이 없나: 사장님 "아이콘 없는게 더 깔끔해보이네. 줄 차지도 많이 안하고".
+ *   글자만 두니 줄 높이가 절반이 됐다.
+ * 주소가 없으면 [주소 넣기] — 빈 칸으로 두지 않는다. 접수서를 보내 **고객이 직접** 적게 한다.
+ */
+@Composable
+private fun ChatTopActions(
+    address: String?,
+    onNavigate: (String) -> Unit,
+    onIntake: () -> Unit,
+    onSchedule: () -> Unit,
+    onTemplate: () -> Unit
+) {
+    val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(address)
+    Column(
+        Modifier.fillMaxWidth().background(Color.White)
+            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            Icon(
+                Icons.Default.LocationOn, null,
+                tint = if (addr.isNotBlank()) TossTextTertiary else AppTheme.colors.textHint,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                addr.takeIf { it.isNotBlank() } ?: "주소 아직 없어요",
+                fontSize = 12.sp,
+                color = if (addr.isNotBlank()) TossTextSecondary else AppTheme.colors.textHint,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(6.dp))
+            if (addr.isNotBlank()) {
+                ChatTopBtn("길찾기", primary = true) { onNavigate(addr) }
+            } else {
+                // 주소를 대신 받아오는 길 — 접수서를 보내면 고객이 직접 적는다.
+                ChatTopBtn("주소 넣기", primary = false, onClick = onIntake)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChatTopChip("접수서 보내기", Modifier.weight(1f), onIntake)
+            ChatTopChip("일정 확인", Modifier.weight(1f), onSchedule)
+            ChatTopChip("문구 넣기", Modifier.weight(1f), onTemplate)
+        }
+    }
+}
+
+/** 할 일 줄의 글자 칩 — 아이콘 없이 글자만. (2026-09-23 사장님) */
+@Composable
+private fun ChatTopChip(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        maxLines = 1,
+        modifier = modifier
+            .clip(AppShape.sm)
+            .background(TossGrayBg)
+            .clickable(onClick = onClick)
+            .padding(vertical = 9.dp)
+    )
+}
+
+/** 주소 줄 오른쪽 작은 버튼 — [길찾기] 파랑 / [주소 넣기] 회색. */
+@Composable
+private fun ChatTopBtn(label: String, primary: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        color = if (primary) AppTheme.colors.primaryText else TossTextSecondary,
+        modifier = Modifier
+            .clip(AppShape.sm)
+            .background(if (primary) AppTheme.colors.primaryBg else TossGrayBg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 4.dp)
+    )
 }
 
 /**
