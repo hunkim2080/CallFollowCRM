@@ -10892,3 +10892,14 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
   백업: ~/ringgo-server/main.py.bak-20260922-2359
   적용하려면: cd ~/ringgo-server && mv main.py.new main.py && launchctl unload/load
 - 다음 액션: 사장님이 배포 승인하면 위 한 줄. 되돌리려면 bak 파일을 main.py 로.
+
+## 2026-09-23 09:20 · android
+아침 브리핑 "서버 응답 없음" — 서버는 멀쩡했다. 부르는 법이 틀렸다.
+- 진단: /admin/beta/dashboard/data 는 **문이 둘**인데 서로 다른 열쇠를 요구한다.
+    ?token= 만 → 401 / Bearer 헤더만 → 303 / **둘 다 → 200**
+  브라우저는 쿠키(문)+JS헤더(방)라 잘 됐고, 기계로 부를 때만 걸렸다.
+- 조치(코드 무변경): docs/ADMIN_DASHBOARD_READ.md 에 올바른 호출법·실패코드 해석 정리.
+  브리핑은 이 문서대로 부르면 된다. 메일에 "서버 응답 없음" 대신 **HTTP 코드**를 적을 것.
+- docs/INTERNAL_TESTERS.md 신규 — 통계에서 뺄 사장님 본인 폰·테스트 계정 목록.
+- 다음 액션(코워크): 원하면 _admin_auth_bearer_from_header 가 쿠키·?token= 도 인정하게
+  고치면 열쇠가 하나로 줄어든다. 지금은 문서로만 맞춰둠.
