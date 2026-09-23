@@ -20,7 +20,9 @@ LOCAL_DIR="$HOME/ringgo-backups"
 LOG="$LOCAL_DIR/backup.log"
 STATE="$LOCAL_DIR/.last_offsite"       # 바깥 사본이 마지막으로 성공한 시각(epoch)
 KEEP_LOCAL=14
-KEEP_OFFSITE=30
+# 2026-09-23: 30 → 14. 사장님 구글드라이브가 83% 찼다(여유 16GB)이고,
+#   구글은 드라이브가 꽉 차면 **Gmail 까지 멈춘다.** 14벌이면 2주치, 약 1.7GB.
+KEEP_OFFSITE=14
 OFFSITE_STALE_DAYS=3                   # 이만큼 바깥 사본이 없으면 슬랙으로 운다
 STAMP=$(date '+%Y%m%d_%H%M')
 
