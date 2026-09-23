@@ -68,14 +68,15 @@ class SmsRepository(
      *  - 그 외(초안/실패 등)는 무시.
      *
      * @param phoneNumber 매칭할 전화번호. 숫자/하이픈 무관, 끝 8자리로 매칭.
+     *                    단 114·0000 같은 **짧은 번호는 번호 전체가 같아야** 매칭. (2026-09-23)
      * @param scanLimit 가져올 최대 row 수 (최신순). 기본 1000.
      * @return 매칭된 문자 목록 (date DESC).
      */
     fun queryByPhone(phoneNumber: String, scanLimit: Int = 500): List<SmsMessage> {
         if (!hasReadPermission()) return emptyList()
         val targetDigits = phoneNumber.filter { it.isDigit() }
-        if (targetDigits.length < 7) return emptyList()
-        val targetSuffix = targetDigits.takeLast(8)
+        if (targetDigits.isEmpty()) return emptyList()
+        val targetSuffix = partyKeyOf(targetDigits)
 
         val smsList = querySmsByPhone(targetSuffix, scanLimit)
         // MMS 는 사진 첨부 + 자동 변환된 긴 문자 모두 여기로 들어옴.
@@ -91,8 +92,8 @@ class SmsRepository(
     fun querySmsOnly(phoneNumber: String, scanLimit: Int = 500): List<SmsMessage> {
         if (!hasReadPermission()) return emptyList()
         val targetDigits = phoneNumber.filter { it.isDigit() }
-        if (targetDigits.length < 7) return emptyList()
-        val targetSuffix = targetDigits.takeLast(8)
+        if (targetDigits.isEmpty()) return emptyList()
+        val targetSuffix = partyKeyOf(targetDigits)
         return querySmsByPhone(targetSuffix, scanLimit).sortedByDescending { it.dateMs }
     }
 
@@ -149,8 +150,8 @@ class SmsRepository(
     fun queryMmsOnly(phoneNumber: String, scanLimit: Int = 2000): List<SmsMessage> {
         if (!hasReadPermission()) return emptyList()
         val targetDigits = phoneNumber.filter { it.isDigit() }
-        if (targetDigits.length < 7) return emptyList()
-        val targetSuffix = targetDigits.takeLast(8)
+        if (targetDigits.isEmpty()) return emptyList()
+        val targetSuffix = partyKeyOf(targetDigits)
         return runCatching { queryMmsByPhone(targetSuffix, scanLimit) }
             .getOrDefault(emptyList())
             .sortedByDescending { it.dateMs }
@@ -285,6 +286,24 @@ class SmsRepository(
         return out
     }
 
+    /**
+     * 번호를 '같은 상대인가' 가리는 **열쇠**로 바꾼다.
+     *   · 보통 번호(7자리 이상) → 끝 8자리. 저장 포맷(하이픈·국가번호) 차이를 흡수한다.
+     *   · 짧은 번호(114·0000 같은 서비스 번호) → **번호 그대로.**
+     */
+    private fun partyKeyOf(digits: String): String =
+        com.detailline.callfollowcrm.util.PhoneMatch.keyOf(digits)
+
+    /**
+     * 이 주소가 찾는 상대인가. (2026-09-23 사장님 — 114 에서 온 34건이 방에서 안 보이던 것)
+     *
+     * 짧은 번호는 **번호 전체가 똑같을 때만** 같다고 본다. 끝자리만 맞추면
+     * `114` 를 찾는데 `0107770114` 까지 딸려온다 — 예전에 7자리 미만을 통째로 막아둔 이유가 그거였다.
+     * 막는 대신 정확히 맞추는 쪽으로 바꾼다.
+     */
+    private fun sameParty(addrDigits: String, targetKey: String): Boolean =
+        com.detailline.callfollowcrm.util.PhoneMatch.same(addrDigits, targetKey)
+
     private fun querySmsByPhone(targetSuffix: String, scanLimit: Int): List<SmsMessage> {
         val uri = Uri.parse("content://sms/")
         val projection = arrayOf(COL_ID, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
@@ -323,9 +342,7 @@ class SmsRepository(
                 val address = c.getString(addrIdx).orEmpty()
                 val addrDigits = address.filter { it.isDigit() }
                 if (addrDigits.isEmpty()) continue
-                val shortest = minOf(targetSuffix.length, addrDigits.length, 8)
-                if (shortest < 7) continue
-                if (addrDigits.takeLast(shortest) != targetSuffix.takeLast(shortest)) continue
+                if (!sameParty(addrDigits, targetSuffix)) continue
 
                 result += SmsMessage(
                     id = c.getLong(idIdx),
@@ -460,9 +477,7 @@ class SmsRepository(
             while (c.moveToNext()) {
                 val addr = c.getString(aIdx).orEmpty()
                 val addrDigits = addr.filter { it.isDigit() }
-                val shortest = minOf(targetSuffix.length, addrDigits.length, 8)
-                if (shortest < 7) continue
-                if (addrDigits.takeLast(shortest) != targetSuffix.takeLast(shortest)) continue
+                if (!sameParty(addrDigits, targetSuffix)) continue
                 val t = c.getLong(tIdx)
                 if (t > 0) out += t
             }
@@ -473,9 +488,7 @@ class SmsRepository(
     private fun matchesSuffix(address: String?, targetSuffix: String): Boolean {
         val addrDigits = address?.filter { it.isDigit() }.orEmpty()
         if (addrDigits.isEmpty()) return false
-        val shortest = minOf(targetSuffix.length, addrDigits.length, 8)
-        if (shortest < 7) return false
-        return addrDigits.takeLast(shortest) == targetSuffix.takeLast(shortest)
+        return sameParty(addrDigits, targetSuffix)
     }
 
     /**
@@ -762,8 +775,8 @@ class SmsRepository(
 
                 val address = c.getString(addrIdx).orEmpty()
                 val addrDigits = address.filter { it.isDigit() }
-                if (addrDigits.length < 7) continue
-                val suffix = addrDigits.takeLast(8)
+                if (addrDigits.isEmpty()) continue
+                val suffix = partyKeyOf(addrDigits)
                 val dateMs = c.getLong(dateIdx)
                 val isSent = type == TYPE_SENT
 
@@ -833,8 +846,8 @@ class SmsRepository(
                 }?.takeIf { it.isNotBlank() } ?: continue
 
                 val digits = phone.filter { it.isDigit() }
-                if (digits.length < 7) continue
-                val suffix = digits.takeLast(8)
+                if (digits.isEmpty()) continue
+                val suffix = partyKeyOf(digits)
 
                 val existing = seen[suffix]
                 if (existing == null) {

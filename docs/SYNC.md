@@ -11147,3 +11147,13 @@ Python 3.9 파싱 통과 · PEP 604 없음 · `_dt` 별칭 지킴 · 비밀값 r
 ⚠️ **미해결 — `deploy_phase1.sh` 는 `cp $SRC/main.py $TARGET/main.py` 통짜 복사다.**
    라이브가 repo 와 얼마나 벌어져 있는지 **아직 대조 못 했다**(ssh 차단). 대조 전에는 이 스크립트를 쓰지 말 것.
 🔜 다음: ①라이브↔repo main.py 대조 ②알림+deep 배포 ③외부 감시(api.si0in.kr/healthz/deep 5분) 가입
+
+## 2026-09-23 20:10 · android
+짧은 번호(114·0000) 문자가 대화방에서 통째로 안 보이던 것 — 사장님 신고(푸시 눌러도 빈 방)
+- 업무폰 실측: `114` 34건 / `0000` 4건. 알림은 멀쩡히 뜨는데(알림은 SMS/MMS 행을 직접 읽음)
+  방은 `SmsRepository` 의 **`if (targetDigits.length < 7) return emptyList()`** 에 걸려 비어 있었다.
+- 그 가드는 이유가 있었다 — 짧은 번호를 끝자리 맞추기로 찾으면 `0107770114` 까지 딸려온다.
+  → 없애는 대신 **짧으면 번호 전체 일치**로. `util/PhoneMatch.kt` 한 군데로 모으고 SmsRepository 가 위임.
+- 바뀐 곳: 앞단 가드 3 · 실제 비교 3 · 문자함 목록 2. (보낸문자 어휘수확 필터는 그대로 — 서비스번호는 코퍼스에서 빼는 게 맞다)
+- 검증: `PhoneMatchTest` 5개 통과(딸려오기 오탐 케이스 포함), assembleRelease 통과(style 2823/2934).
+- ⚠️ **폰 눈 확인 못 함** — 업무폰은 플레이 서명이라 직접 설치 불가, 테스트폰은 분리됨. docs/PHONE_CHECK_TODO.md #6 에 등록.
