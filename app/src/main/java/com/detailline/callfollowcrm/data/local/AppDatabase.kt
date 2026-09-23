@@ -99,6 +99,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun issuedDocDao(): com.detailline.callfollowcrm.data.local.dao.IssuedDocDao
     abstract fun threadBucketDao(): com.detailline.callfollowcrm.data.local.dao.ThreadBucketDao
     abstract fun jobDao(): com.detailline.callfollowcrm.data.local.dao.JobDao
+    abstract fun customerMergeDao(): com.detailline.callfollowcrm.data.local.dao.CustomerMergeDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null

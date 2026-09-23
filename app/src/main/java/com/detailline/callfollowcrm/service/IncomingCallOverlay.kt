@@ -1384,6 +1384,19 @@ private class CallerCardView(
         memoBtn.visibility = if (st.loading || memoOpen) View.GONE else View.VISIBLE
         if (st.loading) { memoBox.visibility = View.GONE }
 
+        // 📝 메모는 **전화를 받은 뒤에만.** (2026-09-23 사장님 "메모 버튼 누르면 통화 슬라이드가 안 되더라")
+        //   벨이 울리는 동안 열면 키보드가 올라와 **아래 '받기' 슬라이더를 덮어 전화를 못 받는다.**
+        //   카드 높이는 슬라이더를 피해 맞춰놨지만 키보드는 그 계산 밖이었다.
+        //   메모는 원래 통화하며 적는 것이고 카드는 받은 뒤에도 남으니(2026-09-17) 쓰는 덴 지장 없다.
+        val canMemo = st.talking || isPreview
+        if (!canMemo) {
+            if (memoOpen) openMemo(false)      // 혹시 열린 채라면 닫고 키보드도 내린다
+            memoBtn.visibility = View.GONE
+            memoBox.visibility = View.GONE
+        } else if (!memoOpen) {
+            memoBtn.visibility = View.VISIBLE
+        }
+
         footTv.text = when {
             // 미리보기에서 "누르면 이 손님 대화로" 는 헷갈린다 — 진짜 전화가 온 게 아니다. (2026-09-22 사장님)
             isPreview -> "진짜 전화가 오면 이렇게 떠요"

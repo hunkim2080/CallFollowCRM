@@ -14390,7 +14390,14 @@ async def _search_kakao_local(query: str) -> Optional[dict]:
         async with httpx.AsyncClient(timeout=KAKAO_TIMEOUT_SEC) as client:
             resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
-            print(f"[address-resolve] kakao status={resp.status_code} query={query!r}")
+            # 카카오가 준 이유를 같이 남긴다 — 숫자만 적어두면 원인을 찾을 때 또 직접 물어봐야 한다.
+            #   403 = 앱에서 카카오맵 기능이 꺼짐 / 400 "API limit has been exceeded" = 그 앱에 무료 쿼터가 없음.
+            why = ""
+            try:
+                why = " · " + (resp.json().get("message") or "")[:120]
+            except Exception:
+                why = " · " + " ".join((resp.text or "")[:120].split())
+            print(f"[address-resolve] kakao status={resp.status_code}{why} query={query!r}")
             return None
         docs = resp.json().get("documents", [])
         return docs[0] if docs else None
