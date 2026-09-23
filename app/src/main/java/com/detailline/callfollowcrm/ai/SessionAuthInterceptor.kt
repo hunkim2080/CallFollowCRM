@@ -20,14 +20,27 @@ object SessionAuthInterceptor : Interceptor {
 
     private const val API_HOST = "api.si0in.kr"
 
+    /** "0.2.1631 (1631)" — 서버 대시보드에서 누가 옛 버전인지 보려고. (2026-09-23) */
+    private val APP_VERSION: String =
+        "${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME} (${com.detailline.callfollowcrm.BuildConfig.VERSION_CODE})"
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
         val isOurApi = original.url.host == API_HOST
         val token = SessionTokenStore.current?.token
         val hadToken = !token.isNullOrBlank()   // 이번 요청에 우리가 실제로 토큰을 붙였는가
 
-        val request = if (isOurApi && hadToken && original.header("Authorization") == null) {
-            original.newBuilder().header("Authorization", "Bearer $token").build()
+        val request = if (isOurApi) {
+            val b = original.newBuilder()
+            // 🆕 앱 버전을 모든 서버 요청에 얹는다. (2026-09-23 사장님)
+            //   전엔 버전이 **[문제 신고] 누를 때만** 서버로 갔다 — 8건 전부 한 사람 것이었다.
+            //   그래서 "누가 옛날 버전에 머물러 있나" 를 알 방법이 없었다. 하루에 여섯 번 올리는데.
+            //   서버는 이 헤더를 사람별로 마지막 값만 저장한다(요청 1건당 글자 20개 남짓).
+            b.header("X-App-Version", APP_VERSION)
+            if (hadToken && original.header("Authorization") == null) {
+                b.header("Authorization", "Bearer $token")
+            }
+            b.build()
         } else {
             original
         }

@@ -10903,3 +10903,15 @@ AI 추천을 누르는 자리가 **두 군데**라 역할이 안 갈렸다 — �
 - docs/INTERNAL_TESTERS.md 신규 — 통계에서 뺄 사장님 본인 폰·테스트 계정 목록.
 - 다음 액션(코워크): 원하면 _admin_auth_bearer_from_header 가 쿠키·?token= 도 인정하게
   고치면 열쇠가 하나로 줄어든다. 지금은 문서로만 맞춰둠.
+
+## 2026-09-23 09:30 · android
+앱 버전 추적 — 누가 옛 버전에 머물러 있나 (사장님 "웅")
+- 앱: SessionAuthInterceptor 가 api.si0in.kr 요청마다 `X-App-Version: 0.2.NNNN (NNNN)` 을 얹음.
+  (전엔 버전이 [문제 신고] 누를 때만 갔다 — 총 8건, 전부 한 사람 것)
+- 서버: beta_whitelist 에 app_version / app_version_seen_ms 두 칸 추가.
+  요청 헤더를 ContextVar 로 받아, 이미 매 요청 돌고 있는 _touch_beta_whitelist 가 같이 저장.
+  **새 테이블·새 쿼리 없음.** 대시보드 users[] 에 그대로 실려 나감.
+- 라이브 상태: ~/ringgo-server/main.py.new 에 **이모지 프롬프트 수정 + 이 변경** 둘 다 담아 올림.
+  py_compile 통과. **아직 swap·reload 안 했음** (배포 권한 막힘 — 사장님 승인 필요).
+  백업: ~/ringgo-server/main.py.bak-20260922-2359
+- 다음 액션: cd ~/ringgo-server && mv main.py.new main.py && launchctl unload/load

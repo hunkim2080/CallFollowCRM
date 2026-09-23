@@ -24,6 +24,7 @@ import binascii
 import datetime as _dt
 import json
 import os
+import contextvars
 import sqlite3
 import sys
 import time
@@ -1367,6 +1368,14 @@ def db_init() -> None:
             con.execute("ALTER TABLE beta_whitelist ADD COLUMN free_until_ms INTEGER")
         except Exception:
             pass
+        # 2026-09-23 사장님 — 이 사장님이 **어느 버전**을 쓰고 있나.
+        #   전엔 [문제 신고] 눌러야만 버전이 올라왔다(총 8건, 전부 한 사람).
+        #   이제 앱이 모든 요청에 X-App-Version 을 얹고, 여기에 마지막 값만 남는다.
+        for _col, _type in (("app_version", "TEXT"), ("app_version_seen_ms", "INTEGER")):
+            try:
+                con.execute(f"ALTER TABLE beta_whitelist ADD COLUMN {_col} {_type}")
+            except Exception:
+                pass
         # §I (2026-06-18) 핸드오프 06-18 §1 — B(협업자) 가 respond/progress 시 보낸 본인 상호.
         # by-me 응답의 partner_name 으로 echo → A 화면 "🤝 OO 사장님과 함께".
         # 없으면 _is_registered_owner(partner_phone) fallback, 최종 "협업 사장".
@@ -6659,6 +6668,21 @@ async def admin_logout():
     return res
 
 
+# 2026-09-23 — 앱이 보낸 버전을 이 요청 동안만 들고 있는다. (사장님 "웅")
+#   본문(owner_phone)을 파싱하는 건 각 endpoint 라, 헤더만 여기서 주워 담고
+#   실제 저장은 이미 매 요청 돌고 있는 [_touch_beta_whitelist] 가 한다.
+_req_app_version: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
+    "_req_app_version", default=None
+)
+
+
+@app.middleware("http")
+async def _app_version_middleware(request: Request, call_next):
+    v = (request.headers.get("X-App-Version") or "").strip()[:40]
+    _req_app_version.set(v or None)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def _admin_gate_middleware(request: Request, call_next):
     path = request.url.path
@@ -8921,7 +8945,7 @@ async def admin_beta_dashboard_data(
         wl_rows = con.execute(
             """
             SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count,
-                   owner_trade, free_until_ms
+                   owner_trade, free_until_ms, app_version, app_version_seen_ms
             FROM beta_whitelist ORDER BY added_at_ms DESC
             """
         ).fetchall()
@@ -9259,8 +9283,8 @@ async def admin_beta_dashboard_data(
 
         users = []
         for r in wl_rows:
-            # 추가50 — owner_trade / 추가86 — free_until_ms 컬럼 (9개). unpack 도 9개로.
-            phone, name, memo, added, first, last, uc, _ot, _fu = r
+            # 추가50 — owner_trade / 추가86 — free_until_ms / 2026-09-23 — app_version 2개. unpack 11개.
+            phone, name, memo, added, first, last, uc, _ot, _fu, _av, _avs = r
             calls = per_user_calls.get(phone, 0)
             ai_days = len(per_user_ai_days.get(phone, set()))
             app_days = len(per_user_app_days.get(phone, set()))
@@ -9302,6 +9326,9 @@ async def admin_beta_dashboard_data(
                 users[-1]["billing"] = None
                 users[-1]["price_krw"] = 0
             users[-1]["free_until_ms"] = _fu  # 추가86 — 무료 체험 만료 시각
+            # 2026-09-23 — 이 사장님이 마지막으로 쓴 앱 버전. 없으면 아직 새 앱을 안 깐 것.
+            users[-1]["app_version"] = _av
+            users[-1]["app_version_seen_ms"] = _avs
         # 추가84 — 등업대기자 (beta_signups 에만 있고 whitelist 에 없는 신청자) 도 명단에 포함
         wl_set = set(wl_phones)
         signup_rows = con.execute(
@@ -20505,8 +20532,18 @@ def _touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = Non
         return
     now = _now_ms()
     trade_clean = (owner_trade or "").strip()[:30] if owner_trade else ""
+    # 앱 버전 — 이 요청 헤더에 있으면 같이 갱신. 없으면(옛 앱·웹) 예전 값 그대로 둔다.
+    try:
+        _ver = _req_app_version.get()
+    except Exception:
+        _ver = None
     try:
         with db_conn() as con:
+            if _ver:
+                con.execute(
+                    "UPDATE beta_whitelist SET app_version = ?, app_version_seen_ms = ? WHERE phone = ?",
+                    (_ver, now, phone_digits),
+                )
             if trade_clean:
                 # 추가50 — owner_trade 도 같이 (가장 최근 값으로 덮어쓰기)
                 con.execute(
