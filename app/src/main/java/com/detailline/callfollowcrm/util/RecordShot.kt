@@ -48,6 +48,14 @@ object RecordShot {
     private const val STICKER_H = 560
 
     /** 그림에 들어가는 값 — **여기 없는 건 그림에 못 들어간다.** 손님 이름·번호·상세주소는 자리 자체가 없다. */
+    /**
+     * 인증샷 **모양** 세 가지. (2026-09-24)
+     *   STICKER — 배경이 빈 스티커. 인스타 스토리에서 내 현장 사진 위에 얹는다(기본).
+     *   MAP     — **지도가 주인공.** 지도가 꽉 차고 숫자를 그 위에 얹는다.
+     *   CARD    — 정사각 한 장. 숫자가 주인공이고 지도는 가운데 네모.
+     */
+    enum class Shape { STICKER, MAP, CARD }
+
     data class Data(
         /**
          * **큰 숫자** — 무엇을 자랑할지는 사람마다 다르다. (2026-09-24 사장님)
@@ -63,6 +71,8 @@ object RecordShot {
         val workDays: Int,
         val towns: List<String>,
         val dots: List<RegionDot>,
+        /** 고른 숫자 말고 **나머지 숫자 한 줄** — "이번 달 7집 · 동네 38곳". 비면 안 그린다. */
+        val subLine: String,
         val bizName: String,
         val tradeName: String,
         /** 보고 전화하게. 비면 안 그린다. */
@@ -99,7 +109,95 @@ object RecordShot {
      * 한 장 그린다.
      * @param transparent true = 배경 없는 스티커(내 사진 위에 얹는 용)
      */
-    fun render(ctx: Context, d: Data, transparent: Boolean): Bitmap {
+    /**
+     * **지도가 주인공인 한 장.** (2026-09-24 사장님이 가져온 조언)
+     *   지도가 위에서 아래까지 꽉 차고, 큰 숫자를 그 위에 얹는다.
+     *   "수도권을 이만큼 돌았다" 가 글이 아니라 **그림 한 장**으로 읽히게 하는 게 목적이다.
+     */
+    private fun renderMapHero(ctx: Context, d: Data): Bitmap {
+        val bmp = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+
+        val bold = font(ctx, R.font.pretendard_bold)
+        val xbold = font(ctx, R.font.pretendard_extrabold)
+        val med = font(ctx, R.font.pretendard_medium)
+
+        val blue = 0xFF3182F6.toInt()
+        val ink = 0xFF0B0F19.toInt()
+        val sub = 0xFF5A6472.toInt()
+        val hint = 0xFF9AA3AF.toInt()
+        val pad = 64f
+
+        c.drawColor(0xFFF7F8FA.toInt())
+
+        // ── 지도 — **여백 없이 꽉.** 아래 292 는 나머지 숫자 · 동네 이름 · 간판 자리.
+        val mapH = S - 292f
+        c.save()
+        c.clipRect(0f, 0f, S.toFloat(), mapH)
+        CanvasDrawScope().draw(
+            Density(1f), LayoutDirection.Ltr, Canvas(c), Size(S.toFloat(), mapH)
+        ) {
+            drawRegionMap(
+                spots = d.dots,
+                named = d.dots.sortedByDescending { it.count }.take(5).map { it.name }.toSet(),
+                measurer = null,
+                land = androidx.compose.ui.graphics.Color(0xFFE9ECF0),
+                edge = androidx.compose.ui.graphics.Color(0xFFCFD5DD),
+                dot = androidx.compose.ui.graphics.Color(0xFF3182F6),
+                labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
+                labelStyle = TextStyle(fontSize = 10.sp),
+                river = androidx.compose.ui.graphics.Color(0x4D3182F6),
+                progress = 1f
+            )
+        }
+        c.restore()
+
+        // ── 큰 숫자를 지도 **위에** 얹는다. 흰 알약을 깔아야 지도 위에서도 읽힌다.
+        val bigP = fit(paint(xbold, 118f, blue), d.bigValue, S - pad * 2 - 200f, 118f, 70f)
+        val unitP = paint(bold, 46f, blue)
+        val capP = paint(bold, 34f, sub)
+        val monP = paint(bold, 30f, hint)
+        val wNum = bigP.measureText(d.bigValue) +
+            (if (d.bigUnit.isNotBlank()) unitP.measureText(d.bigUnit) + 12f else 0f)
+        val boxW = maxOf(wNum, capP.measureText(d.bigCaption), monP.measureText(d.monthLabel)) + 64f
+        val boxTop = 52f
+        val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xF2FFFFFF.toInt()
+            setShadowLayer(20f, 0f, 6f, 0x1F000000)
+        }
+        c.drawRoundRect(pad / 2, boxTop, pad / 2 + boxW, boxTop + 254f, 34f, 34f, plate)
+
+        var y = boxTop + 58f
+        c.drawText(d.monthLabel, pad, y, monP)
+        y += 96f
+        c.drawText(d.bigValue, pad, y, bigP)
+        if (d.bigUnit.isNotBlank()) {
+            c.drawText(d.bigUnit, pad + bigP.measureText(d.bigValue) + 12f, y, unitP)
+        }
+        y += 46f
+        c.drawText(d.bigCaption, pad, y, capP)
+
+        // ── 나머지 숫자 한 줄 — 조언 ②('누적 수치 강조'). 지도 아래, 동네 이름 위.
+        var by = mapH + 46f
+        if (d.subLine.isNotBlank()) {
+            c.drawText(d.subLine, pad, by, fit(paint(bold, 30f, blue), d.subLine, S - pad * 2, 30f, 22f))
+            by += 46f
+        }
+        if (d.towns.isNotEmpty()) {
+            val line = d.towns.take(6).joinToString(" · ") +
+                if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
+            c.drawText(line, pad, by, fit(paint(med, 28f, sub), line, S - pad * 2, 28f, 21f))
+        }
+
+        drawSign(c, d, bold, xbold, med, ink, blue, hint, S.toFloat(), pad)
+        return bmp
+    }
+
+    fun render(ctx: Context, d: Data, shape: Shape): Bitmap {
+        // 갈 곳이 없으면(주소가 하나도 안 붙었으면) 지도 대신 한 장으로. 빈 지도는 자랑이 안 된다.
+        val mode = if (shape == Shape.MAP && d.dots.isEmpty()) Shape.CARD else shape
+        if (mode == Shape.MAP) return renderMapHero(ctx, d)
+        val transparent = mode == Shape.STICKER
         val h = if (transparent) STICKER_H else S
         val bmp = Bitmap.createBitmap(S, h, Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
@@ -179,6 +277,20 @@ object RecordShot {
         // ── 맨 아래 = **간판.** (2026-09-24 사장님 "광고야 광고")
         //   전엔 상호를 구석에 작게 박았다. SNS 에 올리는 건 결국 광고인데 작게 박으면 효과가 없다.
         //   보는 사람이 **누구한테 전화하면 되는지** 바로 알아야 한다.
+        drawSign(c, d, bold, xbold, med, ink, blue, hint, h.toFloat(), pad)
+        return bmp
+    }
+
+    /**
+     * 맨 아래 **간판** — 상호 · 지역·업종·번호 · 구석에 작게 우리 이름. (2026-09-24 사장님 "광고야 광고")
+     *   SNS 에 올리는 건 결국 광고다. 보는 사람이 **누구한테 전화하면 되는지** 바로 알아야 한다.
+     *   세 모양(스티커·지도·한 장)이 같은 간판을 쓴다.
+     */
+    private fun drawSign(
+        c: android.graphics.Canvas, d: Data,
+        bold: Typeface?, xbold: Typeface?, med: Typeface?,
+        ink: Int, blue: Int, hint: Int, h: Float, pad: Float
+    ) {
         val name = d.bizName.trim()
         if (name.isNotBlank()) {
             // 상호 — 제일 크게. 길면 줄인다(넘치면 그림 밖으로 나간다).
@@ -199,7 +311,6 @@ object RecordShot {
         }
         // 우리 이름은 **아주 작게 구석에**. 사장님 광고지 우리 광고가 아니다.
         c.drawText("시공막내", S - pad, h - pad - 16f, paint(med, 22f, hint, Paint.Align.RIGHT))
-        return bmp
     }
 
     /** 사진첩에 저장. */

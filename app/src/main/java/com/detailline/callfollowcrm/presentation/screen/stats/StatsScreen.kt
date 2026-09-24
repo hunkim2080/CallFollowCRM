@@ -61,6 +61,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
+/** 인증샷 모양 — 이름이 길어서 여기서 한 번만 줄인다. */
+private typealias ShotShape = com.detailline.callfollowcrm.util.RecordShot.Shape
+
 /**
  * 통계 탭 — 프로토 `s-stats` 1:1 (2026-06-02 재구성).
  *
@@ -328,22 +331,29 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 배경이 **현장 사진**이 될 거라 '사진 위에 얹을 것' 이 기본이다. (2026-09-24 사장님)
-    var sticker by remember { mutableStateOf(true) }
+    var shape by remember {
+        mutableStateOf(com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER)
+    }
+    val sticker = shape == com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER
     // 큰 숫자 고르기 — 한가한 달엔 '이번 달' 이 초라하니 **올해 누적**이 기본.
     val picks = remember(rec) { bigPicks(rec) }
     var pick by remember(picks) { mutableStateOf(0) }
-    val data = remember(rec, sticker, pick, picks) {
+    val data = remember(rec, shape, pick, picks) {
         val p = picks.getOrElse(pick) { picks.first() }
+        // 고른 것 말고 **나머지 숫자 한 줄** — "이번 달 7집 · 동네 38곳".
+        //   사장님이 가져온 조언 ②('누적 수치 강조'). 지도 한 장에서만 쓴다.
+        val sub = picks.filterIndexed { i, _ -> i != pick }
+            .take(2).joinToString(" · ") { "${it.short} ${it.value}${it.unit}" }
         com.detailline.callfollowcrm.util.RecordShot.Data(
-            bigValue = p.value, bigUnit = p.unit, bigCaption = p.caption,
+            bigValue = p.value, bigUnit = p.unit, bigCaption = p.caption, subLine = sub,
             no = rec.lastNo, monthLabel = rec.monthLabel, sites = rec.monthSites,
             workDays = rec.monthWorkDays, towns = rec.towns, dots = rec.dots,
             bizName = rec.bizName, tradeName = rec.tradeName,
             phone = rec.bizPhone, area = rec.areaLabel
         )
     }
-    val bmp = remember(data, sticker) {
-        com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, sticker)
+    val bmp = remember(data, shape) {
+        com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, shape)
     }
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         androidx.compose.material3.Surface(
@@ -393,17 +403,25 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(AppSpace.s12))
+                // 세 갈래 — 사진 위에 얹기 / **지도 크게** / 정사각 한 장.
+                //   [지도 크게] 는 사장님이 가져온 조언 ①: 지도 한 장이 "수도권을 다 돈다" 를 바로 말해준다.
                 Row(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    ShotTab("사진 위에 얹을 것", sticker, Modifier.weight(1f)) { sticker = true }
-                    ShotTab("정사각 한 장", !sticker, Modifier.weight(1f)) { sticker = false }
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ShotTab("사진 위에", shape == ShotShape.STICKER, Modifier.weight(1f)) {
+                        shape = ShotShape.STICKER
+                    }
+                    ShotTab("지도 크게", shape == ShotShape.MAP, Modifier.weight(1f)) {
+                        shape = ShotShape.MAP
+                    }
+                    ShotTab("정사각", shape == ShotShape.CARD, Modifier.weight(1f)) {
+                        shape = ShotShape.CARD
+                    }
                 }
                 Spacer(Modifier.height(AppSpace.s12))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     ShotSmall("사진첩에 저장", Modifier.weight(1f)) {
                         scope.launch {
-                            val name = "shigongmagne_%03d".format(rec.lastNo) +
-                                if (sticker) "_sticker" else ""
+                            val name = "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape)
                             val ok = com.detailline.callfollowcrm.util.RecordShot.save(ctx, bmp, name)
                             android.widget.Toast.makeText(
                                 ctx,
@@ -417,7 +435,7 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                             .clickable {
                                 com.detailline.callfollowcrm.util.RecordShot.share(
                                     ctx, bmp,
-                                    "shigongmagne_%03d".format(rec.lastNo) + if (sticker) "_sticker" else ""
+                                    "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape)
                                 )
                             }
                             .padding(vertical = 11.dp),
@@ -454,7 +472,15 @@ private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
     if (isEmpty()) add(BigPick("1", "집", "첫 현장", "첫 현장"))
 }
 
-/** 미리보기 창 위쪽 두 갈래. */
+/** 저장 파일 이름 꼬리 — 사진첩에서 뭐가 뭔지 알아보게. */
+private fun shotSuffix(shape: com.detailline.callfollowcrm.util.RecordShot.Shape): String =
+    when (shape) {
+        com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER -> "_sticker"
+        com.detailline.callfollowcrm.util.RecordShot.Shape.MAP -> "_map"
+        com.detailline.callfollowcrm.util.RecordShot.Shape.CARD -> ""
+    }
+
+/** 미리보기 창 위쪽 갈래 하나. */
 @Composable
 private fun ShotTab(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
