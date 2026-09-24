@@ -45,10 +45,18 @@ object RecordShot {
 
     private const val S = 1080          // 정사각 한 변
     // 스티커는 **내용에 딱 맞게**. 높으면 사진 위에서 빈 자리만 크게 먹는다(2026-09-24 폰에서 확인).
-    private const val STICKER_H = 500
+    private const val STICKER_H = 560
 
     /** 그림에 들어가는 값 — **여기 없는 건 그림에 못 들어간다.** 손님 이름·번호·상세주소는 자리 자체가 없다. */
     data class Data(
+        /**
+         * **큰 숫자** — 무엇을 자랑할지는 사람마다 다르다. (2026-09-24 사장님)
+         *   "이번 달 3집" 하나뿐이면 한가한 달엔 못 올린다. 그래서 고르게 한다.
+         */
+        val bigValue: String,
+        val bigUnit: String,
+        /** 그 숫자가 뭔지 한 줄 — "올해 다녀온 집". */
+        val bigCaption: String,
         val no: Int,
         val monthLabel: String,
         val sites: Int,
@@ -71,6 +79,21 @@ object RecordShot {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = tf; textSize = sizePx; this.color = color; textAlign = align
         }
+
+    /**
+     * **폭에 맞을 때까지 글자를 줄인다.**
+     *   사장님 상호가 "줄눈시공 탄성코트의 시작, 하우스픽" 처럼 길 수 있다.
+     *   크기를 고정해두면 그림 밖으로 넘친다(2026-09-24 미리보기에서 확인).
+     */
+    private fun fit(p: Paint, text: String, maxW: Float, from: Float, min: Float): Paint {
+        var sz = from
+        p.textSize = sz
+        while (sz > min && p.measureText(text) > maxW) {
+            sz -= 2f
+            p.textSize = sz
+        }
+        return p
+    }
 
     /**
      * 한 장 그린다.
@@ -105,23 +128,24 @@ object RecordShot {
             c.drawRoundRect(pad / 2, pad / 2, S - pad / 2, h - pad / 2, 44f, 44f, card)
         }
 
-        var y = pad + 56f
-        c.drawText("내 기록", pad, y, paint(bold, 34f, hint))
-        y += 86f
-        c.drawText("현장 %03d".format(d.no), pad, y, paint(xbold, 96f, blue))
-        y += 52f
-        c.drawText(
-            buildString {
-                append(d.monthLabel).append(" · ").append(d.sites).append("곳")
-                if (d.workDays > d.sites) append(" · 현장 ").append(d.workDays).append("일")
-            },
-            pad, y, paint(bold, 36f, sub)
-        )
+        var y = pad + 54f
+        // 맨 위 = 언제 것인지. 그 밑이 **고른 큰 숫자**.
+        c.drawText(d.monthLabel, pad, y, paint(bold, 32f, hint))
+        y += 96f
+        val bigP = fit(paint(xbold, 112f, blue), d.bigValue, S - pad * 2 - 160f, 112f, 64f)
+        c.drawText(d.bigValue, pad, y, bigP)
+        // 단위는 숫자 옆에 작게.
+        val bigW = bigP.measureText(d.bigValue)
+        if (d.bigUnit.isNotBlank()) {
+            c.drawText(d.bigUnit, pad + bigW + 10f, y, paint(bold, 44f, blue))
+        }
+        y += 48f
+        c.drawText(d.bigCaption, pad, y, paint(bold, 34f, sub))
 
         // ── 지도 ── 한 장일 때만. 스티커는 낮아서 지도까지 넣으면 답답하다.
         if (!transparent && d.dots.isNotEmpty()) {
             val mapTop = y + 40f
-            val mapH = S - mapTop - 226f
+            val mapH = S - mapTop - 310f
             c.save()
             c.translate(pad, mapTop)
             c.clipRect(0f, 0f, S - pad * 2, mapH)
@@ -145,11 +169,11 @@ object RecordShot {
         }
 
         // ── 동네 이름 ── (스티커는 바로 밑, 한 장은 아래쪽)
-        val townY = if (transparent) y + 76f else h - 168f
+        val townY = if (transparent) y + 62f else h - 252f
         if (d.towns.isNotEmpty()) {
             val line = d.towns.take(6).joinToString(" · ") +
                 if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
-            c.drawText(line, pad, townY, paint(bold, 34f, ink))
+            c.drawText(line, pad, townY, fit(paint(bold, 34f, ink), line, S - pad * 2, 34f, 24f))
         }
 
         // ── 맨 아래 = **간판.** (2026-09-24 사장님 "광고야 광고")
@@ -157,8 +181,8 @@ object RecordShot {
         //   보는 사람이 **누구한테 전화하면 되는지** 바로 알아야 한다.
         val name = d.bizName.trim()
         if (name.isNotBlank()) {
-            // 상호 — 제일 크게.
-            c.drawText(name, pad, h - pad - 62f, paint(xbold, 52f, ink))
+            // 상호 — 제일 크게. 길면 줄인다(넘치면 그림 밖으로 나간다).
+            c.drawText(name, pad, h - pad - 70f, fit(paint(xbold, 52f, ink), name, S - pad * 2, 52f, 30f))
         }
         // 업종 + 지역 + 번호 한 줄. "서울·경기 줄눈시공 · 010-0000-0000"
         val line2 = listOfNotNull(
@@ -169,10 +193,12 @@ object RecordShot {
             d.phone.takeIf { it.isNotBlank() }
         ).joinToString(" · ")
         if (line2.isNotBlank()) {
-            c.drawText(line2, pad, h - pad - 14f, paint(bold, 32f, blue))
+            // 우리 이름 자리(오른쪽 끝)를 빼고 잰다 — 겹치면 둘 다 못 읽는다.
+            c.drawText(line2, pad, h - pad - 16f,
+                fit(paint(bold, 32f, blue), line2, S - pad * 2 - 150f, 32f, 24f))
         }
         // 우리 이름은 **아주 작게 구석에**. 사장님 광고지 우리 광고가 아니다.
-        c.drawText("시공막내", S - pad, h - pad - 14f, paint(med, 22f, hint, Paint.Align.RIGHT))
+        c.drawText("시공막내", S - pad, h - pad - 16f, paint(med, 22f, hint, Paint.Align.RIGHT))
         return bmp
     }
 
