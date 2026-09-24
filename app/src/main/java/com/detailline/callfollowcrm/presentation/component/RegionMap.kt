@@ -4,12 +4,20 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextMeasurer
@@ -46,6 +54,15 @@ fun RegionMap(
 ) {
     if (spots.isEmpty()) return
     val measurer = rememberTextMeasurer()
+    // 🚛 가 그 달 다닌 순서대로 달린다. 한 바퀴 14초.
+    //   ⚠️ 폰 설정에서 '애니메이션 배율' 이 0이면 **안 움직인다** — 그건 폰 설정이지 버그가 아니다.
+    //      그래서 움직임이 없어도 **길은 다 그려진 채**로 보이게 했다(멈춰도 빈 지도가 안 된다).
+    val trip = rememberInfiniteTransition(label = "trip")
+    val progress by trip.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing)),
+        label = "progress"
+    )
     val line = AppTheme.colors.line
     val landC = AppTheme.colors.neutralBg
     val dotC = AppTheme.colors.primary
@@ -59,13 +76,18 @@ fun RegionMap(
     }
     Box(modifier.fillMaxWidth().height(height)) {
         Canvas(Modifier.fillMaxWidth().height(height)) {
-            drawRegionMap(spots, named, measurer, landC, line, dotC, labelC, labelStyle, riverC)
+            drawRegionMap(spots, named, measurer, landC, line, dotC, labelC, labelStyle, riverC, progress)
         }
     }
 }
 
-/** 지도에 찍을 점 하나. */
-data class RegionDot(val name: String, val lat: Double, val lon: Double, val count: Int)
+/**
+ * 지도에 찍을 점 하나.
+ * @param order 그 달 안에서 **몇 번째로 간 곳인가**(0부터). 🚛 가 이 순서로 달린다.
+ */
+data class RegionDot(
+    val name: String, val lat: Double, val lon: Double, val count: Int, val order: Int = 0
+)
 
 /**
  * 남한 해안선 — 위경도 그대로. 점과 **같은 투영**을 쓰므로 어긋날 수 없다.
@@ -125,7 +147,8 @@ private fun DrawScope.drawRegionMap(
     dot: Color,
     labelColor: Color,
     labelStyle: TextStyle,
-    river: Color
+    river: Color,
+    progress: Float
 ) {
     // ── 보여줄 범위: 다녀온 곳 + 여유. 전국을 다니면 전국, 동네만 다니면 그 언저리. ──
     var minLon = spots.minOf { it.lon }; var maxLon = spots.maxOf { it.lon }
@@ -199,6 +222,39 @@ private fun DrawScope.drawRegionMap(
     if (jr > 1f) {
         drawOval(land, topLeft = Offset(je.x - jr, je.y - jr * .55f),
             size = androidx.compose.ui.geometry.Size(jr * 2, jr * 1.1f))
+    }
+
+    // ── 다닌 길 + 🚛 ── 날짜 순서대로 이은 선. 지나온 만큼 진하게 그어진다.
+    val route = spots.sortedBy { it.order }
+    if (route.size >= 2) {
+        val rp = Path()
+        route.forEachIndexed { idx, s ->
+            val p = px(s.lon, s.lat)
+            if (idx == 0) rp.moveTo(p.x, p.y) else rp.lineTo(p.x, p.y)
+        }
+        // 전체 길 — 옅게(어디를 도는지 미리 보인다)
+        drawPath(rp, dot.copy(alpha = 0.22f), style = Stroke(
+            width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f))
+        ))
+        // 지나온 길 — 진하게
+        val pm = android.graphics.PathMeasure(rp.asAndroidPath(), false)
+        val total = pm.length
+        if (total > 0f) {
+            val at = total * progress.coerceIn(0f, 1f)
+            val seg = android.graphics.Path()
+            if (pm.getSegment(0f, at, seg, true)) {
+                drawPath(seg.asComposePath(), dot, style = Stroke(
+                    width = 2.6f, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                ))
+            }
+            // 🚛 — 지금 자리
+            val pos = FloatArray(2)
+            if (pm.getPosTan(at, pos, null)) {
+                val t = measurer.measure("🚛", labelStyle)
+                drawText(t, topLeft = Offset(pos[0] - t.size.width / 2f, pos[1] - t.size.height - 4f))
+            }
+        }
     }
 
     // ── 점 ── (많이 간 동네가 큰 점)

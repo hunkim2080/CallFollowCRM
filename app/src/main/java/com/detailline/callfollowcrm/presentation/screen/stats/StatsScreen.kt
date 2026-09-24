@@ -97,7 +97,8 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             item(key = "myrecord") { MyRecordCard(rec, onOpenVisited); Spacer(Modifier.height(12.dp)) }
             // 지도 — 다녀온 동네. 점 크기 = 몇 번 갔나. 다녀온 곳이 없으면 아예 안 그린다.
             item(key = "map") {
-                if (rec.dots.isNotEmpty()) { MyRecordMap(rec); Spacer(Modifier.height(12.dp)) }
+                MyRecordMap(rec, onShiftMonth = viewModel::shiftRecordMonth)
+                Spacer(Modifier.height(12.dp))
             }
             // 현장 목록 — 번호가 붙어 쌓이는 곳.
             item(key = "rows") {
@@ -227,11 +228,29 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
  *   면을 안 칠하는 이유는 [RegionMap] 주석 참고 — 화성시가 강서구보다 20배 넓어서 그림이 거짓말을 한다.
  */
 @Composable
-private fun MyRecordMap(rec: MyRecordState) {
+private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)
     ) {
+        // ── 달 넘기기 — 지도·목록·숫자가 다 이걸 따라간다. (2026-09-24 사장님) ──
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            MonthArrow("‹", enabled = true) { onShiftMonth(-1) }
+            Text(
+                rec.monthLabel, modifier = Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+            )
+            MonthArrow("›", enabled = rec.canGoNext) { onShiftMonth(+1) }
+        }
+        Spacer(Modifier.height(AppSpace.s8))
+        if (rec.dots.isEmpty()) {
+            Box(
+                Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center
+            ) {
+                Text("이 달은 다녀온 기록이 없어요", style = AppType.body, color = TossTextTertiary)
+            }
+        } else {
         com.detailline.callfollowcrm.presentation.component.RegionMap(rec.dots)
         Spacer(Modifier.height(AppSpace.s8))
         val sorted = rec.dots.sortedByDescending { it.count }
@@ -246,12 +265,26 @@ private fun MyRecordMap(rec: MyRecordState) {
         Spacer(Modifier.height(AppSpace.s4))
         Text(
             buildString {
-                append("이번 달 다닌 곳")
-                if (rec.yearTownCount > rec.dots.size) append(" · 올해는 ").append(rec.yearTownCount).append("개 동네")
+                append("이 달 다닌 곳 · 🚛 가 간 순서대로 달려요")
+                if (rec.yearTownCount > rec.dots.size) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
             },
             style = AppType.caption, color = TossTextTertiary,
             modifier = Modifier.padding(horizontal = 2.dp)
         )
+        }   // ── if (dots 비었음) … else 끝
+    }
+}
+
+/** 달 넘기는 화살표. 갈 수 없으면 옅게. */
+@Composable
+private fun MonthArrow(glyph: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.size(34.dp).clip(AppShape.md)
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(glyph, style = AppType.title, fontWeight = FontWeight.ExtraBold,
+            color = if (enabled) TossTextSecondary else TossDivider)
     }
 }
 

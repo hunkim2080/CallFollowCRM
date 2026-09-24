@@ -62,8 +62,15 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
      * 「내 기록」 — 번호가 붙어 쌓이는 현장. (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
      *   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이라 따로 뽑는다.
      */
+    /** 지금 보고 있는 달 (0 = 이번 달, -1 = 지난달 …). 지도·목록·숫자가 다 이걸 따라간다. */
+    private val recordMonth = MutableStateFlow(0)
+    fun shiftRecordMonth(delta: Int) {
+        // 앞으로는 이번 달까지만 — 안 온 달은 볼 게 없다.
+        recordMonth.value = (recordMonth.value + delta).coerceAtMost(0)
+    }
+
     val myRecord: StateFlow<MyRecordState> =
-        combine(customers, jobsFlow) { cs, js -> buildMyRecord(cs, js) }
+        combine(customers, jobsFlow, recordMonth) { cs, js, m -> buildMyRecord(cs, js, m) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
 
     private val bizNameForRecord = container.preferences.bizName
@@ -78,10 +85,11 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
 
     private fun buildMyRecord(
         cs: List<CustomerEntity>,
-        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
+        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
+        monthDelta: Int = 0
     ): MyRecordState {
         val now = System.currentTimeMillis()
-        val monthStart = monthStartOf(now)
+        val monthStart = shiftMonth(monthStartOf(now), monthDelta)
         val monthEnd = shiftMonth(monthStart, +1)
         val addrOf = cs.associate { it.id to it.address }
         val todayStart = DateTimeUtils.startOfDay(now)
@@ -90,6 +98,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         //   ⚠️ '완료를 눌렀나' 로 세지 않는다. 완료는 며칠 뒤에 누르기도 하고 안 누르기도 한다.
         val done = js.filter { (it.scheduledWorkDate ?: 0L) in 1 until todayStart }
             .sortedByDescending { it.scheduledWorkDate ?: 0L }
+        // 지난달을 볼 땐 그 달이 이미 다 지났으므로 '오늘 이전' 조건이 저절로 만족된다.
         val month = done.filter { (it.scheduledWorkDate ?: 0L) in monthStart until monthEnd }
         // 다녀왔는데 **완료를 안 누른** 곳 — 번호가 안 붙는다. 그래서 할 일로 알려준다.
         val notDone = month.count { it.workCompletedAt == null }
@@ -107,15 +116,21 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         //   올해 걸 다 찍으면 수도권은 동네가 다 붙어 있어 **한 덩어리**가 된다(폰에서 38곳 = 얼룩).
         //   이번 달만 찍으면 점이 몇 개라 하나하나 보이고, 위 카드와 **같은 말**이 된다.
         //   달이 바뀌면 그림도 바뀐다 → 다시 볼 이유가 생긴다.
+        //   🚛 가 **날짜 순서대로** 달려야 하므로, 처음 간 날 순으로 자리를 매긴다.
         val counts = LinkedHashMap<String, Triple<Double, Double, Int>>()
-        for (j in month) {
+        val firstAt = LinkedHashMap<String, Long>()
+        for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             val spot = com.detailline.callfollowcrm.util.RegionCoords.of(a) ?: continue
             val prev = counts[spot.name]
             counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
+            firstAt.putIfAbsent(spot.name, j.scheduledWorkDate ?: 0L)
         }
+        val orderOf = firstAt.entries.sortedBy { it.value }.mapIndexed { i, e -> e.key to i }.toMap()
         val dots = counts.map { (nm, v) ->
-            com.detailline.callfollowcrm.presentation.component.RegionDot(nm, v.first, v.second, v.third)
+            com.detailline.callfollowcrm.presentation.component.RegionDot(
+                nm, v.first, v.second, v.third, orderOf[nm] ?: 0
+            )
         }
         // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.
         val yearStart = yearStartOf(now)
@@ -143,8 +158,9 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             )
         }
         val rows = buildList {
-            upcoming?.let { add(rowOf(it, true)) }
-            done.take(8).forEach { add(rowOf(it, false)) }
+            // '다음 현장' 은 **이번 달을 볼 때만** 의미가 있다. 지난달을 보면서 앞일을 보여주면 헷갈린다.
+            if (monthDelta == 0) upcoming?.let { add(rowOf(it, true)) }
+            (if (monthDelta == 0) done else month).take(8).forEach { add(rowOf(it, false)) }
         }
         val sales = month.sumOf { (it.totalAmount ?: 0L) } / 10_000L
         val topTown = top?.let {
@@ -164,6 +180,9 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
                 topTown, top?.recordNo, month.size, towns.size
             ),
             dots = dots,
+            monthLabel = java.text.SimpleDateFormat("yyyy년 M월", java.util.Locale.KOREA)
+                .format(java.util.Date(monthStart)),
+            canGoNext = monthDelta < 0,
             yearTownCount = yearTowns.size,
             rows = rows,
             monthSalesManwon = sales.toInt()
@@ -362,6 +381,10 @@ data class MyRecordState(
     val pasteText: String = "",
     /** **이번 달** 다녀온 곳 — 지도에 찍을 점(동네 하나당 하나, 몇 번 갔는지 셈). */
     val dots: List<com.detailline.callfollowcrm.presentation.component.RegionDot> = emptyList(),
+    /** 보고 있는 달 — "2026년 9월". */
+    val monthLabel: String = "",
+    /** 다음 달로 넘어갈 수 있나(이번 달이면 false — 안 온 달은 볼 게 없다). */
+    val canGoNext: Boolean = false,
     /** 올해 다녀온 동네 수 — 지도엔 안 찍고 숫자로만. */
     val yearTownCount: Int = 0,
     /** 최근 현장 — 번호가 붙어 쌓이는 목록. 맨 위가 '다음 예정'일 수 있다. */
