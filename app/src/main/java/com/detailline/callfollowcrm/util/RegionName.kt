@@ -37,6 +37,35 @@ object RegionName {
         Regex("[가-힣]{2,4}[동읍면]")
     )
 
+    /**
+     * 주소에서 **동·읍·면 이름 그대로** 뽑는다. (2026-09-25 사장님 "동. 까지 뭔가 측정 가능했으면")
+     *
+     * [shortRegion] 은 *부를 때 쓰는 이름* 이라 구를 먼저 고른다("수원시 팔달구 인계동" → 팔달).
+     * 이건 반대로 **제일 좁은 칸**을 집는다 — 동네를 세고 지도에 찍는 데 쓴다.
+     *
+     *   "경기도 수원시 팔달구 인계동 1122" → 인계동
+     *   "화성시 동탄4동 …"                 → 동탄4동
+     *   "가능동sk뷰아파트103동801호"        → 가능동   (103동·801호는 안 걸린다)
+     *
+     * 못 찾으면 null — 부르는 쪽이 구 이름으로 물러난다.
+     */
+    fun dongOf(address: String?): String? {
+        val a = address?.trim().orEmpty()
+        if (a.isBlank()) return null
+        val tokens = a.split(' ', '\t', '\n', ',', '\u00A0').filter { it.isNotBlank() }
+        for (t in tokens) {
+            if (t.length !in 2..6) continue
+            if (t.last() !in "동읍면") continue
+            // 앞이 한글이어야 한다 — "103동"·"제2동" 같은 건물 동호수는 거른다.
+            if (!t.dropLast(1).all { it in '가'..'힣' || it in '0'..'9' }) continue
+            if (t.first() !in '가'..'힣') continue
+            return t
+        }
+        // 띄어쓰기를 아예 안 쓴 주소. 앞이 한글 2~4자라야 하므로 "103동" 은 안 걸린다.
+        val m = Regex("[가-힣]{2,4}[0-9]?[동읍면]").find(a) ?: return null
+        return m.value
+    }
+
     fun shortRegion(address: String?): String? {
         val a = address?.trim().orEmpty()
         if (a.isBlank()) return null

@@ -84,6 +84,14 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * 주소 → 찍을 자리. **동을 먼저** 보고, 없으면 구로 물러난다. (2026-09-25 사장님)
+     *   동까지 알아봐야 한 도시 안에서만 다니는 사장님도 점이 벌어진다.
+     */
+    private fun spotOf(address: String?): com.detailline.callfollowcrm.util.RegionCoords.Spot? =
+        com.detailline.callfollowcrm.util.DongCoords.of(container.appContext, address)
+            ?: com.detailline.callfollowcrm.util.RegionCoords.of(address)
+
     fun shiftRecordMonth(delta: Int) {
         // 앞으로는 이번 달까지만 — 안 온 달은 볼 게 없다.
         recordMonth.value = (recordMonth.value + delta).coerceAtMost(0)
@@ -143,7 +151,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val firstAt = LinkedHashMap<String, Long>()
         for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
-            val spot = com.detailline.callfollowcrm.util.RegionCoords.of(a) ?: continue
+            val spot = spotOf(a) ?: continue
             val prev = counts[spot.name]
             counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
             firstAt.putIfAbsent(spot.name, j.scheduledWorkDate ?: 0L)
@@ -162,7 +170,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         for (j in done) {
             if ((j.scheduledWorkDate ?: 0L) < yearStart) continue
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
-            com.detailline.callfollowcrm.util.RegionCoords.of(a)?.let {
+            spotOf(a)?.let {
                 yearTowns.add(it.name)
                 sidos[it.sido] = (sidos[it.sido] ?: 0) + 1
             }
