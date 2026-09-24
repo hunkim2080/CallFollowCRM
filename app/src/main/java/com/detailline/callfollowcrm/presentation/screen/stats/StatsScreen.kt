@@ -238,7 +238,8 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
                         com.detailline.callfollowcrm.util.RecordShot.Data(
                             no = rec.lastNo, monthLabel = rec.monthLabel, sites = rec.monthSites,
                             workDays = rec.monthWorkDays, towns = rec.towns, dots = rec.dots,
-                            bizName = rec.bizName, tradeName = rec.tradeName
+                            bizName = rec.bizName, tradeName = rec.tradeName,
+                            phone = rec.bizPhone, area = rec.areaLabel
                         ),
                         transparent = transparent
                     )

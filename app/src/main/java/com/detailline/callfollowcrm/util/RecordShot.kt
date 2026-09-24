@@ -45,7 +45,7 @@ object RecordShot {
 
     private const val S = 1080          // 정사각 한 변
     // 스티커는 **내용에 딱 맞게**. 높으면 사진 위에서 빈 자리만 크게 먹는다(2026-09-24 폰에서 확인).
-    private const val STICKER_H = 440
+    private const val STICKER_H = 500
 
     /** 그림에 들어가는 값 — **여기 없는 건 그림에 못 들어간다.** 손님 이름·번호·상세주소는 자리 자체가 없다. */
     data class Data(
@@ -56,7 +56,11 @@ object RecordShot {
         val towns: List<String>,
         val dots: List<RegionDot>,
         val bizName: String,
-        val tradeName: String
+        val tradeName: String,
+        /** 보고 전화하게. 비면 안 그린다. */
+        val phone: String,
+        /** 다니는 지역 한 줄 — "서울·경기". 광고에선 **어디까지 가는지**가 제일 궁금한 정보다. */
+        val area: String
     )
 
     private fun font(ctx: Context, id: Int): Typeface? = runCatching {
@@ -117,7 +121,7 @@ object RecordShot {
         // ── 지도 ── 한 장일 때만. 스티커는 낮아서 지도까지 넣으면 답답하다.
         if (!transparent && d.dots.isNotEmpty()) {
             val mapTop = y + 40f
-            val mapH = S - mapTop - 190f
+            val mapH = S - mapTop - 226f
             c.save()
             c.translate(pad, mapTop)
             c.clipRect(0f, 0f, S - pad * 2, mapH)
@@ -141,23 +145,34 @@ object RecordShot {
         }
 
         // ── 동네 이름 ── (스티커는 바로 밑, 한 장은 아래쪽)
-        val townY = if (transparent) y + 76f else h - 132f
+        val townY = if (transparent) y + 76f else h - 168f
         if (d.towns.isNotEmpty()) {
             val line = d.towns.take(6).joinToString(" · ") +
                 if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
             c.drawText(line, pad, townY, paint(bold, 34f, ink))
         }
 
-        // ── 맨 아래 — 상호. 크게 넣지 않는다(광고로 보이면 안 올린다). ──
-        val footY = h - pad - 8f
-        val who = listOfNotNull(
-            d.bizName.takeIf { it.isNotBlank() },
-            d.tradeName.takeIf { it.isNotBlank() }
-        ).joinToString(" ")
-        c.drawText(
-            (if (who.isNotBlank()) "$who · " else "") + "시공막내로 만든 기록",
-            pad, footY, paint(med, 28f, hint)
-        )
+        // ── 맨 아래 = **간판.** (2026-09-24 사장님 "광고야 광고")
+        //   전엔 상호를 구석에 작게 박았다. SNS 에 올리는 건 결국 광고인데 작게 박으면 효과가 없다.
+        //   보는 사람이 **누구한테 전화하면 되는지** 바로 알아야 한다.
+        val name = d.bizName.trim()
+        if (name.isNotBlank()) {
+            // 상호 — 제일 크게.
+            c.drawText(name, pad, h - pad - 62f, paint(xbold, 52f, ink))
+        }
+        // 업종 + 지역 + 번호 한 줄. "서울·경기 줄눈시공 · 010-0000-0000"
+        val line2 = listOfNotNull(
+            listOfNotNull(
+                d.area.takeIf { it.isNotBlank() },
+                d.tradeName.takeIf { it.isNotBlank() }
+            ).joinToString(" ").takeIf { it.isNotBlank() },
+            d.phone.takeIf { it.isNotBlank() }
+        ).joinToString(" · ")
+        if (line2.isNotBlank()) {
+            c.drawText(line2, pad, h - pad - 14f, paint(bold, 32f, blue))
+        }
+        // 우리 이름은 **아주 작게 구석에**. 사장님 광고지 우리 광고가 아니다.
+        c.drawText("시공막내", S - pad, h - pad - 14f, paint(med, 22f, hint, Paint.Align.RIGHT))
         return bmp
     }
 

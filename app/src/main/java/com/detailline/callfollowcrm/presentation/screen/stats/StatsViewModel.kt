@@ -75,6 +75,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
 
     private val bizNameForRecord = container.preferences.bizName
     private val tradeForRecord = container.preferences.ownerTrades.firstOrNull().orEmpty()
+    private val phoneForRecord = container.preferences.bizPhone
 
     /** 올해 1월 1일 0시. */
     private fun yearStartOf(ms: Long): Long = java.util.Calendar.getInstance().apply {
@@ -136,11 +137,19 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.
         val yearStart = yearStartOf(now)
         val yearTowns = HashSet<String>()
+        // 다니는 지역 — 올해 간 동네의 **시·도**를 모은다. 광고에선 "어디까지 가는지" 가 제일 궁금하다.
+        val sidos = LinkedHashMap<String, Int>()
         for (j in done) {
             if ((j.scheduledWorkDate ?: 0L) < yearStart) continue
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
-            com.detailline.callfollowcrm.util.RegionCoords.of(a)?.let { yearTowns.add(it.name) }
+            com.detailline.callfollowcrm.util.RegionCoords.of(a)?.let {
+                yearTowns.add(it.name)
+                sidos[it.sido] = (sidos[it.sido] ?: 0) + 1
+            }
         }
+        // 많이 간 순 세 곳까지. "서울·경기" 처럼.
+        val area = sidos.entries.sortedByDescending { it.value }.take(3)
+            .joinToString("·") { it.key }
 
         // ── 목록 — 다음 예정 하나 + 최근 다녀온 것들 ──
         val upcoming = js.filter { (it.scheduledWorkDate ?: 0L) >= todayStart && it.cancelledAt == null }
@@ -198,7 +207,9 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             monthWorkDays = workDays,
             prevMonthSites = if (hasPrev) prevCount else -1,
             bizName = bizNameForRecord,
-            tradeName = tradeForRecord
+            tradeName = tradeForRecord,
+            bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
+            areaLabel = area
         )
     }
 
@@ -413,7 +424,11 @@ data class MyRecordState(
     val prevMonthSites: Int = -1,
     /** 인증샷 맨 아래에 **작게** 들어간다. 크게 넣으면 광고로 보여서 안 올린다. */
     val bizName: String = "",
-    val tradeName: String = ""
+    val tradeName: String = "",
+    /** 인증샷 간판에 들어갈 연락처. */
+    val bizPhone: String = "",
+    /** 다니는 지역 한 줄 — "서울·경기". 올해 다닌 동네의 시·도에서 뽑는다. */
+    val areaLabel: String = ""
 )
 
 /** 「내 기록」 한 줄. */
