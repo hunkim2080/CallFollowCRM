@@ -236,14 +236,18 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
             //   그릴 게 없으면 한 줄로 접는다. 데이터가 생기면 그때 편다. (2026-09-23 화면 점검)
             //   '시장 비교'를 한 줄로 접어 둔 것(2026-09-21 사장님)과 같은 방식.
             val hasBars = t.bars.any { it.cur > 0 || it.prev > 0 }
+            // ⚠️ 여기서 early return@Column 을 하면 **앱이 꺼진다.**
+            //   빈→로드 전환 때 슬롯테이블 그룹이 어긋나 AIOOBE(index=-5). 아래 StatTypes 주석과 같은 사고.
+            //   2026-09-23 에 이 한 줄을 넣으면서 return 을 같이 넣었고, 다음 날 테스트폰에서
+            //   **통계 탭을 누르면 바로 재현**됐다(문의 0건 구간이라 늘 이 가지를 탄다).
+            //   → return 금지. if/else 로 감싼다. (2026-09-24)
             if (!hasBars) {
                 Text(
                     "아직 그릴 게 없어요 — 문의가 들어오면 여기 쌓여요",
                     style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(top = 14.dp)
                 )
-                return@Column
-            }
+            } else {
             // gbars — 프로토 .gbars(height)+.pair(flex:1): 막대 영역이 위 숫자·아래 요일 빼고 남는 높이에 비례.
             val max = (t.bars.maxOfOrNull { maxOf(it.cur, it.prev) } ?: 1).coerceAtLeast(1)
             Row(
@@ -284,6 +288,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
                 Spacer(Modifier.width(16.dp))
                 LegendItem(TossBlue, t.unitLabel)
             }
+            }   // ── if (!hasBars) … else 끝
         }
         // 시장 비교 — **아직 안 되는 기능**이라 한 줄로 접어 둔다. 전엔 카드 하나를 통째로 먹으면서
         //   "모이는 중" 을 세 번 말했다. 데이터가 모이면 그때 편다. (2026-09-21 사장님)
