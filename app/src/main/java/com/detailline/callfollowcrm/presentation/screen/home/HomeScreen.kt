@@ -211,6 +211,17 @@ private fun openInstallPage(context: android.content.Context) {
     }
 }
 
+/**
+ * 앱을 **새로 켠 것인지** 알려주는 표식. (2026-09-24 사장님)
+ *
+ * 전역 변수는 앱 프로세스와 함께 태어나고 함께 죽는다 — 그래서 이 값이 아직 true 면
+ * "이번 실행에서 상담함을 처음 여는 것" 이다. 한 번 쓰고 false 로 눕힌다.
+ *
+ * 왜 필요한가: 칩은 `rememberSaveable` 이라 **앱을 닫아도 남는다.** [오늘 신규] 를 켠 채 닫으면
+ *   다음에 열 때 그날 새 문의가 0 이라 목록이 텅 비고, 사장님 눈엔 **문자가 다 날아간 화면**이다.
+ */
+private var homeChipFreshLaunch = true
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -268,6 +279,17 @@ fun HomeScreen(
     var inboxChip by rememberSaveable { mutableStateOf("all") }
     /** [문자함] 안에서 보는 갈래 — "ad"(광고·인증) / "parcel"(택배). 합치면 문자함 전부. */
     var boxSub by rememberSaveable { mutableStateOf("ad") }
+    // 🔵 **앱을 새로 켰으면 무조건 [전체].** (2026-09-24 사장님 "항상 전체가 떠야 해")
+    //   칩이 남아 있으면 다음에 열 때 텅 빈 목록이 떠서 "문자가 다 날아갔다" 로 보인다.
+    //   같은 실행 안의 이동(채팅 갔다 뒤로가기 등)에선 안 건드린다 — 훑던 칩이 풀리면 더 성가시다.
+    LaunchedEffect(Unit) {
+        if (homeChipFreshLaunch) {
+            homeChipFreshLaunch = false
+            inboxChip = "all"
+            boxSub = "ad"
+        }
+    }
+
     // 없앤 칩([새 번호])을 고른 채로 앱을 닫았으면 그 값이 남아 **아무 칩도 안 켜진 화면**이 된다.
     LaunchedEffect(inboxChip) {
         // 없앤 칩([새 번호]·[답장 대기])을 고른 채 앱을 닫았으면 그 값이 남아
