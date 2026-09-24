@@ -303,7 +303,13 @@ fun HomeScreen(
 
     // 하단 탭의 빨간 숫자를 누르면(이미 상담함일 때) 안 챙긴 것만 거른다. 칩은 없다 — 숫자가 곧 필터.
     val jumpTick by viewModel.jumpToUnhandled.collectAsState()
-    LaunchedEffect(jumpTick) { if (jumpTick > 0L) inboxChip = "pending" }
+    // ⚠️ 이 신호는 **앱이 살아 있는 동안 값이 남는다**(누른 시각). 그래서 다른 탭 갔다가
+    //   상담함으로 다시 들어오면 그 **옛날 신호**로 또 불려서, 누르지도 않았는데
+    //   [안 챙긴 것] 으로 걸러진 채 열렸다. 답장을 다 해둔 뒤면 목록이 텅 빈다.
+    //   (2026-09-24 사장님 "상담함을 누르면 전체 칩으로 가는 게 아니라.. 왜 비어있지?")
+    //   → **들어온 뒤 새로 올라온 신호만** 듣는다.
+    val jumpSeen = remember { jumpTick }
+    LaunchedEffect(jumpTick) { if (jumpTick > jumpSeen) inboxChip = "pending" }
 
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
