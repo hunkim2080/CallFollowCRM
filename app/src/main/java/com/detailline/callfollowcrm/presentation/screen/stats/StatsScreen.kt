@@ -80,8 +80,8 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
                 title = {
                     // 부제로 헤더에 무게 → 무거운 파란 카드에 제목이 안 눌림. (2026-08-02 사장님 A안 승인)
                     Column {
-                        Text("통계", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
-                        Text("최근 성과", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextInfo, letterSpacing = (-0.1).sp)
+                        Text("내 기록", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                        Text("내가 다녀온 현장", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextInfo, letterSpacing = (-0.1).sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
@@ -92,11 +92,25 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)  // top 14 = 헤더와 첫 카드 숨 쉬는 간격
         ) {
-            // 「내 기록」 — 맨 위. 통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**.
-            //   (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
-            item(key = "myrecord") { MyRecordCard(rec, onOpenVisited); Spacer(Modifier.height(14.dp)) }
-            item(key = "hero") { StatsHero(s); Spacer(Modifier.height(14.dp)) }
-            item(key = "mascot") { StatsMascot(); Spacer(Modifier.height(14.dp)) }
+            // ── 「내 기록」 — 이 탭의 주인공. (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
+            //   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이다.
+            item(key = "myrecord") { MyRecordCard(rec, onOpenVisited); Spacer(Modifier.height(12.dp)) }
+            // 지도 — 다녀온 동네. 점 크기 = 몇 번 갔나. 다녀온 곳이 없으면 아예 안 그린다.
+            item(key = "map") {
+                if (rec.dots.isNotEmpty()) { MyRecordMap(rec); Spacer(Modifier.height(12.dp)) }
+            }
+            // 현장 목록 — 번호가 붙어 쌓이는 곳.
+            item(key = "rows") {
+                if (rec.rows.isNotEmpty()) { MyRecordRows(rec, onOpenVisited); Spacer(Modifier.height(18.dp)) }
+            }
+            // ── 여기부터는 **나만 보는 숫자.** 기록 밑으로 내린다. ──
+            item(key = "sec-num") {
+                Text(
+                    "숫자로 보기",
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                    modifier = Modifier.padding(start = 2.dp, bottom = 11.dp)
+                )
+            }
             item(key = "grid") { StatGrid(s, onOpenVisited) }
             item(key = "sec-sub") {
                 Text(
@@ -105,15 +119,12 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
                     modifier = Modifier.padding(start = 2.dp, top = 26.dp, bottom = 11.dp)
                 )
             }
-            item(key = "trend") { TrendSection(trend, onSelect = viewModel::setPeriod) }
-            item(key = "types-sec") {
-                Text(
-                    "이번 달 시공 종류",
-                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-                    modifier = Modifier.padding(start = 2.dp, top = 26.dp, bottom = 11.dp)
-                )
-            }
-            item(key = "types") { StatTypes(s); Spacer(Modifier.height(18.dp)) }
+            item(key = "trend") { TrendSection(trend, onSelect = viewModel::setPeriod); Spacer(Modifier.height(18.dp)) }
+            // 🗑 걷어낸 것 (2026-09-24 사장님 "싹 갈아엎어야지"):
+            //   · StatsHero(파란 "9월, 잘 하고 계세요") — 위 기록 카드와 같은 말을 두 번 했다
+            //   · StatsMascot("이번 달도 옆에서 챙길게요") — 자리만 먹고 아무 정보가 없다
+            //   · StatTypes(시공 종류) — 사장님 확정 "상품명이 매번 달라져서 통계 잡을 이유가 없다"
+            //   · 시장 비교 — 2년째 "모이는 중". 빈 약속은 치운다 (TrendSection 안에서 제거)
         }
     }
 }
@@ -208,6 +219,94 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
                 style = AppType.caption, color = TossTextTertiary)
         }
         }   // ── if (아직 없음) … else 끝
+    }
+}
+
+/**
+ * 다녀온 동네 지도. 점 하나 = 동네 하나, **점 크기 = 몇 번 갔나.** (2026-09-24 사장님)
+ *   면을 안 칠하는 이유는 [RegionMap] 주석 참고 — 화성시가 강서구보다 20배 넓어서 그림이 거짓말을 한다.
+ */
+@Composable
+private fun MyRecordMap(rec: MyRecordState) {
+    Column(
+        modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)
+    ) {
+        com.detailline.callfollowcrm.presentation.component.RegionMap(rec.dots)
+        Spacer(Modifier.height(AppSpace.s8))
+        val sorted = rec.dots.sortedByDescending { it.count }
+        Text(
+            buildString {
+                append(sorted.take(8).joinToString(" · ") { it.name })
+                if (sorted.size > 8) append(" 외 ").append(sorted.size - 8).append("곳")
+            },
+            style = AppType.label, color = TossTextSecondary, lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 2.dp)
+        )
+        Spacer(Modifier.height(AppSpace.s4))
+        Text(
+            buildString {
+                append("이번 달 다닌 곳")
+                if (rec.yearTownCount > rec.dots.size) append(" · 올해는 ").append(rec.yearTownCount).append("개 동네")
+            },
+            style = AppType.caption, color = TossTextTertiary,
+            modifier = Modifier.padding(horizontal = 2.dp)
+        )
+    }
+}
+
+/**
+ * 현장 목록 — **번호가 붙어 쌓인다.**
+ *   맨 위는 '다음 현장'(예정). 다음 번호가 눈에 보이면 채우고 싶어진다.
+ *   번호가 없는 줄 = 다녀왔는데 **완료를 안 누른** 것. 눌러서 채우러 간다.
+ */
+@Composable
+private fun MyRecordRows(rec: MyRecordState, onOpenVisited: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        rec.rows.forEachIndexed { i, r ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            Row(
+                Modifier.fillMaxWidth().clickable { onOpenVisited() }.padding(vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(38.dp).clip(AppShape.md)
+                        .background(if (r.upcoming) TossGrayBg else AppTheme.colors.primaryBg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        r.no ?: "—",
+                        style = AppType.label, fontWeight = FontWeight.Black,
+                        color = if (r.upcoming) TossTextTertiary else AppTheme.colors.primaryText
+                    )
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (r.upcoming) "다음 현장" else (r.town ?: "주소 미등록"),
+                        style = AppType.body, fontWeight = FontWeight.ExtraBold,
+                        color = if (r.town == null && !r.upcoming) AppTheme.colors.unpaid else TossTextPrimary
+                    )
+                    Text(r.date, style = AppType.caption, color = TossTextTertiary)
+                }
+                Text(
+                    when {
+                        r.upcoming -> "예정"
+                        r.no == null -> "완료 누르기 ›"
+                        else -> "완료"
+                    },
+                    style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                    color = when {
+                        r.upcoming -> TossTextTertiary
+                        r.no == null -> TossBlue
+                        else -> AppTheme.colors.done
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -389,17 +488,8 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
             }
             }   // ── if (!hasBars) … else 끝
         }
-        // 시장 비교 — **아직 안 되는 기능**이라 한 줄로 접어 둔다. 전엔 카드 하나를 통째로 먹으면서
-        //   "모이는 중" 을 세 번 말했다. 데이터가 모이면 그때 편다. (2026-09-21 사장님)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(14.dp))
-                .background(Color.White).padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("시장 비교", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-            Spacer(Modifier.weight(1f))
-            Text("전국 시공자가 더 모이면 열려요", fontSize = 12.sp, color = TossTextTertiary)
-        }
+        // 🗑 시장 비교 제거 (2026-09-24 사장님) — 2년째 "모이는 중" 이었다. 빈 약속은 치운다.
+        //   전국 시공자 데이터가 실제로 모이면 그때 다시 만든다.
     }
 }
 

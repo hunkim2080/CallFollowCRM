@@ -68,6 +68,14 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
 
     private val bizNameForRecord = container.preferences.bizName
 
+    /** 올해 1월 1일 0시. */
+    private fun yearStartOf(ms: Long): Long = java.util.Calendar.getInstance().apply {
+        timeInMillis = ms
+        set(java.util.Calendar.MONTH, 0); set(java.util.Calendar.DAY_OF_MONTH, 1)
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
     private fun buildMyRecord(
         cs: List<CustomerEntity>,
         js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
@@ -94,6 +102,51 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         }
         val lastNo = js.mapNotNull { it.recordNo }.maxOrNull() ?: 0
         val top = month.firstOrNull() ?: done.firstOrNull()
+
+        // ── 지도 점 = **이번 달**. ──
+        //   올해 걸 다 찍으면 수도권은 동네가 다 붙어 있어 **한 덩어리**가 된다(폰에서 38곳 = 얼룩).
+        //   이번 달만 찍으면 점이 몇 개라 하나하나 보이고, 위 카드와 **같은 말**이 된다.
+        //   달이 바뀌면 그림도 바뀐다 → 다시 볼 이유가 생긴다.
+        val counts = LinkedHashMap<String, Triple<Double, Double, Int>>()
+        for (j in month) {
+            val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
+            val spot = com.detailline.callfollowcrm.util.RegionCoords.of(a) ?: continue
+            val prev = counts[spot.name]
+            counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
+        }
+        val dots = counts.map { (nm, v) ->
+            com.detailline.callfollowcrm.presentation.component.RegionDot(nm, v.first, v.second, v.third)
+        }
+        // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.
+        val yearStart = yearStartOf(now)
+        val yearTowns = HashSet<String>()
+        for (j in done) {
+            if ((j.scheduledWorkDate ?: 0L) < yearStart) continue
+            val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
+            com.detailline.callfollowcrm.util.RegionCoords.of(a)?.let { yearTowns.add(it.name) }
+        }
+
+        // ── 목록 — 다음 예정 하나 + 최근 다녀온 것들 ──
+        val upcoming = js.filter { (it.scheduledWorkDate ?: 0L) >= todayStart && it.cancelledAt == null }
+            .sortedBy { it.scheduledWorkDate ?: Long.MAX_VALUE }
+            .firstOrNull()
+        fun rowOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity, soon: Boolean): MyRecordRow {
+            val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
+            return MyRecordRow(
+                jobId = j.id,
+                customerId = j.customerId,
+                no = j.recordNo?.let { "%03d".format(it) },
+                town = com.detailline.callfollowcrm.util.RegionName.shortRegion(a),
+                date = j.scheduledWorkDate?.let { DateTimeUtils.formatShortKoreanDate(it) } ?: "",
+                done = j.workCompletedAt != null,
+                upcoming = soon
+            )
+        }
+        val rows = buildList {
+            upcoming?.let { add(rowOf(it, true)) }
+            done.take(8).forEach { add(rowOf(it, false)) }
+        }
+        val sales = month.sumOf { (it.totalAmount ?: 0L) } / 10_000L
         val topTown = top?.let {
             com.detailline.callfollowcrm.util.RegionName.shortRegion(
                 it.address?.takeIf { a -> a.isNotBlank() } ?: addrOf[it.customerId]
@@ -109,7 +162,11 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             pasteText = buildPaste(
                 top?.scheduledWorkDate ?: top?.workCompletedAt,
                 topTown, top?.recordNo, month.size, towns.size
-            )
+            ),
+            dots = dots,
+            yearTownCount = yearTowns.size,
+            rows = rows,
+            monthSalesManwon = sales.toInt()
         )
     }
 
@@ -302,7 +359,30 @@ data class MyRecordState(
      */
     val notDoneCount: Int = 0,
     /** 카톡·밴드·당근에 그대로 붙이는 글. 빈 문자열 = 아직 완료한 현장이 없음. */
-    val pasteText: String = ""
+    val pasteText: String = "",
+    /** **이번 달** 다녀온 곳 — 지도에 찍을 점(동네 하나당 하나, 몇 번 갔는지 셈). */
+    val dots: List<com.detailline.callfollowcrm.presentation.component.RegionDot> = emptyList(),
+    /** 올해 다녀온 동네 수 — 지도엔 안 찍고 숫자로만. */
+    val yearTownCount: Int = 0,
+    /** 최근 현장 — 번호가 붙어 쌓이는 목록. 맨 위가 '다음 예정'일 수 있다. */
+    val rows: List<MyRecordRow> = emptyList(),
+    /** 이번 달 매출(만원). 0 = 아직 없음. */
+    val monthSalesManwon: Int = 0
+)
+
+/** 「내 기록」 한 줄. */
+data class MyRecordRow(
+    val jobId: Long,
+    val customerId: Long,
+    /** "007" · 아직 번호 없으면 null(완료를 안 눌렀다는 뜻). */
+    val no: String?,
+    /** 동네. 주소를 못 찾았으면 null. */
+    val town: String?,
+    /** "9/19" */
+    val date: String,
+    val done: Boolean,
+    /** true = 아직 안 다녀온 예정 현장. */
+    val upcoming: Boolean
 )
 
 data class StatsTrendState(

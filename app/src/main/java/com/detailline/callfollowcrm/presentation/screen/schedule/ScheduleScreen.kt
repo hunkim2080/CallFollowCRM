@@ -637,6 +637,7 @@ fun ScheduleScreen(
             jobDayStarts = assignJobDayStarts,
             onAddTeamMember = { name, phone -> viewModel.addTeamMember(name, phone) },
             onAddWorker = { name, phone, wage -> viewModel.addCollabPartner(name, phone, wage) },
+            onDeleteWorker = { p -> viewModel.removeCollabPartner(p.id, p.name) },
             onDismiss = { assignTarget = null },
             onSave = { selectedIds, memo ->
                 val dayStart = DateTimeUtils.startOfDay(c.scheduledWorkDate ?: System.currentTimeMillis())
@@ -1935,7 +1936,8 @@ private fun buildCalendarCells(
  *   ModalBottomSheet(별도 윈도우)는 갤S9/안드10 에서 키보드가 입력칸을 가림(reference_modalbottomsheet_keyboard).
  *   메모 입력칸이 생겼으므로 액티비티 윈도우 안 인라인 오버레이로 그림(adjustResize → 키보드 뜨면 카드가 위로).
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun AssignTeamSheet(
     siteTitle: String,
@@ -1950,6 +1952,8 @@ private fun AssignTeamSheet(
     jobDayStarts: List<Long> = emptyList(),
     onAddTeamMember: (name: String, phone: String) -> Unit,
     onAddWorker: (name: String, phone: String, wageManwon: Int?) -> Unit,
+    /** 명부에서 빼기 — 꾹 누르면. 협업 요청 취소와는 다르다. (2026-09-24 사장님) */
+    onDeleteWorker: (com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity) -> Unit = {},
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
     onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int, address: String?, days: List<Long>) -> Unit,
@@ -2113,6 +2117,32 @@ private fun AssignTeamSheet(
             //   섹션 이름표("일당사장")는 없앴다 — 칸이 하나뿐이라 이름표가 필요 없다.
             //   설명도 **한 줄만**. 전엔 제목 밑과 여기 두 군데에서 같은 말을 했다.
             val noPartners = collabPartners.isEmpty()
+            // 꾹 눌러 뺄 때 확인 — 바로 지우지 않는다(앱 기조: 수첩·팀원과 같은 방식).
+            var confirmRemovePartner by remember {
+                mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null)
+            }
+            confirmRemovePartner?.let { target ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { confirmRemovePartner = null },
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
+                    title = { Text("${target.name}님을 뺄까요?", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Text("내 목록에서만 빠져요. 지난 현장 기록과 사진은 그대로 남고, " +
+                            "나중에 다시 등록할 수 있어요.")
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            onDeleteWorker(target); confirmRemovePartner = null
+                        }) { Text("뺄게요", color = TossError, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { confirmRemovePartner = null }) {
+                            Text("취소", color = TossTextSecondary)
+                        }
+                    }
+                )
+            }
             if (noPartners && !addWorkerOpen) {
                 // 빈 상태 — 할 일이 하나뿐이니 **버튼도 하나**. 전엔 [+ 추가] 칩 바로 밑에서
                 //   "위 '+ 추가'로 등록해보세요" 라고 같은 말을 또 했다. (2026-09-22 사장님)
@@ -2161,7 +2191,11 @@ private fun AssignTeamSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(if (on) purple else purpleLight)
-                            .clickable { selectedPartners = if (on) selectedPartners - k else selectedPartners + k }
+                            // 탭 = 고르기 / **꾹 = 명부에서 빼기.** 전엔 뺄 방법이 아예 없었다. (2026-09-24 사장님)
+                            .combinedClickable(
+                                onClick = { selectedPartners = if (on) selectedPartners - k else selectedPartners + k },
+                                onLongClick = { confirmRemovePartner = p }
+                            )
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -2181,6 +2215,12 @@ private fun AssignTeamSheet(
                 AddChip("등록", purpleLight, purple) {
                     newName = ""; newPhone = ""; newWage = ""; addTeamOpen = false; addWorkerOpen = !addWorkerOpen
                 }
+            }
+            // 안 보이면 없는 것과 같다 — 꾹 누르기는 한 줄로 알려준다. (2026-09-24 사장님)
+            if (!noPartners) {
+                Text("꾹 누르면 목록에서 뺄 수 있어요",
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp, top = 8.dp))
             }
             if (addWorkerOpen) {
                 QuickAddForm(

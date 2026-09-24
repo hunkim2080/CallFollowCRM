@@ -52,7 +52,8 @@ private val RING_TABS = listOf(
     RingTab(Destinations.HOME, "상담함", Icons.AutoMirrored.Filled.Chat),
     RingTab(Destinations.SCHEDULE, "일정", Icons.Filled.CalendarMonth),
     RingTab(Destinations.SETTLEMENT, "정산", Icons.Filled.AccountBalanceWallet),
-    RingTab(Destinations.STATS, "통계", Icons.Filled.BarChart),
+    // 통계 → 「내 기록」. 통계는 나만 보는 숫자지만 기록은 남한테 보여줄 수 있다. (2026-09-24 사장님)
+    RingTab(Destinations.STATS, "내 기록", Icons.Filled.BarChart),
     RingTab(Destinations.SETTINGS, "더보기", Icons.Filled.GridView)
 )
 

@@ -495,6 +495,18 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 전문가 배정 시트 안 "+추가" — 일당사장(수첩 WORKER) 즉시 등록. 일당(만원)은 ×10000 저장. 칩에 바로 뜸(Flow). (2026-06-14) */
+    /**
+     * 「같이 할 사장님」을 **내 명부에서 뺀다.** (2026-09-24 사장님 — 등록만 되고 삭제가 없었다)
+     *   ⚠️ 이미 보낸 **협업 요청을 취소하는 것과 다르다**(그건 removeCollabAssignment).
+     *      여기서 빼도 지난 현장 기록·사진은 그대로 남는다. 다시 등록하면 그만이다.
+     */
+    fun removeCollabPartner(id: Long, name: String) {
+        viewModelScope.launch {
+            container.notebookRepository.delete(id)
+            _toast.value = "${name}님을 목록에서 뺐어요"
+        }
+    }
+
     fun addCollabPartner(name: String, phone: String, wageManwon: Int?) {
         val nm = name.trim(); val ph = phone.filter { it.isDigit() }
         if (nm.isBlank()) { _toast.value = "이름을 입력해주세요"; return }
