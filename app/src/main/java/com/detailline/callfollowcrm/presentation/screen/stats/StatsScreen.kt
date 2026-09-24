@@ -106,7 +106,12 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             }
             // 현장 목록 — 번호가 붙어 쌓이는 곳.
             item(key = "rows") {
-                if (rec.rows.isNotEmpty()) { MyRecordRows(rec, onOpenVisited); Spacer(Modifier.height(18.dp)) }
+                if (rec.rows.isNotEmpty()) {
+                    MyRecordRows(rec, onOpenVisited) { r ->
+                        viewModel.completeRecordJob(r.jobId, r.customerId)
+                    }
+                    Spacer(Modifier.height(18.dp))
+                }
             }
             // ── 여기부터는 **나만 보는 숫자.** 기록 밑으로 내린다. ──
             item(key = "sec-num") {
@@ -502,7 +507,40 @@ private fun MonthArrow(glyph: String, enabled: Boolean, onClick: () -> Unit) {
  *   번호가 없는 줄 = 다녀왔는데 **완료를 안 누른** 것. 눌러서 채우러 간다.
  */
 @Composable
-private fun MyRecordRows(rec: MyRecordState, onOpenVisited: () -> Unit) {
+private fun MyRecordRows(
+    rec: MyRecordState,
+    onOpenVisited: () -> Unit,
+    /** 「완료 누르기」 를 눌러 확인까지 마쳤을 때. */
+    onComplete: (MyRecordRow) -> Unit
+) {
+    // 되돌리기가 쉽지 않은 일(번호가 박힌다)이라 한 번 묻는다.
+    var confirm by remember { mutableStateOf<MyRecordRow?>(null) }
+    confirm?.let { r ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirm = null },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = {
+                Text("${r.town ?: "이 현장"} ${r.date} 시공, 끝났나요?",
+                    style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            },
+            text = {
+                Text("완료로 표시하면 현장 번호가 붙고 「내 기록」에 쌓여요.",
+                    style = AppType.body, color = TossTextSecondary)
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { onComplete(r); confirm = null }) {
+                    Text("완료로 표시", style = AppType.label,
+                        fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirm = null }) {
+                    Text("아니요", style = AppType.label, color = TossTextSecondary)
+                }
+            }
+        )
+    }
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(horizontal = 16.dp, vertical = 8.dp)
@@ -546,19 +584,31 @@ private fun MyRecordRows(rec: MyRecordState, onOpenVisited: () -> Unit) {
                         style = AppType.caption, color = TossTextTertiary, maxLines = 1
                     )
                 }
-                Text(
-                    when {
-                        r.upcoming -> "예정"
-                        r.no == null -> "완료 누르기 ›"
-                        else -> "완료"
-                    },
-                    style = AppType.caption, fontWeight = FontWeight.ExtraBold,
-                    color = when {
-                        r.upcoming -> TossTextTertiary
-                        r.no == null -> TossBlue
-                        else -> AppTheme.colors.done
-                    }
-                )
+                // 번호가 없는 줄 = 아직 완료를 안 누른 것. **여기서 바로** 누르게 한다.
+                //   전엔 이 글씨를 눌러도 목록으로만 갔다 — 버튼처럼 생겼는데 아무 일도 안 났다.
+                val canComplete = !r.upcoming && r.no == null
+                Box(
+                    Modifier
+                        .then(
+                            if (canComplete) Modifier.clip(AppShape.pill).background(AppTheme.colors.primaryBg)
+                                .clickable { confirm = r }.padding(horizontal = 11.dp, vertical = 7.dp)
+                            else Modifier
+                        )
+                ) {
+                    Text(
+                        when {
+                            r.upcoming -> "예정"
+                            r.no == null -> "완료 누르기"
+                            else -> "완료"
+                        },
+                        style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                        color = when {
+                            r.upcoming -> TossTextTertiary
+                            r.no == null -> TossBlue
+                            else -> AppTheme.colors.done
+                        }
+                    )
+                }
             }
         }
     }

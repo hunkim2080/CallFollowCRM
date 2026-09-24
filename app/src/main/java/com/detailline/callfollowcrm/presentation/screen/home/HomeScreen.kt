@@ -326,6 +326,17 @@ fun HomeScreen(
     // 줄마다 firstOrNull 로 전체 카테고리를 훑던 것 → 맵 한 번(대화 200줄이면 200번 훑던 일). (2026-09-15)
     val categoryById = remember(categoriesById) { categoriesById.associateBy { it.id } }
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
+    // 🔢 **카드 숫자는 목록에서 뽑는다.** (2026-09-24 사장님 "신규 연락이면 여기 연락이 있어야지")
+    //   전엔 숫자와 목록이 다른 잣대였다 — 숫자는 문자·통화에서 바로 세고, 목록은 그 위에
+    //   스팸·문자함·광고를 한 번 더 걸렀다. 그래서 "1통" 인데 목록은 비는 일이 생겼다.
+    //   숫자와 목록이 서로 다른 말을 하면 둘 다 못 믿는다 → **화면에 뜰 줄만** 센다.
+    val todayNewShown = remember(timeline) {
+        timeline.flatMap { g -> g.items }
+            .distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+            .count { it.isNewToday }
+    }
+    // 숫자엔 잡혔는데 목록엔 없는 것 = **광고·문자함으로 간 것.** 조용히 지우지 말고 어디 갔는지 말한다.
+    val todayNewElsewhere = (todayNew - todayNewShown).coerceAtLeast(0)
     val yesterdayNew by viewModel.yesterdayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
@@ -881,9 +892,28 @@ fun HomeScreen(
                 //   어제와 비교하는 말은 칩이 못 하니 카드로 남긴다.
                 //   0 통이면 카드를 안 띄운다 — "오늘 신규 문의 0통" 아래 "여기 아무도 없어요" 가
                 //   같은 말을 두 번 하고, 오른쪽 '-' 딱지는 뜻이 없었다. (2026-09-20 실기)
-                if (inboxChip == "today" && todayNew > 0) {
+                if (inboxChip == "today" && todayNewShown > 0) {
                     item(key = "today-new") {
-                        TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenNewLeads)
+                        TodayNewCard(todayNew = todayNewShown, yesterdayNew = yesterdayNew, onClick = onOpenNewLeads)
+                    }
+                }
+                // 🔎 걸러진 게 있으면 **어디로 갔는지** 말해준다. 조용히 사라지는 게 제일 나쁘다.
+                if (inboxChip == "today" && todayNewElsewhere > 0) {
+                    item(key = "today-new-elsewhere") {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(TossGrayBg)
+                                .clickable { inboxChip = "box" }
+                                .padding(horizontal = 13.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("${todayNewElsewhere}통은 광고·문자함으로 보냈어요",
+                                style = AppType.label, color = TossTextSecondary,
+                                modifier = Modifier.weight(1f))
+                            Text("보러 가기", style = AppType.label,
+                                fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                        }
                     }
                 }
 

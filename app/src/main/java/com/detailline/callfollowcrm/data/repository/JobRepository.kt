@@ -331,8 +331,37 @@ class JobRepository(
      */
     suspend fun setWorkCompleted(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
         val j = jobDao.findById(jobId) ?: return
-        jobDao.update(j.copy(workCompletedAt = at, updatedAt = now, recordNo = nextRecordNo(j, at)))
+        jobDao.update(j.copy(workCompletedAt = at, updatedAt = now))
+        renumberRecords(now)
     }
+
+    /**
+     * 현장 번호를 **시공한 날짜 순**으로 다시 매긴다. (2026-09-24 사장님)
+     *
+     * 전엔 '완료를 누른 순서'로 박고 안 바꿨다. 그런데 그날 앱을 못 열면 며칠 뒤에 누르신다 —
+     * 그러면 8월 현장이 9월 현장보다 **뒤 번호**를 받아 목록이 뒤죽박죽이 된다.
+     * 번호는 "내가 몇 번째로 다녀온 집인가" 라서 **다녀온 날 순서**가 맞다.
+     *
+     * 완료를 되돌린 건은 번호를 떼고 뒤 번호들이 당겨진다(빈 번호를 안 남긴다).
+     */
+    private suspend fun renumberRecords(now: Long) {
+        val all = jobDao.allOnce()
+        val want = recordNumbersByWorkDate(all)
+        for (j in all) {
+            val no = want[j.id]
+            if (j.recordNo != no) jobDao.update(j.copy(recordNo = no, updatedAt = now))
+        }
+    }
+
+    /**
+     * 이 건 말고 **아직 안 끝난 예정 건**이 더 있나.
+     *   고객 카드까지 '완료'로 찍어도 되는지 판단용 — 앞으로 할 시공이 있는데 찍으면
+     *   그 손님이 [시공 대기] 에서 사라진다.
+     */
+    suspend fun hasOtherOpenJob(customerId: Long, exceptJobId: Long): Boolean =
+        jobDao.scheduledByCustomerOnce(customerId).any {
+            it.id != exceptJobId && it.workCompletedAt == null && it.cancelledAt == null
+        }
 
     /**
      * **현장 번호를 박는다.** 완료를 찍는 그 순간 한 번만. (v58, 2026-09-24 사장님)
@@ -342,11 +371,8 @@ class JobRepository(
      *   이미 SNS 에 올린 "현장 038" 이 딴 현장을 가리키게 된다.
      * · 그때그때 완료순으로 세지 않는 이유도 같다 — 옛 건을 뒤늦게 넣으면 번호가 밀린다.
      */
-    private suspend fun nextRecordNo(j: JobEntity, at: Long?): Int? {
-        if (j.recordNo != null) return j.recordNo
-        if (at == null) return null
-        return (jobDao.maxRecordNo() ?: 0) + 1
-    }
+    // (지움 2026-09-24) nextRecordNo — '완료를 누른 순서'로 번호를 박던 것.
+    //   늦게 누르면 순서가 뒤집혀서 renumberRecords(시공 날짜 순)로 바꿨다.
 
     /** 이 **건 하나**의 현장 주소. 건마다 현장이 다르다(1차 수원 / 2차 강남). */
     /**
@@ -397,6 +423,8 @@ class JobRepository(
         //   되돌릴 땐(at=null) 완료는 안 건드린다 — 시공 완료는 따로 되돌리는 자리가 있다.
         val done = if (at != null) (j.workCompletedAt ?: at) else j.workCompletedAt
         jobDao.update(j.copy(balancePaidAt = at, balanceAmount = filled, workCompletedAt = done, updatedAt = now))
+        // 잔금을 받아 **자동으로 완료**된 건도 번호를 받아야 한다. 전엔 여기만 빠져서 번호가 안 붙었다.
+        renumberRecords(now)
     }
 
     /** 그 고객의 **대표 건**(고객 카드가 지금 보여주는 건) id. 없으면 null. */
@@ -410,4 +438,23 @@ class JobRepository(
     /** 이 고객에게 시공일이 잡힌 건이 하나라도 남아 있나. 취소 후 '고객 카드도 백지로 할지' 판단용. */
     suspend fun hasScheduledJob(customerId: Long): Boolean =
         jobDao.scheduledByCustomerOnce(customerId).isNotEmpty()
+}
+
+/**
+ * 현장 번호를 정한다 — **시공한 날짜 순으로 1, 2, 3 …** (2026-09-24 사장님)
+ *
+ * 완료한 건만 번호를 받는다. 아직 안 끝난 건은 번호 없음(null) — 되돌리면 번호를 뺏기고
+ * 뒤 번호들이 한 칸씩 당겨진다(빈 번호를 안 남긴다).
+ * 같은 날 두 집이면 먼저 넣은 건(id 작은 쪽)이 앞 번호.
+ * 시공 날짜가 없는 옛 건은 완료한 시각으로 줄 세운다.
+ *
+ * 계산만 하는 함수다 — 저장은 renumberRecords 가 한다. (단위 테스트: JobRecordNumberTest)
+ */
+internal fun recordNumbersByWorkDate(jobs: List<JobEntity>): Map<Long, Int?> {
+    val out = HashMap<Long, Int?>()
+    for (j in jobs) out[j.id] = null
+    jobs.filter { it.workCompletedAt != null }
+        .sortedWith(compareBy({ it.scheduledWorkDate ?: it.workCompletedAt ?: 0L }, { it.id }))
+        .forEachIndexed { i, j -> out[j.id] = i + 1 }
+    return out
 }

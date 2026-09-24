@@ -11349,3 +11349,11 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
 - 변경: RecordShot.Data 에 bigValue/bigUnit/bigCaption 추가(호출부 같이 고쳐야 함). UI 만.
 - commit: 532481e2, 7b57c3ec
 - 다음 액션: 없음
+
+## 2026-09-24 19:10 · android
+완료 못 누르던 근본 원인 + 오늘 신규 숫자/목록 불일치
+- 변경: jobs.recordNo 매기는 규칙이 '누른 순서' → **시공 날짜 순**(JobRepository.recordNumbersByWorkDate, 단위테스트 7개).
+  완료 처리/되돌리기/잔금받음 때마다 전체 재매김. 서버·다른 화면 영향 없음(앱 내부 표시용).
+- 변경: JobRepository.hasOtherOpenJob 추가.
+- commit: (아래)
+- 다음 액션: 없음

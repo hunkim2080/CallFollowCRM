@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
 
@@ -26,7 +27,7 @@ import java.util.Calendar
  *   - 문의 추이만 7일/30일 토글 (프로토 period-toggle).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class StatsViewModel(container: AppContainer) : ViewModel() {
+class StatsViewModel(private val container: AppContainer) : ViewModel() {
 
     // ⚠️ '이번 달/이번 주' 경계를 필드로 굳히지 않는다 — 앱을 달/주 넘겨 켜두면 지난 달/주를 보여주던 버그.
     //   buildState/buildTrend 에서 매번 현재 기준으로 계산하고, 월 집계 쿼리도 반응형으로. (2026-08-13 stale fix)
@@ -64,6 +65,25 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
      */
     /** 지금 보고 있는 달 (0 = 이번 달, -1 = 지난달 …). 지도·목록·숫자가 다 이걸 따라간다. */
     private val recordMonth = MutableStateFlow(0)
+    /**
+     * 그 줄에서 **바로 완료 처리**. (2026-09-24 사장님 "완료된 일인데 왜 이것만 안 눌러져 있냐")
+     *
+     * 시공 날짜가 지난 건은 [완료] 를 누를 자리가 어디에도 없었다 —
+     * 「오늘 시공」 히어로는 그날 하루만 뜨고, [시공 대기] 칩은 앞으로 할 것만 담는다.
+     * 그래서 그날 앱을 못 열면 영영 못 누르고 번호도 안 붙었다.
+     */
+    fun completeRecordJob(jobId: Long, customerId: Long) = viewModelScope.launch {
+        runCatching {
+            val now = System.currentTimeMillis()
+            container.jobRepository.setWorkCompleted(jobId, now, now)
+            // 고객 카드에도 같이 찍는다(홈 [완료] 와 같은 규칙) — 한쪽만 찍히면 정산·미수가 어긋난다.
+            //   단 **앞으로 할 시공이 남아 있으면 안 찍는다.** 찍으면 [시공 대기] 에서 사라진다.
+            if (!container.jobRepository.hasOtherOpenJob(customerId, jobId)) {
+                container.customerRepository.updateWorkCompletedAt(customerId, now)
+            }
+        }
+    }
+
     fun shiftRecordMonth(delta: Int) {
         // 앞으로는 이번 달까지만 — 안 온 달은 볼 게 없다.
         recordMonth.value = (recordMonth.value + delta).coerceAtMost(0)
