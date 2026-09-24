@@ -71,7 +71,12 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
+fun StatsScreen(
+    viewModel: StatsViewModel,
+    onOpenVisited: () -> Unit = {},
+    /** 현장 줄을 누르면 그 손님 상세로. (2026-09-24 사장님 "덕양 탭을 누르니까 9월 전체가 나오는데") */
+    onOpenCustomer: (Long) -> Unit = {}
+) {
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
     val rec by viewModel.myRecord.collectAsState()
@@ -107,9 +112,11 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             // 현장 목록 — 번호가 붙어 쌓이는 곳.
             item(key = "rows") {
                 if (rec.rows.isNotEmpty()) {
-                    MyRecordRows(rec, onOpenVisited) { r ->
-                        viewModel.completeRecordJob(r.jobId, r.customerId)
-                    }
+                    MyRecordRows(
+                        rec = rec,
+                        onOpenRow = { r -> onOpenCustomer(r.customerId) },
+                        onComplete = { r -> viewModel.completeRecordJob(r.jobId, r.customerId) }
+                    )
                     Spacer(Modifier.height(18.dp))
                 }
             }
@@ -509,7 +516,8 @@ private fun MonthArrow(glyph: String, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun MyRecordRows(
     rec: MyRecordState,
-    onOpenVisited: () -> Unit,
+    /** 그 줄을 눌렀을 때 — **그 집**으로 간다. 목록으로 가면 누른 게 무시된다. */
+    onOpenRow: (MyRecordRow) -> Unit,
     /** 「완료 누르기」 를 눌러 확인까지 마쳤을 때. */
     onComplete: (MyRecordRow) -> Unit
 ) {
@@ -548,7 +556,7 @@ private fun MyRecordRows(
         rec.rows.forEachIndexed { i, r ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
             Row(
-                Modifier.fillMaxWidth().clickable { onOpenVisited() }.padding(vertical = 11.dp),
+                Modifier.fillMaxWidth().clickable { onOpenRow(r) }.padding(vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(

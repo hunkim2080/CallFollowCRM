@@ -554,7 +554,9 @@ fun AppNavHost(
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.StatsViewModel(container) })
             StatsScreen(
                 viewModel = vm,
-                onOpenVisited = { navController.navigate(Destinations.VISITED) }
+                onOpenVisited = { navController.navigate(Destinations.VISITED) },
+                // 현장 줄을 누르면 **그 집**으로. 전엔 어느 줄이든 목록으로만 갔다. (2026-09-24 사장님)
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
             )
         }
 
