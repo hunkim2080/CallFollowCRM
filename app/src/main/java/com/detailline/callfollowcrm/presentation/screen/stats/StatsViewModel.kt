@@ -153,6 +153,8 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
                 no = j.recordNo?.let { "%03d".format(it) },
                 town = com.detailline.callfollowcrm.util.RegionName.shortRegion(a),
                 date = j.scheduledWorkDate?.let { DateTimeUtils.formatShortKoreanDate(it) } ?: "",
+                days = j.scheduledWorkDays.coerceAtLeast(1),
+                amountManwon = ((j.totalAmount ?: 0L) / 10_000L).toInt(),
                 done = j.workCompletedAt != null,
                 upcoming = soon
             )
@@ -163,6 +165,12 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             (if (monthDelta == 0) done else month).take(8).forEach { add(rowOf(it, false)) }
         }
         val sales = month.sumOf { (it.totalAmount ?: 0L) } / 10_000L
+        // 현장에서 보낸 날 — 이틀짜리 공사는 이틀로 센다. "곳" 과 다른 숫자다.
+        val workDays = month.sumOf { it.scheduledWorkDays.coerceAtLeast(1) }
+        // 지난달 — 달을 넘겨보게 해놨으니 비교가 자연스럽다. 자료가 없으면 -1(문구 생략).
+        val prevStart = shiftMonth(monthStart, -1)
+        val prevCount = done.count { (it.scheduledWorkDate ?: 0L) in prevStart until monthStart }
+        val hasPrev = js.any { (it.scheduledWorkDate ?: 0L) in 1 until monthStart }
         val topTown = top?.let {
             com.detailline.callfollowcrm.util.RegionName.shortRegion(
                 it.address?.takeIf { a -> a.isNotBlank() } ?: addrOf[it.customerId]
@@ -177,7 +185,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             // 글에 적히는 날짜도 **시공한 날**. 완료를 언제 눌렀는지는 손님한테 아무 뜻이 없다.
             pasteText = buildPaste(
                 top?.scheduledWorkDate ?: top?.workCompletedAt,
-                topTown, top?.recordNo, month.size, towns.size
+                topTown, top?.recordNo, month.size, towns.size, workDays
             ),
             dots = dots,
             monthLabel = java.text.SimpleDateFormat("yyyy년 M월", java.util.Locale.KOREA)
@@ -185,7 +193,9 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             canGoNext = monthDelta < 0,
             yearTownCount = yearTowns.size,
             rows = rows,
-            monthSalesManwon = sales.toInt()
+            monthSalesManwon = sales.toInt(),
+            monthWorkDays = workDays,
+            prevMonthSites = if (hasPrev) prevCount else -1
         )
     }
 
@@ -195,7 +205,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
      *   그냥 **오늘 뭘 했는지 남기는 글**이라야 매일 올리게 되고, 매일 올라오는 게 제일 센 영업이다.
      */
     private fun buildPaste(
-        doneAt: Long?, town: String?, no: Int?, monthSites: Int, townCount: Int
+        doneAt: Long?, town: String?, no: Int?, monthSites: Int, townCount: Int, workDays: Int = 0
     ): String {
         if (doneAt == null) return ""
         val d = java.util.Calendar.getInstance().apply { timeInMillis = doneAt }
@@ -210,6 +220,9 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         sb.append(if (town != null) "${town}에서 한 집을 마쳤습니다." else "한 집을 마쳤습니다.").append("\n\n")
         if (no != null) sb.append("· 올해 ").append(no).append("번째 현장").append("\n")
         if (monthSites > 0) sb.append("· 이번 달 ").append(monthSites).append("곳").append("\n")
+        // 현장에서 보낸 날 — "몇 곳" 보다 **몇 일 나갔나**가 바쁨을 더 잘 말한다.
+        //   ⚠ 매출은 안 넣는다. SNS 에 매출을 쓰진 않는다.
+        if (workDays > monthSites) sb.append("· 현장 ").append(workDays).append("일").append("\n")
         if (townCount > 0) sb.append("· 다녀온 동네 ").append(townCount).append("곳").append("\n")
         sb.append("\n오늘도 한 집을 끝냈습니다.")
         val biz = bizNameForRecord
@@ -390,7 +403,11 @@ data class MyRecordState(
     /** 최근 현장 — 번호가 붙어 쌓이는 목록. 맨 위가 '다음 예정'일 수 있다. */
     val rows: List<MyRecordRow> = emptyList(),
     /** 이번 달 매출(만원). 0 = 아직 없음. */
-    val monthSalesManwon: Int = 0
+    val monthSalesManwon: Int = 0,
+    /** 그 달 **현장에서 보낸 날** 수. 하루짜리 공사도 있고 이틀짜리도 있어서 곳 수와 다르다. */
+    val monthWorkDays: Int = 0,
+    /** 지난달 다녀온 곳 수 — 비교용. -1 = 지난달 자료 없음(문구 생략). */
+    val prevMonthSites: Int = -1
 )
 
 /** 「내 기록」 한 줄. */
@@ -403,6 +420,10 @@ data class MyRecordRow(
     val town: String?,
     /** "9/19" */
     val date: String,
+    /** 며칠 걸린 공사인가. 1이면 화면에 안 쓴다(당연한 값). */
+    val days: Int,
+    /** 총금액(만원). 0 = 아직 안 적음 → 화면에 안 쓴다. */
+    val amountManwon: Int,
     val done: Boolean,
     /** true = 아직 안 다녀온 예정 현장. */
     val upcoming: Boolean

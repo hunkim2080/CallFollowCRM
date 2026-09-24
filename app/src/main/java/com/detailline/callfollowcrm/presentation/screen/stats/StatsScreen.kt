@@ -171,9 +171,11 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
             color = TossBlue, letterSpacing = (-1.0).sp)
         Spacer(Modifier.height(AppSpace.s4))
         Text(
+            // 부제는 **올해 누적**. 아래 세 칸이 이번 달을 말하므로 여기서 또 말하면 같은 말을 두 번 한다.
             buildString {
-                append("이번 달 ").append(rec.monthSites).append("곳")
-                if (rec.towns.isNotEmpty()) append(" · 동네 ").append(rec.towns.size).append("곳")
+                append("올해 ")
+                if (rec.yearTownCount > 0) append(rec.yearTownCount).append("개 동네 · ")
+                append("지금까지 ").append(rec.lastNo).append("곳")
             },
             style = AppType.body, color = TossTextInfo, fontWeight = FontWeight.Bold
         )
@@ -181,6 +183,30 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
             Spacer(Modifier.height(AppSpace.s12))
             Text(rec.towns.joinToString(" · "), style = AppType.label, color = TossTextSecondary,
                 lineHeight = 18.sp)
+        }
+        // ── 세 칸 — 셋이 **서로 다른 말**을 한다. (2026-09-24 사장님 "디테일")
+        //   곳 수 = 결과 · 현장 며칠 = 몸이 나간 날 · 매출 = 그 결과.
+        Spacer(Modifier.height(AppSpace.s16))
+        Row(Modifier.fillMaxWidth()) {
+            RecordCell("현장", "${rec.monthSites}", "곳", Modifier.weight(1f))
+            RecordCell("현장 나간 날", "${rec.monthWorkDays}", "일", Modifier.weight(1f))
+            RecordCell("매출", java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
+                .format(rec.monthSalesManwon), "만원", Modifier.weight(1f))
+        }
+        // 지난달 대비 — 자료가 있을 때만. 줄었다고 숨기지 않는다(기록이니까).
+        if (rec.prevMonthSites >= 0) {
+            val d = rec.monthSites - rec.prevMonthSites
+            Spacer(Modifier.height(AppSpace.s8))
+            Text(
+                when {
+                    d > 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳 · ${d}곳 늘었어요"
+                    d < 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳"
+                    else -> "지난달과 같아요 · ${rec.monthSites}곳"
+                },
+                style = AppType.caption,
+                color = if (d > 0) AppTheme.colors.done else TossTextTertiary,
+                fontWeight = if (d > 0) FontWeight.Bold else FontWeight.Medium
+            )
         }
         if (rec.notDoneCount > 0) {
             // 다녀왔는데 완료를 안 누른 곳 — **번호가 안 붙는다.** 안내가 아니라 할 일이다.
@@ -275,6 +301,21 @@ private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
     }
 }
 
+/** 기록 카드 안 작은 숫자 칸 — 이름·값·단위. */
+@Composable
+private fun RecordCell(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(label, style = AppType.caption, color = TossTextTertiary)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(value, style = AppType.title, fontWeight = FontWeight.Black, color = TossTextPrimary,
+                maxLines = 1)
+            Spacer(Modifier.width(2.dp))
+            Text(unit, style = AppType.caption, color = TossTextTertiary,
+                modifier = Modifier.padding(bottom = 2.dp))
+        }
+    }
+}
+
 /** 달 넘기는 화살표. 갈 수 없으면 옅게. */
 @Composable
 private fun MonthArrow(glyph: String, enabled: Boolean, onClick: () -> Unit) {
@@ -323,7 +364,20 @@ private fun MyRecordRows(rec: MyRecordState, onOpenVisited: () -> Unit) {
                         style = AppType.body, fontWeight = FontWeight.ExtraBold,
                         color = if (r.town == null && !r.upcoming) AppTheme.colors.unpaid else TossTextPrimary
                     )
-                    Text(r.date, style = AppType.caption, color = TossTextTertiary)
+                    Text(
+                        buildString {
+                            append(r.date)
+                            // 하루짜리는 안 쓴다 — 당연한 값이라 줄만 길어진다.
+                            if (r.days > 1) append(" · ").append(r.days).append("일")
+                            // 얼마짜리 일이었는지. 안 적은 건 조용히 뺀다.
+                            if (r.amountManwon > 0) {
+                                append(" · ")
+                                append(java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
+                                    .format(r.amountManwon)).append("만")
+                            }
+                        },
+                        style = AppType.caption, color = TossTextTertiary, maxLines = 1
+                    )
                 }
                 Text(
                     when {
