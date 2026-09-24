@@ -11343,3 +11343,9 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
 - commit: a919237e (그 앞: 8f009cab 통계 크래시, 5fdecd25 내 기록 1단계)
 - 배포: upload-20260924-1252 (플레이 내부테스트)
 - 다음 액션: 없음 (서버측 무관)
+
+## 2026-09-24 15:35 · android
+인증샷 큰 숫자 고르기 + 상담함 칩 켤 때마다 [전체]
+- 변경: RecordShot.Data 에 bigValue/bigUnit/bigCaption 추가(호출부 같이 고쳐야 함). UI 만.
+- commit: 532481e2, 7b57c3ec
+- 다음 액션: 없음
