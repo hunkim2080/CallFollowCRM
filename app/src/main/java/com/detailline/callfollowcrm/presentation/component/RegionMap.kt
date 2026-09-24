@@ -170,10 +170,11 @@ private val ROADS = arrayOf(
 private const val JEJU_LON = 126.53
 private const val JEJU_LAT = 33.38
 
-private fun DrawScope.drawRegionMap(
+internal fun DrawScope.drawRegionMap(
     spots: List<RegionDot>,
     named: Set<String>,
-    measurer: TextMeasurer,
+    /** null = 그림으로 뽑는 중(글자 재는 도구가 없다) → 이름표는 건너뛴다. 동네는 글로 따로 적힌다. */
+    measurer: TextMeasurer?,
     land: Color,
     edge: Color,
     dot: Color,
@@ -301,7 +302,7 @@ private fun DrawScope.drawRegionMap(
             }
             // 🚛 — 지금 자리
             val pos = FloatArray(2)
-            if (pm.getPosTan(at, pos, null)) {
+            if (measurer != null && pm.getPosTan(at, pos, null)) {
                 val t = measurer.measure("🚛", labelStyle)
                 drawText(t, topLeft = Offset(pos[0] - t.size.width / 2f, pos[1] - t.size.height - 4f))
             }
@@ -319,11 +320,12 @@ private fun DrawScope.drawRegionMap(
     }
     // ── 이름표 (많이 간 곳 넷만) — **겹치면 건너뛴다.** ──
     //   겹쳐 찍으면 글자가 뭉개져서 둘 다 못 읽는다(서대문·서초가 그랬다, 2026-09-24).
+    val m = measurer ?: return
     val placed = ArrayList<FloatArray>()   // [left, top, right, bottom]
     for (s in spots.sortedByDescending { it.count }) {
         if (s.name !in named) continue
         val p = px(s.lon, s.lat)
-        val t = measurer.measure(s.name, labelStyle.copy(color = labelColor))
+        val t = m.measure(s.name, labelStyle.copy(color = labelColor))
         var x = p.x + 12f
         if (x + t.size.width > size.width) x = p.x - 12f - t.size.width
         x = x.coerceAtLeast(0f)

@@ -33,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import androidx.compose.ui.draw.clip
@@ -226,24 +227,54 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
                 modifier = Modifier.clickable { onOpenVisited() }.padding(vertical = 2.dp)
             )
         }
-        if (rec.pasteText.isNotBlank()) {
+        // ── 인증샷 ── (2026-09-24 사장님 "kyro처럼 인증샷 만드는 기능은 없나?")
+        //   글은 갈 곳이 없어서 안 쓴다고 하셨다 — 사장님이 올리는 건 **그림**이다.
+        if (rec.lastNo > 0) {
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            fun shot(transparent: Boolean, share: Boolean) {
+                scope.launch {
+                    val bmp = com.detailline.callfollowcrm.util.RecordShot.render(
+                        ctx,
+                        com.detailline.callfollowcrm.util.RecordShot.Data(
+                            no = rec.lastNo, monthLabel = rec.monthLabel, sites = rec.monthSites,
+                            workDays = rec.monthWorkDays, towns = rec.towns, dots = rec.dots,
+                            bizName = rec.bizName, tradeName = rec.tradeName
+                        ),
+                        transparent = transparent
+                    )
+                    val name = "시공막내_현장%03d".format(rec.lastNo) + if (transparent) "_스티커" else ""
+                    if (share) {
+                        com.detailline.callfollowcrm.util.RecordShot.share(ctx, bmp, name)
+                    } else {
+                        val ok = com.detailline.callfollowcrm.util.RecordShot.save(ctx, bmp, name)
+                        android.widget.Toast.makeText(
+                            ctx,
+                            if (ok) "사진첩에 저장했어요" else "저장하지 못했어요 — [올리기] 로 보내보세요",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    bmp.recycle()
+                }
+            }
             Spacer(Modifier.height(AppSpace.s16))
             Box(
-                Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.primaryBg)
-                    .clickable {
-                        clip.setText(androidx.compose.ui.text.AnnotatedString(rec.pasteText))
-                        android.widget.Toast.makeText(ctx, "글을 복사했어요 — 붙여넣으면 돼요",
-                            android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    .padding(vertical = 13.dp),
+                Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
+                    .clickable { shot(transparent = false, share = true) }
+                    .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("글로 복사하기", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
-                    color = TossBlue)
+                Text("인증샷 만들기", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
+                    color = Color.White)
             }
             Spacer(Modifier.height(AppSpace.s8))
-            Text("사진 없이 카톡·밴드·당근에 그대로 붙일 수 있어요",
-                style = AppType.caption, color = TossTextTertiary)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                ShotSmall("사진첩에 저장", Modifier.weight(1f)) { shot(false, false) }
+                // 내 현장 사진 위에 얹는 용 — 배경이 비어 있다.
+                ShotSmall("사진 위에 얹을 것", Modifier.weight(1f)) { shot(true, false) }
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            Text("‘사진 위에 얹을 것’ 은 배경이 비어 있어요 — 인스타 스토리에서 내 현장 사진 위에 올리면 돼요",
+                style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp)
         }
         }   // ── if (아직 없음) … else 끝
     }
@@ -298,6 +329,19 @@ private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
             modifier = Modifier.padding(horizontal = 2.dp)
         )
         }   // ── if (dots 비었음) … else 끝
+    }
+}
+
+/** 인증샷 보조 버튼 — 테두리만 있는 조용한 버튼. */
+@Composable
+private fun ShotSmall(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(AppShape.md).background(TossGrayBg).clickable { onClick() }
+            .padding(vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+            maxLines = 1)
     }
 }
 

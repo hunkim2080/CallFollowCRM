@@ -74,6 +74,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
 
     private val bizNameForRecord = container.preferences.bizName
+    private val tradeForRecord = container.preferences.ownerTrades.firstOrNull().orEmpty()
 
     /** 올해 1월 1일 0시. */
     private fun yearStartOf(ms: Long): Long = java.util.Calendar.getInstance().apply {
@@ -195,7 +196,9 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             rows = rows,
             monthSalesManwon = sales.toInt(),
             monthWorkDays = workDays,
-            prevMonthSites = if (hasPrev) prevCount else -1
+            prevMonthSites = if (hasPrev) prevCount else -1,
+            bizName = bizNameForRecord,
+            tradeName = tradeForRecord
         )
     }
 
@@ -407,7 +410,10 @@ data class MyRecordState(
     /** 그 달 **현장에서 보낸 날** 수. 하루짜리 공사도 있고 이틀짜리도 있어서 곳 수와 다르다. */
     val monthWorkDays: Int = 0,
     /** 지난달 다녀온 곳 수 — 비교용. -1 = 지난달 자료 없음(문구 생략). */
-    val prevMonthSites: Int = -1
+    val prevMonthSites: Int = -1,
+    /** 인증샷 맨 아래에 **작게** 들어간다. 크게 넣으면 광고로 보여서 안 올린다. */
+    val bizName: String = "",
+    val tradeName: String = ""
 )
 
 /** 「내 기록」 한 줄. */
