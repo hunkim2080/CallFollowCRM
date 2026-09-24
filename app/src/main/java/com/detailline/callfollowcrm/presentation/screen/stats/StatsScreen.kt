@@ -334,6 +334,8 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
     var shape by remember {
         mutableStateOf(com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER)
     }
+    /** 영상 만드는 중이면 0~1, 아니면 -1. */
+    var making by remember { mutableStateOf(-1f) }
     val sticker = shape == com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER
     // 큰 숫자 고르기 — 한가한 달엔 '이번 달' 이 초라하니 **올해 누적**이 기본.
     val picks = remember(rec) { bigPicks(rec) }
@@ -445,6 +447,63 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                             color = Color.White)
                     }
                 }
+                // 🎬 **영상** — 움직이는 지도를 SNS 에 올리려면 그림이 아니라 영상이어야 한다.
+                //   인스타 릴스 크기(9:16). 만드는 데 시간이 걸려서 진행률을 보여준다.
+                Spacer(Modifier.height(AppSpace.s12))
+                if (making >= 0f) {
+                    Box(
+                        Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("영상 만드는 중 ${'$'}{(making * 100).toInt()}%",
+                            style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                    }
+                } else {
+                    Box(
+                        Modifier.fillMaxWidth().clip(AppShape.md)
+                            .background(AppTheme.colors.primaryBg)
+                            .clickable {
+                                scope.launch {
+                                    making = 0f
+                                    val reel = com.detailline.callfollowcrm.util.RecordReel.make(
+                                        ctx,
+                                        com.detailline.callfollowcrm.util.RecordReel.Data(
+                                            monthLabel = rec.monthLabel,
+                                            metricValue = picks.getOrElse(pick) { picks.first() }.value,
+                                            metricUnit = picks.getOrElse(pick) { picks.first() }.unit,
+                                            metricLabel = picks.getOrElse(pick) { picks.first() }.caption,
+                                            towns = rec.towns, dots = rec.dots,
+                                            bizName = rec.bizName, tradeName = rec.tradeName,
+                                            phone = rec.bizPhone, area = rec.areaLabel
+                                        )
+                                    ) { p -> making = p }
+                                    making = -1f
+                                    if (reel != null) {
+                                        val ok = com.detailline.callfollowcrm.util.RecordShot.saveVideo(
+                                            ctx, reel, "shigongmagne_%03d".format(rec.lastNo)
+                                        )
+                                        android.widget.Toast.makeText(
+                                            ctx,
+                                            if (ok) "사진첩에 영상으로 저장했어요" else "저장하지 못했어요 — 바로 올려볼게요",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                        com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            ctx, "영상을 만들지 못했어요", android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("영상 만들기 (릴스용 10초)", style = AppType.label,
+                            fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    }
+                }
+
                 if (sticker) {
                     Spacer(Modifier.height(AppSpace.s8))
                     Text("배경이 비어 있어요 — 인스타 스토리에서 [스티커 → 사진] 으로 내 현장 사진 위에 올리면 돼요",

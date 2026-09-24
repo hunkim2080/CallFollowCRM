@@ -55,6 +55,9 @@ fun RegionMap(
 ) {
     if (spots.isEmpty()) return
     val measurer = rememberTextMeasurer()
+    // 진짜 지도 좌표 — 지도를 처음 그릴 때 한 번만 읽는다.
+    val ctxForGeo = androidx.compose.ui.platform.LocalContext.current
+    val geoData = remember { com.detailline.callfollowcrm.util.MapGeo.load(ctxForGeo) }
     // 🚛 가 그 달 다닌 순서대로 달린다. 한 바퀴 14초.
     //   ⚠️ 폰 설정에서 '애니메이션 배율' 이 0이면 **안 움직인다** — 그건 폰 설정이지 버그가 아니다.
     //      그래서 움직임이 없어도 **길은 다 그려진 채**로 보이게 했다(멈춰도 빈 지도가 안 된다).
@@ -79,7 +82,8 @@ fun RegionMap(
         // ⚠ Compose 캔버스는 기본으로 경계를 안 자른다.
         //   확대하면 땅이 카드 밖으로 넘쳐 위에 있는 달 표시를 덮었다(2026-09-24 폰에서 확인).
         Canvas(Modifier.fillMaxWidth().height(height).clipToBounds()) {
-            drawRegionMap(spots, named, measurer, landC, line, dotC, labelC, labelStyle, riverC, progress)
+            drawRegionMap(spots, named, measurer, landC, line, dotC, labelC, labelStyle, riverC, progress,
+                geo = geoData)
         }
     }
 }
@@ -181,7 +185,14 @@ internal fun DrawScope.drawRegionMap(
     labelColor: Color,
     labelStyle: TextStyle,
     river: Color,
-    progress: Float
+    progress: Float,
+    /**
+     * **진짜 지도 좌표**(Natural Earth). null 이면 예전 손그림으로 그린다.
+     *   부르는 쪽에서 `MapGeo.load(context)` 로 한 번 읽어 넘긴다 — 여기선 Context 를 못 쓴다.
+     */
+    geo: com.detailline.callfollowcrm.util.MapGeo.Data? = null,
+    /** 바다 색. 바다가 있어야 육지가 육지로 보인다. */
+    sea: Color = Color(com.detailline.callfollowcrm.util.MapPalette.SEA)
 ) {
     // ── 보여줄 범위: 다녀온 곳 + 여유. 전국을 다니면 전국, 동네만 다니면 그 언저리. ──
     var minLon = spots.minOf { it.lon }; var maxLon = spots.maxOf { it.lon }
@@ -218,7 +229,69 @@ internal fun DrawScope.drawRegionMap(
         (offY + (maxLat - lat) * scale).toFloat()
     )
 
-    // ── 땅 ──
+    /** 납작한 [lon,lat,…] 배열 → 화면 위 선. */
+    fun pathOf(a: FloatArray, close: Boolean): Path {
+        val p = Path()
+        var k = 0
+        while (k + 1 < a.size) {
+            val q = px(a[k].toDouble(), a[k + 1].toDouble())
+            if (k == 0) p.moveTo(q.x, q.y) else p.lineTo(q.x, q.y)
+            k += 2
+        }
+        if (close) p.close()
+        return p
+    }
+
+    if (geo != null && !geo.isEmpty) {
+        // ── 바다 ── 이게 있어야 육지가 육지로 보인다.
+        drawRect(sea)
+        // ── 해안 후광 ── 땅을 칠하기 전에 굵게 긋고 덮으면 **바깥 절반만** 남는다.
+        val glow = Color(com.detailline.callfollowcrm.util.MapPalette.GLOW)
+        for (r in geo.land) {
+            val p = pathOf(r, true)
+            drawPath(p, glow, style = Stroke(width = 14f))
+            drawPath(p, glow, style = Stroke(width = 5f))
+        }
+        // ── 땅 ──
+        for (r in geo.land) {
+            val p = pathOf(r, true)
+            drawPath(p, land)
+            drawPath(p, edge, style = Stroke(width = 1f))
+        }
+        // ── 시가지 ── 동그란 얼룩이 아니라 **진짜 서울 모양**.
+        val built = Color(com.detailline.callfollowcrm.util.MapPalette.BUILT)
+        for (r in geo.urban) drawPath(pathOf(r, true), built)
+        // ── 시·도 경계 ──
+        for (r in geo.admin) {
+            drawPath(pathOf(r, false), labelColor.copy(alpha = 0.22f), style = Stroke(
+                width = 1f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 5f))
+            ))
+        }
+        // ── 강 ──
+        for (r in geo.rivers) {
+            drawPath(pathOf(r, false), river, style = Stroke(
+                width = 3f, cap = androidx.compose.ui.graphics.StrokeCap.Round
+            ))
+        }
+        // ── 길 ── 테두리 **전부** → 속 **전부**. 순서가 곧 교차로 품질이다.
+        val roadEdge = Color(com.detailline.callfollowcrm.util.MapPalette.ROAD_EDGE)
+        val roadFill = Color(com.detailline.callfollowcrm.util.MapPalette.ROAD_FILL)
+        for (r in geo.roads) {
+            drawPath(pathOf(r, false), roadEdge, style = Stroke(
+                width = 5.4f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round
+            ))
+        }
+        for (r in geo.roads) {
+            drawPath(pathOf(r, false), roadFill, style = Stroke(
+                width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round
+            ))
+        }
+    } else {
+
+    // ── (물러나기) 예전 손그림 ──
     val path = Path()
     var i = 0
     while (i < KOREA.size) {
@@ -275,6 +348,7 @@ internal fun DrawScope.drawRegionMap(
         drawOval(land, topLeft = Offset(je.x - jr, je.y - jr * .55f),
             size = androidx.compose.ui.geometry.Size(jr * 2, jr * 1.1f))
     }
+    }   // ── 진짜 좌표 / 손그림 갈림 끝 ──
 
     // ── 다닌 길 + 🚛 ── 날짜 순서대로 이은 선. 지나온 만큼 진하게 그어진다.
     val route = spots.sortedBy { it.order }

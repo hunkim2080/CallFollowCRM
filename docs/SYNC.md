@@ -11357,3 +11357,10 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
 - 변경: JobRepository.hasOtherOpenJob 추가.
 - commit: (아래)
 - 다음 액션: 없음
+
+## 2026-09-25 02:20 · android
+지도 좌표를 진짜로(Natural Earth) + 릴스 영상 저장 + 동 단위
+- 변경: assets/map_geo.txt(143KB) · assets/dong_coords.txt(144KB) 새로 들어감. APK 약 290KB 증가.
+  drawRegionMap 에 geo/sea 인자 추가(기본 null = 예전 손그림). MapPalette 가 지도 색 단일 출처.
+- commit: (아래)
+- 다음 액션: 없음

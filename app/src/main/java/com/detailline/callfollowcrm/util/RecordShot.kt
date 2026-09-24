@@ -260,7 +260,8 @@ object RecordShot {
                     labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
                     labelStyle = TextStyle(fontSize = 10.sp),
                     river = androidx.compose.ui.graphics.Color(0x4D3182F6),
-                    progress = 1f
+                    progress = 1f,
+                    geo = MapGeo.load(ctx)
                 )
             }
             c.restore()
@@ -312,6 +313,42 @@ object RecordShot {
         // 우리 이름은 **아주 작게 구석에**. 사장님 광고지 우리 광고가 아니다.
         c.drawText("시공막내", S - pad, h - pad - 16f, paint(med, 22f, hint, Paint.Align.RIGHT))
     }
+
+    /** 영상 보내기 — 인스타·카톡으로. 그림과 같은 길(FileProvider)을 쓴다. */
+    fun shareVideo(ctx: Context, file: File) {
+        runCatching {
+            val uri = FileProvider.getUriForFile(ctx, "${'$'}{ctx.packageName}.fileprovider", file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "video/mp4"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ctx.startActivity(Intent.createChooser(send, "영상 올리기").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        }
+    }
+
+    /** 영상을 **사진첩에** 저장 — 나중에 인스타에서 골라 올릴 수 있게. */
+    suspend fun saveVideo(ctx: Context, file: File, name: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val values = ContentValues().apply {
+                    put(MediaStore.Video.Media.DISPLAY_NAME, "${'$'}name.mp4")
+                    put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/시공막내")
+                    }
+                }
+                val uri = ctx.contentResolver.insert(
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values
+                ) ?: return@runCatching false
+                ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                    file.inputStream().use { it.copyTo(out) }
+                }
+                true
+            }.getOrDefault(false)
+        }
 
     /** 사진첩에 저장. */
     suspend fun save(ctx: Context, bmp: Bitmap, name: String): Boolean =
