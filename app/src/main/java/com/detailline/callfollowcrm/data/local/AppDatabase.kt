@@ -67,7 +67,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 57,
+    version = 58,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1091,6 +1091,31 @@ abstract class AppDatabase : RoomDatabase() {
          *   옛 데이터 중 **날짜도 돈도 주소도 없는 빈 건**은 사실상 취소한 건이라 보고 표시해 준다.
          *   (주소가 있으면 문자에서 잡은 새 현장일 수 있어 건드리지 않는다.)
          */
+        /**
+         * v58 — 현장 번호(jobs.recordNo). (2026-09-24 사장님)
+         *   기존 완료 건에 **완료 시각 순으로** 001 부터 채운다. 이후로는 완료 찍을 때 다음 번호가 붙는다.
+         *   nullable 이라 새로 깐 폰(빈 표)에서도 안전 — NOT NULL 칸을 넣어 앱이 안 켜지던 사고(2026-09-17) 반복 금지.
+         */
+        private val MIGRATION_57_58 = object : Migration(57, 58) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE jobs ADD COLUMN recordNo INTEGER")
+                runCatching {
+                    // 완료 시각이 이른 것부터 1, 2, 3 … (같은 시각이면 id 순으로 갈라 번호가 겹치지 않게)
+                    db.execSQL(
+                        """
+                        UPDATE jobs SET recordNo = (
+                            SELECT COUNT(*) FROM jobs AS j2
+                            WHERE j2.workCompletedAt IS NOT NULL
+                              AND ( j2.workCompletedAt < jobs.workCompletedAt
+                                 OR (j2.workCompletedAt = jobs.workCompletedAt AND j2.id <= jobs.id) )
+                        )
+                        WHERE workCompletedAt IS NOT NULL
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+
         private val MIGRATION_56_57 = object : Migration(56, 57) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE jobs ADD COLUMN cancelledAt INTEGER")
@@ -1148,7 +1173,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
                     MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54,
-                    MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57
+                    MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

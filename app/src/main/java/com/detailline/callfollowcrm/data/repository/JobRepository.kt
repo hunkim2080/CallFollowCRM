@@ -331,7 +331,21 @@ class JobRepository(
      */
     suspend fun setWorkCompleted(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
         val j = jobDao.findById(jobId) ?: return
-        jobDao.update(j.copy(workCompletedAt = at, updatedAt = now))
+        jobDao.update(j.copy(workCompletedAt = at, updatedAt = now, recordNo = nextRecordNo(j, at)))
+    }
+
+    /**
+     * **현장 번호를 박는다.** 완료를 찍는 그 순간 한 번만. (v58, 2026-09-24 사장님)
+     *
+     * · 이미 번호가 있으면 **그대로 둔다** — 한 번 준 번호는 안 바꾼다.
+     * · 완료를 **되돌려도 번호는 남긴다.** 회수하면 그 뒤 번호가 전부 밀려서,
+     *   이미 SNS 에 올린 "현장 038" 이 딴 현장을 가리키게 된다.
+     * · 그때그때 완료순으로 세지 않는 이유도 같다 — 옛 건을 뒤늦게 넣으면 번호가 밀린다.
+     */
+    private suspend fun nextRecordNo(j: JobEntity, at: Long?): Int? {
+        if (j.recordNo != null) return j.recordNo
+        if (at == null) return null
+        return (jobDao.maxRecordNo() ?: 0) + 1
     }
 
     /** 이 **건 하나**의 현장 주소. 건마다 현장이 다르다(1차 수원 / 2차 강남). */

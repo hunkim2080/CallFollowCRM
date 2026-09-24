@@ -54,6 +54,10 @@ interface JobDao {
     @Query("SELECT * FROM jobs WHERE customerId = :customerId AND scheduledWorkDate IS NOT NULL ORDER BY scheduledWorkDate ASC, id ASC")
     suspend fun scheduledByCustomerOnce(customerId: Long): List<JobEntity>
 
+    /** 지금까지 준 **가장 큰 현장 번호**. 없으면 null → 첫 번호는 1. (v58, 2026-09-24) */
+    @Query("SELECT MAX(recordNo) FROM jobs")
+    suspend fun maxRecordNo(): Int?
+
     @Query("SELECT * FROM jobs WHERE id = :id")
     suspend fun findById(id: Long): JobEntity?
 

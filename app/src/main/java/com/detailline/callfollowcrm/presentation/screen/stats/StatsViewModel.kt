@@ -58,6 +58,89 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
             buildState(cs, cats, sent, js)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 
+    /**
+     * 「내 기록」 — 번호가 붙어 쌓이는 현장. (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
+     *   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이라 따로 뽑는다.
+     */
+    val myRecord: StateFlow<MyRecordState> =
+        combine(customers, jobsFlow) { cs, js -> buildMyRecord(cs, js) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
+
+    private val bizNameForRecord = container.preferences.bizName
+
+    private fun buildMyRecord(
+        cs: List<CustomerEntity>,
+        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
+    ): MyRecordState {
+        val now = System.currentTimeMillis()
+        val monthStart = monthStartOf(now)
+        val monthEnd = shiftMonth(monthStart, +1)
+        val addrOf = cs.associate { it.id to it.address }
+        val todayStart = DateTimeUtils.startOfDay(now)
+        // **다녀온 현장** = 시공일이 지난 건. 「다녀온 현장」 화면과 **같은 기준**이라야 숫자가 안 엇갈린다.
+        //   (2026-09-24 폰에서 7곳 vs 4곳으로 엇갈렸다 — 완료를 안 누른 3곳 때문)
+        //   ⚠️ '완료를 눌렀나' 로 세지 않는다. 완료는 며칠 뒤에 누르기도 하고 안 누르기도 한다.
+        val done = js.filter { (it.scheduledWorkDate ?: 0L) in 1 until todayStart }
+            .sortedByDescending { it.scheduledWorkDate ?: 0L }
+        val month = done.filter { (it.scheduledWorkDate ?: 0L) in monthStart until monthEnd }
+        // 다녀왔는데 **완료를 안 누른** 곳 — 번호가 안 붙는다. 그래서 할 일로 알려준다.
+        val notDone = month.count { it.workCompletedAt == null }
+        val towns = LinkedHashSet<String>()
+        var noAddr = 0
+        for (j in month) {
+            val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
+            val t = com.detailline.callfollowcrm.util.RegionName.shortRegion(a)
+            if (t == null) noAddr++ else towns.add(t)
+        }
+        val lastNo = js.mapNotNull { it.recordNo }.maxOrNull() ?: 0
+        val top = month.firstOrNull() ?: done.firstOrNull()
+        val topTown = top?.let {
+            com.detailline.callfollowcrm.util.RegionName.shortRegion(
+                it.address?.takeIf { a -> a.isNotBlank() } ?: addrOf[it.customerId]
+            )
+        }
+        return MyRecordState(
+            lastNo = lastNo,
+            monthSites = month.size,
+            towns = towns.toList(),
+            noAddrCount = noAddr,
+            notDoneCount = notDone,
+            // 글에 적히는 날짜도 **시공한 날**. 완료를 언제 눌렀는지는 손님한테 아무 뜻이 없다.
+            pasteText = buildPaste(
+                top?.scheduledWorkDate ?: top?.workCompletedAt,
+                topTown, top?.recordNo, month.size, towns.size
+            )
+        )
+    }
+
+    /**
+     * 카톡·밴드·당근에 **그대로 붙이는 글**. 사진도 그림도 필요 없다. (2026-09-24 사장님)
+     *   "문의 주세요" 는 안 쓴다 — 광고글이 되면 부담스러워서 안 올린다.
+     *   그냥 **오늘 뭘 했는지 남기는 글**이라야 매일 올리게 되고, 매일 올라오는 게 제일 센 영업이다.
+     */
+    private fun buildPaste(
+        doneAt: Long?, town: String?, no: Int?, monthSites: Int, townCount: Int
+    ): String {
+        if (doneAt == null) return ""
+        val d = java.util.Calendar.getInstance().apply { timeInMillis = doneAt }
+        val date = "%d.%02d.%02d".format(
+            d.get(java.util.Calendar.YEAR),
+            d.get(java.util.Calendar.MONTH) + 1,
+            d.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+        val sb = StringBuilder()
+        sb.append("오늘의 시공 기록").append("\n\n")
+        sb.append(date).append("\n")
+        sb.append(if (town != null) "${town}에서 한 집을 마쳤습니다." else "한 집을 마쳤습니다.").append("\n\n")
+        if (no != null) sb.append("· 올해 ").append(no).append("번째 현장").append("\n")
+        if (monthSites > 0) sb.append("· 이번 달 ").append(monthSites).append("곳").append("\n")
+        if (townCount > 0) sb.append("· 다녀온 동네 ").append(townCount).append("곳").append("\n")
+        sb.append("\n오늘도 한 집을 끝냈습니다.")
+        val biz = bizNameForRecord
+        if (biz.isNotBlank()) sb.append("\n\n— ").append(biz)
+        return sb.toString()
+    }
+
     val trend: StateFlow<StatsTrendState> =
         combine(smsContacts, inbound, period) { sms, calls, p -> buildTrend(sms, calls, p) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsTrendState())
@@ -200,6 +283,26 @@ data class StatsUiState(
     val sentReplies: Int = 0,
     val types: List<StatTypeRow> = emptyList(),
     val topType: StatTypeRow? = null
+)
+
+/**
+ * 「내 기록」 한 덩어리. 번호가 주인공이고, **못 찾은 주소도 숨기지 않는다.**
+ *   (테스트폰 실측 2026-09-24: 9월 7곳 중 2곳이 주소 미등록이었다. 숫자를 부풀리면 기록이 아니다.)
+ */
+data class MyRecordState(
+    /** 지금까지 준 가장 큰 현장 번호. 0 = 아직 없음(= 방금 깐 사람). */
+    val lastNo: Int = 0,
+    val monthSites: Int = 0,
+    val towns: List<String> = emptyList(),
+    /** 이번 달 다녀온 곳 중 **주소를 못 찾은** 곳 수. 지도·동네 수에 안 들어간다. */
+    val noAddrCount: Int = 0,
+    /**
+     * 다녀왔는데 **완료를 안 누른** 곳 수. 번호가 안 붙어 기록이 빈다.
+     *   (2026-09-24 폰 실측: 9월 7곳 중 3곳이 그랬다)
+     */
+    val notDoneCount: Int = 0,
+    /** 카톡·밴드·당근에 그대로 붙이는 글. 빈 문자열 = 아직 완료한 현장이 없음. */
+    val pasteText: String = ""
 )
 
 data class StatsTrendState(

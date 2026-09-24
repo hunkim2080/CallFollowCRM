@@ -210,3 +210,7 @@ apply(from = "$rootDir/tools/style_guard.gradle.kts")
 // 화면 문구가 브랜드에서 벗어나는 것을 막는 감시. (2026-09-21 사장님)
 //   tools/brand_guard.gradle.kts 참고 — 금지어가 들어오면 assembleRelease 가 실패한다.
 apply(from = "$rootDir/tools/brand_guard.gradle.kts")
+
+// Composable early return — tools/compose_guard.gradle.kts (2026-09-24)
+//   세 번 밟은 함정. 이것 때문에 통계 탭이 꺼졌다.
+apply(from = "$rootDir/tools/compose_guard.gradle.kts")

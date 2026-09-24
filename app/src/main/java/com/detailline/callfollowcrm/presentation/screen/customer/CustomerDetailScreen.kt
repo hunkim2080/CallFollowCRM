@@ -325,8 +325,10 @@ fun CustomerDetailScreen(
                     color = TossTextTertiary
                 )
             }
-            return@Scaffold
-        }
+        } else {
+        // ⚠️ 여기 있던 return@Scaffold 를 뺐다 — Composable 안에서 빠져나가면
+        //    빈→로드 전환 때 슬롯테이블이 어긋나 화면이 꺼지거나 빈 화면이 된다.
+        //    통계 탭이 그것 때문에 꺼졌다(2026-09-24). if/else 로 감싼다. 내용은 그대로.
 
         Column(
             Modifier
@@ -1605,6 +1607,7 @@ fun CustomerDetailScreen(
 
             Spacer(Modifier.height(8.dp))
         }
+        }   // ── if (c == null) … else 끝
     }
 
     if (datePickerOpen && customer != null) {

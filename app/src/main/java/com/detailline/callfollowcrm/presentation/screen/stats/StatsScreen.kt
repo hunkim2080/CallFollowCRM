@@ -33,6 +33,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -68,6 +70,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
+    val rec by viewModel.myRecord.collectAsState()
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -89,6 +92,9 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)  // top 14 = 헤더와 첫 카드 숨 쉬는 간격
         ) {
+            // 「내 기록」 — 맨 위. 통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**.
+            //   (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
+            item(key = "myrecord") { MyRecordCard(rec, onOpenVisited); Spacer(Modifier.height(14.dp)) }
             item(key = "hero") { StatsHero(s); Spacer(Modifier.height(14.dp)) }
             item(key = "mascot") { StatsMascot(); Spacer(Modifier.height(14.dp)) }
             item(key = "grid") { StatGrid(s, onOpenVisited) }
@@ -109,6 +115,99 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             }
             item(key = "types") { StatTypes(s); Spacer(Modifier.height(18.dp)) }
         }
+    }
+}
+
+/* ─────────────── 내 기록 ─────────────── */
+
+/**
+ * 「내 기록」 카드 — **번호가 주인공.** (2026-09-24 사장님)
+ *
+ * "이번 달 12집" 은 이번 달로 끝나지만 **「현장 038」 은 039, 040 이 계속 생긴다.**
+ * 처음엔 007 같은 작은 숫자라 별것 아닌데, 100 을 넘는 순간 그게 그대로 **경력**이 된다.
+ *
+ * 아직 한 곳도 안 한 사람에겐 **"기록이 없어요" 라고 하지 않는다** — 그건 내 탓처럼 들린다.
+ * 대신 **001 자리를 비워 두고** 보여준다. 번호가 준비돼 있으면 채우고 싶어진다.
+ *
+ * ⚠️ 주소를 못 찾은 곳은 **숨기지 않고 적는다.** (테스트폰 실측: 9월 7곳 중 2곳)
+ *    숫자를 부풀리면 기록이 아니다.
+ */
+@Composable
+private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
+    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Column(
+        modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
+    ) {
+        // ⚠️ Composable 안에서 early return@Column 절대 금지 —
+        //    빈→로드 전환 때 슬롯테이블이 어긋나 화면이 통째로 안 그려진다.
+        //    바로 오늘 통계 탭이 그것 때문에 꺼졌고, 고치면서 또 같은 짓을 했다.
+        if (rec.lastNo <= 0) {
+            // 아직 한 곳도 없음 — 약속이지 변명이 아니다.
+            Text("내 기록", style = AppType.label, color = TossTextTertiary)
+            Spacer(Modifier.height(AppSpace.s8))
+            Text("첫 현장을 기다리고 있어요", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                color = TossTextPrimary, letterSpacing = (-0.4).sp)
+            Spacer(Modifier.height(AppSpace.s4))
+            Text("시공을 끝내고 [완료] 를 누르면\n여기에 현장 001 부터 번호가 붙어 쌓여요.",
+                style = AppType.body, color = TossTextInfo, lineHeight = 19.sp)
+        } else {
+        Text("내 기록", style = AppType.label, color = TossTextTertiary)
+        Spacer(Modifier.height(AppSpace.s4))
+        Text("현장 %03d".format(rec.lastNo), fontSize = 30.sp, fontWeight = FontWeight.ExtraBold,
+            color = TossBlue, letterSpacing = (-1.0).sp)
+        Spacer(Modifier.height(AppSpace.s4))
+        Text(
+            buildString {
+                append("이번 달 ").append(rec.monthSites).append("곳")
+                if (rec.towns.isNotEmpty()) append(" · 동네 ").append(rec.towns.size).append("곳")
+            },
+            style = AppType.body, color = TossTextInfo, fontWeight = FontWeight.Bold
+        )
+        if (rec.towns.isNotEmpty()) {
+            Spacer(Modifier.height(AppSpace.s12))
+            Text(rec.towns.joinToString(" · "), style = AppType.label, color = TossTextSecondary,
+                lineHeight = 18.sp)
+        }
+        if (rec.notDoneCount > 0) {
+            // 다녀왔는데 완료를 안 누른 곳 — **번호가 안 붙는다.** 안내가 아니라 할 일이다.
+            Spacer(Modifier.height(AppSpace.s8))
+            Text(
+                "완료를 안 누른 ${rec.notDoneCount}곳이 있어요 — 누르면 번호가 붙어요 ›",
+                style = AppType.caption, color = TossBlue, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onOpenVisited() }.padding(vertical = 2.dp)
+            )
+        }
+        if (rec.noAddrCount > 0) {
+            // 숨기지 않는다. 그리고 **누르면 채우러 갈 수 있게** 한다.
+            Spacer(Modifier.height(AppSpace.s8))
+            Text(
+                "주소 못 찾은 ${rec.noAddrCount}곳은 동네에 안 들어가요 — 채우러 가기 ›",
+                style = AppType.caption, color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onOpenVisited() }.padding(vertical = 2.dp)
+            )
+        }
+        if (rec.pasteText.isNotBlank()) {
+            Spacer(Modifier.height(AppSpace.s16))
+            Box(
+                Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.primaryBg)
+                    .clickable {
+                        clip.setText(androidx.compose.ui.text.AnnotatedString(rec.pasteText))
+                        android.widget.Toast.makeText(ctx, "글을 복사했어요 — 붙여넣으면 돼요",
+                            android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("글로 복사하기", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
+                    color = TossBlue)
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            Text("사진 없이 카톡·밴드·당근에 그대로 붙일 수 있어요",
+                style = AppType.caption, color = TossTextTertiary)
+        }
+        }   // ── if (아직 없음) … else 끝
     }
 }
 
