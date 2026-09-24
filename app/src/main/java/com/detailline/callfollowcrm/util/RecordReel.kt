@@ -109,12 +109,12 @@ object RecordReel {
                     spots = d.dots,
                     named = d.dots.sortedByDescending { it.count }.take(5).map { it.name }.toSet(),
                     measurer = null,
-                    land = androidx.compose.ui.graphics.Color(land),
-                    edge = androidx.compose.ui.graphics.Color(0xFFB9C4D0),
+                    land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
+                    edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
                     dot = androidx.compose.ui.graphics.Color(blue),
                     labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
                     labelStyle = TextStyle(fontSize = 10.sp),
-                    river = androidx.compose.ui.graphics.Color(0x4D3182F6),
+                    river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                     progress = t,
                     geo = MapGeo.load(ctx)
                 )

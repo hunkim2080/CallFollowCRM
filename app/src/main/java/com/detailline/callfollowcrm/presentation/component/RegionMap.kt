@@ -14,6 +14,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -51,7 +55,12 @@ import kotlin.math.min
 fun RegionMap(
     spots: List<RegionDot>,
     modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp = 190.dp
+    height: androidx.compose.ui.unit.Dp = 190.dp,
+    /** 손가락으로 바꾼 확대·이동을 밖에서 들고 있고 싶을 때(영상 저장에 그대로 쓴다). */
+    zoom: Float = 1f,
+    panX: Float = 0f,
+    panY: Float = 0f,
+    onTransform: ((zoom: Float, panX: Float, panY: Float) -> Unit)? = null
 ) {
     if (spots.isEmpty()) return
     val measurer = rememberTextMeasurer()
@@ -81,9 +90,28 @@ fun RegionMap(
     Box(modifier.fillMaxWidth().height(height)) {
         // ⚠ Compose 캔버스는 기본으로 경계를 안 자른다.
         //   확대하면 땅이 카드 밖으로 넘쳐 위에 있는 달 표시를 덮었다(2026-09-24 폰에서 확인).
-        Canvas(Modifier.fillMaxWidth().height(height).clipToBounds()) {
+        Canvas(
+            Modifier.fillMaxWidth().height(height).clipToBounds()
+                // 지도인데 손가락으로 안 늘어나면 고장으로 느껴진다. (2026-09-25 사장님 "기본 UX")
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoomChange, _ ->
+                        val nz = (zoom * zoomChange).coerceIn(0.6f, 8f)
+                        onTransform?.invoke(
+                            nz,
+                            (panX + pan.x / size.width / nz).coerceIn(-0.9f, 0.9f),
+                            (panY + pan.y / size.height / nz).coerceIn(-0.9f, 0.9f)
+                        )
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        // 두 번 톡 치면 처음으로 — 손가락으로 헤맸을 때 돌아올 길이 있어야 한다.
+                        onDoubleTap = { onTransform?.invoke(1f, 0f, 0f) }
+                    )
+                }
+        ) {
             drawRegionMap(spots, named, measurer, landC, line, dotC, labelC, labelStyle, riverC, progress,
-                geo = geoData)
+                zoom = zoom, panX = panX, panY = panY, geo = geoData)
         }
     }
 }
@@ -186,6 +214,11 @@ internal fun DrawScope.drawRegionMap(
     labelStyle: TextStyle,
     river: Color,
     progress: Float,
+    /** 손가락으로 벌린 만큼. 1 = 저절로 맞춘 크기. */
+    zoom: Float = 1f,
+    /** 손가락으로 끈 만큼 — 화면 폭·높이에 대한 비율. */
+    panX: Float = 0f,
+    panY: Float = 0f,
     /**
      * **진짜 지도 좌표**(Natural Earth). null 이면 예전 손그림으로 그린다.
      *   부르는 쪽에서 `MapGeo.load(context)` 로 한 번 읽어 넘긴다 — 여기선 Context 를 못 쓴다.
@@ -215,6 +248,18 @@ internal fun DrawScope.drawRegionMap(
         val c = (maxLat + minLat) / 2; minLat = c - MIN_LAT / 2; maxLat = c + MIN_LAT / 2
     }
 
+    // ── 손가락 확대·이동 ── 저절로 맞춘 틀을 **그만큼 좁히고 옮긴다**.
+    //   글자 크기는 그대로 두려고 화면을 늘리는 대신 **보는 범위**를 줄인다.
+    if (zoom != 1f || panX != 0f || panY != 0f) {
+        val z = zoom.coerceIn(0.5f, 10f)
+        val cLon = (minLon + maxLon) / 2 - panX * (maxLon - minLon) / z
+        val cLat = (minLat + maxLat) / 2 + panY * (maxLat - minLat) / z
+        val hw = (maxLon - minLon) / 2 / z
+        val hh = (maxLat - minLat) / 2 / z
+        minLon = cLon - hw; maxLon = cLon + hw
+        minLat = cLat - hh; maxLat = cLat + hh
+    }
+
     // 경도는 위도에 따라 좁아진다(한국 ≈ cos36° ≈ 0.81) — 안 그러면 지도가 옆으로 늘어난다.
     val kx = cos(Math.toRadians(36.0))
     val spanX = (maxLon - minLon) * kx
@@ -242,6 +287,10 @@ internal fun DrawScope.drawRegionMap(
         return p
     }
 
+    // 굵기 기준 — 작은 화면(≈380px)에서 정한 값을 큰 그림(인증샷 1080·영상 720)에 그대로 쓰면
+    //   선이 실핀이 된다. 화면 크기에 맞춰 같이 키운다. (2026-09-25 사장님 "인증샷도 지도 이미지가..")
+    val k = (size.minDimension / 380f).coerceIn(1f, 3.2f)
+
     if (geo != null && !geo.isEmpty) {
         // ── 바다 ── 이게 있어야 육지가 육지로 보인다.
         drawRect(sea)
@@ -249,14 +298,14 @@ internal fun DrawScope.drawRegionMap(
         val glow = Color(com.detailline.callfollowcrm.util.MapPalette.GLOW)
         for (r in geo.land) {
             val p = pathOf(r, true)
-            drawPath(p, glow, style = Stroke(width = 14f))
-            drawPath(p, glow, style = Stroke(width = 5f))
+            drawPath(p, glow, style = Stroke(width = 14f * k))
+            drawPath(p, glow, style = Stroke(width = 5f * k))
         }
         // ── 땅 ──
         for (r in geo.land) {
             val p = pathOf(r, true)
             drawPath(p, land)
-            drawPath(p, edge, style = Stroke(width = 1f))
+            drawPath(p, edge, style = Stroke(width = 1f * k))
         }
         // ── 시가지 ── 동그란 얼룩이 아니라 **진짜 서울 모양**.
         val built = Color(com.detailline.callfollowcrm.util.MapPalette.BUILT)
@@ -264,14 +313,14 @@ internal fun DrawScope.drawRegionMap(
         // ── 시·도 경계 ──
         for (r in geo.admin) {
             drawPath(pathOf(r, false), labelColor.copy(alpha = 0.22f), style = Stroke(
-                width = 1f,
-                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 5f))
+                width = 1f * k,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f * k, 5f * k))
             ))
         }
         // ── 강 ──
         for (r in geo.rivers) {
             drawPath(pathOf(r, false), river, style = Stroke(
-                width = 3f, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                width = 3f * k, cap = androidx.compose.ui.graphics.StrokeCap.Round
             ))
         }
         // ── 길 ── 테두리 **전부** → 속 **전부**. 순서가 곧 교차로 품질이다.
@@ -279,13 +328,13 @@ internal fun DrawScope.drawRegionMap(
         val roadFill = Color(com.detailline.callfollowcrm.util.MapPalette.ROAD_FILL)
         for (r in geo.roads) {
             drawPath(pathOf(r, false), roadEdge, style = Stroke(
-                width = 5.4f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                width = 5.4f * k, cap = androidx.compose.ui.graphics.StrokeCap.Round,
                 join = androidx.compose.ui.graphics.StrokeJoin.Round
             ))
         }
         for (r in geo.roads) {
             drawPath(pathOf(r, false), roadFill, style = Stroke(
-                width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                width = 3.2f * k, cap = androidx.compose.ui.graphics.StrokeCap.Round,
                 join = androidx.compose.ui.graphics.StrokeJoin.Round
             ))
         }
@@ -376,9 +425,13 @@ internal fun DrawScope.drawRegionMap(
             }
             // 🚛 — 지금 자리
             val pos = FloatArray(2)
-            if (measurer != null && pm.getPosTan(at, pos, null)) {
-                val t = measurer.measure("🚛", labelStyle)
-                drawText(t, topLeft = Offset(pos[0] - t.size.width / 2f, pos[1] - t.size.height - 4f))
+            if (pm.getPosTan(at, pos, null)) {
+                // 기본 글자 그리기 — 인증샷·영상에도 트럭이 찍힌다(전엔 화면에만 있었다).
+                val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    textSize = 17f * (size.minDimension / 380f).coerceIn(1f, 3.2f)
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+                drawContext.canvas.nativeCanvas.drawText("🚛", pos[0], pos[1] - tp.textSize * 0.35f, tp)
             }
         }
     }
@@ -387,29 +440,59 @@ internal fun DrawScope.drawRegionMap(
     val maxCount = spots.maxOf { it.count }.coerceAtLeast(1)
     for (s in spots) {
         val p = px(s.lon, s.lat)
-        val r = 4f + 6f * (s.count.toFloat() / maxCount)
-        drawCircle(dot.copy(alpha = 0.18f), r + 5f, p)
+        val r = (4f + 6f * (s.count.toFloat() / maxCount)) * k
+        drawCircle(dot.copy(alpha = 0.18f), r + 5f * k, p)
         drawCircle(dot, r, p)
-        drawCircle(Color.White, r, p, style = Stroke(width = 1.4f))
+        drawCircle(Color.White, r, p, style = Stroke(width = 1.4f * k))
     }
-    // ── 이름표 (많이 간 곳 넷만) — **겹치면 건너뛴다.** ──
-    //   겹쳐 찍으면 글자가 뭉개져서 둘 다 못 읽는다(서대문·서초가 그랬다, 2026-09-24).
-    val m = measurer ?: return
-    val placed = ArrayList<FloatArray>()   // [left, top, right, bottom]
+    // ── 이름표 ──
+    //   ⚠️ 전엔 Compose 글자 재는 도구로 그렸는데, **인증샷·영상엔 그 도구가 없어서**
+    //     이름표를 통째로 건너뛰고 있었다 — 저장된 그림엔 동네 이름이 하나도 없었다.
+    //     (2026-09-25 사장님 "인증샷도 지도 이미지가..")
+    //     기본 글자 그리기로 바꾸면 화면·그림·영상에서 **똑같이** 나온다.
+    //   겹치면 글자가 뭉개져 둘 다 못 읽으니, **네 자리를 차례로 시도**한다.
+    //     오른쪽 한 자리만 보고 포기해서 관악 옆 강서가 사라졌었다.
+    val nv = drawContext.canvas.nativeCanvas
+    val lp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 11f * k
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        color = android.graphics.Color.argb(
+            (labelColor.alpha * 255).toInt(), (labelColor.red * 255).toInt(),
+            (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
+        )
+    }
+    val hp2 = android.graphics.Paint(lp).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 3f * k
+        color = android.graphics.Color.argb(
+            (land.alpha * 255).toInt(), (land.red * 255).toInt(),
+            (land.green * 255).toInt(), (land.blue * 255).toInt()
+        )
+    }
+    val placed = ArrayList<FloatArray>()
+    fun free(b: FloatArray) = placed.none { q -> b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1] }
     for (s in spots.sortedByDescending { it.count }) {
         if (s.name !in named) continue
         val p = px(s.lon, s.lat)
-        val t = m.measure(s.name, labelStyle.copy(color = labelColor))
-        var x = p.x + 12f
-        if (x + t.size.width > size.width) x = p.x - 12f - t.size.width
-        x = x.coerceAtLeast(0f)
-        val y = (p.y - t.size.height / 2f).coerceIn(0f, size.height - t.size.height)
-        val box = floatArrayOf(x - 2f, y - 2f, x + t.size.width + 2f, y + t.size.height + 2f)
-        val hit = placed.any { b ->
-            box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]
+        val w = lp.measureText(s.name)
+        val h = lp.textSize
+        val gap = 11f * k
+        // 오른쪽 → 왼쪽 → 위 → 아래
+        val cands = arrayOf(
+            floatArrayOf(p.x + gap, p.y + h * 0.35f),
+            floatArrayOf(p.x - gap - w, p.y + h * 0.35f),
+            floatArrayOf(p.x - w / 2f, p.y - gap),
+            floatArrayOf(p.x - w / 2f, p.y + gap + h * 0.8f)
+        )
+        var put: FloatArray? = null
+        for (c in cands) {
+            if (c[0] < 2f || c[0] + w > size.width - 2f) continue
+            if (c[1] - h < 2f || c[1] > size.height - 2f) continue
+            val box = floatArrayOf(c[0] - 2f, c[1] - h - 2f, c[0] + w + 2f, c[1] + 3f)
+            if (free(box)) { placed.add(box); put = c; break }
         }
-        if (hit) continue
-        placed.add(box)
-        drawText(t, topLeft = Offset(x, y))
+        val at = put ?: continue
+        nv.drawText(s.name, at[0], at[1], hp2)
+        nv.drawText(s.name, at[0], at[1], lp)
     }
 }

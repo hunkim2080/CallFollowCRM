@@ -297,7 +297,15 @@ private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
                 Text("이 달은 다녀온 기록이 없어요", style = AppType.body, color = TossTextTertiary)
             }
         } else {
-        com.detailline.callfollowcrm.presentation.component.RegionMap(rec.dots)
+        // 손가락으로 바꾼 확대·이동 — **영상으로 뽑을 때 이 값 그대로** 쓰려고 밖에 둔다.
+        var mapZoom by remember(rec.dots) { mutableStateOf(1f) }
+        var mapPanX by remember(rec.dots) { mutableStateOf(0f) }
+        var mapPanY by remember(rec.dots) { mutableStateOf(0f) }
+        com.detailline.callfollowcrm.presentation.component.RegionMap(
+            spots = rec.dots,
+            zoom = mapZoom, panX = mapPanX, panY = mapPanY,
+            onTransform = { z, x, y -> mapZoom = z; mapPanX = x; mapPanY = y }
+        )
         Spacer(Modifier.height(AppSpace.s8))
         val sorted = rec.dots.sortedByDescending { it.count }
         Text(
@@ -311,7 +319,7 @@ private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
         Spacer(Modifier.height(AppSpace.s4))
         Text(
             buildString {
-                append("이 달 다닌 곳 · 🚛 가 간 순서대로 달려요")
+                append("이 달 다닌 곳 · 🚛 가 간 순서대로 달려요 · 두 손가락으로 확대")
                 if (rec.yearTownCount > rec.dots.size) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
             },
             style = AppType.caption, color = TossTextTertiary,
@@ -336,6 +344,8 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
     }
     /** 영상 만드는 중이면 0~1, 아니면 -1. */
     var making by remember { mutableStateOf(-1f) }
+    /** 만드는 중인 일 — [취소] 로 끊는다. */
+    var reelJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val sticker = shape == com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER
     // 큰 숫자 고르기 — 한가한 달엔 '이번 달' 이 초라하니 **올해 누적**이 기본.
     val picks = remember(rec) { bigPicks(rec) }
@@ -451,20 +461,34 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                 //   인스타 릴스 크기(9:16). 만드는 데 시간이 걸려서 진행률을 보여준다.
                 Spacer(Modifier.height(AppSpace.s12))
                 if (making >= 0f) {
-                    Box(
-                        Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("영상 만드는 중 ${'$'}{(making * 100).toInt()}%",
-                            style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                    // ⏹ **취소할 길**이 있어야 한다 — 10초짜리라도 폰에선 한참 걸린다.
+                    //   되돌릴 수 없는 기다림은 고장처럼 느껴진다. (2026-09-25 기본 UX 점검)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Box(
+                            Modifier.weight(1f).clip(AppShape.md).background(TossGrayBg)
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("영상 만드는 중 ${(making * 100).toInt()}%",
+                                style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                        }
+                        Box(
+                            Modifier.clip(AppShape.md).background(TossGrayBg)
+                                .clickable { reelJob?.cancel(); reelJob = null; making = -1f }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("취소", style = AppType.label,
+                                fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                        }
                     }
                 } else {
                     Box(
                         Modifier.fillMaxWidth().clip(AppShape.md)
                             .background(AppTheme.colors.primaryBg)
                             .clickable {
-                                scope.launch {
+                                if (reelJob != null) return@clickable   // 연타 막기
+                                reelJob = scope.launch {
                                     making = 0f
                                     val reel = com.detailline.callfollowcrm.util.RecordReel.make(
                                         ctx,
@@ -479,6 +503,7 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                                         )
                                     ) { p -> making = p }
                                     making = -1f
+                                    reelJob = null
                                     if (reel != null) {
                                         val ok = com.detailline.callfollowcrm.util.RecordShot.saveVideo(
                                             ctx, reel, "shigongmagne_%03d".format(rec.lastNo)

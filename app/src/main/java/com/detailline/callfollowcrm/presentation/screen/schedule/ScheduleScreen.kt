@@ -1393,7 +1393,7 @@ private fun UpcomingSection(
         collab.forEach { sct ->
             val d = sct.scheduledAtMs
             if (d <= 0L || DateTimeUtils.startOfDay(d) < todayStart) return@forEach
-            val who = sct.ownerName.takeIf { it.isNotBlank() }?.let { "\ud611\uc5c5 \u00b7 ${'$'}it\uc0ac\uc7a5\ub2d8" } ?: "\ud611\uc5c5 \ud604\uc7a5"
+            val who = sct.ownerName.takeIf { it.isNotBlank() }?.let { "\ud611\uc5c5 \u00b7 $it\uc0ac\uc7a5\ub2d8" } ?: "\ud611\uc5c5 \ud604\uc7a5"
             val addr = sct.addr?.trim()?.takeIf { it.isNotBlank() } ?: sct.title
             out += Up(d, who, listOfNotNull(sct.timeLabel?.takeIf { it.isNotBlank() }, addr).joinToString(" \u00b7 "), true)
         }

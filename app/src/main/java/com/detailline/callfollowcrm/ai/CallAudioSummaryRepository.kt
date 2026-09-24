@@ -149,7 +149,7 @@ class CallAudioSummaryRepository(
         val startReq = Request.Builder().url("$baseUrl/api/call-audio-summary/start").post(body).build()
         client.newCall(startReq).execute().use { resp ->
             if (resp.code == 404) throw NotSupportedException()
-            if (!resp.isSuccessful) throw IOException("HTTP ${'$'}{resp.code}")
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             val raw = resp.body?.string().orEmpty()
             val obj = if (raw.isBlank()) JSONObject() else JSONObject(raw)
             // 이미 돼 있으면 곧장 결과가 온다.

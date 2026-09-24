@@ -141,12 +141,12 @@ object RecordShot {
                 spots = d.dots,
                 named = d.dots.sortedByDescending { it.count }.take(5).map { it.name }.toSet(),
                 measurer = null,
-                land = androidx.compose.ui.graphics.Color(0xFFE9ECF0),
-                edge = androidx.compose.ui.graphics.Color(0xFFCFD5DD),
+                land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
+                edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
                 dot = androidx.compose.ui.graphics.Color(0xFF3182F6),
                 labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
                 labelStyle = TextStyle(fontSize = 10.sp),
-                river = androidx.compose.ui.graphics.Color(0x4D3182F6),
+                river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                 progress = 1f
             )
         }
@@ -254,12 +254,12 @@ object RecordShot {
                     spots = d.dots,
                     named = d.dots.sortedByDescending { it.count }.take(4).map { it.name }.toSet(),
                     measurer = null,
-                    land = androidx.compose.ui.graphics.Color(0xFFEEF0F3),
-                    edge = androidx.compose.ui.graphics.Color(0xFFD9D3C4),
+                    land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
+                    edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
                     dot = androidx.compose.ui.graphics.Color(0xFF3182F6),
                     labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
                     labelStyle = TextStyle(fontSize = 10.sp),
-                    river = androidx.compose.ui.graphics.Color(0x4D3182F6),
+                    river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                     progress = 1f,
                     geo = MapGeo.load(ctx)
                 )
@@ -317,7 +317,7 @@ object RecordShot {
     /** 영상 보내기 — 인스타·카톡으로. 그림과 같은 길(FileProvider)을 쓴다. */
     fun shareVideo(ctx: Context, file: File) {
         runCatching {
-            val uri = FileProvider.getUriForFile(ctx, "${'$'}{ctx.packageName}.fileprovider", file)
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "video/mp4"
                 putExtra(Intent.EXTRA_STREAM, uri)
@@ -334,7 +334,7 @@ object RecordShot {
         withContext(Dispatchers.IO) {
             runCatching {
                 val values = ContentValues().apply {
-                    put(MediaStore.Video.Media.DISPLAY_NAME, "${'$'}name.mp4")
+                    put(MediaStore.Video.Media.DISPLAY_NAME, "$name.mp4")
                     put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/시공막내")
