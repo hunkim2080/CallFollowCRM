@@ -253,6 +253,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 customerId = j.customerId,
                 no = j.recordNo?.let { "%03d".format(it) },
                 town = com.detailline.callfollowcrm.util.RegionName.shortRegion(a),
+                // 📍 **다녀온 풀주소.** 전엔 줄을 눌러 고객 상세로 들어가야 보였다.
+                //   (2026-09-25 사장님 "우리가 갔던 풀주소가 남아야하지 않을까?")
+                //   ⚠️ 건에 주소가 박혀 있으면 그걸, 없으면 **고객의 지금 주소**를 쓴다
+                //      — 후자는 고객 주소를 고치면 지난 기록도 같이 바뀐다. (따로 다룰 것)
+                addr = a?.takeIf { it.isNotBlank() },
                 date = j.scheduledWorkDate?.let { DateTimeUtils.formatShortKoreanDate(it) } ?: "",
                 days = j.scheduledWorkDays.coerceAtLeast(1),
                 amountManwon = ((j.totalAmount ?: 0L) / 10_000L).toInt(),
@@ -577,6 +582,8 @@ data class MyRecordRow(
     val no: String?,
     /** 동네. 주소를 못 찾았으면 null. */
     val town: String?,
+    /** 다녀온 **풀주소**. 없으면 null — 「주소 없음」으로 보여 채우러 가게 한다. */
+    val addr: String? = null,
     /** "9/19" */
     val date: String,
     /** 며칠 걸린 공사인가. 1이면 화면에 안 쓴다(당연한 값). */

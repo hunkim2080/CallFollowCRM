@@ -67,6 +67,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import androidx.compose.ui.text.style.TextOverflow
 import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
@@ -1143,6 +1144,17 @@ private fun MyRecordRows(
                         style = AppType.body, fontWeight = FontWeight.ExtraBold,
                         color = if (r.town == null && !r.upcoming) AppTheme.colors.unpaid else TossTextPrimary
                     )
+                    // 📍 다녀온 자리. 「다녀온 현장」 목록과 **같은 모양**으로 맞춘다.
+                    //   주소가 없으면 조용히 빼지 않고 **「주소 없음」**이라 적는다 —
+                    //   그래야 어느 현장을 채우면 되는지 여기서 바로 보인다.
+                    if (!r.upcoming) {
+                        Text(
+                            r.addr ?: "주소 없음",
+                            style = AppType.caption,
+                            color = if (r.addr == null) AppTheme.colors.unpaid else TossTextInfo,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Text(
                         buildString {
                             append(r.date)
