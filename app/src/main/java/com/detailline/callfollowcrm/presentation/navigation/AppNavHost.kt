@@ -555,8 +555,8 @@ fun AppNavHost(
             StatsScreen(
                 viewModel = vm,
                 onOpenVisited = { navController.navigate(Destinations.visited()) },
-                onOpenTodo = { navController.navigate(Destinations.visited("todo")) },
-                onOpenNoAddr = { navController.navigate(Destinations.visited("addr")) },
+                onOpenTodo = { m -> navController.navigate(Destinations.visited("todo", m)) },
+                onOpenNoAddr = { m -> navController.navigate(Destinations.visited("addr", m)) },
                 // 현장 줄을 누르면 **그 집**으로. 전엔 어느 줄이든 목록으로만 갔다. (2026-09-24 사장님)
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
             )
@@ -564,15 +564,19 @@ fun AppNavHost(
 
         composable(
             Destinations.VISITED_WITH_ARG,
-            arguments = listOf(navArgument("only") { nullable = true; defaultValue = null })
+            arguments = listOf(
+                navArgument("only") { nullable = true; defaultValue = null },
+                navArgument("month") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
+            )
         ) { entry ->
+            val m = entry.arguments?.getInt("month") ?: 0
             val vm: com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel =
-                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel(container) })
+                viewModel(key = "visited$m", factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel(container, m) })
             com.detailline.callfollowcrm.presentation.screen.stats.VisitedScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
-                filter = entry.arguments?.getString("only")
+                filter = entry.arguments?.getString("only")?.takeIf { it.isNotBlank() }
             )
         }
 

@@ -88,14 +88,19 @@ fun StatsScreen(
     onOpenVisited: () -> Unit = {},
     /** 현장 줄을 누르면 그 손님 상세로. (2026-09-24 사장님 "덕양 탭을 누르니까 9월 전체가 나오는데") */
     onOpenCustomer: (Long) -> Unit = {},
-    /** 완료를 안 누른 곳**만** 보여주러. (2026-09-25 "클릭하면 안한것만 나오면 찾기편한데") */
-    onOpenTodo: () -> Unit = onOpenVisited,
-    /** 주소가 없는 곳**만** 보여주러. */
-    onOpenNoAddr: () -> Unit = onOpenVisited
+    /**
+     * 완료를 안 누른 곳**만** 보여주러. (2026-09-25 "클릭하면 안한것만 나오면 찾기편한데")
+     *   ⚠️ **보던 달을 같이 넘긴다.** 8월을 보다 눌렀는데 9월 목록이 열리면 찾을 수가 없다.
+     */
+    onOpenTodo: (Int) -> Unit = { onOpenVisited() },
+    /** 주소가 없는 곳**만** 보여주러. 역시 보던 달 그대로. */
+    onOpenNoAddr: (Int) -> Unit = { onOpenVisited() }
 ) {
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
     val rec by viewModel.myRecord.collectAsState()
+    // 지금 보고 있는 달 — 눌러서 가는 화면이 **같은 달**을 보게 들고 간다. (2026-09-25 점검)
+    val monthDelta by viewModel.recordMonthDelta.collectAsState()
 
     // 되돌릴 수 없는 일엔 **되돌릴 길**이 있어야 한다. (2026-09-25 기본 UX 점검)
     val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
@@ -162,7 +167,11 @@ fun StatsScreen(
                     MyRecordEmpty()
                     Spacer(Modifier.height(12.dp))
                 } else if (rec.notDoneCount > 0 || rec.noAddrCount > 0) {
-                    RecordTodoBar(rec, onOpenTodo = onOpenTodo, onOpenNoAddr = onOpenNoAddr)
+                    RecordTodoBar(
+                        rec,
+                        onOpenTodo = { onOpenTodo(monthDelta) },
+                        onOpenNoAddr = { onOpenNoAddr(monthDelta) }
+                    )
                     Spacer(Modifier.height(11.dp))
                 }
             }
@@ -379,6 +388,13 @@ private fun MyRecordMap(
         )
         }   // ── if (dots 비었음) … else 끝
 
+        // 기록이 없는 달이면 **숫자도 만들기도 없다.** 없다고 말해놓고 0곳·0일·0만을 또 보여주고,
+        //   만들면 지도 없는 빈 영상이 나온다 — 못 만들 걸 만들 수 있는 것처럼 그린 셈. (2026-09-25 점검)
+        if (rec.dots.isEmpty()) {
+            Spacer(Modifier.height(AppSpace.s8))
+            Text("‹ 를 눌러 지난달을 보세요", style = AppType.caption, color = TossTextTertiary,
+                modifier = Modifier.padding(horizontal = 2.dp))
+        } else {
         // ── 세 칸 — **지도를 설명하는 숫자**다. 지도와 붙어 있어야 같은 말이 된다. (프로토 ④ .strip)
         //   셋이 서로 다른 말을 한다: 곳 수 = 결과 · 나간 날 = 몸이 나간 날 · 매출 = 그 결과.
         Spacer(Modifier.height(AppSpace.s12))
@@ -430,6 +446,7 @@ private fun MyRecordMap(
                 }
             }
         }
+        }   // ── 기록 없는 달 … else 끝 ──
     }
 }
 
@@ -485,6 +502,8 @@ private fun ShotPreviewDialog(
     /** 방금 사진첩에 저장한 것 — 어디 갔는지 **열어볼 수 있게** 주소를 들고 있는다. */
     var savedUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var savedMime by remember { mutableStateOf("image/png") }
+    /** 저장하는 중 — 연타하면 사진첩에 같은 게 여러 장 쌓인다. */
+    var saving by remember { mutableStateOf(false) }
 
     // 🔆 영상 만드는 동안 **화면이 꺼지면 만들던 게 끊긴다.** 만드는 중에만 켜 둔다.
     val actWindow = (ctx as? android.app.Activity)?.window
@@ -515,6 +534,8 @@ private fun ShotPreviewDialog(
     val bmp = remember(data, shape, ratio, sign) {
         com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, shape, ratio, sign)
     }
+    // 설정을 바꾸면 "저장했어요" 를 지운다 — 안 그러면 **지금 보이는 게 저장된 건가** 로 읽힌다.
+    androidx.compose.runtime.LaunchedEffect(bmp) { savedUri = null }
 
     // ── 🎬 영상 미리보기 ── 만들기 전에 **움직이는 걸 본다.** (2026-09-25 사장님)
     //   몇 분 기다려 만들었는데 마음에 안 들면 그 시간을 날린다.
@@ -602,7 +623,15 @@ private fun ShotPreviewDialog(
     // 비율을 고를 수 있게 되면서 9:16 미리보기가 창을 다 먹는다 —
     //   그러면 아래 [저장]·[올리기] 가 **화면 밖으로 밀렸다.** 창을 높이에 가두고 속을 굴린다.
     val maxDlgH = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+    androidx.compose.ui.window.Dialog(
+        // ⏹ **만드는 중엔 창 밖을 스쳐도 안 닫힌다.** 닫히면 만들던 게 조용히 끊기는데
+        //   아무 말이 없어서, 장갑 낀 손으로 옆을 스치면 몇 분 기다린 걸 그냥 날린다.
+        //   끊고 싶으면 [취소] 를 누르면 된다. (2026-09-25 점검)
+        onDismissRequest = { if (making < 0f) onClose() },
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = making < 0f, dismissOnClickOutside = making < 0f
+        )
+    ) {
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(20.dp), color = Color.White,
             modifier = Modifier.fillMaxWidth().heightIn(max = maxDlgH)
@@ -612,7 +641,8 @@ private fun ShotPreviewDialog(
                     .verticalScroll(androidx.compose.foundation.rememberScrollState())
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("인증샷", style = AppType.title, fontWeight = FontWeight.ExtraBold,
+                    Text(if (previewVideo) "영상 만들기" else "인증샷",
+                        style = AppType.title, fontWeight = FontWeight.ExtraBold,
                         color = TossTextPrimary)
                     Spacer(Modifier.weight(1f))
                     Text("닫기", style = AppType.label, color = TossTextSecondary,
@@ -774,13 +804,16 @@ private fun ShotPreviewDialog(
                 // 그림을 보는 중일 때만 그림 버튼. 영상일 땐 아래 [이 영상으로 저장] 하나뿐이다.
                 if (!previewVideo) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    ShotSmall("사진첩에 저장", Modifier.weight(1f)) {
+                    ShotSmall(if (saving) "저장 중…" else "사진첩에 저장", Modifier.weight(1f)) {
+                        if (saving) return@ShotSmall   // 연타 막기
+                        saving = true
                         scope.launch {
                             val name = "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape) +
                                 (if (shape == ShotShape.STICKER) "" else ratio.suffix)
                             val uri = com.detailline.callfollowcrm.util.RecordShot.save(ctx, bmp, name)
                             savedUri = uri
                             savedMime = "image/png"
+                            saving = false
                             if (uri == null) {
                                 android.widget.Toast.makeText(
                                     ctx, "저장하지 못했어요 — [올리기] 로 보내보세요",

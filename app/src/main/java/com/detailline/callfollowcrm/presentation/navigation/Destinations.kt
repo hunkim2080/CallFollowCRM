@@ -64,10 +64,13 @@ object Destinations {
     const val STATS = "stats"
     /** 통계 "다녀온 현장" 셀 탭 → 이번 달 시공 현장 목록(프로토 s-visited). */
     const val VISITED = "visited"
-    /** 무엇만 볼지 — "todo"(완료 안 누름) · "addr"(주소 없음). 없으면 전부. */
-    const val VISITED_WITH_ARG = "visited?only={only}"
-    fun visited(only: String? = null) =
-        if (only == null) VISITED else "visited?only=$only"
+    /**
+     * 무엇만 볼지 — "todo"(완료 안 누름) · "addr"(주소 없음). 없으면 전부.
+     * month — 「내 기록」에서 고른 달(0=이번 달, -1=지난달). **보던 달 그대로 따라가야 한다.**
+     */
+    const val VISITED_WITH_ARG = "visited?only={only}&month={month}"
+    fun visited(only: String? = null, month: Int = 0) =
+        "visited?only=" + (only ?: "") + "&month=" + month
     const val SEARCH = "search"
     const val CUSTOMERS = "customers"
     const val NEW_LEADS = "new_leads"

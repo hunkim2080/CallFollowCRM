@@ -54,9 +54,16 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     val periodState: StateFlow<StatPeriod> = period
     fun setPeriod(p: StatPeriod) { period.value = p }
 
+    // ⚠️ **선언이 state 보다 위에 있어야 한다** — 아래에 두면 state 가 만들어질 때 아직 null 이다.
+    //   (Kotlin init 순서. 같은 함정을 전에도 밟았다)
+    private val recordMonth = MutableStateFlow(0)
+
+    /** 지금 보고 있는 달(0=이번 달, -1=지난달). 눌러서 가는 화면이 **같은 달**을 보게 하려고 공개한다. */
+    val recordMonthDelta: StateFlow<Int> = recordMonth
+
     val state: StateFlow<StatsUiState> =
-        combine(customers, categories, sentThisMonth, jobsFlow) { cs, cats, sent, js ->
-            buildState(cs, cats, sent, js)
+        combine(customers, categories, sentThisMonth, jobsFlow, recordMonth) { cs, cats, sent, js, m ->
+            buildState(cs, cats, sent, js, m)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 
     /**
@@ -64,7 +71,6 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
      *   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이라 따로 뽑는다.
      */
     /** 지금 보고 있는 달 (0 = 이번 달, -1 = 지난달 …). 지도·목록·숫자가 다 이걸 따라간다. */
-    private val recordMonth = MutableStateFlow(0)
     /**
      * 그 줄에서 **바로 완료 처리**. (2026-09-24 사장님 "완료된 일인데 왜 이것만 안 눌러져 있냐")
      *
@@ -183,8 +189,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             // 그 동네 사진 — **그 현장에 제일 먼저 올린 것.** [photos] 가 올린 순서라 먼저 걸리는 게 대표.
             //   한 동네에 현장이 여럿이면, 사진이 있는 **첫 현장** 것을 쓴다.
             if (photoOf[spot.name] == null) {
-                val hit = photos.firstOrNull { it.jobId == j.id }
-                    ?: photos.firstOrNull { it.jobId == null && it.customerId == j.customerId }
+                val hit = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                    .representativeOf(photos, j.customerId, j.id)
                 hit?.filePath?.takeIf { java.io.File(it).exists() }?.let { photoOf[spot.name] = it }
             }
         }
@@ -310,8 +316,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     ): String? {
         if (photos.isEmpty()) return null
         for (j in monthJobs) {
-            val hit = photos.firstOrNull { it.jobId == j.id }
-                ?: photos.firstOrNull { it.jobId == null && it.customerId == j.customerId }
+            val hit = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                .representativeOf(photos, j.customerId, j.id)
             val path = hit?.filePath ?: continue
             if (java.io.File(path).exists()) return path
         }
@@ -353,22 +359,34 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         combine(smsContacts, inbound, period) { sms, calls, p -> buildTrend(sms, calls, p) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsTrendState())
 
-    // ── 이번 달 고정 집계 ────────────────────────────────────────────
+    /**
+     * 「숫자로 보기」 집계 — **맨 위에서 고른 달**을 따른다. (2026-09-25 점검)
+     *
+     * ⚠️ 전엔 **늘 이번 달**이었다. 그래서 8월 지도를 보는 동안 아래 네 칸은 9월 숫자였다.
+     *   맨 위 달 고르기 주석엔 "아래 전부가 그 달이다" 라고 써놓고 실제론 안 그랬다.
+     *   **한 화면에 달이 둘이면 숫자를 못 믿는다.**
+     */
     private fun buildState(
         cs: List<CustomerEntity>,
         cats: List<CategoryEntity>,
         sent: Int,
-        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity> = emptyList()
+        js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity> = emptyList(),
+        monthDelta: Int = 0
     ): StatsUiState {
         val now = System.currentTimeMillis()   // 매번 현재 기준 (stale-month fix)
-        val monthStart = monthStartOf(now)
+        val monthStart = shiftMonth(monthStartOf(now), monthDelta)
         val monthEnd = shiftMonth(monthStart, +1)
         val lastMonthStart = shiftMonth(monthStart, -1)
         val lastYearStart = shiftMonth(monthStart, -12)
         val lastYearEnd = shiftMonth(monthEnd, -12)
         // 현장 수 = **건** 기준. 건이 하나도 없는 옛 고객만 고객 표로 센다.
         val hasAnyJob = js.map { it.customerId }.toHashSet()
-        fun inMonth(d: Long?) = d != null && d >= monthStart && d < monthEnd
+        // ⚠️ **「다녀온 현장」은 지난 것만 센다.** 앞으로 올 예약을 같이 세면
+        //   지도 밑 "현장 7곳" 과 여기 "다녀온 현장 8곳" 이 엇갈린다(9/28 예약 하나 때문에).
+        //   [buildMyRecord] 와 **같은 잣대**여야 한다. (2026-09-25 점검)
+        val todayStart = DateTimeUtils.startOfDay(now)
+        fun inMonth(d: Long?) =
+            d != null && d >= monthStart && d < monthEnd && d < todayStart
         val jobs = js.count { inMonth(it.scheduledWorkDate) } +
             cs.count { it.id !in hasAnyJob && inMonth(it.scheduledWorkDate) }
         val inquiries = cs.count { it.createdAt in monthStart until monthEnd }

@@ -95,16 +95,15 @@ fun RegionMap(
     }
     val progress = anim.value
     val line = AppTheme.colors.line
-    val landC = AppTheme.colors.neutralBg
+    // 땅 색도 그림·영상과 **같은 색**으로. 화면만 회색기가 돌면 "왜 다르지?" 가 된다. (2026-09-25 점검)
+    val landC = Color(com.detailline.callfollowcrm.util.MapPalette.LAND)
     val dotC = AppTheme.colors.primary
     val labelC = AppTheme.colors.textSub
     val riverC = AppTheme.colors.primary.copy(alpha = 0.30f)
     // 글자 크기도 디자인 시스템에서 가져온다(손으로 적지 않는다).
     val labelStyle = AppType.micro
-    // 이름표는 많이 간 곳 넷만 — 여덟 개가 넘으면 지도가 아니라 표가 된다.
-    val named = remember(spots) {
-        spots.sortedByDescending { it.count }.take(4).map { it.name }.toSet()
-    }
+    // 이름표 개수는 **한 곳(MapPalette)** 에서 정한다 — 화면·그림·영상이 같아야 한다.
+    val named = remember(spots) { com.detailline.callfollowcrm.util.MapPalette.namedOf(spots) }
     // 모서리를 둥글게 — 카드 안에 각진 네모가 들어있으면 붙이다 말은 것처럼 보인다. (프로토 canvas border-radius:12px)
     Box(modifier.fillMaxWidth().height(height).clip(com.detailline.callfollowcrm.presentation.theme.AppShape.md)) {
         // ⚠ Compose 캔버스는 기본으로 경계를 안 자른다.

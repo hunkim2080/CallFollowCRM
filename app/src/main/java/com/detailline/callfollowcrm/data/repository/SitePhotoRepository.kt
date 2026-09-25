@@ -23,6 +23,26 @@ class SitePhotoRepository(
     /** 전부, 올린 순서대로. 「내 기록」이 대표 사진을 고를 때 쓴다. */
     fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>> = dao.observeAllOldestFirst()
 
+    companion object {
+        /**
+         * **그 현장의 대표 사진 고르는 규칙 — 여기 하나뿐이다.**
+         *
+         * · 그 건(件)에 붙은 사진이 먼저. 없으면 건 표시가 없는 옛 사진.
+         * · 그 안에서는 **제일 먼저 올린 것** (사장님 확정: "내가 첫번째로 넣는게 대표사진").
+         *
+         * ⚠️ 2026-09-25 점검: 고객상세의 「대표」 딱지와 인증샷이 **서로 다른 규칙**을 쓰고 있었다.
+         *   옛 사진과 새 사진이 섞이면 딱지는 이걸, 인증샷은 저걸 가리켰다.
+         *   🔒 새로 대표 사진을 쓰는 곳이 생기면 **반드시 이 함수를** 쓴다.
+         *
+         * @param photos 올린 순서(오래된 것 먼저)로 정렬된 목록이어야 한다.
+         */
+        fun representativeOf(
+            photos: List<SitePhotoEntity>, customerId: Long, jobId: Long?
+        ): SitePhotoEntity? =
+            photos.firstOrNull { it.jobId != null && it.jobId == jobId }
+                ?: photos.firstOrNull { it.jobId == null && it.customerId == customerId }
+    }
+
     private fun photoDir(): File = File(context.filesDir, "site_photos").apply { mkdirs() }
 
     /** 갤러리 등에서 고른 URI 를 내부 저장소로 복사 + DB 기록. 성공 시 true. */

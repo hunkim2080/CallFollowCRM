@@ -209,7 +209,7 @@ object RecordShot {
         ) {
             drawRegionMap(
                 spots = d.dots,
-                named = d.dots.sortedByDescending { it.count }.take(5).map { it.name }.toSet(),
+                named = MapPalette.namedOf(d.dots),
                 measurer = null,
                 land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
                 edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
@@ -485,7 +485,7 @@ object RecordShot {
             ) {
                 drawRegionMap(
                     spots = d.dots,
-                    named = d.dots.sortedByDescending { it.count }.take(4).map { it.name }.toSet(),
+                    named = MapPalette.namedOf(d.dots),
                     measurer = null,
                     land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
                     edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),

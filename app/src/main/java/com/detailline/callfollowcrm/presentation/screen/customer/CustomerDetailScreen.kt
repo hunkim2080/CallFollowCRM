@@ -1228,7 +1228,14 @@ fun CustomerDetailScreen(
             val photoTotal = sitePhotos.size + teamPhotos.size
             // 🏅 **대표 사진** — 그 현장에 제일 먼저 올린 사진. 인증샷에 이게 들어간다. (2026-09-25 사장님)
             //   목록은 최신이 먼저라 대표는 보통 **맨 끝 칸**에 있다 → 위치로는 알 수 없으니 딱지를 붙인다.
-            val repPhotoId = remember(sitePhotos) { sitePhotos.minByOrNull { it.createdAt }?.id }
+            // 🔒 인증샷과 **같은 규칙**으로 고른다(두 벌이면 서로 다른 사진을 가리킨다 — 2026-09-25 점검).
+            //   observe 는 최신순이라, 규칙이 요구하는 '올린 순서'로 뒤집어 넘긴다.
+            val repCustomerId = customer?.id ?: 0L
+            val repPhotoId = remember(sitePhotos, shownJobId, repCustomerId) {
+                com.detailline.callfollowcrm.data.repository.SitePhotoRepository.representativeOf(
+                    sitePhotos.sortedBy { it.createdAt }, repCustomerId, shownJobId
+                )?.id
+            }
             LaunchedEffect(showPhotoPicker) {
                 if (showPhotoPicker) {
                     showPhotoPicker = false
@@ -1286,14 +1293,14 @@ fun CustomerDetailScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "맨 처음 올린 사진이 「대표」가 돼요 — 내 기록 탭 인증샷에 이 사진이 들어가요.",
+                            "맨 처음 올린 사진이 그 현장의 「대표」가 돼요.",
                             fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold, lineHeight = 17.sp
                         )
                     } else if (repPhotoId != null) {
                         // 사진이 있을 땐 **딱지만으로 충분**하다 — 긴 안내를 계속 두면 카드가 시끄러워진다.
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "「대표」 사진이 인증샷에 들어가요 (맨 처음 올린 사진)",
+                            "「대표」 = 맨 처음 올린 사진 · 그 달 마지막 현장이면 인증샷·영상에 이 사진이 들어가요",
                             fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                         )
                     }

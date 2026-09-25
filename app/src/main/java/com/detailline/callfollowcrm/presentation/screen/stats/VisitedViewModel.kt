@@ -27,7 +27,11 @@ import java.util.Calendar
  *        → 목록은 **즉시** 표시(직접 입력 주소 먼저), 자동 인식 주소는 백그라운드에서 **하나씩 채움**("주소 확인 중…" → 주소).
  *     ② "다녀온"에 미래 현장이 섞여 보임 → 지난(다녀온·초록) / 예정(다녀올·파랑) 분리 + 색 구분.
  */
-class VisitedViewModel(container: AppContainer) : ViewModel() {
+/**
+ * @param monthDelta 「내 기록」에서 고른 달. 0 = 이번 달, -1 = 지난달 …
+ *   ⚠️ 전엔 **늘 이번 달**이라, 8월 할 일을 누르면 9월 목록이 열렸다. (2026-09-25 점검)
+ */
+class VisitedViewModel(container: AppContainer, private val monthDelta: Int = 0) : ViewModel() {
 
     // '이번 달/오늘' 경계는 필드로 굳히지 않고 monthJobs/build 에서 매번 계산 — 달/자정 넘겨 켜둬도 정확. (2026-08-13 stale fix)
     private val smsRepository = container.smsRepository
@@ -76,7 +80,7 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
         cs: List<CustomerEntity>,
         js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
     ): List<CustomerEntity> {
-        val ms = monthStartOf(System.currentTimeMillis())
+        val ms = shiftMonth(monthStartOf(System.currentTimeMillis()), monthDelta)
         val me = shiftMonth(ms, +1)
         val byId = cs.associateBy { it.id }
         val fromJobs = js.mapNotNull { j ->
@@ -109,7 +113,7 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
     ): VisitedState {
         val now = System.currentTimeMillis()   // 매번 현재 기준 (stale fix)
         val todayStart = DateTimeUtils.startOfDay(now)
-        val monthStart = monthStartOf(now)
+        val monthStart = shiftMonth(monthStartOf(now), monthDelta)
         val jobs = monthUnits(cs, js)
 
         fun toRow(c: CustomerEntity): VisitedRow {

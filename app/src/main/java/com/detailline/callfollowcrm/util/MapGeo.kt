@@ -257,6 +257,16 @@ object MapGeo {
  * 지도 고유의 색이라 화면 디자인 토큰이 아니라 **지도 옆에** 둔다.
  */
 object MapPalette {
+    /**
+     * **이름표를 붙일 동네 수.** 화면·그림·영상이 **같은 개수**여야 한다.
+     *   (2026-09-25 점검: 화면 4개 / 영상 5개로 갈려 있었다. 여덟이 넘으면 지도가 아니라 표가 된다)
+     */
+    const val NAMED_MAX = 4
+
+    /** 그 달 다닌 곳 중 이름표를 붙일 넷 — **네 군데가 다 이걸 쓴다.** */
+    fun namedOf(spots: List<com.detailline.callfollowcrm.presentation.component.RegionDot>): Set<String> =
+        spots.sortedByDescending { it.count }.take(NAMED_MAX).map { it.name }.toSet()
+
     /** 바다 — 이게 있어야 육지가 육지로 보인다. */
     const val SEA = 0xFFD9E4EF
     /** 땅 */

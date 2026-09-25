@@ -11527,3 +11527,22 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
   → 루프 맨 앞에 `currentCoroutineContext().ensureActive()`.
   → 그리고 `runCatching` 이 CancellationException 까지 삼켜 **"영상을 만들지 못했어요"** 가 뜰 뻔했다
     → 취소는 그대로 올려보내고 만들다 만 파일은 지운다.
+
+## 2026-09-25 18:30 · android
+🌳 **UX/UI 점검(페이블) — 뿌리부터.** 개별 증상이 아니라 "같은 걸 두 벌 만든 곳"을 한 벌로.
+- **뿌리① 달 잣대 3벌 → 1벌**
+  · `buildState` 가 **늘 이번 달**이었다 → `recordMonth` 를 따른다(8월 지도 + 9월 숫자 해소).
+  · 「다녀온 현장」 수가 **앞으로 올 예약까지** 세고 있었다 → `buildMyRecord` 와 같이 *지난 것만*.
+  · `VisitedViewModel(container, monthDelta)` — 「채우러 가기」가 **보던 달**로 간다
+    (`visited?only=&month=`). 9/24 "덕양 눌렀더니 9월 전체" 와 같은 사고의 재발 방지.
+  ⚠️ `recordMonth` 선언을 `state` **위로** 올렸다(Kotlin init 순서로 컴파일 실패).
+- **뿌리② 지도 4벌 → 1벌**: `MapPalette.NAMED_MAX/namedOf()` 신설. 화면·「지도 포함」·hero·영상이
+  **같은 개수(4)·같은 땅색(MapPalette.LAND)**. 화면만 neutralBg 회색기였던 것도 통일.
+- **뿌리③ 대표 사진 2벌 → 1벌**: `SitePhotoRepository.representativeOf(photos, customerId, jobId)`.
+  고객상세 「대표」 딱지와 인증샷이 **같은 규칙**을 쓴다. 안내문도 사실대로
+  ("그 달 마지막 현장이면 인증샷·영상에 들어가요").
+- 덤(값싼 것): 만드는 중엔 창이 안 닫힘(밖 탭/뒤로가기 막음) · 기록 없는 달엔 숫자·만들기 숨김 ·
+  창 제목이 「영상 만들기」로 · 저장 연타 막기 + 설정 바꾸면 "저장했어요" 지움.
+- 남은 것(다음): 진행 막대 되감김(인코더 폴백) · 지도 위에서 세로 스크롤 막힘(제스처 재작성 필요·실기 확인) ·
+  통화카드 점 범례 공용화 · 작은 버튼들(48dp) · 「▲ 0%」 초록.
+- 단위 549개 · 실패 0. ⚠️ 테스트폰이 빠져 **눈으로는 못 봄.**
