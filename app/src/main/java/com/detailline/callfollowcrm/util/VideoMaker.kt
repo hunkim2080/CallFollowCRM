@@ -110,7 +110,16 @@ object VideoMaker {
                             codec!!.queueInputBuffer(inIdx, 0, 0, ptsUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         } else {
                             canvas.drawColor(android.graphics.Color.BLACK)
-                            draw(canvas, frame.toFloat() / (frames - 1).toFloat())
+                            // **그림 그리는 부분만 따로.** 여기서 터지면 지도 코드 문제고,
+                            //   바깥에서 터지면 영상 장치 문제다 — 고치는 데가 완전히 다르다.
+                            try {
+                                draw(canvas, frame.toFloat() / (frames - 1).toFloat())
+                            } catch (de: Throwable) {
+                                throw IllegalStateException(
+                                    "그림(" + frame + "컷): " + de.javaClass.simpleName +
+                                        " " + (de.message ?: ""), de
+                                )
+                            }
                             val wrote = fillInput(codec!!, inIdx, bmp, w, h, row)
                             codec!!.queueInputBuffer(inIdx, 0, wrote, ptsUs, 0)
                             progress?.onStep(frame.toFloat() / frames)
@@ -158,13 +167,20 @@ object VideoMaker {
         if (outFile.exists() && outFile.length() > 1000) outFile else null
     }
 
-    /** 사장님이 읽을 수 있는 짧은 이유. 개발 용어를 그대로 보여주면 아무 도움이 안 된다. */
-    private fun shortReason(e: Throwable): String = when {
-        e is android.media.MediaCodec.CodecException -> "폰의 영상 만드는 장치를 다른 앱이 쓰고 있어요"
-        e is OutOfMemoryError -> "폰 메모리가 모자라요"
-        e is java.io.IOException -> "저장 공간이 모자라거나 파일을 못 만들었어요"
-        e is IllegalStateException -> "영상 장치가 준비를 못 했어요"
-        else -> e.javaClass.simpleName
+    /**
+     * 사장님이 읽을 수 있는 짧은 이유 + **고칠 수 있을 만큼의 단서**.
+     *   "IllegalArgumentException" 한 마디로는 어디를 고쳐야 할지 모른다(2026-09-25 실제로 그랬다).
+     */
+    private fun shortReason(e: Throwable): String {
+        val msg = (e.message ?: "").take(90)
+        return when {
+            e.message?.startsWith("그림(") == true -> e.message!!.take(110)
+            e is android.media.MediaCodec.CodecException ->
+                "영상 장치를 다른 앱이 쓰는 중 (" + msg + ")"
+            e is OutOfMemoryError -> "폰 메모리가 모자라요"
+            e is java.io.IOException -> "저장 공간/파일 (" + msg + ")"
+            else -> e.javaClass.simpleName + " " + msg
+        }
     }
 
     /**
@@ -209,7 +225,14 @@ object VideoMaker {
                 }
             }
         }
-        return yBuf.capacity() + uBuf.capacity() + vBuf.capacity()
+        // 🐞 **여기가 갤S23U 실패의 진짜 원인.** (2026-09-25)
+        //   색 칸 세 개의 크기를 그냥 더해서 넘겼는데, 요즘 폰(NV12)은
+        //   U·V 칸이 **같은 자리를 겹쳐** 쓴다 → 더하면 실제 칸보다 큰 숫자가 된다.
+        //   폰은 "그런 크기는 안 된다" 며 튕긴다(IllegalArgumentException).
+        //   그래서 **진짜 칸 크기를 넘지 않게** 자른다.
+        val planeSum = yBuf.capacity() + uBuf.capacity() + vBuf.capacity()
+        val cap = runCatching { codec.getInputBuffer(idx)?.capacity() }.getOrNull()
+        return if (cap != null && cap > 0) minOf(planeSum, cap) else planeSum
     }
 
     /**

@@ -585,6 +585,8 @@ private fun ShotPreviewDialog(
                                             else "영상을 만들지 못했어요 — " + why,
                                             android.widget.Toast.LENGTH_LONG
                                         ).show()
+                                        // 길어서 토스트에 다 안 들어갈 수 있다 — 로그에도 남긴다.
+                                        android.util.Log.e("VideoMaker", "실패: " + why)
                                     }
                                 }
                             }
