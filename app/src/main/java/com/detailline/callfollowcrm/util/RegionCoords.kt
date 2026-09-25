@@ -96,9 +96,30 @@ object RegionCoords {
         return list.singleOrNull()
     }
 
+    /**
+     * 시·도 **이름 자체**로 떨어졌을 때의 마지막 수단 — 그 시·도의 첫 자리(보통 중구).
+     *
+     * ⚠️ 2026-09-25 실사고: 인증샷 동네 줄엔 「… · 대구」 라고 적혀 있는데 **지도엔 대구가 없었다.**
+     *   표엔 대구의 구(중구·수성·달서…)만 있고 "대구" 라는 이름이 없어서 못 찾은 것.
+     *   **글과 지도가 다른 말을 하면 둘 다 못 믿는다.** 동네까지는 몰라도 "대구에 갔다"는 맞으니
+     *   시·도 중심에라도 찍는다. (엉뚱한 시·도에 찍는 게 아니라 **그 시·도 안**이다)
+     */
+    fun sidoCenter(name: String?): Spot? {
+        val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return bySido[n]?.firstOrNull()?.copy(name = n)
+    }
+
+    /** 시·도 → 그 시·도의 자리들(표에 적힌 순서). 첫 번째가 그 시·도의 중심 노릇을 한다. */
+    private val bySido: Map<String, List<Spot>> by lazy {
+        val out = LinkedHashMap<String, MutableList<Spot>>()
+        for (list in byName.values) for (s in list) out.getOrPut(s.sido) { mutableListOf() }.add(s)
+        out
+    }
+
     /** 주소 한 줄 → 자리. [RegionName] 으로 이름을 뽑고, 같은 주소에서 시·도도 읽어 함께 본다. */
     fun of(address: String?): Spot? {
         val a = address?.takeIf { it.isNotBlank() } ?: return null
-        return find(RegionName.shortRegion(a), sidoOf(a))
+        val name = RegionName.shortRegion(a)
+        return find(name, sidoOf(a)) ?: sidoCenter(name)
     }
 }

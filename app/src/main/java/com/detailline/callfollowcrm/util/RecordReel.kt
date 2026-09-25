@@ -49,7 +49,13 @@ object RecordReel {
         /** 손가락으로 맞춘 확대·이동 — 화면에 보이던 그대로 영상에 담는다. */
         val zoom: Float = 1f,
         val panX: Float = 0f,
-        val panY: Float = 0f
+        val panY: Float = 0f,
+        /**
+         * **대표 현장 사진** — 그림(인증샷)에 들어가는 그 사진. 영상에도 같이 들어가야
+         *   사장님이 고른 모양과 **나온 결과가 같아진다.**
+         *   (2026-09-25 사장님 "영상저장하면 저장안되네 이미지 우측상단에있는게")
+         */
+        val photoPath: String? = null
     )
 
     private fun font(ctx: Context, id: Int): Typeface? =
@@ -71,7 +77,11 @@ object RecordReel {
      * 한 컷 그리기.
      * @param t 0~1 로 흐르는 시각. 1 이면 다 달린 마지막 장면(= 인증샷으로 쓸 그림).
      */
-    fun drawFrame(ctx: Context, c: Canvas, d: Data, t: Float, w: Int = W, h: Int = H) {
+    fun drawFrame(
+        ctx: Context, c: Canvas, d: Data, t: Float, w: Int = W, h: Int = H,
+        /** 미리 읽어둔 현장 사진. 240컷마다 파일을 새로 읽으면 한참 걸린다. */
+        photo: android.graphics.Bitmap? = null
+    ) {
         val bold = font(ctx, R.font.pretendard_bold)
         val xbold = font(ctx, R.font.pretendard_extrabold)
         val med = font(ctx, R.font.pretendard_medium)
@@ -128,6 +138,23 @@ object RecordReel {
             c.restore()
         }
 
+        // ── 지도 오른쪽 위에 **현장 사진 한 장** ── 그림(인증샷)과 같은 자리.
+        //   왼쪽 위는 큰 숫자가 쓰고 있어서 오른쪽 위가 빈다.
+        if (photo != null) {
+            val side = w * 0.30f
+            val bx = w - pad - side
+            val by0 = mapTop + h * 0.012f
+            val box = android.graphics.RectF(bx, by0, bx + side, by0 + side)
+            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt(); setShadowLayer(14f, 0f, 5f, 0x33000000)
+            }
+            c.drawRoundRect(box.left - 9f, box.top - 9f, box.right + 9f, box.bottom + 9f, 20f, 20f, frame)
+            val path = android.graphics.Path().apply {
+                addRoundRect(box, 13f, 13f, android.graphics.Path.Direction.CW)
+            }
+            c.save(); c.clipPath(path); RecordShot.drawCover(c, photo, box); c.restore()
+        }
+
         // ── 아래: 동네 이름 ──
         var by = mapTop + mapH + h * 0.045f
         if (d.towns.isNotEmpty()) {
@@ -165,17 +192,20 @@ object RecordReel {
         progress: VideoMaker.Progress? = null
     ): File? {
         val out = File(File(ctx.cacheDir, "shared").apply { mkdirs() }, "shigongmagne_reel.mp4")
+        // 사진은 **한 번만** 읽는다 — 240컷마다 파일을 열면 영상 하나에 몇 분이 더 걸린다.
+        val photo = RecordShot.loadPhoto(d.photoPath, W, W)
+        try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = progress
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H) }?.let { return it }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photo) }?.let { return it }
         // ② 안 되면 **소프트웨어 인코더**로. 느리지만 어느 폰에서나 된다.
         //   (갤S23U·안드로이드 16 에서 하드웨어가 말썽이었다 — 2026-09-25 사장님 폰)
         VideoMaker.softwareEncoder()?.let { sw ->
             VideoMaker.make(
                 outFile = out, width = W, height = H, fps = 24, seconds = seconds,
                 codecName = sw, progress = progress
-            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H) }?.let { return it }
+            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photo) }?.let { return it }
         }
         // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
         val w2 = 540
@@ -183,6 +213,10 @@ object RecordReel {
         return VideoMaker.make(
             outFile = out, width = w2, height = h2, fps = 20, seconds = seconds,
             bitRate = 3_500_000, progress = progress
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photo) }
+        } finally {
+            // 읽어둔 사진은 반드시 놓아준다 — 큰 사진이라 그대로 두면 메모리를 잡아먹는다.
+            runCatching { photo?.recycle() }
+        }
     }
 }

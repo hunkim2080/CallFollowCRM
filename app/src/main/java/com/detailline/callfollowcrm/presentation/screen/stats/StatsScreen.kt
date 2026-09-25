@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -520,7 +523,9 @@ private fun ShotPreviewDialog(
                     towns = rec.towns, dots = rec.dots,
                     bizName = rec.bizName, tradeName = rec.tradeName,
                     phone = rec.bizPhone, area = rec.areaLabel,
-                    zoom = zoom, panX = panX, panY = panY
+                    zoom = zoom, panX = panX, panY = panY,
+                    // 그림에 들어가는 그 사진이 **영상에도** 들어가야 결과가 같아진다.
+                    photoPath = rec.photoPath
                 )
             ) { p -> making = p }
             making = -1f
@@ -721,13 +726,28 @@ private fun ShotPreviewDialog(
                     // ⏹ **취소할 길**이 있어야 한다 — 10초짜리라도 폰에선 한참 걸린다.
                     //   되돌릴 수 없는 기다림은 고장처럼 느껴진다. (2026-09-25 기본 UX 점검)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        // 📊 **차오르는 막대** — 숫자만 있으면 눈으로 좇아야 한다. (2026-09-25 사장님)
+                        //   막대는 안 읽어도 얼마나 남았는지 보이고, 그만큼 기다림이 짧게 느껴진다.
+                        val grow by animateFloatAsState(
+                            targetValue = making.coerceIn(0f, 1f),
+                            animationSpec = tween(durationMillis = 260),
+                            label = "reel"
+                        )
+                        val fillColor = AppTheme.colors.primaryBg
                         Box(
                             Modifier.weight(1f).clip(AppShape.md).background(TossGrayBg)
-                                .padding(vertical = 12.dp),
+                                // 찬 만큼 **글자 뒤로** 파랗게 칠한다. (자리를 안 흔들려고 그리기로만)
+                                .drawBehind {
+                                    drawRect(
+                                        color = fillColor,
+                                        size = androidx.compose.ui.geometry.Size(size.width * grow, size.height)
+                                    )
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Text("영상 만드는 중 ${(making * 100).toInt()}%",
-                                style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                                style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                                color = TossBlue, modifier = Modifier.padding(vertical = 12.dp))
                         }
                         Box(
                             Modifier.clip(AppShape.md).background(TossGrayBg)

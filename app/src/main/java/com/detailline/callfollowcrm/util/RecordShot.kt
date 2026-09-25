@@ -115,7 +115,7 @@ object RecordShot {
      * 사진 파일을 **필요한 크기만큼만** 읽는다. 폰 사진은 4000×3000 이라 그냥 읽으면 메모리가 터진다.
      *   못 읽으면 null — 그럼 사진 없는 갈래로 떨어진다(깨진 그림을 넣느니 안 넣는다).
      */
-    private fun loadPhoto(path: String?, reqW: Int, reqH: Int): Bitmap? {
+    internal fun loadPhoto(path: String?, reqW: Int, reqH: Int): Bitmap? {
         if (path.isNullOrBlank()) return null
         return runCatching {
             val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -135,7 +135,7 @@ object RecordShot {
      * 사진을 네모에 **꽉 채워** 그린다(가운데 기준으로 잘라서). 찌그러뜨리지 않는다 —
      *   현장 사진이 늘어나 보이면 일한 게 우스워 보인다.
      */
-    private fun drawCover(c: android.graphics.Canvas, bmp: Bitmap, dst: android.graphics.RectF) {
+    internal fun drawCover(c: android.graphics.Canvas, bmp: Bitmap, dst: android.graphics.RectF) {
         val sw = bmp.width.toFloat(); val sh = bmp.height.toFloat()
         val scale = maxOf(dst.width() / sw, dst.height() / sh)
         val w = sw * scale; val h = sh * scale
