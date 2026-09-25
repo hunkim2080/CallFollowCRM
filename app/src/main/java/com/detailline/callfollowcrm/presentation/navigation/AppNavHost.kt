@@ -554,19 +554,25 @@ fun AppNavHost(
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.StatsViewModel(container) })
             StatsScreen(
                 viewModel = vm,
-                onOpenVisited = { navController.navigate(Destinations.VISITED) },
+                onOpenVisited = { navController.navigate(Destinations.visited()) },
+                onOpenTodo = { navController.navigate(Destinations.visited("todo")) },
+                onOpenNoAddr = { navController.navigate(Destinations.visited("addr")) },
                 // 현장 줄을 누르면 **그 집**으로. 전엔 어느 줄이든 목록으로만 갔다. (2026-09-24 사장님)
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
             )
         }
 
-        composable(Destinations.VISITED) {
+        composable(
+            Destinations.VISITED_WITH_ARG,
+            arguments = listOf(navArgument("only") { nullable = true; defaultValue = null })
+        ) { entry ->
             val vm: com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel(container) })
             com.detailline.callfollowcrm.presentation.screen.stats.VisitedScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                filter = entry.arguments?.getString("only")
             )
         }
 

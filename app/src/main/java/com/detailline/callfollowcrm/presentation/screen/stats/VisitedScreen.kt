@@ -48,6 +48,9 @@ import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.component.pressScale
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 
 /**
  * 다녀온/다녀올 현장 — 프로토 `s-visited` 확장.
@@ -59,15 +62,41 @@ import androidx.compose.runtime.remember
 fun VisitedScreen(
     viewModel: VisitedViewModel,
     onBack: () -> Unit,
-    onOpenCustomer: (Long) -> Unit
+    onOpenCustomer: (Long) -> Unit,
+    /**
+     * 무엇만 볼까. null = 전부 · "todo" = 완료 안 누른 것만 · "addr" = 주소 없는 것만.
+     *   **할 일이라고 써놓고 누르면 전부를 보여주면 앱이 일을 안 한 것이다.**
+     *   (2026-09-25 사장님 "클릭하면 안한것만 나오면 찾기편한데.. 다녀온현장이 다보이네")
+     */
+    filter: String? = null
 ) {
-    val state by viewModel.state.collectAsState()
+    val raw by viewModel.state.collectAsState()
+    var only by remember(filter) { mutableStateOf(filter) }
+    val state = remember(raw, only) {
+        when (only) {
+            "todo" -> raw.copy(visitedRows = raw.visitedRows.filter { !it.done }, upcomingRows = emptyList())
+            "addr" -> raw.copy(
+                visitedRows = raw.visitedRows.filter { !it.hasAddr },
+                upcomingRows = raw.upcomingRows.filter { !it.hasAddr }
+            )
+            else -> raw
+        }
+    }
 
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
-                title = { Text("다녀온 현장 · ${state.monthLabel}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                title = {
+                    Text(
+                        when (only) {
+                            "todo" -> "완료를 안 누른 곳"
+                            "addr" -> "주소가 없는 곳"
+                            else -> "다녀온 현장 · ${state.monthLabel}"
+                        },
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
@@ -81,6 +110,32 @@ fun VisitedScreen(
             modifier = Modifier.fillMaxSize().padding(inner),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 18.dp)
         ) {
+            // 걸러진 화면엔 **나가는 길**이 있어야 한다. 안 그러면 갇힌 것처럼 느껴진다.
+            if (only != null) {
+                item(key = "filterbar") {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 10.dp)
+                            .clip(com.detailline.callfollowcrm.presentation.theme.AppShape.md)
+                            .background(TossBlueSoft)
+                            .clickable { only = null }
+                            .padding(horizontal = 13.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (only == "todo") "완료를 안 누른 곳만 보는 중" else "주소가 없는 곳만 보는 중",
+                            style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                            fontWeight = FontWeight.Bold, color = TossBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "전체 보기",
+                            style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                            fontWeight = FontWeight.Bold, color = TossBlue
+                        )
+                    }
+                }
+            }
             item(key = "sub") {
                 val sub = buildString {
                     append("다녀온 ${state.visitedCount}곳 · 매출 합계 ${"%,d".format(state.revenueManwon)}만원")

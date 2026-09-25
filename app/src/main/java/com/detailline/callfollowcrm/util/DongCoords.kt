@@ -56,9 +56,13 @@ object DongCoords {
      * 동 이름에서 **줄기**만. "조원1동"·"정자3동" → "조원"·"정자".
      *   주소엔 "조원동" 이라 적히는데 표엔 "조원1동"·"조원2동" 으로 갈려 있다.
      */
-    private fun stemOf(dong: String): String =
-        dong.trimEnd('동', '읍', '면', '가').trimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
-            .ifBlank { dong }
+    internal fun stemOf(dong: String): String {
+        // ⚠️ **끝 글자 하나만** 뗀다. 여러 개 떼면 「우면동」이 「우」가 되어
+        //   부산 해운대 「우동」과 같은 줄기가 된다 — 서초 현장이 부산에 찍혔다.
+        //   (2026-09-25 사장님 "우동이란곳도 없는데 왜 이렇게 나오는거지")
+        val one = if (dong.isNotEmpty() && dong.last() in "동읍면가") dong.dropLast(1) else dong
+        return one.trimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9').ifBlank { dong }
+    }
 
     /**
      * 주소 → 동 좌표. 못 찾으면 null(부르는 쪽이 구 좌표로 물러난다).

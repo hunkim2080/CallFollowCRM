@@ -64,6 +64,10 @@ object Destinations {
     const val STATS = "stats"
     /** 통계 "다녀온 현장" 셀 탭 → 이번 달 시공 현장 목록(프로토 s-visited). */
     const val VISITED = "visited"
+    /** 무엇만 볼지 — "todo"(완료 안 누름) · "addr"(주소 없음). 없으면 전부. */
+    const val VISITED_WITH_ARG = "visited?only={only}"
+    fun visited(only: String? = null) =
+        if (only == null) VISITED else "visited?only=$only"
     const val SEARCH = "search"
     const val CUSTOMERS = "customers"
     const val NEW_LEADS = "new_leads"

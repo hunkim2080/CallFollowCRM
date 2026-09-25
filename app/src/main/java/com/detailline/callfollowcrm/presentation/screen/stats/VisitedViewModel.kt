@@ -125,7 +125,9 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
                 dateLabel = if (day > 0) dateMd(day) else "",
                 name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
                 addr = addr,
-                upcoming = day >= todayStart
+                upcoming = day >= todayStart,
+                done = c.workCompletedAt != null,
+                hasAddr = manual != null || extra[c.id]?.isNotBlank() == true
             )
         }
 
@@ -172,7 +174,11 @@ data class VisitedRow(
     val name: String,
     val addr: String,
     /** true = 아직 안 간 예정 현장(다녀올), false = 지난 현장(다녀온). */
-    val upcoming: Boolean
+    val upcoming: Boolean,
+    /** 완료를 눌렀나. 안 눌렀으면 번호가 안 붙는다 — **할 일**이다. */
+    val done: Boolean = true,
+    /** 주소를 찾았나. 못 찾으면 지도 동네에 안 들어간다 — **할 일**이다. */
+    val hasAddr: Boolean = true
 )
 
 data class VisitedState(

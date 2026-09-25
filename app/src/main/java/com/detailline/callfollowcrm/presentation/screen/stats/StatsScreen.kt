@@ -78,7 +78,11 @@ fun StatsScreen(
     viewModel: StatsViewModel,
     onOpenVisited: () -> Unit = {},
     /** 현장 줄을 누르면 그 손님 상세로. (2026-09-24 사장님 "덕양 탭을 누르니까 9월 전체가 나오는데") */
-    onOpenCustomer: (Long) -> Unit = {}
+    onOpenCustomer: (Long) -> Unit = {},
+    /** 완료를 안 누른 곳**만** 보여주러. (2026-09-25 "클릭하면 안한것만 나오면 찾기편한데") */
+    onOpenTodo: () -> Unit = onOpenVisited,
+    /** 주소가 없는 곳**만** 보여주러. */
+    onOpenNoAddr: () -> Unit = onOpenVisited
 ) {
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
@@ -116,7 +120,11 @@ fun StatsScreen(
             // ── 「내 기록」 — 이 탭의 주인공. (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
             //   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이다.
             item(key = "myrecord") {
-                MyRecordCard(rec, onOpenVisited, mapZoom, mapPanX, mapPanY)
+                MyRecordCard(
+                    rec, onOpenVisited,
+                    onOpenTodo = onOpenTodo, onOpenNoAddr = onOpenNoAddr,
+                    zoom = mapZoom, panX = mapPanX, panY = mapPanY
+                )
                 Spacer(Modifier.height(12.dp))
             }
             // 지도 — 다녀온 동네. 점 크기 = 몇 번 갔나. 다녀온 곳이 없으면 아예 안 그린다.
@@ -195,6 +203,10 @@ fun StatsScreen(
 private fun MyRecordCard(
     rec: MyRecordState,
     onOpenVisited: () -> Unit,
+    /** 「완료를 안 누른 N곳」 — **그것만** 보여주러 간다. */
+    onOpenTodo: () -> Unit = onOpenVisited,
+    /** 「주소 못 찾은 N곳」 — **그것만** 보여주러 간다. */
+    onOpenNoAddr: () -> Unit = onOpenVisited,
     zoom: Float = 1f,
     panX: Float = 0f,
     panY: Float = 0f
@@ -267,7 +279,7 @@ private fun MyRecordCard(
             Text(
                 "완료를 안 누른 ${rec.notDoneCount}곳이 있어요 — 누르면 번호가 붙어요 ›",
                 style = AppType.caption, color = TossBlue, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onOpenVisited() }.padding(vertical = 2.dp)
+                modifier = Modifier.clickable { onOpenTodo() }.padding(vertical = 2.dp)
             )
         }
         if (rec.noAddrCount > 0) {
@@ -276,7 +288,7 @@ private fun MyRecordCard(
             Text(
                 "주소 못 찾은 ${rec.noAddrCount}곳은 동네에 안 들어가요 — 채우러 가기 ›",
                 style = AppType.caption, color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onOpenVisited() }.padding(vertical = 2.dp)
+                modifier = Modifier.clickable { onOpenNoAddr() }.padding(vertical = 2.dp)
             )
         }
         // ── 인증샷 ── (2026-09-24 사장님 "kyro처럼 인증샷 만드는 기능은 없나?")
@@ -356,7 +368,7 @@ private fun MyRecordMap(
         Spacer(Modifier.height(AppSpace.s4))
         Text(
             buildString {
-                append("이 달 다닌 곳 · 🚛 가 간 순서대로 달려요 · 두 손가락으로 확대")
+                append("이 달 다닌 곳 · 🚛 가 간 순서대로 달려요 · 지도를 톡 치면 다시 달려요 · 두 손가락으로 확대")
                 if (rec.yearTownCount > rec.dots.size) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
             },
             style = AppType.caption, color = TossTextTertiary,
