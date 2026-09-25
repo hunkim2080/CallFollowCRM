@@ -283,47 +283,19 @@ fun CallSummaryScreen(
                             Spacer(Modifier.height(6.dp))
                             Text(it, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)
                         }
-                        // 시간 구간으로 그린다 — 왼쪽에 시각, 옵에 점(손님/나), 그다음 문장. (2026-09-24 사장님)
-                        //   시각이 없는 옛 요약은 지금처럼 "· 문장" 으로.
-                        bullets.forEach { b ->
-                            val row = com.detailline.callfollowcrm.util.CallSummaryLines.parseOne(b)
-                            if (row == null) return@forEach
-                            Spacer(Modifier.height(7.dp))
-                            if (row.time.isBlank() && row.speaker.isBlank()) {
-                                Text("· " + row.text, style = com.detailline.callfollowcrm.presentation.theme.AppType.body, color = TossTextSecondary)
-                            } else {
-                                Row(verticalAlignment = Alignment.Top) {
-                                    if (row.time.isNotBlank()) {
-                                        Text(
-                                            row.time, color = TossTextTertiary,
-                                            style = com.detailline.callfollowcrm.presentation.theme.AppType.caption.copy(
-                                                fontWeight = FontWeight.SemiBold, lineHeight = 19.sp
-                                            ),
-                                            modifier = Modifier.width(66.dp)
-                                        )
-                                    }
-                                    if (row.speaker.isNotBlank()) {
-                                        Box(
-                                            Modifier
-                                                .padding(top = 6.dp, end = 7.dp)
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (row.speaker == "손님") TossBlue
-                                                    else AppTheme.colors.primary
-                                                )
-                                        )
-                                    }
-                                    Text(
-                                        row.text, style = com.detailline.callfollowcrm.presentation.theme.AppType.body, color = TossTextSecondary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
+                        // 🔒 그리는 곳은 **CallSummaryBody 한 군데.** 여기서 따로 그리지 않는다.
+                        //   (그리는 코드가 두 벌이라 채팅 통화카드만 시각이 빠져 있었다 — 2026-09-25)
+                        Spacer(Modifier.height(7.dp))
+                        com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
+                            bullets = bullets,
+                            textColor = TossTextSecondary,
+                            timeColor = TossTextTertiary,
+                            ownerDot = AppTheme.colors.primary,
+                            customerDot = TossBlue
+                        )
                         // 점은 **AI 짐작**이다 — 녹음 소리가 아니라 글을 읽고 고른다.
                         //   후속 문자가 고객에게 나가니, 미심적으면 전문에서 확인하시라고 적어둔다.
-                        if (bullets.any { it.count { c -> c == '|' } >= 2 }) {
+                        if (com.detailline.callfollowcrm.presentation.component.hasSpeakerGuess(bullets)) {
                             Spacer(Modifier.height(9.dp))
                             Text(
                                 "손님/나 구분은 AI 짐작이에요 · 미심적으면 아래 통화 전문을 봐주세요",

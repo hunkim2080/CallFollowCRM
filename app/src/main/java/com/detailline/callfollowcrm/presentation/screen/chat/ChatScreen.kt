@@ -2435,9 +2435,14 @@ private fun CallSegment(
             }
 
         // 프로토 callCardHtml(m,i): m.summarized 여부로 분기.
-        val bullets = summary?.summaryText
-            ?.let { com.detailline.callfollowcrm.util.CallSummaryLines.parse(it).map { r -> r.text } }
+        // ⏱ 시간 구간을 **버리지 않는다.** (2026-09-25 사장님 "원래 시간대가 나와서 그 시간대 요약이 있었는데")
+        //   전엔 여기서 `.map { it.text }` 로 **시각과 화자를 버렸다.**
+        //   서버는 `0:00-0:46|나|…` 를 제대로 주고 있었고 통화요약 화면은 그대로 그렸는데,
+        //   **채팅 통화카드만** 문장만 그렸다. 그리는 코드가 두 벌이라 한쪽이 옛 모양이었다.
+        val summaryRows = summary?.summaryText
+            ?.let { com.detailline.callfollowcrm.util.CallSummaryLines.parse(it) }
             ?: emptyList()
+        val bullets = summaryRows.map { r -> r.text }
         // 한눈에 보는 제목(2026-06-28 사장님) — summary.title 을 굵게 헤더로. 본문(불릿)에서 제목과 같은 줄은
         //   빼서 중복 표시 방지(서버가 짧은 제목을 주기 전엔 title=한줄요약 이라 첫 줄과 겹칠 수 있음).
         val summaryTitle = summary?.title?.takeIf { it.isNotBlank() }
@@ -2570,12 +2575,22 @@ private fun CallSegment(
                             color = tealDark, lineHeight = 18.sp, modifier = Modifier.padding(bottom = 3.dp)
                         )
                     }
-                    displayBullets.forEach { line ->
-                        Row(Modifier.padding(vertical = 1.dp)) {
-                            Text("• ", fontSize = 12.sp, color = Color(0xFF3A5252), fontWeight = FontWeight.Bold)
-                            Text(line, fontSize = 12.sp, color = Color(0xFF3A5252), lineHeight = 18.sp, modifier = Modifier.weight(1f))
-                        }
-                    }
+                    // 🔒 그리는 곳은 **CallSummaryBody 한 군데.** 여기서 따로 그리지 않는다.
+                    //   전엔 여기만 문장을 그리고 시각·화자를 버려서, 사장님이 매일 보는 쪽만
+                    //   옛 모양으로 남아 있었다. (2026-09-25)
+                    com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
+                        bullets = bullets,
+                        skipText = summaryTitle,
+                        textColor = Color(0xFF3A5252),
+                        timeColor = Color(0xFF7B9A9A),
+                        ownerDot = teal,
+                        customerDot = TossBlue,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        timeFontSize = 11.sp,
+                        timeWidth = 60.dp,
+                        rowGap = 4.dp
+                    )
                 }
             }
             // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
