@@ -128,7 +128,16 @@ fun RegionMap(
                         //   4배로 확대하면 손가락이 간 거리의 16분의 1만 움직였다(뻑뻑함의 정체).
                         px += pan.x / size.width
                         py += pan.y / size.height
-                        onTransform?.invoke(nz, px.coerceIn(-3f, 3f), py.coerceIn(-3f, 3f))
+                        // 📐 움직일 수 있는 범위는 **확대한 만큼**이다 — 고정값이면 안 된다.
+                        //   그리는 식: 보는 창의 반폭 = 1/(2z), 중심 이동 = panX/z (둘 다 전체 폭 기준).
+                        //   창이 틀 밖으로 안 나가려면  |panX|/z + 1/(2z) ≤ 1/2  →  **|panX| ≤ (z-1)/2**.
+                        //   전엔 ±3 고정이라 ① 1배에서도 지도를 화면 밖으로 밀어낼 수 있었고
+                        //   ② 끝까지 확대하면(8배) 필요한 3.5 를 3 에서 잘라
+                        //      **집고 있던 자리가 어긋나며 옆으로 한 번 꺾였다.**
+                        //      (2026-09-25 사장님 "줌 인을 쭉 하면 마지막에 좌측으로 한번 꺾인다")
+                        //   0.05 는 1배에서도 끈 게 보이라고 남겨둔 아주 작은 여유.
+                        val lim = ((nz - 1f) / 2f).coerceAtLeast(0.05f)
+                        onTransform?.invoke(nz, px.coerceIn(-lim, lim), py.coerceIn(-lim, lim))
                     }
                 }
                 .pointerInput(Unit) {
