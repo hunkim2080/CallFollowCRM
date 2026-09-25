@@ -57,7 +57,15 @@ object RecordReel {
          */
         val photoPath: String? = null,
         /** 맨 아래 간판(업체명·연락처)을 넣을지. 그림과 **같은 토글**을 따른다. (2026-09-25 사장님) */
-        val sign: Boolean = true
+        val sign: Boolean = true,
+        /**
+         * 💰 큰 숫자가 **도착할 때마다 오를 몫** — 동네 순서대로.
+         *
+         * 비어 있으면 **달린 거리**에 맞춰 이어서 오른다(거리처럼 이어지는 숫자).
+         * 돈·집 수처럼 **집마다 다르게** 쌓이는 숫자는 여기에 동네별 몫을 넣는다.
+         *   (2026-09-26 사장님 "각 지역마다 금액이 다른데 그렇게 올라야지")
+         */
+        val metricWeights: List<Float> = emptyList()
     )
 
     /**
@@ -65,6 +73,25 @@ object RecordReel {
      *   앞에 붙은 글자(`약 `)와 천 단위 콤마는 그대로 지킨다.
      *   [p] 가 1이면 원래 글자를 **그대로** 돌려준다 — 끝에는 반드시 진짜 숫자여야 한다.
      */
+    /**
+     * 💰 **도착할 때마다 그 동네 몫만큼** 오른 비율(0~1).
+     *
+     * 거리는 달린 만큼 이어서 오르지만, 돈은 **집에 도착해야** 들어온다.
+     * 도착하고 반 초 동안 굴러오른 뒤 멈춘다 — 지폐가 올라오는 그 순간과 같이.
+     * 몫이 없거나 수가 안 맞으면 [fallback](달린 거리)을 그대로 쓴다.
+     */
+    internal fun stepUp(weights: List<Float>, arrived: Int, sinceArrive: Float, fallback: Float): Float {
+        val total = weights.sum()
+        if (weights.isEmpty() || total <= 0f) return fallback
+        val i = arrived.coerceIn(0, weights.size - 1)
+        var before = 0f
+        for (k in 0 until i) before += weights[k]
+        val now = before + weights[i]
+        // 반 초 동안 굴러간다. 트럭이 서 있는 시간과 같아 **떠날 때 딱 멈춘다.**
+        val roll = (sinceArrive / 0.55f).coerceIn(0f, 1f)
+        return ((before + (now - before) * roll) / total).coerceIn(0f, 1f)
+    }
+
     internal fun countUp(text: String, p: Float): String {
         if (p >= 1f) return text
         val digits = text.filter { it.isDigit() }
@@ -155,7 +182,12 @@ object RecordReel {
         //   마지막 자릿수로 자리를 박아놓았더니 "약 52      km" 처럼 멀찍이 떨어져 보였다.
         //   🔒 띄우기는 [RecordShot.drawBigNumber] 한 곳에 있다 — 각자 적어놓았더니 닿았다.
         //   (2026-09-25 사장님 "글자가 겹쳤어 km 있는곳 간격")
-        val shownBig = countUp(d.metricValue, ride?.frac ?: 1f)
+        // 거리는 **달린 만큼** 이어서, 돈·집 수는 **도착할 때마다 그 몫만큼**.
+        val bigP2 = if (ride == null) 1f else stepUp(
+            d.metricWeights, ride.arrived,
+            ride.nowT - (ride.arriveAt.getOrNull(ride.arrived) ?: 0f), ride.frac
+        )
+        val shownBig = countUp(d.metricValue, bigP2)
         val numW = RecordShot.drawBigNumber(
             c, pad, y, shownBig, d.metricUnit, bigP, paint(bold, w * 0.058f, blue)
         )

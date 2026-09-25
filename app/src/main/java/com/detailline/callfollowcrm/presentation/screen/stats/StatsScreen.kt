@@ -549,6 +549,8 @@ private fun ShotPreviewDialog(
         com.detailline.callfollowcrm.util.RecordReel.Data(
             monthLabel = rec.monthLabel,
             metricValue = p.value, metricUnit = p.unit, metricLabel = p.caption,
+            // 거리는 몫이 없다(null) → 달린 만큼 이어서 오른다.
+            metricWeights = p.weight?.let { w -> rec.dots.sortedBy { it.order }.map(w) } ?: emptyList(),
             towns = rec.towns, dots = rec.dots,
             bizName = rec.bizName, tradeName = rec.tradeName,
             phone = rec.bizPhone, area = rec.areaLabel,
@@ -983,7 +985,15 @@ private fun ShotPreviewDialog(
 }
 
 /** 인증샷에 크게 넣을 수 있는 숫자 하나. */
-private data class BigPick(val value: String, val unit: String, val short: String, val caption: String)
+private data class BigPick(
+    val value: String, val unit: String, val short: String, val caption: String,
+    /**
+     * 💰 영상에서 **도착할 때마다 오를 몫**을 그 동네에서 뽑는 법.
+     *   null = 달린 거리에 맞춰 이어서 오른다(거리처럼 이어지는 숫자).
+     *   (2026-09-26 사장님 "각 지역마다 금액이 다른데 그렇게 올라야지")
+     */
+    val weight: ((com.detailline.callfollowcrm.presentation.component.RegionDot) -> Float)? = null
+)
 
 /**
  * 고를 수 있는 큰 숫자들 — **자랑할 수 있는 게 사람마다 다르다.** (2026-09-24 사장님)
@@ -992,8 +1002,10 @@ private data class BigPick(val value: String, val unit: String, val short: Strin
  *   ⚠ km 은 없다 — 타임라인 없이는 직선거리뿐이라 실제보다 한참 작게 나온다.
  */
 private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
-    if (rec.lastNo > 0) add(BigPick("${rec.lastNo}", "집", "올해", "올해 다녀온 집"))
-    if (rec.monthSites > 0) add(BigPick("${rec.monthSites}", "집", "이번 달", "이번 달 다녀온 집"))
+    // 몫(weight) = 영상에서 **그 동네에 도착할 때 얼마나 오를지**.
+    if (rec.lastNo > 0) add(BigPick("${rec.lastNo}", "집", "올해", "올해 다녀온 집") { it.count.toFloat() })
+    if (rec.monthSites > 0)
+        add(BigPick("${rec.monthSites}", "집", "이번 달", "이번 달 다녀온 집") { it.count.toFloat() })
     // 💰 **번 돈** — 프로토엔 있는데 여기 빠져 있었다. 돈을 숨기고 싶은 사람을 위해
     //   고르게 한 건데, 정작 고를 '돈' 이 없으면 말이 안 된다. (2026-09-25)
     if (rec.monthSalesManwon > 0) add(
@@ -1001,10 +1013,13 @@ private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
             java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
                 .format(rec.monthSalesManwon),
             "만원", "번 돈", "이번 달 번 돈"
-        )
+            // 💰 **그 동네에서 번 돈만큼** 오른다 — 200만원짜리는 100만원짜리보다 두 배 뛴다.
+        ) { it.amountManwon.toFloat() }
     )
-    if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "동네", "올해 다녀온 동네"))
-    if (rec.monthWorkDays > 0) add(BigPick("${rec.monthWorkDays}", "일", "현장", "이번 달 현장에 나간 날"))
+    // 동네는 **한 곳 도착에 한 칸**. 나간 날은 동네별 현장 수로 나눈다(날짜별 자료는 없다).
+    if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "동네", "올해 다녀온 동네") { 1f })
+    if (rec.monthWorkDays > 0)
+        add(BigPick("${rec.monthWorkDays}", "일", "현장", "이번 달 현장에 나간 날") { it.count.toFloat() })
     // 🚛 **달린 거리** — 길을 타고 간 거리라 직선보다 훨씬 정직하다.
     //   다만 우리 자료엔 큰길뿐이라 실제보다 작게 나온다 → 숫자 앞에 '약'.
     if (rec.monthKm >= 1) add(BigPick("약 ${rec.monthKm}", "km", "달린 거리", "이번 달 달린 거리"))
