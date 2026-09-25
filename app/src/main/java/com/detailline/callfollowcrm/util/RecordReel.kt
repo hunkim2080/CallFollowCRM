@@ -151,14 +151,14 @@ object RecordReel {
         //   글자 크기와 'km' 자리는 **최종 숫자**로 정해둔다 — 자릿수가 늘 때마다
         //   단위가 옆으로 밀리고 글자가 커졌다 작아졌다 하면 싸구려로 보인다.
         val bigP = fit(paint(xbold, w * 0.145f, blue), d.metricValue, w - pad * 2 - w * 0.22f, w * 0.145f, w * 0.085f)
+        // 단위는 **지금 숫자**에 붙어 따라온다(글자 크기만 최종값으로 고정) —
+        //   마지막 자릿수로 자리를 박아놓았더니 "약 52      km" 처럼 멀찍이 떨어져 보였다.
+        //   🔒 띄우기는 [RecordShot.drawBigNumber] 한 곳에 있다 — 각자 적어놓았더니 닿았다.
+        //   (2026-09-25 사장님 "글자가 겹쳤어 km 있는곳 간격")
         val shownBig = countUp(d.metricValue, ride?.frac ?: 1f)
-        c.drawText(shownBig, pad, y, bigP)
-        // 단위는 **지금 숫자**에 붙어 따라온다 — 마지막 자릿수로 자리를 박아놓았더니
-        //   "약 52      km" 처럼 멀쪻이 떨어져 보였다. 글자 **크기**만 최종값으로 고정한다.
-        val numW = bigP.measureText(shownBig)
-        if (d.metricUnit.isNotBlank()) {
-            c.drawText(d.metricUnit, pad + numW + w * 0.014f, y, paint(bold, w * 0.058f, blue))
-        }
+        val numW = RecordShot.drawBigNumber(
+            c, pad, y, shownBig, d.metricUnit, bigP, paint(bold, w * 0.058f, blue)
+        )
         y += h * 0.031f
         c.drawText(d.metricLabel, pad, y, paint(bold, w * 0.040f, sub))
 

@@ -115,6 +115,28 @@ object RecordShot {
      * 사진 파일을 **필요한 크기만큼만** 읽는다. 폰 사진은 4000×3000 이라 그냥 읽으면 메모리가 터진다.
      *   못 읽으면 null — 그럼 사진 없는 갈래로 떨어진다(깨진 그림을 넣느니 안 넣는다).
      */
+    /**
+     * 🔢 **큰 숫자 + 그 옆 단위** — 그림도 영상도 여기로 그린다.
+     *
+     * 띄우기를 네 군데에 각자 적어놨더니(12f · 10f · 폭의 1.4%) 두 자리 숫자에서
+     * `km` 이 숫자에 **닿았다.** (2026-09-25 사장님 "글자가 겹쳤어 km 있는곳 간격")
+     * 띄우기는 **글자 크기에 비례**한다 — 긴 숫자라 글자가 줄면 간격도 같이 줄어야 한다.
+     *
+     * @return 숫자만의 폭. 칸 너비를 재는 데 쓴다.
+     */
+    internal fun drawBigNumber(
+        c: android.graphics.Canvas, x: Float, y: Float,
+        value: String, unit: String, numP: Paint, unitP: Paint
+    ): Float {
+        c.drawText(value, x, y, numP)
+        val w = numP.measureText(value)
+        if (unit.isNotBlank()) c.drawText(unit, x + w + unitGap(numP), y, unitP)
+        return w
+    }
+
+    /** 숫자와 단위 사이. 숫자 글자 크기의 24% — 어떤 자릿수에서도 닿지 않는 선. */
+    internal fun unitGap(numP: Paint): Float = numP.textSize * 0.24f
+
     internal fun loadPhoto(path: String?, reqW: Int, reqH: Int): Bitmap? {
         if (path.isNullOrBlank()) return null
         return runCatching {
@@ -235,7 +257,7 @@ object RecordShot {
         val capP = paint(bold, 34f, sub)
         val monP = paint(bold, 30f, hint)
         val wNum = bigP.measureText(d.bigValue) +
-            (if (d.bigUnit.isNotBlank()) unitP.measureText(d.bigUnit) + 12f else 0f)
+            (if (d.bigUnit.isNotBlank()) unitP.measureText(d.bigUnit) + unitGap(bigP) else 0f)
         val boxW = maxOf(wNum, capP.measureText(d.bigCaption), monP.measureText(d.monthLabel)) + 64f
         val boxTop = 52f
         val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -247,10 +269,7 @@ object RecordShot {
         var y = boxTop + 58f
         c.drawText(d.monthLabel, pad, y, monP)
         y += 96f
-        c.drawText(d.bigValue, pad, y, bigP)
-        if (d.bigUnit.isNotBlank()) {
-            c.drawText(d.bigUnit, pad + bigP.measureText(d.bigValue) + 12f, y, unitP)
-        }
+        drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, unitP)
         y += 46f
         c.drawText(d.bigCaption, pad, y, capP)
 
@@ -341,10 +360,7 @@ object RecordShot {
         c.drawText(d.monthLabel, pad, y, paint(bold, 30f, 0xCCFFFFFF.toInt()))
         y += 104f
         val bigP = fit(paint(xbold, 126f, white), d.bigValue, S - pad * 2 - 260f, 126f, 72f)
-        c.drawText(d.bigValue, pad, y, bigP)
-        if (d.bigUnit.isNotBlank()) {
-            c.drawText(d.bigUnit, pad + bigP.measureText(d.bigValue) + 12f, y, paint(bold, 48f, white))
-        }
+        drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 48f, white))
         y += 48f
         c.drawText(d.bigCaption, pad, y, paint(bold, 34f, 0xE6FFFFFF.toInt()))
 
@@ -464,12 +480,8 @@ object RecordShot {
         c.drawText(d.monthLabel, pad, y, paint(bold, 32f, hint))
         y += 96f
         val bigP = fit(paint(xbold, 112f, blue), d.bigValue, S - pad * 2 - 160f, 112f, 64f)
-        c.drawText(d.bigValue, pad, y, bigP)
         // 단위는 숫자 옆에 작게.
-        val bigW = bigP.measureText(d.bigValue)
-        if (d.bigUnit.isNotBlank()) {
-            c.drawText(d.bigUnit, pad + bigW + 10f, y, paint(bold, 44f, blue))
-        }
+        val bigW = drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 44f, blue))
         y += 48f
         c.drawText(d.bigCaption, pad, y, paint(bold, 34f, sub))
 
