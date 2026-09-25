@@ -217,7 +217,14 @@ object RecordShot {
                 labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
                 labelStyle = TextStyle(fontSize = 10.sp),
                 river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
-                progress = 1f
+                progress = 1f,
+                // 🔴 2026-09-25 사장님 "다운하기 전엔 이렇게, 다운하면 이렇게" —
+                //   여기만 **진짜 지도를 안 넘겨서** 옆 손그림(바다·길 없는)으로 그렸다.
+                //   영상은 넘겼기 때문에 **미리보기와 다운받은 게 달랐다.**
+                //   보이는 것과 나오는 게 다르면 미리보기가 쓸모가 없다.
+                geo = MapGeo.load(ctx),
+                trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat }),
+                zoom = d.zoom, panX = d.panX, panY = d.panY
             )
         }
         c.restore()
