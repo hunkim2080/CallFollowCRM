@@ -458,7 +458,11 @@ private fun ShotPreviewDialog(
     zoom: Float = 1f,
     panX: Float = 0f,
     panY: Float = 0f,
-    /** 지도 밑 [영상 만들기] 로 들어왔나 — 그러면 창이 열리자마자 만들기 시작한다. */
+    /**
+     * 지도 밑 [영상 만들기] 로 들어왔나 — 그러면 **영상 미리보기로 연다.**
+     *   ⚠️ 바로 만들지 않는다. 보고 나서 만드는 게 순서다.
+     *   (2026-09-25 사장님 "영상만들기 누르면 바로 만들어지는데 … 순서가 안맞는데???")
+     */
     autoVideo: Boolean = false,
     onClose: () -> Unit
 ) {
@@ -514,8 +518,8 @@ private fun ShotPreviewDialog(
 
     // ── 🎬 영상 미리보기 ── 만들기 전에 **움직이는 걸 본다.** (2026-09-25 사장님)
     //   몇 분 기다려 만들었는데 마음에 안 들면 그 시간을 날린다.
-    var previewVideo by remember { mutableStateOf(false) }
-    val reelData = remember(rec, pick, picks, zoom, panX, panY) {
+    var previewVideo by remember { mutableStateOf(autoVideo) }
+    val reelData = remember(rec, pick, picks, zoom, panX, panY, sign) {
         val p = picks.getOrElse(pick) { picks.first() }
         com.detailline.callfollowcrm.util.RecordReel.Data(
             monthLabel = rec.monthLabel,
@@ -524,7 +528,8 @@ private fun ShotPreviewDialog(
             bizName = rec.bizName, tradeName = rec.tradeName,
             phone = rec.bizPhone, area = rec.areaLabel,
             zoom = zoom, panX = panX, panY = panY,
-            photoPath = rec.photoPath
+            photoPath = rec.photoPath,
+            sign = sign
         )
     }
     // 동네별 사진 — **영상과 똑같이** 미리 읽어둔다. 창을 닫을 때 놓아준다.
@@ -603,8 +608,6 @@ private fun ShotPreviewDialog(
             }
         }
     }
-    // 지도 밑 [영상 만들기] 로 들어왔으면 창이 열리자마자 시작한다 — 한 번만.
-    androidx.compose.runtime.LaunchedEffect(Unit) { if (autoVideo) startReel() }
 
     // 비율을 고를 수 있게 되면서 9:16 미리보기가 창을 다 먹는다 —
     //   그러면 아래 [저장]·[올리기] 가 **화면 밖으로 밀렸다.** 창을 높이에 가두고 속을 굴린다.
@@ -703,6 +706,9 @@ private fun ShotPreviewDialog(
                         }
                     }
                 }
+                // ── 아래는 **그림 전용 설정**이다. 영상엔 하나도 안 먹히니 영상일 땐 아예 안 보여준다.
+                //   고르라고 해놓고 안 먹히는 게 제일 나쁘다. (2026-09-25 사장님)
+                if (!previewVideo) {
                 Spacer(Modifier.height(AppSpace.s12))
                 // ── 이미지 스타일 ── **무엇을 그리나.** (비율과 따로 고른다)
                 //   전엔 [사진 위에][지도 크게][정사각] 이 한 줄이라, 모양과 크기가 뭉쳐 있었다.
@@ -746,7 +752,8 @@ private fun ShotPreviewDialog(
                         }
                     }
                 }
-                // ── 업체명·연락처 표시 ── 개인 기록은 담백하게, 홍보할 땐 연락처를 더한다. (사장님 시안)
+                }   // ── 그림 전용 설정 끝 ──
+                // ── 업체명·연락처 표시 ── 그림·영상 **둘 다** 따른다. (사장님 시안)
                 Spacer(Modifier.height(AppSpace.s12))
                 Row(
                     Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
@@ -767,12 +774,15 @@ private fun ShotPreviewDialog(
                 // 저장하면 몇 픽셀인지 — 올리기 전에 알면 자르지 않는다. (시안 "1080 × 1350")
                 Spacer(Modifier.height(AppSpace.s8))
                 Text(
-                    if (shape == ShotShape.STICKER) "저장 크기 · 배경 없는 스티커 (1080 폭)"
+                    if (previewVideo) "저장 크기 · 720 × 1280 (릴스 9:16) · 10초"
+                    else if (shape == ShotShape.STICKER) "저장 크기 · 배경 없는 스티커 (1080 폭)"
                     else "저장 크기 · 1080 × ${ratio.h}",
                     style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp)
                 )
                 Spacer(Modifier.height(AppSpace.s12))
+                // 그림을 보는 중일 때만 그림 버튼. 영상일 땐 아래 [이 영상으로 저장] 하나뿐이다.
+                if (!previewVideo) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     ShotSmall("사진첩에 저장", Modifier.weight(1f)) {
                         scope.launch {
@@ -805,6 +815,7 @@ private fun ShotPreviewDialog(
                             color = Color.White)
                     }
                 }
+                }   // ── 그림 버튼 끝 ──
                 // 🎬 **영상** — 움직이는 지도를 SNS 에 올리려면 그림이 아니라 영상이어야 한다.
                 //   인스타 릴스 크기(9:16). 만드는 데 시간이 걸려서 진행률을 보여준다.
                 Spacer(Modifier.height(AppSpace.s12))
@@ -847,15 +858,27 @@ private fun ShotPreviewDialog(
                                 fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
                         }
                     }
+                } else if (previewVideo) {
+                    // **보고 나서 만든다.** 위에서 움직이는 걸 보고 마음에 들면 누른다.
+                    Box(
+                        Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
+                            .clickable { startReel() }
+                            .padding(vertical = 13.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("이 영상으로 저장", style = AppType.headline,
+                            fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
                 } else {
                     Box(
                         Modifier.fillMaxWidth().clip(AppShape.md)
                             .background(AppTheme.colors.primaryBg)
-                            .clickable { startReel() }
+                            .clickable { previewVideo = true }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("영상 만들기 (릴스용 10초)", style = AppType.label,
+                        // 바로 만들지 않는다 — **먼저 보여준다.**
+                        Text("영상으로 보기 (릴스용 10초)", style = AppType.label,
                             fontWeight = FontWeight.ExtraBold, color = TossBlue)
                     }
                 }
@@ -884,7 +907,7 @@ private fun ShotPreviewDialog(
                     }
                 }
 
-                if (sticker) {
+                if (sticker && !previewVideo) {
                     Spacer(Modifier.height(AppSpace.s8))
                     Text(
                         if (rec.photoPath != null)

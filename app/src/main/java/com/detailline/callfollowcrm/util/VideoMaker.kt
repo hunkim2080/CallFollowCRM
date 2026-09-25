@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.util
 
+import kotlinx.coroutines.ensureActive
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.media.MediaCodec
@@ -101,6 +102,9 @@ object VideoMaker {
             var frame = 0
             var done = false
             while (!done) {
+                // ⏹ **[취소] 를 보는 자리.** 없으면 취소를 눌러도 끝까지 만들고,
+                //   진행률이 계속 올라가서 "취소가 안 된다" 가 된다. (2026-09-25 사장님)
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 // ── 넣기 ──
                 if (frame <= frames) {
                     val inIdx = codec!!.dequeueInputBuffer(10_000)
@@ -149,6 +153,17 @@ object VideoMaker {
                 }
             }
         }.onFailure { e ->
+            // ⏹ **[취소] 는 실패가 아니다.** 여기서 삼키면 취소했는데
+            //   "영상을 만들지 못했어요" 가 뜬다. 그대로 올려보내 진짜로 끊기게 한다.
+            if (e is kotlinx.coroutines.CancellationException) {
+                runCatching { codec?.stop() }
+                runCatching { codec?.release() }
+                runCatching { if (started) muxer?.stop() }
+                runCatching { muxer?.release() }
+                runCatching { if (outFile.exists()) outFile.delete() }   // 만들다 만 파일은 남기지 않는다
+                bmp.recycle()
+                throw e
+            }
             lastError = shortReason(e)
             android.util.Log.e(TAG, "영상 실패 " + e.javaClass.simpleName + ": " + e.message, e)
             runCatching { codec?.stop() }

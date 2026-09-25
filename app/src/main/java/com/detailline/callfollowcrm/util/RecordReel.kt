@@ -55,7 +55,9 @@ object RecordReel {
          *   사장님이 고른 모양과 **나온 결과가 같아진다.**
          *   (2026-09-25 사장님 "영상저장하면 저장안되네 이미지 우측상단에있는게")
          */
-        val photoPath: String? = null
+        val photoPath: String? = null,
+        /** 맨 아래 간판(업체명·연락처)을 넣을지. 그림과 **같은 토글**을 따른다. (2026-09-25 사장님) */
+        val sign: Boolean = true
     )
 
     private fun font(ctx: Context, id: Int): Typeface? =
@@ -184,6 +186,8 @@ object RecordReel {
         }
 
         // ── 맨 아래: 간판 ── 상호 크게 · 지역·업종·번호. SNS 에 올리는 건 결국 광고다.
+        //   끄면 담백하게 — 그림과 같은 토글을 따른다.
+        if (!d.sign) return
         val name = d.bizName.trim()
         if (name.isNotBlank()) {
             c.drawText(name, pad, h - pad - h * 0.052f,
