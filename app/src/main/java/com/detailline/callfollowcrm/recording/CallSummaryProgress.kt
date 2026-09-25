@@ -31,4 +31,21 @@ object CallSummaryProgress {
     fun end(phone: String, recordedAtMs: Long) {
         _inProgress.update { it - key(phone, recordedAtMs) }
     }
+
+    /**
+     * 방금 **다시 요약**이 끝났다는 한 번짜리 신호.
+     *   (2026-09-25 사장님 "다시 요약할까요? 해서 네 했는데 이게 하는건지 마는건지 모르겠네")
+     *   진행 중 표시만으로는 부족하다 — 끝났으면 끝났다고 말해야 한다.
+     *   화면이 한 번 띄우고 [consumeDone] 으로 비운다.
+     */
+    private val _justDone = MutableStateFlow<String?>(null)
+    val justDone: StateFlow<String?> = _justDone
+
+    fun markDone(phone: String) {
+        _justDone.value = phone.filter { it.isDigit() }.takeLast(8)
+    }
+
+    fun consumeDone() {
+        _justDone.value = null
+    }
 }

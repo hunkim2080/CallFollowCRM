@@ -11386,3 +11386,12 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
 - 검증: py_compile OK / 재기동 후 `smoke.sh` 10곳 전부 200 /
   **사고 난 그 통화를 그대로 재투입 → "지인 상담 통화" + 시각 4줄 정상**.
 - 다음 액션 (cowork): 없음. 다만 server/ 를 android 쪽이 만진 건이라 다음 작업 전 `git pull` 필수.
+
+## 2026-09-25 12:35 · android
+「다시 요약」이 되는 건지 마는 건지 알 수 없던 것 — 화면 피드백만 없었다(동작은 정상).
+- 확인: 서버 기록에 force_refresh=true 로 들어와 정상 완료(gemini OK, 화자분리 108발화).
+- 원인 3: ①「요약 중…」이 `matched == null`(아직 요약 없는 카드)일 때만 켜짐
+  ② 그 표시가 `if (bullets.isEmpty())` 안이라 요약이 있으면 그릴 자리 없음 ③ 완료 통보 없음.
+- 변경: CallSummaryProgress 에 justDone 신호 추가 / CallAudioSummarizer 가 forceRefresh 성공 시 markDone /
+  ChatScreen 은 요약이 있어도 「다시 요약하는 중…」 띠 표시(+"몇 분 걸려요") + 끝나면 "요약을 새로 했어요".
+- 서버 변경 없음.

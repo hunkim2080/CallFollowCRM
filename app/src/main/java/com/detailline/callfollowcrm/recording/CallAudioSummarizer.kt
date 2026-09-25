@@ -144,6 +144,9 @@ object CallAudioSummarizer {
                 return false
             }
             save(res)
+            // 사장님이 **직접 [다시 요약]을 누른 경우**에만 "됐어요" 를 띄운다.
+            //   통화 끝나고 저절로 도는 자동 요약까지 띄우면 시끄럽다.
+            if (forceRefresh) CallSummaryProgress.markDone(phone)
 
             // 서버가 캐시본(이미 처리)을 즉시 줬는데 아직 안 물어본 경우(로컬엔 없던 통화) →
             //   화면엔 캐시본을 띄워둔 채 "다시 요약?" 묻고, 예면 force_refresh 로 재처리해 덮어쓴다.
@@ -158,7 +161,7 @@ object CallAudioSummarizer {
                         durationSec = durationSec,
                         customerName = customer?.name,
                         forceRefresh = true
-                    ).getOrNull()?.let { save(it) }
+                    ).getOrNull()?.let { save(it); CallSummaryProgress.markDone(phone) }
                 }
             }
             // 자동 통화요약(통화 끝→워커)일 때만 "요약했어요" 알림 — 잠깐 떴다 사라짐, 탭→통화방.

@@ -606,6 +606,17 @@ fun ChatScreen(
         }
     }
 
+    // 「다시 요약」이 끝나면 **끝났다고 말한다.** 화면이 조용하면 사장님은 된 건지 만 건지 모른다.
+    //   (2026-09-25 사장님 "이게하는건지마는건지 모르겠네? ux왜이래")
+    val resummarized by com.detailline.callfollowcrm.recording.CallSummaryProgress.justDone.collectAsState()
+    LaunchedEffect(resummarized) {
+        val done = resummarized ?: return@LaunchedEffect
+        if (done == viewModel.phoneNumber.filter { it.isDigit() }.takeLast(8)) {
+            snackbar.showSnackbar("요약을 새로 했어요")
+        }
+        com.detailline.callfollowcrm.recording.CallSummaryProgress.consumeDone()
+    }
+
     val displayName = customer?.name?.takeIf { it.isNotBlank() }
         ?: PhoneNumberFormatter.format(viewModel.phoneNumber)
     val displayPhone = PhoneNumberFormatter.format(viewModel.phoneNumber)
@@ -945,14 +956,21 @@ fun ChatScreen(
                                     ti.record.duration > 0
                                 val autoPending = autoSummaryActive && recSummarizable &&
                                     (nowTick.value - ti.record.endedAt) in 0..(4 * 60 * 1000L)
-                                val summarizing = matched == null && (autoPending || summarizingTimes.any { r ->
+                                // 서버가 이 통화를 지금 돌리고 있나. **요약이 이미 있어도** 켜야 한다 —
+                                //   「다시 요약」은 요약이 있는 카드에서 누르는 것이라, 예전엔
+                                //   matched == null 조건에 걸려 아무 표시도 안 났다. (2026-09-25 사장님)
+                                val serverBusy = summarizingTimes.any { r ->
                                     r >= callStart - win && r <= ti.record.endedAt + win
-                                })
+                                }
+                                val summarizing = serverBusy || (matched == null && autoPending)
+                                // 이미 요약이 있는데 또 돌고 있다 = 다시 요약. 문구를 달리 한다.
+                                val redoing = serverBusy && matched != null
                                 val callRec = recordingFor[ti.record.id]
                                 CallSegment(
                                     record = ti.record,
                                     summary = matched,
                                     isSummarizing = summarizing,
+                                    isRedoing = redoing,
                                     audioUri = callRec?.fileUri,
                                     audioDurationMs = callRec?.duration,
                                     onUseAsDraft = { msg ->
@@ -2252,6 +2270,8 @@ private fun CallSegment(
     record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
     summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity? = null,
     isSummarizing: Boolean = false,
+    /** 이미 요약이 있는데 **또** 돌고 있다 = 사장님이 [다시 요약]을 누른 것. 문구가 달라진다. */
+    isRedoing: Boolean = false,
     audioUri: String? = null,
     audioDurationMs: Long? = null,
     onUseAsDraft: (String) -> Unit = {},
@@ -2398,6 +2418,32 @@ private fun CallSegment(
         //   빼서 중복 표시 방지(서버가 짧은 제목을 주기 전엔 title=한줄요약 이라 첫 줄과 겹칠 수 있음).
         val summaryTitle = summary?.title?.takeIf { it.isNotBlank() }
         val displayBullets = if (summaryTitle != null) bullets.filter { it != summaryTitle } else bullets
+
+        // ── 다시 요약하는 중 ──────────────────────────────────────────────
+        //   요약이 **이미 있는** 카드라 아래 `if (bullets.isEmpty())` 안 스피너는 절대 안 그려진다.
+        //   그래서 여기, 옛 요약 바로 위에 띠를 둔다. (2026-09-25 사장님
+        //   "다시 요약할까요? 해서 네 했는데 이게하는건지마는건지 모르겠네? ux왜이래")
+        if (isRedoing) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFDFF1ED)).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(color = Color(0xFF0E9E90), strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(
+                        "다시 요약하는 중…",
+                        color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
+                    )
+                    // 긴 통화는 받아쓰기부터 다시 한다 — 몇 분 걸릴 수 있다고 **미리** 말해준다.
+                    Text(
+                        "통화가 길면 몇 분 걸려요. 다 되면 알려드릴게요.",
+                        color = Color(0xFF3E8C82), fontSize = 11.sp, fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
 
         // 부재중·거절·통화시간 0초는 요약할 내용(녹음/대화)이 없음 → 요약 버튼 숨김.
         val summarizable = type != com.detailline.callfollowcrm.domain.model.CallType.MISSED &&
