@@ -95,6 +95,15 @@ fun StatsScreen(
     var mapPanX by remember(rec.dots) { mutableStateOf(0f) }
     var mapPanY by remember(rec.dots) { mutableStateOf(0f) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // 인증샷 창 — [인증샷] 과 [영상 만들기] **둘 다** 여기를 연다.
+    //   영상은 전엔 인증샷 창을 열어야 나와서 **있는 줄도 몰랐다.** (프로토 "만들기 버튼")
+    var shotOpen by remember { mutableStateOf(false) }
+    var shotAutoVideo by remember { mutableStateOf(false) }
+    if (shotOpen && rec.lastNo > 0) {
+        ShotPreviewDialog(
+            rec, mapZoom, mapPanX, mapPanY, autoVideo = shotAutoVideo
+        ) { shotOpen = false }
+    }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -109,6 +118,20 @@ fun StatsScreen(
                         Text("내가 다녀온 현장", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextInfo, letterSpacing = (-0.1).sp)
                     }
                 },
+                actions = {
+                    // 「현장 026」 — **누적 번호는 달과 무관하다.** 달 화면 안에 있으면
+                    //   이번 달 것으로 읽힌다 → 제목 옆 작은 배지로 뺀다. (프로토 .badge)
+                    if (rec.lastNo > 0) {
+                        Box(
+                            Modifier.padding(end = 18.dp).clip(AppShape.pill)
+                                .background(AppTheme.colors.primaryBg)
+                                .padding(horizontal = 11.dp, vertical = 5.dp)
+                        ) {
+                            Text("현장 %03d".format(rec.lastNo), style = AppType.caption,
+                                fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         }
@@ -117,22 +140,31 @@ fun StatsScreen(
             modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)  // top 14 = 헤더와 첫 카드 숨 쉬는 간격
         ) {
-            // ── 「내 기록」 — 이 탭의 주인공. (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
-            //   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이다.
-            item(key = "myrecord") {
-                MyRecordCard(
-                    rec, onOpenVisited,
-                    onOpenTodo = onOpenTodo, onOpenNoAddr = onOpenNoAddr,
-                    zoom = mapZoom, panX = mapPanX, panY = mapPanY
-                )
-                Spacer(Modifier.height(12.dp))
+            // ── ① 달을 **먼저** 정한다. 아래 전부가 그 달이다. (프로토 "달 고르기")
+            //   전엔 달 고르기가 지도 카드 **안**에 있어서, 8월 지도를 보는 동안
+            //   위 숫자는 9월이었다. **한 화면에 달이 둘이면 숫자를 못 믿는다.**
+            item(key = "month") {
+                RecordMonthBar(rec, onShiftMonth = viewModel::shiftRecordMonth)
             }
-            // 지도 — 다녀온 동네. 점 크기 = 몇 번 갔나. 다녀온 곳이 없으면 아예 안 그린다.
+            // ── ② 할 일 — **있으면** 맨 위 한 줄. 없으면 아예 안 뜬다. (프로토 .todobar)
+            //   전엔 자랑하는 화면 한복판에 파랑·빨강 경고가 두 줄 박혀 있었다.
+            item(key = "todo") {
+                if (rec.lastNo <= 0) {
+                    MyRecordEmpty()
+                    Spacer(Modifier.height(12.dp))
+                } else if (rec.notDoneCount > 0 || rec.noAddrCount > 0) {
+                    RecordTodoBar(rec, onOpenTodo = onOpenTodo, onOpenNoAddr = onOpenNoAddr)
+                    Spacer(Modifier.height(11.dp))
+                }
+            }
+            // ── ③ 지도 — **주인공.** 이 탭에서 남한테 보여줄 수 있는 건 지도다.
+            //   숫자는 나만 본다. 그래서 숫자 세 칸도 지도 **바로 밑**에 붙였다.
             item(key = "map") {
                 MyRecordMap(
-                    rec, onShiftMonth = viewModel::shiftRecordMonth,
-                    zoom = mapZoom, panX = mapPanX, panY = mapPanY,
-                    onTransform = { z, x, y -> mapZoom = z; mapPanX = x; mapPanY = y }
+                    rec, zoom = mapZoom, panX = mapPanX, panY = mapPanY,
+                    onTransform = { z, x, y -> mapZoom = z; mapPanX = x; mapPanY = y },
+                    onShot = { shotAutoVideo = false; shotOpen = true },
+                    onReel = { shotAutoVideo = true; shotOpen = true }
                 )
                 Spacer(Modifier.height(12.dp))
             }
@@ -200,118 +232,86 @@ fun StatsScreen(
  *    숫자를 부풀리면 기록이 아니다.
  */
 @Composable
-private fun MyRecordCard(
+private fun RecordMonthBar(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
+    // 달을 **먼저** 정한다 — 아래 지도·숫자·목록이 전부 이 달이다. (프로토 ①)
+    Row(
+        Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MonthArrow("\u2039", enabled = true) { onShiftMonth(-1) }
+        Text(
+            rec.monthLabel, modifier = Modifier.weight(1f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+        )
+        MonthArrow("\u203a", enabled = rec.canGoNext) { onShiftMonth(+1) }
+    }
+}
+
+/**
+ * 할 일 한 줄. **있을 때만 뜬다.** (프로토 ② .todobar)
+ *
+ * 전엔 자랑하는 화면 한복판에 파랑·빨강 경고가 **두 줄** 박혀 있어 시끄러웠다.
+ * 한 줄로 합치되, **어느 쪽을 누르느냐에 따라 가는 곳이 다르다** —
+ * 「완료 안 누름」은 완료 안 누른 것만, 「주소 없음」은 주소 없는 것만.
+ * (합쳤다고 한 군데로만 보내면, 2026-09-25 에 고친 "안 한 것만 보기" 가 도로 없어진다)
+ */
+@Composable
+private fun RecordTodoBar(
     rec: MyRecordState,
-    onOpenVisited: () -> Unit,
-    /** 「완료를 안 누른 N곳」 — **그것만** 보여주러 간다. */
-    onOpenTodo: () -> Unit = onOpenVisited,
-    /** 「주소 못 찾은 N곳」 — **그것만** 보여주러 간다. */
-    onOpenNoAddr: () -> Unit = onOpenVisited,
-    zoom: Float = 1f,
-    panX: Float = 0f,
-    panY: Float = 0f
+    onOpenTodo: () -> Unit,
+    onOpenNoAddr: () -> Unit
 ) {
-    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
-    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val goFirst = if (rec.notDoneCount > 0) onOpenTodo else onOpenNoAddr
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
+            .background(AppTheme.colors.primaryBg)
+            .padding(horizontal = 13.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(7.dp).clip(AppShape.pill).background(TossBlue))
+        Spacer(Modifier.width(8.dp))
+        if (rec.notDoneCount > 0) {
+            Text(
+                "완료 안 누름 ${rec.notDoneCount}", style = AppType.caption,
+                fontWeight = FontWeight.ExtraBold, color = TossBlue,
+                modifier = Modifier.clickable { onOpenTodo() }
+            )
+        }
+        if (rec.notDoneCount > 0 && rec.noAddrCount > 0) {
+            Text(" \u00b7 ", style = AppType.caption, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+        }
+        if (rec.noAddrCount > 0) {
+            Text(
+                "주소 없음 ${rec.noAddrCount}", style = AppType.caption,
+                fontWeight = FontWeight.ExtraBold, color = TossBlue,
+                modifier = Modifier.clickable { onOpenNoAddr() }
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Text(
+            "채우러 가기 \u203a", style = AppType.caption,
+            fontWeight = FontWeight.ExtraBold, color = TossBlue,
+            modifier = Modifier.clickable { goFirst() }
+        )
+    }
+}
+
+/**
+ * 아직 한 곳도 안 한 사람에게 — **"기록이 없어요" 라고 하지 않는다.** 그건 내 탓처럼 들린다.
+ * 대신 **001 자리를 비워 두고** 보여준다. 번호가 준비돼 있으면 채우고 싶어진다. (2026-09-24 사장님)
+ */
+@Composable
+private fun MyRecordEmpty() {
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
     ) {
-        // ⚠️ Composable 안에서 early return@Column 절대 금지 —
-        //    빈→로드 전환 때 슬롯테이블이 어긋나 화면이 통째로 안 그려진다.
-        //    바로 오늘 통계 탭이 그것 때문에 꺼졌고, 고치면서 또 같은 짓을 했다.
-        if (rec.lastNo <= 0) {
-            // 아직 한 곳도 없음 — 약속이지 변명이 아니다.
-            Text("내 기록", style = AppType.label, color = TossTextTertiary)
-            Spacer(Modifier.height(AppSpace.s8))
-            Text("첫 현장을 기다리고 있어요", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
-                color = TossTextPrimary, letterSpacing = (-0.4).sp)
-            Spacer(Modifier.height(AppSpace.s4))
-            Text("시공을 끝내고 [완료] 를 누르면\n여기에 현장 001 부터 번호가 붙어 쌓여요.",
-                style = AppType.body, color = TossTextInfo, lineHeight = 19.sp)
-        } else {
-        Text("내 기록", style = AppType.label, color = TossTextTertiary)
+        Text("첫 현장을 기다리고 있어요", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+            color = TossTextPrimary, letterSpacing = (-0.4).sp)
         Spacer(Modifier.height(AppSpace.s4))
-        Text("현장 %03d".format(rec.lastNo), fontSize = 30.sp, fontWeight = FontWeight.ExtraBold,
-            color = TossBlue, letterSpacing = (-1.0).sp)
-        Spacer(Modifier.height(AppSpace.s4))
-        Text(
-            // 부제는 **올해 누적**. 아래 세 칸이 이번 달을 말하므로 여기서 또 말하면 같은 말을 두 번 한다.
-            buildString {
-                append("올해 ")
-                if (rec.yearTownCount > 0) append(rec.yearTownCount).append("개 동네 · ")
-                append("지금까지 ").append(rec.lastNo).append("곳")
-            },
-            style = AppType.body, color = TossTextInfo, fontWeight = FontWeight.Bold
-        )
-        if (rec.towns.isNotEmpty()) {
-            Spacer(Modifier.height(AppSpace.s12))
-            Text(rec.towns.joinToString(" · "), style = AppType.label, color = TossTextSecondary,
-                lineHeight = 18.sp)
-        }
-        // ── 세 칸 — 셋이 **서로 다른 말**을 한다. (2026-09-24 사장님 "디테일")
-        //   곳 수 = 결과 · 현장 며칠 = 몸이 나간 날 · 매출 = 그 결과.
-        Spacer(Modifier.height(AppSpace.s16))
-        Row(Modifier.fillMaxWidth()) {
-            RecordCell("현장", "${rec.monthSites}", "곳", Modifier.weight(1f))
-            RecordCell("현장 나간 날", "${rec.monthWorkDays}", "일", Modifier.weight(1f))
-            RecordCell("매출", java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                .format(rec.monthSalesManwon), "만원", Modifier.weight(1f))
-        }
-        // 지난달 대비 — 자료가 있을 때만. 줄었다고 숨기지 않는다(기록이니까).
-        if (rec.prevMonthSites >= 0) {
-            val d = rec.monthSites - rec.prevMonthSites
-            Spacer(Modifier.height(AppSpace.s8))
-            Text(
-                when {
-                    d > 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳 · ${d}곳 늘었어요"
-                    d < 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳"
-                    else -> "지난달과 같아요 · ${rec.monthSites}곳"
-                },
-                style = AppType.caption,
-                color = if (d > 0) AppTheme.colors.done else TossTextTertiary,
-                fontWeight = if (d > 0) FontWeight.Bold else FontWeight.Medium
-            )
-        }
-        if (rec.notDoneCount > 0) {
-            // 다녀왔는데 완료를 안 누른 곳 — **번호가 안 붙는다.** 안내가 아니라 할 일이다.
-            Spacer(Modifier.height(AppSpace.s8))
-            Text(
-                "완료를 안 누른 ${rec.notDoneCount}곳이 있어요 — 누르면 번호가 붙어요 ›",
-                style = AppType.caption, color = TossBlue, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onOpenTodo() }.padding(vertical = 2.dp)
-            )
-        }
-        if (rec.noAddrCount > 0) {
-            // 숨기지 않는다. 그리고 **누르면 채우러 갈 수 있게** 한다.
-            Spacer(Modifier.height(AppSpace.s8))
-            Text(
-                "주소 못 찾은 ${rec.noAddrCount}곳은 동네에 안 들어가요 — 채우러 가기 ›",
-                style = AppType.caption, color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onOpenNoAddr() }.padding(vertical = 2.dp)
-            )
-        }
-        // ── 인증샷 ── (2026-09-24 사장님 "kyro처럼 인증샷 만드는 기능은 없나?")
-        //   글은 갈 곳이 없어서 안 쓴다고 하셨다 — 사장님이 올리는 건 **그림**이다.
-        //   ⚠️ **보고 나서** 저장한다. 안 보고 저장하면 어떻게 생겼는지 모르고 누르는 셈이다.
-        if (rec.lastNo > 0) {
-            var shotOpen by remember { mutableStateOf(false) }
-            Spacer(Modifier.height(AppSpace.s16))
-            Box(
-                Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
-                    .clickable { shotOpen = true }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("인증샷 만들기", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
-                    color = Color.White)
-            }
-            Spacer(Modifier.height(AppSpace.s8))
-            Text("현장 번호·다닌 동네·지도가 한 장에 들어가요 — 보고 나서 저장해요",
-                style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp)
-            if (shotOpen) ShotPreviewDialog(rec, zoom, panX, panY) { shotOpen = false }
-        }
-        }   // ── if (아직 없음) … else 끝
+        Text("시공을 끝내고 [완료] 를 누르면\n여기에 현장 001 부터 번호가 붙어 쌓여요.",
+            style = AppType.body, color = TossTextInfo, lineHeight = 19.sp)
     }
 }
 
@@ -322,36 +322,30 @@ private fun MyRecordCard(
 @Composable
 private fun MyRecordMap(
     rec: MyRecordState,
-    onShiftMonth: (Int) -> Unit,
     zoom: Float = 1f,
     panX: Float = 0f,
     panY: Float = 0f,
-    onTransform: ((Float, Float, Float) -> Unit)? = null
+    onTransform: ((Float, Float, Float) -> Unit)? = null,
+    /** [인증샷] — 그림 한 장. */
+    onShot: () -> Unit = {},
+    /** [영상 만들기] — 움직이는 지도(릴스 9:16). 전엔 인증샷 창 안에만 있었다. */
+    onReel: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)
+            .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(10.dp)
     ) {
-        // ── 달 넘기기 — 지도·목록·숫자가 다 이걸 따라간다. (2026-09-24 사장님) ──
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            MonthArrow("‹", enabled = true) { onShiftMonth(-1) }
-            Text(
-                rec.monthLabel, modifier = Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
-            )
-            MonthArrow("›", enabled = rec.canGoNext) { onShiftMonth(+1) }
-        }
-        Spacer(Modifier.height(AppSpace.s8))
         if (rec.dots.isEmpty()) {
             Box(
-                Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center
+                Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center
             ) {
                 Text("이 달은 다녀온 기록이 없어요", style = AppType.body, color = TossTextTertiary)
             }
         } else {
+        // **주인공이니까 크게.** 190 → 260dp (프로토 185 → 255 와 같은 비율)
         com.detailline.callfollowcrm.presentation.component.RegionMap(
             spots = rec.dots,
+            height = 260.dp,
             zoom = zoom, panX = panX, panY = panY,
             onTransform = onTransform
         )
@@ -368,13 +362,78 @@ private fun MyRecordMap(
         Spacer(Modifier.height(AppSpace.s4))
         Text(
             buildString {
-                append("이 달 다닌 곳 · 🚛 가 간 순서대로 달려요 · 지도를 톡 치면 다시 달려요 · 두 손가락으로 확대")
+                append("🚛 가 간 순서대로 달려요 · 톡 치면 다시 · 두 손가락으로 확대")
                 if (rec.yearTownCount > rec.dots.size) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
             },
             style = AppType.caption, color = TossTextTertiary,
             modifier = Modifier.padding(horizontal = 2.dp)
         )
         }   // ── if (dots 비었음) … else 끝
+
+        // ── 세 칸 — **지도를 설명하는 숫자**다. 지도와 붙어 있어야 같은 말이 된다. (프로토 ④ .strip)
+        //   셋이 서로 다른 말을 한다: 곳 수 = 결과 · 나간 날 = 몸이 나간 날 · 매출 = 그 결과.
+        Spacer(Modifier.height(AppSpace.s12))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            StripCell("현장", "${rec.monthSites}곳", Modifier.weight(1f))
+            StripCell("나간 날", "${rec.monthWorkDays}일", Modifier.weight(1f))
+            StripCell(
+                "매출",
+                java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
+                    .format(rec.monthSalesManwon) + "만",
+                Modifier.weight(1f)
+            )
+        }
+        // 지난달 대비 — 문구 그대로, 자리만 지도 아래로. 줄었다고 숨기지 않는다(기록이니까).
+        if (rec.prevMonthSites >= 0) {
+            val d = rec.monthSites - rec.prevMonthSites
+            Spacer(Modifier.height(AppSpace.s8))
+            Text(
+                when {
+                    d > 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳 · ${d}곳 늘었어요"
+                    d < 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳"
+                    else -> "지난달과 같아요 · ${rec.monthSites}곳"
+                },
+                style = AppType.caption,
+                color = if (d > 0) AppTheme.colors.done else TossTextTertiary,
+                fontWeight = if (d > 0) FontWeight.Bold else FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+        }
+        // ── 만들기 — **나란히.** 영상은 전엔 인증샷 창을 열어야 나와서 있는 줄도 몰랐다. (프로토 ⑥)
+        if (rec.lastNo > 0) {
+            Spacer(Modifier.height(AppSpace.s12))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(AppShape.md).background(AppTheme.colors.primaryBg)
+                        .clickable { onShot() }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("인증샷", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
+                        color = TossBlue)
+                }
+                Box(
+                    Modifier.weight(1f).clip(AppShape.md).background(TossBlue)
+                        .clickable { onReel() }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("영상 만들기", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
+                        color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+/** 지도 밑 작은 칸 하나 — 라벨은 작게, 숫자는 굵게. (프로토 .strip) */
+@Composable
+private fun StripCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+            .padding(horizontal = 9.dp, vertical = 8.dp)
+    ) {
+        Text(label, style = AppType.caption, color = TossTextTertiary, maxLines = 1)
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold,
+            color = TossTextPrimary, letterSpacing = (-0.3).sp, maxLines = 1)
     }
 }
 
@@ -390,6 +449,8 @@ private fun ShotPreviewDialog(
     zoom: Float = 1f,
     panX: Float = 0f,
     panY: Float = 0f,
+    /** 지도 밑 [영상 만들기] 로 들어왔나 — 그러면 창이 열리자마자 만들기 시작한다. */
+    autoVideo: Boolean = false,
     onClose: () -> Unit
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -434,6 +495,56 @@ private fun ShotPreviewDialog(
     val bmp = remember(data, shape) {
         com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, shape)
     }
+
+    // 영상 만들기 — **한 군데.** 아래 버튼도, 지도 밑 [영상 만들기] 도 여기를 부른다.
+    fun startReel() {
+        if (reelJob != null) return   // 연타 막기
+        reelJob = scope.launch {
+            making = 0f
+            val reel = com.detailline.callfollowcrm.util.RecordReel.make(
+                ctx,
+                com.detailline.callfollowcrm.util.RecordReel.Data(
+                    monthLabel = rec.monthLabel,
+                    metricValue = picks.getOrElse(pick) { picks.first() }.value,
+                    metricUnit = picks.getOrElse(pick) { picks.first() }.unit,
+                    metricLabel = picks.getOrElse(pick) { picks.first() }.caption,
+                    towns = rec.towns, dots = rec.dots,
+                    bizName = rec.bizName, tradeName = rec.tradeName,
+                    phone = rec.bizPhone, area = rec.areaLabel,
+                    zoom = zoom, panX = panX, panY = panY
+                )
+            ) { p -> making = p }
+            making = -1f
+            reelJob = null
+            if (reel != null) {
+                val uri = com.detailline.callfollowcrm.util.RecordShot.saveVideo(
+                    ctx, reel, "shigongmagne_%03d".format(rec.lastNo)
+                )
+                savedUri = uri
+                savedMime = "video/mp4"
+                if (uri == null) {
+                    android.widget.Toast.makeText(
+                        ctx, "저장하지 못했어요 — 바로 올려볼게요",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+                com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
+            } else {
+                // 실패는 **이유를 말해야** 한다 — 한 줄로 끝내면 아무것도 못 고친다.
+                val why = com.detailline.callfollowcrm.util.VideoMaker.lastError
+                android.widget.Toast.makeText(
+                    ctx,
+                    if (why.isNullOrBlank()) "영상을 만들지 못했어요"
+                    else "영상을 만들지 못했어요 — " + why,
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.e("VideoMaker", "실패: " + why)
+            }
+        }
+    }
+    // 지도 밑 [영상 만들기] 로 들어왔으면 창이 열리자마자 시작한다 — 한 번만.
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (autoVideo) startReel() }
+
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()
@@ -556,52 +667,7 @@ private fun ShotPreviewDialog(
                     Box(
                         Modifier.fillMaxWidth().clip(AppShape.md)
                             .background(AppTheme.colors.primaryBg)
-                            .clickable {
-                                if (reelJob != null) return@clickable   // 연타 막기
-                                reelJob = scope.launch {
-                                    making = 0f
-                                    val reel = com.detailline.callfollowcrm.util.RecordReel.make(
-                                        ctx,
-                                        com.detailline.callfollowcrm.util.RecordReel.Data(
-                                            monthLabel = rec.monthLabel,
-                                            metricValue = picks.getOrElse(pick) { picks.first() }.value,
-                                            metricUnit = picks.getOrElse(pick) { picks.first() }.unit,
-                                            metricLabel = picks.getOrElse(pick) { picks.first() }.caption,
-                                            towns = rec.towns, dots = rec.dots,
-                                            bizName = rec.bizName, tradeName = rec.tradeName,
-                                            phone = rec.bizPhone, area = rec.areaLabel,
-                                            zoom = zoom, panX = panX, panY = panY
-                                        )
-                                    ) { p -> making = p }
-                                    making = -1f
-                                    reelJob = null
-                                    if (reel != null) {
-                                        val uri = com.detailline.callfollowcrm.util.RecordShot.saveVideo(
-                                            ctx, reel, "shigongmagne_%03d".format(rec.lastNo)
-                                        )
-                                        savedUri = uri
-                                        savedMime = "video/mp4"
-                                        if (uri == null) {
-                                            android.widget.Toast.makeText(
-                                                ctx, "저장하지 못했어요 — 바로 올려볼게요",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                        com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
-                                    } else {
-                                        // 실패는 **이유를 말해야** 한다 — 한 줄로 끝내면 아무것도 못 고친다.
-                                        val why = com.detailline.callfollowcrm.util.VideoMaker.lastError
-                                        android.widget.Toast.makeText(
-                                            ctx,
-                                            if (why.isNullOrBlank()) "영상을 만들지 못했어요"
-                                            else "영상을 만들지 못했어요 — " + why,
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
-                                        // 길어서 토스트에 다 안 들어갈 수 있다 — 로그에도 남긴다.
-                                        android.util.Log.e("VideoMaker", "실패: " + why)
-                                    }
-                                }
-                            }
+                            .clickable { startReel() }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -704,21 +770,6 @@ private fun ShotSmall(label: String, modifier: Modifier = Modifier, onClick: () 
     ) {
         Text(label, style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
             maxLines = 1)
-    }
-}
-
-/** 기록 카드 안 작은 숫자 칸 — 이름·값·단위. */
-@Composable
-private fun RecordCell(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(label, style = AppType.caption, color = TossTextTertiary)
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, style = AppType.title, fontWeight = FontWeight.Black, color = TossTextPrimary,
-                maxLines = 1)
-            Spacer(Modifier.width(2.dp))
-            Text(unit, style = AppType.caption, color = TossTextTertiary,
-                modifier = Modifier.padding(bottom = 2.dp))
-        }
     }
 }
 

@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -104,7 +105,8 @@ fun RegionMap(
     val named = remember(spots) {
         spots.sortedByDescending { it.count }.take(4).map { it.name }.toSet()
     }
-    Box(modifier.fillMaxWidth().height(height)) {
+    // 모서리를 둥글게 — 카드 안에 각진 네모가 들어있으면 붙이다 말은 것처럼 보인다. (프로토 canvas border-radius:12px)
+    Box(modifier.fillMaxWidth().height(height).clip(com.detailline.callfollowcrm.presentation.theme.AppShape.md)) {
         // ⚠ Compose 캔버스는 기본으로 경계를 안 자른다.
         //   확대하면 땅이 카드 밖으로 넘쳐 위에 있는 달 표시를 덮었다(2026-09-24 폰에서 확인).
         Canvas(
