@@ -61,6 +61,23 @@ object RecordReel {
     )
 
     /**
+     * 🔢 `"약 1,250"` → 달린 만큼 올라간 `"약 730"`.
+     *   앞에 붙은 글자(`약 `)와 천 단위 콤마는 그대로 지킨다.
+     *   [p] 가 1이면 원래 글자를 **그대로** 돌려준다 — 끝에는 반드시 진짜 숫자여야 한다.
+     */
+    internal fun countUp(text: String, p: Float): String {
+        if (p >= 1f) return text
+        val digits = text.filter { it.isDigit() }
+        val target = digits.toLongOrNull() ?: return text
+        val now = Math.round(target * p.coerceIn(0f, 1f).toDouble())
+        val head = text.takeWhile { !it.isDigit() }
+        val body = if (text.contains(',')) {
+            java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(now)
+        } else now.toString()
+        return head + body
+    }
+
+    /**
      * 끝에서 쉬는 비율 — 10초짜리면 마지막 1.2초는 다 그려진 채로 머무른다.
      * 🔒 **미리보기도 이 값을 쓴다.** 한쪽에만 넣으면 미리보기와 저장본이 또 달라진다.
      */
@@ -114,13 +131,31 @@ object RecordReel {
 
         c.drawColor(0xFFF7F8FA.toInt())
 
+        // 🚛 지금 어디까지 달렸나 — **숫자와 카메라가 같이 본다.**
+        //   따로 구하면 숫자는 다 올랐는데 트럭은 아직 가는 중인 일이 생긴다.
+        val ordered0 = d.dots.sortedBy { it.order }
+        val trip0 = if (ordered0.size >= 2) MapGeo.fullRoute(ctx, ordered0.map { it.lon to it.lat }) else null
+        val wayLL0 = trip0?.pts
+            ?: FloatArray(ordered0.size * 2) {
+                if (it % 2 == 0) ordered0[it / 2].lon.toFloat() else ordered0[it / 2].lat.toFloat()
+            }
+        val ride = if (ordered0.isEmpty()) null else com.detailline.callfollowcrm.util.MapRide.at(
+            wayLL0, trip0?.stops ?: IntArray(ordered0.size) { it }, t
+        )
+
         // ── 위: 달 · 큰 숫자 · 이름 ──
         var y = pad + h * 0.045f
         c.drawText(d.monthLabel, pad, y, paint(bold, w * 0.036f, hint))
         y += h * 0.062f
+        // 🔢 **달린 만큼 올라간다.** (2026-09-25 사장님 "키로수도 후르륵 올라가는 느낌")
+        //   글자 크기와 'km' 자리는 **최종 숫자**로 정해둔다 — 자릿수가 늘 때마다
+        //   단위가 옆으로 밀리고 글자가 커졌다 작아졌다 하면 싸구려로 보인다.
         val bigP = fit(paint(xbold, w * 0.145f, blue), d.metricValue, w - pad * 2 - w * 0.22f, w * 0.145f, w * 0.085f)
-        c.drawText(d.metricValue, pad, y, bigP)
-        val numW = bigP.measureText(d.metricValue)
+        val shownBig = countUp(d.metricValue, ride?.frac ?: 1f)
+        c.drawText(shownBig, pad, y, bigP)
+        // 단위는 **지금 숫자**에 붙어 따라온다 — 마지막 자릿수로 자리를 박아놓았더니
+        //   "약 52      km" 처럼 멀쪻이 떨어져 보였다. 글자 **크기**만 최종값으로 고정한다.
+        val numW = bigP.measureText(shownBig)
         if (d.metricUnit.isNotBlank()) {
             c.drawText(d.metricUnit, pad + numW + w * 0.014f, y, paint(bold, w * 0.058f, blue))
         }
@@ -140,17 +175,9 @@ object RecordReel {
             //   전엔 수도권 전체를 멀리서 보여줘서 트럭이 깨알만 했다 — 안 움직이는 것처럼 보인다.
             //   트럭 자리는 지도가 쓰는 **그 셈 그대로**(MapRide) 구한다. 따로 구하면 어긋난다.
             //   마지막 현장에 닿으면 쭉 빠지면서, 사장님이 맞춰둔 그 화면으로 한 달 전체를 보여준다.
-            val ordered0 = d.dots.sortedBy { it.order }
-            val trip0 = MapGeo.fullRoute(ctx, ordered0.map { it.lon to it.lat })
-            val wayLL0 = trip0?.pts
-                ?: FloatArray(ordered0.size * 2) {
-                    if (it % 2 == 0) ordered0[it / 2].lon.toFloat() else ordered0[it / 2].lat.toFloat()
-                }
             val shot = com.detailline.callfollowcrm.util.MapRide.follow(
                 b = com.detailline.callfollowcrm.util.MapRide.bounds(ordered0.map { it.lon to it.lat }),
-                at = com.detailline.callfollowcrm.util.MapRide.at(
-                    wayLL0, trip0?.stops ?: IntArray(ordered0.size) { it }, t
-                ),
+                at = ride!!,
                 t = t,
                 restZoom = d.zoom, restPanX = d.panX, restPanY = d.panY
             )
