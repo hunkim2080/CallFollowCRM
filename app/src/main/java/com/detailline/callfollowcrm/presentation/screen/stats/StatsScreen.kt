@@ -677,7 +677,10 @@ private fun ShotPreviewDialog(
                                     ctx, nc, reelData, reelT,
                                     com.detailline.callfollowcrm.util.RecordReel.W,
                                     com.detailline.callfollowcrm.util.RecordReel.H,
-                                    previewPhotos
+                                    previewPhotos,
+                                    // 🔒 저장되는 영상과 **같은 값**. 끝 박자를 여기 빼먹으면
+                                    //   미리보기에선 마지막 사진이 스치고 저장본은 머문다. (2026-09-25)
+                                    com.detailline.callfollowcrm.util.RecordReel.END_HOLD
                                 )
                                 nc.restore()
                             }
@@ -705,6 +708,25 @@ private fun ShotPreviewDialog(
                         style = AppType.caption, color = TossTextTertiary,
                         modifier = Modifier.padding(start = 2.dp)
                     )
+                    // 📸 **몇 곳에 사진이 있는지 말해준다.** (2026-09-25 사장님 "5집인데 사진 4개")
+                    //   사진 없는 동네는 직전 사진을 그대로 두는데(깜빡임 방지),
+                    //   그러면 **왜 빠졌는지 알 길이 없다.** 어디를 채우면 되는지 알려준다.
+                    val noPhoto = rec.dots.sortedBy { it.order }.filter { it.photoPath == null }
+                    if (rec.dots.isNotEmpty()) {
+                        Spacer(Modifier.height(AppSpace.s4))
+                        Text(
+                            if (noPhoto.isEmpty())
+                                "현장 사진 ${rec.dots.size}/${rec.dots.size} — 도착할 때마다 바뀌어요"
+                            else
+                                "현장 사진 ${rec.dots.size - noPhoto.size}/${rec.dots.size} · " +
+                                    noPhoto.joinToString(" · ") { it.name } +
+                                    "은 아직 없어요 (고객 상세에서 올리면 들어가요)",
+                            style = AppType.caption,
+                            color = if (noPhoto.isEmpty()) TossTextTertiary else AppTheme.colors.unpaid,
+                            lineHeight = 16.sp,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
                 }
                 Spacer(Modifier.height(AppSpace.s12))
                 // ── 무엇을 자랑할까요? ── 자랑할 숫자는 사람마다 다르다. (2026-09-24 사장님)

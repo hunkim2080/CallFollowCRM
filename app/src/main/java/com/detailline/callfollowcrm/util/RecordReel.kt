@@ -60,6 +60,12 @@ object RecordReel {
         val sign: Boolean = true
     )
 
+    /**
+     * 끝에서 쉬는 비율 — 10초짜리면 마지막 1.2초는 다 그려진 채로 머무른다.
+     * 🔒 **미리보기도 이 값을 쓴다.** 한쪽에만 넣으면 미리보기와 저장본이 또 달라진다.
+     */
+    const val END_HOLD = 0.12f
+
     private fun font(ctx: Context, id: Int): Typeface? =
         runCatching { ResourcesCompat.getFont(ctx, id) }.getOrNull()
 
@@ -85,8 +91,16 @@ object RecordReel {
          * 미리 읽어둔 현장 사진들 — **동네 이름 → 사진.** 240컷마다 파일을 새로 읽으면 한참 걸린다.
          *   트럭이 그 동네에 **도착하면 그 사진으로 바뀐다.** (2026-09-25 사장님)
          */
-        photos: Map<String, android.graphics.Bitmap> = emptyMap()
+        photos: Map<String, android.graphics.Bitmap> = emptyMap(),
+        /**
+         * 끝에서 **한 박자 쉬는** 비율. 0.12 면 88% 지점에서 다 달리고 남은 1.2초는 멈춰 있는다.
+         *   전엔 마지막 현장 사진이 **0.6초만** 보이고 영상이 끝났다. (2026-09-25 사장님)
+         *   다 그려진 지도가 잠깐 머무르는 게 마무리로도 낫다.
+         */
+        endHold: Float = 0f
     ) {
+        @Suppress("NAME_SHADOWING")
+        val t = if (endHold > 0f) (t / (1f - endHold)).coerceAtMost(1f) else t
         val bold = font(ctx, R.font.pretendard_bold)
         val xbold = font(ctx, R.font.pretendard_extrabold)
         val med = font(ctx, R.font.pretendard_medium)
@@ -255,7 +269,7 @@ object RecordReel {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = forward
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, END_HOLD) }
             ?.let { lastMadeSize = "$W × $H"; return it }
         retrying = true   // 여기부터는 "다른 방법으로 다시 만드는 중"
         // ② 안 되면 **소프트웨어 인코더**로. 느리지만 어느 폰에서나 된다.
@@ -264,7 +278,7 @@ object RecordReel {
             VideoMaker.make(
                 outFile = out, width = W, height = H, fps = 24, seconds = seconds,
                 codecName = sw, progress = forward
-            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }
+            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, END_HOLD) }
                 ?.let { lastMadeSize = "$W × $H"; return it }
         }
         // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
@@ -273,7 +287,7 @@ object RecordReel {
         return VideoMaker.make(
             outFile = out, width = w2, height = h2, fps = 20, seconds = seconds,
             bitRate = 3_500_000, progress = forward
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos, END_HOLD) }
             ?.also { lastMadeSize = "$w2 × $h2" }
         } finally {
             // 읽어둔 사진은 반드시 놓아준다 — 그대로 두면 메모리를 잡아먹는다.

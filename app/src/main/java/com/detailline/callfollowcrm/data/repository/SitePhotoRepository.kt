@@ -41,6 +41,10 @@ class SitePhotoRepository(
         ): SitePhotoEntity? =
             photos.firstOrNull { it.jobId != null && it.jobId == jobId }
                 ?: photos.firstOrNull { it.jobId == null && it.customerId == customerId }
+                // 마지막 수단 — **그 고객의 아무 사진.** (2026-09-25 "5집인데 사진 4개")
+                //   사장님이 1차 탭에서 올린 사진이 2차 건에 안 붙어 **조용히 빠지던** 경우를 건진다.
+                //   그 고객 현장 사진인 건 맞으니, 아예 안 나오는 것보다 낫다.
+                ?: photos.firstOrNull { it.customerId == customerId }
     }
 
     private fun photoDir(): File = File(context.filesDir, "site_photos").apply { mkdirs() }
