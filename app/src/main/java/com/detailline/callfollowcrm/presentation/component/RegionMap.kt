@@ -18,8 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -111,37 +116,51 @@ fun RegionMap(
         Canvas(
             Modifier.fillMaxWidth().height(height).clipToBounds()
                 // 지도인데 손가락으로 안 늘어나면 고장으로 느껴진다. (2026-09-25 사장님 "기본 UX")
+                //
+                // 🖐 **언제 지도가 손가락을 먹을지를 우리가 정한다.** (2026-09-25 점검)
+                //   detectTransformGestures 는 손가락 하나로 끌어도 다 먹어서,
+                //   지도 위(「내 기록」 화면 위 1/3)에서 **화면이 안 내려갔다.**
+                //   게다가 1배에선 지도가 거의 안 움직이니(한도 ±0.05) 먹어놓고 아무 일도 안 했다.
+                //   · 기본(1배): 한 손가락은 **안 먹는다** → 화면이 스크롤된다
+                //   · 두 손가락이거나 이미 확대된 뒤: 지도가 먹는다(그때는 그게 자연스럽다)
+                //   · 두 번 톡 치면 1배로 돌아오니 **나올 길**이 있다
                 .pointerInput(Unit) {
-                    detectTransformGestures { centroid, pan, zoomChange, _ ->
-                        // ⚠️ 바깥 값을 그냥 쓰면 **처음 값(1배)을 계속 붙잡는다** — 항상 지금 값을 읽는다.
-                        //   (2026-09-25 "줌인 반응은 있는데 확대축소가 되다 말아")
-                        val nz = (zoomNow * zoomChange).coerceIn(0.6f, 8f)
-                        val ratio = if (zoomNow > 0f) nz / zoomNow else 1f
-                        // 🔍 **집던 곳이 제자리에 있게** — 두 손가락 사이를 기준으로 커진다.
-                        //   화면 한가운데 기준으로 커지면 확대할 때마다 보던 데를 놓친다.
-                        val fx = (centroid.x - size.width / 2f) / size.width
-                        val fy = (centroid.y - size.height / 2f) / size.height
-                        var px = panXNow * ratio + fx * (1f - ratio)
-                        var py = panYNow * ratio + fy * (1f - ratio)
-                        // ✋ 끈 만큼 **그대로** 따라온다. 전엔 여기서 배수로 한 번 더 나눠서
-                        //   4배로 확대하면 손가락이 간 거리의 16분의 1만 움직였다(뻑뻑함의 정체).
-                        px += pan.x / size.width
-                        py += pan.y / size.height
-                        // 📐 움직일 수 있는 범위는 **확대한 만큼**이다 — 고정값이면 안 된다.
-                        //   그리는 식: 보는 창의 반폭 = 1/(2z), 중심 이동 = panX/z (둘 다 전체 폭 기준).
-                        //   창이 틀 밖으로 안 나가려면  |panX|/z + 1/(2z) ≤ 1/2  →  **|panX| ≤ (z-1)/2**.
-                        //   전엔 ±3 고정이라 ① 1배에서도 지도를 화면 밖으로 밀어낼 수 있었고
-                        //   ② 끝까지 확대하면(8배) 필요한 3.5 를 3 에서 잘라
-                        //      **집고 있던 자리가 어긋나며 옆으로 한 번 꺾였다.**
-                        //      (2026-09-25 사장님 "줌 인을 쭉 하면 마지막에 좌측으로 한번 꺾인다")
-                        //   0.05 는 1배에서도 끈 게 보이라고 남겨둔 아주 작은 여유.
-                        val lim = ((nz - 1f) / 2f).coerceAtLeast(0.05f)
-                        onTransform?.invoke(nz, px.coerceIn(-lim, lim), py.coerceIn(-lim, lim))
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        do {
+                            val ev = awaitPointerEvent()
+                            val pressed = ev.changes.count { it.pressed }
+                            val mine = pressed >= 2 || zoomNow > 1.01f
+                            if (mine) {
+                                val centroid = ev.calculateCentroid(useCurrent = false)
+                                val pan = ev.calculatePan()
+                                val zoomChange = ev.calculateZoom()
+                                if (centroid != androidx.compose.ui.geometry.Offset.Unspecified) {
+                                    // ⚠️ 바깥 값을 그냥 쓰면 **처음 값(1배)을 계속 붙잡는다** — 항상 지금 값을 읽는다.
+                                    //   (2026-09-25 "줌인 반응은 있는데 확대축소가 되다 말아")
+                                    val nz = (zoomNow * zoomChange).coerceIn(0.6f, 8f)
+                                    val ratio = if (zoomNow > 0f) nz / zoomNow else 1f
+                                    // 🔍 **집던 곳이 제자리에 있게** — 두 손가락 사이를 기준으로 커진다.
+                                    val fx = (centroid.x - size.width / 2f) / size.width
+                                    val fy = (centroid.y - size.height / 2f) / size.height
+                                    var px = panXNow * ratio + fx * (1f - ratio)
+                                    var py = panYNow * ratio + fy * (1f - ratio)
+                                    // ✋ 끈 만큼 **그대로** 따라온다(배수로 또 나누면 뻑뻑해진다).
+                                    px += pan.x / size.width
+                                    py += pan.y / size.height
+                                    // 📐 움직일 범위는 **확대한 만큼**. 고정값이면 8배에서 잘려 옆으로 꺾인다.
+                                    //   보는 창 반폭=1/(2z), 중심 이동=panX/z → |panX| ≤ (z-1)/2.
+                                    val lim = ((nz - 1f) / 2f).coerceAtLeast(0.05f)
+                                    onTransform?.invoke(nz, px.coerceIn(-lim, lim), py.coerceIn(-lim, lim))
+                                }
+                                ev.changes.forEach { if (it.positionChanged()) it.consume() }
+                            }
+                        } while (ev.changes.any { it.pressed })
                     }
                 }
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        // 두 번 톡 치면 처음으로 — 손가락으로 헤맸을 때 돌아올 길이 있어야 한다.
+                        // 두 번 톡 치면 처음으로 — 확대해서 한 손가락이 지도에 먹힐 때 **나올 길**이다.
                         onDoubleTap = { onTransform?.invoke(1f, 0f, 0f) },
                         // 한 번 톡 치면 **다시 달린다** — 멈춘 뒤 또 보고 싶을 때.
                         onTap = { playTick++ }
