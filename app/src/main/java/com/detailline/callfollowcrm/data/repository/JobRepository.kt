@@ -358,6 +358,12 @@ class JobRepository(
      *   고객 카드까지 '완료'로 찍어도 되는지 판단용 — 앞으로 할 시공이 있는데 찍으면
      *   그 손님이 [시공 대기] 에서 사라진다.
      */
+    /** 이 건 말고 **이미 끝낸 건**이 더 있나 — 되돌릴 때 고객 카드까지 지워도 되는지 판단용. */
+    suspend fun hasOtherDoneJob(customerId: Long, exceptJobId: Long): Boolean =
+        jobDao.scheduledByCustomerOnce(customerId).any {
+            it.id != exceptJobId && it.workCompletedAt != null
+        }
+
     suspend fun hasOtherOpenJob(customerId: Long, exceptJobId: Long): Boolean =
         jobDao.scheduledByCustomerOnce(customerId).any {
             it.id != exceptJobId && it.workCompletedAt == null && it.cancelledAt == null

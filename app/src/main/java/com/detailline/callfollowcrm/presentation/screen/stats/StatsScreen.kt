@@ -84,8 +84,13 @@ fun StatsScreen(
     val trend by viewModel.trend.collectAsState()
     val rec by viewModel.myRecord.collectAsState()
 
+    // 되돌릴 수 없는 일엔 **되돌릴 길**이 있어야 한다. (2026-09-25 기본 UX 점검)
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
     Scaffold(
         containerColor = TossGrayBg,
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
@@ -118,7 +123,19 @@ fun StatsScreen(
                     MyRecordRows(
                         rec = rec,
                         onOpenRow = { r -> onOpenCustomer(r.customerId) },
-                        onComplete = { r -> viewModel.completeRecordJob(r.jobId, r.customerId) }
+                        onComplete = { r ->
+                            viewModel.completeRecordJob(r.jobId, r.customerId)
+                            scope.launch {
+                                val res = snackbar.showSnackbar(
+                                    (r.town ?: "이 현장") + " 완료로 표시했어요",
+                                    actionLabel = "되돌리기",
+                                    duration = androidx.compose.material3.SnackbarDuration.Short
+                                )
+                                if (res == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                    viewModel.undoRecordJob(r.jobId, r.customerId)
+                                }
+                            }
+                        }
                     )
                     Spacer(Modifier.height(18.dp))
                 }
@@ -346,6 +363,16 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
     var making by remember { mutableStateOf(-1f) }
     /** 만드는 중인 일 — [취소] 로 끊는다. */
     var reelJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    /** 방금 사진첩에 저장한 것 — 어디 갔는지 **열어볼 수 있게** 주소를 들고 있는다. */
+    var savedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var savedMime by remember { mutableStateOf("image/png") }
+
+    // 🔆 영상 만드는 동안 **화면이 꺼지면 만들던 게 끊긴다.** 만드는 중에만 켜 둔다.
+    val actWindow = (ctx as? android.app.Activity)?.window
+    androidx.compose.runtime.DisposableEffect(making >= 0f) {
+        if (making >= 0f) actWindow?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { actWindow?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
     val sticker = shape == com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER
     // 큰 숫자 고르기 — 한가한 달엔 '이번 달' 이 초라하니 **올해 누적**이 기본.
     val picks = remember(rec) { bigPicks(rec) }
@@ -434,12 +461,15 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                     ShotSmall("사진첩에 저장", Modifier.weight(1f)) {
                         scope.launch {
                             val name = "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape)
-                            val ok = com.detailline.callfollowcrm.util.RecordShot.save(ctx, bmp, name)
-                            android.widget.Toast.makeText(
-                                ctx,
-                                if (ok) "사진첩에 저장했어요" else "저장하지 못했어요 — [올리기] 로 보내보세요",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
+                            val uri = com.detailline.callfollowcrm.util.RecordShot.save(ctx, bmp, name)
+                            savedUri = uri
+                            savedMime = "image/png"
+                            if (uri == null) {
+                                android.widget.Toast.makeText(
+                                    ctx, "저장하지 못했어요 — [올리기] 로 보내보세요",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                     }
                     Box(
@@ -505,14 +535,17 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                                     making = -1f
                                     reelJob = null
                                     if (reel != null) {
-                                        val ok = com.detailline.callfollowcrm.util.RecordShot.saveVideo(
+                                        val uri = com.detailline.callfollowcrm.util.RecordShot.saveVideo(
                                             ctx, reel, "shigongmagne_%03d".format(rec.lastNo)
                                         )
-                                        android.widget.Toast.makeText(
-                                            ctx,
-                                            if (ok) "사진첩에 영상으로 저장했어요" else "저장하지 못했어요 — 바로 올려볼게요",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
+                                        savedUri = uri
+                                        savedMime = "video/mp4"
+                                        if (uri == null) {
+                                            android.widget.Toast.makeText(
+                                                ctx, "저장하지 못했어요 — 바로 올려볼게요",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
                                         com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
                                     } else {
                                         android.widget.Toast.makeText(
@@ -525,6 +558,30 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text("영상 만들기 (릴스용 10초)", style = AppType.label,
+                            fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    }
+                }
+
+                // ✅ 저장했으면 **어디 갔는지 열어볼 길**을 남긴다.
+                //   토스트는 사라지고 나면 확인할 방법이 없다. (2026-09-25 기본 UX 점검)
+                savedUri?.let { uri ->
+                    Spacer(Modifier.height(AppSpace.s8))
+                    Row(
+                        Modifier.fillMaxWidth().clip(AppShape.md)
+                            .background(AppTheme.colors.primaryBg)
+                            .clickable {
+                                com.detailline.callfollowcrm.util.RecordShot.openSaved(ctx, uri, savedMime)
+                            }
+                            .padding(horizontal = 13.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (savedMime.startsWith("video")) "사진첩에 영상으로 저장했어요"
+                            else "사진첩에 저장했어요",
+                            style = AppType.label, color = TossTextSecondary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text("열어보기", style = AppType.label,
                             fontWeight = FontWeight.ExtraBold, color = TossBlue)
                     }
                 }

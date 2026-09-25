@@ -330,7 +330,7 @@ object RecordShot {
     }
 
     /** 영상을 **사진첩에** 저장 — 나중에 인스타에서 골라 올릴 수 있게. */
-    suspend fun saveVideo(ctx: Context, file: File, name: String): Boolean =
+    suspend fun saveVideo(ctx: Context, file: File, name: String): android.net.Uri? =
         withContext(Dispatchers.IO) {
             runCatching {
                 val values = ContentValues().apply {
@@ -342,16 +342,28 @@ object RecordShot {
                 }
                 val uri = ctx.contentResolver.insert(
                     MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values
-                ) ?: return@runCatching false
+                ) ?: return@runCatching null
                 ctx.contentResolver.openOutputStream(uri)?.use { out ->
                     file.inputStream().use { it.copyTo(out) }
                 }
-                true
-            }.getOrDefault(false)
+                uri
+            }.getOrNull()
         }
 
-    /** 사진첩에 저장. */
-    suspend fun save(ctx: Context, bmp: Bitmap, name: String): Boolean =
+    /** 방금 저장한 것을 **열어본다** — 어디 갔는지 볼 길이 있어야 한다. (2026-09-25 기본 UX) */
+    fun openSaved(ctx: Context, uri: android.net.Uri, mime: String) {
+        runCatching {
+            ctx.startActivity(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mime)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        }
+    }
+
+    /** 사진첩에 저장 — **어디에 저장됐는지**(주소)를 돌려준다. 실패하면 null. */
+    suspend fun save(ctx: Context, bmp: Bitmap, name: String): android.net.Uri? =
         withContext(Dispatchers.IO) {
             runCatching {
                 val values = ContentValues().apply {
@@ -365,16 +377,16 @@ object RecordShot {
                 }
                 val uri = ctx.contentResolver.insert(
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
-                ) ?: return@runCatching false
+                ) ?: return@runCatching null
                 ctx.contentResolver.openOutputStream(uri)?.use {
                     bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
-                } ?: return@runCatching false
+                } ?: return@runCatching null
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     values.clear(); values.put(MediaStore.Images.Media.IS_PENDING, 0)
                     ctx.contentResolver.update(uri, values, null, null)
                 }
-                true
-            }.getOrDefault(false)
+                uri
+            }.getOrNull()
         }
 
     /** 다른 앱으로 보내기(인스타·카톡 등). 견적서 발행과 **같은 길**(cacheDir/shared + FileProvider). */

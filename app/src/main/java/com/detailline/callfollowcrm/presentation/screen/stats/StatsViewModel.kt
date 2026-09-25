@@ -92,6 +92,21 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         com.detailline.callfollowcrm.util.DongCoords.of(container.appContext, address)
             ?: com.detailline.callfollowcrm.util.RegionCoords.of(address)
 
+    /**
+     * 완료 **되돌리기**. (2026-09-25 기본 UX — 되돌릴 수 없는 일엔 되돌릴 길이 있어야 한다)
+     *   건의 완료를 지우고, 그 손님에게 **다른 완료 건이 없으면** 고객 카드도 같이 지운다.
+     *   번호는 [JobRepository] 가 시공 날짜 순으로 다시 매기므로 빈 번호가 안 남는다.
+     */
+    fun undoRecordJob(jobId: Long, customerId: Long) = viewModelScope.launch {
+        runCatching {
+            val now = System.currentTimeMillis()
+            container.jobRepository.setWorkCompleted(jobId, null, now)
+            if (!container.jobRepository.hasOtherDoneJob(customerId, jobId)) {
+                container.customerRepository.updateWorkCompletedAt(customerId, null)
+            }
+        }
+    }
+
     fun shiftRecordMonth(delta: Int) {
         // 앞으로는 이번 달까지만 — 안 온 달은 볼 게 없다.
         recordMonth.value = (recordMonth.value + delta).coerceAtMost(0)
