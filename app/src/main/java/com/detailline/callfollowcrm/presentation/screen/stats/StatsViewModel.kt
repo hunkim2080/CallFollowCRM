@@ -169,6 +169,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         //   🚛 가 **날짜 순서대로** 달려야 하므로, 처음 간 날 순으로 자리를 매긴다.
         val counts = LinkedHashMap<String, Triple<Double, Double, Int>>()
         val firstAt = LinkedHashMap<String, Long>()
+        // 동네마다 **그 현장 사진** — 영상에서 거기 도착하면 이 사진으로 바뀐다. (2026-09-25 사장님)
+        val photoOf = LinkedHashMap<String, String>()
         // 그 동네에서 번 돈 — 도착할 때 **지폐가 몇 장 올라올지**를 정한다. (2026-09-25)
         val moneyOf = LinkedHashMap<String, Int>()
         for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
@@ -178,12 +180,20 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
             firstAt.putIfAbsent(spot.name, j.scheduledWorkDate ?: 0L)
             moneyOf[spot.name] = (moneyOf[spot.name] ?: 0) + ((j.totalAmount ?: 0L) / 10_000L).toInt()
+            // 그 동네 사진 — **그 현장에 제일 먼저 올린 것.** [photos] 가 올린 순서라 먼저 걸리는 게 대표.
+            //   한 동네에 현장이 여럿이면, 사진이 있는 **첫 현장** 것을 쓴다.
+            if (photoOf[spot.name] == null) {
+                val hit = photos.firstOrNull { it.jobId == j.id }
+                    ?: photos.firstOrNull { it.jobId == null && it.customerId == j.customerId }
+                hit?.filePath?.takeIf { java.io.File(it).exists() }?.let { photoOf[spot.name] = it }
+            }
         }
         val orderOf = firstAt.entries.sortedBy { it.value }.mapIndexed { i, e -> e.key to i }.toMap()
         val dots = counts.map { (nm, v) ->
             com.detailline.callfollowcrm.presentation.component.RegionDot(
                 nm, v.first, v.second, v.third, orderOf[nm] ?: 0,
-                amountManwon = moneyOf[nm] ?: 0
+                amountManwon = moneyOf[nm] ?: 0,
+                photoPath = photoOf[nm]
             )
         }
         // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.

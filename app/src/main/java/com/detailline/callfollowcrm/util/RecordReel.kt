@@ -79,8 +79,11 @@ object RecordReel {
      */
     fun drawFrame(
         ctx: Context, c: Canvas, d: Data, t: Float, w: Int = W, h: Int = H,
-        /** 미리 읽어둔 현장 사진. 240컷마다 파일을 새로 읽으면 한참 걸린다. */
-        photo: android.graphics.Bitmap? = null
+        /**
+         * 미리 읽어둔 현장 사진들 — **동네 이름 → 사진.** 240컷마다 파일을 새로 읽으면 한참 걸린다.
+         *   트럭이 그 동네에 **도착하면 그 사진으로 바뀐다.** (2026-09-25 사장님)
+         */
+        photos: Map<String, android.graphics.Bitmap> = emptyMap()
     ) {
         val bold = font(ctx, R.font.pretendard_bold)
         val xbold = font(ctx, R.font.pretendard_extrabold)
@@ -111,6 +114,8 @@ object RecordReel {
         // ── 가운데: 지도 ── 세로로 길게 준다. 릴스는 위아래가 넉넉하다.
         val mapTop = y + h * 0.028f
         val mapH = h * 0.545f
+        // 지도가 **몇 번째 현장까지 왔는지** 알려준다 — 사진을 그걸로 고른다.
+        var arrived = 0
         if (d.dots.isNotEmpty()) {
             c.save()
             c.translate(0f, mapTop)
@@ -132,14 +137,29 @@ object RecordReel {
                     progress = t,
                     geo = MapGeo.load(ctx),
                     trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat }),
-                    zoom = d.zoom, panX = d.panX, panY = d.panY
+                    zoom = d.zoom, panX = d.panX, panY = d.panY,
+                    onArrived = { arrived = it }
                 )
             }
             c.restore()
         }
 
-        // ── 지도 오른쪽 위에 **현장 사진 한 장** ── 그림(인증샷)과 같은 자리.
+        // ── 지도 오른쪽 위에 **지금 그 현장의 사진** ── 그림(인증샷)과 같은 자리.
         //   왼쪽 위는 큰 숫자가 쓰고 있어서 오른쪽 위가 빈다.
+        //   도착한 데부터 거꾸로 훑어 **사진이 있는 제일 가까운 현장**을 쓴다
+        //   — 그 동네에 사진이 없다고 화면이 깜빡이면 오히려 어수선하다.
+        val ordered = d.dots.sortedBy { it.order }
+        val photo = run {
+            var i = arrived.coerceIn(0, maxOf(0, ordered.size - 1))
+            var found: android.graphics.Bitmap? = null
+            while (i >= 0) {
+                val nm = ordered.getOrNull(i)?.name
+                val b = if (nm != null) photos[nm] else null
+                if (b != null) { found = b; break }
+                i--
+            }
+            found
+        }
         if (photo != null) {
             val side = w * 0.30f
             val bx = w - pad - side
@@ -193,19 +213,31 @@ object RecordReel {
     ): File? {
         val out = File(File(ctx.cacheDir, "shared").apply { mkdirs() }, "shigongmagne_reel.mp4")
         // 사진은 **한 번만** 읽는다 — 240컷마다 파일을 열면 영상 하나에 몇 분이 더 걸린다.
-        val photo = RecordShot.loadPhoto(d.photoPath, W, W)
+        //   화면에 들어갈 칸이 폭의 30%(≈216px) 라 320 이면 넉넉하다. 크게 읽으면 메모리만 먹는다.
+        val photos = LinkedHashMap<String, android.graphics.Bitmap>()
+        for (dot in d.dots.sortedBy { it.order }.take(12)) {
+            val p = dot.photoPath ?: continue
+            if (photos.containsKey(dot.name)) continue
+            RecordShot.loadPhoto(p, 320, 320)?.let { photos[dot.name] = it }
+        }
+        // 동네별 사진이 하나도 없으면 **그 달 대표 사진**이라도 쓴다(예전처럼 한 장).
+        if (photos.isEmpty()) {
+            RecordShot.loadPhoto(d.photoPath, 320, 320)?.let { b ->
+                d.dots.minByOrNull { it.order }?.let { photos[it.name] = b }
+            }
+        }
         try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = progress
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photo) }?.let { return it }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }?.let { return it }
         // ② 안 되면 **소프트웨어 인코더**로. 느리지만 어느 폰에서나 된다.
         //   (갤S23U·안드로이드 16 에서 하드웨어가 말썽이었다 — 2026-09-25 사장님 폰)
         VideoMaker.softwareEncoder()?.let { sw ->
             VideoMaker.make(
                 outFile = out, width = W, height = H, fps = 24, seconds = seconds,
                 codecName = sw, progress = progress
-            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photo) }?.let { return it }
+            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }?.let { return it }
         }
         // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
         val w2 = 540
@@ -213,10 +245,10 @@ object RecordReel {
         return VideoMaker.make(
             outFile = out, width = w2, height = h2, fps = 20, seconds = seconds,
             bitRate = 3_500_000, progress = progress
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photo) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos) }
         } finally {
-            // 읽어둔 사진은 반드시 놓아준다 — 큰 사진이라 그대로 두면 메모리를 잡아먹는다.
-            runCatching { photo?.recycle() }
+            // 읽어둔 사진은 반드시 놓아준다 — 그대로 두면 메모리를 잡아먹는다.
+            for (b in photos.values) runCatching { b.recycle() }
         }
     }
 }

@@ -733,7 +733,9 @@ private fun ShotPreviewDialog(
                             animationSpec = tween(durationMillis = 260),
                             label = "reel"
                         )
-                        val fillColor = AppTheme.colors.primaryBg
+                        // ⚠️ primaryBg(#EEF4FF) 는 바탕 회색(#F2F4F6)과 거의 같아 **안 보인다.**
+                        //   "파란색 바가 같이 차올라야지" (2026-09-25 사장님) → 진한 파랑을 옅게 깐다.
+                        val fillColor = TossBlue.copy(alpha = 0.32f)
                         Box(
                             Modifier.weight(1f).clip(AppShape.md).background(TossGrayBg)
                                 // 찬 만큼 **글자 뒤로** 파랗게 칠한다. (자리를 안 흔들려고 그리기로만)

@@ -162,7 +162,12 @@ fun RegionMap(
 data class RegionDot(
     val name: String, val lat: Double, val lon: Double, val count: Int, val order: Int = 0,
     /** 그 동네에서 번 돈(만원). 도착할 때 **지폐가 몇 장 올라올지**를 정한다. 0 이면 안 올라온다. */
-    val amountManwon: Int = 0
+    val amountManwon: Int = 0,
+    /**
+     * 그 동네 현장의 **대표 사진**(제일 먼저 올린 것). 영상에서 **거기 도착하면 이 사진으로 바뀐다.**
+     *   (2026-09-25 사장님 "그 현장에 도착할때마다 바껴야하는데") null 이면 안 바꾼다.
+     */
+    val photoPath: String? = null
 )
 
 /**
@@ -303,6 +308,11 @@ internal fun DrawScope.drawRegionMap(
     /** 손가락으로 끈 만큼 — 화면 폭·높이에 대한 비율. */
     panX: Float = 0f,
     panY: Float = 0f,
+    /**
+     * **지금 몇 번째 현장까지 왔나**(0부터)를 알려준다. 영상이 그 현장 사진으로 바꾸는 데 쓴다.
+     *   ⚠️ 밖에서 따로 계산하면 트럭과 사진이 어긋난다 — **같은 셈을 두 번 하지 않는다.**
+     */
+    onArrived: ((Int) -> Unit)? = null,
     /**
      * **진짜 지도 좌표**(Natural Earth). null 이면 예전 손그림으로 그린다.
      *   부르는 쪽에서 `MapGeo.load(context)` 로 한 번 읽어 넘긴다 — 여기선 Context 를 못 쓴다.
@@ -590,6 +600,7 @@ internal fun DrawScope.drawRegionMap(
         travelled = totalLen * progress.coerceIn(0f, 1f)
         arrivedUpTo = route.size - 1
     }
+    onArrived?.invoke(arrivedUpTo)
 
     // ── 지나온 길 ── 앞길은 안 보여준다(결말을 미리 알려주면 도착이 시시하다).
     if (way.size >= 2) {
