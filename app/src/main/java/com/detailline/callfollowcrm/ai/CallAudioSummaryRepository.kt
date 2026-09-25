@@ -93,11 +93,19 @@ class CallAudioSummaryRepository(
                 .url("$baseUrl/api/call-audio-summary")
                 .post(body)
                 .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                val raw = resp.body?.string().orEmpty()
-                if (raw.isBlank()) throw IOException("empty body")
-                parse(JSONObject(raw))
+            try {
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val raw = resp.body?.string().orEmpty()
+                    if (raw.isBlank()) throw IOException("empty body")
+                    parse(JSONObject(raw))
+                }
+            } catch (e: IOException) {
+                // ❌ 끊겼다 — 그런데 **서버는 다 만들어놓고 끝냈을 수 있다.**
+                //   (2026-09-25 실사고: 서버 로그엔 '→ ready haiku' 까지 찍혔는데
+                //    응답 로그가 없었다 = 받아갈 사람이 없었다. 사장님 눈엔 "다시 요약이 안 됨")
+                //   버리기 전에 **한 번 더 물어본다.**
+                tryFetchResult(phone, startedAtMs) ?: throw e
             }
         }
     }
@@ -145,6 +153,27 @@ class CallAudioSummaryRepository(
      *
      * 서버가 이 경로를 모르면(404) 예전 방식으로 되돌아간다 — 서버가 먼저 안 올라가도 안 깨지게.
      */
+    /**
+     * 한 번에 받아오는 길이 끊겼을 때 — **서버엔 이미 답이 있을 수 있다.**
+     *   (서버는 응답을 못 보냈어도 요약을 캐시에 넣고 끝낸다)
+     *   100초를 날리고 그냥 실패로 끝내면, 사장님 눈엔 "다시 요약이 안 되는 앱"이 된다.
+     */
+    private fun tryFetchResult(phone: String, startedAtMs: Long): Result? {
+        val digits = phone.filter { it.isDigit() }
+        val url = "$baseUrl/api/call-audio-summary/result?phone=$digits&started_at_ms=$startedAtMs"
+        // 뒤에서 마무리 중일 수 있으니 몇 번 물어본다.
+        repeat(6) {
+            val obj = runCatching {
+                client.newCall(Request.Builder().url(url).get().build()).execute().use { r ->
+                    if (!r.isSuccessful) null else r.body?.string()?.takeIf { b -> b.isNotBlank() }?.let { b -> JSONObject(b) }
+                }
+            }.getOrNull()
+            if (obj != null && obj.optString("status") == "ready") return parse(obj)
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+        return null
+    }
+
     private fun summarizeAsync(body: MultipartBody, phone: String, startedAtMs: Long): Result {
         val startReq = Request.Builder().url("$baseUrl/api/call-audio-summary/start").post(body).build()
         client.newCall(startReq).execute().use { resp ->
@@ -179,9 +208,18 @@ class CallAudioSummaryRepository(
     private class NotSupportedException : IOException("async not supported")
 
     companion object {
-        /** 이보다 길거나 크면 '맡겨두고 물어보기'. 게이트웨이 100초 제한에 한참 못 미치게 여유를 둔다. */
-        private const val ASYNC_DURATION_SEC = 180          // 3분
-        private const val ASYNC_BYTES = 3 * 1024 * 1024     // 3MB
+        /**
+         * 이보다 길거나 크면 '맡겨두고 물어보기'.
+         *
+         * ⚠️ 2026-09-25 실사고 — 기준이 3분/3MB 였는데 **2분20초·2.2MB 통화가 끊겼다.**
+         *   한 번에 받아오는 길은 중간 관문(Cloudflare)이 **100초**에서 자른다.
+         *   그런데 STT + 오타보정 + 화자분리 + (구글 붐비면) 재시도까지 하면
+         *   2분짜리 통화도 100초를 넘길 수 있다. 서버는 다 만들어놓고, 받아갈 사람이 없었다.
+         *   → **기준을 확 낮춘다.** 맡겨두고 물어보는 길은 오래 걸려도 안 끊긴다.
+         *     조금 오래 걸리는 게, 다 해놓고 날리는 것보다 백 번 낫다.
+         */
+        private const val ASYNC_DURATION_SEC = 45           // 45초
+        private const val ASYNC_BYTES = 700 * 1024          // 700KB
         private const val POLL_INTERVAL_MS = 8_000L
         private const val POLL_TIMEOUT_MS = 15 * 60 * 1000L // 최장 15분 (한 시간짜리 통화까진 아직)
     }

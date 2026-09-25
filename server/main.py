@@ -14819,7 +14819,8 @@ async def _call_gemini_json_for_summary(
         if resp.status_code not in (500, 502, 503, 504):
             break
         if _try < 2:
-            _wait = 3 * (_try + 1)
+            # 2초 · 4초. 더 길게 쉬면 **한 번에 받아오는 길**이 중간 관문(100초)에 걸린다. (2026-09-25)
+            _wait = 2 * (_try + 1)
             print(
                 f"[gemini] 통화요약 status {resp.status_code} — "
                 f"{_wait}초 쉬었다 재시도 ({_try + 2}/3)"
