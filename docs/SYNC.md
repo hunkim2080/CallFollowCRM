@@ -11441,3 +11441,12 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
 - 고침: `presentation/component/CallSummaryBody.kt` **신설 — 그리는 곳을 하나로.**
   두 화면 모두 이걸 쓴다. 🔒 새 화면에서도 이걸 쓸 것(파일 맨 위에 못 박아둠).
 - ⚠️ 테스트폰엔 요약된 통화가 없어 **눈으로는 확인 못 함**(빌드 3종 통과·크래시 없음).
+
+## 2026-09-25 15:35 · android
+요약의 **시각을 누르면 그 대목부터 재생** (사장님: "에이닷인데 그 시간을 누르면 그쪽으로 넘어가지는데? 우리도 그렇게하자")
+- 재료는 이미 다 있었다 — `CallSummaryLines.startMsOf` · `CallRecordingPlayer(seekReqMs, seekReqTick)`.
+  통화 전문 말풍선은 이미 쓰고 있었고 **요약 줄만 연결이 안 돼 있었다.**
+- CallSummaryBody 에 `onSeek` 추가 — 시각을 **누를 수 있는 알약**으로(에이닷처럼).
+  녹음이 없는 통화(재생바 0:00/0:00)는 onSeek=null → 알약으로 안 그린다.
+- 탭재생 상태(seekReqMs/Tick)를 CallSegment 맨 위로 올림 — 요약·전문이 같은 걸 쓴다.
+- 폭 고정 대신 `widthIn(min=)` — "10:00-13:30" 같은 긴 구간이 잘리지 않게.

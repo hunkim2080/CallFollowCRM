@@ -2307,6 +2307,10 @@ private fun CallSegment(
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
     var editText by remember(summary?.id) { mutableStateOf("") }
+    // 탭재생 — 요약의 시각·전문 말풍선 **둘 다** 이걸 쓴다. 그래서 요약보다 위에서 만든다.
+    //   tick 은 같은 데를 또 눌러도 다시 트리거되게. (2026-08-20 / 2026-09-25 사장님)
+    var seekReqMs by remember(summary?.id) { mutableStateOf<Int?>(null) }
+    var seekReqTick by remember(summary?.id) { mutableStateOf(0) }
     val type = runCatching {
         com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
     }.getOrNull()
@@ -2583,6 +2587,11 @@ private fun CallSegment(
                     com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
                         rawLines = rawSummaryLines,
                         skipText = summaryTitle,
+                        // 녹음이 있을 때만 알약 — 없으면 누를 데가 없다.
+                        onSeek = if (audioUri != null) {
+                            { ms -> seekReqMs = ms.toInt(); seekReqTick++ }
+                        } else null,
+                        timeChipBg = Color(0x1A0E9E90),
                         textColor = Color(0xFF3A5252),
                         timeColor = Color(0xFF7B9A9A),
                         ownerDot = teal,
@@ -2590,7 +2599,7 @@ private fun CallSegment(
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
                         timeFontSize = 11.sp,
-                        timeWidth = 60.dp,
+                        timeWidth = 64.dp,
                         rowGap = 4.dp
                     )
                 }
@@ -2636,9 +2645,6 @@ private fun CallSegment(
         val callSegments = remember(summary?.id, summary?.transcriptSegmentsJson) {
             parseTranscriptSegments(summary?.transcriptSegmentsJson)
         }
-        // 탭재생 — 말풍선 누르면 그 시각으로 재생. tick 은 같은 말풍선 재탭도 다시 트리거되게. (2026-08-20 사장님)
-        var seekReqMs by remember(summary?.id) { mutableStateOf<Int?>(null) }
-        var seekReqTick by remember(summary?.id) { mutableStateOf(0) }
         // 재생기는 **전문 위**. 전엔 화면 열 몇 장짜리 전문 맨 아래에 있어서,
         //   듣고 싶으면 끝까지 내려가야 했다. 듣기 시작하고 따라 읽는 순서가 맞다. (2026-09-20 사장님)
         if (audioUri != null) {
