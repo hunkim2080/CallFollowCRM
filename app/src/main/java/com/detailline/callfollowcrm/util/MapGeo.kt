@@ -174,8 +174,22 @@ object MapGeo {
      * 다녀온 순서대로 **길을 타고** 이은 한 줄. 길을 못 찾은 구간은 곧게 잇는다.
      *   확대와 무관하니 한 번만 구해서 들고 있으면 된다.
      */
+    @Volatile private var tripKey: String = ""
+    @Volatile private var tripCache: Trip? = null
+
     fun fullRoute(ctx: Context, dots: List<Pair<Double, Double>>): Trip? {
         if (dots.size < 2) return null
+        // 🚨 **한 번만 구한다.** 전엔 영상 만들 때 컷마다 다시 계산해서
+        //   240컷이면 240번 길을 찾았다 — 영상 한 편에 1분이 더 붙는다. (2026-09-25 점검)
+        val key = dots.joinToString(";") { "%.4f,%.4f".format(it.first, it.second) }
+        if (key == tripKey) return tripCache
+        val made = computeRoute(ctx, dots)
+        tripKey = key
+        tripCache = made
+        return made
+    }
+
+    private fun computeRoute(ctx: Context, dots: List<Pair<Double, Double>>): Trip? {
         val out = ArrayList<Float>(256)
         val stops = IntArray(dots.size)
         fun push(lon: Float, lat: Float) {

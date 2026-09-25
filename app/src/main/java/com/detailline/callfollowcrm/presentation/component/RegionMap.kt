@@ -214,6 +214,29 @@ private val ROADS = arrayOf(
     )
 )
 
+/** 지도에 이름을 얹을 도시. rank 3=광역시 · 2=큰 시 · 1=수도권 시(확대했을 때만). */
+private class City(val name: String, val lat: Double, val lon: Double, val rank: Int)
+
+private val CITIES = listOf(
+    City("서울", 37.566, 126.978, 3), City("인천", 37.456, 126.705, 3),
+    City("대전", 36.351, 127.385, 3), City("대구", 35.872, 128.601, 3),
+    City("부산", 35.180, 129.075, 3), City("광주", 35.160, 126.851, 3),
+    City("울산", 35.538, 129.311, 3),
+    City("수원", 37.263, 127.029, 2), City("성남", 37.420, 127.127, 2),
+    City("고양", 37.658, 126.832, 2), City("용인", 37.241, 127.178, 2),
+    City("청주", 36.642, 127.489, 2), City("천안", 36.815, 127.114, 2),
+    City("전주", 35.824, 127.148, 2), City("춘천", 37.881, 127.730, 2),
+    City("강릉", 37.752, 128.876, 2), City("포항", 36.019, 129.343, 2),
+    City("창원", 35.228, 128.681, 2), City("제주", 33.499, 126.531, 2),
+    City("부천", 37.503, 126.766, 1), City("안산", 37.322, 126.831, 1),
+    City("안양", 37.394, 126.957, 1), City("시흥", 37.380, 126.803, 1),
+    City("김포", 37.615, 126.716, 1), City("파주", 37.760, 126.780, 1),
+    City("의정부", 37.738, 127.034, 1), City("남양주", 37.636, 127.216, 1),
+    City("하남", 37.539, 127.215, 1), City("오산", 37.150, 127.077, 1),
+    City("평택", 36.992, 127.113, 1), City("이천", 37.272, 127.435, 1),
+    City("화성", 37.199, 126.831, 1)
+)
+
 /** 제주 — 작은 타원. */
 private const val JEJU_LON = 126.53
 private const val JEJU_LAT = 33.38
@@ -254,15 +277,19 @@ internal fun DrawScope.drawRegionMap(
     var minLat = spots.minOf { it.lat }; var maxLat = spots.maxOf { it.lat }
     // 여유를 준다. 그리고 **너무 확대하지 않는다** — 확대가 심하면 해안선이 화면 밖으로 나가
     //   한국처럼 안 보이고 각진 회색 덩어리가 된다. (2026-09-24 폰에서 실제로 그랬다)
-    val padLon = max((maxLon - minLon) * 0.35, 0.45)
-    val padLat = max((maxLat - minLat) * 0.35, 0.35)
+    // 여유 최소값이 **한쪽에 0.45°(≈45km)** 라 다닌 길이 화면의 4분의 1이었다.
+    //   확대 한도(MIN_LON)를 낮춰도 이 값이 더 커서 한 번도 안 걸렸다 — 여기가 진짜였다.
+    //   프로토에서 사장님과 고른 값으로. (2026-09-25)
+    val padLon = max((maxLon - minLon) * 0.35, 0.03)
+    val padLat = max((maxLat - minLat) * 0.35, 0.024)
     minLon -= padLon; maxLon += padLon; minLat -= padLat; maxLat += padLat
     // 최소 폭 — **좁게 다녔으면 그만큼 확대한다.** (2026-09-24 사장님)
     //   전엔 2.4°(≈240km)로 막아놔서 수도권만 다녀도 전국이 나왔다.
     //   그러면 점이 다닥다닥 붙어 **가만히 있는 것처럼** 보인다.
     //   0.5°(≈50km)까지 당기면 같은 거리를 가도 화면에서 훨씬 멀리 가는 것처럼 보인다.
     //   (그 아래로는 안 당긴다 — 한 동네만 다녔을 때 점 하나가 화면을 다 먹는다)
-    val MIN_LON = 0.50; val MIN_LAT = 0.42
+    // 한 동네만 다녔을 때의 **바닥** — 이만큼은 보여준다(점 하나가 화면을 다 먹지 않게).
+    val MIN_LON = 0.15; val MIN_LAT = 0.126
     if (maxLon - minLon < MIN_LON) {
         val c = (maxLon + minLon) / 2; minLon = c - MIN_LON / 2; maxLon = c + MIN_LON / 2
     }
@@ -598,6 +625,62 @@ internal fun DrawScope.drawRegionMap(
         }
         drawPath(fp, dot)
     }
+    // ── 도시 이름 ── 배경이다. 이름이 있어야 "어디"인지 읽힌다. 현장 이름보다 작고 연하게.
+    run {
+        val cp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 8.5f * k
+            color = android.graphics.Color.argb(
+                190, (labelColor.red * 255).toInt(),
+                (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
+            )
+        }
+        val ch = android.graphics.Paint(cp).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 2.6f * k
+            color = android.graphics.Color.argb(
+                255, (land.red * 255).toInt(), (land.green * 255).toInt(), (land.blue * 255).toInt()
+            )
+        }
+        val nvc = drawContext.canvas.nativeCanvas
+        val span = maxLon - minLon
+        for (c in CITIES) {
+            if (c.rank == 1 && span > 1.0) continue
+            if (c.rank == 2 && span > 3.0) continue
+            val cpx = px(c.lon, c.lat)
+            if (cpx.x < 4f || cpx.x > size.width - 4f || cpx.y < 8f || cpx.y > size.height - 4f) continue
+            // 현장 점 가까이 있는 도시 이름은 생략 — 겹쳐 읽으면 둘 다 못 읽는다.
+            if (spots.any { (px(it.lon, it.lat) - cpx).getDistance() < 26f * k }) continue
+            nvc.drawText(c.name, cpx.x + 4f * k, cpx.y + 3f * k, ch)
+            nvc.drawText(c.name, cpx.x + 4f * k, cpx.y + 3f * k, cp)
+            if (c.rank >= 2) drawCircle(labelColor.copy(alpha = 0.55f), 1.6f * k, cpx)
+        }
+    }
+
+    // ── 축척 막대 ── "이 그림은 재어진 것" 이라는 증거.
+    run {
+        val pxPerKm = (scale / 111.0).toFloat()
+        var pick = 10
+        for (o in intArrayOf(1, 2, 5, 10, 20, 50, 100, 200)) {
+            val w0 = o * pxPerKm
+            if (w0 >= size.width * 0.10f && w0 <= size.width * 0.24f) { pick = o; break }
+        }
+        val wBar = pick * pxPerKm
+        val x0 = 8f * k
+        val y0 = size.height - 8f * k
+        val c2 = labelColor.copy(alpha = 0.7f)
+        drawLine(c2, Offset(x0, y0), Offset(x0 + wBar, y0), strokeWidth = 1.2f * k)
+        drawLine(c2, Offset(x0, y0 - 3f * k), Offset(x0, y0 + 3f * k), strokeWidth = 1.2f * k)
+        drawLine(c2, Offset(x0 + wBar, y0 - 3f * k), Offset(x0 + wBar, y0 + 3f * k), strokeWidth = 1.2f * k)
+        val sp2 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 8f * k
+            color = android.graphics.Color.argb(
+                200, (labelColor.red * 255).toInt(),
+                (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
+            )
+        }
+        drawContext.canvas.nativeCanvas.drawText(pick.toString() + " km", x0, y0 - 5f * k, sp2)
+    }
+
     // ── 이름표 ──
     //   ⚠️ 전엔 Compose 글자 재는 도구로 그렸는데, **인증샷·영상엔 그 도구가 없어서**
     //     이름표를 통째로 건너뛰고 있었다 — 저장된 그림엔 동네 이름이 하나도 없었다.
