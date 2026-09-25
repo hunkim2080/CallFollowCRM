@@ -131,7 +131,10 @@ class VisitedViewModel(container: AppContainer, private val monthDelta: Int = 0)
                 addr = addr,
                 upcoming = day >= todayStart,
                 done = c.workCompletedAt != null,
-                hasAddr = manual != null || extra[c.id]?.isNotBlank() == true
+                hasAddr = manual != null || extra[c.id]?.isNotBlank() == true,
+                amountManwon = (
+                    (c.totalAmount ?: ((c.depositAmount ?: 0L) + (c.balanceAmount ?: 0L))) / 10_000L
+                    ).toInt()
             )
         }
 
@@ -182,7 +185,12 @@ data class VisitedRow(
     /** 완료를 눌렀나. 안 눌렀으면 번호가 안 붙는다 — **할 일**이다. */
     val done: Boolean = true,
     /** 주소를 찾았나. 못 찾으면 지도 동네에 안 들어간다 — **할 일**이다. */
-    val hasAddr: Boolean = true
+    val hasAddr: Boolean = true,
+    /**
+     * 그 현장 금액(만원). **걸러서 볼 때 합계를 다시 더하려고** 줄이 제 금액을 들고 다닌다.
+     *   (2026-09-25: 2곳만 걸러 놓고 매출은 그 달 전체가 남아 "이 2곳이 475만원" 으로 읽혔다)
+     */
+    val amountManwon: Int = 0
 )
 
 data class VisitedState(
