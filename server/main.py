@@ -14808,7 +14808,23 @@ async def _call_gemini_json_for_summary(
         },
     }
 
-    resp = await _gemini_generate_rotate(payload, GEMINI_TIMEOUT_SEC)
+    # 구글이 "지금 붐빈다"(503 UNAVAILABLE) 고 돌려보내는 일이 잦다. 안내문에도
+    #   "Spikes in demand are usually temporary. Please try again later." 라고 적혀 온다.
+    #   그런데 우리는 **첫 실패에 바로** 후보 선수(Haiku) 로 넘겨버렸고, 긴 통화에서
+    #   Haiku 가 무너져 18분 통화가 "부재중 콜백" 으로 요약됐다. (2026-09-25 실사고)
+    #   → 잠깐 쉬었다 두 번 더 물어본다. 요약은 뒤에서 도는 일이라 몇 초 더 걸려도 된다.
+    resp = None
+    for _try in range(3):
+        resp = await _gemini_generate_rotate(payload, GEMINI_TIMEOUT_SEC)
+        if resp.status_code not in (500, 502, 503, 504):
+            break
+        if _try < 2:
+            _wait = 3 * (_try + 1)
+            print(
+                f"[gemini] 통화요약 status {resp.status_code} — "
+                f"{_wait}초 쉬었다 재시도 ({_try + 2}/3)"
+            )
+            await asyncio.sleep(_wait)
     if resp.status_code != 200:
         raise RuntimeError(
             f"Gemini API status {resp.status_code}: {resp.text[:300]}"
@@ -15290,6 +15306,12 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
   · one_line 의 짧은 버전. 가격·평수 등 숫자 제외.
   · 명사구 (동사로 끝나는 거 X). "~ 문의 / ~ 약속 / ~ 요청 / ~ 안내 / ~ 통화" 같은 끝.
   · 부재중 = "부재중 (콜백 필요)" / "부재중 콜백" 류.
+  ⛔ **단, [통화 메타] 의 길이가 1분을 넘으면 그 통화는 부재중이 아니다.**
+    title·one_line·tags 어디에도 "부재중"·"콜백 필요" 를 쓰지 마라.
+    (실제 사고: 18분21초 통화를 "부재중 콜백" 이라고 적어 보냈다. 2026-09-25)
+  ⛔ 위 괄호 안 예시는 **말투를 보여주는 보기일 뿐이다. 그대로 베껴 쓰지 마라.**
+    통화 내용이 업무(줄눈·시공) 와 상관없는 사적인 대화면, 억지로 업무로 만들지 말고
+    들린 대로 적어라 (예: "지인 안부 통화", "개인 상담 통화").
 
 - one_line: 18~28자. 이 통화의 핵심 결과 1줄 (예: "24평 화장실 줄눈 견적 65만원 안내", "수원-인천 출장비 협의 필요").
   단순 "견적 요청" 식 키워드 X — 결과까지 들어가야 한다.
@@ -15299,7 +15321,8 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
 
   · 〈시작-끝〉 = 받아쓰기에 붙은 `[m:ss]` 표시에서 **그대로 골라 쓴다. 새로 만들지 마라.**
     한 줄 = 한 덩어리 얘기. 시작은 그 덩어리 첫 `[m:ss]`, 끝은 **다음 덩어리의 첫 `[m:ss]`**.
-    마지막 줄의 끝은 위 [통화 메타]의 길이(초)를 m:ss 로 바꿔 쓴다.
+    마지막 줄의 끝은 위 [통화 메타]의 `길이:` 칸에 **이미 m:ss 로 적혀 있는 값을 그대로** 쓴다.
+    ⛔ 초를 분으로 **직접 계산하지 마라** (실제 사고: 1101초를 "1:101" 이라고 적었다).
     받아쓰기에 `[m:ss]` 가 **없으면 시간 칸을 비운다** (예: `|손님|…`). 짐작 금지.
   · 〈화자〉 = `손님` 또는 `나` 둘 중 하나. 받아쓰기에 적힌 화자를 따른다. 모르면 비운다.
   · 〈한 문장〉 = 40자 이내. **"고객:" "사장님 답:" 같은 머리말을 붙이지 마라** — 칸이 따로 있다.
@@ -15349,7 +15372,48 @@ __OWNER_TONE_SAMPLES__
 """
 
 
-def _coerce_call_summary(parsed: dict) -> dict:
+def _fmt_mmss(sec) -> str:
+    """1101 → "18:21". **AI 에게 나눗셈을 시키지 않으려고** 서버가 미리 만든다."""
+    try:
+        s = int(sec or 0)
+    except Exception:
+        s = 0
+    if s < 0:
+        s = 0
+    return "%d:%02d" % (s // 60, s % 60)
+
+
+# 앱(CallSummaryLine.kt)과 **같은 잣대** — `m:ss` 또는 `m:ss-m:ss` 만 시각으로 인정한다.
+#   앱은 이미 "0:00-1:101" 같은 걸 안 믿고 버리고 있었다. 서버도 같이 버려서
+#   **틀린 값이 아예 저장되지 않게** 한다. (2026-09-25)
+_CALL_TIME_RE = re.compile(r"^\d{1,3}:\d{2}(-\d{1,3}:\d{2})?$")
+
+
+def _summary_looks_broken(parsed: dict, duration_sec: int, direction: str) -> Optional[str]:
+    """AI 답이 **명백히 말이 안 되면** 그 이유를 돌려준다. 멀쩡하면 None.
+
+    한 번 더 시킬지 판단하는 데 쓴다. 애매한 건 잡지 않는다 — 괜히 두 번 돌리면 돈만 나간다.
+    """
+    if not isinstance(parsed, dict):
+        return "JSON 이 아님"
+    title = str(parsed.get("title") or "")
+    one_line = str(parsed.get("one_line") or "")
+    tags = [str(t) for t in (parsed.get("tags") or []) if t]
+    bullets = [b for b in (parsed.get("bullets") or []) if str(b).strip()]
+
+    # (1) 1분 넘게 실제로 이어진 통화를 "부재중" 이라고 한 것 — 앞뒤가 안 맞는다.
+    if duration_sec >= 60 and direction != "missed":
+        if any(("부재중" in x) or ("콜백 필요" in x) for x in [title, one_line] + tags):
+            return f"{_fmt_mmss(duration_sec)} 짜리 통화인데 '부재중' 이라고 씀"
+
+    # (2) 5분 넘는 통화를 두 줄 이하로 요약한 것 — 받아쓰기를 못 읽은 것이다.
+    if duration_sec >= 300 and len(bullets) < 3:
+        return f"{_fmt_mmss(duration_sec)} 짜리 통화인데 요약이 {len(bullets)}줄뿐"
+
+    return None
+
+
+def _coerce_call_summary(parsed: dict, duration_sec: int = 0) -> dict:
     """LLM 응답을 안전한 dict 로 정리. 누락 필드는 기본값 채움.
 
     title, one_line, bullets, suggested_followup_sms 만 통과시킴 (extra 키 무시).
@@ -15389,6 +15453,10 @@ def _coerce_call_summary(parsed: dict) -> dict:
                 time_s, who, text = a.strip(), b2.strip(), c.strip()
                 if who not in ("나", "손님"):
                     who = ""
+                # "0:00-1:101" 같은 엉터리 시각은 버린다 — 틀린 값을 저장하느니 빈 칸이 낫다.
+                if time_s and not _CALL_TIME_RE.match(time_s):
+                    print(f"[call-summary] 이상한 시각 버림: {time_s!r}")
+                    time_s = ""
             if not text:
                 continue
             if len(text) > 80:
@@ -15441,7 +15509,7 @@ def _build_call_summary_user_message(req: CallSummaryRequest) -> str:
     lines.append("")
     lines.append("[통화 메타]")
     lines.append(f"방향: {req.direction}")
-    lines.append(f"길이(초): {req.duration_sec}")
+    lines.append(f"길이: {_fmt_mmss(req.duration_sec)} ({req.duration_sec}초)")
     lines.append(f"시작 시각(epoch ms): {req.started_at_ms}")
     lines.append("")
     lines.append("[에이닷 통화요약 원문]")
@@ -15505,7 +15573,7 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
     )
 
     try:
-        coerced = _coerce_call_summary(parsed)
+        coerced = _coerce_call_summary(parsed, duration_sec=req.duration_sec)
     except ValueError as e:
         raise HTTPException(502, f"LLM 응답 형식 오류: {e}")
 
@@ -15947,7 +16015,7 @@ async def call_audio_summary_endpoint(
         user_lines.append("")
         user_lines.append("[통화 메타]")
         user_lines.append(f"방향: {direction}")
-        user_lines.append(f"길이(초): {duration_sec}")
+        user_lines.append(f"길이: {_fmt_mmss(duration_sec)} ({duration_sec}초)")
         user_lines.append(f"시작 시각(epoch ms): {started_at_ms}")
         user_lines.append("")
         user_lines.append("[통화 받아쓰기 — Whisper STT]")
@@ -15968,8 +16036,10 @@ async def call_audio_summary_endpoint(
                     _tl.append(_head + _sp + _tx)
             if _tl:
                 raw = "\n".join(_tl)
-        if len(raw) > 8000:
-            raw = raw[:8000] + "\n…(truncated)"
+        # 8000자 컷은 18분 통화의 **뒤 1/3 을 통째로 잘라먹었다** (2026-09-25).
+        #   Gemini/Haiku 둘 다 이 길이는 넉넉히 읽는다 → 16000자로 늘린다.
+        if len(raw) > 16000:
+            raw = raw[:16000] + "\n…(truncated)"
         user_lines.append(raw)
         user_msg = "\n".join(user_lines)
 
@@ -16037,8 +16107,48 @@ async def call_audio_summary_endpoint(
         else:
             print(f"[call-audio-summary] {phone_digits} → ready gemini")
 
+        # ── 답이 명백히 말이 안 되면 **한 번만** 더 시킨다 (2026-09-25 실사고) ──
+        #   틀린 줄 알면서 저장하면, 사장님은 그 틀린 걸 계속 보게 된다.
+        #   (캐시에 박히면 다시 눌러도 같은 답이 나온다)
+        _bad = _summary_looks_broken(parsed, duration_sec, direction)
+        if _bad:
+            print(f"[call-audio-summary] {phone_digits} 요약이 말이 안 됨({_bad}) — 한 번 더")
+            _again = user_msg + (
+                "\n\n[다시 써라]\n"
+                f"방금 네 답이 틀렸다: {_bad}.\n"
+                f"이 통화는 실제로 {_fmt_mmss(duration_sec)} 동안 이어진 {direction} 통화다. "
+                "부재중이 아니다.\n"
+                "위 받아쓰기를 처음부터 다시 읽고, 규칙대로 4~6줄로 다시 써라."
+            )
+            _p2 = None
+            try:
+                _p2, _u2 = await _call_gemini_json_for_summary(
+                    system_prompt, _again, max_output_tokens=2000
+                )
+            except Exception as _ge:
+                print(f"[call-audio-summary] {phone_digits} 재시도 gemini 실패: {_ge}")
+                try:
+                    _p2, _r2 = await call_claude_json(
+                        system_prompt=system_prompt,
+                        user_msg=_again,
+                        max_tokens=1500,
+                        model=HAIKU_MODEL,
+                    )
+                    log_usage(_usage_owner(owner_phone, phone_digits), "call-audio-summary", _r2)
+                    _log_llm_usage_from_response("call-audio-summary", _r2)
+                except Exception as _he:
+                    print(f"[call-audio-summary] {phone_digits} 재시도 haiku 도 실패: {_he}")
+                    _p2 = None
+            if _p2 is not None:
+                _bad2 = _summary_looks_broken(_p2, duration_sec, direction)
+                if _bad2:
+                    print(f"[call-audio-summary] {phone_digits} 재시도도 이상함({_bad2}) — 그대로 둠")
+                else:
+                    parsed = _p2
+                    print(f"[call-audio-summary] {phone_digits} 재시도 성공 — 그걸로 저장")
+
         try:
-            coerced = _coerce_call_summary(parsed)
+            coerced = _coerce_call_summary(parsed, duration_sec=duration_sec)
         except ValueError as e:
             raise HTTPException(502, f"LLM 응답 형식 오류: {e}")
 
