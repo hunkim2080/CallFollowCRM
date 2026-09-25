@@ -54,6 +54,8 @@ object VideoMaker {
         fps: Int = 24,
         seconds: Float = 10f,
         bitRate: Int = 6_000_000,
+        /** 쓸 인코더 이름. null 이면 폰이 고르는 대로(보통 하드웨어). */
+        codecName: String? = null,
         progress: Progress? = null,
         draw: (canvas: Canvas, t: Float) -> Unit
     ): File? = withContext(Dispatchers.Default) {
@@ -77,10 +79,20 @@ object VideoMaker {
                 setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
             }
-            codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).also {
+            codec = (
+                if (codecName != null) MediaCodec.createByCodecName(codecName)
+                else MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            ).also {
                 it.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 it.start()
             }
+            // 어떤 인코더로 어떤 색 모양을 쓰는지 남긴다 — 다음에 실패하면 바로 안다.
+            android.util.Log.i(
+                TAG,
+                "인코더=" + codec!!.name + " 색=" +
+                    runCatching { codec!!.inputFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT) }.getOrDefault(-1) +
+                    " " + w + "x" + h
+            )
             outFile.parentFile?.mkdirs()
             if (outFile.exists()) outFile.delete()
             muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
@@ -99,8 +111,8 @@ object VideoMaker {
                         } else {
                             canvas.drawColor(android.graphics.Color.BLACK)
                             draw(canvas, frame.toFloat() / (frames - 1).toFloat())
-                            fillInput(codec!!, inIdx, bmp, w, h, row)
-                            codec!!.queueInputBuffer(inIdx, 0, inputSize(codec!!, inIdx, w, h), ptsUs, 0)
+                            val wrote = fillInput(codec!!, inIdx, bmp, w, h, row)
+                            codec!!.queueInputBuffer(inIdx, 0, wrote, ptsUs, 0)
                             progress?.onStep(frame.toFloat() / frames)
                         }
                         frame++
@@ -155,22 +167,15 @@ object VideoMaker {
         else -> e.javaClass.simpleName
     }
 
-    /** 인코더가 준 칸의 실제 크기 — 줄 간격이 기기마다 달라 직접 물어봐야 한다. */
-    private fun inputSize(codec: MediaCodec, idx: Int, w: Int, h: Int): Int =
-        runCatching {
-            val img = codec.getInputImage(idx) ?: return w * h * 3 / 2
-            val y = img.planes[0]
-            val u = img.planes[1]
-            val v = img.planes[2]
-            y.buffer.capacity() + u.buffer.capacity() + v.buffer.capacity()
-        }.getOrDefault(w * h * 3 / 2)
-
     /**
-     * 그림(ARGB) → 인코더 칸(YUV420). **인코더가 알려준 줄 간격·픽셀 간격을 그대로 따른다** —
-     * 손으로 짜 맞추면 기기마다 색이 밀리거나 초록 화면이 된다.
+     * 그림(ARGB) → 인코더 칸(YUV420). 채운 바이트 수를 돌려준다.
+     *
+     * ⚠️ 인코더가 **그림 칸을 안 주는 폰**이 있다(갤S23U·안드로이드 16에서 실패).
+     *   그때는 [fillRaw] 로 **손으로 채운다** — 안 그러면 빈 칸을 "다 채웠다" 하고 넘겨 터진다.
      */
-    private fun fillInput(codec: MediaCodec, idx: Int, bmp: Bitmap, w: Int, h: Int, row: IntArray) {
-        val img = codec.getInputImage(idx) ?: return
+    private fun fillInput(codec: MediaCodec, idx: Int, bmp: Bitmap, w: Int, h: Int, row: IntArray): Int {
+        val img = runCatching { codec.getInputImage(idx) }.getOrNull()
+            ?: return fillRaw(codec, idx, bmp, w, h, row)
         val yP = img.planes[0]
         val uP = img.planes[1]
         val vP = img.planes[2]
@@ -204,5 +209,71 @@ object VideoMaker {
                 }
             }
         }
+        return yBuf.capacity() + uBuf.capacity() + vBuf.capacity()
     }
+
+    /**
+     * 그림 칸을 안 주는 인코더용 — **색 모양을 물어보고 손으로 채운다.**
+     *   I420(Planar) = Y 전부 → U 전부 → V 전부
+     *   NV12/NV21(SemiPlanar) = Y 전부 → UV 섞어서
+     */
+    private fun fillRaw(codec: MediaCodec, idx: Int, bmp: Bitmap, w: Int, h: Int, row: IntArray): Int {
+        val buf = codec.getInputBuffer(idx) ?: return 0
+        val fmtColor = runCatching {
+            codec.inputFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT)
+        }.getOrDefault(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)
+        val semi = fmtColor == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar ||
+            fmtColor == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar
+        val ySize = w * h
+        val need = ySize * 3 / 2
+        if (buf.capacity() < need) return 0
+        val out = ByteArray(need)
+        var uvI = ySize
+        for (j in 0 until h) {
+            bmp.getPixels(row, 0, w, 0, j, w, 1)
+            val yBase = j * w
+            for (i in 0 until w) {
+                val c = row[i]
+                val r = (c shr 16) and 0xFF
+                val g = (c shr 8) and 0xFF
+                val b = c and 0xFF
+                out[yBase + i] = (((66 * r + 129 * g + 25 * b + 128) shr 8) + 16).coerceIn(0, 255).toByte()
+            }
+            if ((j and 1) == 0) {
+                var i = 0
+                while (i < w) {
+                    val c = row[i]
+                    val r = (c shr 16) and 0xFF
+                    val g = (c shr 8) and 0xFF
+                    val b = c and 0xFF
+                    val u = (((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128).coerceIn(0, 255).toByte()
+                    val v = (((112 * r - 94 * g - 18 * b + 128) shr 8) + 128).coerceIn(0, 255).toByte()
+                    if (semi) {
+                        out[uvI] = u; out[uvI + 1] = v; uvI += 2
+                    } else {
+                        val half = ySize + (j / 2) * (w / 2) + i / 2
+                        out[half] = u
+                        out[half + ySize / 4] = v
+                    }
+                    i += 2
+                }
+            }
+        }
+        buf.clear()
+        buf.put(out, 0, need)
+        return need
+    }
+
+    /**
+     * **소프트웨어 인코더** 이름. 하드웨어가 말썽일 때 쓴다 — 느리지만 어느 폰에서나 된다.
+     *   못 찾으면 null(그냥 폰이 고르는 대로).
+     */
+    fun softwareEncoder(): String? = runCatching {
+        val list = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS)
+        list.codecInfos.firstOrNull { info ->
+            info.isEncoder &&
+                info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, true) } &&
+                (info.name.startsWith("c2.android.") || info.name.startsWith("OMX.google."))
+        }?.name
+    }.getOrNull()
 }

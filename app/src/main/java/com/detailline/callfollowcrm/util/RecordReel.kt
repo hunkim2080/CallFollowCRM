@@ -165,11 +165,19 @@ object RecordReel {
         progress: VideoMaker.Progress? = null
     ): File? {
         val out = File(File(ctx.cacheDir, "shared").apply { mkdirs() }, "shigongmagne_reel.mp4")
+        // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = progress
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H) }?.let { return it }
-        // 한 번 실패하면 **작게 한 번 더.** 폰이 큰 영상을 못 만들 때가 있다
-        //   (다른 앱이 인코더를 쓰고 있거나 메모리가 빠듯할 때). 작으면 되는 경우가 많다.
+        // ② 안 되면 **소프트웨어 인코더**로. 느리지만 어느 폰에서나 된다.
+        //   (갤S23U·안드로이드 16 에서 하드웨어가 말썽이었다 — 2026-09-25 사장님 폰)
+        VideoMaker.softwareEncoder()?.let { sw ->
+            VideoMaker.make(
+                outFile = out, width = W, height = H, fps = 24, seconds = seconds,
+                codecName = sw, progress = progress
+            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H) }?.let { return it }
+        }
+        // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
         val w2 = 540
         val h2 = 960
         return VideoMaker.make(
