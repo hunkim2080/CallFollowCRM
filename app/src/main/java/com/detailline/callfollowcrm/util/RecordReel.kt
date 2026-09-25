@@ -241,8 +241,7 @@ object RecordReel {
         // ── 아래: 동네 이름 ──
         var by = mapTop + mapH + h * 0.045f
         if (d.towns.isNotEmpty()) {
-            val line = d.towns.take(6).joinToString(" · ") +
-                if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
+            val line = RecordShot.townLine(d.towns)
             c.drawText(line, pad, by, fit(paint(bold, w * 0.040f, ink), line, w - pad * 2, w * 0.040f, w * 0.028f))
         }
 

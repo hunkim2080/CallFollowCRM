@@ -124,6 +124,20 @@ object RecordShot {
      *
      * @return 숫자만의 폭. 칸 너비를 재는 데 쓴다.
      */
+    /**
+     * 🧭 **다녀온 동네를 다닌 순서대로** 한 줄로.
+     *
+     * 전엔 `강서 · 관악 · 단원` 처럼 점으로 나열해서 **순서인지 그냥 목록인지 알 수 없었다.**
+     * 사장님이 순서로 읽으셨다가 영상 속 트럭과 안 맞아 "왜 3을 안 거치는 느낌이지?" 하셨다.
+     * (2026-09-25) 화살표로 두면 **다닌 길**이라는 게 한눈에 보인다.
+     *
+     * ⚠️ 이 글줄을 만드는 코드가 네 군데에 복사돼 있었다(영상 1 · 그림 3).
+     *    한 군데만 고치면 나머지 셋은 점으로 남는다 — 그래서 여기 한 곳에 둔다.
+     */
+    internal fun townLine(towns: List<String>): String =
+        towns.take(6).joinToString(" → ") +
+            if (towns.size > 6) " 외 ${towns.size - 6}곳" else ""
+
     internal fun drawBigNumber(
         c: android.graphics.Canvas, x: Float, y: Float,
         value: String, unit: String, numP: Paint, unitP: Paint
@@ -280,8 +294,7 @@ object RecordShot {
             by += 46f
         }
         if (d.towns.isNotEmpty()) {
-            val line = d.towns.take(6).joinToString(" · ") +
-                if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
+            val line = townLine(d.towns)
             c.drawText(line, pad, by, fit(paint(med, 28f, sub), line, S - pad * 2, 28f, 21f))
         }
 
@@ -402,8 +415,7 @@ object RecordShot {
         //   (2026-09-25 폰 확인) → 한 줄 만큼 더 띄운다.
         var by = H - pad - (if (sign) 142f else 8f)
         if (d.towns.isNotEmpty()) {
-            val line = d.towns.take(6).joinToString(" · ") +
-                if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
+            val line = townLine(d.towns)
             c.drawText(line, pad, by, fit(paint(med, 28f, 0xD9FFFFFF.toInt()), line, S - pad * 2, 28f, 21f))
             by += 46f
         }
@@ -517,8 +529,7 @@ object RecordShot {
         // ── 동네 이름 ── (스티커는 바로 밑, 한 장은 아래쪽)
         val townY = if (transparent) y + 62f else h - (if (sign) 252f else 110f)
         if (d.towns.isNotEmpty()) {
-            val line = d.towns.take(6).joinToString(" · ") +
-                if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
+            val line = townLine(d.towns)
             c.drawText(line, pad, townY, fit(paint(bold, 34f, ink), line, S - pad * 2, 34f, 24f))
         }
 
