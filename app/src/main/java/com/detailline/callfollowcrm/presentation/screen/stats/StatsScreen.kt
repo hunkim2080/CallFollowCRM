@@ -565,21 +565,11 @@ private fun ShotPreviewDialog(
         if (reelJob != null) return   // 연타 막기
         reelJob = scope.launch {
             making = 0f
-            val reel = com.detailline.callfollowcrm.util.RecordReel.make(
-                ctx,
-                com.detailline.callfollowcrm.util.RecordReel.Data(
-                    monthLabel = rec.monthLabel,
-                    metricValue = picks.getOrElse(pick) { picks.first() }.value,
-                    metricUnit = picks.getOrElse(pick) { picks.first() }.unit,
-                    metricLabel = picks.getOrElse(pick) { picks.first() }.caption,
-                    towns = rec.towns, dots = rec.dots,
-                    bizName = rec.bizName, tradeName = rec.tradeName,
-                    phone = rec.bizPhone, area = rec.areaLabel,
-                    zoom = zoom, panX = panX, panY = panY,
-                    // 그림에 들어가는 그 사진이 **영상에도** 들어가야 결과가 같아진다.
-                    photoPath = rec.photoPath
-                )
-            ) { p -> making = p }
+            // 🔒 **미리보기가 쓰는 그 자료(reelData)를 그대로** 넘긴다.
+            //   여기서 Data 를 또 만들면 미리보기와 결과가 갈린다 —
+            //   실제로 `sign` 이 빠져서 "간판 끄고 봤는데 간판 있는 영상이 저장되는" 상태였다.
+            //   (2026-09-25 점검에서 잡힘. 오늘만 세 번째 '두 벌' 사고다)
+            val reel = com.detailline.callfollowcrm.util.RecordReel.make(ctx, reelData) { p -> making = p }
             making = -1f
             reelJob = null
             if (reel != null) {
