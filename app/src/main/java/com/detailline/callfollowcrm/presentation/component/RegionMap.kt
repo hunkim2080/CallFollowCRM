@@ -111,17 +111,22 @@ fun RegionMap(
             Modifier.fillMaxWidth().height(height).clipToBounds()
                 // 지도인데 손가락으로 안 늘어나면 고장으로 느껴진다. (2026-09-25 사장님 "기본 UX")
                 .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoomChange, _ ->
-                        // ⚠️ 여기서 바깥 값을 그냥 쓰면 **처음 값(1배)을 계속 붙잡는다** —
-                        //   손가락을 벌려도 매번 1배에서 다시 시작해서 '되다 만다'.
-                        //   (2026-09-25 사장님 "줌인 반응은 있는데 확대축소가 되다 말아")
-                        //   항상 **지금 값**을 읽어야 쌓인다.
+                    detectTransformGestures { centroid, pan, zoomChange, _ ->
+                        // ⚠️ 바깥 값을 그냥 쓰면 **처음 값(1배)을 계속 붙잡는다** — 항상 지금 값을 읽는다.
+                        //   (2026-09-25 "줌인 반응은 있는데 확대축소가 되다 말아")
                         val nz = (zoomNow * zoomChange).coerceIn(0.6f, 8f)
-                        onTransform?.invoke(
-                            nz,
-                            (panXNow + pan.x / size.width / nz).coerceIn(-1.2f, 1.2f),
-                            (panYNow + pan.y / size.height / nz).coerceIn(-1.2f, 1.2f)
-                        )
+                        val ratio = if (zoomNow > 0f) nz / zoomNow else 1f
+                        // 🔍 **집던 곳이 제자리에 있게** — 두 손가락 사이를 기준으로 커진다.
+                        //   화면 한가운데 기준으로 커지면 확대할 때마다 보던 데를 놓친다.
+                        val fx = (centroid.x - size.width / 2f) / size.width
+                        val fy = (centroid.y - size.height / 2f) / size.height
+                        var px = panXNow * ratio + fx * (1f - ratio)
+                        var py = panYNow * ratio + fy * (1f - ratio)
+                        // ✋ 끈 만큼 **그대로** 따라온다. 전엔 여기서 배수로 한 번 더 나눠서
+                        //   4배로 확대하면 손가락이 간 거리의 16분의 1만 움직였다(뻑뻑함의 정체).
+                        px += pan.x / size.width
+                        py += pan.y / size.height
+                        onTransform?.invoke(nz, px.coerceIn(-3f, 3f), py.coerceIn(-3f, 3f))
                     }
                 }
                 .pointerInput(Unit) {
