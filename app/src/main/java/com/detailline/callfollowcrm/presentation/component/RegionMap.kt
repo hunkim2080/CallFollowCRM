@@ -340,29 +340,12 @@ internal fun DrawScope.drawRegionMap(
     sea: Color = Color(com.detailline.callfollowcrm.util.MapPalette.SEA)
 ) {
     // ── 보여줄 범위: 다녀온 곳 + 여유. 전국을 다니면 전국, 동네만 다니면 그 언저리. ──
-    var minLon = spots.minOf { it.lon }; var maxLon = spots.maxOf { it.lon }
-    var minLat = spots.minOf { it.lat }; var maxLat = spots.maxOf { it.lat }
-    // 여유를 준다. 그리고 **너무 확대하지 않는다** — 확대가 심하면 해안선이 화면 밖으로 나가
-    //   한국처럼 안 보이고 각진 회색 덩어리가 된다. (2026-09-24 폰에서 실제로 그랬다)
-    // 여유 최소값이 **한쪽에 0.45°(≈45km)** 라 다닌 길이 화면의 4분의 1이었다.
-    //   확대 한도(MIN_LON)를 낮춰도 이 값이 더 커서 한 번도 안 걸렸다 — 여기가 진짜였다.
-    //   프로토에서 사장님과 고른 값으로. (2026-09-25)
-    val padLon = max((maxLon - minLon) * 0.35, 0.03)
-    val padLat = max((maxLat - minLat) * 0.35, 0.024)
-    minLon -= padLon; maxLon += padLon; minLat -= padLat; maxLat += padLat
-    // 최소 폭 — **좁게 다녔으면 그만큼 확대한다.** (2026-09-24 사장님)
-    //   전엔 2.4°(≈240km)로 막아놔서 수도권만 다녀도 전국이 나왔다.
-    //   그러면 점이 다닥다닥 붙어 **가만히 있는 것처럼** 보인다.
-    //   0.5°(≈50km)까지 당기면 같은 거리를 가도 화면에서 훨씬 멀리 가는 것처럼 보인다.
-    //   (그 아래로는 안 당긴다 — 한 동네만 다녔을 때 점 하나가 화면을 다 먹는다)
-    // 한 동네만 다녔을 때의 **바닥** — 이만큼은 보여준다(점 하나가 화면을 다 먹지 않게).
-    val MIN_LON = 0.15; val MIN_LAT = 0.126
-    if (maxLon - minLon < MIN_LON) {
-        val c = (maxLon + minLon) / 2; minLon = c - MIN_LON / 2; maxLon = c + MIN_LON / 2
-    }
-    if (maxLat - minLat < MIN_LAT) {
-        val c = (maxLat + minLat) / 2; minLat = c - MIN_LAT / 2; maxLat = c + MIN_LAT / 2
-    }
+    //   🔒 **셈은 [com.detailline.callfollowcrm.util.MapRide.bounds] 한 곳에 있다.**
+    //      영상 카메라가 트럭을 따라가려면 같은 틀을 알아야 하는데, 여기서 또 계산하면
+    //      카메라가 엉뚱한 데를 비춘다. (2026-09-25)
+    val fit = com.detailline.callfollowcrm.util.MapRide.bounds(spots.map { it.lon to it.lat })
+    var minLon = fit.minLon; var maxLon = fit.maxLon
+    var minLat = fit.minLat; var maxLat = fit.maxLat
 
     // ── 손가락 확대·이동 ── 저절로 맞춘 틀을 **그만큼 좁히고 옮긴다**.
     //   글자 크기는 그대로 두려고 화면을 늘리는 대신 **보는 범위**를 줄인다.
@@ -554,70 +537,32 @@ internal fun DrawScope.drawRegionMap(
 
     // ── 다닌 길 + 🚛 ── 날짜 순서대로 이은 선. 지나온 만큼 진하게 그어진다.
     val route = spots.sortedBy { it.order }
+    /** 길을 **좌표 그대로** — 트럭 자리 셈([com.detailline.callfollowcrm.util.MapRide])이 이 모양을 받는다. */
+    val wayLL: FloatArray = if (trip != null && trip.pts.size >= 4) trip.pts
+        else FloatArray(route.size * 2) { if (it % 2 == 0) route[it / 2].lon.toFloat() else route[it / 2].lat.toFloat() }
     /** 화면 위 길. 길을 못 받았으면 동네끼리 곧게. */
-    val way: List<Offset> = if (trip != null && trip.pts.size >= 4) {
-        ArrayList<Offset>(trip.pts.size / 2).apply {
-            var i = 0
-            while (i + 1 < trip.pts.size) { add(px(trip.pts[i].toDouble(), trip.pts[i + 1].toDouble())); i += 2 }
-        }
-    } else route.map { px(it.lon, it.lat) }
+    val way: List<Offset> = ArrayList<Offset>(wayLL.size / 2).apply {
+        var i = 0
+        while (i + 1 < wayLL.size) { add(px(wayLL[i].toDouble(), wayLL[i + 1].toDouble())); i += 2 }
+    }
     /** 현장이 길 위 몇 번째 점인가. */
     val stops: IntArray = trip?.stops ?: IntArray(route.size) { it }
 
     // ── 시간표 ── 구간마다 길이에 맞춰 시간을 주고 **현장마다 반 초쯤 멈춘다**.
-    //   등속으로 흐르면 '날아가는' 느낌이라 일하는 것처럼 안 보인다. (2026-09-25 프로토 확정)
-    var travelled = 0f
-    var arrivedUpTo = 0
-    val arriveAt = FloatArray(route.size)
-    var nowT = 0f
+    //   🔒 **셈은 [com.detailline.callfollowcrm.util.MapRide.at] 한 곳에 있다.**
+    //      영상 카메라도 같은 셈을 봐야 트럭을 정확히 따라간다. (2026-09-25)
+    //      여기선 그 결과(전체 길 중 몇 %)를 화면 길이로 바꾸기만 한다.
     val segLen = FloatArray(maxOf(0, way.size - 1))
     var totalLen = 0f
     for (i in 0 until way.size - 1) {
         val d = (way[i + 1] - way[i]).getDistance()
         segLen[i] = d; totalLen += d
     }
-    if (way.size >= 2 && stops.size >= 2) {
-        val legs = FloatArray(stops.size - 1)
-        var maxLeg = 1f
-        for (s2 in 0 until stops.size - 1) {
-            var L = 0f
-            for (i in stops[s2] until minOf(stops[s2 + 1], segLen.size)) L += segLen[i]
-            legs[s2] = L; if (L > maxLeg) maxLeg = L
-        }
-        val pause = 0.55f
-        val durs = FloatArray(legs.size) { 0.8f + 1.4f * (legs[it] / maxLeg) }
-        var totalT = pause * legs.size
-        for (d in durs) totalT += d
-        var acc = 0f
-        for (s2 in 0 until legs.size) {
-            acc += durs[s2]
-            arriveAt[s2 + 1] = acc
-            acc += pause
-        }
-        nowT = totalT * progress.coerceIn(0f, 1f)
-        // 지금 어느 구간인가 + 그 안에서 얼마나 왔나
-        var cur = legs.size
-        var u = 0f
-        var t0 = 0f
-        for (s2 in 0 until legs.size) {
-            if (nowT < t0 + durs[s2]) { cur = s2; u = (nowT - t0) / durs[s2]; break }
-            t0 += durs[s2]
-            if (nowT < t0 + pause) { cur = s2; u = 1f; break }
-            t0 += pause
-        }
-        val e = if (u < .5f) 2f * u * u else 1f - Math.pow((-2f * u + 2f).toDouble(), 3.0).toFloat() / 2f
-        // **길이 하나로** 트럭 자리와 지나온 선을 같이 구한다(따로 구하면 어긋난다).
-        var base = 0f
-        for (i in 0 until minOf(stops[minOf(cur, stops.size - 1)], segLen.size)) base += segLen[i]
-        var legLen = 0f
-        if (cur < legs.size) legLen = legs[cur]
-        travelled = if (cur >= legs.size) totalLen else base + legLen * e
-        arrivedUpTo = 0
-        for (i in route.indices) if (nowT >= arriveAt[i]) arrivedUpTo = i
-    } else {
-        travelled = totalLen * progress.coerceIn(0f, 1f)
-        arrivedUpTo = route.size - 1
-    }
+    val ride = com.detailline.callfollowcrm.util.MapRide.at(wayLL, stops, progress)
+    val travelled = totalLen * ride.frac
+    val arrivedUpTo = ride.arrived
+    val arriveAt = ride.arriveAt
+    val nowT = ride.nowT
     onArrived?.invoke(arrivedUpTo)
 
     // ── 지나온 길 ── 앞길은 안 보여준다(결말을 미리 알려주면 도착이 시시하다).

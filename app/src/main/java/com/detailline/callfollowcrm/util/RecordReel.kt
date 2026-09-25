@@ -136,13 +136,33 @@ object RecordReel {
             c.save()
             c.translate(0f, mapTop)
             c.clipRect(0f, 0f, w.toFloat(), mapH)
+            // 🎥 **카메라가 트럭을 따라간다.** (2026-09-25 사장님)
+            //   전엔 수도권 전체를 멀리서 보여줘서 트럭이 깨알만 했다 — 안 움직이는 것처럼 보인다.
+            //   트럭 자리는 지도가 쓰는 **그 셈 그대로**(MapRide) 구한다. 따로 구하면 어긋난다.
+            //   마지막 현장에 닿으면 쭉 빠지면서, 사장님이 맞춰둔 그 화면으로 한 달 전체를 보여준다.
+            val ordered0 = d.dots.sortedBy { it.order }
+            val trip0 = MapGeo.fullRoute(ctx, ordered0.map { it.lon to it.lat })
+            val wayLL0 = trip0?.pts
+                ?: FloatArray(ordered0.size * 2) {
+                    if (it % 2 == 0) ordered0[it / 2].lon.toFloat() else ordered0[it / 2].lat.toFloat()
+                }
+            val shot = com.detailline.callfollowcrm.util.MapRide.follow(
+                b = com.detailline.callfollowcrm.util.MapRide.bounds(ordered0.map { it.lon to it.lat }),
+                at = com.detailline.callfollowcrm.util.MapRide.at(
+                    wayLL0, trip0?.stops ?: IntArray(ordered0.size) { it }, t
+                ),
+                t = t,
+                restZoom = d.zoom, restPanX = d.panX, restPanY = d.panY
+            )
             androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
                 Density(1f), LayoutDirection.Ltr,
                 androidx.compose.ui.graphics.Canvas(c), Size(w.toFloat(), mapH)
             ) {
                 drawRegionMap(
                     spots = d.dots,
-                    named = MapPalette.namedOf(d.dots),
+                    // 당겨져 있을 땐 **동네 이름을 다 보여준다** — 안 그러면 지금 어디인지 알 수가 없다.
+                    named = if (com.detailline.callfollowcrm.util.MapRide.showAllNames(shot.zoom))
+                        d.dots.map { it.name }.toSet() else MapPalette.namedOf(d.dots),
                     measurer = null,
                     land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
                     edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
@@ -152,8 +172,8 @@ object RecordReel {
                     river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                     progress = t,
                     geo = MapGeo.load(ctx),
-                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat }),
-                    zoom = d.zoom, panX = d.panX, panY = d.panY,
+                    trip = trip0,
+                    zoom = shot.zoom, panX = shot.panX, panY = shot.panY,
                     onArrived = { arrived = it }
                 )
             }
