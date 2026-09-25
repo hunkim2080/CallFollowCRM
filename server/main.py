@@ -16303,6 +16303,16 @@ async def call_audio_summary_result(phone: str, started_at_ms: int = 0) -> dict:
     if not phone_digits:
         raise HTTPException(400, "phone 형식 오류")
     cache_ts = started_at_ms or 0
+    job = _CALL_SUMMARY_JOBS.get(_call_summary_job_key(phone_digits, cache_ts))
+
+    # ⚠️ **돌고 있는 중이면 옛 요약을 주면 안 된다.** (2026-09-25 실사고)
+    #   「다시 요약」(force_refresh)은 캐시에 옛 요약을 **남겨둔 채** 새로 만든다.
+    #   그런데 여기서 캐시를 먼저 보고 "다 됐어요(ready)" 라며 옛 것을 내주는 바람에,
+    #   앱이 그걸 받아 저장하고 **묻기를 멈췄다**(실측: result 요청이 딱 한 번).
+    #   몇 초 뒤 새 요약이 캐시에 들어갔지만 가지러 오는 사람이 없었다.
+    #   → 이 통화가 지금 돌고 있으면, 캐시가 있어도 "아직요" 라고 답한다.
+    if job is not None and job.get("state") == "processing":
+        return {"status": "processing", "since_ms": job.get("at_ms", 0)}
 
     cached = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
     if cached is not None:
@@ -16315,7 +16325,6 @@ async def call_audio_summary_result(phone: str, started_at_ms: int = 0) -> dict:
         out.setdefault("transcript_raw", out.get("transcript", ""))
         return out
 
-    job = _CALL_SUMMARY_JOBS.get(_call_summary_job_key(phone_digits, cache_ts))
     if job is None:
         return {"status": "none"}
     if job.get("state") == "error":

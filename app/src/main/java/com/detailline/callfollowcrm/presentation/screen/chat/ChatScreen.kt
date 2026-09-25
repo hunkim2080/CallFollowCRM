@@ -264,6 +264,8 @@ fun ChatScreen(
     var intakeConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity?>(null) }
     // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
     val callSummaries by viewModel.callSummaries.collectAsState()
+    // 「다시 요약」을 누른 통화 — 확인 창을 띄우고, 예면 처음부터 다시 요약한다.
+    var redoTarget by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity?>(null) }
     // 서버에서 요약 중인 통화 시각 — 통화카드가 "요약 중…" 스피너 표시.
     val summarizingTimes by viewModel.summarizingRecordedAt.collectAsState()
     // 자동요약 ON + 녹음폴더 연결이면, 방금 끝난 통화 카드에 미리 "요약 중…"을 띄운다(워커가 ~15~40초 뒤 돌아서
@@ -997,6 +999,7 @@ fun ChatScreen(
                                         else pendingSummarizeRecord = ti.record
                                     },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
+                                    onRedoSummary = { redoTarget = ti.record },
                                     recordingConnected = recordingConnected,
                                     onConnectRecording = onOpenRecordingSettings
                                 )
@@ -1493,6 +1496,25 @@ fun ChatScreen(
                 input = before + piece + after
                 inputSelection = TextRange(start + piece.length)  // 커서를 넣은 날짜(+뒤 공백) 다음으로.
                 myScheduleOpen = false
+            }
+        )
+    }
+
+    // 카드의 「다시 요약」 확인 — 돈과 시간이 드는 일이라 한 번 묻는다.
+    redoTarget?.let { rec ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { redoTarget = null },
+            title = { Text("이 통화를 다시 요약할까요?") },
+            text = { Text("지금 요약은 새 걸로 바뀝니다. 통화가 길면 몇 분 걸려요.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { redoTarget = null; viewModel.resummarizeCall(rec, context) }
+                ) { Text("다시 요약", fontWeight = FontWeight.Bold, color = TossBlue) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { redoTarget = null }
+                ) { Text("취소", color = TossTextSecondary) }
             }
         )
     }
@@ -2277,6 +2299,8 @@ private fun CallSegment(
     onUseAsDraft: (String) -> Unit = {},
     onSummarizeCall: () -> Unit = {},
     onEditSummary: (String) -> Unit = {},
+    /** 「다시 요약」 — 요약이 엉뚱할 때 처음부터 다시. 녹음이 연결돼 있을 때만 보인다. */
+    onRedoSummary: () -> Unit = {},
     recordingConnected: Boolean = true,
     onConnectRecording: () -> Unit = {}
 ) {
@@ -2555,7 +2579,18 @@ private fun CallSegment(
                 }
             }
             // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
+            //   + 「다시 요약」 (2026-09-25 사장님) — 전엔 에이닷에 들어가 녹음을 다시 공유해야만 됐다.
+            //     돈·시간이 드는 쪽이라 회색(보조)으로 두고, 누르면 한 번 확인한다.
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+                if (recordingConnected && !isRedoing) {
+                    Box(
+                        Modifier.clip(RoundedCornerShape(8.dp))
+                            .clickable { onRedoSummary() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Text("다시 요약", color = Color(0xFF7B9A9A), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Box(
                     Modifier.clip(RoundedCornerShape(8.dp))
                         .clickable { editText = summary?.summaryText.orEmpty(); editing = true }

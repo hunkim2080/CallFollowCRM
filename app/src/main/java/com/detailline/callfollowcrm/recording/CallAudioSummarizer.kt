@@ -42,7 +42,12 @@ object CallAudioSummarizer {
         interactive: Boolean = true,
         notifyOnComplete: Boolean = false,
         phoneOverride: String? = null,
-        recordedAtOverride: Long? = null
+        recordedAtOverride: Long? = null,
+        /**
+         * 사장님이 카드에서 **직접 [다시 요약]을 누른 것**. 이미 요약이 있어도 새로 하고,
+         * "다시 요약해드릴까요?" 는 또 묻지 않는다 — 방금 누른 게 그 대답이다.
+         */
+        redo: Boolean = false
     ): Boolean {
         // 번호·시각은 override 우선. 서버는 파일명을 안 보고 이 둘을 폼 필드로 받아 쓴다(§26).
         val parsed = AdotFilenameParser.parse(fileName)
@@ -53,8 +58,8 @@ object CallAudioSummarizer {
         // 이미 처리된 통화(로컬에 요약 있음)를 재공유한 경우 → 조용히 건너뛰지 않고
         //   "다시 요약해드릴까요?" 를 묻는다(채팅 다이얼로그). 아니오면 기존 유지, 예면 force_refresh.
         //   자동 스캔(interactive=false)은 묻지 않고 스킵 — 백그라운드 + 재과금 방지.
-        var forceRefresh = false
-        if (container.callSummaryRepository.findExistingNear(phone, recordedAt) != null) {
+        var forceRefresh = redo
+        if (!redo && container.callSummaryRepository.findExistingNear(phone, recordedAt) != null) {
             if (!interactive) return false
             if (!CallSummaryReprompt.ask(phone, recordedAt)) return false  // 아니오 → 기존 그대로
             forceRefresh = true

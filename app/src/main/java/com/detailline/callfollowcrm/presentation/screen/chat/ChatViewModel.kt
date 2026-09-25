@@ -342,6 +342,33 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 이미 요약된 통화를 **처음부터 다시** 요약. (2026-09-25 사장님 승인)
+     *   요약이 엉뚱할 때 에이닷에 들어가 녹음을 다시 공유하지 않아도 되게.
+     *   [summarizeCall] 과 같은 길인데 `redo=true` 라 "이미 요약돼 있어요" 로 돌아서지 않는다.
+     */
+    fun resummarizeCall(record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity, context: android.content.Context) {
+        val phone = record.phoneNumber
+        val at = record.startedAt ?: record.endedAt
+        com.detailline.callfollowcrm.recording.CallSummaryProgress.begin(phone, at)
+        viewModelScope.launch(Dispatchers.IO) {
+            val res = runCatching {
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.summarizeCallNow(
+                    context, container, phone, at, callRecordId = record.id, redo = true
+                )
+            }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED)
+            com.detailline.callfollowcrm.recording.CallSummaryProgress.end(phone, at)
+            // 성공 토스트는 안 띄운다 — 끝나면 CallSummaryProgress.justDone 이 "요약을 새로 했어요" 를 띄운다.
+            _toast.value = when (res) {
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> null
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> null
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "통화 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요. 오래된 통화는 녹음이 지워졌을 수 있어요."
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED -> "다시 요약하지 못했어요. 잠시 후 한 번 더 해주세요."
+            }
+        }
+    }
+
     /** 통화 요약을 사장님이 직접 고침(잘못된 요약 정정). summaryText 교체 → 채팅·고객정보·미리보기 자동 반영.
      *   + 후속문자(recommendedMessage)도 **수정본 기준으로 재생성**. (2026-06-23 요약 교체 / 2026-07-22 버그fix)
      *   ⚠️ fix 전: 요약을 고쳐도 '이 통화 내용으로 후속 문자 쓰기'가 통화 직후 만든 recommendedMessage(원본)를 써서

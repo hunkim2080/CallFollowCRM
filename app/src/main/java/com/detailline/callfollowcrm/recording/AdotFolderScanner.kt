@@ -454,7 +454,9 @@ object AdotFolderScanner {
         container: AppContainer,
         phoneNumber: String,
         callAtMs: Long,
-        callRecordId: Long? = null
+        callRecordId: Long? = null,
+        /** true = 사장님이 [다시 요약]을 누른 것. 이미 요약이 있어도 건너뛰지 않는다. */
+        redo: Boolean = false
     ): SummarizeResult {
         if (!isConnected(context)) return SummarizeResult.NO_FOLDER
         val appCtx = context.applicationContext
@@ -496,9 +498,10 @@ object AdotFolderScanner {
         //   사용자가 직접 탭한 그 통화기록(callRecordId)에 강제 연결 → 카드에 즉시 표시.
         //   (2026-06-18 버그: "이미 요약돼 있어요" 토스트인데 화면엔 요약이 안 보임.
         //    원인 = ALREADY 판정은 녹음시각 ±2분, 채팅 표시는 통화시각 ±10분 페어링이라 창이 어긋남.)
+        //   단, [다시 요약]을 누른 거면 그냥 지나간다 — 있는 걸 알고 누른 것이다.
         container.callSummaryRepository.findExistingNear(phoneNumber, bestAt)?.let { existing ->
             linkToCall(container, phoneNumber, existing, callRecordId)
-            return SummarizeResult.ALREADY
+            if (!redo) return SummarizeResult.ALREADY
         }
         if (!container.recordingRepository.existsByUri(uriStr)) {
             runCatching { RecordingMatcher.attach(container, uriStr, bestName, RecordingSourceType.SHARED_FROM_ADOT) }
@@ -509,7 +512,8 @@ object AdotFolderScanner {
             CallAudioSummarizer.summarizeAndSave(
                 appCtx, container, uriStr, bestName, interactive = false, notifyOnComplete = true,
                 phoneOverride = if (looseMatch) phoneNumber else null,
-                recordedAtOverride = if (looseMatch) bestAt else null
+                recordedAtOverride = if (looseMatch) bestAt else null,
+                redo = redo
             )
         }.getOrDefault(false)
         // 파일은 찾았으나 요약 실패 = 서버(/api/call-audio-summary, 맥미니 Whisper STT) 오류·네트워크·오디오 읽기 실패 등.

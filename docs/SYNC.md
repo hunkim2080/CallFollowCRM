@@ -11395,3 +11395,14 @@ plist 는 PlistBuddy 로 **그 한 칸만** Set — 바꾸기 전 백업(`~/plis
 - 변경: CallSummaryProgress 에 justDone 신호 추가 / CallAudioSummarizer 가 forceRefresh 성공 시 markDone /
   ChatScreen 은 요약이 있어도 「다시 요약하는 중…」 띠 표시(+"몇 분 걸려요") + 끝나면 "요약을 새로 했어요".
 - 서버 변경 없음.
+
+## 2026-09-25 12:50 · android (server 포함)
+🔴 「다시 요약」이 **옛 요약을 도로 가져오던** 진짜 원인 — GET /api/call-audio-summary/result
+- 증상(사장님): 다시 요약했는데 옛 요약(이모지 섞인 옛 형식) 그대로.
+- 원인: force_refresh 는 캐시에 옛 요약을 **남겨둔 채** 새로 만든다. 그런데 result 창구가
+  **캐시를 먼저 보고 status=ready 로 옛 것을 내줬다.** 앱은 그걸 받아 저장하고 폴링을 멈췄다
+  (실측: result 요청이 딱 1번. 몇 초 뒤 좋은 요약이 캐시에 들어갔지만 아무도 안 가져감).
+- 고침(server/main.py): result 가 **job 을 먼저 본다.** processing 이면 캐시가 있어도 processing 반환.
+- 검증: 옛 요약을 심어둔 가짜 통화에 force_refresh 접수 → result 가 `{"status":"processing"}` 반환
+  (고치기 전이면 `title:"옛 요약"` 이 나왔을 것). smoke.sh 10곳 200. 검사 기록 삭제 완료.
+- 앱: 통화카드에 「다시 요약」 링크 추가(요약 수정 옆·회색·확인창). redo 는 ALREADY 로 안 돌아섬.
