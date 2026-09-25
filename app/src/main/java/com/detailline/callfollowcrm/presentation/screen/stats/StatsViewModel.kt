@@ -112,9 +112,13 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         recordMonth.value = (recordMonth.value + delta).coerceAtMost(0)
     }
 
+    /** 현장 사진 전부(올린 순서). 인증샷에 넣을 **대표 사진**을 여기서 고른다. */
+    private val sitePhotosFlow = container.sitePhotoRepository.observeAllOldestFirst()
+
     val myRecord: StateFlow<MyRecordState> =
-        combine(customers, jobsFlow, recordMonth) { cs, js, m -> buildMyRecord(cs, js, m) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
+        combine(customers, jobsFlow, recordMonth, sitePhotosFlow) { cs, js, m, ph ->
+            buildMyRecord(cs, js, m, ph)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
 
     private val bizNameForRecord = container.preferences.bizName
     private val tradeForRecord = container.preferences.ownerTrades.firstOrNull().orEmpty()
@@ -131,7 +135,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     private fun buildMyRecord(
         cs: List<CustomerEntity>,
         js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
-        monthDelta: Int = 0
+        monthDelta: Int = 0,
+        photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity> = emptyList()
     ): MyRecordState {
         val now = System.currentTimeMillis()
         val monthStart = shiftMonth(monthStartOf(now), monthDelta)
@@ -275,8 +280,32 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             tradeName = tradeForRecord,
             bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
             areaLabel = area,
-            monthKm = monthKm
+            monthKm = monthKm,
+            photoPath = representativePhoto(month, photos)
         )
+    }
+
+    /**
+     * 인증샷에 넣을 **대표 사진 한 장**. (2026-09-25 사장님 프로토 승인)
+     *
+     * · 어느 현장 — 그 달 현장 중 **제일 최근** 것부터 본다. 사진이 없으면 그 전 현장으로.
+     * · 어느 사진 — 그 현장에 **제일 먼저 올린** 것 (사장님: "내가 첫번째로 넣는게 대표사진").
+     *   [photos] 가 올린 순서(ASC)로 오므로 **먼저 걸리는 게 대표**다.
+     * · 건(件)에 붙은 사진이 우선. 옛 사진은 jobId 가 없으니 고객으로 찾는다.
+     * · 파일이 사라졌으면(폰 정리·복원 등) 없는 셈 친다 — 깨진 그림을 넣느니 안 넣는다.
+     */
+    private fun representativePhoto(
+        monthJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
+        photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>
+    ): String? {
+        if (photos.isEmpty()) return null
+        for (j in monthJobs) {
+            val hit = photos.firstOrNull { it.jobId == j.id }
+                ?: photos.firstOrNull { it.jobId == null && it.customerId == j.customerId }
+            val path = hit?.filePath ?: continue
+            if (java.io.File(path).exists()) return path
+        }
+        return null
     }
 
     /**
@@ -499,7 +528,12 @@ data class MyRecordState(
      * 이번 달 **길을 타고 간 거리**(km). 0 이면 안 보여준다.
      *   ⚠ 우리 도로 자료엔 큰길뿐이라 **실제보다 작게** 나온다 — 화면에 '약' 을 붙여 쓴다.
      */
-    val monthKm: Int = 0
+    val monthKm: Int = 0,
+    /**
+     * 인증샷에 넣을 **대표 사진** 파일 경로. null = 그 달 현장에 올린 사진이 없다
+     *   → 사진이 들어가는 갈래(지도+사진 · 사진 배경)를 **아예 안 보여준다.**
+     */
+    val photoPath: String? = null
 )
 
 /** 「내 기록」 한 줄. */

@@ -54,7 +54,15 @@ object RecordShot {
      *   MAP     — **지도가 주인공.** 지도가 꽉 차고 숫자를 그 위에 얹는다.
      *   CARD    — 정사각 한 장. 숫자가 주인공이고 지도는 가운데 네모.
      */
-    enum class Shape { STICKER, MAP, CARD }
+    enum class Shape {
+        STICKER,
+        MAP,
+        CARD,
+        /** B — 지도 인증샷 + 오른쪽 아래에 현장 사진 한 장. (2026-09-25 사장님) */
+        MAP_PHOTO,
+        /** C — **현장 사진이 바탕 전체**, 그 위에 숫자·작은 지도·간판. */
+        PHOTO
+    }
 
     /**
      * 인증샷 **비율**. 모양과 따로 고른다. (사장님 시안 「이미지 비율」)
@@ -95,8 +103,49 @@ object RecordShot {
         /** 보고 전화하게. 비면 안 그린다. */
         val phone: String,
         /** 다니는 지역 한 줄 — "서울·경기". 광고에선 **어디까지 가는지**가 제일 궁금한 정보다. */
-        val area: String
+        val area: String,
+        /**
+         * **대표 현장 사진** 파일 경로. null 이면 사진이 들어가는 갈래를 못 쓴다.
+         *   대표 = 그 현장에 제일 먼저 올린 사진. (2026-09-25 사장님)
+         */
+        val photoPath: String? = null
     )
+
+    /**
+     * 사진 파일을 **필요한 크기만큼만** 읽는다. 폰 사진은 4000×3000 이라 그냥 읽으면 메모리가 터진다.
+     *   못 읽으면 null — 그럼 사진 없는 갈래로 떨어진다(깨진 그림을 넣느니 안 넣는다).
+     */
+    private fun loadPhoto(path: String?, reqW: Int, reqH: Int): Bitmap? {
+        if (path.isNullOrBlank()) return null
+        return runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(path, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            var sample = 1
+            while (bounds.outWidth / (sample * 2) >= reqW && bounds.outHeight / (sample * 2) >= reqH) {
+                sample *= 2
+            }
+            android.graphics.BitmapFactory.decodeFile(
+                path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+            )
+        }.getOrNull()
+    }
+
+    /**
+     * 사진을 네모에 **꽉 채워** 그린다(가운데 기준으로 잘라서). 찌그러뜨리지 않는다 —
+     *   현장 사진이 늘어나 보이면 일한 게 우스워 보인다.
+     */
+    private fun drawCover(c: android.graphics.Canvas, bmp: Bitmap, dst: android.graphics.RectF) {
+        val sw = bmp.width.toFloat(); val sh = bmp.height.toFloat()
+        val scale = maxOf(dst.width() / sw, dst.height() / sh)
+        val w = sw * scale; val h = sh * scale
+        val left = dst.centerX() - w / 2; val top = dst.centerY() - h / 2
+        c.save()
+        c.clipRect(dst)
+        c.drawBitmap(bmp, null, android.graphics.RectF(left, top, left + w, top + h),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        c.restore()
+    }
 
     private fun font(ctx: Context, id: Int): Typeface? = runCatching {
         ResourcesCompat.getFont(ctx, id)
@@ -131,7 +180,9 @@ object RecordShot {
      *   지도가 위에서 아래까지 꽉 차고, 큰 숫자를 그 위에 얹는다.
      *   "수도권을 이만큼 돌았다" 가 글이 아니라 **그림 한 장**으로 읽히게 하는 게 목적이다.
      */
-    private fun renderMapHero(ctx: Context, d: Data, ratio: Ratio, sign: Boolean): Bitmap {
+    private fun renderMapHero(
+        ctx: Context, d: Data, ratio: Ratio, sign: Boolean, withPhoto: Boolean = false
+    ): Bitmap {
         val H = ratio.h
         val bmp = Bitmap.createBitmap(S, H, Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
@@ -208,7 +259,149 @@ object RecordShot {
             c.drawText(line, pad, by, fit(paint(med, 28f, sub), line, S - pad * 2, 28f, 21f))
         }
 
+        // ── B — 오른쪽 아래에 **현장 사진 한 장.** 흰 테를 둘러 지도 위에서 떠 보이게.
+        //   "다녀왔다" 위에 "이렇게 해놨다" 를 한 장 얹는 것. (2026-09-25 사장님)
+        if (withPhoto) {
+            val ph = loadPhoto(d.photoPath, 420, 420)
+            if (ph != null) {
+                // 오른쪽 **위**에 둔다 — 큰 숫자 알약이 왼쪽 위라 자리가 비고,
+                //   다닌 길(점)은 가운데~아래에 몰리는 편이라 덜 가린다.
+                //   (2026-09-25 폰 확인: 오른쪽 아래에 뒀더니 영통·동탄 점을 덮었다)
+                val side = 272f
+                val right = S - pad
+                val top2 = pad + 14f
+                val box = android.graphics.RectF(right - side, top2, right, top2 + side)
+                val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFFFFFFFF.toInt()
+                    setShadowLayer(16f, 0f, 5f, 0x33000000)
+                }
+                c.drawRoundRect(
+                    box.left - 10f, box.top - 10f, box.right + 10f, box.bottom + 10f, 22f, 22f, frame
+                )
+                val path = android.graphics.Path().apply { addRoundRect(box, 14f, 14f, android.graphics.Path.Direction.CW) }
+                c.save(); c.clipPath(path); drawCover(c, ph, box); c.restore()
+                ph.recycle()
+            }
+        }
+
         if (sign) drawSign(c, d, bold, xbold, med, ink, blue, hint, H.toFloat(), pad)
+        return bmp
+    }
+
+    /**
+     * **C — 현장 사진이 바탕 전체.** 그 위에 큰 숫자 · 작은 지도 · 간판.
+     *
+     * 왜: 지금 [사진 위에] 스티커는 사장님이 **인스타 스토리에서 손으로 얹어야** 한다
+     *   (저장 → 스토리 → 스티커 → 사진, 네 단계). 그 합성을 **앱이 대신 한다.**
+     *   사진을 못 읽으면 null — 부르는 쪽이 지도 갈래로 내린다.
+     */
+    private fun renderPhotoHero(ctx: Context, d: Data, ratio: Ratio, sign: Boolean): Bitmap? {
+        val H = ratio.h
+        val photo = loadPhoto(d.photoPath, S, H) ?: return null
+        val bmp = Bitmap.createBitmap(S, H, Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+
+        val bold = font(ctx, R.font.pretendard_bold)
+        val xbold = font(ctx, R.font.pretendard_extrabold)
+        val med = font(ctx, R.font.pretendard_medium)
+        val pad = 64f
+        val white = 0xFFFFFFFF.toInt()
+
+        // ① 사진을 꽉 채워 깐다.
+        drawCover(c, photo, android.graphics.RectF(0f, 0f, S.toFloat(), H.toFloat()))
+        photo.recycle()
+
+        // ② 위아래로 어둡게 — 어떤 사진 위에서든 흰 글자가 읽히게. 가운데(시공 자리)는 안 건드린다.
+        val top = Paint().apply {
+            shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, H * 0.38f,
+                intArrayOf(0xB3000000.toInt(), 0x00000000), null,
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        }
+        c.drawRect(0f, 0f, S.toFloat(), H * 0.38f, top)
+        val bot = Paint().apply {
+            shader = android.graphics.LinearGradient(
+                0f, H * 0.62f, 0f, H.toFloat(),
+                intArrayOf(0x00000000, 0xC4000000.toInt()), null,
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        }
+        c.drawRect(0f, H * 0.62f, S.toFloat(), H.toFloat(), bot)
+
+        // ③ 큰 숫자 — 왼쪽 위.
+        var y = pad + 46f
+        c.drawText(d.monthLabel, pad, y, paint(bold, 30f, 0xCCFFFFFF.toInt()))
+        y += 104f
+        val bigP = fit(paint(xbold, 126f, white), d.bigValue, S - pad * 2 - 260f, 126f, 72f)
+        c.drawText(d.bigValue, pad, y, bigP)
+        if (d.bigUnit.isNotBlank()) {
+            c.drawText(d.bigUnit, pad + bigP.measureText(d.bigValue) + 12f, y, paint(bold, 48f, white))
+        }
+        y += 48f
+        c.drawText(d.bigCaption, pad, y, paint(bold, 34f, 0xE6FFFFFF.toInt()))
+
+        // ④ 작은 지도 — 오른쪽 위. "어디어디 다녔다"를 사진 위에 한 뼘으로.
+        if (d.dots.isNotEmpty()) {
+            val side = 260f
+            val box = android.graphics.RectF(S - pad - side, pad, S - pad, pad + side)
+            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xF2FFFFFF.toInt(); setShadowLayer(14f, 0f, 4f, 0x40000000)
+            }
+            c.drawRoundRect(box.left - 8f, box.top - 8f, box.right + 8f, box.bottom + 8f, 20f, 20f, frame)
+            c.save()
+            c.clipRect(box)
+            c.translate(box.left, box.top)
+            CanvasDrawScope().draw(
+                Density(1f), LayoutDirection.Ltr, Canvas(c), Size(side, side)
+            ) {
+                drawRegionMap(
+                    spots = d.dots,
+                    named = emptySet(),          // 한 뼘짜리라 이름은 안 넣는다(겹쳐서 못 읽는다)
+                    measurer = null,
+                    land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
+                    edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
+                    dot = androidx.compose.ui.graphics.Color(0xFF3182F6),
+                    labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
+                    labelStyle = TextStyle(fontSize = 8.sp),
+                    river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
+                    progress = 1f,
+                    geo = MapGeo.load(ctx),
+                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat }),
+                    zoom = d.zoom, panX = d.panX, panY = d.panY
+                )
+            }
+            c.restore()
+        }
+
+        // ⑤ 동네 이름 + 간판 — 아래. 사진 위라 전부 흰 글씨.
+        // ⚠️ 상호(50px)가 H-pad-62 에 앉는다. 118 이면 6px 밖에 안 떨어져 **붙어 보인다**
+        //   (2026-09-25 폰 확인) → 한 줄 만큼 더 띄운다.
+        var by = H - pad - (if (sign) 142f else 8f)
+        if (d.towns.isNotEmpty()) {
+            val line = d.towns.take(6).joinToString(" · ") +
+                if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
+            c.drawText(line, pad, by, fit(paint(med, 28f, 0xD9FFFFFF.toInt()), line, S - pad * 2, 28f, 21f))
+            by += 46f
+        }
+        if (sign) {
+            val name = d.bizName.trim()
+            if (name.isNotBlank()) {
+                c.drawText(name, pad, H - pad - 62f, fit(paint(xbold, 50f, white), name, S - pad * 2, 50f, 30f))
+            }
+            val line2 = listOfNotNull(
+                listOfNotNull(
+                    d.area.takeIf { it.isNotBlank() }, d.tradeName.takeIf { it.isNotBlank() }
+                ).joinToString(" ").takeIf { it.isNotBlank() },
+                d.phone.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (line2.isNotBlank()) {
+                c.drawText(line2, pad, H - pad - 14f,
+                    fit(paint(bold, 32f, 0xF2FFFFFF.toInt()), line2, S - pad * 2 - 150f, 32f, 24f))
+            }
+            c.drawText("시공막내", S - pad, H - pad - 14f,
+                paint(med, 22f, 0x99FFFFFF.toInt(), Paint.Align.RIGHT))
+        }
         return bmp
     }
 
@@ -218,9 +411,17 @@ object RecordShot {
      *              (사장님 시안: "개인 기록은 담백하게, 홍보할 때는 연락처를 더해요")
      */
     fun render(ctx: Context, d: Data, shape: Shape, ratio: Ratio = Ratio.FEED, sign: Boolean = true): Bitmap {
+        // 사진이 없으면(또는 못 읽으면) 사진 갈래를 지도 갈래로 내린다 — 빈 네모를 내놓지 않는다.
+        var mode = shape
+        if ((mode == Shape.PHOTO || mode == Shape.MAP_PHOTO) && d.photoPath.isNullOrBlank()) {
+            mode = Shape.MAP
+        }
         // 갈 곳이 없으면(주소가 하나도 안 붙었으면) 지도 대신 한 장으로. 빈 지도는 자랑이 안 된다.
-        val mode = if (shape == Shape.MAP && d.dots.isEmpty()) Shape.CARD else shape
-        if (mode == Shape.MAP) return renderMapHero(ctx, d, ratio, sign)
+        if (mode == Shape.MAP && d.dots.isEmpty()) mode = Shape.CARD
+        if (mode == Shape.PHOTO) return renderPhotoHero(ctx, d, ratio, sign) ?: renderMapHero(ctx, d, ratio, sign)
+        if (mode == Shape.MAP || mode == Shape.MAP_PHOTO) {
+            return renderMapHero(ctx, d, ratio, sign, withPhoto = mode == Shape.MAP_PHOTO)
+        }
         val transparent = mode == Shape.STICKER
         // 스티커는 **사진 위에 얹는 것**이라 비율이 뜻이 없다 — 내용에 딱 맞게. 간판을 끄면 더 납작해진다.
         val h = if (transparent) (if (sign) STICKER_H else 400) else ratio.h

@@ -11,6 +11,13 @@ interface SitePhotoDao {
     @Query("SELECT * FROM site_photos WHERE customerId = :customerId ORDER BY createdAt DESC")
     fun observeByCustomer(customerId: Long): Flow<List<SitePhotoEntity>>
 
+    /**
+     * 전부, **올린 순서대로**(오래된 것 먼저). 인증샷에 넣을 대표 사진을 고를 때 쓴다.
+     *   대표 = 그 현장에 **제일 먼저 올린** 사진이라, 정렬이 ASC 여야 맨 앞이 대표다.
+     */
+    @Query("SELECT * FROM site_photos ORDER BY createdAt ASC")
+    fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>>
+
     @Insert
     suspend fun insert(photo: SitePhotoEntity): Long
 

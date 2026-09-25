@@ -20,6 +20,9 @@ class SitePhotoRepository(
 ) {
     fun observe(customerId: Long): Flow<List<SitePhotoEntity>> = dao.observeByCustomer(customerId)
 
+    /** 전부, 올린 순서대로. 「내 기록」이 대표 사진을 고를 때 쓴다. */
+    fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>> = dao.observeAllOldestFirst()
+
     private fun photoDir(): File = File(context.filesDir, "site_photos").apply { mkdirs() }
 
     /** 갤러리 등에서 고른 URI 를 내부 저장소로 복사 + DB 기록. 성공 시 true. */

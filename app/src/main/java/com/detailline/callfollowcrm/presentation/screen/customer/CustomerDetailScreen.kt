@@ -1226,6 +1226,9 @@ fun CustomerDetailScreen(
             val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
             val photoTotal = sitePhotos.size + teamPhotos.size
+            // 🏅 **대표 사진** — 그 현장에 제일 먼저 올린 사진. 인증샷에 이게 들어간다. (2026-09-25 사장님)
+            //   목록은 최신이 먼저라 대표는 보통 **맨 끝 칸**에 있다 → 위치로는 알 수 없으니 딱지를 붙인다.
+            val repPhotoId = remember(sitePhotos) { sitePhotos.minByOrNull { it.createdAt }?.id }
             LaunchedEffect(showPhotoPicker) {
                 if (showPhotoPicker) {
                     showPhotoPicker = false
@@ -1281,6 +1284,18 @@ fun CustomerDetailScreen(
                             "현장 사진을 올리면 팀원과 같이 봐요. 팀원이 올린 사진엔 파란 이름표가 붙어요. (한 현장 ${photoMax}장까지)",
                             fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                         )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "맨 처음 올린 사진이 「대표」가 돼요 — 내 기록 탭 인증샷에 이 사진이 들어가요.",
+                            fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold, lineHeight = 17.sp
+                        )
+                    } else if (repPhotoId != null) {
+                        // 사진이 있을 땐 **딱지만으로 충분**하다 — 긴 안내를 계속 두면 카드가 시끄러워진다.
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "「대표」 사진이 인증샷에 들어가요 (맨 처음 올린 사진)",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                        )
                     }
                     val cells: List<Any> = sitePhotos + teamPhotos
                     // 두 줄(6장)까지만. 더 있으면 마지막 칸이 "+N장" 이 되고, 누르면 다 펴진다.
@@ -1316,6 +1331,17 @@ fun CustomerDetailScreen(
                                                         }
                                                     }
                                                 )
+                                                // 🏅 이게 인증샷에 들어가는 그 사진이다.
+                                                if (cell.id == repPhotoId) {
+                                                    androidx.compose.foundation.layout.Box(
+                                                        Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(5.dp)
+                                                            .clip(AppShape.pill).background(TossBlue)
+                                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("대표", fontSize = 9.sp,
+                                                            fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                                    }
+                                                }
                                             }
                                             is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto -> {
                                                 picked = cell.photoId in pickedTeam

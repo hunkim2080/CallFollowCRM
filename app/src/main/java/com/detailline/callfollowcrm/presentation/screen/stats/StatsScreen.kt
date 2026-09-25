@@ -497,7 +497,8 @@ private fun ShotPreviewDialog(
             no = rec.lastNo, monthLabel = rec.monthLabel, sites = rec.monthSites,
             workDays = rec.monthWorkDays, towns = rec.towns, dots = rec.dots,
             bizName = rec.bizName, tradeName = rec.tradeName,
-            phone = rec.bizPhone, area = rec.areaLabel
+            phone = rec.bizPhone, area = rec.areaLabel,
+            photoPath = rec.photoPath
         )
     }
     val bmp = remember(data, shape, ratio, sign) {
@@ -617,17 +618,29 @@ private fun ShotPreviewDialog(
                 //   그래서 "지도 크게 + 정사각" 같은 조합을 아예 못 골랐다. (사장님 시안)
                 Text("이미지 스타일", style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
-                Row(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    ShotTab("사진 위에", shape == ShotShape.STICKER, Modifier.weight(1f)) {
-                        shape = ShotShape.STICKER
+                // 갈래가 다섯이라 한 줄에 안 들어간다 → 줄바꿈되는 칩.
+                //   현장 사진이 없는 달이면 **사진 갈래를 아예 안 보여준다** —
+                //   눌렀는데 지도가 나오면 고장으로 보인다. (2026-09-25 사장님 프로토 EZkZj76N)
+                val hasPhoto = rec.photoPath != null
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ShotChip("사진 위에", shape == ShotShape.STICKER) { shape = ShotShape.STICKER }
+                    ShotChip("숫자 중심", shape == ShotShape.CARD) { shape = ShotShape.CARD }
+                    ShotChip("지도 포함", shape == ShotShape.MAP) { shape = ShotShape.MAP }
+                    if (hasPhoto) {
+                        ShotChip("지도 + 사진", shape == ShotShape.MAP_PHOTO) { shape = ShotShape.MAP_PHOTO }
+                        ShotChip("사진이 배경", shape == ShotShape.PHOTO) { shape = ShotShape.PHOTO }
                     }
-                    ShotTab("숫자 중심", shape == ShotShape.CARD, Modifier.weight(1f)) {
-                        shape = ShotShape.CARD
-                    }
-                    ShotTab("지도 포함", shape == ShotShape.MAP, Modifier.weight(1f)) {
-                        shape = ShotShape.MAP
-                    }
+                }
+                if (!hasPhoto) {
+                    Spacer(Modifier.height(AppSpace.s4))
+                    Text(
+                        "고객 상세에서 현장 사진을 올리면 「지도 + 사진」·「사진이 배경」도 고를 수 있어요",
+                        style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
                 }
                 // ── 이미지 비율 ── 스티커는 **사진 위에 얹는 것**이라 비율이 뜻이 없다 → 아예 안 보인다.
                 //   못 쓰는 버튼을 회색으로 남겨두면 고장처럼 보인다.
@@ -765,7 +778,11 @@ private fun ShotPreviewDialog(
 
                 if (sticker) {
                     Spacer(Modifier.height(AppSpace.s8))
-                    Text("배경이 비어 있어요 — 인스타 스토리에서 [스티커 → 사진] 으로 내 현장 사진 위에 올리면 돼요",
+                    Text(
+                        if (rec.photoPath != null)
+                            "배경이 비어 있어요 — 손으로 얹기 싫으시면 위에서 「사진이 배경」 을 고르세요. 앱이 대신 얹어드려요."
+                        else
+                            "배경이 비어 있어요 — 인스타 스토리에서 [스티커 → 사진] 으로 내 현장 사진 위에 올리면 돼요",
                         style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp)
                 }
             }
@@ -807,8 +824,24 @@ private fun shotSuffix(shape: com.detailline.callfollowcrm.util.RecordShot.Shape
     when (shape) {
         com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER -> "_sticker"
         com.detailline.callfollowcrm.util.RecordShot.Shape.MAP -> "_map"
+        com.detailline.callfollowcrm.util.RecordShot.Shape.MAP_PHOTO -> "_map_photo"
+        com.detailline.callfollowcrm.util.RecordShot.Shape.PHOTO -> "_photo"
         com.detailline.callfollowcrm.util.RecordShot.Shape.CARD -> ""
     }
+
+/** 갈래 칩 하나 — 「무엇을 자랑할까요?」 칩과 같은 모양(낯설지 않게). */
+@Composable
+private fun ShotChip(label: String, on: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(AppShape.pill)
+            .background(if (on) TossBlue else TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 13.dp, vertical = 8.dp)
+    ) {
+        Text(label, style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+            color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+    }
+}
 
 /** 미리보기 창 위쪽 갈래 하나. */
 @Composable
