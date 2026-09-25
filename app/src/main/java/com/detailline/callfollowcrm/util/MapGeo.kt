@@ -167,6 +167,37 @@ object MapGeo {
         return out
     }
 
+    /** 달 전체 길 — 점들 + **현장이 그 길 위 몇 번째 점인지**. */
+    class Trip(val pts: FloatArray, val stops: IntArray)
+
+    /**
+     * 다녀온 순서대로 **길을 타고** 이은 한 줄. 길을 못 찾은 구간은 곧게 잇는다.
+     *   확대와 무관하니 한 번만 구해서 들고 있으면 된다.
+     */
+    fun fullRoute(ctx: Context, dots: List<Pair<Double, Double>>): Trip? {
+        if (dots.size < 2) return null
+        val out = ArrayList<Float>(256)
+        val stops = IntArray(dots.size)
+        fun push(lon: Float, lat: Float) {
+            val n = out.size
+            if (n >= 2 && Math.abs(out[n - 2] - lon) < 0.0009f && Math.abs(out[n - 1] - lat) < 0.0009f) return
+            out.add(lon); out.add(lat)
+        }
+        push(dots[0].first.toFloat(), dots[0].second.toFloat())
+        stops[0] = 0
+        for (i in 0 until dots.size - 1) {
+            val a = dots[i]
+            val b = dots[i + 1]
+            routeBetween(ctx, a.first, a.second, b.first, b.second)?.let { seg ->
+                var k = 0
+                while (k + 1 < seg.size) { push(seg[k], seg[k + 1]); k += 2 }
+            }
+            push(b.first.toFloat(), b.second.toFloat())
+            stops[i + 1] = out.size / 2 - 1
+        }
+        return Trip(out.toFloatArray(), stops)
+    }
+
     private fun nearest(g: Net, lon: Double, lat: Double): Int {
         var best = -1
         var bd = Double.MAX_VALUE

@@ -64,9 +64,19 @@ fun RegionMap(
 ) {
     if (spots.isEmpty()) return
     val measurer = rememberTextMeasurer()
+    // 제스처 안에서 **지금 값**을 읽으려고 — 안 그러면 처음 값에 붙잡힌다.
+    val zoomNow by androidx.compose.runtime.rememberUpdatedState(zoom)
+    val panXNow by androidx.compose.runtime.rememberUpdatedState(panX)
+    val panYNow by androidx.compose.runtime.rememberUpdatedState(panY)
     // 진짜 지도 좌표 — 지도를 처음 그릴 때 한 번만 읽는다.
     val ctxForGeo = androidx.compose.ui.platform.LocalContext.current
     val geoData = remember { com.detailline.callfollowcrm.util.MapGeo.load(ctxForGeo) }
+    // 길을 타고 간 경로 — 확대와 무관하니 점이 바뀔 때만 다시 구한다.
+    val tripData = remember(spots) {
+        com.detailline.callfollowcrm.util.MapGeo.fullRoute(
+            ctxForGeo, spots.sortedBy { it.order }.map { it.lon to it.lat }
+        )
+    }
     // 🚛 가 그 달 다닌 순서대로 달린다. 한 바퀴 14초.
     //   ⚠️ 폰 설정에서 '애니메이션 배율' 이 0이면 **안 움직인다** — 그건 폰 설정이지 버그가 아니다.
     //      그래서 움직임이 없어도 **길은 다 그려진 채**로 보이게 했다(멈춰도 빈 지도가 안 된다).
@@ -95,11 +105,15 @@ fun RegionMap(
                 // 지도인데 손가락으로 안 늘어나면 고장으로 느껴진다. (2026-09-25 사장님 "기본 UX")
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoomChange, _ ->
-                        val nz = (zoom * zoomChange).coerceIn(0.6f, 8f)
+                        // ⚠️ 여기서 바깥 값을 그냥 쓰면 **처음 값(1배)을 계속 붙잡는다** —
+                        //   손가락을 벌려도 매번 1배에서 다시 시작해서 '되다 만다'.
+                        //   (2026-09-25 사장님 "줌인 반응은 있는데 확대축소가 되다 말아")
+                        //   항상 **지금 값**을 읽어야 쌓인다.
+                        val nz = (zoomNow * zoomChange).coerceIn(0.6f, 8f)
                         onTransform?.invoke(
                             nz,
-                            (panX + pan.x / size.width / nz).coerceIn(-0.9f, 0.9f),
-                            (panY + pan.y / size.height / nz).coerceIn(-0.9f, 0.9f)
+                            (panXNow + pan.x / size.width / nz).coerceIn(-1.2f, 1.2f),
+                            (panYNow + pan.y / size.height / nz).coerceIn(-1.2f, 1.2f)
                         )
                     }
                 }
@@ -111,7 +125,7 @@ fun RegionMap(
                 }
         ) {
             drawRegionMap(spots, named, measurer, landC, line, dotC, labelC, labelStyle, riverC, progress,
-                zoom = zoom, panX = panX, panY = panY, geo = geoData)
+                trip = tripData, zoom = zoom, panX = panX, panY = panY, geo = geoData)
         }
     }
 }
@@ -121,7 +135,9 @@ fun RegionMap(
  * @param order 그 달 안에서 **몇 번째로 간 곳인가**(0부터). 🚛 가 이 순서로 달린다.
  */
 data class RegionDot(
-    val name: String, val lat: Double, val lon: Double, val count: Int, val order: Int = 0
+    val name: String, val lat: Double, val lon: Double, val count: Int, val order: Int = 0,
+    /** 그 동네에서 번 돈(만원). 도착할 때 **지폐가 몇 장 올라올지**를 정한다. 0 이면 안 올라온다. */
+    val amountManwon: Int = 0
 )
 
 /**
@@ -214,6 +230,12 @@ internal fun DrawScope.drawRegionMap(
     labelStyle: TextStyle,
     river: Color,
     progress: Float,
+    /**
+     * **길을 타고 간 경로.** null 이면 동네끼리 곧게 잇는다.
+     *   [com.detailline.callfollowcrm.util.MapGeo.fullRoute] 로 미리 구해서 넘긴다
+     *   (여기선 Context 를 못 쓴다).
+     */
+    trip: com.detailline.callfollowcrm.util.MapGeo.Trip? = null,
     /** 손가락으로 벌린 만큼. 1 = 저절로 맞춘 크기. */
     zoom: Float = 1f,
     /** 손가락으로 끈 만큼 — 화면 폭·높이에 대한 비율. */
@@ -401,49 +423,180 @@ internal fun DrawScope.drawRegionMap(
 
     // ── 다닌 길 + 🚛 ── 날짜 순서대로 이은 선. 지나온 만큼 진하게 그어진다.
     val route = spots.sortedBy { it.order }
-    if (route.size >= 2) {
-        val rp = Path()
-        route.forEachIndexed { idx, s ->
-            val p = px(s.lon, s.lat)
-            if (idx == 0) rp.moveTo(p.x, p.y) else rp.lineTo(p.x, p.y)
+    /** 화면 위 길. 길을 못 받았으면 동네끼리 곧게. */
+    val way: List<Offset> = if (trip != null && trip.pts.size >= 4) {
+        ArrayList<Offset>(trip.pts.size / 2).apply {
+            var i = 0
+            while (i + 1 < trip.pts.size) { add(px(trip.pts[i].toDouble(), trip.pts[i + 1].toDouble())); i += 2 }
         }
-        // 전체 길 — 옅게(어디를 도는지 미리 보인다)
-        drawPath(rp, dot.copy(alpha = 0.22f), style = Stroke(
-            width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
-            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f))
-        ))
-        // 지나온 길 — 진하게
-        val pm = android.graphics.PathMeasure(rp.asAndroidPath(), false)
-        val total = pm.length
-        if (total > 0f) {
-            val at = total * progress.coerceIn(0f, 1f)
-            val seg = android.graphics.Path()
-            if (pm.getSegment(0f, at, seg, true)) {
-                drawPath(seg.asComposePath(), dot, style = Stroke(
-                    width = 2.6f, cap = androidx.compose.ui.graphics.StrokeCap.Round
-                ))
-            }
-            // 🚛 — 지금 자리
-            val pos = FloatArray(2)
-            if (pm.getPosTan(at, pos, null)) {
-                // 기본 글자 그리기 — 인증샷·영상에도 트럭이 찍힌다(전엔 화면에만 있었다).
-                val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    textSize = 17f * (size.minDimension / 380f).coerceIn(1f, 3.2f)
-                    textAlign = android.graphics.Paint.Align.CENTER
-                }
-                drawContext.canvas.nativeCanvas.drawText("🚛", pos[0], pos[1] - tp.textSize * 0.35f, tp)
-            }
+    } else route.map { px(it.lon, it.lat) }
+    /** 현장이 길 위 몇 번째 점인가. */
+    val stops: IntArray = trip?.stops ?: IntArray(route.size) { it }
+
+    // ── 시간표 ── 구간마다 길이에 맞춰 시간을 주고 **현장마다 반 초쯤 멈춘다**.
+    //   등속으로 흐르면 '날아가는' 느낌이라 일하는 것처럼 안 보인다. (2026-09-25 프로토 확정)
+    var travelled = 0f
+    var arrivedUpTo = 0
+    val arriveAt = FloatArray(route.size)
+    var nowT = 0f
+    val segLen = FloatArray(maxOf(0, way.size - 1))
+    var totalLen = 0f
+    for (i in 0 until way.size - 1) {
+        val d = (way[i + 1] - way[i]).getDistance()
+        segLen[i] = d; totalLen += d
+    }
+    if (way.size >= 2 && stops.size >= 2) {
+        val legs = FloatArray(stops.size - 1)
+        var maxLeg = 1f
+        for (s2 in 0 until stops.size - 1) {
+            var L = 0f
+            for (i in stops[s2] until minOf(stops[s2 + 1], segLen.size)) L += segLen[i]
+            legs[s2] = L; if (L > maxLeg) maxLeg = L
         }
+        val pause = 0.55f
+        val durs = FloatArray(legs.size) { 0.8f + 1.4f * (legs[it] / maxLeg) }
+        var totalT = pause * legs.size
+        for (d in durs) totalT += d
+        var acc = 0f
+        for (s2 in 0 until legs.size) {
+            acc += durs[s2]
+            arriveAt[s2 + 1] = acc
+            acc += pause
+        }
+        nowT = totalT * progress.coerceIn(0f, 1f)
+        // 지금 어느 구간인가 + 그 안에서 얼마나 왔나
+        var cur = legs.size
+        var u = 0f
+        var t0 = 0f
+        for (s2 in 0 until legs.size) {
+            if (nowT < t0 + durs[s2]) { cur = s2; u = (nowT - t0) / durs[s2]; break }
+            t0 += durs[s2]
+            if (nowT < t0 + pause) { cur = s2; u = 1f; break }
+            t0 += pause
+        }
+        val e = if (u < .5f) 2f * u * u else 1f - Math.pow((-2f * u + 2f).toDouble(), 3.0).toFloat() / 2f
+        // **길이 하나로** 트럭 자리와 지나온 선을 같이 구한다(따로 구하면 어긋난다).
+        var base = 0f
+        for (i in 0 until minOf(stops[minOf(cur, stops.size - 1)], segLen.size)) base += segLen[i]
+        var legLen = 0f
+        if (cur < legs.size) legLen = legs[cur]
+        travelled = if (cur >= legs.size) totalLen else base + legLen * e
+        arrivedUpTo = 0
+        for (i in route.indices) if (nowT >= arriveAt[i]) arrivedUpTo = i
+    } else {
+        travelled = totalLen * progress.coerceIn(0f, 1f)
+        arrivedUpTo = route.size - 1
     }
 
-    // ── 점 ── (많이 간 동네가 큰 점)
+    // ── 지나온 길 ── 앞길은 안 보여준다(결말을 미리 알려주면 도착이 시시하다).
+    if (way.size >= 2) {
+        val rp = Path()
+        rp.moveTo(way[0].x, way[0].y)
+        var acc2 = 0f
+        var head = Offset(1f, 0f)
+        var tip = way[way.size - 1]
+        for (i in 0 until way.size - 1) {
+            if (acc2 + segLen[i] >= travelled) {
+                val f = if (segLen[i] > 0f) (travelled - acc2) / segLen[i] else 0f
+                tip = Offset(
+                    way[i].x + (way[i + 1].x - way[i].x) * f,
+                    way[i].y + (way[i + 1].y - way[i].y) * f
+                )
+                head = way[i + 1] - way[i]
+                rp.lineTo(tip.x, tip.y)
+                break
+            }
+            acc2 += segLen[i]
+            rp.lineTo(way[i + 1].x, way[i + 1].y)
+            if (i == way.size - 2) { tip = way[i + 1]; head = way[i + 1] - way[i] }
+        }
+        drawPath(rp, Color.White.copy(alpha = 0.85f), style = Stroke(
+            width = 5.2f * k, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round
+        ))
+        drawPath(rp, dot, style = Stroke(
+            width = 2.9f * k, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round
+        ))
+        // 🚛 — 지금 자리. 가는 쪽을 본다.
+        val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 17f * k
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        val nv0 = drawContext.canvas.nativeCanvas
+        nv0.save()
+        nv0.translate(tip.x, tip.y)
+        if (head.x > 0f) nv0.scale(-1f, 1f)     // 🚛 는 왼쪽을 본다 — 오른쪽으로 가면 뒤집는다
+        nv0.drawText("🚛", 0f, -tp.textSize * 0.28f, tp)
+        nv0.restore()
+    }
+
+    // ── 점 ── 처음엔 **속 빈 회색**, 트럭이 닿으면 파랗게 **차오르며 튄다**.
     val maxCount = spots.maxOf { it.count }.coerceAtLeast(1)
-    for (s in spots) {
+    route.forEachIndexed { idx, s ->
         val p = px(s.lon, s.lat)
-        val r = (4f + 6f * (s.count.toFloat() / maxCount)) * k
+        val base = (4f + 6f * (s.count.toFloat() / maxCount)) * k
+        val came = idx <= arrivedUpTo
+        if (!came) {
+            drawCircle(land, base * 0.62f, p)
+            drawCircle(labelColor.copy(alpha = 0.45f), base * 0.62f, p, style = Stroke(width = 1.4f * k))
+            return@forEachIndexed
+        }
+        val since = nowT - arriveAt[idx]
+        val pop = if (since in 0f..0.35f) 1f + 0.25f * Math.sin(Math.PI * (since / 0.35f)).toFloat() else 1f
+        val r = base * pop
+        if (since in 0f..0.6f) {
+            val g = since / 0.6f
+            drawCircle(dot.copy(alpha = 0.5f * (1f - g)), r + r * 2f * g, p)
+        }
         drawCircle(dot.copy(alpha = 0.18f), r + 5f * k, p)
         drawCircle(dot, r, p)
         drawCircle(Color.White, r, p, style = Stroke(width = 1.4f * k))
+        // 💵 도착할 때 **돈이 올라온다** — 다녀왔다가 아니라 **벌었다**가 된다.
+        val notes = (s.amountManwon / 50).coerceIn(0, 4)
+        if (notes > 0 && since in 0f..1.6f) {
+            val nv1 = drawContext.canvas.nativeCanvas
+            for (q in 0 until notes) {
+                val e2 = since - q * 0.085f
+                if (e2 < 0f || e2 > 1.35f) continue
+                val up = 74f * e2 - 0.5f * 52f * e2 * e2
+                if (up < 0f) continue
+                val dx = (if (q % 2 == 0) -1f else 1f) * (9f + (q * 13 % 11)) * e2 * 2.4f
+                val a = if (e2 < 0.7f) 1f else (1f - (e2 - 0.7f) / 0.25f).coerceAtLeast(0f)
+                val bw = 17f * k
+                val bh = 9.5f * k
+                val flap = Math.abs(Math.cos(e2 * Math.PI * 3.2)).toFloat().coerceAtLeast(0.22f)
+                nv1.save()
+                nv1.translate(p.x + dx * k, p.y - r - 6f * k - up * k)
+                nv1.rotate(Math.sin(e2 * Math.PI * 2.4 + q).toFloat() * 22f)
+                nv1.scale(flap, 1f)
+                val bp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.argb((a * 255).toInt(), 0x8F, 0xD3, 0xA4)
+                }
+                nv1.drawRoundRect(-bw / 2, -bh / 2, bw / 2, bh / 2, 2f * k, 2f * k, bp)
+                bp.style = android.graphics.Paint.Style.STROKE
+                bp.strokeWidth = 1f * k
+                bp.color = android.graphics.Color.argb((a * 160).toInt(), 0x28, 0x6E, 0x42)
+                nv1.drawRoundRect(-bw / 2, -bh / 2, bw / 2, bh / 2, 2f * k, 2f * k, bp)
+                nv1.restore()
+            }
+        }
+    }
+    // 🚩 첫 현장엔 깃발 — 멈춘 그림에서도 **어디서 시작했는지** 보여야 한다.
+    if (route.isNotEmpty()) {
+        val p0 = px(route[0].lon, route[0].lat)
+        val base0 = (4f + 6f * (route[0].count.toFloat() / maxCount)) * k
+        val fh = 13f * k
+        val fx = p0.x + base0 * 0.8f
+        val fy = p0.y - base0 * 0.8f
+        drawLine(labelColor.copy(alpha = 0.7f), Offset(fx, fy), Offset(fx, fy - fh), strokeWidth = 1.6f * k)
+        val fp = Path().apply {
+            moveTo(fx, fy - fh)
+            lineTo(fx + fh * 0.62f, fy - fh + fh * 0.2f)
+            lineTo(fx, fy - fh + fh * 0.4f)
+            close()
+        }
+        drawPath(fp, dot)
     }
     // ── 이름표 ──
     //   ⚠️ 전엔 Compose 글자 재는 도구로 그렸는데, **인증샷·영상엔 그 도구가 없어서**

@@ -261,7 +261,8 @@ object RecordShot {
                     labelStyle = TextStyle(fontSize = 10.sp),
                     river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                     progress = 1f,
-                    geo = MapGeo.load(ctx)
+                    geo = MapGeo.load(ctx),
+                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat })
                 )
             }
             c.restore()
