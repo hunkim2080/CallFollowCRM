@@ -169,7 +169,12 @@ object MapRide {
         b: Bounds,
         at: At,
         t: Float,
-        followZoom: Float = 2.6f,
+        /**
+         * 얼마나 당겨서 따라붙을지.
+         *   2.6 까지 당겼더니 먼 구간에서 트럭이 **1초에 화면 두 칸 반**을 지나가 휘딝거렸고,
+         *   지도에 그려진 게 별로 없어 **벌판처럼** 보였다. (2026-09-25 단위 테스트가 잡음)
+         */
+        followZoom: Float = 2.0f,
         restZoom: Float = 1f,
         restPanX: Float = 0f,
         restPanY: Float = 0f
@@ -184,11 +189,11 @@ object MapRide {
         // 트럭을 화면 한가운데로: cLon = mid - panX*span/zoom  →  panX = (mid - lon)*zoom/span
         val fx = if (b.spanLon > 0) ((b.midLon - at.lon) * zoom / b.spanLon).toFloat() else 0f
         val fy = if (b.spanLat > 0) ((at.lat - b.midLat) * zoom / b.spanLat).toFloat() else 0f
-        // 가장자리 밖(바다·여백)까지 따라가지 않는다 — 화면에 빈 데가 생긴다.
-        val lim = ((zoom - 1f) / 2f).coerceAtLeast(0f)
-        val cx = fx.coerceIn(-lim, lim)
-        val cy = fy.coerceIn(-lim, lim)
-        return Shot(zoom, cx + (restPanX - cx) * e, cy + (restPanY - cy) * e)
+        // 📌 **끝까지 정가운데.** (2026-09-25 사장님 "확대를 해도 그 가운데가 유지되는거 맞지?")
+        //   손가락으로 끌 땐 '지도를 잃지 말자'고 가장자리에서 잡아둔다.
+        //   하지만 지도는 **전국이 다 그려져 있어** 더 밀어도 빈 데가 안 나온다.
+        //   그래서 카메라는 안 잡는다 — 가장자리 동네(강서·동탄)에서도 트럭이 가운데다.
+        return Shot(zoom, fx + (restPanX - fx) * e, fy + (restPanY - fy) * e)
     }
 
     /** 당겨져 있을 땐 **동네 이름을 다 보여준다** — 안 그러면 지금 어디인지 알 수가 없다. */

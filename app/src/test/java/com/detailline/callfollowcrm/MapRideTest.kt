@@ -60,11 +60,15 @@ class MapRideTest {
     }
 
     @Test
-    fun `따라가는 동안 트럭이 화면 한가운데 있다`() {
+    fun `따라가는 동안은 트럭이 늘 정가운데다`() {
+        // 2026-09-25 사장님 "확대를 해도 그 가운데가 유지되는거 맞지?"
+        //   가장자리 동네(강서·동탄)에서도 밀리면 안 된다 — 빼기 시작 전 전구간을 본다.
         val b = MapRide.bounds(towns)
-        // 카메라가 가장자리에 붙지 않는 중간 구간에서만 본다(가장자리는 일부러 잡아둔다).
-        for (i in 30..60) {
+        val pull = MapRide.at(way(), stops(), 1f).lastArriveFrac - 0.06f
+        var worst = 0.0
+        for (i in 0..100) {
             val t = i / 100f
+            if (t > pull) continue
             val at = MapRide.at(way(), stops(), t)
             val s = MapRide.follow(b, at, t)
             // 지도가 쓰는 식 그대로 되짚는다: cLon = mid - panX*span/zoom
@@ -72,23 +76,28 @@ class MapRideTest {
             val cLat = b.midLat + s.panY * b.spanLat / s.zoom
             val offX = Math.abs(cLon - at.lon) / (b.spanLon / s.zoom)
             val offY = Math.abs(cLat - at.lat) / (b.spanLat / s.zoom)
-            assertTrue("t=$t 에서 트럭이 화면 밖으로 밀렸다 (가로 ${"%.2f".format(offX)})", offX < 0.5)
-            assertTrue("t=$t 에서 트럭이 화면 밖으로 밀렸다 (세로 ${"%.2f".format(offY)})", offY < 0.5)
+            worst = maxOf(worst, offX, offY)
         }
+        assertTrue("트럭이 가운데에서 ${"%.3f".format(worst)} 만큼 밀렸다", worst < 0.01)
     }
 
     @Test
-    fun `카메라는 지도 밖으로 나가지 않는다`() {
+    fun `카메라가 휴딸 지나가지 않는다`() {
+        // 한 컷(24분의 1초)에 화면의 **6분의 1 넘게** 움직이면 휘딝거려 멀미한다.
+        //   처음 2.6배로 당겼더니 먼 구간에서 1초에 화면 두 칸 반을 지나갔다. (2026-09-25)
         val b = MapRide.bounds(towns)
-        for (i in 0..100) {
-            val t = i / 100f
+        val frames = 240   // 10초 × 24컷
+        var prev: MapRide.Shot? = null
+        var worst = 0f
+        for (i in 0..frames) {
+            val t = i.toFloat() / frames
             val s = MapRide.follow(b, MapRide.at(way(), stops(), t), t)
-            val lim = (s.zoom - 1f) / 2f + 1e-3f
-            assertTrue("t=$t panX=${s.panX} 가 한계 $lim 를 넘어 빈 데가 보인다",
-                Math.abs(s.panX) <= lim)
-            assertTrue("t=$t panY=${s.panY} 가 한계 $lim 를 넘어 빈 데가 보인다",
-                Math.abs(s.panY) <= lim)
+            prev?.let {
+                worst = maxOf(worst, Math.abs(s.panX - it.panX), Math.abs(s.panY - it.panY))
+            }
+            prev = s
         }
+        assertTrue("한 컷에 화면의 ${"%.0f".format(worst * 100)}% 를 움직인다 — 너무 휘딝거린다", worst < 0.17f)
     }
 
     @Test
@@ -105,7 +114,7 @@ class MapRideTest {
     fun `따라갈 땐 확대되어 있다`() {
         val b = MapRide.bounds(towns)
         val s = MapRide.follow(b, MapRide.at(way(), stops(), 0.3f), 0.3f)
-        assertTrue("중간엔 당겨져 있어야 골목이 보인다 (zoom=${s.zoom})", s.zoom > 2f)
+        assertTrue("중간엔 당겨져 있어야 가까이 보인다 (zoom=${s.zoom})", s.zoom > 1.8f)
         assertTrue("당겨져 있으면 동네 이름을 다 보여준다", MapRide.showAllNames(s.zoom))
     }
 
