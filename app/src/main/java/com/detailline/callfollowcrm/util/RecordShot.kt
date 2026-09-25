@@ -56,6 +56,19 @@ object RecordShot {
      */
     enum class Shape { STICKER, MAP, CARD }
 
+    /**
+     * 인증샷 **비율**. 모양과 따로 고른다. (사장님 시안 「이미지 비율」)
+     *   전엔 [정사각] 이 모양 갈래에 섞여 있어서, "지도 크게 + 정사각" 을 못 골랐다.
+     *   FEED   — 인스타 피드에서 **세로로 가장 크게** 잡히는 비율. 그래서 기본.
+     *   SQUARE — 어디에 올려도 안 잘린다.
+     *   STORY  — 스토리·릴스 덮개.
+     */
+    enum class Ratio(val h: Int, val label: String, val suffix: String) {
+        FEED(1350, "피드 · 4:5", "_4x5"),
+        SQUARE(1080, "정사각 · 1:1", ""),
+        STORY(1920, "스토리 · 9:16", "_9x16")
+    }
+
     data class Data(
         /**
          * **큰 숫자** — 무엇을 자랑할지는 사람마다 다르다. (2026-09-24 사장님)
@@ -118,8 +131,9 @@ object RecordShot {
      *   지도가 위에서 아래까지 꽉 차고, 큰 숫자를 그 위에 얹는다.
      *   "수도권을 이만큼 돌았다" 가 글이 아니라 **그림 한 장**으로 읽히게 하는 게 목적이다.
      */
-    private fun renderMapHero(ctx: Context, d: Data): Bitmap {
-        val bmp = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888)
+    private fun renderMapHero(ctx: Context, d: Data, ratio: Ratio, sign: Boolean): Bitmap {
+        val H = ratio.h
+        val bmp = Bitmap.createBitmap(S, H, Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
 
         val bold = font(ctx, R.font.pretendard_bold)
@@ -134,8 +148,9 @@ object RecordShot {
 
         c.drawColor(0xFFF7F8FA.toInt())
 
-        // ── 지도 — **여백 없이 꽉.** 아래 292 는 나머지 숫자 · 동네 이름 · 간판 자리.
-        val mapH = S - 292f
+        // ── 지도 — **여백 없이 꽉.** 아래는 나머지 숫자 · 동네 이름 · (켜져 있으면) 간판 자리.
+        //   간판을 끄면 그만큼 **지도가 더 커진다** — 빈자리를 남기지 않는다.
+        val mapH = H - (if (sign) 292f else 150f)
         c.save()
         c.clipRect(0f, 0f, S.toFloat(), mapH)
         CanvasDrawScope().draw(
@@ -193,16 +208,22 @@ object RecordShot {
             c.drawText(line, pad, by, fit(paint(med, 28f, sub), line, S - pad * 2, 28f, 21f))
         }
 
-        drawSign(c, d, bold, xbold, med, ink, blue, hint, S.toFloat(), pad)
+        if (sign) drawSign(c, d, bold, xbold, med, ink, blue, hint, H.toFloat(), pad)
         return bmp
     }
 
-    fun render(ctx: Context, d: Data, shape: Shape): Bitmap {
+    /**
+     * @param ratio 그림 비율. 스티커는 **내용에 딱 맞는 높이**라 비율을 안 쓴다.
+     * @param sign  맨 아래 간판(업체명·연락처)을 넣을지. 끄면 그만큼 그림이 더 시원해진다.
+     *              (사장님 시안: "개인 기록은 담백하게, 홍보할 때는 연락처를 더해요")
+     */
+    fun render(ctx: Context, d: Data, shape: Shape, ratio: Ratio = Ratio.FEED, sign: Boolean = true): Bitmap {
         // 갈 곳이 없으면(주소가 하나도 안 붙었으면) 지도 대신 한 장으로. 빈 지도는 자랑이 안 된다.
         val mode = if (shape == Shape.MAP && d.dots.isEmpty()) Shape.CARD else shape
-        if (mode == Shape.MAP) return renderMapHero(ctx, d)
+        if (mode == Shape.MAP) return renderMapHero(ctx, d, ratio, sign)
         val transparent = mode == Shape.STICKER
-        val h = if (transparent) STICKER_H else S
+        // 스티커는 **사진 위에 얹는 것**이라 비율이 뜻이 없다 — 내용에 딱 맞게. 간판을 끄면 더 납작해진다.
+        val h = if (transparent) (if (sign) STICKER_H else 400) else ratio.h
         val bmp = Bitmap.createBitmap(S, h, Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
 
@@ -247,7 +268,7 @@ object RecordShot {
         // ── 지도 ── 한 장일 때만. 스티커는 낮아서 지도까지 넣으면 답답하다.
         if (!transparent && d.dots.isNotEmpty()) {
             val mapTop = y + 40f
-            val mapH = S - mapTop - 310f
+            val mapH = h - mapTop - (if (sign) 310f else 170f)
             c.save()
             c.translate(pad, mapTop)
             c.clipRect(0f, 0f, S - pad * 2, mapH)
@@ -274,7 +295,7 @@ object RecordShot {
         }
 
         // ── 동네 이름 ── (스티커는 바로 밑, 한 장은 아래쪽)
-        val townY = if (transparent) y + 62f else h - 252f
+        val townY = if (transparent) y + 62f else h - (if (sign) 252f else 110f)
         if (d.towns.isNotEmpty()) {
             val line = d.towns.take(6).joinToString(" · ") +
                 if (d.towns.size > 6) " 외 ${d.towns.size - 6}곳" else ""
@@ -284,7 +305,7 @@ object RecordShot {
         // ── 맨 아래 = **간판.** (2026-09-24 사장님 "광고야 광고")
         //   전엔 상호를 구석에 작게 박았다. SNS 에 올리는 건 결국 광고인데 작게 박으면 효과가 없다.
         //   보는 사람이 **누구한테 전화하면 되는지** 바로 알아야 한다.
-        drawSign(c, d, bold, xbold, med, ink, blue, hint, h.toFloat(), pad)
+        if (sign) drawSign(c, d, bold, xbold, med, ink, blue, hint, h.toFloat(), pad)
         return bmp
     }
 

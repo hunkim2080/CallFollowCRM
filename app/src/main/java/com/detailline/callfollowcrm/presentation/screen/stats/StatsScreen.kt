@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -459,6 +461,12 @@ private fun ShotPreviewDialog(
     var shape by remember {
         mutableStateOf(com.detailline.callfollowcrm.util.RecordShot.Shape.STICKER)
     }
+    // 비율 — **피드(4:5)가 기본.** 인스타 피드에서 세로로 제일 크게 잡힌다.
+    var ratio by remember {
+        mutableStateOf(com.detailline.callfollowcrm.util.RecordShot.Ratio.FEED)
+    }
+    // 간판(업체명·연락처) — 개인 기록은 담백하게, 홍보할 땐 연락처를 더한다. (사장님 시안)
+    var sign by remember { mutableStateOf(true) }
     /** 영상 만드는 중이면 0~1, 아니면 -1. */
     var making by remember { mutableStateOf(-1f) }
     /** 만드는 중인 일 — [취소] 로 끊는다. */
@@ -492,8 +500,8 @@ private fun ShotPreviewDialog(
             phone = rec.bizPhone, area = rec.areaLabel
         )
     }
-    val bmp = remember(data, shape) {
-        com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, shape)
+    val bmp = remember(data, shape, ratio, sign) {
+        com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, shape, ratio, sign)
     }
 
     // 영상 만들기 — **한 군데.** 아래 버튼도, 지도 밑 [영상 만들기] 도 여기를 부른다.
@@ -545,11 +553,18 @@ private fun ShotPreviewDialog(
     // 지도 밑 [영상 만들기] 로 들어왔으면 창이 열리자마자 시작한다 — 한 번만.
     androidx.compose.runtime.LaunchedEffect(Unit) { if (autoVideo) startReel() }
 
+    // 비율을 고를 수 있게 되면서 9:16 미리보기가 창을 다 먹는다 —
+    //   그러면 아래 [저장]·[올리기] 가 **화면 밖으로 밀렸다.** 창을 높이에 가두고 속을 굴린다.
+    val maxDlgH = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()
+            shape = RoundedCornerShape(20.dp), color = Color.White,
+            modifier = Modifier.fillMaxWidth().heightIn(max = maxDlgH)
         ) {
-            Column(Modifier.padding(16.dp)) {
+            Column(
+                Modifier.padding(16.dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
+            ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("인증샷", style = AppType.title, fontWeight = FontWeight.ExtraBold,
                         color = TossTextPrimary)
@@ -567,12 +582,16 @@ private fun ShotPreviewDialog(
                     androidx.compose.foundation.Image(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = "인증샷 미리보기",
-                        modifier = Modifier.fillMaxWidth()
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
                     )
                 }
                 Spacer(Modifier.height(AppSpace.s12))
-                // ── 큰 숫자 고르기 ── 자랑할 숫자는 사람마다 다르다. (2026-09-24 사장님)
-                Text("크게 넣을 숫자", style = AppType.caption, color = TossTextTertiary,
+                // ── 무엇을 자랑할까요? ── 자랑할 숫자는 사람마다 다르다. (2026-09-24 사장님)
+                //   "크게 넣을 숫자" 는 **기능 설명**이었다. 시안 문구가 사람 말이다.
+                Text("무엇을 자랑할까요?", style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                    color = TossTextPrimary, modifier = Modifier.padding(start = 2.dp))
+                Text("하나만 크게 보여요", style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 androidx.compose.foundation.layout.FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -593,25 +612,68 @@ private fun ShotPreviewDialog(
                     }
                 }
                 Spacer(Modifier.height(AppSpace.s12))
-                // 세 갈래 — 사진 위에 얹기 / **지도 크게** / 정사각 한 장.
-                //   [지도 크게] 는 사장님이 가져온 조언 ①: 지도 한 장이 "수도권을 다 돈다" 를 바로 말해준다.
+                // ── 이미지 스타일 ── **무엇을 그리나.** (비율과 따로 고른다)
+                //   전엔 [사진 위에][지도 크게][정사각] 이 한 줄이라, 모양과 크기가 뭉쳐 있었다.
+                //   그래서 "지도 크게 + 정사각" 같은 조합을 아예 못 골랐다. (사장님 시안)
+                Text("이미지 스타일", style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 Row(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     ShotTab("사진 위에", shape == ShotShape.STICKER, Modifier.weight(1f)) {
                         shape = ShotShape.STICKER
                     }
-                    ShotTab("지도 크게", shape == ShotShape.MAP, Modifier.weight(1f)) {
-                        shape = ShotShape.MAP
-                    }
-                    ShotTab("정사각", shape == ShotShape.CARD, Modifier.weight(1f)) {
+                    ShotTab("숫자 중심", shape == ShotShape.CARD, Modifier.weight(1f)) {
                         shape = ShotShape.CARD
                     }
+                    ShotTab("지도 포함", shape == ShotShape.MAP, Modifier.weight(1f)) {
+                        shape = ShotShape.MAP
+                    }
                 }
+                // ── 이미지 비율 ── 스티커는 **사진 위에 얹는 것**이라 비율이 뜻이 없다 → 아예 안 보인다.
+                //   못 쓰는 버튼을 회색으로 남겨두면 고장처럼 보인다.
+                if (shape != ShotShape.STICKER) {
+                    Spacer(Modifier.height(AppSpace.s12))
+                    Text("이미지 비율", style = AppType.caption, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
+                    Row(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        com.detailline.callfollowcrm.util.RecordShot.Ratio.values().forEach { r ->
+                            ShotTab(r.label, ratio == r, Modifier.weight(1f)) { ratio = r }
+                        }
+                    }
+                }
+                // ── 업체명·연락처 표시 ── 개인 기록은 담백하게, 홍보할 땐 연락처를 더한다. (사장님 시안)
+                Spacer(Modifier.height(AppSpace.s12))
+                Row(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
+                        .clickable { sign = !sign }
+                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("업체명·연락처 표시", style = AppType.label,
+                            fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                        Text("개인 기록은 담백하게, 홍보할 때는 연락처를 더해요.",
+                            style = AppType.caption, color = TossTextTertiary)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = sign, onCheckedChange = { sign = it }
+                    )
+                }
+                // 저장하면 몇 픽셀인지 — 올리기 전에 알면 자르지 않는다. (시안 "1080 × 1350")
+                Spacer(Modifier.height(AppSpace.s8))
+                Text(
+                    if (shape == ShotShape.STICKER) "저장 크기 · 배경 없는 스티커 (1080 폭)"
+                    else "저장 크기 · 1080 × ${ratio.h}",
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp)
+                )
                 Spacer(Modifier.height(AppSpace.s12))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     ShotSmall("사진첩에 저장", Modifier.weight(1f)) {
                         scope.launch {
-                            val name = "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape)
+                            val name = "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape) +
+                                (if (shape == ShotShape.STICKER) "" else ratio.suffix)
                             val uri = com.detailline.callfollowcrm.util.RecordShot.save(ctx, bmp, name)
                             savedUri = uri
                             savedMime = "image/png"
@@ -628,7 +690,8 @@ private fun ShotPreviewDialog(
                             .clickable {
                                 com.detailline.callfollowcrm.util.RecordShot.share(
                                     ctx, bmp,
-                                    "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape)
+                                    "shigongmagne_%03d".format(rec.lastNo) + shotSuffix(shape) +
+                                        (if (shape == ShotShape.STICKER) "" else ratio.suffix)
                                 )
                             }
                             .padding(vertical = 11.dp),
