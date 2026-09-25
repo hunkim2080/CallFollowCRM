@@ -293,15 +293,8 @@ fun CallSummaryScreen(
                             ownerDot = AppTheme.colors.primary,
                             customerDot = TossBlue
                         )
-                        // 점은 **AI 짐작**이다 — 녹음 소리가 아니라 글을 읽고 고른다.
-                        //   후속 문자가 고객에게 나가니, 미심적으면 전문에서 확인하시라고 적어둔다.
-                        if (com.detailline.callfollowcrm.presentation.component.hasSpeakerGuess(bullets)) {
-                            Spacer(Modifier.height(9.dp))
-                            Text(
-                                "손님/나 구분은 AI 짐작이에요 · 미심적으면 아래 통화 전문을 봐주세요",
-                                style = com.detailline.callfollowcrm.presentation.theme.AppType.caption, color = TossTextTertiary
-                            )
-                        }
+                        // 🔒 점 범례와 "AI 짐작" 안내는 **CallSummaryBody 안**에 있다.
+                        //   여기서 또 적으면 두 벌이 되고, 한쪽만 고쳐진다. (2026-09-25 점검)
                     }
                     Spacer(Modifier.height(14.dp))
                 }

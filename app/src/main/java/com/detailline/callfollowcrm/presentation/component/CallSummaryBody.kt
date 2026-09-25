@@ -86,7 +86,8 @@ fun CallSummaryBody(
                                     .clip(com.detailline.callfollowcrm.presentation.theme.AppShape.sm)
                                     .background(timeChipBg)
                                     .clickable { onSeek?.invoke(startMs) }
-                                    .padding(horizontal = 5.dp, vertical = 2.dp),
+                                    // 👆 세로 2dp 면 높이 20dp — 윗줄/아랫줄이 같이 눌린다.
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -113,6 +114,26 @@ fun CallSummaryBody(
                     row.text, fontSize = fontSize, color = textColor, lineHeight = lineHeight,
                     modifier = Modifier.weight(1f)
                 )
+            }
+        }
+
+        // ── 점이 무슨 뜻인지 · 그리고 그게 **AI 짐작**이라는 것 ──
+        //   전엔 통화요약 화면에만 적혀 있고, 사장님이 매일 보는 채팅 통화카드엔 없었다.
+        //   그리는 곳이 하나니 여기 두면 **두 화면이 같이 갖는다.** (2026-09-25 점검)
+        //   후속 문자가 고객에게 나가니, 미심쩍으면 전문을 보시라고 적어둔다.
+        if (rows.any { it.speaker.isNotBlank() }) {
+            Spacer(Modifier.height(rowGap + 2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(customerDot))
+                Spacer(Modifier.width(4.dp))
+                Text("손님", fontSize = timeFontSize, color = timeColor, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(9.dp))
+                Box(Modifier.size(6.dp).clip(CircleShape).background(ownerDot))
+                Spacer(Modifier.width(4.dp))
+                Text("나", fontSize = timeFontSize, color = timeColor, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text("· AI 짐작이에요 (통화 전문에서 확인)",
+                    fontSize = timeFontSize, color = timeColor, maxLines = 1)
             }
         }
     }

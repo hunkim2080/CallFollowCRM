@@ -293,7 +293,8 @@ private fun RecordTodoBar(
             Text(
                 "완료 안 누름 ${rec.notDoneCount}", style = AppType.caption,
                 fontWeight = FontWeight.ExtraBold, color = TossBlue,
-                modifier = Modifier.clickable { onOpenTodo() }
+                modifier = Modifier.clip(AppShape.sm).clickable { onOpenTodo() }
+                    .padding(horizontal = 6.dp, vertical = 8.dp)
             )
         }
         if (rec.notDoneCount > 0 && rec.noAddrCount > 0) {
@@ -303,14 +304,16 @@ private fun RecordTodoBar(
             Text(
                 "주소 없음 ${rec.noAddrCount}", style = AppType.caption,
                 fontWeight = FontWeight.ExtraBold, color = TossBlue,
-                modifier = Modifier.clickable { onOpenNoAddr() }
+                modifier = Modifier.clip(AppShape.sm).clickable { onOpenNoAddr() }
+                    .padding(horizontal = 6.dp, vertical = 8.dp)
             )
         }
         Spacer(Modifier.weight(1f))
         Text(
             "채우러 가기 \u203a", style = AppType.caption,
             fontWeight = FontWeight.ExtraBold, color = TossBlue,
-            modifier = Modifier.clickable { goFirst() }
+            modifier = Modifier.clip(AppShape.sm).clickable { goFirst() }
+                .padding(horizontal = 8.dp, vertical = 8.dp)
         )
     }
 }
@@ -646,7 +649,9 @@ private fun ShotPreviewDialog(
                         color = TossTextPrimary)
                     Spacer(Modifier.weight(1f))
                     Text("닫기", style = AppType.label, color = TossTextSecondary,
-                        modifier = Modifier.clickable { onClose() }.padding(6.dp))
+                        // 👆 여백 6dp 는 너무 좁다 — 창 닫기는 자주 쓰는 동작이다.
+                        modifier = Modifier.clip(AppShape.sm).clickable { onClose() }
+                            .padding(horizontal = 14.dp, vertical = 10.dp))
                 }
                 Spacer(Modifier.height(AppSpace.s12))
                 // 배경 빈 스티커는 **바둑판** 위에 올려야 "여기가 비어 있다" 가 보인다.
@@ -867,7 +872,12 @@ private fun ShotPreviewDialog(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("영상 만드는 중 ${(making * 100).toInt()}%",
+                            Text(
+                                // 다른 방법으로 넘어갔으면 **그렇다고 말한다** — 막대가 안 움직이면
+                                //   멈춘 줄 안다. (2026-09-25 점검)
+                                if (com.detailline.callfollowcrm.util.RecordReel.retrying)
+                                    "다른 방법으로 다시 만드는 중 ${(making * 100).toInt()}%"
+                                else "영상 만드는 중 ${(making * 100).toInt()}%",
                                 style = AppType.label, fontWeight = FontWeight.ExtraBold,
                                 color = TossBlue, modifier = Modifier.padding(vertical = 12.dp))
                         }
@@ -920,7 +930,12 @@ private fun ShotPreviewDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            if (savedMime.startsWith("video")) "사진첩에 영상으로 저장했어요"
+                            // 실제로 나온 크기를 적는다 — ③(작게)로 떨어지면 540×960 인데
+                            //   창엔 720×1280 이 적혀 있어 또 다른 말을 하고 있었다. (2026-09-25 점검)
+                            if (savedMime.startsWith("video"))
+                                "사진첩에 영상으로 저장했어요" +
+                                    (com.detailline.callfollowcrm.util.RecordReel.lastMadeSize
+                                        ?.let { " · $it" } ?: "")
                             else "사진첩에 저장했어요",
                             style = AppType.label, color = TossTextSecondary,
                             modifier = Modifier.weight(1f)
@@ -1027,7 +1042,8 @@ private fun ShotSmall(label: String, modifier: Modifier = Modifier, onClick: () 
 @Composable
 private fun MonthArrow(glyph: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.size(34.dp).clip(AppShape.md)
+        // 👆 장갑 낀 손 기준. 34dp 는 잘 안 눌린다. (2026-09-25 점검)
+        Modifier.size(46.dp).clip(AppShape.md)
             .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
         contentAlignment = Alignment.Center
     ) {
@@ -1258,11 +1274,20 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("${t.curTotal}건", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.9).sp)
-                val up = t.deltaPct >= 0
+                // ⚠️ 0 은 "늘었다" 가 아니다. 전엔 `>= 0` 이라 **변화가 없어도 초록 ▲ 0%** 가 떴다.
+                //   0 을 강조하지 않는다는 이 화면의 원칙과도 어긋난다. (2026-09-25 점검)
                 Text(
-                    "${if (up) "▲" else "▼"} ${kotlin.math.abs(t.deltaPct)}%",
+                    when {
+                        t.deltaPct > 0 -> "▲ ${t.deltaPct}%"
+                        t.deltaPct < 0 -> "▼ ${kotlin.math.abs(t.deltaPct)}%"
+                        else -> "변화 없음"
+                    },
                     fontSize = 15.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (up) TossSuccess else TossError,
+                    color = when {
+                        t.deltaPct > 0 -> TossSuccess
+                        t.deltaPct < 0 -> TossError
+                        else -> TossTextTertiary
+                    },
                     modifier = Modifier.padding(start = 6.dp, bottom = 4.dp)
                 )
             }

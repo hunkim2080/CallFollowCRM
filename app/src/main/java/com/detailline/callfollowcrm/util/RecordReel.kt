@@ -209,12 +209,33 @@ object RecordReel {
     }
 
     /** 영상 한 편 만들기. 만든 파일을 돌려준다(실패하면 null). */
+    /**
+     * 마지막으로 만든 영상의 **실제 크기** — "720 × 1280" 처럼. 아직 안 만들었으면 null.
+     *   ③(작게) 로 떨어지면 540×960 인데 창엔 720×1280 이라 적혀 있었다. (2026-09-25 점검)
+     */
+    @Volatile
+    var lastMadeSize: String? = null
+        private set
+
+    /** 다른 방법으로 넘어갔나 — 화면이 "다른 방법으로 다시 만드는 중…" 이라고 말해준다. */
+    @Volatile
+    var retrying: Boolean = false
+        private set
+
     suspend fun make(
         ctx: Context,
         d: Data,
         seconds: Float = 10f,
         progress: VideoMaker.Progress? = null
     ): File? {
+        lastMadeSize = null
+        retrying = false
+        // 📊 막대는 **뒤로 가지 않는다.** 시도마다 0 부터 다시 부르는데, 그대로 보여주면
+        //   40% 에서 0% 로 뚝 떨어져 고장난 것처럼 보인다. 지금까지 간 데를 기억한다.
+        var best = 0f
+        val forward = VideoMaker.Progress { p ->
+            if (p > best) { best = p; progress?.onStep(p) }
+        }
         val out = File(File(ctx.cacheDir, "shared").apply { mkdirs() }, "shigongmagne_reel.mp4")
         // 사진은 **한 번만** 읽는다 — 240컷마다 파일을 열면 영상 하나에 몇 분이 더 걸린다.
         //   화면에 들어갈 칸이 폭의 30%(≈216px) 라 320 이면 넉넉하다. 크게 읽으면 메모리만 먹는다.
@@ -233,23 +254,27 @@ object RecordReel {
         try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
-            outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = progress
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }?.let { return it }
+            outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = forward
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }
+            ?.let { lastMadeSize = "$W × $H"; return it }
+        retrying = true   // 여기부터는 "다른 방법으로 다시 만드는 중"
         // ② 안 되면 **소프트웨어 인코더**로. 느리지만 어느 폰에서나 된다.
         //   (갤S23U·안드로이드 16 에서 하드웨어가 말썽이었다 — 2026-09-25 사장님 폰)
         VideoMaker.softwareEncoder()?.let { sw ->
             VideoMaker.make(
                 outFile = out, width = W, height = H, fps = 24, seconds = seconds,
-                codecName = sw, progress = progress
-            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }?.let { return it }
+                codecName = sw, progress = forward
+            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos) }
+                ?.let { lastMadeSize = "$W × $H"; return it }
         }
         // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
         val w2 = 540
         val h2 = 960
         return VideoMaker.make(
             outFile = out, width = w2, height = h2, fps = 20, seconds = seconds,
-            bitRate = 3_500_000, progress = progress
+            bitRate = 3_500_000, progress = forward
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos) }
+            ?.also { lastMadeSize = "$w2 × $h2" }
         } finally {
             // 읽어둔 사진은 반드시 놓아준다 — 그대로 두면 메모리를 잡아먹는다.
             for (b in photos.values) runCatching { b.recycle() }

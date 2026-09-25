@@ -2600,19 +2600,24 @@ private fun CallSegment(
                         lineHeight = 18.sp,
                         timeFontSize = 11.sp,
                         timeWidth = 64.dp,
-                        rowGap = 4.dp
+                        // 👆 알약이 커진 만큼 줄 사이도 띄운다(오탭 방지).
+                        rowGap = 8.dp
                     )
                 }
             }
             // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
             //   + 「다시 요약」 (2026-09-25 사장님) — 전엔 에이닷에 들어가 녹음을 다시 공유해야만 됐다.
             //     돈·시간이 드는 쪽이라 회색(보조)으로 두고, 누르면 한 번 확인한다.
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+            // 👆 「다시 요약」은 **돈과 시간이 드는 쪽**이다. 「요약 수정」과 붙어 있으면 오탭한다.
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.End)
+            ) {
                 if (recordingConnected && !isRedoing) {
                     Box(
                         Modifier.clip(RoundedCornerShape(8.dp))
                             .clickable { onRedoSummary() }
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                            .padding(horizontal = 10.dp, vertical = 9.dp)
                     ) {
                         Text("다시 요약", color = Color(0xFF7B9A9A), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
@@ -2620,7 +2625,7 @@ private fun CallSegment(
                 Box(
                     Modifier.clip(RoundedCornerShape(8.dp))
                         .clickable { editText = summary?.summaryText.orEmpty(); editing = true }
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                        .padding(horizontal = 10.dp, vertical = 9.dp)
                 ) {
                     Text("요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
