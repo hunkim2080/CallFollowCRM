@@ -23,9 +23,13 @@ import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -508,6 +512,49 @@ private fun ShotPreviewDialog(
         com.detailline.callfollowcrm.util.RecordShot.render(ctx, data, shape, ratio, sign)
     }
 
+    // ── 🎬 영상 미리보기 ── 만들기 전에 **움직이는 걸 본다.** (2026-09-25 사장님)
+    //   몇 분 기다려 만들었는데 마음에 안 들면 그 시간을 날린다.
+    var previewVideo by remember { mutableStateOf(false) }
+    val reelData = remember(rec, pick, picks, zoom, panX, panY) {
+        val p = picks.getOrElse(pick) { picks.first() }
+        com.detailline.callfollowcrm.util.RecordReel.Data(
+            monthLabel = rec.monthLabel,
+            metricValue = p.value, metricUnit = p.unit, metricLabel = p.caption,
+            towns = rec.towns, dots = rec.dots,
+            bizName = rec.bizName, tradeName = rec.tradeName,
+            phone = rec.bizPhone, area = rec.areaLabel,
+            zoom = zoom, panX = panX, panY = panY,
+            photoPath = rec.photoPath
+        )
+    }
+    // 동네별 사진 — **영상과 똑같이** 미리 읽어둔다. 창을 닫을 때 놓아준다.
+    val previewPhotos = remember(rec.dots) {
+        val m = LinkedHashMap<String, android.graphics.Bitmap>()
+        for (dot in rec.dots.sortedBy { it.order }.take(12)) {
+            val pp = dot.photoPath ?: continue
+            if (m.containsKey(dot.name)) continue
+            com.detailline.callfollowcrm.util.RecordShot.loadPhoto(pp, 320, 320)?.let { m[dot.name] = it }
+        }
+        if (m.isEmpty()) {
+            com.detailline.callfollowcrm.util.RecordShot.loadPhoto(rec.photoPath, 320, 320)?.let { b ->
+                rec.dots.minByOrNull { it.order }?.let { m[it.name] = b }
+            }
+        }
+        m
+    }
+    androidx.compose.runtime.DisposableEffect(previewPhotos) {
+        onDispose { for (b in previewPhotos.values) runCatching { b.recycle() } }
+    }
+    // 10초에 한 바퀴, 계속. 영상과 **같은 길이**라야 "이대로 나오겠구나" 가 맞는다.
+    val reelT by androidx.compose.animation.core.rememberInfiniteTransition(label = "reelPrev")
+        .animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                animation = tween(10_000, easing = androidx.compose.animation.core.LinearEasing)
+            ),
+            label = "t"
+        )
+
     // 영상 만들기 — **한 군데.** 아래 버튼도, 지도 밑 [영상 만들기] 도 여기를 부른다.
     fun startReel() {
         if (reelJob != null) return   // 연타 막기
@@ -582,14 +629,53 @@ private fun ShotPreviewDialog(
                 // 배경 빈 스티커는 **바둑판** 위에 올려야 "여기가 비어 있다" 가 보인다.
                 Box(
                     Modifier.fillMaxWidth().clip(AppShape.md)
-                        .background(if (sticker) TossGrayBg else Color.White),
+                        .background(if (sticker && !previewVideo) TossGrayBg else Color.White),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "인증샷 미리보기",
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
+                    if (previewVideo) {
+                        // 🎬 **영상을 그리는 그 코드 그대로** 돌린다 — 따로 흉내내면 결과가 달라진다.
+                        //   (오늘 지도에서 미리보기와 영상이 달라 한 번 밟았다)
+                        androidx.compose.foundation.Canvas(
+                            Modifier.fillMaxWidth(0.62f).aspectRatio(9f / 16f)
+                                .clip(AppShape.md)
+                        ) {
+                            drawIntoCanvas { cv ->
+                                val nc = cv.nativeCanvas
+                                val sx = size.width / com.detailline.callfollowcrm.util.RecordReel.W
+                                val sy = size.height / com.detailline.callfollowcrm.util.RecordReel.H
+                                nc.save()
+                                nc.scale(sx, sy)
+                                com.detailline.callfollowcrm.util.RecordReel.drawFrame(
+                                    ctx, nc, reelData, reelT,
+                                    com.detailline.callfollowcrm.util.RecordReel.W,
+                                    com.detailline.callfollowcrm.util.RecordReel.H,
+                                    previewPhotos
+                                )
+                                nc.restore()
+                            }
+                        }
+                    } else {
+                        androidx.compose.foundation.Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "인증샷 미리보기",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
+                        )
+                    }
+                }
+                // 무엇을 보고 있나 — 한 번 눌러 바꾼다.
+                Spacer(Modifier.height(AppSpace.s8))
+                Row(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ShotTab("그림 미리보기", !previewVideo, Modifier.weight(1f)) { previewVideo = false }
+                    ShotTab("영상 미리보기", previewVideo, Modifier.weight(1f)) { previewVideo = true }
+                }
+                if (previewVideo) {
+                    Spacer(Modifier.height(AppSpace.s4))
+                    Text(
+                        "저장되는 영상과 같은 그림이에요 · 릴스용 9:16 · 10초",
+                        style = AppType.caption, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp)
                     )
                 }
                 Spacer(Modifier.height(AppSpace.s12))
