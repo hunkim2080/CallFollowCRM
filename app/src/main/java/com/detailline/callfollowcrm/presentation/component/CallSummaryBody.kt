@@ -35,12 +35,15 @@ import com.detailline.callfollowcrm.util.CallSummaryLines
  *   한쪽만 새 모양이 됐고 사장님이 매일 보는 쪽이 옛 모양으로 남았다.
  *   → 그리는 것도 한 군데로 모은다. **한 군데뿐이면 빼먹을 수가 없다.**
  *
- * @param bullets 서버가 준 줄 목록. `0:00-0:46|나|문장` 또는 옛 모양(`고객: 문장`) 둘 다 받는다.
+ * @param rawLines 서버가 준 **원본 줄** 목록. `0:00-0:46|나|문장` 또는 옛 모양(`고객: 문장`).
+ *   ⚠️ **깎은 걸 넘기지 마라.** `parse(...).map { it.text }` 한 결과를 넘기면 시각·화자가
+ *   이미 떨어져 나간 뒤라 여기서 아무리 잘 그려도 시각이 안 나온다. `CallSummaryLines.rawLines()` 를 써라.
+ *   (2026-09-25 실사고 — 단위 테스트 CallSummaryRawLinesTest 로 묶어뒀다)
  * @param skipText 제목과 똑같은 줄은 뺀다(같은 말 두 번 방지). 없으면 다 그린다.
  */
 @Composable
 fun CallSummaryBody(
-    bullets: List<String>,
+    rawLines: List<String>,
     textColor: Color,
     timeColor: Color,
     /** `나` 가 말한 줄의 점 색. `손님` 은 [customerDot]. */
@@ -54,7 +57,7 @@ fun CallSummaryBody(
     rowGap: Dp = 7.dp,
     skipText: String? = null
 ) {
-    val rows = bullets.mapNotNull { CallSummaryLines.parseOne(it) }
+    val rows = rawLines.mapNotNull { CallSummaryLines.parseOne(it) }
         .filter { skipText == null || it.text != skipText }
     Column(modifier) {
         rows.forEachIndexed { i, row ->
@@ -88,5 +91,5 @@ fun CallSummaryBody(
 }
 
 /** 이 요약에 시각·화자가 들어 있나 — "손님/나 는 AI 짐작" 안내를 띄울지 판단할 때. */
-fun hasSpeakerGuess(bullets: List<String>): Boolean =
-    bullets.any { it.count { c -> c == '|' } >= 2 }
+fun hasSpeakerGuess(rawLines: List<String>): Boolean =
+    rawLines.any { it.count { c -> c == '|' } >= 2 }

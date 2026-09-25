@@ -287,7 +287,7 @@ fun CallSummaryScreen(
                         //   (그리는 코드가 두 벌이라 채팅 통화카드만 시각이 빠져 있었다 — 2026-09-25)
                         Spacer(Modifier.height(7.dp))
                         com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
-                            bullets = bullets,
+                            rawLines = bullets,
                             textColor = TossTextSecondary,
                             timeColor = TossTextTertiary,
                             ownerDot = AppTheme.colors.primary,

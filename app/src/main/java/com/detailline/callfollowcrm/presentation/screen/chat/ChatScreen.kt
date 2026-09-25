@@ -2439,14 +2439,16 @@ private fun CallSegment(
         //   전엔 여기서 `.map { it.text }` 로 **시각과 화자를 버렸다.**
         //   서버는 `0:00-0:46|나|…` 를 제대로 주고 있었고 통화요약 화면은 그대로 그렸는데,
         //   **채팅 통화카드만** 문장만 그렸다. 그리는 코드가 두 벌이라 한쪽이 옛 모양이었다.
-        val summaryRows = summary?.summaryText
-            ?.let { com.detailline.callfollowcrm.util.CallSummaryLines.parse(it) }
-            ?: emptyList()
-        val bullets = summaryRows.map { r -> r.text }
+        // 🔴 **원본 줄**(시각·화자 붙은 채) 을 들고 있는다 — 그릴 때 이걸 넘긴다.
+        //   깎은 걸 넘기면 그리는 쪽이 아무리 잘 그려도 시각이 안 나온다. (2026-09-25 두 번 밟음)
+        val rawSummaryLines =
+            com.detailline.callfollowcrm.util.CallSummaryLines.rawLines(summary?.summaryText)
+        val bullets = rawSummaryLines.mapNotNull {
+            com.detailline.callfollowcrm.util.CallSummaryLines.parseOne(it)?.text
+        }
         // 한눈에 보는 제목(2026-06-28 사장님) — summary.title 을 굵게 헤더로. 본문(불릿)에서 제목과 같은 줄은
         //   빼서 중복 표시 방지(서버가 짧은 제목을 주기 전엔 title=한줄요약 이라 첫 줄과 겹칠 수 있음).
         val summaryTitle = summary?.title?.takeIf { it.isNotBlank() }
-        val displayBullets = if (summaryTitle != null) bullets.filter { it != summaryTitle } else bullets
 
         // ── 다시 요약하는 중 ──────────────────────────────────────────────
         //   요약이 **이미 있는** 카드라 아래 `if (bullets.isEmpty())` 안 스피너는 절대 안 그려진다.
@@ -2579,7 +2581,7 @@ private fun CallSegment(
                     //   전엔 여기만 문장을 그리고 시각·화자를 버려서, 사장님이 매일 보는 쪽만
                     //   옛 모양으로 남아 있었다. (2026-09-25)
                     com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
-                        bullets = bullets,
+                        rawLines = rawSummaryLines,
                         skipText = summaryTitle,
                         textColor = Color(0xFF3A5252),
                         timeColor = Color(0xFF7B9A9A),

@@ -25,6 +25,16 @@ object CallSummaryLines {
 
     private val OLD_HEADS = listOf("고객 고민:", "사장님 답:", "사장님:", "고객:")
 
+    /**
+     * 요약 덩어리를 **자르지 않은 원본 줄**로. (`0:00-0:46|나|…` 그대로)
+     *
+     * ⚠️ 화면에 그릴 땐 **이걸** 넘겨야 한다. [parse] 로 읽은 뒤 `.map { it.text }` 한 걸
+     *   넘기면 시각·화자가 이미 떨어져 나가서, 그리는 쪽이 아무리 잘 그려도 시각이 안 나온다.
+     *   (2026-09-25 실사고: 그리는 곳을 한 군데로 합쳐놓고 **깎은 글을 넘겨서** 또 안 나왔다)
+     */
+    fun rawLines(summaryText: String?): List<String> =
+        (summaryText ?: "").split("\n").map { it.trim() }.filter { it.isNotBlank() }
+
     /** 요약 덩어리(줄바꿈으로 이어진 것)를 줄 단위로. */
     fun parse(summaryText: String?): List<CallSummaryLine> =
         (summaryText ?: "").split("\n")
