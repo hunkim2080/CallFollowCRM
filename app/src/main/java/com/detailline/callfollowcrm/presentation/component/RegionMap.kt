@@ -379,7 +379,9 @@ internal fun DrawScope.drawRegionMap(
     val k = (size.minDimension / 380f).coerceIn(1f, 3.2f)
     // 글자 크기는 **폭에 비례 + 최소 11dp**. 픽셀로만 정하면 해상도 높은 폰에서 개미 글씨가 된다.
     //   (2026-09-25 사장님 "확대하면 글자가 작아져" — 전엔 5.5dp 짜리였다)
-    val tPx = maxOf(size.width * 0.033f, 11.dp.toPx())
+    // 사장님 "글씨가 너무 작아ㅠ" (2026-09-25 폰에서 확인) — 한 번 더 키운다.
+    //   지도 글자는 **읽으라고** 있는 것이지 장식이 아니다.
+    val tPx = maxOf(size.width * 0.052f, 15.dp.toPx())
 
     if (geo != null && !geo.isEmpty) {
         // ── 바다 ── 이게 있어야 육지가 육지로 보인다.
@@ -605,7 +607,7 @@ internal fun DrawScope.drawRegionMap(
         ))
         // 🚛 — 지금 자리. 가는 쪽을 본다.
         val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = tPx * 1.45f
+            textSize = tPx * 1.05f
             textAlign = android.graphics.Paint.Align.CENTER
         }
         val nv0 = drawContext.canvas.nativeCanvas
@@ -620,7 +622,7 @@ internal fun DrawScope.drawRegionMap(
     val maxCount = spots.maxOf { it.count }.coerceAtLeast(1)
     route.forEachIndexed { idx, s ->
         val p = px(s.lon, s.lat)
-        val base = tPx * (0.34f + 0.26f * (s.count.toFloat() / maxCount))
+        val base = tPx * (0.16f + 0.11f * (s.count.toFloat() / maxCount))
         val came = idx <= arrivedUpTo
         if (!came) {
             drawCircle(land, base * 0.62f, p)
@@ -648,8 +650,8 @@ internal fun DrawScope.drawRegionMap(
                 if (up < 0f) continue
                 val dx = (if (q % 2 == 0) -1f else 1f) * (9f + (q * 13 % 11)) * e2 * 2.4f
                 val a = if (e2 < 0.7f) 1f else (1f - (e2 - 0.7f) / 0.25f).coerceAtLeast(0f)
-                val bw = tPx * 1.45f
-                val bh = tPx * 0.8f
+                val bw = tPx * 0.95f
+                val bh = tPx * 0.52f
                 val flap = Math.abs(Math.cos(e2 * Math.PI * 3.2)).toFloat().coerceAtLeast(0.22f)
                 nv1.save()
                 nv1.translate(p.x + dx * k, p.y - r - 6f * k - up * k)
@@ -670,8 +672,8 @@ internal fun DrawScope.drawRegionMap(
     // 🚩 첫 현장엔 깃발 — 멈춘 그림에서도 **어디서 시작했는지** 보여야 한다.
     if (route.isNotEmpty()) {
         val p0 = px(route[0].lon, route[0].lat)
-        val base0 = tPx * (0.34f + 0.26f * (route[0].count.toFloat() / maxCount))
-        val fh = tPx * 1.1f
+        val base0 = tPx * (0.16f + 0.11f * (route[0].count.toFloat() / maxCount))
+        val fh = tPx * 0.7f
         val fx = p0.x + base0 * 0.8f
         val fy = p0.y - base0 * 0.8f
         drawLine(labelColor.copy(alpha = 0.7f), Offset(fx, fy), Offset(fx, fy - fh), strokeWidth = 1.6f * k)
@@ -683,62 +685,6 @@ internal fun DrawScope.drawRegionMap(
         }
         drawPath(fp, dot)
     }
-    // ── 도시 이름 ── 배경이다. 이름이 있어야 "어디"인지 읽힌다. 현장 이름보다 작고 연하게.
-    run {
-        val cp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = tPx * 0.76f
-            color = android.graphics.Color.argb(
-                190, (labelColor.red * 255).toInt(),
-                (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
-            )
-        }
-        val ch = android.graphics.Paint(cp).apply {
-            style = android.graphics.Paint.Style.STROKE
-            strokeWidth = tPx * 0.22f
-            color = android.graphics.Color.argb(
-                255, (land.red * 255).toInt(), (land.green * 255).toInt(), (land.blue * 255).toInt()
-            )
-        }
-        val nvc = drawContext.canvas.nativeCanvas
-        val span = maxLon - minLon
-        for (c in CITIES) {
-            if (c.rank == 1 && span > 1.0) continue
-            if (c.rank == 2 && span > 3.0) continue
-            val cpx = px(c.lon, c.lat)
-            if (cpx.x < 4f || cpx.x > size.width - 4f || cpx.y < 8f || cpx.y > size.height - 4f) continue
-            // 현장 점 가까이 있는 도시 이름은 생략 — 겹쳐 읽으면 둘 다 못 읽는다.
-            if (spots.any { (px(it.lon, it.lat) - cpx).getDistance() < 26f * k }) continue
-            nvc.drawText(c.name, cpx.x + 4f * k, cpx.y + 3f * k, ch)
-            nvc.drawText(c.name, cpx.x + 4f * k, cpx.y + 3f * k, cp)
-            if (c.rank >= 2) drawCircle(labelColor.copy(alpha = 0.55f), 1.6f * k, cpx)
-        }
-    }
-
-    // ── 축척 막대 ── "이 그림은 재어진 것" 이라는 증거.
-    run {
-        val pxPerKm = (scale / 111.0).toFloat()
-        var pick = 10
-        for (o in intArrayOf(1, 2, 5, 10, 20, 50, 100, 200)) {
-            val w0 = o * pxPerKm
-            if (w0 >= size.width * 0.10f && w0 <= size.width * 0.24f) { pick = o; break }
-        }
-        val wBar = pick * pxPerKm
-        val x0 = 8f * k
-        val y0 = size.height - 8f * k
-        val c2 = labelColor.copy(alpha = 0.7f)
-        drawLine(c2, Offset(x0, y0), Offset(x0 + wBar, y0), strokeWidth = 1.2f * k)
-        drawLine(c2, Offset(x0, y0 - 3f * k), Offset(x0, y0 + 3f * k), strokeWidth = 1.2f * k)
-        drawLine(c2, Offset(x0 + wBar, y0 - 3f * k), Offset(x0 + wBar, y0 + 3f * k), strokeWidth = 1.2f * k)
-        val sp2 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = tPx * 0.7f
-            color = android.graphics.Color.argb(
-                200, (labelColor.red * 255).toInt(),
-                (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
-            )
-        }
-        drawContext.canvas.nativeCanvas.drawText(pick.toString() + " km", x0, y0 - 5f * k, sp2)
-    }
-
     // ── 이름표 ──
     //   ⚠️ 전엔 Compose 글자 재는 도구로 그렸는데, **인증샷·영상엔 그 도구가 없어서**
     //     이름표를 통째로 건너뛰고 있었다 — 저장된 그림엔 동네 이름이 하나도 없었다.
@@ -770,7 +716,7 @@ internal fun DrawScope.drawRegionMap(
         val p = px(s.lon, s.lat)
         val w = lp.measureText(s.name)
         val h = lp.textSize
-        val gap = tPx * 0.95f
+        val gap = tPx * 0.62f
         // 오른쪽 → 왼쪽 → 위 → 아래
         val cands = arrayOf(
             floatArrayOf(p.x + gap, p.y + h * 0.35f),
@@ -788,5 +734,70 @@ internal fun DrawScope.drawRegionMap(
         val at = put ?: continue
         nv.drawText(s.name, at[0], at[1], hp2)
         nv.drawText(s.name, at[0], at[1], lp)
+    }
+
+    // ── 도시 이름 ── 배경이다. 이름이 있어야 "어디"인지 읽힌다. 현장 이름보다 작고 연하게.
+    run {
+        val cp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = tPx * 0.72f
+            color = android.graphics.Color.argb(
+                190, (labelColor.red * 255).toInt(),
+                (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
+            )
+        }
+        val ch = android.graphics.Paint(cp).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = tPx * 0.22f
+            color = android.graphics.Color.argb(
+                255, (land.red * 255).toInt(), (land.green * 255).toInt(), (land.blue * 255).toInt()
+            )
+        }
+        val nvc = drawContext.canvas.nativeCanvas
+        val span = maxLon - minLon
+        for (c in CITIES) {
+            if (c.rank == 1 && span > 1.0) continue
+            if (c.rank == 2 && span > 3.0) continue
+            val cpx = px(c.lon, c.lat)
+            if (cpx.x < 4f || cpx.x > size.width - 4f || cpx.y < 8f || cpx.y > size.height - 4f) continue
+            // 현장 점 가까이 있는 도시 이름은 생략 — 겹쳐 읽으면 둘 다 못 읽는다.
+            if (spots.any { (px(it.lon, it.lat) - cpx).getDistance() < 26f * k }) continue
+            // **동네 이름이 먼저** — 그 자리를 침범하면 도시 이름은 포기한다.
+            //   전엔 도시를 먼저 그려서 「서울」이 「강서」 뒤에 깔려 "울" 만 삐져나왔다.
+            val cw = cp.measureText(c.name)
+            val cbox = floatArrayOf(
+                cpx.x + 4f * k - 2f, cpx.y + 3f * k - cp.textSize - 2f,
+                cpx.x + 4f * k + cw + 2f, cpx.y + 3f * k + 3f
+            )
+            if (!free(cbox)) continue
+            placed.add(cbox)
+            nvc.drawText(c.name, cpx.x + 4f * k, cpx.y + 3f * k, ch)
+            nvc.drawText(c.name, cpx.x + 4f * k, cpx.y + 3f * k, cp)
+            if (c.rank >= 2) drawCircle(labelColor.copy(alpha = 0.55f), 1.6f * k, cpx)
+        }
+    }
+
+    // ── 축척 막대 ── "이 그림은 재어진 것" 이라는 증거.
+    run {
+        val pxPerKm = (scale / 111.0).toFloat()
+        var pick = 10
+        for (o in intArrayOf(1, 2, 5, 10, 20, 50, 100, 200)) {
+            val w0 = o * pxPerKm
+            if (w0 >= size.width * 0.10f && w0 <= size.width * 0.24f) { pick = o; break }
+        }
+        val wBar = pick * pxPerKm
+        val x0 = 8f * k
+        val y0 = size.height - 8f * k
+        val c2 = labelColor.copy(alpha = 0.7f)
+        drawLine(c2, Offset(x0, y0), Offset(x0 + wBar, y0), strokeWidth = 1.2f * k)
+        drawLine(c2, Offset(x0, y0 - 3f * k), Offset(x0, y0 + 3f * k), strokeWidth = 1.2f * k)
+        drawLine(c2, Offset(x0 + wBar, y0 - 3f * k), Offset(x0 + wBar, y0 + 3f * k), strokeWidth = 1.2f * k)
+        val sp2 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = tPx * 0.7f
+            color = android.graphics.Color.argb(
+                200, (labelColor.red * 255).toInt(),
+                (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
+            )
+        }
+        drawContext.canvas.nativeCanvas.drawText(pick.toString() + " km", x0, y0 - 5f * k, sp2)
     }
 }
