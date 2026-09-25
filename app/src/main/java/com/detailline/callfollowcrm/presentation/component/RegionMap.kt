@@ -12,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
@@ -80,12 +82,17 @@ fun RegionMap(
     // 🚛 가 그 달 다닌 순서대로 달린다. 한 바퀴 14초.
     //   ⚠️ 폰 설정에서 '애니메이션 배율' 이 0이면 **안 움직인다** — 그건 폰 설정이지 버그가 아니다.
     //      그래서 움직임이 없어도 **길은 다 그려진 채**로 보이게 했다(멈춰도 빈 지도가 안 된다).
-    val trip = rememberInfiniteTransition(label = "trip")
-    val progress by trip.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing)),
-        label = "progress"
-    )
+    // **한 번 달리고 멈춘다.** 전엔 14초마다 하드 리셋되는 무한 반복이라
+    //   제일 좋은 장면(다 그려진 것)을 0.1초만 보여주고 지웠다. 지도를 누르면 다시 달린다.
+    //   ⚠️ 폰 설정에서 '애니메이션 배율' 이 0이면 안 움직인다 — 그건 폰 설정이지 버그가 아니다.
+    //      그래서 멈춰도 **길은 다 그려진 채**로 남는다(빈 지도가 안 된다).
+    val anim = remember { androidx.compose.animation.core.Animatable(0f) }
+    var playTick by remember { mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(spots, playTick) {
+        anim.snapTo(0f)
+        anim.animateTo(1f, tween(14000, easing = LinearEasing))
+    }
+    val progress = anim.value
     val line = AppTheme.colors.line
     val landC = AppTheme.colors.neutralBg
     val dotC = AppTheme.colors.primary
@@ -120,7 +127,9 @@ fun RegionMap(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         // 두 번 톡 치면 처음으로 — 손가락으로 헤맸을 때 돌아올 길이 있어야 한다.
-                        onDoubleTap = { onTransform?.invoke(1f, 0f, 0f) }
+                        onDoubleTap = { onTransform?.invoke(1f, 0f, 0f) },
+                        // 한 번 톡 치면 **다시 달린다** — 멈춘 뒤 또 보고 싶을 때.
+                        onTap = { playTick++ }
                     )
                 }
         ) {
@@ -212,6 +221,20 @@ private val ROADS = arrayOf(
         127.10, 37.52, 127.21, 37.50, 127.25, 37.35, 127.35, 37.10, 127.45, 36.85,
         127.45, 36.60, 127.42, 36.40
     )
+)
+
+/** 산 — 옅은 초록 얼룩 하나. r 은 도 단위 반지름. */
+private class Hill(val lon: Double, val lat: Double, val r: Double)
+
+private val HILLS = listOf(
+    Hill(126.98, 37.66, 0.055), Hill(127.04, 37.70, 0.045), Hill(126.96, 37.44, 0.045),
+    Hill(127.05, 37.42, 0.035), Hill(127.03, 37.33, 0.040), Hill(127.19, 37.48, 0.045),
+    Hill(127.25, 37.53, 0.040), Hill(126.90, 37.37, 0.035), Hill(126.72, 37.59, 0.035),
+    Hill(127.28, 37.66, 0.050), Hill(127.55, 37.55, 0.060), Hill(126.97, 37.94, 0.050),
+    Hill(127.42, 37.90, 0.070), Hill(128.10, 37.70, 0.130), Hill(128.50, 37.90, 0.150),
+    Hill(128.80, 37.40, 0.140), Hill(128.90, 36.90, 0.150), Hill(128.60, 36.40, 0.130),
+    Hill(127.80, 36.20, 0.110), Hill(127.50, 35.60, 0.120), Hill(127.70, 35.30, 0.110),
+    Hill(128.30, 35.50, 0.110), Hill(126.60, 35.30, 0.070)
 )
 
 /** 지도에 이름을 얹을 도시. rank 3=광역시 · 2=큰 시 · 1=수도권 시(확대했을 때만). */
@@ -326,12 +349,27 @@ internal fun DrawScope.drawRegionMap(
     /** 납작한 [lon,lat,…] 배열 → 화면 위 선. */
     fun pathOf(a: FloatArray, close: Boolean): Path {
         val p = Path()
-        var k = 0
-        while (k + 1 < a.size) {
-            val q = px(a[k].toDouble(), a[k + 1].toDouble())
-            if (k == 0) p.moveTo(q.x, q.y) else p.lineTo(q.x, q.y)
-            k += 2
+        val n = a.size / 2
+        if (n < 3) {
+            var k2 = 0
+            while (k2 + 1 < a.size) {
+                val q = px(a[k2].toDouble(), a[k2 + 1].toDouble())
+                if (k2 == 0) p.moveTo(q.x, q.y) else p.lineTo(q.x, q.y)
+                k2 += 2
+            }
+            if (close) p.close()
+            return p
         }
+        // **중점을 지나는 곡선** — 각진 선은 뇌가 '손으로 그린 것'으로 읽는다. 점을 더 쓰지 않는다.
+        val q0 = px(a[0].toDouble(), a[1].toDouble())
+        p.moveTo(q0.x, q0.y)
+        for (i in 1 until n - 1) {
+            val c1 = px(a[i * 2].toDouble(), a[i * 2 + 1].toDouble())
+            val c2 = px(a[(i + 1) * 2].toDouble(), a[(i + 1) * 2 + 1].toDouble())
+            p.quadraticBezierTo(c1.x, c1.y, (c1.x + c2.x) / 2f, (c1.y + c2.y) / 2f)
+        }
+        val qn = px(a[(n - 1) * 2].toDouble(), a[(n - 1) * 2 + 1].toDouble())
+        p.lineTo(qn.x, qn.y)
         if (close) p.close()
         return p
     }
@@ -339,6 +377,9 @@ internal fun DrawScope.drawRegionMap(
     // 굵기 기준 — 작은 화면(≈380px)에서 정한 값을 큰 그림(인증샷 1080·영상 720)에 그대로 쓰면
     //   선이 실핀이 된다. 화면 크기에 맞춰 같이 키운다. (2026-09-25 사장님 "인증샷도 지도 이미지가..")
     val k = (size.minDimension / 380f).coerceIn(1f, 3.2f)
+    // 글자 크기는 **폭에 비례 + 최소 11dp**. 픽셀로만 정하면 해상도 높은 폰에서 개미 글씨가 된다.
+    //   (2026-09-25 사장님 "확대하면 글자가 작아져" — 전엔 5.5dp 짜리였다)
+    val tPx = maxOf(size.width * 0.033f, 11.dp.toPx())
 
     if (geo != null && !geo.isEmpty) {
         // ── 바다 ── 이게 있어야 육지가 육지로 보인다.
@@ -355,6 +396,23 @@ internal fun DrawScope.drawRegionMap(
             val p = pathOf(r, true)
             drawPath(p, land)
             drawPath(p, edge, style = Stroke(width = 1f * k))
+        }
+        // ── 산 ── 한국 땅의 70%가 산인데 초록이 없으면 평야 나라로 보인다.
+        //   Natural Earth 에 산 면이 없어서 우리가 찍은 자리에 옅은 원으로 깐다.
+        val hill = Color(com.detailline.callfollowcrm.util.MapPalette.HILL)
+        for (h in HILLS) {
+            val c0 = px(h.lon, h.lat)
+            val e0 = px(h.lon + h.r, h.lat)
+            val rr = Math.abs(e0.x - c0.x)
+            if (rr < 2f) continue
+            drawCircle(
+                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                    0f to hill, 0.62f to hill.copy(alpha = hill.alpha * 0.5f),
+                    1f to hill.copy(alpha = 0f),
+                    center = c0, radius = rr
+                ),
+                radius = rr, center = c0
+            )
         }
         // ── 시가지 ── 동그란 얼룩이 아니라 **진짜 서울 모양**.
         val built = Color(com.detailline.callfollowcrm.util.MapPalette.BUILT)
@@ -547,7 +605,7 @@ internal fun DrawScope.drawRegionMap(
         ))
         // 🚛 — 지금 자리. 가는 쪽을 본다.
         val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 17f * k
+            textSize = tPx * 1.45f
             textAlign = android.graphics.Paint.Align.CENTER
         }
         val nv0 = drawContext.canvas.nativeCanvas
@@ -562,7 +620,7 @@ internal fun DrawScope.drawRegionMap(
     val maxCount = spots.maxOf { it.count }.coerceAtLeast(1)
     route.forEachIndexed { idx, s ->
         val p = px(s.lon, s.lat)
-        val base = (4f + 6f * (s.count.toFloat() / maxCount)) * k
+        val base = tPx * (0.34f + 0.26f * (s.count.toFloat() / maxCount))
         val came = idx <= arrivedUpTo
         if (!came) {
             drawCircle(land, base * 0.62f, p)
@@ -590,8 +648,8 @@ internal fun DrawScope.drawRegionMap(
                 if (up < 0f) continue
                 val dx = (if (q % 2 == 0) -1f else 1f) * (9f + (q * 13 % 11)) * e2 * 2.4f
                 val a = if (e2 < 0.7f) 1f else (1f - (e2 - 0.7f) / 0.25f).coerceAtLeast(0f)
-                val bw = 17f * k
-                val bh = 9.5f * k
+                val bw = tPx * 1.45f
+                val bh = tPx * 0.8f
                 val flap = Math.abs(Math.cos(e2 * Math.PI * 3.2)).toFloat().coerceAtLeast(0.22f)
                 nv1.save()
                 nv1.translate(p.x + dx * k, p.y - r - 6f * k - up * k)
@@ -612,8 +670,8 @@ internal fun DrawScope.drawRegionMap(
     // 🚩 첫 현장엔 깃발 — 멈춘 그림에서도 **어디서 시작했는지** 보여야 한다.
     if (route.isNotEmpty()) {
         val p0 = px(route[0].lon, route[0].lat)
-        val base0 = (4f + 6f * (route[0].count.toFloat() / maxCount)) * k
-        val fh = 13f * k
+        val base0 = tPx * (0.34f + 0.26f * (route[0].count.toFloat() / maxCount))
+        val fh = tPx * 1.1f
         val fx = p0.x + base0 * 0.8f
         val fy = p0.y - base0 * 0.8f
         drawLine(labelColor.copy(alpha = 0.7f), Offset(fx, fy), Offset(fx, fy - fh), strokeWidth = 1.6f * k)
@@ -628,7 +686,7 @@ internal fun DrawScope.drawRegionMap(
     // ── 도시 이름 ── 배경이다. 이름이 있어야 "어디"인지 읽힌다. 현장 이름보다 작고 연하게.
     run {
         val cp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 8.5f * k
+            textSize = tPx * 0.76f
             color = android.graphics.Color.argb(
                 190, (labelColor.red * 255).toInt(),
                 (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
@@ -636,7 +694,7 @@ internal fun DrawScope.drawRegionMap(
         }
         val ch = android.graphics.Paint(cp).apply {
             style = android.graphics.Paint.Style.STROKE
-            strokeWidth = 2.6f * k
+            strokeWidth = tPx * 0.22f
             color = android.graphics.Color.argb(
                 255, (land.red * 255).toInt(), (land.green * 255).toInt(), (land.blue * 255).toInt()
             )
@@ -672,7 +730,7 @@ internal fun DrawScope.drawRegionMap(
         drawLine(c2, Offset(x0, y0 - 3f * k), Offset(x0, y0 + 3f * k), strokeWidth = 1.2f * k)
         drawLine(c2, Offset(x0 + wBar, y0 - 3f * k), Offset(x0 + wBar, y0 + 3f * k), strokeWidth = 1.2f * k)
         val sp2 = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 8f * k
+            textSize = tPx * 0.7f
             color = android.graphics.Color.argb(
                 200, (labelColor.red * 255).toInt(),
                 (labelColor.green * 255).toInt(), (labelColor.blue * 255).toInt()
@@ -690,7 +748,7 @@ internal fun DrawScope.drawRegionMap(
     //     오른쪽 한 자리만 보고 포기해서 관악 옆 강서가 사라졌었다.
     val nv = drawContext.canvas.nativeCanvas
     val lp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 11f * k
+        textSize = tPx
         typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
         color = android.graphics.Color.argb(
             (labelColor.alpha * 255).toInt(), (labelColor.red * 255).toInt(),
@@ -699,7 +757,7 @@ internal fun DrawScope.drawRegionMap(
     }
     val hp2 = android.graphics.Paint(lp).apply {
         style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 3f * k
+        strokeWidth = tPx * 0.26f
         color = android.graphics.Color.argb(
             (land.alpha * 255).toInt(), (land.red * 255).toInt(),
             (land.green * 255).toInt(), (land.blue * 255).toInt()
@@ -712,7 +770,7 @@ internal fun DrawScope.drawRegionMap(
         val p = px(s.lon, s.lat)
         val w = lp.measureText(s.name)
         val h = lp.textSize
-        val gap = 11f * k
+        val gap = tPx * 0.95f
         // 오른쪽 → 왼쪽 → 위 → 아래
         val cands = arrayOf(
             floatArrayOf(p.x + gap, p.y + h * 0.35f),

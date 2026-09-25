@@ -164,17 +164,21 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         //   🚛 가 **날짜 순서대로** 달려야 하므로, 처음 간 날 순으로 자리를 매긴다.
         val counts = LinkedHashMap<String, Triple<Double, Double, Int>>()
         val firstAt = LinkedHashMap<String, Long>()
+        // 그 동네에서 번 돈 — 도착할 때 **지폐가 몇 장 올라올지**를 정한다. (2026-09-25)
+        val moneyOf = LinkedHashMap<String, Int>()
         for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             val spot = spotOf(a) ?: continue
             val prev = counts[spot.name]
             counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
             firstAt.putIfAbsent(spot.name, j.scheduledWorkDate ?: 0L)
+            moneyOf[spot.name] = (moneyOf[spot.name] ?: 0) + ((j.totalAmount ?: 0L) / 10_000L).toInt()
         }
         val orderOf = firstAt.entries.sortedBy { it.value }.mapIndexed { i, e -> e.key to i }.toMap()
         val dots = counts.map { (nm, v) ->
             com.detailline.callfollowcrm.presentation.component.RegionDot(
-                nm, v.first, v.second, v.third, orderOf[nm] ?: 0
+                nm, v.first, v.second, v.third, orderOf[nm] ?: 0,
+                amountManwon = moneyOf[nm] ?: 0
             )
         }
         // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.
@@ -190,6 +194,24 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 sidos[it.sido] = (sidos[it.sido] ?: 0) + 1
             }
         }
+        // 🚛 이번 달 **길을 타고 간 거리**(km). 큰길뿐인 자료라 실제보다 작게 나온다 → '약'.
+        val monthKm = run {
+            val order = dots.sortedBy { it.order }.map { it.lon to it.lat }
+            val trip = com.detailline.callfollowcrm.util.MapGeo.fullRoute(container.appContext, order)
+            val pts = trip?.pts
+            if (pts == null || pts.size < 4) 0 else {
+                var km = 0.0
+                var i = 0
+                while (i + 3 < pts.size) {
+                    val dx = (pts[i + 2] - pts[i]) * 0.809017
+                    val dy = (pts[i + 3] - pts[i + 1]).toDouble()
+                    km += Math.hypot(dx, dy) * 111.0
+                    i += 2
+                }
+                km.toInt()
+            }
+        }
+
         // 많이 간 순 세 곳까지. "서울·경기" 처럼.
         val area = sidos.entries.sortedByDescending { it.value }.take(3)
             .joinToString("·") { it.key }
@@ -252,7 +274,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             bizName = bizNameForRecord,
             tradeName = tradeForRecord,
             bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
-            areaLabel = area
+            areaLabel = area,
+            monthKm = monthKm
         )
     }
 
@@ -471,7 +494,12 @@ data class MyRecordState(
     /** 인증샷 간판에 들어갈 연락처. */
     val bizPhone: String = "",
     /** 다니는 지역 한 줄 — "서울·경기". 올해 다닌 동네의 시·도에서 뽑는다. */
-    val areaLabel: String = ""
+    val areaLabel: String = "",
+    /**
+     * 이번 달 **길을 타고 간 거리**(km). 0 이면 안 보여준다.
+     *   ⚠ 우리 도로 자료엔 큰길뿐이라 **실제보다 작게** 나온다 — 화면에 '약' 을 붙여 쓴다.
+     */
+    val monthKm: Int = 0
 )
 
 /** 「내 기록」 한 줄. */

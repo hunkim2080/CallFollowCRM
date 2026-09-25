@@ -45,7 +45,11 @@ object RecordReel {
         val bizName: String,
         val tradeName: String,
         val phone: String,
-        val area: String
+        val area: String,
+        /** 손가락으로 맞춘 확대·이동 — 화면에 보이던 그대로 영상에 담는다. */
+        val zoom: Float = 1f,
+        val panX: Float = 0f,
+        val panY: Float = 0f
     )
 
     private fun font(ctx: Context, id: Int): Typeface? =
@@ -117,7 +121,8 @@ object RecordReel {
                     river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                     progress = t,
                     geo = MapGeo.load(ctx),
-                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat })
+                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat }),
+                    zoom = d.zoom, panX = d.panX, panY = d.panY
                 )
             }
             c.restore()

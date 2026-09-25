@@ -73,6 +73,10 @@ object RecordShot {
         val dots: List<RegionDot>,
         /** 고른 숫자 말고 **나머지 숫자 한 줄** — "이번 달 7집 · 동네 38곳". 비면 안 그린다. */
         val subLine: String,
+        /** 손가락으로 맞춘 확대·이동 — **보이는 그대로** 그림에 담는다. (2026-09-25 사장님) */
+        val zoom: Float = 1f,
+        val panX: Float = 0f,
+        val panY: Float = 0f,
         val bizName: String,
         val tradeName: String,
         /** 보고 전화하게. 비면 안 그린다. */
@@ -262,7 +266,8 @@ object RecordShot {
                     river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
                     progress = 1f,
                     geo = MapGeo.load(ctx),
-                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat })
+                    trip = MapGeo.fullRoute(ctx, d.dots.sortedBy { it.order }.map { it.lon to it.lat }),
+                    zoom = d.zoom, panX = d.panX, panY = d.panY
                 )
             }
             c.restore()

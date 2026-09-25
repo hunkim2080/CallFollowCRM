@@ -86,6 +86,10 @@ fun StatsScreen(
 
     // 되돌릴 수 없는 일엔 **되돌릴 길**이 있어야 한다. (2026-09-25 기본 UX 점검)
     val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    // 손가락으로 맞춘 확대 — **지도와 인증샷이 같이 쓴다**(보이던 그대로 담으려고).
+    var mapZoom by remember(rec.dots) { mutableStateOf(1f) }
+    var mapPanX by remember(rec.dots) { mutableStateOf(0f) }
+    var mapPanY by remember(rec.dots) { mutableStateOf(0f) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     Scaffold(
@@ -111,10 +115,17 @@ fun StatsScreen(
         ) {
             // ── 「내 기록」 — 이 탭의 주인공. (2026-09-24 사장님, 프로토 artifact/EDcGwV4F)
             //   통계는 나만 보는 숫자지만 **기록은 남한테 보여줄 수 있는 것**이다.
-            item(key = "myrecord") { MyRecordCard(rec, onOpenVisited); Spacer(Modifier.height(12.dp)) }
+            item(key = "myrecord") {
+                MyRecordCard(rec, onOpenVisited, mapZoom, mapPanX, mapPanY)
+                Spacer(Modifier.height(12.dp))
+            }
             // 지도 — 다녀온 동네. 점 크기 = 몇 번 갔나. 다녀온 곳이 없으면 아예 안 그린다.
             item(key = "map") {
-                MyRecordMap(rec, onShiftMonth = viewModel::shiftRecordMonth)
+                MyRecordMap(
+                    rec, onShiftMonth = viewModel::shiftRecordMonth,
+                    zoom = mapZoom, panX = mapPanX, panY = mapPanY,
+                    onTransform = { z, x, y -> mapZoom = z; mapPanX = x; mapPanY = y }
+                )
                 Spacer(Modifier.height(12.dp))
             }
             // 현장 목록 — 번호가 붙어 쌓이는 곳.
@@ -181,7 +192,13 @@ fun StatsScreen(
  *    숫자를 부풀리면 기록이 아니다.
  */
 @Composable
-private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
+private fun MyRecordCard(
+    rec: MyRecordState,
+    onOpenVisited: () -> Unit,
+    zoom: Float = 1f,
+    panX: Float = 0f,
+    panY: Float = 0f
+) {
     val clip = androidx.compose.ui.platform.LocalClipboardManager.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
     Column(
@@ -280,7 +297,7 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
             Spacer(Modifier.height(AppSpace.s8))
             Text("현장 번호·다닌 동네·지도가 한 장에 들어가요 — 보고 나서 저장해요",
                 style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp)
-            if (shotOpen) ShotPreviewDialog(rec) { shotOpen = false }
+            if (shotOpen) ShotPreviewDialog(rec, zoom, panX, panY) { shotOpen = false }
         }
         }   // ── if (아직 없음) … else 끝
     }
@@ -291,7 +308,14 @@ private fun MyRecordCard(rec: MyRecordState, onOpenVisited: () -> Unit) {
  *   면을 안 칠하는 이유는 [RegionMap] 주석 참고 — 화성시가 강서구보다 20배 넓어서 그림이 거짓말을 한다.
  */
 @Composable
-private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
+private fun MyRecordMap(
+    rec: MyRecordState,
+    onShiftMonth: (Int) -> Unit,
+    zoom: Float = 1f,
+    panX: Float = 0f,
+    panY: Float = 0f,
+    onTransform: ((Float, Float, Float) -> Unit)? = null
+) {
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)
@@ -314,14 +338,10 @@ private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
                 Text("이 달은 다녀온 기록이 없어요", style = AppType.body, color = TossTextTertiary)
             }
         } else {
-        // 손가락으로 바꾼 확대·이동 — **영상으로 뽑을 때 이 값 그대로** 쓰려고 밖에 둔다.
-        var mapZoom by remember(rec.dots) { mutableStateOf(1f) }
-        var mapPanX by remember(rec.dots) { mutableStateOf(0f) }
-        var mapPanY by remember(rec.dots) { mutableStateOf(0f) }
         com.detailline.callfollowcrm.presentation.component.RegionMap(
             spots = rec.dots,
-            zoom = mapZoom, panX = mapPanX, panY = mapPanY,
-            onTransform = { z, x, y -> mapZoom = z; mapPanX = x; mapPanY = y }
+            zoom = zoom, panX = panX, panY = panY,
+            onTransform = onTransform
         )
         Spacer(Modifier.height(AppSpace.s8))
         val sorted = rec.dots.sortedByDescending { it.count }
@@ -352,7 +372,14 @@ private fun MyRecordMap(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
+private fun ShotPreviewDialog(
+    rec: MyRecordState,
+    /** 지도에서 손가락으로 맞춘 그대로 — 보이던 대로 그림·영상에 담는다. (2026-09-25 사장님) */
+    zoom: Float = 1f,
+    panX: Float = 0f,
+    panY: Float = 0f,
+    onClose: () -> Unit
+) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 배경이 **현장 사진**이 될 거라 '사진 위에 얹을 것' 이 기본이다. (2026-09-24 사장님)
@@ -385,6 +412,7 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
             .take(2).joinToString(" · ") { "${it.short} ${it.value}${it.unit}" }
         com.detailline.callfollowcrm.util.RecordShot.Data(
             bigValue = p.value, bigUnit = p.unit, bigCaption = p.caption, subLine = sub,
+            zoom = zoom, panX = panX, panY = panY,
             no = rec.lastNo, monthLabel = rec.monthLabel, sites = rec.monthSites,
             workDays = rec.monthWorkDays, towns = rec.towns, dots = rec.dots,
             bizName = rec.bizName, tradeName = rec.tradeName,
@@ -529,7 +557,8 @@ private fun ShotPreviewDialog(rec: MyRecordState, onClose: () -> Unit) {
                                             metricLabel = picks.getOrElse(pick) { picks.first() }.caption,
                                             towns = rec.towns, dots = rec.dots,
                                             bizName = rec.bizName, tradeName = rec.tradeName,
-                                            phone = rec.bizPhone, area = rec.areaLabel
+                                            phone = rec.bizPhone, area = rec.areaLabel,
+                                            zoom = zoom, panX = panX, panY = panY
                                         )
                                     ) { p -> making = p }
                                     making = -1f
@@ -608,8 +637,20 @@ private data class BigPick(val value: String, val unit: String, val short: Strin
 private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
     if (rec.lastNo > 0) add(BigPick("${rec.lastNo}", "집", "올해", "올해 다녀온 집"))
     if (rec.monthSites > 0) add(BigPick("${rec.monthSites}", "집", "이번 달", "이번 달 다녀온 집"))
+    // 💰 **번 돈** — 프로토엔 있는데 여기 빠져 있었다. 돈을 숨기고 싶은 사람을 위해
+    //   고르게 한 건데, 정작 고를 '돈' 이 없으면 말이 안 된다. (2026-09-25)
+    if (rec.monthSalesManwon > 0) add(
+        BigPick(
+            java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
+                .format(rec.monthSalesManwon),
+            "만원", "번 돈", "이번 달 번 돈"
+        )
+    )
     if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "동네", "올해 다녀온 동네"))
     if (rec.monthWorkDays > 0) add(BigPick("${rec.monthWorkDays}", "일", "현장", "이번 달 현장에 나간 날"))
+    // 🚛 **달린 거리** — 길을 타고 간 거리라 직선보다 훨씬 정직하다.
+    //   다만 우리 자료엔 큰길뿐이라 실제보다 작게 나온다 → 숫자 앞에 '약'.
+    if (rec.monthKm >= 1) add(BigPick("약 ${rec.monthKm}", "km", "달린 거리", "이번 달 달린 거리"))
     if (isEmpty()) add(BigPick("1", "집", "첫 현장", "첫 현장"))
 }
 

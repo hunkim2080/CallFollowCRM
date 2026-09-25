@@ -265,6 +265,8 @@ object MapPalette {
     const val EDGE = 0xFFB9C4D0
     /** 해안 바깥 후광 */
     const val GLOW = 0x3896ACC2
+    /** 산 얼룩 — 초록이 없으면 평야 나라로 보인다. */
+    const val HILL = 0x33A9C4A0
     /** 시가지 얼룩 */
     const val BUILT = 0x33A89F86
     /** 큰길 테두리 / 속 */
