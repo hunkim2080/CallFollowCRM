@@ -160,7 +160,12 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val notDone = month.count { it.workCompletedAt == null }
         val towns = LinkedHashSet<String>()
         var noAddr = 0
-        for (j in month) {
+        // 🧭 **다닌 순서대로** 모은다(먼저 간 곳부터).
+        //   [month] 는 **최근 것부터** 놓인 목록이라, 그대로 쓰면 지도 밑 동네 목록이
+        //   트럭이 달리는 방향과 **거꾸로** 적힐다. 사장님이 목록을 순서로 읽으시다가
+        //   "왜 3을 안 거치는 느낌이지?" 하셨다. (2026-09-25)
+        //   지도 점의 순서(`orderOf`)와 **같은 기준**으로 놓는다.
+        for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             val t = com.detailline.callfollowcrm.util.RegionName.shortRegion(a)
             if (t == null) noAddr++ else towns.add(t)
