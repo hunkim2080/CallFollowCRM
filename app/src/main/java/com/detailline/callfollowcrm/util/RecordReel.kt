@@ -165,8 +165,16 @@ object RecordReel {
         progress: VideoMaker.Progress? = null
     ): File? {
         val out = File(File(ctx.cacheDir, "shared").apply { mkdirs() }, "shigongmagne_reel.mp4")
-        return VideoMaker.make(
+        VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = progress
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H) }?.let { return it }
+        // 한 번 실패하면 **작게 한 번 더.** 폰이 큰 영상을 못 만들 때가 있다
+        //   (다른 앱이 인코더를 쓰고 있거나 메모리가 빠듯할 때). 작으면 되는 경우가 많다.
+        val w2 = 540
+        val h2 = 960
+        return VideoMaker.make(
+            outFile = out, width = w2, height = h2, fps = 20, seconds = seconds,
+            bitRate = 3_500_000, progress = progress
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2) }
     }
 }

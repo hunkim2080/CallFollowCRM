@@ -32,6 +32,15 @@ object VideoMaker {
     fun interface Progress { fun onStep(done: Float) }
 
     /**
+     * **마지막 실패 이유.** 실패를 "못 만들었어요" 한 줄로 끝내면 아무것도 못 고친다.
+     *   (2026-09-25 업무폰에서 실패했는데 이유를 알 길이 없었다)
+     */
+    @Volatile var lastError: String? = null
+        private set
+
+    private const val TAG = "VideoMaker"
+
+    /**
      * @param width  가로(짝수). 릴스는 9:16 이라 720×1280 이 기본.
      * @param fps    1초에 몇 컷. 24 면 충분히 부드럽고 만드는 시간이 짧다.
      * @param seconds 몇 초짜리.
@@ -118,7 +127,9 @@ object VideoMaker {
                     }
                 }
             }
-        }.onFailure {
+        }.onFailure { e ->
+            lastError = shortReason(e)
+            android.util.Log.e(TAG, "영상 실패 " + e.javaClass.simpleName + ": " + e.message, e)
             runCatching { codec?.stop() }
             runCatching { codec?.release() }
             runCatching { if (started) muxer?.stop() }
@@ -133,6 +144,15 @@ object VideoMaker {
         bmp.recycle()
         progress?.onStep(1f)
         if (outFile.exists() && outFile.length() > 1000) outFile else null
+    }
+
+    /** 사장님이 읽을 수 있는 짧은 이유. 개발 용어를 그대로 보여주면 아무 도움이 안 된다. */
+    private fun shortReason(e: Throwable): String = when {
+        e is android.media.MediaCodec.CodecException -> "폰의 영상 만드는 장치를 다른 앱이 쓰고 있어요"
+        e is OutOfMemoryError -> "폰 메모리가 모자라요"
+        e is java.io.IOException -> "저장 공간이 모자라거나 파일을 못 만들었어요"
+        e is IllegalStateException -> "영상 장치가 준비를 못 했어요"
+        else -> e.javaClass.simpleName
     }
 
     /** 인코더가 준 칸의 실제 크기 — 줄 간격이 기기마다 달라 직접 물어봐야 한다. */

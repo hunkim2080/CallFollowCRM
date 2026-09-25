@@ -577,8 +577,13 @@ private fun ShotPreviewDialog(
                                         }
                                         com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
                                     } else {
+                                        // 실패는 **이유를 말해야** 한다 — 한 줄로 끝내면 아무것도 못 고친다.
+                                        val why = com.detailline.callfollowcrm.util.VideoMaker.lastError
                                         android.widget.Toast.makeText(
-                                            ctx, "영상을 만들지 못했어요", android.widget.Toast.LENGTH_SHORT
+                                            ctx,
+                                            if (why.isNullOrBlank()) "영상을 만들지 못했어요"
+                                            else "영상을 만들지 못했어요 — " + why,
+                                            android.widget.Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 }
