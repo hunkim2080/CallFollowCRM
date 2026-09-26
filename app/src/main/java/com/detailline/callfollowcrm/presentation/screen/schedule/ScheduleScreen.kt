@@ -245,7 +245,7 @@ fun ScheduleScreen(
     val collabPartners by viewModel.collabPartners.collectAsState()
     val partnerStats by viewModel.partnerStats.collectAsState()
     val partnerLastPlace by viewModel.partnerLastPlace.collectAsState()
-    val wageContacts by viewModel.dailyWageContacts.collectAsState()
+    val pickCandidates by viewModel.pickCandidates.collectAsState()
     val assignmentsByCustomer by viewModel.assignmentsByCustomer.collectAsState()
     val jobCrewByCustomer by viewModel.jobCrewByCustomer.collectAsState()   // 내가 부른 일당 배정
     val assignToast by viewModel.toast.collectAsState()
@@ -644,8 +644,8 @@ fun ScheduleScreen(
             onDeleteWorker = { p -> viewModel.removeCollabPartner(p.id, p.name) },
             partnerStats = partnerStats,
             partnerLastPlace = partnerLastPlace,
-            wageContacts = wageContacts,
-            onAddWorkerFromContact = { c -> viewModel.addWorkerFromContact(c) },
+            pickCandidates = pickCandidates,
+            onAddFromPick = { c -> viewModel.addPartnerFromPick(c) },
             onRenameWorker = { c, nm -> viewModel.renameWorker(c, nm) },
             onDismiss = { assignTarget = null },
             onSave = { selectedIds, memo ->
@@ -1968,8 +1968,9 @@ private fun AssignTeamSheet(
     /** 📍 마지막으로 함께한 현장 — 번호(숫자만) → 동네. */
     partnerLastPlace: Map<String, String> = emptyMap(),
     /** 🏷️ 카테고리를 「일당」으로 분류해둔 고객 — 여기서 바로 부른다. */
-    wageContacts: List<CustomerEntity> = emptyList(),
-    onAddWorkerFromContact: (CustomerEntity) -> Unit = {},
+    /** 🔎 약이 아는 사람들 — 번호를 묻지 않고 이름으로 고른다. */
+    pickCandidates: List<ScheduleViewModel.PickCandidate> = emptyList(),
+    onAddFromPick: (ScheduleViewModel.PickCandidate) -> Unit = {},
     onRenameWorker: (com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
@@ -2040,6 +2041,7 @@ private fun AssignTeamSheet(
     // ⏰ 자주 쓰는 시간 밖의 것을 펼쳤나.
     var moreHours by remember { mutableStateOf(false) }
     var pickFromContacts by remember { mutableStateOf(false) }
+    var pickQuery by remember { mutableStateOf("") }
     var partnerMenu by remember {
         mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null)
     }
@@ -2338,39 +2340,72 @@ private fun AssignTeamSheet(
                     modifier = Modifier.padding(start = 2.dp, top = 8.dp))
             }
 
-            // 🏷️ **「일당」으로 분류해둔 고객을 바로 부른다.** 전엔 전화번호를 다시 찾아 쳐야 했다.
-            //   "카테고리의 의미가 무색해지네" — 분류해둔 보람이 여기서 난다. (2026-09-26 사장님)
+            // 🔎 **번호를 묻지 않는다.** 같이 일하는 사장님 번호를 외우는 사람은 없다.
+            //   앱은 그 번호를 이미 안다 — 문자를 주고받았으니까. 이름으로 고르게 한다.
+            //   고르면 「협업 사장」으로 **분류까지 저절로** 된다. (2026-09-26 프로토 ECAABRr2)
             Spacer(Modifier.height(10.dp))
-            if (wageContacts.isNotEmpty()) {
-                Box(
-                    Modifier.fillMaxWidth().clip(AppShape.md)
-                        .background(AppTheme.colors.surfaceMuted)
-                        .clickable { pickFromContacts = !pickFromContacts }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (pickFromContacts) "닫기"
-                        else "＋ 내 연락처에서 부르기 · 「협업 사장」 ${wageContacts.size}명",
-                        style = AppType.label, fontWeight = FontWeight.Bold, color = purple
-                    )
+            Box(
+                Modifier.fillMaxWidth().clip(AppShape.md)
+                    .background(AppTheme.colors.surfaceMuted)
+                    .clickable { pickFromContacts = !pickFromContacts; pickQuery = "" }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (pickFromContacts) "닫기" else "＋ 내 연락처에서 부르기",
+                    style = AppType.label, fontWeight = FontWeight.Bold, color = purple
+                )
+            }
+            if (pickFromContacts) {
+                Spacer(Modifier.height(8.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    pickQuery, { pickQuery = it },
+                    placeholder = "이름·번호로 찾기", modifier = Modifier.fillMaxWidth()
+                )
+                val q2 = pickQuery.trim()
+                val hits = pickCandidates.filter {
+                    q2.isBlank() || it.name.contains(q2, ignoreCase = true) ||
+                        it.phone.filter { ch -> ch.isDigit() }.contains(q2.filter { ch -> ch.isDigit() })
                 }
-                if (pickFromContacts) {
-                    Spacer(Modifier.height(6.dp))
-                    wageContacts.take(20).forEach { cust ->
+                if (hits.isEmpty()) {
+                    Text("찾는 사람이 없어요", style = AppType.caption, color = TossTextTertiary,
+                        modifier = Modifier.padding(vertical = 14.dp, horizontal = 2.dp))
+                } else {
+                    // 분류해둔 사람이 맨 위 — 사장님이 이미 골라둔 사람이다.
+                    val tagged = hits.filter { it.alreadyTagged }
+                    val rest = hits.filterNot { it.alreadyTagged }.take(40)
+                    if (tagged.isNotEmpty()) {
+                        Text("협업 사장으로 분류해둔 분", style = AppType.caption,
+                            fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                            modifier = Modifier.padding(top = 10.dp, start = 2.dp, bottom = 2.dp))
+                    }
+                    (tagged + rest).forEachIndexed { i, c ->
+                        if (i == tagged.size && tagged.isNotEmpty()) {
+                            Text("문자를 주고받은 분", style = AppType.caption,
+                                fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                                modifier = Modifier.padding(top = 12.dp, start = 2.dp, bottom = 2.dp))
+                        }
                         Row(
                             Modifier.fillMaxWidth().clip(AppShape.md)
-                                .clickable { onAddWorkerFromContact(cust); pickFromContacts = false }
-                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                                .clickable { onAddFromPick(c); pickFromContacts = false; pickQuery = "" }
+                                .padding(horizontal = 10.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                cust.name?.takeIf { it.isNotBlank() }
-                                    ?: PhoneNumberFormatter.format(cust.phoneNumber),
-                                style = AppType.label, fontWeight = FontWeight.Bold,
-                                color = TossTextPrimary, modifier = Modifier.weight(1f)
-                            )
-                            Text("넣기", style = AppType.caption, fontWeight = FontWeight.Bold, color = purple)
+                            Box(
+                                Modifier.size(32.dp).clip(AppShape.md).background(purpleLight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(c.name.take(1), style = AppType.caption,
+                                    fontWeight = FontWeight.Black, color = purple)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(c.name, style = AppType.label, fontWeight = FontWeight.Bold,
+                                    color = TossTextPrimary, maxLines = 1)
+                                Text(c.meta, style = AppType.caption, color = TossTextTertiary, maxLines = 1)
+                            }
+                            Text("＋ 넣기", style = AppType.caption,
+                                fontWeight = FontWeight.Bold, color = purple)
                         }
                     }
                 }
@@ -2386,7 +2421,7 @@ private fun AssignTeamSheet(
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(if (addWorkerOpen) "닫기" else "＋ 직접 등록",
+                Text(if (addWorkerOpen) "닫기" else "찾는 사람이 없나요? 직접 등록",
                     style = AppType.label, fontWeight = FontWeight.Bold, color = purple)
             }
             if (addWorkerOpen) {

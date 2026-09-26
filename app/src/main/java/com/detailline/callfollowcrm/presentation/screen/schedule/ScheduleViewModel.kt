@@ -175,6 +175,89 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      */
     val partnerLastPlace = kotlinx.coroutines.flow.MutableStateFlow<Map<String, String>>(emptyMap())
 
+    /** 🔎 고를 수 있는 한 사람 — 번호는 앱이 알고 있으니 **이름만** 고르면 된다. */
+    data class PickCandidate(
+        val phone: String,
+        val name: String,
+        /** 「9/23 문자」 같은 꼬리말. 같은 이름이 여럿일 때 가려내는 데 쓴다. */
+        val meta: String,
+        /** 이미 「협업 사장」으로 분류해둔 사람인가 — 맨 위 칸에 모은다. */
+        val alreadyTagged: Boolean
+    )
+
+    /**
+     * 🔎 **부를 수 있는 사람들** — 이미 명부에 있는 사람은 뺀다.
+     *
+     * ① 「협업 사장」(또는 「일당」)으로 분류해둔 고객
+     * ② **문자를 주고받은 사람**, 최근 순
+     *
+     * 광고·인증번호는 문자를 **주고받은** 적이 있어야 하므로 저절로 빠진다.
+     * (2026-09-26 사장님이 정한 기준: "문자를 나눈 적이 있고, 전화는 걸었든 안 걸었든")
+     */
+    val pickCandidates: StateFlow<List<PickCandidate>> =
+        combine(
+            container.smsContactCacheRepository.observeAll(300),
+            container.customerRepository.observeAll(),
+            container.categoryRepository.observeAll(),
+            container.notebookRepository.observeWorkers()
+        ) { sms, cs, cats, workers ->
+            val already = workers.map { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) }.toSet()
+            val tagIds = cats.filter { it.name.contains("일당") || it.name.contains("협업") }
+                .map { it.id }.toSet()
+            val nameBySuffix = cs.associateBy { it.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8) }
+            val out = LinkedHashMap<String, PickCandidate>()
+            // ① 분류해둔 사람 먼저 — 이미 사장님이 골라둔 사람이다.
+            cs.filter { it.categoryId in tagIds }.forEach { c ->
+                val suf = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
+                if (suf.isBlank() || suf in already) return@forEach
+                out[suf] = PickCandidate(
+                    phone = c.phoneNumber,
+                    name = c.name?.takeIf { it.isNotBlank() }
+                        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(c.phoneNumber),
+                    meta = "협업 사장으로 분류해둔 분",
+                    alreadyTagged = true
+                )
+            }
+            // ② **주고받은** 사람 — 최근 순. 「받기만 한」 건 아니다.
+            //   ⚠️ `hasOwnerReply`(내가 답장한 적 있나)를 안 걸었더니 1522·1544·114 같은
+            //      대표번호·ARS 가 줄줄이 올라왔다. (2026-09-26 테스트폰에서 확인)
+            //      광고에 답장하는 사람은 없으니 이 한 줄이 곧 광고 거르개다.
+            sms.filter { it.hasOwnerReply }.forEach { sc ->
+                val suf = sc.normalizedSuffix.takeLast(8)
+                if (suf.isBlank() || suf in already || suf in out) return@forEach
+                val cust = nameBySuffix[suf]
+                out[suf] = PickCandidate(
+                    phone = cust?.phoneNumber ?: sc.address,
+                    name = cust?.name?.takeIf { it.isNotBlank() }
+                        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(sc.address),
+                    meta = DateTimeUtils.formatShortKoreanDate(sc.lastDateMs) + " 문자",
+                    alreadyTagged = false
+                )
+            }
+            out.values.toList()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 🏷️ 고른 사람을 명부에 넣고 **「협업 사장」으로 분류까지 해둔다.**
+     *
+     * 이게 사장님이 말한 "유도"의 가장 좋은 형태다 — 안내문으로 시키지 않고,
+     * **부르면 분류가 저절로 쌓인다.** 다음부터는 맨 위에 뜬다.
+     * 카테고리가 아직 없으면 여기서 만든다(미리 만들어둘 필요 없게).
+     */
+    fun addPartnerFromPick(p: PickCandidate) {
+        viewModelScope.launch {
+            container.notebookRepository.add(
+                kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
+                name = p.name, phone = p.phone, tag = "", memo = ""
+            )
+            runCatching {
+                val cat = container.categoryRepository.upsert("협업 사장")
+                val cust = container.customerRepository.upsertByPhone(phoneNumber = p.phone)
+                container.categoryRepository.assignCustomer(cust.id, cat.id)
+            }
+        }
+    }
+
     init { refreshPartnerStats() }
 
     fun refreshPartnerStats() {
