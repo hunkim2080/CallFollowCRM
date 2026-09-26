@@ -372,12 +372,11 @@ private fun MyRecordMap(
             onTransform = onTransform
         )
         Spacer(Modifier.height(AppSpace.s8))
-        val sorted = rec.dots.sortedByDescending { it.count }
+        // 🧭 **다닌 순서로.** 여긴 혼자 `많이 간 순`으로 놓고 있었다 —
+        //   바로 밑에 "🚛 가 간 순서대로 달려요" 라고 적어두고. (2026-09-26 업무폰에서 발견)
+        //   🔒 영상·그림과 **같은 곳**에서 만든다 — 이 줄이 여섯 번째 복사본이었다.
         Text(
-            buildString {
-                append(sorted.take(8).joinToString(" · ") { it.name })
-                if (sorted.size > 8) append(" 외 ").append(sorted.size - 8).append("곳")
-            },
+            com.detailline.callfollowcrm.util.RecordShot.townLine(rec.towns),
             style = AppType.label, color = TossTextSecondary, lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 2.dp)
         )
