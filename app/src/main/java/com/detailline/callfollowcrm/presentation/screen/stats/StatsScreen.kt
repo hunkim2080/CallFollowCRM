@@ -1254,18 +1254,33 @@ private fun MyRecordRows(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        r.no ?: "—",
+                        // 🤝 협업은 번호 대신 손 표시 — 현장 번호는 **내 현장**의 차례다.
+                        if (r.collab) "🤝" else (r.no ?: "—"),
                         style = AppType.label, fontWeight = FontWeight.Black,
                         color = if (r.upcoming) TossTextTertiary else AppTheme.colors.primaryText
                     )
                 }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        if (r.upcoming) "다음 현장" else (r.town ?: "주소 미등록"),
-                        style = AppType.body, fontWeight = FontWeight.ExtraBold,
-                        color = if (r.town == null && !r.upcoming) AppTheme.colors.unpaid else TossTextPrimary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (r.upcoming) "다음 현장" else (r.town ?: "주소 미등록"),
+                            style = AppType.body, fontWeight = FontWeight.ExtraBold,
+                            color = if (r.town == null && !r.upcoming) AppTheme.colors.unpaid else TossTextPrimary
+                        )
+                        // 🤝 남의 현장에 불려 간 날 — 누구 현장이었는지까지. (2026-09-26 사장님)
+                        if (r.collab) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (r.collabWith.isNullOrBlank()) "협업" else "협업 · ${r.collabWith}",
+                                style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                                color = com.detailline.callfollowcrm.presentation.theme.LightColors.category,
+                                modifier = Modifier.clip(AppShape.pill)
+                                    .background(com.detailline.callfollowcrm.presentation.theme.LightColors.categoryBg)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                     // 📍 다녀온 자리. 「다녀온 현장」 목록과 **같은 모양**으로 맞춘다.
                     //   주소가 없으면 조용히 빼지 않고 **「주소 없음」**이라 적는다 —
                     //   그래야 어느 현장을 채우면 되는지 여기서 바로 보인다.

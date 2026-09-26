@@ -121,9 +121,30 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     /** 현장 사진 전부(올린 순서). 인증샷에 넣을 **대표 사진**을 여기서 고른다. */
     private val sitePhotosFlow = container.sitePhotoRepository.observeAllOldestFirst()
 
+    /**
+     * 🤝 **남의 현장에 불려 간 것** — 서버에 있다(앱 DB 아님).
+     *   못 불러와도 화면은 그대로 뜬다 — 그때는 내 현장만 보인다.
+     *   (2026-09-26 사장님 "협업일정도 똑같이 올라가져야해. 움직인건 맞으니까")
+     */
+    private val collabSites =
+        kotlinx.coroutines.flow.MutableStateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>>(emptyList())
+
+    init { refreshCollab() }
+
+    fun refreshCollab() {
+        viewModelScope.launch {
+            val phone = container.preferences.bizPhone.filter { it.isDigit() }
+            if (phone.isBlank()) return@launch
+            // 올해 것만 — 「내 기록」이 올해·이번 달만 쓴다.
+            val since = yearStartOf(System.currentTimeMillis())
+            container.sharedSiteRepository.withMe(phone, sinceMs = since, limit = 200)
+                .onSuccess { collabSites.value = it }
+        }
+    }
+
     val myRecord: StateFlow<MyRecordState> =
-        combine(customers, jobsFlow, recordMonth, sitePhotosFlow) { cs, js, m, ph ->
-            buildMyRecord(cs, js, m, ph)
+        combine(customers, jobsFlow, recordMonth, sitePhotosFlow, collabSites) { cs, js, m, ph, co ->
+            buildMyRecord(cs, js, m, ph, co)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
 
     private val bizNameForRecord = container.preferences.bizName
@@ -142,7 +163,9 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         cs: List<CustomerEntity>,
         js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
         monthDelta: Int = 0,
-        photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity> = emptyList()
+        photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity> = emptyList(),
+        /** 🤝 남의 현장에 불려 간 것. 서버에서 온다 — 못 불러오면 빈 목록이고, 화면은 그대로 뜬다. */
+        collab: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList()
     ): MyRecordState {
         val now = System.currentTimeMillis()
         val monthStart = shiftMonth(monthStartOf(now), monthDelta)
@@ -168,6 +191,19 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             val t = com.detailline.callfollowcrm.util.RegionName.shortRegion(a)
+            if (t == null) noAddr++ else towns.add(t)
+        }
+        // 🤝 **진짜 간 협업 현장만.** 「도착」·「완료」 표시가 있는 것 — 수락만 하고 안 간 건 안 센다.
+        //   (2026-09-26 사장님 "움직인건 맞으니까")
+        val wentTo = setOf(
+            com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.ARRIVED,
+            com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
+        )
+        val collabDone = collab.filter { it.progress in wentTo && it.scheduledAtMs in 1 until todayStart }
+        val collabMonth = collabDone.filter { it.scheduledAtMs in monthStart until monthEnd }
+            .sortedByDescending { it.scheduledAtMs }
+        for (s in collabMonth) {
+            val t = com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr)
             if (t == null) noAddr++ else towns.add(t)
         }
         val lastNo = js.mapNotNull { it.recordNo }.maxOrNull() ?: 0
@@ -199,6 +235,14 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 hit?.filePath?.takeIf { java.io.File(it).exists() }?.let { photoOf[spot.name] = it }
             }
         }
+        // 🤝 협업 현장도 같은 지도에. 일당이 **그 동네에서 번 돈**이 된다.
+        for (s in collabMonth.sortedBy { it.scheduledAtMs }) {
+            val spot = spotOf(s.addr) ?: continue
+            val prev = counts[spot.name]
+            counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
+            firstAt.putIfAbsent(spot.name, s.scheduledAtMs)
+            moneyOf[spot.name] = (moneyOf[spot.name] ?: 0) + (s.dailyWage ?: 0)
+        }
         val orderOf = firstAt.entries.sortedBy { it.value }.mapIndexed { i, e -> e.key to i }.toMap()
         val dots = counts.map { (nm, v) ->
             com.detailline.callfollowcrm.presentation.component.RegionDot(
@@ -210,6 +254,10 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.
         val yearStart = yearStartOf(now)
         val yearTowns = HashSet<String>()
+        for (s in collabDone) {
+            if (s.scheduledAtMs < yearStart) continue
+            spotOf(s.addr)?.let { yearTowns.add(it.name) }
+        }
         // 다니는 지역 — 올해 간 동네의 **시·도**를 모은다. 광고에선 "어디까지 가는지" 가 제일 궁금하다.
         val sidos = LinkedHashMap<String, Int>()
         for (j in done) {
@@ -269,10 +317,28 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             // '다음 현장' 은 **이번 달을 볼 때만** 의미가 있다. 지난달을 보면서 앞일을 보여주면 헷갈린다.
             if (monthDelta == 0) upcoming?.let { add(rowOf(it, true)) }
             (if (monthDelta == 0) done else month).take(8).forEach { add(rowOf(it, false)) }
+            // 🤝 협업 현장 — 번호는 안 붙인다(현장 번호는 **내 현장**의 차례다).
+            (if (monthDelta == 0) collabDone else collabMonth).take(8).forEach { s ->
+                add(
+                    MyRecordRow(
+                        jobId = 0L, customerId = 0L, no = null,
+                        town = com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr),
+                        addr = s.addr?.takeIf { it.isNotBlank() },
+                        date = DateTimeUtils.formatShortKoreanDate(s.scheduledAtMs),
+                        days = 1,
+                        amountManwon = s.dailyWage ?: 0,
+                        done = true, upcoming = false, collab = true,
+                        collabWith = s.ownerName.takeIf { it.isNotBlank() }
+                    )
+                )
+            }
         }
-        val sales = month.sumOf { (it.totalAmount ?: 0L) } / 10_000L
+        // 🤝 협업 일당도 **내가 번 돈**이라 합친다. (2026-09-26 사장님이 고르심)
+        val sales = month.sumOf { (it.totalAmount ?: 0L) } / 10_000L +
+            collabMonth.sumOf { (it.dailyWage ?: 0).toLong() }
         // 현장에서 보낸 날 — 이틀짜리 공사는 이틀로 센다. "곳" 과 다른 숫자다.
-        val workDays = month.sumOf { it.scheduledWorkDays.coerceAtLeast(1) }
+        //   협업은 하루로 센다(서버가 며칠짜리인지 안 준다).
+        val workDays = month.sumOf { it.scheduledWorkDays.coerceAtLeast(1) } + collabMonth.size
         // 지난달 — 달을 넘겨보게 해놨으니 비교가 자연스럽다. 자료가 없으면 -1(문구 생략).
         val prevStart = shiftMonth(monthStart, -1)
         val prevCount = done.count { (it.scheduledWorkDate ?: 0L) in prevStart until monthStart }
@@ -284,14 +350,14 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         }
         return MyRecordState(
             lastNo = lastNo,
-            monthSites = month.size,
+            monthSites = month.size + collabMonth.size,
             towns = towns.toList(),
             noAddrCount = noAddr,
             notDoneCount = notDone,
             // 글에 적히는 날짜도 **시공한 날**. 완료를 언제 눌렀는지는 손님한테 아무 뜻이 없다.
             pasteText = buildPaste(
                 top?.scheduledWorkDate ?: top?.workCompletedAt,
-                topTown, top?.recordNo, month.size, towns.size, workDays
+                topTown, top?.recordNo, month.size + collabMonth.size, towns.size, workDays
             ),
             dots = dots,
             monthLabel = java.text.SimpleDateFormat("yyyy년 M월", java.util.Locale.KOREA)
@@ -592,7 +658,11 @@ data class MyRecordRow(
     val amountManwon: Int,
     val done: Boolean,
     /** true = 아직 안 다녀온 예정 현장. */
-    val upcoming: Boolean
+    val upcoming: Boolean,
+    /** 🤝 남의 현장에 불려 간 것. 번호가 안 붙고 목록에 「협업」 딱지가 붙는다. */
+    val collab: Boolean = false,
+    /** 누구 현장이었나(부른 사장님 상호). */
+    val collabWith: String? = null
 )
 
 data class StatsTrendState(
