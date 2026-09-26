@@ -543,7 +543,7 @@ private fun ShotPreviewDialog(
     // ── 🎬 영상 미리보기 ── 만들기 전에 **움직이는 걸 본다.** (2026-09-25 사장님)
     //   몇 분 기다려 만들었는데 마음에 안 들면 그 시간을 날린다.
     var previewVideo by remember { mutableStateOf(autoVideo) }
-    val reelData = remember(rec, pick, picks, zoom, panX, panY, sign) {
+    val reelData = remember(rec, pick, picks, zoom, panX, panY, sign, shape) {
         val p = picks.getOrElse(pick) { picks.first() }
         com.detailline.callfollowcrm.util.RecordReel.Data(
             monthLabel = rec.monthLabel,
@@ -555,7 +555,11 @@ private fun ShotPreviewDialog(
             phone = rec.bizPhone, area = rec.areaLabel,
             zoom = zoom, panX = panX, panY = panY,
             photoPath = rec.photoPath,
-            sign = sign
+            sign = sign,
+            // 📸 「사진이 배경」을 고르면 **영상도** 그 모양으로.
+            //   전엔 그림에만 있고 영상은 지도 한 가지뿐이었다 — 또 한쪽만.
+            //   (2026-09-26 사장님 "시공사례를 더 부각하고 싶은 사람들")
+            photoHero = shape == ShotShape.PHOTO
         )
     }
     // 동네별 사진 — **영상과 똑같이** 미리 읽어둔다. 창을 닫을 때 놓아준다.
@@ -762,7 +766,7 @@ private fun ShotPreviewDialog(
                 // ── 이미지 스타일 ── **무엇을 그리나.** (비율과 따로 고른다)
                 //   전엔 [사진 위에][지도 크게][정사각] 이 한 줄이라, 모양과 크기가 뭉쳐 있었다.
                 //   그래서 "지도 크게 + 정사각" 같은 조합을 아예 못 골랐다. (사장님 시안)
-                Text("이미지 스타일", style = AppType.caption, color = TossTextTertiary,
+                Text("스타일", style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 // 갈래가 다섯이라 한 줄에 안 들어간다 → 줄바꿈되는 칩.
                 //   현장 사진이 없는 달이면 **사진 갈래를 아예 안 보여준다** —

@@ -65,8 +65,156 @@ object RecordReel {
          * 돈·집 수처럼 **집마다 다르게** 쌓이는 숫자는 여기에 동네별 몫을 넣는다.
          *   (2026-09-26 사장님 "각 지역마다 금액이 다른데 그렇게 올라야지")
          */
-        val metricWeights: List<Float> = emptyList()
+        val metricWeights: List<Float> = emptyList(),
+        /**
+         * 📸 **사진이 주인공인 영상**으로 만들지.
+         *
+         * 기본(false)은 지도가 주인공 — 한 달에 이만큼 다녔다를 보여준다.
+         * true 면 **현장 사진이 배경**이고 지도는 오른쪽 위에서 작게 달린다.
+         *   "시공 사례를 더 부각하고 싶은 사람" 용. (2026-09-26 사장님)
+         * 사진이 하나도 없으면 조용히 지도 갈래로 내려간다 — 빈 검은 화면을 내놓지 않는다.
+         */
+        val photoHero: Boolean = false
     )
+
+    /**
+     * 📸 **사진이 주인공인 한 컷.**
+     *
+     * 배경 = **지금 도착한 현장의 사진**(없으면 그 전 현장 것). 도착할 때마다 바뀌어
+     * 한 달 시공 사례가 차례로 지나간다. 지도는 오른쪽 위에서 작게 달린다.
+     * 글자는 전부 흰색 — 어떤 사진 위에서든 읽히게 위아래를 어둡게 깐다.
+     * (2026-09-26 사장님 "시공사례를 더 부각하고 싶은 사람들은 이 메뉴를 선택할수있게")
+     */
+    private fun drawPhotoFrame(
+        ctx: Context,
+        c: Canvas,
+        d: Data,
+        t: Float,
+        w: Int,
+        h: Int,
+        photos: Map<String, android.graphics.Bitmap>,
+        ride: com.detailline.callfollowcrm.util.MapRide.At?
+    ) {
+        val bold = font(ctx, R.font.pretendard_bold)
+        val xbold = font(ctx, R.font.pretendard_extrabold)
+        val med = font(ctx, R.font.pretendard_medium)
+        val white = 0xFFFFFFFF.toInt()
+        val pad = w * 0.072f
+        val ordered = d.dots.sortedBy { it.order }
+
+        // ① 배경 — 도착한 데부터 거꾸로 훑어 **사진이 있는 제일 가까운 현장**.
+        //   그 동네에 사진이 없다고 화면이 깜빡이면 오히려 어수선하다.
+        val bg = run {
+            var i = (ride?.arrived ?: 0).coerceIn(0, maxOf(0, ordered.size - 1))
+            var found: android.graphics.Bitmap? = null
+            while (i >= 0) {
+                val nm = ordered.getOrNull(i)?.name
+                val b = if (nm != null) photos[nm] else null
+                if (b != null) { found = b; break }
+                i--
+            }
+            found ?: photos.values.firstOrNull()
+        }
+        c.drawColor(0xFF101418.toInt())
+        if (bg != null) RecordShot.drawCover(c, bg, android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat()))
+
+        // ② 위아래를 어둡게 — 가운데(시공 자리)는 안 건드린다.
+        c.drawRect(0f, 0f, w.toFloat(), h * 0.38f, Paint().apply {
+            shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, h * 0.38f,
+                intArrayOf(0xB3000000.toInt(), 0x00000000), null,
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        })
+        c.drawRect(0f, h * 0.62f, w.toFloat(), h.toFloat(), Paint().apply {
+            shader = android.graphics.LinearGradient(
+                0f, h * 0.62f, 0f, h.toFloat(),
+                intArrayOf(0x00000000, 0xC4000000.toInt()), null,
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        })
+
+        // ③ 큰 숫자 — 왼쪽 위. 지도 갈래와 **같은 셈**으로 오른다.
+        var y = pad + h * 0.045f
+        c.drawText(d.monthLabel, pad, y, paint(bold, w * 0.036f, 0xCCFFFFFF.toInt()))
+        y += h * 0.062f
+        val bigP = fit(paint(xbold, w * 0.145f, white), d.metricValue,
+            w - pad * 2 - w * 0.40f, w * 0.145f, w * 0.075f)
+        val p2 = if (ride == null) 1f else stepUp(
+            d.metricWeights, ride.arrived,
+            ride.nowT - (ride.arriveAt.getOrNull(ride.arrived) ?: 0f), ride.frac
+        )
+        RecordShot.drawBigNumber(
+            c, pad, y, countUp(d.metricValue, p2), d.metricUnit, bigP, paint(bold, w * 0.058f, white)
+        )
+        y += h * 0.031f
+        c.drawText(d.metricLabel, pad, y, paint(bold, w * 0.040f, 0xE6FFFFFF.toInt()))
+
+        // ④ 작은 지도 — 오른쪽 위에서 **트럭이 달린다.** 한 뼘짜리라 이름은 안 넣는다(겹쳐서 못 읽는다).
+        if (d.dots.isNotEmpty()) {
+            val side = w * 0.30f
+            val box = android.graphics.RectF(w - pad - side, pad, w - pad, pad + side)
+            c.drawRoundRect(box.left - 8f, box.top - 8f, box.right + 8f, box.bottom + 8f, 20f, 20f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xF2FFFFFF.toInt(); setShadowLayer(14f, 0f, 4f, 0x40000000)
+                })
+            c.save()
+            c.clipRect(box)
+            c.translate(box.left, box.top)
+            androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+                Density(1f), LayoutDirection.Ltr,
+                androidx.compose.ui.graphics.Canvas(c), Size(side, side)
+            ) {
+                drawRegionMap(
+                    spots = d.dots,
+                    named = emptySet(),
+                    measurer = null,
+                    land = androidx.compose.ui.graphics.Color(MapPalette.LAND),
+                    edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
+                    dot = androidx.compose.ui.graphics.Color(0xFF3182F6),
+                    labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
+                    labelStyle = TextStyle(fontSize = 8.sp),
+                    river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
+                    // 한 뼘짜리라 **따라가지 않는다** — 작은 창에서 카메라까지 움직이면 멀미한다.
+                    //   전체를 보여주고 그 안에서 트럭만 달린다.
+                    progress = t,
+                    geo = MapGeo.load(ctx),
+                    trip = MapGeo.fullRoute(ctx, ordered.map { it.lon to it.lat }),
+                    zoom = d.zoom, panX = d.panX, panY = d.panY
+                )
+            }
+            c.restore()
+        }
+
+        // ⑤ 동네 줄 + 간판 — 아래. 사진 위라 전부 흰 글씨.
+        var by = h - pad - (if (d.sign) h * 0.105f else h * 0.006f)
+        if (d.towns.isNotEmpty()) {
+            val line = RecordShot.townLine(d.towns)
+            c.drawText(line, pad, by,
+                fit(paint(med, w * 0.040f, 0xD9FFFFFF.toInt()), line, w - pad * 2, w * 0.040f, w * 0.028f))
+            by += h * 0.034f
+        }
+        if (!d.sign) return
+        val name = d.bizName.trim()
+        if (name.isNotBlank()) {
+            c.drawText(name, pad, h - pad - h * 0.046f,
+                fit(paint(xbold, w * 0.062f, white), name, w - pad * 2, w * 0.062f, w * 0.036f))
+        }
+        val line2 = listOfNotNull(
+            listOfNotNull(
+                d.area.takeIf { it.isNotBlank() },
+                d.tradeName.takeIf { it.isNotBlank() }
+            ).joinToString(" ").takeIf { it.isNotBlank() },
+            d.phone.takeIf { it.isNotBlank() }
+        ).joinToString(" · ")
+        if (line2.isNotBlank()) {
+            c.drawText(line2, pad, h - pad - h * 0.010f,
+                fit(paint(bold, w * 0.038f, 0xF2FFFFFF.toInt()), line2,
+                    w - pad * 2 - w * 0.20f, w * 0.038f, w * 0.028f))
+        }
+        c.drawText("시공막내", w - pad, h - pad - h * 0.010f,
+            paint(med, w * 0.028f, 0x99FFFFFF.toInt(), Paint.Align.RIGHT))
+    }
 
     /**
      * 🔢 `"약 1,250"` → 달린 만큼 올라간 `"약 730"`.
@@ -169,6 +317,12 @@ object RecordReel {
         val ride = if (ordered0.isEmpty()) null else com.detailline.callfollowcrm.util.MapRide.at(
             wayLL0, trip0?.stops ?: IntArray(ordered0.size) { it }, t
         )
+
+        // 📸 사진이 주인공인 갈래로. 사진이 하나도 없으면 지도 갈래 그대로 간다.
+        if (d.photoHero && photos.isNotEmpty()) {
+            drawPhotoFrame(ctx, c, d, t, w, h, photos, ride)
+            return
+        }
 
         // ── 위: 달 · 큰 숫자 · 이름 ──
         var y = pad + h * 0.045f
