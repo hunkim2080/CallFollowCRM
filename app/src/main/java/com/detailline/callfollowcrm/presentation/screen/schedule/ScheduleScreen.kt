@@ -244,6 +244,7 @@ fun ScheduleScreen(
     val teamMembers by viewModel.teamMembers.collectAsState()
     val collabPartners by viewModel.collabPartners.collectAsState()
     val partnerStats by viewModel.partnerStats.collectAsState()
+    val partnerLastPlace by viewModel.partnerLastPlace.collectAsState()
     val wageContacts by viewModel.dailyWageContacts.collectAsState()
     val assignmentsByCustomer by viewModel.assignmentsByCustomer.collectAsState()
     val jobCrewByCustomer by viewModel.jobCrewByCustomer.collectAsState()   // 내가 부른 일당 배정
@@ -642,6 +643,7 @@ fun ScheduleScreen(
             onAddWorker = { name, phone, wage -> viewModel.addCollabPartner(name, phone, wage) },
             onDeleteWorker = { p -> viewModel.removeCollabPartner(p.id, p.name) },
             partnerStats = partnerStats,
+            partnerLastPlace = partnerLastPlace,
             wageContacts = wageContacts,
             onAddWorkerFromContact = { c -> viewModel.addWorkerFromContact(c) },
             onRenameWorker = { c, nm -> viewModel.renameWorker(c, nm) },
@@ -1963,6 +1965,8 @@ private fun AssignTeamSheet(
     onDeleteWorker: (com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity) -> Unit = {},
     /** 🤝 집계(함께 N번 · 마지막) — 번호(숫자만) → 집계. 많이 부른 순으로 줄을 세운다. */
     partnerStats: Map<String, com.detailline.callfollowcrm.ai.SharedSiteRepository.Partner> = emptyMap(),
+    /** 📍 마지막으로 함께한 현장 — 번호(숫자만) → 동네. */
+    partnerLastPlace: Map<String, String> = emptyMap(),
     /** 🏷️ 카테고리를 「일당」으로 분류해둔 고객 — 여기서 바로 부른다. */
     wageContacts: List<CustomerEntity> = emptyList(),
     onAddWorkerFromContact: (CustomerEntity) -> Unit = {},
@@ -2313,10 +2317,13 @@ private fun AssignTeamSheet(
                             }
                             // 🤝 **함께 몇 번 했나.** 일당을 정할 때 이게 제일 큰 참고가 된다.
                             //   ⚠️ 협업으로 부른 것만 세어진다(서버 기록이 그것뿐 — 사장님 확인).
+                            // 📍 「며칠째 호흡」보다 **어디였는지**가 훨씬 잘 떠오른다. (2026-09-26 사장님)
+                            val place = partnerLastPlace[p.phone.filter { ch -> ch.isDigit() }]
                             val meta = buildString {
                                 if (st != null && st.count > 0) {
                                     append("함께 ").append(st.count).append("번")
-                                    if (st.lastAtMs > 0) append(" · ")
+                                    if (!place.isNullOrBlank()) append(" · 마지막 ").append(place)
+                                    else if (st.lastAtMs > 0) append(" · ")
                                         .append(DateTimeUtils.formatShortKoreanDate(st.lastAtMs))
                                 } else append("아직 같이 한 적 없어요")
                             }

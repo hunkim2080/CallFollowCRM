@@ -162,6 +162,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 .sortedBy { it.name ?: it.phoneNumber }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * 📍 **이 사장님과 마지막으로 함께한 현장이 어디였나** — 번호(숫자만) → 동네.
+     *
+     * 「며칠째 호흡」보다 **어디였는지**가 훨씬 잘 떠오른다. (2026-09-26 사장님)
+     * 주소가 있으면 동네(구)로, 없으면 현장 이름 그대로.
+     */
+    val partnerLastPlace = kotlinx.coroutines.flow.MutableStateFlow<Map<String, String>>(emptyMap())
+
     init { refreshPartnerStats() }
 
     fun refreshPartnerStats() {
@@ -170,6 +178,18 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             if (me.isBlank()) return@launch
             container.sharedSiteRepository.partners(me).onSuccess { list ->
                 partnerStats.value = list.associateBy { it.ownerPhone.filter { ch -> ch.isDigit() } }
+            }
+            // 📍 마지막으로 함께한 **현장이 어디였는지**. 집계엔 없어서 현장 목록에서 뽑는다.
+            container.sharedSiteRepository.withMe(me, sinceMs = 0L, limit = 200).onSuccess { sites ->
+                partnerLastPlace.value = sites
+                    .groupBy { it.ownerPhone.filter { ch -> ch.isDigit() } }
+                    .mapValues { (_, v) ->
+                        val last = v.maxByOrNull { it.scheduledAtMs }
+                        com.detailline.callfollowcrm.util.RegionName.shortRegion(last?.addr)
+                            ?: last?.title?.takeIf { it.isNotBlank() }
+                            ?: ""
+                    }
+                    .filterValues { it.isNotBlank() }
             }
         }
     }
