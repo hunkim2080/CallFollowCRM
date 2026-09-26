@@ -1003,16 +1003,20 @@ fun CustomerDetailScreen(
                                 trailing = if (scheduled != null) Icons.Default.Edit else Icons.Default.Add,
                                 onClick = { datePickerOpen = true }
                             )
-                            // A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
-                            CdKv(
-                                "A/S 예약",
-                                if (c.asScheduledDate != null)
-                                    DateTimeUtils.formatShortKoreanDate(c.asScheduledDate!!) + (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료"
-                                else "아직 없음 · 눌러서 잡기",
-                                valueColor = if (c.asScheduledDate != null) AppTheme.colors.text else TossTextTertiary,
-                                trailing = if (c.asScheduledDate != null) Icons.Default.Edit else Icons.Default.Add,
-                                onClick = { asPickerOpen = true }
-                            )
+                            // 🔧 A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
+                            //   **잡혀 있을 때만** 줄로 보여준다. A/S 는 가끔 있는 일인데
+                            //   늘 「아직 없음」이 한 줄을 먹고 있었다 — 정보가 아니라 빈 줄이다.
+                            //   안 잡혔을 땐 카드 맨 아래 작은 「A/S 잡기」로 물러난다. (2026-09-26 사장님)
+                            if (c.asScheduledDate != null) {
+                                CdKv(
+                                    "A/S 예약",
+                                    DateTimeUtils.formatShortKoreanDate(c.asScheduledDate!!) +
+                                        (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료",
+                                    valueColor = AppTheme.colors.text,
+                                    trailing = Icons.Default.Edit,
+                                    onClick = { asPickerOpen = true }
+                                )
+                            }
                             if (hasAmount) {
                                 // 돈도 예약과 **같은 줄 모양**으로 — 이름 왼쪽 · 값 오른쪽 · 연필은 같은 크기.
                                 //   전엔 금액이 왼쪽에 크게 있고 버튼이 오른쪽이라 두 줄의 끝이 들쭉날쭉했다. (2026-09-20 사장님)
@@ -1078,6 +1082,12 @@ fun CustomerDetailScreen(
                                     horizontalArrangement = Arrangement.End,
                                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                 ) {
+                                    // 🔧 A/S 가 아직 없을 때의 **조용한 길**. 잡히면 위에 줄로 올라간다.
+                                    //   시공 예약이 있을 때만 — A/S 는 시공 **뒤**의 일이다.
+                                    if (scheduled != null && c.asScheduledDate == null) {
+                                        CdUndoChip("A/S 잡기", danger = false) { asPickerOpen = true }
+                                        Spacer(Modifier.width(8.dp))
+                                    }
                                     if (allPaid) {
                                         CdUndoChip("완납 취소", danger = false) {
                                             if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
