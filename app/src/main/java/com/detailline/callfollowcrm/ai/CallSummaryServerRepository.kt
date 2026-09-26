@@ -23,7 +23,10 @@ import java.util.concurrent.TimeUnit
 class CallSummaryServerRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
     /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
-    private val ownerPhone: () -> String = { "" }
+    private val ownerPhone: () -> String = { "" },
+    /** 🧾 사장님 **자기** 가격표 — 서버 요약이 전역 pricing.md 대신 이걸 쓴다.
+     *  회원마다 업종이 달라서(줄눈·필름·도배…) 남의 가격표를 보여주면 안 된다. (2026-09-26) */
+    private val priceList: suspend () -> String = { "" }
 ) {
     private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -63,6 +66,9 @@ class CallSummaryServerRepository(
                 customerName?.takeIf { it.isNotBlank() }?.let { put("customer_name", it) }
                 customerMemo?.takeIf { it.isNotBlank() }?.let { put("customer_memo", it) }
                 if (ownerToneSamples.isNotEmpty()) put("owner_tone_samples", JSONArray(ownerToneSamples.take(10)))
+                // 🧾 자기 가격표 — 자재 이름을 가격표에 적힌 말로 바로잡는 데 쓰인다. (2026-09-26)
+                runCatching { priceList() }.getOrDefault("").trim().take(8000)
+                    .takeIf { it.isNotEmpty() }?.let { put("price_list", it) }
             }
             val req = Request.Builder()
                 .url("$baseUrl/api/call-summary")

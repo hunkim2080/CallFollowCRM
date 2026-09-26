@@ -24,7 +24,10 @@ import java.util.concurrent.TimeUnit
 class CallAudioSummaryRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
     /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
-    private val ownerPhone: () -> String = { "" }
+    private val ownerPhone: () -> String = { "" },
+    /** 🧾 사장님 **자기** 가격표 — 서버 요약이 전역 pricing.md 대신 이걸 쓴다.
+     *  회원마다 업종이 달라서(줄눈·필름·도배…) 남의 가격표를 보여주면 안 된다. (2026-09-26) */
+    private val priceList: suspend () -> String = { "" }
 ) {
     private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -78,6 +81,9 @@ class CallAudioSummaryRepository(
                     if (ownerToneSamples.isNotEmpty()) {
                         addFormDataPart("owner_tone_samples", JSONArray(ownerToneSamples.take(10)).toString())
                     }
+                    // 🧾 자기 가격표 — 서버가 전역 줄눈 가격표를 쓰지 않게. (2026-09-26)
+                    runCatching { priceList() }.getOrDefault("").trim().take(8000)
+                        .takeIf { it.isNotEmpty() }?.let { addFormDataPart("price_list", it) }
                 }
                 .build()
             // 긴 통화는 '맡겨두고 물어보기'. 짧은 통화는 지금까지처럼 한 번에.

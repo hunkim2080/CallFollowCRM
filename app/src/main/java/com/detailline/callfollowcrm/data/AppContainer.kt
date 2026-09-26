@@ -79,7 +79,10 @@ class AppContainer(context: Context) {
     val smsRepository = SmsRepository(context.applicationContext) { customerSuffixCache }
     val importantMessageRepository = ImportantMessageRepository(db.importantMessageDao())
     val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
-    val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao(), ownerPhone = { preferences.bizPhone })
+    val conversationAiRepository = ConversationAiRepository(
+        db.aiSummaryDao(), ownerPhone = { preferences.bizPhone },
+        priceList = { runCatching { pricingItemRepository.priceListText() }.getOrDefault("") }
+    )
     val pricingItemRepository = PricingItemRepository(db.pricingItemDao())
     val principleRepository = com.detailline.callfollowcrm.data.repository.PrincipleRepository(db.principleDao())
     val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())
@@ -286,10 +289,16 @@ class AppContainer(context: Context) {
     )
 
     // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
-    val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository(ownerPhone = { preferences.bizPhone })
+    val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository(
+        ownerPhone = { preferences.bizPhone },
+        priceList = { runCatching { pricingItemRepository.priceListText() }.getOrDefault("") }
+    )
 
     // 2026-06-08 맥미니 §26 — 무료 녹음(m4a) → 로컬 Whisper STT + Haiku 요약. CallAudioSummarizer 가 호출.
-    val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository(ownerPhone = { preferences.bizPhone })
+    val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository(
+        ownerPhone = { preferences.bizPhone },
+        priceList = { runCatching { pricingItemRepository.priceListText() }.getOrDefault("") }
+    )
 
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독. 앱 포그라운드일 때만 ping(배터리). (2026-08-11 성능감사)
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { m ->
