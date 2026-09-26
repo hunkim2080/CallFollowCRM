@@ -40,6 +40,26 @@ class PricingItemsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * ↕️ **끌어서 바꾼 순서를 저장한다.** (2026-09-26 사장님)
+     *
+     * 순서 칸(`displayOrder`)은 처음부터 있었는데 **바꿀 방법이 없었다** —
+     * 만든 순서 그대로 굳어서, 접수서에 원하는 차례로 못 넣었다.
+     * 한 번 맞춰두면 앞으로 보내는 접수서·견적서가 전부 이 순서를 따른다.
+     */
+    fun reorder(orderedIds: List<Long>) {
+        viewModelScope.launch {
+            val byId = items.value.associateBy { it.id }
+            orderedIds.forEachIndexed { i, id ->
+                val cur = byId[id] ?: return@forEachIndexed
+                // 안 바뀐 줄은 굳이 쓰지 않는다 — 쓸 때마다 화면이 다시 그려진다.
+                if (cur.displayOrder != i) {
+                    container.pricingItemRepository.update(cur.copy(displayOrder = i))
+                }
+            }
+        }
+    }
+
     fun toggleActive(item: PricingItemEntity) {
         viewModelScope.launch {
             container.pricingItemRepository.setActive(item.id, !item.isActive)

@@ -22,6 +22,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -259,7 +268,8 @@ fun PricingItemsScreen(
                     ) {
                         com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 14.dp, 7.dp)
                         Text(
-                            "AI 견적이 이 단가로 자동 계산돼요. 항목을 누르면 정액/평당과 금액을 수정할 수 있어요.",
+                            "AI 견적이 이 단가로 자동 계산돼요. 항목을 누르면 정액/평당과 금액을 수정할 수 있어요. " +
+                                "≡ 를 끌면 순서가 바뀜고, 접수서·견적서도 이 순서로 나갑니다.",
                             fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Medium, lineHeight = 17.sp
                         )
                     }
@@ -285,23 +295,108 @@ fun PricingItemsScreen(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
                             color = Color.White
                         ) {
-                            Column {
-                                group.forEachIndexed { idx, item ->
+                            // ↕️ **끌어서 순서 바꾸기.** (2026-09-26 사장님)
+                            //   끄는 동안은 **여기 목록**으로 바로 반응하고(끌기는 맛),
+                            //   손을 떼면 그제서야 저장한다 — 한 칸 올라갈 때마다 쓰면 화면이 깜빡거린다.
+                            val ids = group.map { it.id }
+                            val orderState = androidx.compose.runtime.remember(ids) {
+                                androidx.compose.runtime.mutableStateOf(ids)
+                            }
+                            val dragIdState = androidx.compose.runtime.remember {
+                                androidx.compose.runtime.mutableStateOf<Long?>(null)
+                            }
+                            val dragDyState = androidx.compose.runtime.remember {
+                                androidx.compose.runtime.mutableStateOf(0f)
+                            }
+                            val rowH = androidx.compose.runtime.remember {
+                                androidx.compose.runtime.mutableStateMapOf<Long, Int>()
+                            }
+                            val byId = group.associateBy { it.id }
+                            Column(
+                                Modifier.pointerInput(cat.name) {
+                                    // 손잡이 자리(왼쪽 끝 48dp)에서 시작한 끌기만 순서 바꾸기로 친다.
+                                    //   나머지는 안 건드려서 목록 스크롤·줄 누르기가 그대로 된다.
+                                    val zone = 48.dp.toPx()
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        if (down.position.x > zone) return@awaitEachGesture
+                                        // 몇 번째 줄에서 잡았나 — 줄 높이를 쌓아 찾는다.
+                                        var top = 0f
+                                        var hitId: Long? = null
+                                        for (id2 in orderState.value) {
+                                            val hh = (rowH[id2] ?: 0).toFloat()
+                                            if (down.position.y in top..(top + hh)) { hitId = id2; break }
+                                            top += hh + 1f
+                                        }
+                                        val id = hitId ?: return@awaitEachGesture
+                                        dragIdState.value = id
+                                        dragDyState.value = 0f
+                                        down.consume()
+                                        var going = true
+                                        while (going) {
+                                            val ev = awaitPointerEvent()
+                                            val ch = ev.changes.firstOrNull { it.id == down.id }
+                                            if (ch == null || !ch.pressed) { going = false } else {
+                                                val dy = ch.positionChange().y
+                                                ch.consume()
+                                                dragDyState.value += dy
+                                                val cur = orderState.value
+                                                val i = cur.indexOf(id)
+                                                val upH = if (i > 0) (rowH[cur[i - 1]] ?: 0) else 0
+                                                val dnH = if (i < cur.lastIndex) (rowH[cur[i + 1]] ?: 0) else 0
+                                                if (i > 0 && dragDyState.value < -upH / 2f) {
+                                                    orderState.value = cur.toMutableList()
+                                                        .apply { add(i - 1, removeAt(i)) }
+                                                    dragDyState.value += upH
+                                                } else if (i < cur.lastIndex && dragDyState.value > dnH / 2f) {
+                                                    orderState.value = cur.toMutableList()
+                                                        .apply { add(i + 1, removeAt(i)) }
+                                                    dragDyState.value -= dnH
+                                                }
+                                            }
+                                        }
+                                        dragIdState.value = null
+                                        dragDyState.value = 0f
+                                        viewModel.reorder(orderState.value)
+                                    }
+                                }
+                            ) {
+                                orderState.value.forEachIndexed { idx, rowId ->
+                                    val row = byId[rowId]
+                                    if (row != null) {
+                                    androidx.compose.runtime.key(rowId) {
+                                    Column {
                                     if (idx > 0) Box(
                                         Modifier.fillMaxWidth().height(1.dp).background(TossDivider)
                                     )
+                                    Box(
+                                        Modifier
+                                            .onSizeChanged { rowH[rowId] = it.height }
+                                            .zIndex(if (dragIdState.value == rowId) 1f else 0f)
+                                            .offset {
+                                                IntOffset(
+                                                    0,
+                                                    if (dragIdState.value == rowId) dragDyState.value.toInt() else 0
+                                                )
+                                            }
+                                    ) {
                                     PricingItemRow(
-                                        item = item,
+                                        showHandle = true,
+                                        item = row,
                                         selectionMode = selectionMode,
-                                        selected = item.id in selectedIds,
+                                        selected = row.id in selectedIds,
                                         onTap = {
                                             if (selectionMode) {
-                                                if (item.id in selectedIds) selectedIds.remove(item.id)
-                                                else selectedIds.add(item.id)
-                                            } else editTarget = item
+                                                if (row.id in selectedIds) selectedIds.remove(row.id)
+                                                else selectedIds.add(row.id)
+                                            } else editTarget = row
                                         },
-                                        onToggleActive = { viewModel.toggleActive(item) }
+                                        onToggleActive = { viewModel.toggleActive(row) }
                                     )
+                                    }
+                                    }
+                                    }
+                                    }
                                 }
                             }
                         }
@@ -426,7 +521,9 @@ private fun PricingItemRow(
     selectionMode: Boolean,
     selected: Boolean,
     onTap: () -> Unit,
-    onToggleActive: () -> Unit
+    onToggleActive: () -> Unit,
+    /** ↕️ 순서 바꾸기 손잡이를 그릴지. 끄는 일은 **묶음 카드**가 맡는다. */
+    showHandle: Boolean = false
 ) {
     val alpha = if (item.isActive) 1f else 0.45f
     // 자기 모서리·흰 바탕을 버렸다 — 이제 묶음 카드 **안에 사는 줄**이다. (2026-09-22)
@@ -438,6 +535,24 @@ private fun PricingItemRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // ↕️ **순서 바꾸기 손잡이.** 여기를 잡고 끌면 줄이 올라가고 내려간다.
+            //   끄는 일 자체는 **묶음 카드**가 맡는다 — 줄이 움직이면 줄에 달린
+            //   손가락 추적기는 떼였다 붙어서 진행 중이던 끌기를 잃는다. (2026-09-26)
+            if (showHandle && !selectionMode) {
+                Column(
+                    Modifier.padding(end = 12.dp).size(width = 22.dp, height = 30.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    repeat(3) { i ->
+                        if (i > 0) Spacer(Modifier.height(3.dp))
+                        Box(
+                            Modifier.width(15.dp).height(2.dp)
+                                .clip(AppShape.pill).background(TossTextTertiary)
+                        )
+                    }
+                }
+            }
             // 선택 모드: 왼쪽 체크 동그라미 (선택=파랑 채움+체크, 미선택=회색 링)
             if (selectionMode) {
                 Box(
