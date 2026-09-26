@@ -316,6 +316,13 @@ fun HomeScreen(
     val generalUnread by viewModel.generalUnreadCount.collectAsState()
     val consultUnread by viewModel.consultUnreadCount.collectAsState()
     var inboxTab by rememberSaveable { mutableStateOf(0) }
+    // 📬 **상담함 탭을 누를 때마다** 전체로. 탭을 누르는 건 "처음부터 다시 보겠다"는 뜻이다.
+    //   채팅 갔다 뒤로가기 같은 같은-화면 이동은 안 건드린다(훑던 칩이 풀리면 성가시다).
+    val resetSignal by (LocalContext.current.applicationContext as CallFollowCrmApplication)
+        .container.inboxResetFilter.collectAsState()
+    LaunchedEffect(resetSignal) {
+        if (resetSignal > 0L) { inboxChip = "all"; inboxTab = 0; boxSub = "ad" }
+    }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     // 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산. 채팅 열면 갱신 → 점 사라짐.

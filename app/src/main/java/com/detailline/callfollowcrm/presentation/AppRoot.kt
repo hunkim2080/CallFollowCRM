@@ -202,6 +202,11 @@ fun AppRoot(container: AppContainer) {
                                 if (alreadyOnRootTab && route == Destinations.HOME && unanswered > 0) {
                                     container.inboxJumpToUnhandled.value = System.currentTimeMillis()
                                 }
+                                // 📬 상담함을 누르면 **무조건 전체부터.** 거르기가 남아 있으면
+                                //   텅 빈 목록이 떠서 문자가 다 날아간 줄 안다. (2026-09-26 사장님)
+                                if (route == Destinations.HOME) {
+                                    container.inboxResetFilter.value = System.currentTimeMillis()
+                                }
                                 if (!alreadyOnRootTab) {
                                     val startId = navController.graph.findStartDestination().id
                                     // 2026-06-10 사장님 통점 "상세화면(고객상세 등)에서 하단 탭이 안 눌림":

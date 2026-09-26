@@ -268,6 +268,14 @@ class AppContainer(context: Context) {
      */
     val inboxJumpToUnhandled = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
+    /**
+     * 📬 **상담함 탭을 눌렀다** — 거르기를 [전체]로 되돌리라는 신호.
+     *
+     * 칩이 켜진 채로 남아 있으면 다음에 열었을 때 텅 빈 목록이 뜨고,
+     * 그건 「문자가 다 날아갔다」로 읽힌다. (2026-09-26 사장님 "무조건 전체메세지가 보여야해")
+     */
+    val inboxResetFilter = kotlinx.coroutines.flow.MutableStateFlow(0L)
+
     /** FCM 토큰 서버 등록 — 즉시 푸시(2026-06-12). docs/SERVER_HANDOFF_fcm_push.md */
     val pushRegisterRepository by lazy {
         com.detailline.callfollowcrm.ai.PushRegisterRepository()
