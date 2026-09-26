@@ -74,7 +74,18 @@ object RecordReel {
          *   "시공 사례를 더 부각하고 싶은 사람" 용. (2026-09-26 사장님)
          * 사진이 하나도 없으면 조용히 지도 갈래로 내려간다 — 빈 검은 화면을 내놓지 않는다.
          */
-        val photoHero: Boolean = false
+        val photoHero: Boolean = false,
+        /**
+         * ✍️ **숫자 위에 얹는 기분 한 줄** — 「이번 달도, 현장에서.」
+         *   비어 있으면 안 그린다. 달마다 바뀐다(고르는 쪽에서 정한다).
+         *   (2026-09-26 사장님이 프로토에서 고르심)
+         */
+        val headline: String = "",
+        /**
+         * 💰 숫자 밑 **고지 한 줄** — 「기록한 매출 기준 · 순이익과 달라요」.
+         *   500만원을 자랑하면 "그래서 얼마 남았냐"가 꼭 따라온다. 한 줄로 미리 막는다.
+         */
+        val metricNote: String = ""
     )
 
     /**
@@ -140,7 +151,15 @@ object RecordReel {
         c.drawText(d.monthLabel, pad, y, monP)
         val bigP = RecordShot.onPhoto(fit(paint(xbold, w * 0.145f, white), d.metricValue,
             w - pad * 2 - w * 0.40f, w * 0.145f, w * 0.075f))
-        y += RecordShot.bigTop(monP, bigP, h * 0.010f)
+        if (d.headline.isNotBlank()) {
+            val hp = RecordShot.onPhoto(fit(paint(xbold, w * 0.052f, white), d.headline,
+                w - pad * 2 - w * 0.34f, w * 0.052f, w * 0.038f))
+            y += RecordShot.bigTop(monP, hp, h * 0.008f)
+            c.drawText(d.headline, pad, y, hp)
+            y += RecordShot.bigTop(hp, bigP, h * 0.008f)
+        } else {
+            y += RecordShot.bigTop(monP, bigP, h * 0.010f)
+        }
         val p2 = if (ride == null) 1f else stepUp(
             d.metricWeights, ride.arrived,
             ride.nowT - (ride.arriveAt.getOrNull(ride.arrived) ?: 0f), ride.frac
@@ -152,6 +171,11 @@ object RecordReel {
         y += h * 0.031f
         c.drawText(d.metricLabel, pad, y,
             RecordShot.onPhoto(paint(bold, w * 0.040f, 0xE6FFFFFF.toInt())))
+        if (d.metricNote.isNotBlank()) {
+            y += h * 0.026f
+            c.drawText(d.metricNote, pad, y,
+                RecordShot.onPhoto(paint(med, w * 0.030f, 0xCCFFFFFF.toInt())))
+        }
 
         // ④ 작은 지도 — 오른쪽 위에서 **트럭이 달린다.** 한 뼘짜리라 이름은 안 넣는다(겹쳐서 못 읽는다).
         if (d.dots.isNotEmpty()) {
@@ -336,7 +360,14 @@ object RecordReel {
         //   단위가 옆으로 밀리고 글자가 커졌다 작아졌다 하면 싸구려로 보인다.
         val bigP = fit(paint(xbold, w * 0.145f, blue), d.metricValue, w - pad * 2 - w * 0.22f, w * 0.145f, w * 0.085f)
         // 📐 달 라벨과 겹치지 않게 — 「약」 같은 한글은 숫자보다 위로 더 솔는다.
-        y += RecordShot.bigTop(monP, bigP, h * 0.010f)
+        if (d.headline.isNotBlank()) {
+            val hp = fit(paint(xbold, w * 0.052f, ink), d.headline, w - pad * 2, w * 0.052f, w * 0.038f)
+            y += RecordShot.bigTop(monP, hp, h * 0.008f)
+            c.drawText(d.headline, pad, y, hp)
+            y += RecordShot.bigTop(hp, bigP, h * 0.008f)
+        } else {
+            y += RecordShot.bigTop(monP, bigP, h * 0.010f)
+        }
         // 단위는 **지금 숫자**에 붙어 따라온다(글자 크기만 최종값으로 고정) —
         //   마지막 자릿수로 자리를 박아놓았더니 "약 52      km" 처럼 멀찍이 떨어져 보였다.
         //   🔒 띄우기는 [RecordShot.drawBigNumber] 한 곳에 있다 — 각자 적어놓았더니 닿았다.
@@ -352,6 +383,10 @@ object RecordReel {
         )
         y += h * 0.031f
         c.drawText(d.metricLabel, pad, y, paint(bold, w * 0.040f, sub))
+        if (d.metricNote.isNotBlank()) {
+            y += h * 0.026f
+            c.drawText(d.metricNote, pad, y, paint(med, w * 0.030f, hint))
+        }
 
         // ── 가운데: 지도 ── 세로로 길게 준다. 릴스는 위아래가 넉넉하다.
         val mapTop = y + h * 0.028f

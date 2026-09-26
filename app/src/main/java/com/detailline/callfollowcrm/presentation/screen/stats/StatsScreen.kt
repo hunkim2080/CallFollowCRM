@@ -526,6 +526,9 @@ private fun ShotPreviewDialog(
             .take(2).joinToString(" · ") { "${it.short} ${it.value}${it.unit}" }
         com.detailline.callfollowcrm.util.RecordShot.Data(
             bigValue = p.value, bigUnit = p.unit, bigCaption = p.caption, subLine = sub,
+            headline = headOf(p.short, rec.monthLabel),
+            // 💰 500만원을 자랑하면 "그래서 얼마 남았냐"가 꼭 따라온다. 한 줄로 미리 막는다.
+            bigNote = if (p.unit == "만원") "기록한 매출 기준 · 순이익과 달라요" else "",
             zoom = zoom, panX = panX, panY = panY,
             no = rec.lastNo, monthLabel = rec.monthLabel, sites = rec.monthSites,
             workDays = rec.monthWorkDays, towns = rec.towns, dots = rec.dots,
@@ -548,6 +551,8 @@ private fun ShotPreviewDialog(
         com.detailline.callfollowcrm.util.RecordReel.Data(
             monthLabel = rec.monthLabel,
             metricValue = p.value, metricUnit = p.unit, metricLabel = p.caption,
+            headline = headOf(p.short, rec.monthLabel),
+            metricNote = if (p.unit == "만원") "기록한 매출 기준 · 순이익과 달라요" else "",
             // 거리는 몫이 없다(null) → 달린 만큼 이어서 오른다.
             metricWeights = p.weight?.let { w -> rec.dots.sortedBy { it.order }.map(w) } ?: emptyList(),
             towns = rec.towns, dots = rec.dots,
@@ -1016,6 +1021,34 @@ private fun ShotPreviewDialog(
 }
 
 /** 인증샷에 크게 넣을 수 있는 숫자 하나. */
+/**
+ * ✍️ **숫자 위에 얹는 한 줄** — 자랑할 숫자마다 다르게, 달마다 바뀌게.
+ *
+ * 설명 라벨(「이번 달 다녀온 집」)만 있으면 SNS 에 올릴 그림치고 밋밋하다.
+ * 그렇다고 매번 같은 문구면 금세 질리니 **달로 골라** 돌려쓴다
+ * (달로 고르면 미리보기와 저장본이 늘 같다 — 무작위면 둘이 어긋난다).
+ * 사실을 주장하지 않는 **기분 한 줄**만 쓴다 — 없는 얘기를 지어내면 그게 거짓말이 된다.
+ * (2026-09-26 사장님이 프로토에서 고르심)
+ */
+private val HEAD_LINES: Map<String, List<String>> = mapOf(
+    "올해" to listOf("올해도, 현장에서.", "한 집 한 집 다녀왔습니다."),
+    "이번 달" to listOf("이번 달도, 현장에서.", "부른 곳마다 갔습니다."),
+    "번 돈" to listOf("땀 흘린 만큼, 쌓인 매출.", "발로 뛴 만큼."),
+    "동네" to listOf("동네마다, 우리 현장.", "이 동네 저 동네."),
+    "현장" to listOf("내 손으로 채운 한 달.", "나간 날은 다 현장이었습니다."),
+    "달린 거리" to listOf("일이 있는 곳이라면.", "멀어도 갑니다.")
+)
+
+/** 「2026년 9월」 에서 달 숫자만. 못 읽으면 0 — 그래도 첫 문구가 나온다. */
+private fun monthNo(label: String): Int =
+    Regex("(\\d+)\\s*월").find(label)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+private fun headOf(short: String, monthLabel: String): String {
+    val list = HEAD_LINES[short] ?: return ""
+    // 사장님이 프로토에서 고르신 문구가 **이번 달(9월)에 나오게** 맞췄다.
+    return list[(monthNo(monthLabel) - 1).coerceAtLeast(0) % list.size]
+}
+
 private data class BigPick(
     val value: String, val unit: String, val short: String, val caption: String,
     /**

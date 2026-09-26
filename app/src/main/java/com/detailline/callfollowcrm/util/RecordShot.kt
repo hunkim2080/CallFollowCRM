@@ -93,6 +93,17 @@ object RecordShot {
         val towns: List<String>,
         val dots: List<RegionDot>,
         /** 고른 숫자 말고 **나머지 숫자 한 줄** — "이번 달 7집 · 동네 38곳". 비면 안 그린다. */
+        /**
+         * ✍️ **숫자 위에 얹는 기분 한 줄** — 「이번 달도, 현장에서.」
+         *   비어 있으면 안 그린다. 달마다 바뀐다(고르는 쪽에서 정한다).
+         *   (2026-09-26 사장님이 프로토에서 고르심)
+         */
+        val headline: String = "",
+        /**
+         * 💰 숫자 밑 **고지 한 줄** — 「기록한 매출 기준 · 순이익과 달라요」.
+         *   500만원을 자랑하면 "그래서 얼마 남았냐"가 꼭 따라온다. 한 줄로 미리 막는다.
+         */
+        val bigNote: String = "",
         val subLine: String,
         /** 손가락으로 맞춘 확대·이동 — **보이는 그대로** 그림에 담는다. (2026-09-25 사장님) */
         val zoom: Float = 1f,
@@ -293,22 +304,37 @@ object RecordShot {
         val unitP = paint(bold, 46f, blue)
         val capP = paint(bold, 34f, sub)
         val monP = paint(bold, 30f, hint)
+        val headP = paint(xbold, 40f, ink)
+        val noteP = paint(med, 26f, hint)
         val wNum = bigP.measureText(d.bigValue) +
             (if (d.bigUnit.isNotBlank()) unitP.measureText(d.bigUnit) + unitGap(bigP) else 0f)
-        val boxW = maxOf(wNum, capP.measureText(d.bigCaption), monP.measureText(d.monthLabel)) + 64f
+        val boxW = maxOf(
+            wNum, capP.measureText(d.bigCaption), monP.measureText(d.monthLabel),
+            if (d.headline.isBlank()) 0f else headP.measureText(d.headline),
+            if (d.bigNote.isBlank()) 0f else noteP.measureText(d.bigNote)
+        ) + 64f
         val boxTop = 52f
         val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xF2FFFFFF.toInt()
             setShadowLayer(20f, 0f, 6f, 0x1F000000)
         }
-        c.drawRoundRect(pad / 2, boxTop, pad / 2 + boxW, boxTop + 254f, 34f, 34f, plate)
+        // 한 줄·고지가 있으면 알약이 그만큼 길어진다 — 글이 칸 밖으로 나가면 안 된다.
+        val plateH = 254f + (if (d.headline.isBlank()) 0f else 54f) + (if (d.bigNote.isBlank()) 0f else 38f)
+        c.drawRoundRect(pad / 2, boxTop, pad / 2 + boxW, boxTop + plateH, 34f, 34f, plate)
 
         var y = boxTop + 58f
         c.drawText(d.monthLabel, pad, y, monP)
-        y += bigTop(monP, bigP, 12f)
+        if (d.headline.isNotBlank()) {
+            y += bigTop(monP, headP, 10f)
+            c.drawText(d.headline, pad, y, headP)
+            y += bigTop(headP, bigP, 12f)
+        } else {
+            y += bigTop(monP, bigP, 12f)
+        }
         drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, unitP)
         y += 46f
         c.drawText(d.bigCaption, pad, y, capP)
+        if (d.bigNote.isNotBlank()) { y += 34f; c.drawText(d.bigNote, pad, y, noteP) }
 
         // ── 나머지 숫자 한 줄 — 조언 ②('누적 수치 강조'). 지도 아래, 동네 이름 위.
         var by = mapH + 46f
@@ -396,10 +422,21 @@ object RecordShot {
         val monP2 = onPhoto(paint(bold, 30f, 0xCCFFFFFF.toInt()))
         c.drawText(d.monthLabel, pad, y, monP2)
         val bigP = onPhoto(fit(paint(xbold, 126f, white), d.bigValue, S - pad * 2 - 260f, 126f, 72f))
-        y += bigTop(monP2, bigP, 12f)
+        if (d.headline.isNotBlank()) {
+            val hp = onPhoto(fit(paint(xbold, 42f, white), d.headline, S - pad * 2 - 300f, 42f, 30f))
+            y += bigTop(monP2, hp, 10f)
+            c.drawText(d.headline, pad, y, hp)
+            y += bigTop(hp, bigP, 12f)
+        } else {
+            y += bigTop(monP2, bigP, 12f)
+        }
         drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, onPhoto(paint(bold, 48f, white)))
         y += 48f
         c.drawText(d.bigCaption, pad, y, onPhoto(paint(bold, 34f, 0xE6FFFFFF.toInt())))
+        if (d.bigNote.isNotBlank()) {
+            y += 34f
+            c.drawText(d.bigNote, pad, y, onPhoto(paint(med, 26f, 0xCCFFFFFF.toInt())))
+        }
 
         // ④ 작은 지도 — 오른쪽 위. "어디어디 다녔다"를 사진 위에 한 뼘으로.
         if (d.dots.isNotEmpty()) {
@@ -518,11 +555,19 @@ object RecordShot {
         val monP3 = paint(bold, 32f, hint)
         c.drawText(d.monthLabel, pad, y, monP3)
         val bigP = fit(paint(xbold, 112f, blue), d.bigValue, S - pad * 2 - 160f, 112f, 64f)
-        y += bigTop(monP3, bigP, 12f)
+        if (d.headline.isNotBlank()) {
+            val hp = fit(paint(xbold, 40f, ink), d.headline, S - pad * 2, 40f, 30f)
+            y += bigTop(monP3, hp, 10f)
+            c.drawText(d.headline, pad, y, hp)
+            y += bigTop(hp, bigP, 12f)
+        } else {
+            y += bigTop(monP3, bigP, 12f)
+        }
         // 단위는 숫자 옆에 작게.
         val bigW = drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 44f, blue))
         y += 48f
         c.drawText(d.bigCaption, pad, y, paint(bold, 34f, sub))
+        if (d.bigNote.isNotBlank()) { y += 34f; c.drawText(d.bigNote, pad, y, paint(med, 26f, hint)) }
 
         // ── 지도 ── 한 장일 때만. 스티커는 낮아서 지도까지 넣으면 답답하다.
         if (!transparent && d.dots.isNotEmpty()) {
