@@ -1030,23 +1030,66 @@ private fun ShotPreviewDialog(
  * 사실을 주장하지 않는 **기분 한 줄**만 쓴다 — 없는 얘기를 지어내면 그게 거짓말이 된다.
  * (2026-09-26 사장님이 프로토에서 고르심)
  */
-private val HEAD_LINES: Map<String, List<String>> = mapOf(
-    "올해" to listOf("올해도, 현장에서.", "한 집 한 집 다녀왔습니다."),
-    "이번 달" to listOf("이번 달도, 현장에서.", "부른 곳마다 갔습니다."),
-    "번 돈" to listOf("땀 흘린 만큼, 쌓인 매출.", "발로 뛴 만큼."),
-    "동네" to listOf("동네마다, 우리 현장.", "이 동네 저 동네."),
-    "현장" to listOf("내 손으로 채운 한 달.", "나간 날은 다 현장이었습니다."),
-    "달린 거리" to listOf("일이 있는 곳이라면.", "멀어도 갑니다.")
+internal val HEAD_LINES: Map<String, List<String>> = mapOf(
+    "올해" to listOf(
+        "올해도, 현장에서.",
+        "한 집 한 집 다녀왔습니다.",
+        "올해 이만큼 왔습니다.",
+        "불러주신 집들.",
+        "한 해가 쌓입니다.",
+        "올해 지나온 집."
+    ),
+    "이번 달" to listOf(
+        "이번 달도, 현장에서.",
+        "부른 곳마다 갔습니다.",
+        "한 달이 이렇게 지나갑니다.",
+        "이번 달도 잘 다녔습니다.",
+        "이 집 저 집, 한 달.",
+        "이번 달 다녀온 집."
+    ),
+    "번 돈" to listOf(
+        "땀 흘린 만큼, 쌓인 매출.",
+        "발로 뛴 만큼.",
+        "한 달 치 땀.",
+        "다녀온 만큼 쌓였습니다.",
+        "현장이 남긴 숫자.",
+        "한 달을 모았습니다."
+    ),
+    "동네" to listOf(
+        "동네마다, 우리 현장.",
+        "이 동네 저 동네.",
+        "이만큼 넓게 다녔습니다.",
+        "동네 이름이 늘어갑니다.",
+        "우리가 지나온 동네.",
+        "부르는 곳이면 어디든."
+    ),
+    "현장" to listOf(
+        "내 손으로 채운 한 달.",
+        "나간 날은 다 현장이었습니다.",
+        "이만큼 나갔습니다.",
+        "하루하루가 현장.",
+        "달력에 남은 날들.",
+        "나간 날 만큼."
+    ),
+    "달린 거리" to listOf(
+        "일이 있는 곳이라면.",
+        "멀어도 갑니다.",
+        "이만큼 달렸습니다.",
+        "길 위에서 보낸 한 달.",
+        "부르면 갑니다.",
+        "이번 달 지나온 길."
+    )
 )
 
 /** 「2026년 9월」 에서 달 숫자만. 못 읽으면 0 — 그래도 첫 문구가 나온다. */
-private fun monthNo(label: String): Int =
+internal fun monthNo(label: String): Int =
     Regex("(\\d+)\\s*월").find(label)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-private fun headOf(short: String, monthLabel: String): String {
+internal fun headOf(short: String, monthLabel: String): String {
     val list = HEAD_LINES[short] ?: return ""
-    // 사장님이 프로토에서 고르신 문구가 **이번 달(9월)에 나오게** 맞췄다.
-    return list[(monthNo(monthLabel) - 1).coerceAtLeast(0) % list.size]
+    // 🔁 **여섯 달에 한 바퀴.** (2026-09-26 사장님 "6세트 준비하면 6달에 한번씩 반복되게")
+    //   9월이 첫 줄 — 사장님이 보고 고르신 게 그 줄이다. 3월·9월이 같은 줄을 쓴다(반년 주기).
+    return list[Math.floorMod(monthNo(monthLabel) - 9, list.size)]
 }
 
 private data class BigPick(
