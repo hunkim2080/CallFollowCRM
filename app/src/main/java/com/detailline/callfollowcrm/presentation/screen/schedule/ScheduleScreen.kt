@@ -243,6 +243,8 @@ fun ScheduleScreen(
     // 팀원 현장 배정 (2026-06-05) — 팀원 있을 때만 일정 카드에 배정 줄 노출.
     val teamMembers by viewModel.teamMembers.collectAsState()
     val collabPartners by viewModel.collabPartners.collectAsState()
+    val partnerStats by viewModel.partnerStats.collectAsState()
+    val wageContacts by viewModel.dailyWageContacts.collectAsState()
     val assignmentsByCustomer by viewModel.assignmentsByCustomer.collectAsState()
     val jobCrewByCustomer by viewModel.jobCrewByCustomer.collectAsState()   // 내가 부른 일당 배정
     val assignToast by viewModel.toast.collectAsState()
@@ -639,6 +641,10 @@ fun ScheduleScreen(
             onAddTeamMember = { name, phone -> viewModel.addTeamMember(name, phone) },
             onAddWorker = { name, phone, wage -> viewModel.addCollabPartner(name, phone, wage) },
             onDeleteWorker = { p -> viewModel.removeCollabPartner(p.id, p.name) },
+            partnerStats = partnerStats,
+            wageContacts = wageContacts,
+            onAddWorkerFromContact = { c -> viewModel.addWorkerFromContact(c) },
+            onRenameWorker = { c, nm -> viewModel.renameWorker(c, nm) },
             onDismiss = { assignTarget = null },
             onSave = { selectedIds, memo ->
                 val dayStart = DateTimeUtils.startOfDay(c.scheduledWorkDate ?: System.currentTimeMillis())
@@ -1955,6 +1961,12 @@ private fun AssignTeamSheet(
     onAddWorker: (name: String, phone: String, wageManwon: Int?) -> Unit,
     /** 명부에서 빼기 — 꾹 누르면. 협업 요청 취소와는 다르다. (2026-09-24 사장님) */
     onDeleteWorker: (com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity) -> Unit = {},
+    /** 🤝 집계(함께 N번 · 마지막) — 번호(숫자만) → 집계. 많이 부른 순으로 줄을 세운다. */
+    partnerStats: Map<String, com.detailline.callfollowcrm.ai.SharedSiteRepository.Partner> = emptyMap(),
+    /** 🏷️ 카테고리를 「일당」으로 분류해둔 고객 — 여기서 바로 부른다. */
+    wageContacts: List<CustomerEntity> = emptyList(),
+    onAddWorkerFromContact: (CustomerEntity) -> Unit = {},
+    onRenameWorker: (com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
     onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int, address: String?, days: List<Long>) -> Unit,
@@ -2019,6 +2031,16 @@ private fun AssignTeamSheet(
     //   칸까지만 보이고 누를 게 없었다 — 디자인이 아니라 막힌 것. (2026-09-22 사장님)
     //   → 폼에 손이 닿으면 맨 아래까지 따라 내려간다. [QuickAddForm] 의 scrollState.
     val sheetScroll = rememberScrollState()
+    // 🔎 이름으로 찾기 · 🏷️ 「일당」 분류 목록 펼침 · ✏️ 꾹 눌러 연 메뉴. (2026-09-26 프로토)
+    var partnerQuery by remember { mutableStateOf("") }
+    var pickFromContacts by remember { mutableStateOf(false) }
+    var partnerMenu by remember {
+        mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null)
+    }
+    var renameTarget by remember {
+        mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null)
+    }
+    var renameText by remember { mutableStateOf("") }
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
     Box(
         Modifier.fillMaxSize()
@@ -2176,57 +2198,194 @@ private fun AssignTeamSheet(
                     }
                 }
             }
+            // ✏️ 꾹 누르면 — 이름 바꾸기 / 목록에서 빼기. 전엔 **빼기만** 됐다. (2026-09-26 사장님)
+            partnerMenu?.let { target ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { partnerMenu = null },
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
+                    title = { Text(target.name, fontWeight = FontWeight.Bold) },
+                    text = { Text("무엇을 할까요?") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            renameText = target.name; renameTarget = target; partnerMenu = null
+                        }) { Text("이름 바꾸기", color = purple, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            confirmRemovePartner = target; partnerMenu = null
+                        }) { Text("목록에서 빼기", color = TossError) }
+                    }
+                )
+            }
+            renameTarget?.let { target ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { renameTarget = null },
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
+                    title = { Text("이름 바꾸기", fontWeight = FontWeight.Bold) },
+                    text = {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            renameText, { renameText = it },
+                            placeholder = "예: 박반장", modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            if (renameText.trim().isNotBlank()) onRenameWorker(target, renameText)
+                            renameTarget = null
+                        }) { Text("바꿀게요", color = purple, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { renameTarget = null }) {
+                            Text("취소", color = TossTextSecondary)
+                        }
+                    }
+                )
+            }
             if (!noPartners) {
                 Text("누르면 고르고, 다시 누르면 빼요. 고객 번호·대화는 안 보내요.",
-                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
-            }
-            if (!noPartners) FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                collabPartners.forEach { p ->
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+
+                // 🔎 사람이 늘면 알약으로는 감당이 안 된다 — **찾아서 고른다.** (2026-09-26 프로토)
+                //   다섯 명 아래면 검색창이 오히려 거추장스럽다.
+                if (collabPartners.size >= 5) {
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                        partnerQuery, { partnerQuery = it },
+                        placeholder = "이름으로 찾기", modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+
+                // 📊 **많이 부른 사람이 맨 위.** 전엔 정렬이 아예 없어 등록한 순서대로 나왔다.
+                //   (2026-09-26 사장님이 "잘 적용되어있나 체크" 하셔서 보니 안 되어 있었다)
+                val q = partnerQuery.trim()
+                val shown = collabPartners
+                    .filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
+                    .sortedWith(
+                        compareByDescending<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity> {
+                            partnerStats[it.phone.filter { ch -> ch.isDigit() }]?.count ?: 0
+                        }.thenBy { it.name }
+                    )
+                if (shown.isEmpty()) {
+                    Text("찾는 이름이 없어요", style = AppType.caption, color = TossTextTertiary,
+                        modifier = Modifier.padding(vertical = 14.dp))
+                }
+                shown.forEachIndexed { idx, p ->
                     val k = key(p.phone)
                     val on = k in selectedPartners
                     val wasReq = k in reqKeys
+                    val st = partnerStats[p.phone.filter { ch -> ch.isDigit() }]
+                    if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (on) purple else purpleLight)
-                            // 탭 = 고르기 / **꾹 = 명부에서 빼기.** 전엔 뺄 방법이 아예 없었다. (2026-09-24 사장님)
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(AppShape.md)
+                            .background(if (on) purpleLight else Color.Transparent)
+                            // 탭 = 고르기 / **꾹 = 이름 바꾸기·빼기.**
                             .combinedClickable(
                                 onClick = { selectedPartners = if (on) selectedPartners - k else selectedPartners + k },
-                                onLongClick = { confirmRemovePartner = p }
+                                onLongClick = { partnerMenu = p }
                             )
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 🤝 를 뺐다 — 칩 안 이모지는 폰마다 다르게 그려진다. (앱 전체 규칙)
-                        if (on) {
-                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(5.dp))
+                        Box(
+                            Modifier.size(34.dp).clip(AppShape.md)
+                                .background(if (on) purple else purpleLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (on) Icon(Icons.Default.Check, null, tint = Color.White,
+                                modifier = Modifier.size(16.dp))
+                            else Text(p.name.take(1), style = AppType.body,
+                                fontWeight = FontWeight.Black, color = purple)
                         }
-                        Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-                            color = if (on) Color.White else purple)
-                        if (on && wasReq) {
-                            Spacer(Modifier.width(5.dp))
-                            Text("요청함", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(p.name, style = AppType.body, fontWeight = FontWeight.Bold,
+                                    color = TossTextPrimary)
+                                if (wasReq) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("요청함", style = AppType.caption, fontWeight = FontWeight.Bold,
+                                        color = purple)
+                                }
+                            }
+                            // 🤝 **함께 몇 번 했나.** 일당을 정할 때 이게 제일 큰 참고가 된다.
+                            //   ⚠️ 협업으로 부른 것만 세어진다(서버 기록이 그것뿐 — 사장님 확인).
+                            val meta = buildString {
+                                if (st != null && st.count > 0) {
+                                    append("함께 ").append(st.count).append("번")
+                                    if (st.lastAtMs > 0) append(" · ")
+                                        .append(DateTimeUtils.formatShortKoreanDate(st.lastAtMs))
+                                } else append("아직 같이 한 적 없어요")
+                            }
+                            Text(meta, style = AppType.caption, color = TossTextTertiary)
                         }
                     }
                 }
-                AddChip("등록", purpleLight, purple) {
-                    newName = ""; newPhone = ""; newWage = ""; addTeamOpen = false; addWorkerOpen = !addWorkerOpen
-                }
-            }
-            // 안 보이면 없는 것과 같다 — 꾹 누르기는 한 줄로 알려준다. (2026-09-24 사장님)
-            if (!noPartners) {
-                Text("꾹 누르면 목록에서 뺄 수 있어요",
+                Text("꾹 누르면 이름을 바꾸거나 목록에서 뺄 수 있어요",
                     style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, top = 8.dp))
+            }
+
+            // 🏷️ **「일당」으로 분류해둔 고객을 바로 부른다.** 전엔 전화번호를 다시 찾아 쳐야 했다.
+            //   "카테고리의 의미가 무색해지네" — 분류해둔 보람이 여기서 난다. (2026-09-26 사장님)
+            Spacer(Modifier.height(10.dp))
+            if (wageContacts.isNotEmpty()) {
+                Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md)
+                        .background(AppTheme.colors.surfaceMuted)
+                        .clickable { pickFromContacts = !pickFromContacts }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (pickFromContacts) "닫기"
+                        else "＋ 내 연락처에서 부르기 · 「일당」 ${wageContacts.size}명",
+                        style = AppType.label, fontWeight = FontWeight.Bold, color = purple
+                    )
+                }
+                if (pickFromContacts) {
+                    Spacer(Modifier.height(6.dp))
+                    wageContacts.take(20).forEach { cust ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(AppShape.md)
+                                .clickable { onAddWorkerFromContact(cust); pickFromContacts = false }
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                cust.name?.takeIf { it.isNotBlank() }
+                                    ?: PhoneNumberFormatter.format(cust.phoneNumber),
+                                style = AppType.label, fontWeight = FontWeight.Bold,
+                                color = TossTextPrimary, modifier = Modifier.weight(1f)
+                            )
+                            Text("넣기", style = AppType.caption, fontWeight = FontWeight.Bold, color = purple)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            Box(
+                Modifier.fillMaxWidth().clip(AppShape.md)
+                    .background(AppTheme.colors.surfaceMuted)
+                    .clickable {
+                        newName = ""; newPhone = ""; newWage = ""
+                        addTeamOpen = false; addWorkerOpen = !addWorkerOpen
+                    }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (addWorkerOpen) "닫기" else "＋ 직접 등록",
+                    style = AppType.label, fontWeight = FontWeight.Bold, color = purple)
             }
             if (addWorkerOpen) {
                 QuickAddForm(
                     // 시트 제목·빈 화면 버튼과 **같은 말**. 지난번 이름 통일 때 여기만 빠졌다. (2026-09-22 사장님)
-                    title = "사장님 등록", showWage = true,
+                    // 💰 **일당 칸은 뺐다.** 현장마다 그때 적어주시니 등록에서 또 물을 이유가 없다.
+                    //   (2026-09-26 사장님 "그날 일당은 굳이 안적게해도될것같아")
+                    title = "사장님 등록", showWage = false,
                     name = newName, onName = { newName = it },
                     phone = newPhone, onPhone = { newPhone = it },
                     wage = newWage, onWage = { newWage = it.filter { c -> c.isDigit() }.take(4) },

@@ -132,6 +132,75 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 🤝 **이 사장님과 함께한 현장 집계** — 번호(숫자만) → 집계.
+     *
+     * 「함께 12번 · 2주 전」을 보여주고, **많이 부른 사람을 맨 위**로 올리는 데 쓴다.
+     * 전엔 목록에 **정렬이 아예 없어** 등록한 순서대로 나왔다. (2026-09-26 사장님이 짚음)
+     * ⚠️ 협업으로 부른 것만 세어진다 — 서버에 기록이 남는 게 그것뿐이다(사장님 확인).
+     */
+    val partnerStats =
+        kotlinx.coroutines.flow.MutableStateFlow<Map<String, com.detailline.callfollowcrm.ai.SharedSiteRepository.Partner>>(emptyMap())
+
+    /**
+     * 🏷️ **카테고리를 「일당」으로 분류해둔 고객** — 여기서 바로 골라 부른다.
+     *
+     * 전엔 등록하려면 **전화번호를 다시 찾아 쳐야** 했다.
+     * "카테고리의 의미가 무색해지네" — 분류해둔 보람이 여기서 나야 한다. (2026-09-26 사장님)
+     * 이미 등록된 사람은 뺀다(두 번 넣을 이유가 없다).
+     */
+    val dailyWageContacts: StateFlow<List<CustomerEntity>> =
+        combine(
+            container.customerRepository.observeAll(),
+            container.categoryRepository.observeAll(),
+            container.notebookRepository.observeWorkers()
+        ) { cs, cats, workers ->
+            val wageCatIds = cats.filter { it.name.contains("일당") }.map { it.id }.toSet()
+            if (wageCatIds.isEmpty()) return@combine emptyList()
+            val already = workers.map { it.phone.filter { ch -> ch.isDigit() } }.toSet()
+            cs.filter { it.categoryId in wageCatIds }
+                .filter { it.phoneNumber.filter { ch -> ch.isDigit() } !in already }
+                .sortedBy { it.name ?: it.phoneNumber }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init { refreshPartnerStats() }
+
+    fun refreshPartnerStats() {
+        viewModelScope.launch {
+            val me = container.preferences.bizPhone.filter { it.isDigit() }
+            if (me.isBlank()) return@launch
+            container.sharedSiteRepository.partners(me).onSuccess { list ->
+                partnerStats.value = list.associateBy { it.ownerPhone.filter { ch -> ch.isDigit() } }
+            }
+        }
+    }
+
+    /** 🤝 명부의 사장님 **이름만** 바꾼다(번호·기록은 그대로). 알약을 꾹 눌러서. (2026-09-26 사장님) */
+    fun renameWorker(
+        c: com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity,
+        newName: String
+    ) {
+        val nm = newName.trim()
+        if (nm.isBlank()) return
+        viewModelScope.launch {
+            container.notebookRepository.update(
+                id = c.id, name = nm, phone = c.phone, tag = c.tag, memo = c.memo,
+                wage = c.wage, wageType = c.wageType
+            )
+        }
+    }
+
+    /** 🏷️ 「일당」으로 분류해둔 고객을 **명부에 넣는다** — 이름·번호를 이미 아니까 묻지 않는다. */
+    fun addWorkerFromContact(c: CustomerEntity) {
+        val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+        viewModelScope.launch {
+            container.notebookRepository.add(
+                kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
+                name = nm, phone = c.phoneNumber, tag = "", memo = ""
+            )
+        }
+    }
+
+    /**
      * 고객(현장)별 **내가 부른 일당** 배정 — 일정 카드/배정 시트가 구독. (2026-07-16 사장님)
      *   협업 요청(collabAssignByCustomer)과 다른 것: 이건 로컬 기록이고 정산에 −지출로 잡히며
      *   "함께한 현장"에 쌓인다. 수락 같은 건 없다(내가 부른 사람이니까).
