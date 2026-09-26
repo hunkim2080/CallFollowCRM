@@ -2494,7 +2494,7 @@ private fun AssignTeamSheet(
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                SheetFieldLabel("전달 메모 (선택)")
+                SheetFieldLabel("전달 메모")
                 SheetTextField(
                     memo, { memo = it },
                     placeholder = "예: 현장 앞에서 만나요 · 사다리차 · 현관 비번 1234#",
