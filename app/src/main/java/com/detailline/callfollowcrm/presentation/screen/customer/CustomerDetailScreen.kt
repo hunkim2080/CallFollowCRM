@@ -4618,7 +4618,12 @@ private fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntit
 /**
  * 이 건이 **몇 차**인가 — 탭이 매기는 차수와 **똑같은 규칙**이어야 한다.
  *   · 취소한 건·빈 건은 세지 않는다 (탭에서 뺐으니 번호도 안 준다)
- *   · 날짜순, 날짜 없는 건은 맨 앞
+ *   · 날짜순, **날짜 없는 건은 맨 뒤**
+ *
+ * 🔴 2026-09-27 사장님: "1차 시공도 없는데 2차 시공 날짜가 잡히는 건 버그인가?"
+ *   날짜 없는 건을 0L(1970년)로 봐서 **맨 앞 = 1차**를 차지했다.
+ *   아직 날짜도 안 잡은 시공이 **이미 끝낸 시공보다 먼저**일 수는 없다. → 맨 뒤로.
+ *   (지금 건은 원래 맨 뒤 규칙이었다 — 지난 건만 반대여서 어긋났다)
  *
  * 🔴 2026-09-19 사장님: "1차를 고르면 2차 현장메모가 나오고 2차를 고르면 3차 메모가 나오네"
  *   탭은 취소·빈 건을 빼고 세는데 여기선 다 세고 있어서 **번호가 하나씩 밀렸다.**
@@ -4628,9 +4633,10 @@ private fun jobNthOf(
     all: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
     job: com.detailline.callfollowcrm.data.local.entity.JobEntity
 ): Int {
-    val ordered = all.filterNot { jobCancelled(it) }.sortedBy { it.scheduledWorkDate ?: 0L }
-    val i = ordered.indexOfFirst { it.id == job.id }
-    return if (i < 0) ordered.size + 1 else i + 1
+    val order = com.detailline.callfollowcrm.util.JobOrder.order(
+        all.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate to it.id }
+    )
+    return com.detailline.callfollowcrm.util.JobOrder.nth(order, job.id)
 }
 
 /** '이 사람은 [고객 아님][고객]' 알약 하나. 고른 쪽만 파랗게. (2026-09-17) */
@@ -4668,26 +4674,35 @@ private fun JobTabsRow(
     //   지금 건도 날짜를 가진 한 칸으로 같이 줄 세운다. 날짜 없는 지금 건은 맨 뒤.
     // 마무리(잔금 받음)된 건은 탭에서 뺀다 — 아래 '지난 건'으로 묶인다. (2026-09-18 프로토)
     //   다만 **지금 고른 건**은 마무리됐어도 남겨야 화면이 비지 않는다.
-    val slots: List<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>> =
+    // 🔴 **날짜 없는 건은 맨 뒤.** (2026-09-27 사장님 "1차 시공도 없는데 2차 날짜가 잡히는 건 버그인가?")
+    //   전엔 지난 건의 빈 날짜를 0L(1970년)로 봐서 **맨 앞 = 1차**를 차지했다.
+    //   아직 날짜도 안 잡은 시공이 이미 끝낸 시공보다 먼저일 수는 없다.
+    //   지금 건은 원래 맨 뒤(Long.MAX_VALUE)였다 — **지난 건만 반대**여서 어긋났다.
+    //   날짜가 없어 동점이면 **먼저 만든 건**이 앞. 지금 건(대표)은 그중 맨 뒤.
+    val CUR = com.detailline.callfollowcrm.util.JobOrder.CURRENT
+    val slots: List<Pair<Long?, com.detailline.callfollowcrm.data.local.entity.JobEntity?>> =
         remember(pastJobs, current.scheduledWorkDate, selectedPastJobId) {
-            val xs = ArrayList<Pair<Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
+            val xs = ArrayList<Triple<Long?, Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
             for (j in pastJobs) {
                 if (jobFolded(j) && j.id != selectedPastJobId) continue
-                xs.add((j.scheduledWorkDate ?: 0L) to j)
+                xs.add(Triple(j.scheduledWorkDate, j.id, j))
             }
-            xs.add((current.scheduledWorkDate ?: Long.MAX_VALUE) to null)
-            xs.sortedBy { it.first }
+            xs.add(Triple(current.scheduledWorkDate, CUR, null))
+            val seq = com.detailline.callfollowcrm.util.JobOrder.order(xs.map { it.first to it.second })
+            xs.sortedBy { seq.indexOf(it.second) }.map { it.first to it.third }
         }
     // 차수는 **숨겨진 지난 건까지 포함한 날짜순**. 접었다 폈다 해도 "2차"가 "1차"로 바뀌지 않는다.
     //   단 **취소한 건은 차수를 차지하지 않는다.** (2026-09-18 실기에서 발견)
     //   1차를 취소했더니 빈 자리가 "2차 · 신규" 라고 떴다 — 한 번도 안 한 시공이 2차일 수는 없다.
-    val allDays: List<Long> = remember(pastJobs, current.scheduledWorkDate) {
-        (pastJobs.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate ?: 0L } +
-            (current.scheduledWorkDate ?: Long.MAX_VALUE)).sorted()
+    val order: List<Long> = remember(pastJobs, current.scheduledWorkDate) {
+        com.detailline.callfollowcrm.util.JobOrder.order(
+            pastJobs.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate to it.id } +
+                listOf(current.scheduledWorkDate to CUR)
+        )
     }
     fun nthOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Int =
-        allDays.indexOf(j.scheduledWorkDate ?: 0L).let { if (it < 0) 1 else it + 1 }
-    val curNth = allDays.indexOf(current.scheduledWorkDate ?: Long.MAX_VALUE).let { if (it < 0) 1 else it + 1 }
+        com.detailline.callfollowcrm.util.JobOrder.nth(order, j.id)
+    val curNth = com.detailline.callfollowcrm.util.JobOrder.nth(order, CUR)
     androidx.compose.foundation.layout.Row(
         Modifier.fillMaxWidth()
             .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
