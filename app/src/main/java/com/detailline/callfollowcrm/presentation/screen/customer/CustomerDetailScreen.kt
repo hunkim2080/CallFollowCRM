@@ -1118,6 +1118,7 @@ fun CustomerDetailScreen(
             // 6.55 발행 이력 (2026-07-07 사장님) — 이 고객에게 발행한 견적서/시공접수서. · [시공접수서] 탭 (2026-07-18)
             //   위치 일관성(2026-09-01 사장님): 다른 탭처럼 '탭 내용'이 현장사진 위. 시공접수서 내용(발행이력)을 현장사진 앞으로.
             val issuedDocs by viewModel.issuedDocs.collectAsState()
+            val intakeByToken by viewModel.intakeByToken.collectAsState()
             if (detailTab == 2 && issuedDocs.isNotEmpty()) {
                 TossCard {
                     Column {
@@ -1150,7 +1151,9 @@ fun CustomerDetailScreen(
                                 },
                                 // 이미 보낸 접수서 수정하기 — intake 만. 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)
                                 onEdit = if (doc.kind == "intake") ({ onOpenChatEditIssued(c.phoneNumber, c.id, doc.id) }) else null,
-                                onDelete = { issuedDocToDelete = doc }
+                                onDelete = { issuedDocToDelete = doc },
+                                // 📋 고객이 채워 보낸 게 있으면 같은 토큰으로 엮어 붙인다.
+                                filled = doc.token?.let { tk -> intakeByToken[tk] }
                             )
                         }
                     }
@@ -2138,7 +2141,9 @@ private fun IssuedDocRow(
     onOpen: () -> Unit,
     /** 접수서(intake)만 — "수정" 탭 시 채팅으로 이동해 편집기 재오픈. null=수정 버튼 숨김. (2026-07-10 사장님) */
     onEdit: (() -> Unit)? = null,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    /** 📋 고객이 채워 보낸 것. null = 아직 안 채움. */
+    filled: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity? = null
 ) {
     val isQuote = doc.kind == "quote"
     val icon = if (isQuote) "📜" else "📋"
@@ -2175,6 +2180,28 @@ private fun IssuedDocRow(
                 Spacer(Modifier.height(1.dp))
                 Text("· $it", fontSize = 11.5.sp, color = TossTextTertiary, maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            // 📋 **고객이 채운 것.** 전엔 카드가 보낸 그대로라, 고객이 주소·날짜를 적어 보내도
+            //   여기선 알 수가 없어 채팅으로 돌아가야 했다. (2026-09-26 사장님)
+            if (filled != null) {
+                Spacer(Modifier.height(5.dp))
+                val line = buildString {
+                    append("고객 작성 완료")
+                    filled.dateLabel?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                    filled.address?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                }
+                Text(
+                    line, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
+                    color = TossSuccess, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                filled.customerMemo?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.height(1.dp))
+                    Text(
+                        "고객 메모 · $it", fontSize = 11.sp, color = TossTextSecondary, maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
         }
         Spacer(Modifier.width(8.dp))

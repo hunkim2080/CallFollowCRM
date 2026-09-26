@@ -61,6 +61,24 @@ class CustomerDetailViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // 발행 이력 — 이 고객에게 발행한 견적서/시공접수서. 2026-07-07 사장님.
+    /**
+     * 📋 **고객이 채운 접수서** — 토큰으로 카드와 이어 붙인다.
+     *
+     * 카드(`issued_docs`)는 **보낸 순간**으로 굳어 있고,
+     * 고객이 채운 주소·날짜는 `intake_events` 에 따로 쌓인다.
+     * 둘은 **같은 토큰**을 쓰므로 여기서 엮어 카드에 같이 보여준다.
+     * (2026-09-26 사장님 "고객이 작성하면 여기 탭에 생기는거니?")
+     */
+    val intakeByToken: kotlinx.coroutines.flow.StateFlow<Map<String, com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>> =
+        container.customerRepository.observeById(customerId)
+            .flatMapLatest { c ->
+                if (c == null) emptyFlow<List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>>()
+                else container.intakeEventRepository
+                    .observe(c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8))
+            }
+            .map { list -> list.associateBy { it.token } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     val issuedDocs: kotlinx.coroutines.flow.StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>> =
         container.issuedDocRepository.observeByCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
