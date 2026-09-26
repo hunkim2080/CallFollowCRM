@@ -11923,3 +11923,16 @@ UX 점검 **남은 것 넷 마무리.**
 - 🧠 「협업 사장 같아요」 AI 추천은 **안 넣기로** — 검색이 있으면 순서 조금 낫게 하는 값밖에 없고,
   틀리면 되레 성가시고 돈도 든다. (사장님 "굳이 할 필요가 있나 싶어")
 - ✅ 빌드 EXIT=0 · 테스트폰 실측(광고 사라짐 확인).
+
+## 2026-09-26 23:40 · android (서버 직접수정)
+요약 프롬프트의 가격표를 **회원별**로 — 전역 pricing.md 유출 차단
+- 변경: `POST /api/call-summary`, `/api/call-audio-summary`(+`/start`),
+  card/conversation/next-action 공통 body 에 **`price_list`** 필드 추가(선택).
+  서버 `_build_summary_system_prompt(..., price_list=, owner_phone=)`.
+  회원 것 우선 → server_kv `owner_pricing:<phone>` 기억분 → 없으면 "가격표 없음·추측 금지".
+  요약 경로에서 `load_pricing()` 제거. 답변추천은 전과 동일(이미 회원 것 사용).
+- 변경: `CALL_SUMMARY_SYSTEM` 문안 — one_line 은 결과로 끝맺기 / title 과 중복 금지 /
+  「지적·조언·논의」 대신 「~라고 알려줌」 / 자재 이름은 가격표 표기로 교정.
+- 라이브 백업: `~/ringgo-server/main.py.bak-20260926-233538-pricing`. smoke 10/10 통과.
+- commit: bc139be8
+- 다음 액션 (cowork): origin `server/main.py` 에도 같은 변경 반영 필요 (라이브만 패치됨).
