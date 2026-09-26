@@ -89,6 +89,7 @@ import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.util.QrGen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 /**
  * 박람회 모드 (2026-07-21 사장님) — 박람회 시공 팀 전용 창구.
@@ -636,7 +637,7 @@ private fun ColumnScope.ProductsEditorView(
             }
         }
         Box(Modifier.background(ExpoBg)
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(14.dp)) {
+            .windowInsetsPadding(keyboardClearance).padding(14.dp)) {
             BigButton(if (saving) "저장 중…" else "저장", enabled = loaded && !saving, bg = Kk, fg = KkInk) {
                 val drafts = rows.mapNotNull { r ->
                     val nm = r.name.trim()
@@ -1844,7 +1845,7 @@ private fun ColumnScope.RoomFormView(
     }
     Box(
         Modifier.fillMaxWidth().background(Panel)
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(14.dp)
+            .windowInsetsPadding(keyboardClearance).padding(14.dp)
     ) {
         BigButton(if (saving) "저장 중…" else "기본정보 저장", enabled = !saving, bg = Kk, fg = KkInk) {
             if (apartment.isBlank()) {
@@ -2025,7 +2026,7 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
         // ── 하단 고정: 공유 / PDF ──
         Row(
             Modifier.fillMaxWidth().background(Panel)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(14.dp),
+                .windowInsetsPadding(keyboardClearance).padding(14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Box(

@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 private val LoginBg = LightColors.surface
 private val LogoInk = LightColors.text
@@ -118,7 +119,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 .statusBarsPadding()
                 // 키보드 올라오면 입력칸·버튼이 키보드 위로 (안 그러면 가림). 2026-06-30
                 //   내비바+키보드를 더하면 키보드가 내비바를 덮는 만큼 빈 공간이 생김 → union(둘 중 큰 쪽). 2026-07-15
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
@@ -317,7 +318,7 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
             ) { /* 시트 내부 탭은 스크림으로 전달 안 함 */ }
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .windowInsetsPadding(keyboardClearance)
             .padding(horizontal = 22.dp)
             .padding(top = 22.dp, bottom = 24.dp)
             .verticalScroll(rememberScrollState())

@@ -101,6 +101,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 /**
  * 팀 관리 화면 — 프로토 #s-team 1:1.  2026-06-05.
@@ -579,7 +580,7 @@ private fun AddMemberOverlay(
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
                 // 더하면 안 됨 — 키보드가 내비바를 덮으므로 둘 중 큰 쪽만(union). (2026-07-15 사장님)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 600.dp)

@@ -53,6 +53,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.component.Mascot
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 private val Bg = LightColors.surface
 private val Ink = LightColors.text
@@ -106,7 +107,7 @@ fun SignupScreen(
         Column(
             // 내비바+키보드를 더하면 빈 공간이 생김(키보드가 내비바를 덮음) → union. 2026-07-15
             Modifier.fillMaxSize().statusBarsPadding()
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(horizontal = 28.dp).padding(bottom = 32.dp)
         ) {
             when (s.phase) {

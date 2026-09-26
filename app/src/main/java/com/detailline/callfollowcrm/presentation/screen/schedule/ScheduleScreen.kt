@@ -117,6 +117,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 // 월 전환 Pager 풀 — 가운데(기준달) ± 1200달(±100년). 충분히 넓어 끝에 닿을 일 없음.
 private const val SCHEDULE_PAGER_CENTER = 1200
@@ -2031,7 +2032,7 @@ private fun AssignTeamSheet(
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
                 // 내비바+키보드를 따로 더하면(navigationBarsPadding+imePadding) 키보드 뜰 때 내비바 높이만큼
                 //   이중 여백이 생김(S23U에서 입력칸과 키보드 사이 큰 틈). 둘 중 큰 값만 적용해 제거. (2026-07-01)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 660.dp)

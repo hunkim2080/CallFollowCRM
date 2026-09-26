@@ -178,6 +178,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 /**
  * 대시보드 → 번호 탭의 메인 진입 화면.
@@ -667,7 +668,7 @@ fun ChatScreen(
         //   키보드 뜨면 ime 만큼(composer 가 키보드 위), 키보드 내려가면 navbar 만큼 하단 여백 확보.
         //   예전엔 ime 단독 → 갤S23U 등에서 제스처/3버튼 내비바(홈버튼)가 입력창을 가림.
         //   (S9 는 액티비티창 navbar inset 0 라 영향 없음 → S9 유지, S23U 해결.) (2026-06-22 사장님)
-        contentWindowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
+        contentWindowInsets = keyboardClearance,
         snackbarHost = {
             val d = androidx.compose.ui.platform.LocalDensity.current
             SnackbarHost(
@@ -5136,7 +5137,7 @@ private fun TemplatePickerDialog(
                 // 🔴 내비바만 보면 **키보드가 문구 목록을 통째로 덮는다.** (2026-09-15 사장님 스샷)
                 //   채팅 입력칸에 글을 쓰다가 [문구 넣기]를 누르면 키보드가 떠 있는 상태다.
                 //   더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .heightIn(max = 620.dp)
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 18.dp)
         ) {
@@ -5247,7 +5248,7 @@ private fun TemplateActionSheet(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 18.dp)
         ) {
             SheetGrabber()
@@ -5484,7 +5485,7 @@ private fun AddressRegisterSheet(
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
                 // 더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .heightIn(max = 620.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp).padding(top = 6.dp, bottom = 22.dp)
@@ -5696,7 +5697,7 @@ private fun SendConfirmDialog(
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
                 // 더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .heightIn(max = 640.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp).padding(top = 6.dp, bottom = 22.dp)
@@ -5973,7 +5974,7 @@ private fun EstimateBuilderDialog(
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
                 // 더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
                 //   이어 붙이면 내비바 높이만큼 빈 공간이 생긴다. (2026-07-15 사장님)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .heightIn(max = 640.dp)
                 // 스크롤은 아래 안쪽 Column 이 맡는다 — 제목·탭이 같이 밀려 올라가지 않게. (2026-09-16)
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)

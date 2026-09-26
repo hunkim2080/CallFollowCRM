@@ -64,6 +64,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 /**
  * 문자에서 가격 불러오기 — 2단계 확인 화면. ViewModel = PricingExtractViewModel.
@@ -91,7 +92,7 @@ fun PricingExtractScreen(
         containerColor = TossGrayBg,
         // 2026-08-24 사장님: 하단 입력칸(줄눈 평당 등) 고치려 터치하면 키보드가 가리던 버그 —
         //   nav+ime union 으로 콘텐츠(리스트+담기버튼)를 키보드 위로 밀어 포커스 칸이 보이게. (ChatScreen 패턴)
-        contentWindowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
+        contentWindowInsets = keyboardClearance,
         topBar = {
             TopAppBar(
                 title = { Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp) },

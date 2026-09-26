@@ -1,6 +1,9 @@
 package com.detailline.callfollowcrm.presentation.util
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -39,3 +42,22 @@ fun navBarBottomDp(): Dp {
 fun Modifier.bottomBarClearance(extra: Dp = 8.dp): Modifier = composed {
     padding(bottom = navBarBottomDp() + extra)
 }
+
+/**
+ * ⌨️ **키보드가 올라온 만큼만** 띄우는 인셋 — 그림 그리는 곳마다 각자 계산하지 않게.
+ *
+ * 우리 창은 manifest 의 `adjustResize` 라 **시스템이 먼저 창을 줄여준다**(Android 14 까지).
+ * 그 위에 `ime` 를 또 더하면 **키보드 높이만큼 빈 칸**이 생긴다 —
+ * 삼성 일부 기기는 창이 줄었는데도 ime 를 통째로 알려준다. (2026-09-26 사장님 제보)
+ * 그래서 14 까지는 **내비바에서 ime 를 뺀다**: 키보드가 올라오면 0, 내려가면 내비바.
+ * Android 15(API 35)+ 는 `adjustResize` 를 무시해 창이 안 줄어드니 그땐 `ime` 를 그대로 써야 한다.
+ *
+ * ⚠️ 잘 도는 기기에선 **값이 그대로다**(ime 를 0 으로 주므로) — 이상하게 주는 기기만 고쳐진다.
+ */
+val keyboardClearance: WindowInsets
+    @Composable get() =
+        if (android.os.Build.VERSION.SDK_INT >= 35) {
+            WindowInsets.ime.union(WindowInsets.navigationBars)
+        } else {
+            WindowInsets.navigationBars.exclude(WindowInsets.ime)
+        }

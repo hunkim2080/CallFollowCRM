@@ -84,6 +84,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 /**
  * 정산 화면 — 프로토 `s-settle` 1:1 (2026-06-02 재구성).
@@ -792,7 +793,7 @@ private fun GoalEditSheet(
                 .background(Color.White)
                 .clickable(interactionSource = cardClick, indication = null) { /* 카드 탭은 닫힘 막기 */ }
                 // 더하면 안 됨 — 키보드가 내비바를 덮으므로 둘 중 큰 쪽만(union). (2026-07-15 사장님)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(start = 22.dp, end = 22.dp, top = 10.dp, bottom = 18.dp)
         ) {
             Box(

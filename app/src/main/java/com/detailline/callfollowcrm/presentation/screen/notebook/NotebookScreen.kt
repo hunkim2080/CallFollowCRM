@@ -89,6 +89,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.MoneyFormatter
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 
 /**
  * 수첩 (2026-06-01) — 일당/거래처 한 곳 관리. 설정에서 진입.
@@ -622,7 +623,7 @@ private fun ContactDialog(
                 //   빈 공간으로 남는다(사장님 2026-07-15 "여기도 빈공간있다").
                 //   → union = 둘 중 **큰 쪽**만. 키보드 올라오면 키보드 높이, 내려가면 내비바 높이.
                 //   (Android 15+/targetSdk35 는 adjustResize 를 안 쓰고 앱이 인셋을 직접 처리한다.)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .windowInsetsPadding(keyboardClearance)
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 620.dp)
@@ -830,7 +831,7 @@ private fun SavedPeoplePicker(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))  // 합치면 안 됨(위 주석)
+                .windowInsetsPadding(keyboardClearance)  // 합치면 안 됨(위 주석)
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 620.dp)
