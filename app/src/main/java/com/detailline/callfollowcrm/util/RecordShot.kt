@@ -148,6 +148,29 @@ object RecordShot {
         return w
     }
 
+    /**
+     * 🌘 **사진 위 흰 글씨가 안 읽힐 때를 막는다.**
+     *
+     * 위에 깔아둔 어두운 그라데이션만으로는 **밝은 사진**에서 흰 글자가 묻힌다.
+     * 어떤 사진이 들어올지 모르니 글자 자체에 연한 그림자를 깐다.
+     * (2026-09-26 테스트폰에서 하얀 사진 위 「16 집」이 거의 안 보였다)
+     */
+    internal fun onPhoto(p: Paint): Paint =
+        p.apply { setShadowLayer(p.textSize * 0.10f + 4f, 0f, 2f, 0xB3000000.toInt()) }
+
+    /**
+     * 📐 **달 라벨 → 큰 숫자** 사이를 띄울 거리(달 라벨 베이스라인에서 큰 숫자 베이스라인까지).
+     *
+     * 전엔 각 화면이 `104f` · `96f` 처럼 **숫자 높이만 보고** 정해놨다.
+     * 그런데 「약」 같은 한글은 숫자보다 **위로 더 솟아서**(104px 기준 숫자 75 · 「약」 84)
+     * 「약 3 km」일 때만 달 라벨을 파고들었다. (2026-09-26 사장님 "글자가 겹친느낌임")
+     *
+     * 0.81 = 글자 크기 대비 **제일 높이 솟는 글자의 높이**(Pretendard 실측).
+     * 글자가 줄면 간격도 같이 준다 — 고정 px 은 줄어든 글자에서 되레 벌어진다.
+     */
+    internal fun bigTop(monthP: Paint, bigP: Paint, gap: Float): Float =
+        monthP.descent() + gap + bigP.textSize * 0.81f
+
     /** 숫자와 단위 사이. 숫자 글자 크기의 24% — 어떤 자릿수에서도 닿지 않는 선. */
     internal fun unitGap(numP: Paint): Float = numP.textSize * 0.24f
 
@@ -282,7 +305,7 @@ object RecordShot {
 
         var y = boxTop + 58f
         c.drawText(d.monthLabel, pad, y, monP)
-        y += 96f
+        y += bigTop(monP, bigP, 12f)
         drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, unitP)
         y += 46f
         c.drawText(d.bigCaption, pad, y, capP)
@@ -370,12 +393,13 @@ object RecordShot {
 
         // ③ 큰 숫자 — 왼쪽 위.
         var y = pad + 46f
-        c.drawText(d.monthLabel, pad, y, paint(bold, 30f, 0xCCFFFFFF.toInt()))
-        y += 104f
-        val bigP = fit(paint(xbold, 126f, white), d.bigValue, S - pad * 2 - 260f, 126f, 72f)
-        drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 48f, white))
+        val monP2 = onPhoto(paint(bold, 30f, 0xCCFFFFFF.toInt()))
+        c.drawText(d.monthLabel, pad, y, monP2)
+        val bigP = onPhoto(fit(paint(xbold, 126f, white), d.bigValue, S - pad * 2 - 260f, 126f, 72f))
+        y += bigTop(monP2, bigP, 12f)
+        drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, onPhoto(paint(bold, 48f, white)))
         y += 48f
-        c.drawText(d.bigCaption, pad, y, paint(bold, 34f, 0xE6FFFFFF.toInt()))
+        c.drawText(d.bigCaption, pad, y, onPhoto(paint(bold, 34f, 0xE6FFFFFF.toInt())))
 
         // ④ 작은 지도 — 오른쪽 위. "어디어디 다녔다"를 사진 위에 한 뼘으로.
         if (d.dots.isNotEmpty()) {
@@ -416,13 +440,15 @@ object RecordShot {
         var by = H - pad - (if (sign) 142f else 8f)
         if (d.towns.isNotEmpty()) {
             val line = townLine(d.towns)
-            c.drawText(line, pad, by, fit(paint(med, 28f, 0xD9FFFFFF.toInt()), line, S - pad * 2, 28f, 21f))
+            c.drawText(line, pad, by,
+                onPhoto(fit(paint(med, 28f, 0xD9FFFFFF.toInt()), line, S - pad * 2, 28f, 21f)))
             by += 46f
         }
         if (sign) {
             val name = d.bizName.trim()
             if (name.isNotBlank()) {
-                c.drawText(name, pad, H - pad - 62f, fit(paint(xbold, 50f, white), name, S - pad * 2, 50f, 30f))
+                c.drawText(name, pad, H - pad - 62f,
+                    onPhoto(fit(paint(xbold, 50f, white), name, S - pad * 2, 50f, 30f)))
             }
             val line2 = listOfNotNull(
                 listOfNotNull(
@@ -489,9 +515,10 @@ object RecordShot {
 
         var y = pad + 54f
         // 맨 위 = 언제 것인지. 그 밑이 **고른 큰 숫자**.
-        c.drawText(d.monthLabel, pad, y, paint(bold, 32f, hint))
-        y += 96f
+        val monP3 = paint(bold, 32f, hint)
+        c.drawText(d.monthLabel, pad, y, monP3)
         val bigP = fit(paint(xbold, 112f, blue), d.bigValue, S - pad * 2 - 160f, 112f, 64f)
+        y += bigTop(monP3, bigP, 12f)
         // 단위는 숫자 옆에 작게.
         val bigW = drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 44f, blue))
         y += 48f

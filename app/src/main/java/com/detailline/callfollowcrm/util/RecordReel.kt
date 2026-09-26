@@ -136,19 +136,22 @@ object RecordReel {
 
         // ③ 큰 숫자 — 왼쪽 위. 지도 갈래와 **같은 셈**으로 오른다.
         var y = pad + h * 0.045f
-        c.drawText(d.monthLabel, pad, y, paint(bold, w * 0.036f, 0xCCFFFFFF.toInt()))
-        y += h * 0.062f
-        val bigP = fit(paint(xbold, w * 0.145f, white), d.metricValue,
-            w - pad * 2 - w * 0.40f, w * 0.145f, w * 0.075f)
+        val monP = RecordShot.onPhoto(paint(bold, w * 0.036f, 0xCCFFFFFF.toInt()))
+        c.drawText(d.monthLabel, pad, y, monP)
+        val bigP = RecordShot.onPhoto(fit(paint(xbold, w * 0.145f, white), d.metricValue,
+            w - pad * 2 - w * 0.40f, w * 0.145f, w * 0.075f))
+        y += RecordShot.bigTop(monP, bigP, h * 0.010f)
         val p2 = if (ride == null) 1f else stepUp(
             d.metricWeights, ride.arrived,
             ride.nowT - (ride.arriveAt.getOrNull(ride.arrived) ?: 0f), ride.frac
         )
         RecordShot.drawBigNumber(
-            c, pad, y, countUp(d.metricValue, p2), d.metricUnit, bigP, paint(bold, w * 0.058f, white)
+            c, pad, y, countUp(d.metricValue, p2), d.metricUnit, bigP,
+            RecordShot.onPhoto(paint(bold, w * 0.058f, white))
         )
         y += h * 0.031f
-        c.drawText(d.metricLabel, pad, y, paint(bold, w * 0.040f, 0xE6FFFFFF.toInt()))
+        c.drawText(d.metricLabel, pad, y,
+            RecordShot.onPhoto(paint(bold, w * 0.040f, 0xE6FFFFFF.toInt())))
 
         // ④ 작은 지도 — 오른쪽 위에서 **트럭이 달린다.** 한 뼘짜리라 이름은 안 넣는다(겹쳐서 못 읽는다).
         if (d.dots.isNotEmpty()) {
@@ -190,15 +193,15 @@ object RecordReel {
         var by = h - pad - (if (d.sign) h * 0.105f else h * 0.006f)
         if (d.towns.isNotEmpty()) {
             val line = RecordShot.townLine(d.towns)
-            c.drawText(line, pad, by,
-                fit(paint(med, w * 0.040f, 0xD9FFFFFF.toInt()), line, w - pad * 2, w * 0.040f, w * 0.028f))
+            c.drawText(line, pad, by, RecordShot.onPhoto(
+                fit(paint(med, w * 0.040f, 0xD9FFFFFF.toInt()), line, w - pad * 2, w * 0.040f, w * 0.028f)))
             by += h * 0.034f
         }
         if (!d.sign) return
         val name = d.bizName.trim()
         if (name.isNotBlank()) {
-            c.drawText(name, pad, h - pad - h * 0.046f,
-                fit(paint(xbold, w * 0.062f, white), name, w - pad * 2, w * 0.062f, w * 0.036f))
+            c.drawText(name, pad, h - pad - h * 0.046f, RecordShot.onPhoto(
+                fit(paint(xbold, w * 0.062f, white), name, w - pad * 2, w * 0.062f, w * 0.036f)))
         }
         val line2 = listOfNotNull(
             listOfNotNull(
@@ -326,12 +329,14 @@ object RecordReel {
 
         // ── 위: 달 · 큰 숫자 · 이름 ──
         var y = pad + h * 0.045f
-        c.drawText(d.monthLabel, pad, y, paint(bold, w * 0.036f, hint))
-        y += h * 0.062f
+        val monP = paint(bold, w * 0.036f, hint)
+        c.drawText(d.monthLabel, pad, y, monP)
         // 🔢 **달린 만큼 올라간다.** (2026-09-25 사장님 "키로수도 후르륵 올라가는 느낌")
         //   글자 크기와 'km' 자리는 **최종 숫자**로 정해둔다 — 자릿수가 늘 때마다
         //   단위가 옆으로 밀리고 글자가 커졌다 작아졌다 하면 싸구려로 보인다.
         val bigP = fit(paint(xbold, w * 0.145f, blue), d.metricValue, w - pad * 2 - w * 0.22f, w * 0.145f, w * 0.085f)
+        // 📐 달 라벨과 겹치지 않게 — 「약」 같은 한글은 숫자보다 위로 더 솔는다.
+        y += RecordShot.bigTop(monP, bigP, h * 0.010f)
         // 단위는 **지금 숫자**에 붙어 따라온다(글자 크기만 최종값으로 고정) —
         //   마지막 자릿수로 자리를 박아놓았더니 "약 52      km" 처럼 멀찍이 떨어져 보였다.
         //   🔒 띄우기는 [RecordShot.drawBigNumber] 한 곳에 있다 — 각자 적어놓았더니 닿았다.

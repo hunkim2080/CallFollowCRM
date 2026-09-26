@@ -759,6 +759,34 @@ private fun ShotPreviewDialog(
                         }
                     }
                 }
+                // ── 영상 모양 ── 영상은 **둘 중 하나**다. 그림의 다섯 갈래를 그대로 보여주면
+                //   네 개가 같은 영상으로 나온다 — 고르라고 해놓고 안 먹히는 게 제일 나쁘다.
+                //   (2026-09-26) 사진 갈래가 생겼으니 **영상에도 고를 자리**를 둔다.
+                if (previewVideo) {
+                    Spacer(Modifier.height(AppSpace.s12))
+                    Text("영상 모양", style = AppType.caption, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
+                    val hasPhotoV = rec.photoPath != null
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ShotChip("지도가 주인공", shape != ShotShape.PHOTO) { shape = ShotShape.MAP_PHOTO }
+                        if (hasPhotoV) {
+                            ShotChip("현장 사진이 주인공", shape == ShotShape.PHOTO) { shape = ShotShape.PHOTO }
+                        }
+                    }
+                    Spacer(Modifier.height(AppSpace.s4))
+                    Text(
+                        if (!hasPhotoV)
+                            "고객 상세에서 현장 사진을 올리면 「현장 사진이 주인공」도 고를 수 있어요"
+                        else if (shape == ShotShape.PHOTO)
+                            "현장 사진이 화면을 꺢 채우고, 지도는 오른쪽 위에서 작게 달려요"
+                        else "지도가 크게 나오고, 현장 사진은 오른쪽 위에 작게 들어가요",
+                        style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
                 // ── 아래는 **그림 전용 설정**이다. 영상엔 하나도 안 먹히니 영상일 땐 아예 안 보여준다.
                 //   고르라고 해놓고 안 먹히는 게 제일 나쁘다. (2026-09-25 사장님)
                 if (!previewVideo) {
@@ -766,7 +794,7 @@ private fun ShotPreviewDialog(
                 // ── 이미지 스타일 ── **무엇을 그리나.** (비율과 따로 고른다)
                 //   전엔 [사진 위에][지도 크게][정사각] 이 한 줄이라, 모양과 크기가 뭉쳐 있었다.
                 //   그래서 "지도 크게 + 정사각" 같은 조합을 아예 못 골랐다. (사장님 시안)
-                Text("스타일", style = AppType.caption, color = TossTextTertiary,
+                Text("이미지 스타일", style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 // 갈래가 다섯이라 한 줄에 안 들어간다 → 줄바꿈되는 칩.
                 //   현장 사진이 없는 달이면 **사진 갈래를 아예 안 보여준다** —
