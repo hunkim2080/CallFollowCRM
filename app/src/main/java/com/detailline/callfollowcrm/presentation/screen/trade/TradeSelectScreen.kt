@@ -71,10 +71,27 @@ fun TradeSelectScreen(
     val selected = remember { mutableStateListOf<String>().apply { addAll(prefs.ownerTrades) } }
     var customText by remember { mutableStateOf("") }
 
+    /**
+     * 🏷️ **고르는 순간 저장한다.** (2026-09-26 사장님 "저장도 안 되는 느낌임")
+     *
+     * 전엔 맨 아래 「저장」을 눌러야 했는데, 그 버튼이 **업종 40여 개를 다 지난 끝**에 있었다.
+     * 고르고 그냥 나가면 날아갔다 — 사장님이 실제로 그렇게 잃으셨다.
+     * 하나만 고르는 화면(라디오)에 저장 버튼이 있을 이유가 없다.
+     */
+    fun save(list: List<String>) {
+        prefs.ownerTrades = list
+        android.widget.Toast.makeText(
+            context,
+            if (list.isEmpty()) "업종을 지웠어요" else "${list.first()} 으로 저장했어요",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+
     fun toggle(t: String) {
         // 하나만 선택(라디오) — 다른 걸 누르면 교체. (2026-06-22 사장님)
         if (selected.contains(t)) selected.remove(t)
         else { selected.clear(); selected.add(t) }
+        save(selected.toList())
     }
 
     Scaffold(
@@ -146,7 +163,10 @@ fun TradeSelectScreen(
                         matches.forEach { m ->
                             Box(
                                 Modifier.padding(bottom = 8.dp).clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-                                    .clickable { selected.clear(); selected.add(m); customText = "" }
+                                    .clickable {
+                                        selected.clear(); selected.add(m); customText = ""
+                                        save(selected.toList())
+                                    }
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) { Text("＋ $m", color = TossBlue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
                         }
@@ -155,7 +175,10 @@ fun TradeSelectScreen(
                     Spacer(Modifier.height(3.dp))
                     Box(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-                            .clickable { selected.clear(); selected.add(q); customText = "" }
+                            .clickable {
+                                selected.clear(); selected.add(q); customText = ""
+                                save(selected.toList())
+                            }
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) { Text("＋ '$q' 새 업종으로 추가", color = TossBlue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
                 }
@@ -168,24 +191,22 @@ fun TradeSelectScreen(
                 Spacer(Modifier.height(6.dp))
                 Box(
                     Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-                        .clickable { selected.clear() }
+                        .clickable { selected.clear(); save(emptyList()) }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) { Text("$customSel   ✕", color = TossBlue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
             }
 
             Spacer(Modifier.height(24.dp))
+            // 🏷️ 고르는 순간 이미 저장된다 — 이 버튼은 **나가기**일 뿐이다.
+            //   「저장」이라고 써 두면 "이걸 눌러야 저장되나?" 싶어 또 헤맨다.
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(if (selected.isEmpty()) TossDivider else TossBlue)
-                    .clickable(enabled = selected.isNotEmpty()) {
-                        prefs.ownerTrades = selected.toList()
-                        android.widget.Toast.makeText(context, "저장했어요", android.widget.Toast.LENGTH_SHORT).show()
-                        onBack()
-                    }
+                    .background(TossBlue)
+                    .clickable { onBack() }
                     .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("저장", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("완료", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(40.dp))
         }
