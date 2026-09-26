@@ -11936,3 +11936,17 @@ UX 점검 **남은 것 넷 마무리.**
 - 라이브 백업: `~/ringgo-server/main.py.bak-20260926-233538-pricing`. smoke 10/10 통과.
 - commit: bc139be8
 - 다음 액션 (cowork): origin `server/main.py` 에도 같은 변경 반영 필요 (라이브만 패치됨).
+
+## 2026-09-27 00:15 · android (서버 직접수정)
+인증문자 방파제 3종 + 대시보드가 거짓말 안 하게
+- 변경: `POST /api/auth/request-code` — ①010 11자리 아니면 400(문자 안 쏨)
+  ②같은 IP 하루 10건(`AUTH_CODE_IP_PER_DAY`, 표 `auth_ip_quota`) ③발송 45초 뒤
+  이통사 리포트 확인 → 미도달이면 슬랙(`_auth_sms_watch`). `_send_sms_solapi` 가
+  messageId 를 반환하도록 시그니처 변경.
+- 변경: 새 표 `app_devices(phone, device_id, …)` + 헤더 **`X-Device-Id` / `X-Device-Model`**.
+  번호 하나에 폰 두 대(업무폰 Play + 테스트폰 직접설치)가 서로 덮어쓰던 문제.
+- 변경: 대시보드 users[] 에 **`last_open_ms`**(app_opens 기준 = 진짜 앱 켠 시각) 추가.
+  유형 분류·목록·상세가 전부 이걸로. `last_seen_ms`(서버 연결)는 보조 표기로 남김.
+  실측: 송도 사장님이 「15시간 전」으로 보였으나 실제 마지막 앱 켬은 9/9(18일 전).
+- 라이브 백업: `main.py.bak-20260927-*-authguard` / `*-dashboard`
+- 다음 액션 (cowork): origin `server/main.py` 에 3건 모두 반영 필요(라이브만 패치됨).

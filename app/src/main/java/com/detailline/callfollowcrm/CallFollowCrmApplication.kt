@@ -81,6 +81,10 @@ class CallFollowCrmApplication : Application() {
         com.detailline.callfollowcrm.ai.SessionAuthInterceptor.installSource = detectInstallSource()
         installMainThreadHoverCrashGuard()  // 마우스 휠/hover 크래시(Compose) 안전망 — 다이얼로그·바텀시트 등 모든 윈도우 커버
         container = AppContainer(this)
+        // 📱 폰마다 다른 표식 — 번호 하나에 폰 두 대여도 서버가 갈라 세게. (2026-09-26)
+        //   ⚠️ container 가 만들어진 **다음**이라야 한다. 위에 두면 아직 없어서 죽는다.
+        com.detailline.callfollowcrm.ai.SessionAuthInterceptor.deviceId =
+            runCatching { container.preferences.deviceId }.getOrDefault("")
         NotificationHelper.ensureChannels(this)
         // 막내 단계(변신) 복원 — 설정 안 열어도 앱 곳곳 막내가 현재 단계로 보이게. (2026-06-14)
         // 수신 MMS 알림 기준선 — 첫 실행/업데이트 시 now 로 잡아, 설치 전 과거 MMS 는 알림 안 함. (2026-07-03 사장님)

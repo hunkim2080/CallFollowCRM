@@ -30,6 +30,20 @@ object SessionAuthInterceptor : Interceptor {
     @JvmStatic
     var installSource: String = ""
 
+    /**
+     * 📱 이 폰을 가리키는 표식 — 번호 하나에 폰이 **두 대**인 경우가 있다.
+     *
+     * 업무폰(Play)과 테스트폰(직접 설치)이 같은 번호로 로그인하면, 서버가 번호로만
+     * 구분해서 **나중에 온 쪽으로 덮어썼다.** 그래서 Play 로 깐 업무폰이
+     * 「직접 설치」로 보였다. (2026-09-26 사장님이 발견)
+     */
+    @Volatile
+    @JvmStatic
+    var deviceId: String = ""
+
+    /** "SM-G965N" — 사장님이 대시보드에서 어느 폰인지 알아보게. */
+    private val DEVICE_MODEL: String = android.os.Build.MODEL ?: ""
+
     /** "0.2.1631 (1631)" — 서버 대시보드에서 누가 옛 버전인지 보려고. (2026-09-23) */
     private val APP_VERSION: String =
         "${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME} (${com.detailline.callfollowcrm.BuildConfig.VERSION_CODE})"
@@ -49,6 +63,9 @@ object SessionAuthInterceptor : Interceptor {
             b.header("X-App-Version", APP_VERSION)
             // 어디서 깔았나 — 모르면 안 붙인다(서버가 옛 값을 지우지 않게).
             installSource.takeIf { it.isNotBlank() }?.let { b.header("X-App-Install", it) }
+            // 어느 폰인가 — 같은 번호로 폰 두 대를 써도 섞이지 않게.
+            deviceId.takeIf { it.isNotBlank() }?.let { b.header("X-Device-Id", it) }
+            DEVICE_MODEL.takeIf { it.isNotBlank() }?.let { b.header("X-Device-Model", it) }
             if (hadToken && original.header("Authorization") == null) {
                 b.header("Authorization", "Bearer $token")
             }

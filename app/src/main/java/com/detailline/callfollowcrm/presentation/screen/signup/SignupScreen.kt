@@ -1,6 +1,8 @@
 package com.detailline.callfollowcrm.presentation.screen.signup
 
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,7 +44,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -61,6 +65,9 @@ private val Blue = LightColors.primary
 private val Disabled = Color(0xFFE2E6EC)
 private val Tag = Color(0xFF3A4250)
 private val Sub = Color(0xFF8A93A2)
+
+/** 📵 인증문자가 안 올 때 **사람에게 닿는 유일한 길.** 사장님이 직접 정한 번호. (2026-09-26) */
+private const val HELP_PHONE = "010-3969-0479"
 
 /**
  * 회원가입 (첫 화면) — 폰 인증번호. docs/ANDROID_HANDOFF_signup_auth.md.
@@ -292,6 +299,83 @@ private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupV
     Spacer(Modifier.height(12.dp))
     Text("번호 다시 입력", fontSize = 12.5.sp, color = Sub, fontWeight = FontWeight.Bold,
         modifier = Modifier.fillMaxWidth().clickable { vm.backToPhone() }.padding(6.dp), textAlign = TextAlign.Center)
+
+    // 📵 **막다른 길을 없앤다.** 문자가 안 오면 지금까지는 앱을 닫는 것 말고 할 게 없었다.
+    //   (2026-09-26 사장님: "인증문자를 못 받으면 가입을 못 한다. 나도 알 수 없고")
+    var helpOpen by remember { mutableStateOf(false) }
+    Spacer(Modifier.height(4.dp))
+    Text("문자가 안 와요", style = AppType.label, color = Sub,
+        modifier = Modifier.fillMaxWidth().clickable { helpOpen = true }.padding(6.dp),
+        textAlign = TextAlign.Center)
+    if (helpOpen) SmsHelpDialog(myPhone = s.phone) { helpOpen = false }
+}
+
+/**
+ * 📵 인증문자가 안 올 때 — **사람에게 닿게 한다.**
+ *
+ * 문자앱이 없거나 안 열리는 폰도 있어서 **번호 복사**를 같이 둔다.
+ * 본문을 미리 채워두는 이유: 사장님이 받았을 때 **누가 왜 보냈는지 바로 알아야** 도울 수 있다.
+ */
+@Composable
+private fun SmsHelpDialog(myPhone: String, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val clip = LocalClipboardManager.current
+    val body = "가입인증 오류 — 인증문자가 안 와요. 제 번호: " + myPhone
+    AlertDialog(
+        onDismissRequest = onClose,
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
+        title = { Text("인증문자가 안 오나요?", style = AppType.title, color = Ink) },
+        text = {
+            Column {
+                Text("먼저 문자함의 스팸·광고함을 한 번만 봐주세요.",
+                    style = AppType.body, color = Sub)
+                Spacer(Modifier.height(10.dp))
+                Text("그래도 없으면 아래로 문자 주세요. 바로 도와드릴게요.",
+                    style = AppType.body, color = Sub)
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier.fillMaxWidth()
+                        .background(AppTheme.colors.surfaceMuted, AppShape.md)
+                        .clickable {
+                            clip.setText(AnnotatedString(HELP_PHONE))
+                            android.widget.Toast.makeText(ctx, "번호를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(HELP_PHONE, style = AppType.title, color = Ink)
+                        Text("눌러서 번호 복사", style = AppType.caption, color = Sub)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                // 문자앱으로 — 받는 사람과 내용을 미리 채워 보낸다.
+                val ok = runCatching {
+                    ctx.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_SENDTO,
+                            android.net.Uri.parse("smsto:" + HELP_PHONE.filter { it.isDigit() })
+                        ).putExtra("sms_body", body)
+                    )
+                }.isSuccess
+                if (!ok) {
+                    // 문자앱이 없으면 적어도 내용은 손에 쥐여준다.
+                    clip.setText(AnnotatedString(HELP_PHONE + "\n" + body))
+                    android.widget.Toast.makeText(ctx, "문자앱을 못 열어서 내용을 복사했어요", android.widget.Toast.LENGTH_LONG).show()
+                }
+                onClose()
+            }) {
+                Text("문자 보내기", color = Blue, fontWeight = FontWeight.ExtraBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) { Text("닫기", color = Sub, fontWeight = FontWeight.Bold) }
+        }
+    )
 }
 
 @Composable
