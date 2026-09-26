@@ -13051,8 +13051,21 @@ _INSTALL_HTML_PATH = BASE_DIR / "static" / "install.html"
 _PRIVACY_HTML_PATH = BASE_DIR / "static" / "privacy.html"
 
 
+PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.detailline.callfollowcrm"
+
+
 @app.get("/download/shigongmagne.apk", include_in_schema=False)
 async def download_apk(v: Optional[str] = None):
+    """🚫 **APK 직접 배포 중단.** (2026-09-26 사장님 "무조건 스토어에서 받게끔해")
+
+    이 주소는 예전 안내 문자·페이지에 실려 나갔으므로 **죽이지 않고 Play 로 넘긴다**.
+    (앱 자체 업데이트는 이미 Play 로 보내므로 영향 없음 — 버전 확인만 /api/download/version 사용)
+    """
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(PLAY_STORE_URL, status_code=302)
+
+
+async def _download_apk_legacy(v: Optional[str] = None):
     """APK 다운로드. CDN 가속(2026-08-24 사장님): ?v 없으면 현재 versionCode 로 302 → 버전별 URL 을
     Cloudflare 가 영구 캐시(가까운 엣지서 빠르게). 새 APK 올라오면 versionCode 가 바뀌어 redirect 타겟이
     새 URL → 자동 fresh(캐시 purge/토큰 불필요). 버전 엔드포인트(/api/download/version)는 그대로 no-cache."""
