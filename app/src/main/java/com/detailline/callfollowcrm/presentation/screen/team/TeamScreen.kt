@@ -340,7 +340,7 @@ private fun PeopleToggle(current: String, onSelect: (String) -> Unit) {
             .background(AppTheme.colors.surfaceMuted).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf("team" to "팀원", "worker" to "일당사장").forEach { (key, label) ->
+        listOf("team" to "팀원", "worker" to "협업 사장님").forEach { (key, label) ->
             val on = current == key
             Box(
                 Modifier.weight(1f).clip(RoundedCornerShape(10.dp))

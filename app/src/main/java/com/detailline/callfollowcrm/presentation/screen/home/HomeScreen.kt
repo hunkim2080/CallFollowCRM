@@ -3938,7 +3938,7 @@ private fun CategoryAddDialog(
                 androidx.compose.material3.OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("예: AS 고객, 일당, 아르바이트", color = TossTextTertiary) },
+                    placeholder = { Text("예: AS 고객, 협업 사장, 친구", color = TossTextTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors

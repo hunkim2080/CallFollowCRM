@@ -108,7 +108,8 @@ fun NotebookScreen(
             TopAppBar(
                 title = {
                     Text(
-                        when (restrictKind) { NotebookTab.WORKER -> "일당사장"; else -> "수첩" },
+                        // 🏷️ 사람을 「일당」이라 부르지 않는다 — 낮잡는 말로 들린다. (2026-09-26 사장님)
+                        when (restrictKind) { NotebookTab.WORKER -> "협업 사장님"; else -> "수첩" },
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
                     )
                 },
@@ -175,7 +176,7 @@ fun NotebookContent(
         }
             // 프로토 수첩 info-note 안내 배너
             val noteText = if (tab == NotebookTab.WORKER)
-                "필요할 때 부르는 일당·알바를 모아두는 곳이에요. 분류로 등록해두면 필요한 사람만 골라 부르기 쉬워요."
+                "같이 현장 뛰는 사장님을 모아두는 곳이에요. 한 번 등록해두면 부를 때 이름만 누르면 돼요."
             else
                 "자재·협력·장비 등 자주 거래하는 곳을 모아두세요. 일정 등록 때 한 번만 누르면 번호가 자동 연결돼요."
             Row(
@@ -554,7 +555,7 @@ private fun ContactDialog(
 ) {
     val context = LocalContext.current
     val isWorker = target.kind == NotebookContactEntity.KIND_WORKER
-    val kindLabel = if (isWorker) "일당" else "거래처"
+    val kindLabel = if (isWorker) "협업 사장님" else "거래처"
     val tagList = if (isWorker) WORKER_TAGS else VENDOR_TAGS
     var name by remember { mutableStateOf(target.name) }
     var phone by remember { mutableStateOf(target.phone) }

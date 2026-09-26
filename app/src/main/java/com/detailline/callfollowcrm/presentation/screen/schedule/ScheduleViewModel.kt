@@ -154,7 +154,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             container.categoryRepository.observeAll(),
             container.notebookRepository.observeWorkers()
         ) { cs, cats, workers ->
-            val wageCatIds = cats.filter { it.name.contains("일당") }.map { it.id }.toSet()
+            // 🏷️ 사람을 가리킬 땐 **「협업 사장」**이 우리 말이다(2026-09-26 사장님).
+            //   다만 이미 「일당」으로 분류해둔 것이 있으니 **둘 다 알아듣는다** —
+            //   한쪽만 보면 사장님이 그동안 분류해둔 게 통째로 안 잡힌다.
+            val wageCatIds = cats
+                .filter { it.name.contains("일당") || it.name.contains("협업") }
+                .map { it.id }.toSet()
             if (wageCatIds.isEmpty()) return@combine emptyList()
             val already = workers.map { it.phone.filter { ch -> ch.isDigit() } }.toSet()
             cs.filter { it.categoryId in wageCatIds }

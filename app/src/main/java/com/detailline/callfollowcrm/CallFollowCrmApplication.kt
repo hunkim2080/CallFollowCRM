@@ -114,7 +114,12 @@ class CallFollowCrmApplication : Application() {
             }
             // 2026-06-07 — 발신 서명("직영팀만 시공 (외주/일당 절대 X)")이 분류 본문에 섞여 고객이 '일당'
             //   카테고리로 잘못 분류된 것 1회 해제(미분류로). '일당'은 수첩 개념이라 고객 카테고리에 있으면 안 됨.
-            if (!container.preferences.dailyWageCategoryCleanedV1) {
+            // 🛑 **이제 돌리면 안 된다.** (2026-09-26 사장님)
+            //   2026-06-07 엔 「일당」이 수첩 개념이라 고객 카테고리에 있으면 안 된다고 봤다.
+            //   지금은 반대다 — 고객을 「일당·협업 사장」으로 분류해두면 그걸로 **부른다.**
+            //   새로 깔면 이게 돌아 사장님 분류를 통째로 지워버린다 — 아예 안 돌게 막는다.
+            @Suppress("ConstantConditionIf")
+            if (false && !container.preferences.dailyWageCategoryCleanedV1) {
                 runCatching {
                     val cats = container.categoryRepository.observeAll().first()
                     val wageCatIds = cats.filter { it.name.trim() == "일당" }.map { it.id }.toHashSet()

@@ -2351,7 +2351,7 @@ private fun AssignTeamSheet(
                 ) {
                     Text(
                         if (pickFromContacts) "닫기"
-                        else "＋ 내 연락처에서 부르기 · 「일당」 ${wageContacts.size}명",
+                        else "＋ 내 연락처에서 부르기 · 「협업 사장」 ${wageContacts.size}명",
                         style = AppType.label, fontWeight = FontWeight.Bold, color = purple
                     )
                 }

@@ -3715,7 +3715,7 @@ private fun CategoryNameInputDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("예: AS 고객, 일당, 친구", color = TossTextTertiary) },
+                    placeholder = { Text("예: AS 고객, 협업 사장, 친구", color = TossTextTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = tossFieldColors()
