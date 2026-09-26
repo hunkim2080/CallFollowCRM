@@ -2037,6 +2037,8 @@ private fun AssignTeamSheet(
     val sheetScroll = rememberScrollState()
     // 🔎 이름으로 찾기 · 🏷️ 「일당」 분류 목록 펼침 · ✏️ 꾹 눌러 연 메뉴. (2026-09-26 프로토)
     var partnerQuery by remember { mutableStateOf("") }
+    // ⏰ 자주 쓰는 시간 밖의 것을 펼쳤나.
+    var moreHours by remember { mutableStateOf(false) }
     var pickFromContacts by remember { mutableStateOf(false) }
     var partnerMenu by remember {
         mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null)
@@ -2460,9 +2462,14 @@ private fun AssignTeamSheet(
                         fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
                     Spacer(Modifier.height(14.dp))
                 }
-                SheetFieldLabel("출근 시간 (선택)")
+                SheetFieldLabel("출근 시간")
+                // ⏰ 자주 쓰는 넷만 앞에 두고 나머지는 「다른 시간」 뒤로. 일곱 개가 두 줄을 먹었다.
+                //   (2026-09-26 프로토 F1ERiGmCxX)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
+                    val common = listOf(7, 8, 9, 10)
+                    val rest = listOf(11, 13, 14)
+                    val shownHours = if (moreHours || startHour in rest) common + rest else common
+                    shownHours.forEach { h ->
                         val on = startHour == h
                         val ampm = if (h < 12) "오전" else "오후"; val h12 = if (h % 12 == 0) 12 else h % 12
                         Box(
@@ -2471,8 +2478,18 @@ private fun AssignTeamSheet(
                                 .clickable { startHour = if (on) -1 else h }
                                 .padding(horizontal = 13.dp, vertical = 8.dp)
                         ) {
-                            Text("$ampm ${h12}시", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                            Text("$ampm ${h12}시", style = AppType.caption, fontWeight = FontWeight.Bold,
                                 color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+                        }
+                    }
+                    if (!moreHours && startHour !in rest) {
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                                .clickable { moreHours = true }
+                                .padding(horizontal = 13.dp, vertical = 8.dp)
+                        ) {
+                            Text("다른 시간", style = AppType.caption, fontWeight = FontWeight.Bold,
+                                color = TossTextSecondary, maxLines = 1)
                         }
                     }
                 }
@@ -2486,43 +2503,40 @@ private fun AssignTeamSheet(
                 Text("선택한 모두에게 같이 전달돼요.",
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
 
-                // 협업 사장별 — 전달할 일당(만원). 협업만 남겨 모드 선택은 없앴다. (2026-07-17 사장님)
+                // 💰 **일당이 주인공.** 전엔 「고른 사장님」이라는 섹션이 이름을 또 말하고,
+                //   그 밑 긴 설명 뒤에 일당이 붙어 있었다. 위 목록에 이미 체크가 보인다 —
+                //   같은 말을 두 번 하지 않는다. (2026-09-26 프로토 F1ERiGmCxX)
                 val selectedPartnerList = collabPartners.filter { key(it.phone) in selectedPartners }
                 if (selectedPartnerList.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    // '일당'을 세 이름으로 부르고 있었다 — "(일당 전달용)" · "일당 (전달용)" · "그날 일당".
-                    //   "(전달용)" 은 개발자 말이다. (2026-09-22 사장님)
-                    SheetFieldLabel("고른 사장님")
+                    SheetFieldLabel("보낼 일당")
                     selectedPartnerList.forEach { p ->
                         val k = key(p.phone)
-                        val wasReq = k in reqKeys
-                        Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                            Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                if (wasReq) "이미 요청 보냈어요. 상대 사장님이 수락하면 협업 현장이 돼요."
-                                // 바로 위 제목이 이미 협업이라고 했다. (2026-09-22 사장님)
-                                else "요청을 보내요. 수락해야 성립하고, 정산엔 안 잡혀요.",
-                                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("보낼 일당",
-                                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                                    modifier = Modifier.weight(1f))
-                                Box(Modifier.width(120.dp)) {
-                                    SheetTextField(
-                                        partnerWages[k] ?: "",
-                                        { v -> partnerWages = partnerWages + (k to v.filter { c -> c.isDigit() }.take(4)) },
-                                        placeholder = "예: 25", keyboardType = KeyboardType.Number, singleLine = true,
-                                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
-                                    )
-                                }
-                                Spacer(Modifier.width(6.dp))
-                                Text("만원", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(p.name, style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                                color = TossTextPrimary, modifier = Modifier.weight(1f))
+                            Box(Modifier.width(120.dp)) {
+                                SheetTextField(
+                                    partnerWages[k] ?: "",
+                                    { v -> partnerWages = partnerWages + (k to v.filter { c -> c.isDigit() }.take(4)) },
+                                    placeholder = "예: 25", keyboardType = KeyboardType.Number, singleLine = true,
+                                    visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
+                                )
                             }
+                            Spacer(Modifier.width(6.dp))
+                            Text("만원", style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                         }
                     }
+                    // 사람마다 다르게 적을 수 있다는 걸 한 줄로. 전엔 사람마다 같은 설명이 반복됐다.
+                    Text(
+                        if (selectedPartnerList.size > 1) "사람마다 다르게 적을 수 있어요."
+                        else "이 현장에서 보낼 일당이에요.",
+                        style = AppType.caption, color = TossTextTertiary,
+                        modifier = Modifier.padding(top = 6.dp, start = 2.dp)
+                    )
                 }
             }
 
@@ -2581,8 +2595,15 @@ private fun AssignTeamSheet(
                     .padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
+                // 📤 **버튼이 이름을 말한다.** 「1명에게」는 누구인지 안 보여
+                //   위를 다시 올려봐야 했다. (2026-09-26 프로토 F1ERiGmCxX)
+                val pickedNames = collabPartners.filter { key(it.phone) in selectedPartners }.map { it.name }
                 Text(
                     when {
+                        anySelected && pickedNames.size == 1 && totalCount == 1 ->
+                            "${pickedNames.first()}에게 보내기"
+                        anySelected && pickedNames.size > 1 && totalCount == pickedNames.size ->
+                            "${pickedNames.first()} 외 ${pickedNames.size - 1}명에게 보내기"
                         anySelected -> "${totalCount}명에게 보내기"
                         isCancelAll -> "배정 모두 취소"
                         else -> "부를 사람을 골라주세요"
@@ -2593,6 +2614,15 @@ private fun AssignTeamSheet(
                         else -> TossTextTertiary
                     },
                     fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
+                )
+            }
+            // ⚖️ 긴 설명은 **보내기 직전**에 읽으면 된다 — 위에 있으면 일당을 가린다.
+            if (anySelected) {
+                Text(
+                    "수락해야 성립해요 · 정산엔 안 잡혀요",
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
             }
