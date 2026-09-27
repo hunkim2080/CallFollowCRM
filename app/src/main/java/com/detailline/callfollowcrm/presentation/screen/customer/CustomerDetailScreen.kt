@@ -801,7 +801,10 @@ fun CustomerDetailScreen(
                     if (showCollabShare.value) {
                         CollabShareSheet(
                             siteTitle = siteTitle, addr = displayAddr, scheduledAtMs = c.scheduledWorkDate,
-                            customerId = c.id, onShared = { collabRefresh++ }, onDismiss = { showCollabShare.value = false }
+                            customerId = c.id,
+                            // 이미 부른 사장님 — 줄에 「요청함」을 붙이기 위해.
+                            requestedPhones = collabPartners.map { it.first },
+                            onShared = { collabRefresh++ }, onDismiss = { showCollabShare.value = false }
                         )
                     }
                     // 여기선 협업 중인 사장님 진행 표시.
@@ -4485,6 +4488,8 @@ private fun CollabShareSheet(
     addr: String?,
     scheduledAtMs: Long?,
     customerId: Long,
+    /** 이 현장에 이미 요청을 보낸 사장님 번호들 — 줄에 「요청함」을 붙인다. (2026-09-27) */
+    requestedPhones: List<String> = emptyList(),
     onShared: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -4497,6 +4502,37 @@ private fun CollabShareSheet(
     var dailyWage by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var startHour by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) } // 출근 시간(24h). -1 = 미선택
     var sending by remember { mutableStateOf(false) }
+    /** 고른 사장님들 — 번호 끝 8자리. (2026-09-27 사장님 "다중선택가능") */
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    /** 끝 8자리 → 일당(만원, 글자). 사람마다 다르게 적을 수 있다. */
+    val wages = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
+    var memo by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    /** 번호 직접 넣기는 **접어 둔다** — 처음 부르는 분일 때만 쓰는 길이다. */
+    var manualOpen by remember { mutableStateOf(false) }
+    /** 이 현장에 이미 요청을 보낸 사장님(끝 8자리). 줄에 「요청함」으로 표시만 한다. */
+    val requestedKeys = remember(requestedPhones) {
+        requestedPhones.map { it.filter { c -> c.isDigit() }.takeLast(8) }.filter { it.isNotEmpty() }.toSet()
+    }
+    /** 몇 번 같이 갔나 — 많이 부른 사람이 위로. */
+    val freq = remember(workers) {
+        container.preferences.collabAssignments.mapNotNull {
+            it.split("|").getOrNull(1)?.filter { c -> c.isDigit() }?.takeLast(8)
+        }.groupingBy { it }.eachCount()
+    }
+    val people = remember(workers, freq) {
+        workers.filter { it.phone.filter { c -> c.isDigit() }.length >= 9 }
+            .distinctBy { it.phone.filter { c -> c.isDigit() }.takeLast(8) }
+            .sortedWith(compareByDescending<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity> {
+                freq[it.phone.filter { c -> c.isDigit() }.takeLast(8)] ?: 0
+            }.thenBy { it.name })
+    }
+    /** 보낼 번호들 — 고른 사람 + (열어서 채웠으면) 직접 넣은 번호. */
+    fun pickedPhones(): List<String> {
+        val fromList = people.map { it.phone.filter { c -> c.isDigit() } }
+            .filter { it.takeLast(8) in selected }
+        val manual = partnerPhone.filter { it.isDigit() }.takeIf { manualOpen && it.length >= 9 }
+        return (fromList + listOfNotNull(manual)).distinctBy { it.takeLast(8) }
+    }
 
     fun hourLabel(h: Int): String {
         val ampm = if (h < 12) "오전" else "오후"
@@ -4509,20 +4545,21 @@ private fun CollabShareSheet(
         else java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA).format(java.util.Date(scheduledAtMs))
     }
 
-    fun send() {
+    /** 고른 사람들에게 **차례로** 보낸다. 하나가 실패해도 나머지는 간다. */
+    fun sendAll() {
         if (sending) return
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length < 9) {
             android.widget.Toast.makeText(context, "먼저 더보기 → 견적서·사업자 정보에서 내 전화번호를 등록해주세요", android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        val partner = partnerPhone.filter { it.isDigit() }
-        if (partner.length < 9) {
-            android.widget.Toast.makeText(context, "함께 할 사장님 번호를 확인해주세요", android.widget.Toast.LENGTH_SHORT).show()
+        val picks = pickedPhones()
+        if (picks.isEmpty()) {
+            android.widget.Toast.makeText(context, "부를 사장님을 골라주세요", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         sending = true
-        // 출근 시간 선택 시: 일정 날짜에 그 시각(정시)을 박아 scheduledAtMs 로 보냄 + time_label 도 함께.
+        // 출근 시간 — 그 날짜에 정시를 박아 보낸다.
         val baseMs = scheduledAtMs ?: 0L
         val effectiveMs = if (startHour in 0..23 && baseMs > 0L) {
             java.util.Calendar.getInstance().apply {
@@ -4534,193 +4571,296 @@ private fun CollabShareSheet(
             }.timeInMillis
         } else baseMs
         val timeLabel = startHour.takeIf { it in 0..23 }?.let { hourLabel(it) }
+        val memoToSend = memo.trim().takeIf { it.isNotBlank() }
         scope.launch {
-            val res = container.sharedSiteRepository.invite(
-                ownerPhone = owner, partnerPhone = partner, title = siteTitle,
-                addr = addr, scheduledAtMs = effectiveMs,
-                workSummary = null, memo = null, customerLabel = siteTitle,
-                dailyWage = dailyWage.toIntOrNull(), timeLabel = timeLabel,
-                ownerName = container.preferences.bizName
-            )
-            sending = false
-            res.onSuccess { r ->
-                val partnerName = workers.firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }?.name
-                    ?: partner
-                val existsInNotebook = workers.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
-                if (!existsInNotebook) {
+            var ok = 0
+            var linkOpened = false
+            var dedupedAny = false
+            for (partner in picks) {
+                val k8 = partner.takeLast(8)
+                val res = container.sharedSiteRepository.invite(
+                    ownerPhone = owner, partnerPhone = partner, title = siteTitle,
+                    addr = addr, scheduledAtMs = effectiveMs,
+                    workSummary = null, memo = memoToSend, customerLabel = siteTitle,
+                    dailyWage = wages[k8]?.toIntOrNull(), timeLabel = timeLabel,
+                    ownerName = container.preferences.bizName
+                )
+                res.onSuccess { r ->
+                    ok++
+                    val partnerName = workers.firstOrNull {
+                        it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == k8
+                    }?.name ?: partner
+                    // 명부에 없던 번호면 넣어둔다 — 다음엔 이름으로 고를 수 있게.
+                    if (workers.none { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == k8 }) {
+                        runCatching {
+                            container.notebookRepository.add(
+                                kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
+                                name = partner, phone = partner, tag = "협업",
+                                memo = "협업 현장으로 함께 일한 사장님"
+                            )
+                        }
+                    }
                     runCatching {
-                        container.notebookRepository.add(
-                            kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
-                            name = partner,
-                            phone = partner,
-                            tag = "협업",
-                            memo = "협업 현장으로 함께 일한 사장님"
+                        val already = container.preferences.collabAssignments.any { e ->
+                            val p = e.split("|")
+                            p.size >= 3 && p[0].toLongOrNull() == customerId &&
+                                p[1].filter { ch -> ch.isDigit() }.takeLast(8) == k8
+                        }
+                        if (!already) {
+                            container.preferences.collabAssignments =
+                                container.preferences.collabAssignments + "$customerId|$partner|$partnerName|${r.shareId}"
+                        }
+                    }
+                    if (r.deduped) dedupedAny = true
+                    // 📨 문자 링크는 **한 번만** 연다 — 문자앱이 여러 번 뜨면 뭐가 뭔지 모른다.
+                    if (!r.deduped && r.route == "link" && !r.url.isNullOrBlank() && !linkOpened) {
+                        linkOpened = true
+                        com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(
+                            context, partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}"
                         )
                     }
                 }
-                // 로컬 협업 기록(공유후카드 + 캘린더 🤝 표시용) — "customerId|phone|name". 번호 끝 8자리로 중복 방지.
-                runCatching {
-                    val key8 = partner.takeLast(8)
-                    val already = container.preferences.collabAssignments.any { e ->
-                        val p = e.split("|"); p.size >= 3 && p[0].toLongOrNull() == customerId && p[1].filter { it.isDigit() }.takeLast(8) == key8
-                    }
-                    if (!already) {
-                        container.preferences.collabAssignments = container.preferences.collabAssignments + "$customerId|$partner|$partnerName|${r.shareId}"
-                    }
-                    onShared()
-                }
-                if (r.deduped) {
-                    android.widget.Toast.makeText(context, "이미 이 현장으로 협업 중인 사장님이에요. (새 알림은 안 가요 — 다른 현장·사람은 새로 가요)", android.widget.Toast.LENGTH_LONG).show()
-                } else if (r.route == "link" && !r.url.isNullOrBlank()) {
-                    val body = r.smsDraft ?: "협업 현장 공유 — ${r.url}"
-                    com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, partner, body)
-                    android.widget.Toast.makeText(context, "문자로 공유 링크를 보냈어요", android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    android.widget.Toast.makeText(context, "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요", android.widget.Toast.LENGTH_LONG).show()
-                }
+            }
+            sending = false
+            if (ok > 0) {
+                onShared()
+                android.widget.Toast.makeText(
+                    context,
+                    when {
+                        dedupedAny && ok == 1 -> "이미 이 현장으로 협업 중인 사장님이에요"
+                        ok == 1 -> "협업 요청을 보냈어요 — 수락하면 시작돼요"
+                        else -> "${ok}명에게 협업 요청을 보냈어요"
+                    },
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
                 onDismiss()
-            }.onFailure {
-                android.widget.Toast.makeText(context, "공유하지 못했어요 — 잠시 후 다시 해주세요", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(context, "보내지 못했어요 — 잠시 후 다시 해주세요", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()
+            shape = AppShape.lg, color = Color.White, modifier = Modifier.fillMaxWidth()
         ) {
-            // 내용은 스크롤, "협업 요청 보내기" 버튼은 하단 고정 — 칩 많을 때 버튼이 화면 밖으로 잘리던 문제. (2026-06-12 사장님)
-            Column(Modifier.heightIn(max = 600.dp).padding(20.dp)) {
+            Column(Modifier.heightIn(max = 620.dp).padding(20.dp)) {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-                Text("협업 현장으로 공유", style = MaterialTheme.typography.titleLarge, color = TossTextPrimary, fontWeight = FontWeight.Bold)
+                // 이름은 **일정 쪽과 하나로**. 같은 일을 두 이름으로 부르지 않는다. (2026-09-27 사장님)
+                Text("같이 할 사장님", style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
-                // 현장 카드
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)) {
-                    Text(siteTitle, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                // 어느 현장인지 — **주소는 한 번만.** 전엔 제목과 아랫줄에 같은 주소가 두 번 나왔다.
+                Column(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(13.dp)) {
+                    Text(siteTitle, style = AppType.headline, color = TossTextPrimary)
                     Spacer(Modifier.height(3.dp))
-                    Text(dateLabel + (addr?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                    Text(
+                        dateLabel + (addr?.takeIf { it.isNotBlank() }
+                            ?.let { a -> if (siteTitle.contains(a.take(6))) "" else " · $a" } ?: ""),
+                        style = AppType.label, color = TossTextTertiary, lineHeight = 17.sp
+                    )
                 }
-                Spacer(Modifier.height(14.dp))
-                // 자주 부르는 사람 — 번호 치기 전에 먼저 (많이 부른 순). 수첩(협업/일당·알바) 등록자 자동 목록. (2026-08-28 사장님)
-                run {
-                    val freq = container.preferences.collabAssignments.mapNotNull {
-                        it.split("|").getOrNull(1)?.filter { c -> c.isDigit() }?.takeLast(8)
-                    }.groupingBy { it }.eachCount()
-                    val picks = workers
-                        .filter { it.phone.filter { c -> c.isDigit() }.length >= 9 }
-                        .sortedByDescending { freq[it.phone.filter { c -> c.isDigit() }.takeLast(8)] ?: 0 }
-                        .take(10)
-                    if (picks.isNotEmpty()) {
-                        Text("자주 부르는 사람 — 눌러서 선택", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                            modifier = Modifier.padding(bottom = 6.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            picks.forEach { w ->
-                                val n = freq[w.phone.filter { c -> c.isDigit() }.takeLast(8)] ?: 0
-                                CollabPhoneChip(w.name + (if (n > 0) " ·$n" else "")) { partnerPhone = w.phone.filter { it.isDigit() } }
+                Spacer(Modifier.height(16.dp))
+
+                // ── 누구를 부를까 — **이름 목록.** 알약은 이름만 보여 누군지 몰랐다. (2026-09-27 사장님)
+                Text("누구를 부를까요", style = AppType.label, fontWeight = FontWeight.Bold,
+                    color = TossTextTertiary, modifier = Modifier.padding(bottom = 7.dp))
+                if (people.isEmpty()) {
+                    Text("아직 등록한 사장님이 없어요 — 아래 [번호로 부르기]로 처음 한 번만 번호를 넣어주세요.",
+                        style = AppType.label, color = TossTextTertiary, lineHeight = 18.sp)
+                } else {
+                    Column(Modifier.fillMaxWidth().clip(AppShape.md)
+                        .border(1.dp, AppTheme.colors.line, AppShape.md)) {
+                        people.forEachIndexed { idx, w ->
+                            val k8 = w.phone.filter { it.isDigit() }.takeLast(8)
+                            val on = k8 in selected
+                            val asked = k8 in requestedKeys
+                            if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                            androidx.compose.foundation.layout.Row(
+                                Modifier.fillMaxWidth()
+                                    .background(if (on) AppTheme.colors.categoryBg else Color.Transparent)
+                                    .clickable { selected = if (on) selected - k8 else selected + k8 }
+                                    .padding(horizontal = 11.dp, vertical = 10.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier.size(33.dp).clip(AppShape.md)
+                                        .background(if (on) AppTheme.colors.category else AppTheme.colors.categoryBg),
+                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                ) {
+                                    if (on) Icon(Icons.Default.Check, null, tint = Color.White,
+                                        modifier = Modifier.size(16.dp))
+                                    else Text(w.name.take(1), fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black, color = AppTheme.colors.category)
+                                }
+                                Spacer(Modifier.width(11.dp))
+                                Column(Modifier.weight(1f)) {
+                                    androidx.compose.foundation.layout.Row(
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    ) {
+                                        Text(w.name, style = AppType.body, fontWeight = FontWeight.Bold,
+                                            color = TossTextPrimary, maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                        if (asked) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("요청함", style = AppType.caption, fontWeight = FontWeight.Bold,
+                                                color = AppTheme.colors.category)
+                                        }
+                                    }
+                                    // ☎️ **번호 먼저.** 이름만으론 누군지 못 알아본다. (2026-09-26 사장님)
+                                    val n = freq[k8] ?: 0
+                                    Text(
+                                        com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(w.phone) +
+                                            (if (n > 0) " · 함께 ${n}번" else " · 아직 같이 안 감"),
+                                        style = AppType.caption, color = TossTextTertiary, maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text("목록에 없으면 아래에 번호를 직접 입력하세요.", fontSize = 11.sp, color = TossTextTertiary)
-                        Spacer(Modifier.height(14.dp))
                     }
                 }
-                Text("함께 할 사장님 번호", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                    modifier = Modifier.padding(bottom = 6.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = partnerPhone,
-                    onValueChange = { partnerPhone = it.filter { c -> c.isDigit() }.take(11) },
-                    placeholder = { Text("010-0000-0000", color = TossTextTertiary) },
-                    singleLine = true,
-                    visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
-                    modifier = Modifier.fillMaxWidth()
+                Spacer(Modifier.height(9.dp))
+                // 번호로 부르기 — 처음 부르는 분일 때만 쓰는 길이라 **접어 둔다.**
+                Text(
+                    if (manualOpen) "번호로 부르기 접기" else "목록에 없어요 · 번호로 부르기",
+                    style = AppType.label, color = TossBlue,
+                    modifier = Modifier.fillMaxWidth().clip(AppShape.sm)
+                        .clickable { manualOpen = !manualOpen }.padding(vertical = 9.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                Spacer(Modifier.height(4.dp))
-                Text("시공막내 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.", fontSize = 11.sp, color = TossTextTertiary)
+                if (manualOpen) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = partnerPhone,
+                        onValueChange = { partnerPhone = it.filter { c -> c.isDigit() }.take(11) },
+                        placeholder = { Text("010-0000-0000", color = TossTextTertiary) },
+                        singleLine = true,
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
-                // 그날 일당 — 번호 바로 밑(눈에 띄게). 불러오기 칩은 그 아래.
-                Spacer(Modifier.height(14.dp))
-                Text("그날 일당 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                    modifier = Modifier.padding(bottom = 6.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = dailyWage,
-                    onValueChange = { dailyWage = it.filter { c -> c.isDigit() }.take(4) },
-                    placeholder = { Text("25", color = TossTextTertiary) },
-                    trailingIcon = { Text("만원", color = TossTextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp)) },
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 돼요.", fontSize = 11.sp, color = TossTextTertiary)
+                // ── 일당 — 고른 사람마다. 전엔 칸이 하나뿐이라 여러 명을 부를 수 없었다.
+                val pickedPeople = people.filter { it.phone.filter { c -> c.isDigit() }.takeLast(8) in selected }
+                if (pickedPeople.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text("보낼 일당", style = AppType.label, fontWeight = FontWeight.Bold,
+                        color = TossTextTertiary, modifier = Modifier.padding(bottom = 7.dp))
+                    pickedPeople.forEach { w ->
+                        val k8 = w.phone.filter { it.isDigit() }.takeLast(8)
+                        androidx.compose.foundation.layout.Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(w.name, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = TossTextPrimary, modifier = Modifier.weight(1f), maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            Box(Modifier.width(96.dp)) {
+                                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                                    wages[k8].orEmpty(),
+                                    { v -> wages[k8] = v.filter { c -> c.isDigit() }.take(4) },
+                                    placeholder = "25",
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                )
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text("만원", style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                        }
+                    }
+                    Text(
+                        if (pickedPeople.size > 1) "사람마다 다르게 적을 수 있어요. 비워도 돼요."
+                        else "이 현장에서 보낼 일당이에요. 비워도 돼요.",
+                        style = AppType.caption, color = TossTextTertiary, modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
 
-                // 출근 시간 — 상대 사장님이 "몇 시까지 가면 되는지" 알게. 정시 칩으로 빠르게.
-                Spacer(Modifier.height(14.dp))
-                Text("출근 시간 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                    modifier = Modifier.padding(bottom = 6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                // ── 몇 시까지 — 「안 정함」을 칩으로 둬서 되돌릴 길을 만든다.
+                Spacer(Modifier.height(16.dp))
+                Text("몇 시까지 오면 되나요", style = AppType.label, fontWeight = FontWeight.Bold,
+                    color = TossTextTertiary, modifier = Modifier.padding(bottom = 7.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
-                        val selected = startHour == h
+                        val sel = startHour == h
                         Box(
-                            Modifier.clip(RoundedCornerShape(999.dp))
-                                .background(if (selected) AppTheme.colors.category else TossGrayBg)
-                                .clickable { startHour = if (selected) -1 else h }
+                            Modifier.clip(AppShape.pill)
+                                .background(if (sel) AppTheme.colors.category else TossGrayBg)
+                                .clickable { startHour = if (sel) -1 else h }
                                 .padding(horizontal = 13.dp, vertical = 8.dp)
                         ) {
-                            Text(hourLabel(h), fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (selected) Color.White else TossTextSecondary, maxLines = 1)
+                            Text(hourLabel(h), style = AppType.label, fontWeight = FontWeight.Bold,
+                                color = if (sel) Color.White else TossTextSecondary, maxLines = 1)
                         }
                     }
+                    Box(
+                        Modifier.clip(AppShape.pill)
+                            .background(if (startHour !in 0..23) AppTheme.colors.category else TossGrayBg)
+                            .clickable { startHour = -1 }
+                            .padding(horizontal = 13.dp, vertical = 8.dp)
+                    ) {
+                        Text("안 정함", style = AppType.label, fontWeight = FontWeight.Bold,
+                            color = if (startHour !in 0..23) Color.White else TossTextSecondary, maxLines = 1)
+                    }
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    if (startHour in 0..23) "출발 2시간 전에 상대 사장님께 '오늘 ${hourLabel(startHour)} ○○ 현장' 알림이 가요."
-                    else "정하면 상대 사장님께 시작 시간이 보여요. 안 정해도 돼요.",
-                    fontSize = 11.sp, color = TossTextTertiary
-                )
 
-                val workerCandidates = workers.filter { it.phone.filter { ch -> ch.isDigit() }.length >= 9 }.take(8)
-                val smsCandidates = recentSmsContacts
-                    .filter { it.address.filter { ch -> ch.isDigit() }.length >= 9 }
-                    .filterNot { sms -> workerCandidates.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == sms.address.filter { ch -> ch.isDigit() }.takeLast(8) } }
-                    .take(8)
-                // (수첩 사람 목록은 위 '자주 부르는 사람'으로 올렸음 — 2026-08-28 사장님) 여기선 최근 문자만.
-                if (smsCandidates.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text("최근 문자에서 불러오기", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                    Spacer(Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        smsCandidates.forEach { s ->
-                            CollabPhoneChip(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(s.address)) { partnerPhone = s.address.filter { it.isDigit() } }
-                        }
-                    }
+                // ── 전해둘 말 — 일정 쪽 시트엔 있었는데 여기만 없어 따로 문자해야 했다.
+                Spacer(Modifier.height(16.dp))
+                Text("전해둘 말", style = AppType.label, fontWeight = FontWeight.Bold,
+                    color = TossTextTertiary, modifier = Modifier.padding(bottom = 7.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    memo, { memo = it },
+                    placeholder = "예) 지하 주차장 B2 · 현관 비번 1234#",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (pickedPeople.size > 1) {
+                    Text("고른 사장님 모두에게 같이 전달돼요.", style = AppType.caption,
+                        color = TossTextTertiary, modifier = Modifier.padding(top = 4.dp))
                 }
-                Spacer(Modifier.height(14.dp))
-                // 벽 안내
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
-                    Text("상대 사장님께 보이는 것", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                    Spacer(Modifier.height(6.dp))
-                    Text("• 날짜·시간·주소·시공 범위\n• 전달 메모·사진·출발/도착/완료", fontSize = 12.5.sp, color = Color(0xFF3A4A66), lineHeight = 19.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("✕ 고객 전화번호·대화·다른 고객은 안 보여요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.unpaid)
+
+                // ── 벽 안내 — **한 줄.** 보낼 때마다 읽는 글이 아니다.
+                Spacer(Modifier.height(16.dp))
+                Column(Modifier.fillMaxWidth().clip(AppShape.md)
+                    .background(TossGrayBg).padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Text("주소·날짜·시간·사진만 보여요 · 고객 번호와 대화는 안 보여요",
+                        style = AppType.caption, color = TossTextSecondary, lineHeight = 17.sp)
                 }
-                } // ── 스크롤 영역 끝, 아래(보내기·취소)는 하단 고정 ──
+                } // ── 스크롤 끝 ──
+
+                // 📤 **버튼이 이름을 말한다** — 누구에게 가는지 마지막에 한 번 더. (2026-09-26)
+                val pickedNames = people
+                    .filter { it.phone.filter { c -> c.isDigit() }.takeLast(8) in selected }.map { it.name }
+                val manualReady = manualOpen && partnerPhone.filter { it.isDigit() }.length >= 9
+                val total = pickedNames.size + (if (manualReady) 1 else 0)
                 Spacer(Modifier.height(16.dp))
                 androidx.compose.foundation.layout.Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.category)
-                        .clickable(enabled = !sending) { send() }.padding(vertical = 15.dp),
+                    Modifier.fillMaxWidth().clip(AppShape.md)
+                        .background(if (total > 0) AppTheme.colors.category else AppTheme.colors.surfaceMuted)
+                        .clickable(enabled = !sending && total > 0) { sendAll() }
+                        .padding(vertical = 15.dp),
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-                    Text(if (sending) "보내는 중…" else "협업 요청 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        when {
+                            sending -> "보내는 중…"
+                            total == 0 -> "부를 사장님을 골라주세요"
+                            total == 1 && pickedNames.size == 1 -> "${pickedNames.first()}에게 요청 보내기"
+                            total == 1 -> "요청 보내기"
+                            pickedNames.isNotEmpty() -> "${pickedNames.first()} 외 ${total - 1}명에게 요청 보내기"
+                            else -> "${total}명에게 요청 보내기"
+                        },
+                        color = if (total > 0) Color.White else TossTextTertiary,
+                        fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
-                Text("자동 발송 아님 · 상대가 수락해야 시작돼요", fontSize = 11.5.sp, color = TossTextTertiary,
+                Text("자동 발송 아님 · 상대가 수락해야 시작돼요", style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
                 Text("취소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onDismiss() }.padding(vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth().clip(AppShape.sm).clickable { onDismiss() }.padding(vertical = 10.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
