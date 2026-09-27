@@ -485,25 +485,32 @@ object IncomingCallOverlay {
                 .onFailure { android.util.Log.e(TAG, "bind FAILED (1st)", it) }
         }
 
+        // 🎬 **미리보기와 진짜 통화는 정반대다.** (2026-09-27 사장님)
+        //   · 진짜 통화 카드 = 통화 화면 위에 **얹은 쪽지**.
+        //       뒤(스피커·키패드·끊기)가 눌려야 하고 어두워지면 안 된다.
+        //       🔴 NOT_TOUCH_MODAL 이 빠지면 **메모를 여는 순간 통화 버튼이 다 죽는다.**
+        //         메모는 키보드를 받으려고 NOT_FOCUSABLE 을 뗀다. 그런데 안드로이드는
+        //         **포커스를 가진 창에 이 깃발이 없으면 창 밖 터치까지 그 창이 다 먹는다.**
+        //         창 높이를 카드만큼 줄인 것만으론 안 막힌다 — 높이와 상관없이 먹는다.
+        //   · 미리보기 = 설정에서 띄운 **새 창**.
+        //       뒤가 안 눌려야 하고 **배경이 어두워져야** 「창이 떴다」고 읽힌다.
+        //       포커스를 받아야 [뒤로가기]도 온다 — 전엔 NOT_FOCUSABLE 이라 키가 안 왔다.
+        val baseFlags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,   // 카드 높이만 — 아래(받기·거절)는 아예 안 덮는다
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // 카드만 만질 수 있고(탭하면 그 손님 대화로), 창이 카드 높이뿐이라 받기·거절은 원래대로 눌린다.
-            //   NOT_TOUCHABLE 을 빼는 게 위험했던 건 '전체화면' 창일 때다 — 지금은 위쪽 띠만 차지한다.
-            // 🔴 **NOT_TOUCH_MODAL 이 빠지면 메모를 여는 순간 통화 버튼이 다 죽는다.** (2026-09-27 사장님)
-            //   메모는 키보드를 받으려고 NOT_FOCUSABLE 을 뗀다. 그런데 안드로이드는
-            //   **포커스를 가진 창에 이 깃발이 없으면 창 밖 터치까지 그 창이 다 먹는다.**
-            //   창 높이를 카드만큼 줄인 것만으론 안 막힌다 — 높이와 상관없이 먹기 때문이다.
-            //   (같은 앱 PostCallTemplateOverlay 는 이미 달고 있었다. 여기만 빠졌다)
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            if (previewMode)
+                baseFlags or WindowManager.LayoutParams.FLAG_DIM_BEHIND
+            else
+                baseFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP
             y = (appContext.resources.displayMetrics.density * 34f).toInt()   // 상태바 아래
+            if (previewMode) dimAmount = 0.55f
         }
 
         runCatching { wm.addView(view, params) }
@@ -551,6 +558,9 @@ object IncomingCallOverlay {
      *   창 높이가 카드만큼이라 아래 버튼은 우리 창 밖 — 포커스를 받아도 안 가린다.
      */
     private fun setWindowFocusable(appContext: Context, focusable: Boolean) {
+        // 미리보기 창은 처음부터 끝까지 포커스를 갖는다(뒤를 막고 뒤로가기를 받으려고).
+        //   여기서 건드리면 메모를 닫는 순간 그 성질이 풀린다. 그대로 둔다.
+        if (previewMode) return
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
         val v = currentView ?: return
         val p = currentParams ?: return
