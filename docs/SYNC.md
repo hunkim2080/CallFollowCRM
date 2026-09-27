@@ -11955,3 +11955,14 @@ UX 점검 **남은 것 넷 마무리.**
 멤버 목록 「설치」 칸에 버전·마지막 본 시각 표시
 - 변경: 관리자 화면만. `installWhen(u)` 추가 — app_version / app_version_seen_ms 를 딱지 밑에.
 - 라이브 백업: `main.py.bak-20260927-*-instver`
+
+## 2026-09-27 15:40 · android
+보낸 문서 카드(옛 「발행 이력」) 리디자인 — 프로토 9yBesWtidv1WL4X3qHsf4M 그대로
+- 변경: 앱만. `CustomerDetailScreen.IssuedDocRow` 를 Row → Column 으로 다시 썼습니다.
+  제목에 **시공일이 맨 앞**(「9월 28일 시공접수서」), 그 아래 「내가 보냄 / 손님이 씀」 두 줄,
+  시공 부위·주소는 카드에서 빼고 **탭해서** 보기. 「다시 보기」 글자는 카드 탭과 같은 것이라 없앴습니다.
+- 변경: **손님이 쓴 접수서는 고치기·지우기 둘 다 잠금** (사장님: 견적이 바뀐다 / 분쟁 때 볼 증거다).
+  `onEdit`·`onDelete` 가 `intakeByToken[doc.token] == null` 일 때만 붙습니다.
+- 변경: 섹션 이름 「발행 이력 N건」 → **「보낸 문서 N건」**. 안내문 한 줄 삭제(카드가 이미 말함).
+- 확인: assembleRelease 통과(brand/style/compose 가드 OK). **폰 확인은 못 했습니다** —
+  설치 중 테스트폰이 빠졌습니다. 항목은 `docs/PHONE_CHECK_TODO.md` 에 적어뒀습니다.
