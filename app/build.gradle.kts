@@ -214,3 +214,8 @@ apply(from = "$rootDir/tools/brand_guard.gradle.kts")
 // Composable early return — tools/compose_guard.gradle.kts (2026-09-24)
 //   세 번 밟은 함정. 이것 때문에 통계 탭이 꺼졌다.
 apply(from = "$rootDir/tools/compose_guard.gradle.kts")
+
+// 🧬 같은 걸 두 벌 만드는 것 — tools/dup_guard.gradle.kts (2026-09-28 사장님)
+//   "모양은 같고 코드는 둘인거? … 그래서 계속 반복된 오류가 생기는것같아. 인정해?" → 인정.
+//   기억이 아니라 빌드가 지킨다. 늘어나면 assembleRelease 가 실패한다.
+apply(from = "$rootDir/tools/dup_guard.gradle.kts")

@@ -2295,21 +2295,27 @@ private fun TodayBand(
         (it.scheduledWorkDate ?: 0L) == dayStart && it.workCompletedAt != null
     }
 
-    // 📄 **1쪽 = 오늘 · 2쪽 = 다음 시공.** (2026-09-20 사장님 "옆으로 쓱 넘기면 다음 일정")
-    //   다음 시공이 없으면 1쪽만 — 넘길 게 없으면 점도 안 그린다.
-    val pageCount = if (hasNext) 2 else 1
+    // 📄 **오늘 것을 한 쪽씩, 다 보고 나서 다음 시공.** (2026-09-28 사장님)
+    //   전엔 1쪽=오늘 **첫 곳**, 2쪽=다음 시공이었다. 그런데 글자엔 「(1/2)」라 적혀 있어
+    //   넘기면 오늘 2번째가 나올 줄 아셨다 — 실제로는 **내일**이 나왔다.
+    //   한 몸짓에 두 가지 뜻이 섞여 있던 셈이다. 이제 (1/2) → (2/2) → 다음 시공.
+    //   오늘 아무것도 없으면 그 자리는 안내 한 쪽(빈 날·끝난 날)으로 쓴다.
+    val todaySlots = maxOf(total, 1)
+    val pageCount = todaySlots + (if (hasNext) 1 else 0)
     val pager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pageCount })
 
     Column(Modifier.fillMaxWidth()) {
         androidx.compose.foundation.pager.HorizontalPager(state = pager) { page ->
-            if (page == 0) {
-                if (target != null) {
-                    val mins = target.scheduledWorkMinutes
+            if (page < todaySlots) {
+                // 이 쪽이 가리키는 오늘 현장. 내 시공을 먼저, 그 뒤에 협업 현장.
+                val slot = ordered.getOrNull(page)
+                if (slot != null) {
+                    val mins = slot.scheduledWorkMinutes
                     val timeText = mins?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "시간 미정"
                     val passed = mins != null && now > dayStart + mins * 60_000L
-                    val who = target.name?.takeIf { it.isNotBlank() }
-                        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(target.phoneNumber)
-                    val addr = target.address?.trim()?.takeIf { it.isNotBlank() }
+                    val who = slot.name?.takeIf { it.isNotBlank() }
+                        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(slot.phoneNumber)
+                    val addr = slot.address?.trim()?.takeIf { it.isNotBlank() }
                     BandShell(
                         bg = Color(0xFF0B7C5E), fg = Color.White, subFg = Color(0xFFA8E6CE),
                         // 🔨 → 앱이 그리는 아이콘. 이 띠의 다른 네 경우는 이미 iconVector 를 쓴다. (2026-09-22)
@@ -2318,12 +2324,13 @@ private fun TodayBand(
                             append(timeText)
                             if (passed) append(" (지났어요)")
                             append(" · "); append(who)
-                            if (total > 1) append("  (1/").append(total).append(")")
+                            // 몇 번째인지 — 넘긴 쪽과 **같은 숫자**여야 한다. (2026-09-28 사장님)
+                            if (total > 1) append("  (").append(page + 1).append("/").append(total).append(")")
                         },
                         line2 = addr ?: "주소 아직 없어요",
                         action = if (passed) "완료" else if (addr != null) "길찾기" else null,
-                        onAction = { if (passed) onComplete(target) else onNavigateAddr(addr) },
-                        onTap = { onOpenChat(target.phoneNumber, target.id) }
+                        onAction = { if (passed) onComplete(slot) else onNavigateAddr(addr) },
+                        onTap = { onOpenChat(slot.phoneNumber, slot.id) }
                     )
                 } else if (collabToday != null) {
                     // 오늘 갈 데가 협업 현장뿐일 때. 전엔 이 경우에도 "오늘은 시공이 없어요" 라고 했다.
@@ -2337,7 +2344,8 @@ private fun TodayBand(
                         iconBg = Color.White, iconTint = AppTheme.colors.category,
                         line1 = "오늘 협업" +
                             (collabToday.timeLabel?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
-                            (collabToday.ownerName.takeIf { it.isNotBlank() }?.let { " · ${it}님" } ?: ""),
+                            (collabToday.ownerName.takeIf { it.isNotBlank() }?.let { " · ${it}님" } ?: "") +
+                            (if (total > 1) "  (${page + 1}/$total)" else ""),
                         line2 = cAddr ?: collabToday.title,
                         action = if (cAddr != null) "길찾기" else null,
                         onAction = { onNavigateAddr(cAddr) },
