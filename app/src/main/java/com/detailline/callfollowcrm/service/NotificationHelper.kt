@@ -719,12 +719,23 @@ object NotificationHelper {
         auto: Boolean = false
     ) {
         val notifId = famId(FAM_COLLAB, eventId.hashCode())
-        // 협업 진행 알림(수락/출발/도착/완료)은 전부 '주인(A)'이 받음. A 는 '받은 협업현장' 목록에
-        //   이 현장이 없어 /shared/{id} 로 보내면 "공유받은 현장이 없어요"가 떠 버림(2026-06-14 버그).
-        //   기존엔 그래서 action 없이 앱만 열어 → 탭해도 아무 반응 없음(2026-06-20 사장님 신고).
-        //   → A 의 "내가 공유한 현장" 탭으로 보냄(거기서 수락/진행 확인). ACTION_COLLAB_MINE.
+        // 📍 **그 현장 한 곳으로 보낸다.** (2026-09-28 사장님 "여기페이지로 왜보내지? 하는 느낌")
+        //   「○○ 사장님이 출발했어요」를 누른 다음 궁금증은 **어디까지 왔나**인데,
+        //   목록까지만 데려다주면 다섯 줄 중에서 그 현장을 **다시 찾아 눌러야** 한다.
+        //
+        //   🔴 옛 내력: 2026-06-14 에 /shared/{id} 로 보냈더니 주인(A)에겐
+        //      "공유받은 현장이 없어요"가 떴다 — 주인은 '받은 현장' 목록에 그게 없으니까.
+        //      그래서 목록(ACTION_COLLAB_MINE)으로 돌렸는데, 그 뒤 `customerIdForShareId` 가 생겨
+        //      **주인이면 고객정보 협업 탭**(진행 표시가 있는 자리)으로 제대로 간다.
+        //      댓글·사진 알림은 이미 그 길을 쓰고 있었다 — 진행 알림만 옛 길에 남아 있었다.
         val openIntent = Intent(context, MainActivity::class.java).apply {
-            action = MainActivity.ACTION_COLLAB_MINE
+            if (shareId.isNotBlank()) {
+                action = MainActivity.ACTION_COLLAB_SITE
+                putExtra(MainActivity.EXTRA_SHARE_ID, shareId)
+            } else {
+                // 어느 현장인지 모르면 목록이라도. (옛 알림·서버가 id 를 안 준 경우)
+                action = MainActivity.ACTION_COLLAB_MINE
+            }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pending = PendingIntent.getActivity(
@@ -778,7 +789,15 @@ object NotificationHelper {
             title = pushTitle,
             msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
             contentIntent = pending,
-            actions = listOf(PushAction("협업 현장 보기", pending))
+            // 단추 이름은 **그 알림의 다음 궁금증**을 말한다.
+            actions = listOf(PushAction(
+                when (kind) {
+                    "departed", "arrived" -> "어디까지 왔나 보기"
+                    "completed" -> "끝난 현장 보기"
+                    else -> "협업 현장 보기"
+                },
+                pending
+            ))
         )
     }
 
