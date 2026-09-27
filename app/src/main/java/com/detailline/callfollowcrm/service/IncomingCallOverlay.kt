@@ -798,9 +798,14 @@ private class CallerCardView(
     private val dayDetailBody = LinearLayout(context)
     /** 칸 14개 — 한 번 만들고 다시 칠한다. */
     private val dayCells = ArrayList<DayCell>(14)
-    /** 접었다 폈다 하는 버튼 — 시공했던 손님은 기억이 먼저라 일정을 접어 둔다. */
+    /** 접었다 폈다 하는 버튼. 기본은 펼침 — 카드가 길면 접을 수 있게 남겨둔다. */
     private val schedToggleTv = mkText(11.5f, HINT_C, bold = true)
-    private var schedExpanded = false
+    /**
+     * 📅 **기본은 펼쳐 둔다.** (2026-09-27 사장님 "일정 캘린더가 기본으로 펼쳐있음 좋을듯")
+     *   전화를 받으면 손님이 바로 "언제 돼요?" 하는데,
+     *   빈 날을 보려면 버튼을 한 번 더 눌러야 했다. 통화 중엔 그 한 번이 번거롭다.
+     */
+    private var schedExpanded = true
     /** 신규는 접기 버튼 없이 항상 펼친다 — 볼 게 일정밖에 없다. */
     private var schedAlwaysOpen = false
     private var selectedDay = -1L
@@ -955,6 +960,13 @@ private class CallerCardView(
     /** 메모 열기/닫기 — 열 때만 창이 키보드를 받는다. 닫으면 **반드시** 되돌린다. */
     private fun openMemo(open: Boolean) {
         memoOpen = open
+        // 📏 메모를 열 때는 **일정을 접는다.** 둘 다 펼치면 카드가 통화 버튼까지 내려온다.
+        //   순서도 그렇다 — 달력을 보고 날짜를 정한 뒤에 적는다. (2026-09-27)
+        //   접기 버튼은 그대로 있으니 다시 펼칠 수 있다.
+        if (open && schedExpanded && !schedAlwaysOpen) {
+            schedExpanded = false
+            applySchedVisibility()
+        }
         memoBtn.visibility = if (open) View.GONE else View.VISIBLE
         memoBox.visibility = if (open) View.VISIBLE else View.GONE
         onMemoFocus(open)
