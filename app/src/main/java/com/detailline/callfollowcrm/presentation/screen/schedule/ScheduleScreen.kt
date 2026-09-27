@@ -1635,11 +1635,27 @@ private fun DayJobCard(
                             Spacer(Modifier.width(8.dp))
                         }
                         Text(
-                            // 수락된 협업 = "🤝 이름", 아직 수락 안 된(pending) = "🤝 이름 · 요청 중". (2026-07-09 사장님)
-                            (assignedMembers.map { it.memberName } +
-                                collabPartnerNames.map { (nm, acc) -> if (acc) "$nm" else "$nm · 요청 중" }).joinToString(", "),
+                            // 🤝 **이름만 적어두면 무슨 뜻인지 모른다.** (2026-09-27 사장님)
+                            //   "하우스픽이라고 떴는데 뭐가. 처음 보는 사람들은 뭔지 할 것 같네"
+                            //   이름 옆에 **무슨 사이인지**를 붙인다.
+                            buildString {
+                                val names = assignedMembers.map { it.memberName }
+                                val waiting = collabPartnerNames.filterNot { it.second }.map { it.first }
+                                val going = collabPartnerNames.filter { it.second }.map { it.first }
+                                val together = names + going
+                                if (together.isNotEmpty()) {
+                                    append(together.joinToString(", "))
+                                    append(if (together.size > 1) " · 같이 가요" else " 사장님과 같이 가요")
+                                }
+                                if (waiting.isNotEmpty()) {
+                                    if (isNotEmpty()) append(NEWLINE)
+                                    append(waiting.joinToString(", "))
+                                    append("께 요청했어요 · 답 기다리는 중")
+                                }
+                            },
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            lineHeight = 17.sp,
                             modifier = Modifier.weight(1f)
                         )
                         AssignBtn("변경", filled = false, onClick = onAssign)
@@ -2817,3 +2833,5 @@ private fun collabMinutes(
     }
     return Int.MAX_VALUE
 }
+
+private val NEWLINE: String = String(charArrayOf(0x0A.toChar()))
