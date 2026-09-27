@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.sharedsite
 
 import androidx.compose.material.icons.filled.Handshake
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.content.Intent
 import android.net.Uri
@@ -816,31 +817,91 @@ private fun PendingInbox(
                 .clickable { onOpen(site) }
                 .padding(14.dp)
         ) {
-            Text("${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
-            Spacer(Modifier.height(4.dp))
-            val line = buildString {
-                append(siteDisplayName(site)); append(" · "); append(dayLabel(site.scheduledAtMs))
-                timeText(site)?.let { append(" · "); append(it) }
+            // 🤝 **정할 거리는 셋뿐이다 — 어디·언제·얼마.** 한 장에 모은다. (2026-09-27 프로토 8ZuMJMLe)
+            //   전엔 주소가 제목과 여기, 시각이 「오전 9시」와 「출근 오전 9시」로 **두 번씩** 나왔다.
+            // ☎️ **번호를 문장 안에.** (2026-09-27 사장님)
+            //   "디테일라인 사장(010-8005-6674)님이 같이 하재요 — 이 느낌?
+            //    그래서 전화번호 부분만 클릭될 것 같은 색깔이나 두께를 주면 어떨까~?"
+            //   버튼 밑에 번호를 따로 달면 그것도 중복이다 — 누가 불렀는지 말하는 자리가 제자리다.
+            run {
+                val dialCtx = LocalContext.current
+                val ownerTel = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(site.ownerPhone)
+                val annotated = androidx.compose.ui.text.buildAnnotatedString {
+                    append(site.ownerName)
+                    if (ownerTel.isNotBlank()) {
+                        append(" 사장(")
+                        pushStringAnnotation("tel", site.ownerPhone.filter { it.isDigit() })
+                        withStyle(
+                            androidx.compose.ui.text.SpanStyle(
+                                color = AppTheme.colors.primary, fontWeight = FontWeight.Black,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        ) { append(ownerTel) }
+                        pop()
+                        append(")님이 같이 하재요")
+                    } else {
+                        append(" 사장님이 같이 하재요")
+                    }
+                }
+                androidx.compose.foundation.text.ClickableText(
+                    text = annotated,
+                    style = AppType.body.copy(
+                        fontWeight = FontWeight.ExtraBold, color = CollabPurple
+                    ),
+                    onClick = { off ->
+                        annotated.getStringAnnotations("tel", off, off).firstOrNull()?.let { a ->
+                            runCatching {
+                                dialCtx.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_DIAL,
+                                        android.net.Uri.parse("tel:" + a.item)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                )
             }
-            Text(line, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+            Spacer(Modifier.height(7.dp))
+            // 📍 주소는 **여기 한 번만.** 잘리지 않게 두 줄까지.
+            Text(
+                com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(site.addr)
+                    .takeIf { it.isNotBlank() } ?: siteDisplayName(site),
+                fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 21.sp,
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
             site.workSummary?.let {
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(3.dp))
                 Text(it, fontSize = 12.sp, color = Color(0xFF6B5E86), fontWeight = FontWeight.Medium,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
-            // 일당 = 수락 판단에 제일 중요 → 크게(프로토 b-invite). 없으면 "미정".
-            Spacer(Modifier.height(9.dp))
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // 언제·얼마 — 한 칸에 나란히. 일당은 수락 판단에 제일 중요하니 크게.
+            Spacer(Modifier.height(11.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(Color.White)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Text("그날 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
-                Spacer(Modifier.weight(1f))
-                Text(
-                    site.dailyWage?.let { "${it}만원" } ?: "미정",
-                    fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
-                )
+                Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("언제", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        buildString {
+                            append(dayLabel(site.scheduledAtMs))
+                            timeText(site)?.let { append(" "); append(it) }
+                        },
+                        fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+                    )
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
+                Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("그날 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        site.dailyWage?.let { "${it}만원" } ?: "미정",
+                        fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                        color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
+                    )
+                }
             }
             if (expired) {
                 Spacer(Modifier.height(8.dp))
@@ -1131,19 +1192,22 @@ private fun DetailBody(
         Spacer(Modifier.width(8.dp))
         // ☎️ 상호만 적혀 있으면 어느 사장님인지 못 알아본다. 번호를 같이 적는다. (2026-09-27 사장님)
         Text(
-            "${site.ownerName}과 함께" +
+            "${site.ownerName} 사장님과 함께" +
                 (com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(site.ownerPhone).takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
             fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium
         )
     }
     Spacer(Modifier.height(10.dp))
 
-    // 날짜·시공 카드
+    // 📍 **언제·무엇·얼마** 한 칸. 주소는 아래 「현장 주소」 카드가 맡는다 — 두 번 안 쓴다.
+    //   (2026-09-27 프로토 8ZuMJMLe · 사장님 "프로토 좋다~!")
     Card {
-        InfoRow("날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
+        InfoRow("언제", buildString {
+            append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" "); append(it) }
+        })
         site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("시공", it) }
-        // 수락 전(pending)엔 아래 큰 강조 박스에서 일당을 보여주므로 여기선 생략(중복 방지). 수락 후엔 여기서 표기.
-        if (site.status != "pending") site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("그날 일당", "${it}만원") }
+        // 수락 전(pending)엔 위 보라 카드가 일당을 크게 보여주므로 여기선 생략(중복 방지).
+        if (site.status != "pending") site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("내 일당", "${it}만원") }
     }
 
     // 대표님 전달사항
@@ -1153,7 +1217,7 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
-            Text("대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+            Text("사장님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
             // 전달사항 안 전화번호는 탭하면 다이얼러에 바로 채워져 통화 편하게. (2026-07-01 사장님)
             LinkifiedMemo(site.memo, baseColor = Color(0xFF5A4A1F))
@@ -1232,7 +1296,8 @@ private fun DetailBody(
 
     // 진행 상황 (눌러서 알려요) — 수락된 현장만. (계좌는 맨 아래로 이동, 2026-06-21 사장님)
     Spacer(Modifier.height(16.dp))
-    SectionSub("진행 상황 (눌러서 알려요)")
+    // 🗣️ **무엇을 누구에게** 알리는지 말한다. 「눌러서 알려요」만으론 알 수 없었다. (2026-09-27 프로토)
+    SectionSub("어디까지 왔는지 — 누르면 부른 사장님께 알림이 가요")
     Stepper(site.progress)
     Spacer(Modifier.height(8.dp))
 
@@ -1243,8 +1308,9 @@ private fun DetailBody(
             //   ⚠️ 출발은 시공 당일부터 — 그 전엔 버튼을 회색(비활성처럼)으로 보여 '눌러도 될 것처럼' 오해 방지. (2026-07-06 사장님)
             //   실제 클릭 차단은 onProgress 가 그날 아니면 안내 토스트로 이미 함(억지 클릭 무해).
             val beforeDay = isBeforeScheduledDay(site.scheduledAtMs)
+            // 🗣️ 회색인 이유를 **버튼 스스로** 말한다 — 전엔 버튼 안과 그 밑 두 군데서 말했다.
             StepActionButton(
-                if (beforeDay) "출발 알리기 (시공 당일부터)" else "출발 알리기",
+                if (beforeDay) "출발 알리기는 " + dayLabel(site.scheduledAtMs) + "부터" else "출발 알리기",
                 if (beforeDay) Color(0xFFE2E6EC) else ProtoBlue,
                 if (beforeDay) TossTextTertiary else Color.White
             ) {
@@ -1252,8 +1318,8 @@ private fun DetailBody(
             }
             Spacer(Modifier.height(7.dp))
             Text(
-                if (beforeDay) "출발은 시공 당일에 누를 수 있어요. 당일이 되면 파랗게 켜져요."
-                else "누르면 주인 사장님께 '출발했어요' 알림이 가요. 이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요.",
+                if (beforeDay) ""
+                else "이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
         }
@@ -1419,7 +1485,7 @@ private fun OwnerSharedDetail(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(AppTheme.colors.cautionBg).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
-            Text("대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+            Text("사장님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
             LinkifiedMemo(memo, baseColor = Color(0xFF5A4A1F))
         }
