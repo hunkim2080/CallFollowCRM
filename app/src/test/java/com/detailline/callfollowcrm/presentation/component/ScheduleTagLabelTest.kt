@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.component
 
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -70,13 +71,32 @@ class ScheduleTagLabelTest {
     }
 
     @Test
-    fun `시공 없고 최근 문의면 신규`() {
-        assertEquals("신규", label(customer(createdAt = now - 3 * DAY)))
+    fun `오늘 생긴 손님만 신규`() {
+        assertEquals("신규", label(customer(createdAt = now)))
     }
 
     @Test
-    fun `시공 없고 오래 조용하면 미전환`() {
-        assertEquals("미전환", label(customer(createdAt = now - 30 * DAY)))
+    fun `하루만 지나도 신규가 아니다`() {
+        // 사장님: "왜 신규가 아닌데 자꾸 신규칩이 붙어다니는 거지. 하루만 지나도 없어지게" (2026-09-27)
+        //   전엔 14일이라 보름 된 손님까지 「신규」였다 — 딱지가 아무 뜻도 없었다.
+        assertEquals("", label(customer(createdAt = today0 - 1)))
+    }
+
+    @Test
+    fun `오래 조용하면 딱지가 없다`() {
+        // 「미전환」을 없앴다 (사장님 "없어도 될 태그인듯"). 그 자리는 **빈 글자**다.
+        //   ⚠️ 빈 글자를 딱지로 그리면 글자 없는 상자만 남는다 — 실제로 그렇게 났었다.
+        //      (2026-09-27 사장님 "태그가 짤린거같은데.. 뭐지")
+        assertEquals("", label(customer(createdAt = now - 30 * DAY)))
+    }
+
+    @Test
+    fun `빈 글자는 아무 화면에서도 딱지가 아니다`() {
+        // 그리는 쪽(ScheduleTag·CustomerStatusTag·CustomerTags)이 전부 이 값을 보고 건너뛴다.
+        //   여기서 못 박아 둔다 — 빈 글자가 나오는 길이 있다는 것 자체를.
+        val quiet = customer(createdAt = now - 30 * DAY)
+        assertTrue(label(quiet).isBlank())
+        assertTrue(customerStatusOf(quiet, today0, now).isBlank())
     }
 
     @Test

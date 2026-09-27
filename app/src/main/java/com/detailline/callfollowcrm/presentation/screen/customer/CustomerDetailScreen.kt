@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Add
 import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.material.icons.filled.Check
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
@@ -506,6 +508,37 @@ fun CustomerDetailScreen(
                 }.getOrDefault(false)
             }
             var showAddressDialog by remember { mutableStateOf(false) }
+            /**
+             * 🔧 **눌러봐도 아무 일 안 생기게.** (2026-09-27 사장님)
+             *   "처음 보면 뭔지 나처럼 다 눌러볼 것 같아. 아는 사람에겐 직관적이지만
+             *    처음 하는 사람한테는 나랑 같은 경험을 할 것 같은데?"
+             *   처음 보는 사람은 **뜻을 알려고 누른다.** 누르는 즉시 데이터가 바뀌면 그건 함정이다.
+             *   A/S 찍기는 가끔 있는 일이라, 한 번 더 누르는 값이 싸다.
+             */
+            var asPendingConfirm by remember { mutableStateOf(false) }
+            if (asPendingConfirm) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { asPendingConfirm = false },
+                    title = { Text("A/S 명단에 올릴까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Text(
+                            "상담함 맨 위에 [A/S] 칸이 생기고 이 손님이 거기 들어가요.\n날짜를 못 잡아도 잊지 않으려고 올려두는 명단이에요.\n\n나중에 다녀오시면 A/S 줄을 눌러 「다녀왔어요」 하시면 돼요.",
+                            style = AppType.body, color = TossTextSecondary
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { asPendingConfirm = false; viewModel.markAsPending() }) {
+                            Text("올릴게요", color = TossBlue, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { asPendingConfirm = false }) {
+                            Text("그냥 둘게요", color = TossTextSecondary)
+                        }
+                    },
+                    containerColor = Color.White
+                )
+            }
             // 🔧 [A/S 다녀왔어요] 확인 — 누르면 태그가 사라지고 쪽지 한 장이 남는다. (2026-09-27)
             var asDoneConfirm by remember { mutableStateOf(false) }
             if (asDoneConfirm) {
@@ -513,10 +546,25 @@ fun CustomerDetailScreen(
                     onDismissRequest = { asDoneConfirm = false },
                     title = { Text("A/S 다녀오셨나요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                     text = {
-                        Text(
-                            "명단에서 빠지고, 고객 메모에 「… A/S 처리 완료」가 남아요.",
-                            fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
-                        )
+                        Column {
+                            Text(
+                                "명단에서 빠지고, 고객 메모에 「… A/S 처리 완료」가 남아요.",
+                                fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            // 🔧 **잘못 누른 길.** (2026-09-27 사장님 "as해드릴곳을 눌렀는데 취소할수가없네")
+                            //   이게 없으면 잘못 누른 분이 「다녀왔어요」를 눌러야 빠져나가고,
+                            //   그러면 **가지도 않은 A/S 가 다녀온 것으로 메모에 적힌다.**
+                            Text(
+                                "잘못 눌렀어요 · 기록 없이 명단에서만 빼기",
+                                style = AppType.label, color = TossTextTertiary,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clip(AppShape.sm)
+                                    .clickable { asDoneConfirm = false; viewModel.clearAsPending() }
+                                    .padding(vertical = AppSpace.s8),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     },
                     confirmButton = {
                         TextButton(onClick = { asDoneConfirm = false; viewModel.markAsDone() }) {
@@ -1139,7 +1187,9 @@ fun CustomerDetailScreen(
                                     }
                                     // 🔧 날짜를 못 잡아도 **명단에는 올려둔다.** (2026-09-27 사장님)
                                     if (c.asPendingAt == null) {
-                                        CdUndoChip("A/S 해드릴 곳", danger = false) { viewModel.markAsPending() }
+                                        // 이름이 **하는 일**을 말하게. (2026-09-27 사장님)
+                                        //   「A/S 해드릴 곳」은 이름표라 누르면 뭐가 되는지 알 수 없었다.
+                                        CdUndoChip("A/S 명단에 올리기", danger = false) { asPendingConfirm = true }
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     if (allPaid) {

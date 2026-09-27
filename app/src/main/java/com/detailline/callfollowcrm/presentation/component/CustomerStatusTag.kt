@@ -152,7 +152,9 @@ fun CustomerTags(
 ) {
     val scheduleLabel = c?.let { scheduleTagLabel(it) }
     val showsDday = scheduleLabel?.startsWith("시공 D") == true
-    val hiddenLabel = scheduleLabel == null || scheduleLabel == "미전환" || scheduleLabel == "신규"
+    // 빈 글자도 숨김 — 위 ScheduleTag 와 **같은 판단**이어야 한다(한쪽만 고치면 또 어긋난다).
+    val hiddenLabel = scheduleLabel.isNullOrBlank() ||
+        scheduleLabel == "미전환" || scheduleLabel == "신규"
     if (category != null) {
         androidx.compose.foundation.layout.Spacer(Modifier.width(gap))
         CategoryTag(category, hideIfDuplicate = showsDday)
@@ -235,6 +237,11 @@ fun scheduleTagLabel(
 fun ScheduleTag(c: CustomerEntity?, listMode: Boolean = true) {
     val customer = c ?: return
     val label = scheduleTagLabel(customer)
+    // 🈳 **글자가 없으면 딱지도 없다.** (2026-09-27 사장님 "태그가 짤린거같은데.. 뭐지")
+    //   「미전환」을 없애면서 customerStatusOf 가 빈 글자를 돌려주게 됐는데,
+    //   여기선 「미전환」·「신규」라는 **말만** 걸러내고 있어서 빈 글자는 그대로 통과했다.
+    //   그러면 글자 없는 파란 상자만 남는다 — 사장님 눈엔 잘린 딱지로 보였다.
+    if (label.isBlank()) return
     if (listMode && (label == "미전환" || label == "신규")) return
     // 색은 상태 기준(= D-N 도 '예약'의 파랑). 모든 화면에서 같은 색.
     val (fg, bg) = statusColors(if (label.startsWith("시공 D")) "예약" else label)

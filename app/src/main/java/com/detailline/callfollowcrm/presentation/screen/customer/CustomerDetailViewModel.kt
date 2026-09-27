@@ -667,6 +667,15 @@ class CustomerDetailViewModel(
         container.customerRepository.setAsPending(customerId, System.currentTimeMillis())
     }
 
+    /**
+     * 🔧 **찍은 걸 없던 일로.** 쪽지를 남기지 않는다. (2026-09-27 사장님 "취소할수가없네")
+     *   [markAsDone] 과 다른 점이 여기 전부다 — 저건 **갔다 온 것**이고 이건 **잘못 누른 것**이다.
+     *   무르는 길이 없으면, 잘못 누른 사람이 「다녀왔어요」를 눌러 **안 간 A/S 를 갔다고 적게** 된다.
+     */
+    fun clearAsPending() = viewModelScope.launch {
+        container.customerRepository.setAsPending(customerId, null)
+    }
+
     fun updateAsSchedule(date: Long?, days: Int) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateAsSchedule(customerId, date, days)

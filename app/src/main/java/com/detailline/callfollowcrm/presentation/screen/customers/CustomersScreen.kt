@@ -255,7 +255,9 @@ private fun CustomerRow(c: CustomerEntity, status: String, category: com.detaill
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 Spacer(Modifier.size(7.dp))
-                StatusTag(status)
+                // 딱지는 공용 한 곳에서만 그린다 — 여기 따로 만들어 둔 탓에
+                //   빈 상태일 때 **글자 없는 상자**가 남았다. (2026-09-27 사장님 "태그가 짤린거같은데")
+                com.detailline.callfollowcrm.presentation.component.CustomerStatusTag(status)
                 category?.let { cat ->
                     Spacer(Modifier.size(5.dp))
                     CategoryTagChip(cat)
@@ -271,16 +273,8 @@ private fun CustomerRow(c: CustomerEntity, status: String, category: com.detaill
     }
 }
 
-/** .tag — 10.5sp w700 radius7. custTag 색. */
-@Composable
-private fun StatusTag(status: String) {
-    val (fg, bg) = custTag(status)
-    Box(
-        Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
-    ) {
-        Text(status, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = fg)
-    }
-}
+// StatusTag 삭제 — 공용 CustomerStatusTag 와 **같은 것을 두 벌** 만들어 둔 자리였다.
+//   색표(custTag)도 같은 값이었고, 다른 점은 빈 상태를 안 걸러낸다는 것뿐이었다. (2026-09-27)
 
 /** 분류 딱지(일당·인테리어 등) — 상태 딱지(예약/잔금미수/완료)와 별개로 함께 붙음. 보라. (2026-09-03 사장님) */
 @Composable
@@ -309,17 +303,8 @@ private val AV_TINTS = listOf(
     LightColors.primaryBg to LightColors.primaryText
 )
 
-/** 프로토 custTag — 상태별 태그 색 (fg, bg). */
-private fun custTag(s: String): Pair<Color, Color> = when (s) {
-    "완료" -> Color(0xFF0E9F56) to LightColors.doneBg   // green
-    "단골" -> Color(0xFF6B4FD8) to LightColors.categoryBg   // purple
-    "신규" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber
-    "거래처" -> Color(0xFF4F5BD8) to LightColors.categoryBg // indigo
-    "AS" -> LightColors.unpaid to LightColors.unpaidBg     // red
-    "미전환" -> LightColors.textHint to LightColors.bg // gray
-    "잔금미수" -> Color(0xFFE0620D) to LightColors.cautionBg // orange (돈 받을 것) (2026-09-03 사장님)
-    else -> LightColors.primary to LightColors.primaryBg     // blue (예약/상담)
-}
+// custTag 색표 삭제 — StatusTag 와 함께 쓰는 곳이 없어졌다.
+//   색은 공용 CustomerStatusTag.statusColors 한 곳에서만 정한다. (2026-09-27)
 
 /**
  * 아바타 글자 — 공백·괄호를 지운 뒤 **읽을 수 있는 첫 글자**.

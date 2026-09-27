@@ -47,7 +47,8 @@ class TagRuleTest {
 
     /** 화면이 쓰는 것과 **같은 판정** — CustomerTags 안의 규칙을 그대로 옮긴 것. */
     private fun showsDday(c: CustomerEntity) = label(c).startsWith("시공 D")
-    private fun hiddenInList(c: CustomerEntity) = label(c).let { it == "미전환" || it == "신규" }
+    private fun hiddenInList(c: CustomerEntity) =
+        label(c).let { it.isBlank() || it == "미전환" || it == "신규" }
 
     // ── ① 겹칠 때만 숨긴다 ──────────────────────────────────────
 
@@ -74,16 +75,28 @@ class TagRuleTest {
     // ── ② 신규는 '오늘 온 사람' 에게만 ──────────────────────────
 
     @Test
-    fun `날짜 태그의 신규는 목록에서 숨긴다`() {
-        // 열흘째 얘기 중인 고객도 시공일만 없으면 '신규' 로 계산된다 → 목록에선 안 보여준다
-        val tenDaysAgo = customer(createdAt = now - 10 * DAY)
-        assertEquals("신규", label(tenDaysAgo))
-        assertTrue("열흘 된 고객이 '신규' 로 보이면 착각한다", hiddenInList(tenDaysAgo))
+    fun `오늘 온 사람의 신규도 목록에선 숨긴다`() {
+        // 파란 「신규」(오늘 처음 연락 온 사람)가 이미 홈 목록에 있다 → 노란 것까지 붙으면 두 번 말한다
+        val todayOne = customer(createdAt = now)
+        assertEquals("신규", label(todayOne))
+        assertTrue(hiddenInList(todayOne))
     }
 
     @Test
-    fun `미전환도 목록에서 숨긴다`() {
-        assertTrue(hiddenInList(customer(createdAt = now - 30 * DAY)))
+    fun `열흘 된 고객은 아예 딱지가 없다`() {
+        // 2026-09-27 부터 「신규」는 **오늘뿐**이다. 전엔 14일이라 열흘째 고객도 '신규' 였다.
+        val tenDaysAgo = customer(createdAt = now - 10 * DAY)
+        assertEquals("", label(tenDaysAgo))
+        assertTrue(hiddenInList(tenDaysAgo))
+    }
+
+    @Test
+    fun `오래 조용한 사람도 딱지가 없다`() {
+        // 「미전환」을 없앤 자리. **빈 글자를 그리면 글자 없는 상자**가 남는다 —
+        //   실제로 그렇게 났다 (2026-09-27 사장님 "태그가 짤린거같은데.. 뭐지").
+        val quiet = customer(createdAt = now - 30 * DAY)
+        assertEquals("", label(quiet))
+        assertTrue(hiddenInList(quiet))
     }
 
     @Test
@@ -98,7 +111,29 @@ class TagRuleTest {
     @Test
     fun `고객관리 필터 값은 그대로 유지된다`() {
         // 목록에서 숨기는 건 **표시**뿐 — 상태 계산은 그대로여야 필터가 안 깨진다
-        assertEquals("신규", customerStatusOf(customer(createdAt = now - 10 * DAY), today0, now))
-        assertEquals("미전환", customerStatusOf(customer(createdAt = now - 30 * DAY), today0, now))
+        assertEquals("신규", customerStatusOf(customer(createdAt = now), today0, now))
+        assertEquals("예약", customerStatusOf(customer(workDate = today0 + DAY), today0, now))
+        assertEquals("완료", customerStatusOf(customer(
+            workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now
+        ), today0, now))
+    }
+
+    @Test
+    fun `고객관리 칩에 없는 상태를 만들지 않는다`() {
+        // 칩 목록: 전체·신규·예약·잔금미수·완료. 계산이 그 밖의 말을 내놓으면
+        //   어느 칩에도 안 잡히는 **유령 고객**이 생긴다. 빈 글자만 예외(딱지 없음).
+        val chips = setOf("신규", "예약", "잔금미수", "완료", "")
+        val cases = listOf(
+            customer(createdAt = now),
+            customer(createdAt = now - 30 * DAY),
+            customer(workDate = today0 + DAY),
+            customer(workDate = today0),
+            customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L),
+            customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now)
+        )
+        cases.forEach { c ->
+            val st = customerStatusOf(c, today0, now)
+            assertTrue("칩에 없는 상태: " + st, st in chips)
+        }
     }
 }
