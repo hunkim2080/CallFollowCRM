@@ -2037,6 +2037,7 @@ fun ChatScreen(
             onUpdatePrice = { id, priceWon -> viewModel.updateItemPrice(id, priceWon) },
             onUpdateTitle = { id, title -> viewModel.updateItemTitle(id, title) },
             onReorderItems = { ids -> viewModel.reorderItems(ids) },
+            onAddPricingItem = { t, won -> viewModel.addPricingItem(t, won) },
             onConfirm = { body ->
                 setInput(body)
                 // composer 채우기만 — 아직 발송 아님. 실제 발송 성공 시 markIfEstimate 가 기록.
@@ -5857,7 +5858,7 @@ private class EstimateDraft(initialCalMonth: Long) {
             } else {
                 // 가격표에 없는 항목 = 직접 추가 항목으로 복원(만원 단위).
                 val manwon = (line.amountWon / 10_000L).coerceAtLeast(0L).toString()
-                customItems.add(EstCustomLine(name = line.name, manwon = manwon))
+                customItems.add(EstCustomLine(name = line.name, manwon = manwon, editing = false))
             }
         }
     }
@@ -5906,6 +5907,8 @@ private fun EstimateBuilderDialog(
     onUpdateTitle: (id: Long, title: String) -> Unit = { _, _ -> },
     /** ↕️ 시공 항목 차례를 바꿨다 — 가격표에 저장한다. (2026-09-27 사장님) */
     onReorderItems: (List<Long>) -> Unit = {},
+    /** ➕ 직접 넣은 항목을 **가격표에 등록**한다. (2026-09-27 사장님 "저장안되고 지워짐") */
+    onAddPricingItem: (title: String, priceWon: Long) -> Unit = { _, _ -> },
     onQuoteDoc: (QuoteDocData) -> Unit = {},
     onIssueIntake: (
         items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
@@ -6157,6 +6160,20 @@ private fun EstimateBuilderDialog(
                     )
                 }
             }
+            // ➕ **다 적은 줄은 가격표로 올라간다.** (2026-09-27 사장님 "저장안되고 지워짐")
+            //   올리고 나서 목록에 들어오는 걸 보고서야 체크하고 임시 줄을 뺀다 —
+            //   먼저 빼면 방 안에서 사라졌다가 잠시 뒤 나타나 깜빡인다.
+            val pendingNew = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+            LaunchedEffect(items, pendingNew.size) {
+                if (pendingNew.isEmpty()) return@LaunchedEffect
+                val byTitle = items.associateBy { it.title.trim() }
+                pendingNew.toList().forEach { t ->
+                    val hit = byTitle[t] ?: return@forEach
+                    selectedQty[hit.id] = 1
+                    customItems.removeAll { c -> c.name.trim() == t }
+                    pendingNew.remove(t)
+                }
+            }
             // 직접 추가 항목 — 가격표에 없는 즉석 견적(예: "실리콘 시공"). (2026-06-07 사장님 요청)
             //   🔴 **다 적고 나면 가격표 항목과 같은 줄이 된다.** (2026-09-27 사장님)
             //     "직접 항목추가하면 이렇게 적용되지? 가격표에서 기재한것처럼 등록되어야하는데말야"
@@ -6164,8 +6181,8 @@ private fun EstimateBuilderDialog(
             //     다 적어도 **등록이 안 된 것처럼** 보였다. 고치는 법(꾹 누르기)까지 같게 맞춘다.
             customItems.forEachIndexed { idx, c ->
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                val done = c.name.isNotBlank() && (c.manwon.toIntOrNull() ?: 0) > 0
-                if (done) {
+                val filled = c.name.isNotBlank() && (c.manwon.toIntOrNull() ?: 0) > 0
+                if (!c.editing && filled) {
                     EstimateItemRow(
                         title = c.name,
                         price = (c.manwon.toIntOrNull() ?: 0) * 10_000L,
@@ -6179,7 +6196,22 @@ private fun EstimateBuilderDialog(
                     )
                 } else {
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                        Modifier.fillMaxWidth()
+                            // ✋ **손을 뗄 때** 굳힌다. (2026-09-27 사장님 "10의자리 입력하는순간 저장이되버림")
+                            //   글자 하나 칠 때마다 보면 「30」의 3 에서 굳어 적는 칸이 사라진다.
+                            .onFocusChanged { st ->
+                                if (!st.hasFocus) {
+                                    val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+                                    if (c.name.isNotBlank() && won > 0L) {
+                                        c.editing = false
+                                        onAddPricingItem(c.name.trim(), won)
+                                        if (pendingNew.none { it == c.name.trim() }) {
+                                            pendingNew.add(c.name.trim())
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(Modifier.weight(1f)) {
@@ -6909,9 +6941,18 @@ private fun buildEstimateBody(
 }
 
 /** 견적 만들기에서 직접 추가하는 즉석 항목 (가격표에 없는 것 — 예: 실리콘). name + manwon(만원). */
-private class EstCustomLine(name: String = "", manwon: String = "") {
+private class EstCustomLine(
+    name: String = "",
+    manwon: String = "",
+    /**
+     * 아직 적는 중인가. **값이 찼다고 굳히면 안 된다** — 「30」의 3 을 치는 순간 차 버린다.
+     *   (2026-09-27 사장님 "10의자리 입력하는순간 저장이되버림")
+     */
+    editing: Boolean = true
+) {
     var name by androidx.compose.runtime.mutableStateOf(name)
     var manwon by androidx.compose.runtime.mutableStateOf(manwon)
+    var editing by androidx.compose.runtime.mutableStateOf(editing)
 }
 
 /**
@@ -6998,17 +7039,16 @@ private fun EstOrderList(
                     if (ch == null || !ch.pressed) going = false else {
                         dragDy.value += ch.positionChange().y
                         ch.consume()
+                        // 셈은 한 곳에서만 — 가격표 화면도 같은 것을 쓴다. (DragReorderTest)
                         val cur = orderState.value
                         val i = cur.indexOf(id)
-                        val upH = if (i > 0) (rowH[cur[i - 1]] ?: 0) else 0
-                        val dnH = if (i < cur.lastIndex) (rowH[cur[i + 1]] ?: 0) else 0
-                        if (i > 0 && dragDy.value < -upH / 2f) {
-                            orderState.value = cur.toMutableList().apply { add(i - 1, removeAt(i)) }
-                            dragDy.value += upH
-                        } else if (i < cur.lastIndex && dragDy.value > dnH / 2f) {
-                            orderState.value = cur.toMutableList().apply { add(i + 1, removeAt(i)) }
-                            dragDy.value -= dnH
-                        }
+                        val r = com.detailline.callfollowcrm.util.DragReorder.step(
+                            cur, id, dragDy.value,
+                            upH = if (i > 0) (rowH[cur[i - 1]] ?: 0) else 0,
+                            dnH = if (i < cur.lastIndex) (rowH[cur[i + 1]] ?: 0) else 0
+                        )
+                        orderState.value = r.order
+                        dragDy.value = r.dy
                     }
                 }
                 dragId.value = null

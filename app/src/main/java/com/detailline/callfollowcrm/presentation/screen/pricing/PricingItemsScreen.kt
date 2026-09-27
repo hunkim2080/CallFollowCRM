@@ -82,6 +82,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import androidx.compose.ui.draw.shadow
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
 
 /**
  * 가격표 관리 — 견적서 작성기에서 사용하는 항목 CRUD.
@@ -340,19 +342,16 @@ fun PricingItemsScreen(
                                                 val dy = ch.positionChange().y
                                                 ch.consume()
                                                 dragDyState.value += dy
+                                                // 셈은 한 곳에서만 — 접수서 시트도 같은 것을 쓴다. (DragReorderTest)
                                                 val cur = orderState.value
                                                 val i = cur.indexOf(id)
-                                                val upH = if (i > 0) (rowH[cur[i - 1]] ?: 0) else 0
-                                                val dnH = if (i < cur.lastIndex) (rowH[cur[i + 1]] ?: 0) else 0
-                                                if (i > 0 && dragDyState.value < -upH / 2f) {
-                                                    orderState.value = cur.toMutableList()
-                                                        .apply { add(i - 1, removeAt(i)) }
-                                                    dragDyState.value += upH
-                                                } else if (i < cur.lastIndex && dragDyState.value > dnH / 2f) {
-                                                    orderState.value = cur.toMutableList()
-                                                        .apply { add(i + 1, removeAt(i)) }
-                                                    dragDyState.value -= dnH
-                                                }
+                                                val r = com.detailline.callfollowcrm.util.DragReorder.step(
+                                                    cur, id, dragDyState.value,
+                                                    upH = if (i > 0) (rowH[cur[i - 1]] ?: 0) else 0,
+                                                    dnH = if (i < cur.lastIndex) (rowH[cur[i + 1]] ?: 0) else 0
+                                                )
+                                                orderState.value = r.order
+                                                dragDyState.value = r.dy
                                             }
                                         }
                                         dragIdState.value = null
@@ -369,16 +368,25 @@ fun PricingItemsScreen(
                                     if (idx > 0) Box(
                                         Modifier.fillMaxWidth().height(1.dp).background(TossDivider)
                                     )
+                                    // ✋ **끌리는 줄은 제 바탕을 갖는다.** (2026-09-27 사장님)
+                                    //   "드래그하면 카드가 내려가는 게 아니라 글씨만 내려가네"
+                                    //   흰 바탕은 묶음 카드가 통째로 깔던 것이라, 줄을 끌면
+                                    //   **글씨만 미끄러지고** 바탕은 그 자리에 남았다.
+                                    //   끄는 동안만 흰 바탕 + 그림자를 줘서 **한 장이 들리는** 것처럼.
+                                    val lifting = dragIdState.value == rowId
                                     Box(
                                         Modifier
                                             .onSizeChanged { rowH[rowId] = it.height }
-                                            .zIndex(if (dragIdState.value == rowId) 1f else 0f)
+                                            .zIndex(if (lifting) 1f else 0f)
                                             .offset {
-                                                IntOffset(
-                                                    0,
-                                                    if (dragIdState.value == rowId) dragDyState.value.toInt() else 0
-                                                )
+                                                IntOffset(0, if (lifting) dragDyState.value.toInt() else 0)
                                             }
+                                            .then(
+                                                if (lifting)
+                                                    Modifier.shadow(AppSpace.s8, AppShape.md)
+                                                        .background(Color.White, AppShape.md)
+                                                else Modifier
+                                            )
                                     ) {
                                     PricingItemRow(
                                         showHandle = true,

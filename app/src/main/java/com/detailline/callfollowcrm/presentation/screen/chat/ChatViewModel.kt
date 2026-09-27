@@ -219,6 +219,27 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * ➕ 직접 넣은 시공 항목을 **가격표에 등록**한다. (2026-09-27 사장님)
+     *   "가격표에서 기재한것처럼 등록되어야하는데말야" · "추가 하고 나갔다오면 저장안되고 지워짐"
+     *   전엔 그 시트 안에서만 살아 있다가 닫으면 사라졌다. 이제 진짜 항목이 되어
+     *   다음 접수서에도, 순서 바꾸기에도, 가격표 화면에도 그대로 있다.
+     *   같은 이름이 이미 있으면 **새로 만들지 않는다** — 쓸 때마다 같은 항목이 쌓인다.
+     */
+    fun addPricingItem(title: String, priceWon: Long) {
+        val t = title.trim()
+        if (t.isBlank() || priceWon <= 0L) return
+        viewModelScope.launch {
+            val all = container.pricingItemRepository.observeAll().first()
+            if (all.any { it.title.trim() == t }) return@launch
+            container.pricingItemRepository.insert(
+                title = t, price = priceWon,
+                category = all.firstOrNull()?.category ?: "",
+                displayOrder = (all.maxOfOrNull { it.displayOrder } ?: -1) + 1
+            )
+        }
+    }
+
     fun updateItemPrice(id: Long, priceWon: Long) {
         if (id <= 0L || priceWon <= 0L) return
         viewModelScope.launch {
