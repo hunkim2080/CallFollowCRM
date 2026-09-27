@@ -316,9 +316,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val rows = buildList {
             // '다음 현장' 은 **이번 달을 볼 때만** 의미가 있다. 지난달을 보면서 앞일을 보여주면 헷갈린다.
             if (monthDelta == 0) upcoming?.let { add(rowOf(it, true)) }
-            (if (monthDelta == 0) done else month).take(8).forEach { add(rowOf(it, false)) }
+            // 📅 **이 달 것만.** 지도·숫자는 이번 달인데 목록만 과거 전체를 뿌렸다 —
+            //   「2026년 9월」 밑에 8월·7월·6월이 섞여 보였다. (2026-09-27 사장님)
+            month.take(30).forEach { add(rowOf(it, false)) }
             // 🤝 협업 현장 — 번호는 안 붙인다(현장 번호는 **내 현장**의 차례다).
-            (if (monthDelta == 0) collabDone else collabMonth).take(8).forEach { s ->
+            collabMonth.take(30).forEach { s ->
                 add(
                     MyRecordRow(
                         jobId = 0L, customerId = 0L, no = null,
@@ -328,7 +330,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                         days = 1,
                         amountManwon = s.dailyWage ?: 0,
                         done = true, upcoming = false, collab = true,
-                        collabWith = s.ownerName.takeIf { it.isNotBlank() }
+                        collabWith = s.ownerName.takeIf { it.isNotBlank() },
+                        shareId = s.shareId,
+                        collabProgress =
+                            if (s.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository
+                                    .Progress.COMPLETED) "완료" else "도착"
                     )
                 )
             }
@@ -662,7 +668,15 @@ data class MyRecordRow(
     /** 🤝 남의 현장에 불려 간 것. 번호가 안 붙고 목록에 「협업」 딱지가 붙는다. */
     val collab: Boolean = false,
     /** 누구 현장이었나(부른 사장님 상호). */
-    val collabWith: String? = null
+    val collabWith: String? = null,
+    /**
+     * 🤝 협업 현장을 열 열쇠. 이게 있으면 **고객 화면이 아니라 협업 현장 상세**로 간다.
+     *   협업 현장엔 고객이 없다 — 전엔 고객 0번을 열려다 「불러오는 중…」에서 멈췄다.
+     *   (2026-09-27 사장님 "협업 사장들은 원래 고객정보 못 보게 되어 있음")
+     */
+    val shareId: String? = null,
+    /** 「도착」·「완료」 — 협업은 완료를 **저 화면에서** 눌러야 주인 사장님도 안다. */
+    val collabProgress: String? = null
 )
 
 data class StatsTrendState(

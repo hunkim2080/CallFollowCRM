@@ -558,7 +558,9 @@ fun AppNavHost(
                 onOpenTodo = { m -> navController.navigate(Destinations.visited("todo", m)) },
                 onOpenNoAddr = { m -> navController.navigate(Destinations.visited("addr", m)) },
                 // 현장 줄을 누르면 **그 집**으로. 전엔 어느 줄이든 목록으로만 갔다. (2026-09-24 사장님)
-                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                // 🤝 협업 현장은 고객이 없다 — 그 현장 상세를 바로 열다. (2026-09-27 사장님)
+                onOpenCollab = { sid -> navController.navigate(Destinations.collabSites(sid)) }
             )
         }
 

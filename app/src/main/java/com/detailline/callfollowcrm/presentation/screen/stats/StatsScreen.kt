@@ -89,6 +89,8 @@ fun StatsScreen(
     onOpenVisited: () -> Unit = {},
     /** 현장 줄을 누르면 그 손님 상세로. (2026-09-24 사장님 "덕양 탭을 누르니까 9월 전체가 나오는데") */
     onOpenCustomer: (Long) -> Unit = {},
+    /** 🤝 협업 현장 줄 — 고객이 없으니 **협업 현장 상세**로 보낸다. (2026-09-27 사장님) */
+    onOpenCollab: (String) -> Unit = {},
     /**
      * 완료를 안 누른 곳**만** 보여주러. (2026-09-25 "클릭하면 안한것만 나오면 찾기편한데")
      *   ⚠️ **보던 달을 같이 넘긴다.** 8월을 보다 눌렀는데 9월 목록이 열리면 찾을 수가 없다.
@@ -192,7 +194,11 @@ fun StatsScreen(
                 if (rec.rows.isNotEmpty()) {
                     MyRecordRows(
                         rec = rec,
-                        onOpenRow = { r -> onOpenCustomer(r.customerId) },
+                        onOpenRow = { r ->
+                            val sid = r.shareId
+                            if (r.collab && !sid.isNullOrBlank()) onOpenCollab(sid)
+                            else onOpenCustomer(r.customerId)
+                        },
                         onComplete = { r ->
                             viewModel.completeRecordJob(r.jobId, r.customerId)
                             scope.launch {
@@ -1309,7 +1315,9 @@ private fun MyRecordRows(
                 }
                 // 번호가 없는 줄 = 아직 완료를 안 누른 것. **여기서 바로** 누르게 한다.
                 //   전엔 이 글씨를 눌러도 목록으로만 갔다 — 버튼처럼 생겼는데 아무 일도 안 났다.
-                val canComplete = !r.upcoming && r.no == null
+                // 🤝 협업은 여기서 완료를 못 누른다 — 서버에 알려야 주인 사장님도 안다.
+                //   줄을 누르면 협업 현장 상세로 가고, 거기 진행 상황에서 누른다. (2026-09-27)
+                val canComplete = !r.upcoming && r.no == null && !r.collab
                 Box(
                     Modifier
                         .then(
@@ -1321,13 +1329,15 @@ private fun MyRecordRows(
                     Text(
                         when {
                             r.upcoming -> "예정"
+                            r.collab -> r.collabProgress ?: "협업"
                             r.no == null -> "완료 누르기"
                             else -> "완료"
                         },
                         style = AppType.caption, fontWeight = FontWeight.ExtraBold,
                         color = when {
                             r.upcoming -> TossTextTertiary
-                            r.no == null -> TossBlue
+                            r.collab && r.collabProgress != "완료" -> TossTextTertiary
+                            r.no == null && !r.collab -> TossBlue
                             else -> AppTheme.colors.done
                         }
                     )
