@@ -2021,6 +2021,18 @@ private fun AssignTeamSheet(
     //   ⚠️ '내가 부른 일당'(JobCrew) 데이터는 지우지 않고 그대로 둔다(정산 이력 보존·되돌리기 가능) — 이 시트에서
     //      만들지/건드리지 않을 뿐. 그래서 crewKeys 프리선택·onSaveCrew 호출을 뺐다.
     var selectedPartners by remember { mutableStateOf(reqKeys) }   // 협업 사장 phone last8 키
+    // 🔴 **협업 자료는 시트가 그려진 **뒤에** 온다.** (2026-09-27 사장님 "더 추가가안되네")
+    //   위 remember 에 키가 없어 **첫 그림 때의 reqKeys(= 비어 있음)** 로 굳었다.
+    //   그래서 이미 요청한 사장님이 안 골라진 채로 남고, 그대로 보내기를 누르면
+    //   앱은 그걸 **「그 사람을 뺐다」**로 읽어 「보낸 협업을 취소할까요?」를 띄웠다.
+    //   ⚠️ 한 번만 채운다 — 매번 채우면 사장님이 **일부러 뺀 사람이 도로 들어온다.**
+    var reqSeeded by remember { mutableStateOf(reqKeys.isNotEmpty()) }
+    androidx.compose.runtime.LaunchedEffect(reqKeys) {
+        if (!reqSeeded && reqKeys.isNotEmpty()) {
+            selectedPartners = selectedPartners + reqKeys
+            reqSeeded = true
+        }
+    }
     // 일당사장별 일당(만원, 문자열) — 저장값 자동 채움, 사장님이 이 현장만 바꿀 수 있음.
     var partnerWages by remember {
         mutableStateOf(
@@ -2637,7 +2649,13 @@ private fun AssignTeamSheet(
             val isCancelAll = !anySelected && hadInitial   // 원래 있던 걸 다 뺀 상태 = 취소 저장
             val canSubmit = anySelected || isCancelAll
             // 보낸 협업을 빼는(취소) 게 있으면 저장 전에 "정말 취소?" 한 번 물어봄. (2026-06-20 사장님)
-            val cancelling = reqKeys.any { it !in selectedPartners }
+            // 🔴 **목록에 줄이 있는 사람만 센다.** (2026-09-27 사장님)
+            //   명부에 없는 번호로 보낸 요청이 하나라도 있으면 사장님은 그 줄을 **누를 수가 없다** —
+            //   그런데도 「안 골랐다」로 세어져 **영영 빼는 중**이 되고, 보내면 조용히 취소까지 된다.
+            val cancelableReqKeys = remember(reqKeys, collabPartners) {
+                reqKeys.filter { rk -> collabPartners.any { key(it.phone) == rk } }.toSet()
+            }
+            val cancelling = cancelableReqKeys.any { it !in selectedPartners }
             var confirmCancel by remember { mutableStateOf(false) }
             val submit: () -> Unit = {
                 val addrToSend = siteAddrInput.trim().takeIf { it.isNotBlank() }
@@ -2655,7 +2673,8 @@ private fun AssignTeamSheet(
                     onInviteCollab(p.phone, false, memo, manwon.takeIf { it > 0 }, startHour, addrToSend, daysToSend)
                 }
                 // 보냈던 요청을 뺐으면 협업 요청 취소(서버에도 알림).
-                reqKeys.forEach { k ->
+                //   ⚠️ 목록에 줄이 있는 사람만 — 사장님이 **뺄 수 없었던 사람**을 뺐다고 보면 안 된다.
+                cancelableReqKeys.forEach { k ->
                     if (k !in selectedPartners) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
                         onCancelCollab(p.phone)
                     }
