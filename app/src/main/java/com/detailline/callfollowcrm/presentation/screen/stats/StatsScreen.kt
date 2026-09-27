@@ -188,7 +188,8 @@ fun StatsScreen(
                     rec, zoom = mapZoom, panX = mapPanX, panY = mapPanY,
                     onTransform = { z, x, y -> mapZoom = z; mapPanX = x; mapPanY = y },
                     onShot = { shotAutoVideo = false; shotOpen = true },
-                    onReel = { shotAutoVideo = true; shotOpen = true }
+                    onReel = { shotAutoVideo = true; shotOpen = true },
+                    onSetStart = { viewModel.setStartAddr(it) }
                 )
                 Spacer(Modifier.height(12.dp))
             }
@@ -373,8 +374,20 @@ private fun MyRecordMap(
     /** [인증샷] — 그림 한 장. */
     onShot: () -> Unit = {},
     /** [영상 만들기] — 움직이는 지도(릴스 9:16). 전엔 인증샷 창 안에만 있었다. */
-    onReel: () -> Unit = {}
+    onReel: () -> Unit = {},
+    /** 🏠 출발지를 정한다. 빈 값 = 사업자 주소로 되돌리기. (2026-09-27 사장님) */
+    onSetStart: (String) -> Unit = {}
 ) {
+    var startEditOpen by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    if (startEditOpen) {
+        StartPointDialog(
+            current = rec.startAddr,
+            onDismiss = { startEditOpen = false },
+            onSave = { startEditOpen = false; onSetStart(it) }
+        )
+    }
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(10.dp)
@@ -406,11 +419,36 @@ private fun MyRecordMap(
         Text(
             buildString {
                 append("🚛 가 간 순서대로 달려요 · 톡 치면 다시 · 두 손가락으로 확대")
-                if (rec.yearTownCount > rec.dots.size) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
+                val townDots = rec.dots.count { !it.isStart }
+                if (rec.yearTownCount > townDots) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
             },
             style = AppType.caption, color = TossTextTertiary,
             modifier = Modifier.padding(horizontal = 2.dp)
         )
+        // 🏠 **어디서 나서나.** (2026-09-27 사장님 "내가 출발하는 위치를 정해야하는데")
+        //   설정 깊이 넣지 않고 **그 값이 쓰이는 자리**에 둔다 — 여기 말고는 쓰이는 데가 없다.
+        Spacer(Modifier.height(AppSpace.s8))
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().clip(AppShape.sm)
+                .clickable { startEditOpen = true }
+                .padding(horizontal = 2.dp, vertical = AppSpace.s4),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                when {
+                    rec.startTown.isNotBlank() -> "출발 · " + rec.startTown
+                    rec.startAddr.isNotBlank() -> "출발 · 적어주신 주소의 동네를 못 찾았어요"
+                    else -> "출발지를 정하면 첫 현장까지 가는 길도 그려요"
+                },
+                style = AppType.caption, color = TossTextTertiary,
+                modifier = Modifier.weight(1f), maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Text(
+                if (rec.startAddr.isBlank()) "정하기" else "바꾸기",
+                style = AppType.label, color = TossBlue
+            )
+        }
         }   // ── if (dots 비었음) … else 끝
 
         // 기록이 없는 달이면 **숫자도 만들기도 없다.** 없다고 말해놓고 0곳·0일·0만을 또 보여주고,
@@ -1666,4 +1704,56 @@ private fun WtRow(t: StatTypeRow, max: Int) {
             )
         }
     }
+}
+
+/**
+ * 🏠 출발지 정하기. (2026-09-27 사장님)
+ *   기본값은 **사업자 주소** — 이미 적어 두신 것이라 대부분 그냥 두시면 된다.
+ *   집에서 나가는 분만 여기서 한 번 고친다. 비우고 저장하면 사업자 주소로 되돌아간다.
+ */
+@Composable
+private fun StartPointDialog(
+    current: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            androidx.compose.ui.text.input.TextFieldValue(current)
+        )
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("어디서 출발하세요?", style = AppType.headline, color = TossTextPrimary) },
+        text = {
+            Column {
+                Text(
+                    "아침에 나서는 자리예요. 지도가 여기서부터 길을 그려요." +
+                        "\n비우고 저장하면 사업자 주소를 씁니다.",
+                    style = AppType.body, color = TossTextSecondary
+                )
+                Spacer(Modifier.height(AppSpace.s12))
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = false,
+                    placeholder = {
+                        Text("예) 경기 화성시 병점동", style = AppType.body, color = TossTextTertiary)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onSave(text.text.trim()) }) {
+                Text("저장", style = AppType.label, color = TossBlue)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("취소", style = AppType.label, color = TossTextSecondary)
+            }
+        },
+        containerColor = Color.White
+    )
 }

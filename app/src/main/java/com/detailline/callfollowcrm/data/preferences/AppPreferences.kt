@@ -706,6 +706,19 @@ class AppPreferences(context: Context) {
     var bizAddr: String
         get() = prefs.getString(KEY_BIZ_ADDR, "") ?: ""
         set(value) = prefs.edit().putString(KEY_BIZ_ADDR, value.trim()).apply()
+    /**
+     * 🏠 **아침에 어디서 나서나.** 「내 기록」 지도가 여기서부터 길을 그린다. (2026-09-27 사장님)
+     *   비어 있으면 [bizAddr] 을 쓴다 — 이미 적어 두신 것이라 새로 물어볼 게 없다.
+     *   집에서 나가는 분은 여기만 한 번 고치면 된다.
+     */
+    var startAddr: String
+        get() = prefs.getString(KEY_START_ADDR, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_START_ADDR, value.trim()).apply()
+
+    /** 출발지로 실제로 쓸 주소 — 정한 게 없으면 사업자 주소. 둘 다 없으면 빈 값. */
+    val startAddrEffective: String
+        get() = startAddr.takeIf { it.isNotBlank() } ?: bizAddr
+
     var bizPhone: String
         get() = prefs.getString(KEY_BIZ_PHONE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_BIZ_PHONE, value.trim()).apply()
@@ -1050,6 +1063,7 @@ class AppPreferences(context: Context) {
         private const val KEY_BIZ_OWNER = "biz_owner"
         private const val KEY_BIZ_NO = "biz_no"
         private const val KEY_BIZ_ADDR = "biz_addr"
+        private const val KEY_START_ADDR = "start_addr"
         private const val KEY_BIZ_PHONE = "biz_phone"
         private const val KEY_BIZ_SEAL = "biz_seal"
         private const val KEY_BIZ_BANK = "biz_bank"

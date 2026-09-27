@@ -791,11 +791,19 @@ private class CallerCardView(
     private val divider = View(context)
     private val footTv = mkText(10.5f, SUB)
 
-    // ── 미리보기 띠 (2026-09-22 사장님 "안꺼짐...") ──
-    //   진짜 전화 카드엔 **안 붙는다.** 통화 중에 [닫기]가 떠 있으면 전화를 끊는 건지 헷갈린다.
+    // ── 윗 띠 — [미리보기] 딱지 · 접힌 이름 · [접기]/[펴기] · (미리보기만) [닫기] ──
+    //   2026-09-22 엔 미리보기에만 붙는 [닫기] 띠였다. 2026-09-27 사장님 지적으로
+    //   **진짜 통화 카드에도** 붙는다 — 접는 길이 없으면 통화 중에 뒤를 볼 수가 없다.
     private val previewBar = LinearLayout(context)
     private val previewTagTv = mkText(10.5f, NEW_ORANGE, bold = true)
     private val previewCloseTv = mkText(12f, BODY, bold = true)
+    /** 접었을 때 띠에 남는 이름 — 접어도 **누구 전화인지는 보여야** 한다. */
+    private val foldNameTv = mkText(13.5f, INK, bold = true)
+    /** [접기]/[펴기]. */
+    private val foldTv = mkText(12f, BODY, bold = true)
+    /** 접히는 부분 — 신규 머리 + 본문을 통째로. 이 한 덩어리만 숨기면 된다. */
+    private val foldable = LinearLayout(context)
+    private var collapsed = false
 
     // ── ✎ 통화 중 메모 (2026-09-22 사장님) ──
     //   들은 걸 그 자리에서 적어두면 끊고 나서 고객 메모에 들어가 있다.
@@ -876,7 +884,11 @@ private class CallerCardView(
         }
         card.addView(strip, LayoutParams(LayoutParams.MATCH_PARENT, dp(4f)))
         card.addView(buildPreviewBar())
-        card.addView(buildNewHead())
+        // 🗂 **접히는 덩어리.** 신규 머리와 본문을 한 부모로 묶어 **한 번에** 숨긴다.
+        //   따로따로 숨기면, 카드를 다시 그릴 때(bind) 신규 머리가 자기 혼자 살아나 접기가 풀린다.
+        foldable.orientation = VERTICAL
+        card.addView(foldable)
+        foldable.addView(buildNewHead())
 
         val body = LinearLayout(context).apply {
             orientation = VERTICAL
@@ -927,7 +939,7 @@ private class CallerCardView(
         body.addView(divider, LayoutParams(LayoutParams.MATCH_PARENT, dp(1f)).apply { topMargin = dp(9f) })
         body.addView(footTv, rowLp(7f))
 
-        card.addView(body)
+        foldable.addView(body)
         addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
@@ -1043,35 +1055,71 @@ private class CallerCardView(
     }
 
     /**
-     * 미리보기 띠 — [미리보기] 딱지 + [닫기]. **미리보기로 띄웠을 때만** 보인다.
-     *   진짜 전화 카드엔 안 붙는다(통화 중 [닫기]는 전화를 끊는 것처럼 보여 위험하다). (2026-09-22 사장님)
+     * 윗 띠 — (미리보기면) [미리보기] 딱지 · 접었을 때 이름 · [접기]/[펴기] · (미리보기면) [닫기].
+     *   **진짜 통화 카드에도 붙는다.** (2026-09-27 사장님 "그냥 일부만 남기고 접기였으면 좋겠어")
      */
     private fun buildPreviewBar(): LinearLayout {
         previewBar.orientation = HORIZONTAL
         previewBar.gravity = android.view.Gravity.CENTER_VERTICAL
         previewBar.setPadding(dp(13f), dp(10f), dp(10f), dp(2f))
-        previewBar.visibility = View.GONE
 
         previewTagTv.text = "미리보기"
         previewTagTv.background = roundBg(0x22F59F0B, 7f)
         previewTagTv.setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
         previewBar.addView(previewTagTv)
 
+        // 접었을 때만 나오는 이름. 띠 하나만 남아도 **누구 전화인지**는 알아야 한다.
+        foldNameTv.visibility = View.GONE
+        foldNameTv.maxLines = 1
+        foldNameTv.ellipsize = android.text.TextUtils.TruncateAt.END
+        previewBar.addView(foldNameTv, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
+            leftMargin = dp(7f)
+        })
+
         previewBar.addView(View(context), LayoutParams(0, 1, 1f))
 
+        foldTv.background = roundBg(PANEL_BG, 9f)
+        foldTv.setPadding(dp(13f), dp(6f), dp(13f), dp(6f))
+        foldTv.isClickable = true
+        foldTv.setOnClickListener { setCollapsed(!collapsed) }
+        previewBar.addView(foldTv)
+
+        // [닫기]는 **미리보기에만.** 통화 중엔 전화를 끊는 것처럼 보여 위험하다. (2026-09-22 사장님)
         previewCloseTv.text = "닫기"
         previewCloseTv.background = roundBg(PANEL_BG, 9f)
         previewCloseTv.setPadding(dp(13f), dp(6f), dp(13f), dp(6f))
         previewCloseTv.isClickable = true
         previewCloseTv.setOnClickListener { onClosePreview() }
-        previewBar.addView(previewCloseTv)
+        previewBar.addView(previewCloseTv, LayoutParams(
+            LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(6f) })
+
+        setCollapsed(false)
         return previewBar
     }
 
-    /** 미리보기인지 알려준다 — 띠를 보이고, 발밑 문구를 바꾸고, 뒤로가기를 받는다. */
+    /**
+     * 📂 접기/펴기 — 접으면 **띠 하나만** 남는다(색 띠 + 이름 + [펴기]).
+     *   사장님: "닫기 누르니까 이걸 다시 못 열더라고" — 그래서 **없애지 않고 접는다.**
+     */
+    fun setCollapsed(on: Boolean) {
+        collapsed = on
+        foldable.visibility = if (on) View.GONE else View.VISIBLE
+        foldTv.text = if (on) "펴기" else "접기"
+        foldNameTv.visibility = if (on) View.VISIBLE else View.GONE
+        if (on) {
+            // 신규 머리가 떠 있었으면 그쪽 번호가 이름 자리다.
+            foldNameTv.text =
+                if (newHead.visibility == View.VISIBLE) newNumTv.text else nameTv.text
+        }
+    }
+
+    /** 미리보기인지 알려준다 — 딱지·[닫기]를 붙이고, 발밑 문구를 바꾸고, 뒤로가기를 받는다. */
     fun setPreview(on: Boolean) {
         isPreview = on
-        previewBar.visibility = if (on) View.VISIBLE else View.GONE
+        previewTagTv.visibility = if (on) View.VISIBLE else View.GONE
+        previewCloseTv.visibility = if (on) View.VISIBLE else View.GONE
+        // 새로 띄울 때는 **항상 펴진 상태**로 — 지난번에 접어둔 게 따라오면 빈 띠만 뜬 줄 안다.
+        setCollapsed(false)
     }
 
     /**

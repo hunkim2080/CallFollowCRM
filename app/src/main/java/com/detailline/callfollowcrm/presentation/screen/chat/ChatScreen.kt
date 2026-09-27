@@ -2533,6 +2533,25 @@ private fun CallSegment(
                         }
                     }
                 }
+                // 🈳 **요약이 안 되는 통화는 왜 안 되는지를 적는다.** (2026-09-27 사장님)
+                //   "어떤건 자동통화요약되고 어떤건안되는데 그건 무슨이유?"
+                //   전엔 여기 else 가 없어 **아무것도 안 그렸다.** 같은 목록에서 어떤 줄엔 요약이 있고
+                //   어떤 줄엔 아무것도 없으니, 고장인지 아닌지를 알 길이 없었다.
+                //   요약은 **녹음이 있어야** 만들어진다 — 연결이 안 된 전화엔 녹음 자체가 없다.
+                else -> {
+                    Text(
+                        when {
+                            type == com.detailline.callfollowcrm.domain.model.CallType.MISSED ->
+                                "부재중이라 남은 녹음이 없어요 · 요약할 내용이 없어요"
+                            type == com.detailline.callfollowcrm.domain.model.CallType.REJECTED ->
+                                "거절한 전화라 남은 녹음이 없어요 · 요약할 내용이 없어요"
+                            else ->
+                                "연결되지 않은 전화라 남은 녹음이 없어요 · 요약할 내용이 없어요"
+                        },
+                        style = AppType.caption, color = AppTheme.colors.textHint,
+                        modifier = Modifier.padding(top = AppSpace.s8)
+                    )
+                }
             }
         } else if (editing) {
             // 사장님이 잘못된 요약을 직접 고침 — 한 줄에 한 항목. (2026-06-23 사장님)

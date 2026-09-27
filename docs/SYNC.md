@@ -12011,3 +12011,15 @@ UX 점검 **남은 것 넷 마무리.**
 - 변경: 메모 안내문 오타 「꿀」 → 「꾹」
 - 확인: assembleRelease 통과. 업무폰만 연결돼 있어 **설치는 안 했다.**
 
+## 2026-09-27 22:50 · android
+통화 카드 접기 · 요약 안 되는 이유 · 출발지
+- 변경: `IncomingCallOverlay` — [닫기] → **[접기]/[펴기]**. 신규 머리+본문을
+  `foldable` 한 덤어리로 묶어 한 번에 숨긴다(따로 숨기면 bind 가 신규 머리를 살려낸다).
+  띄는 **진짜 통화에도** 붙는다 — 전엔 치울 길이 아예 없었다. [닫기]는 미리보기에만.
+- 변경: `ChatScreen` 통화 카드의 when 에 else 가 없어 요약 못 하는 통화는 **아무 말도 안 했다**.
+  부재중·거절·연결 안 됨 각각의 이유를 한 줄로 적는다.
+- 변경: 🏠 출발지 — `AppPreferences.startAddr`(비면 `bizAddr`), `RegionDot.isStart`,
+  `StatsViewModel` 이 order=-1 점을 맨 앞에 넣고(km 도 자동 포함),
+  내 기록 지도 밑에 「출발 · ○○동 · 바꾸기」 한 줄 + `StartPointDialog`.
+- 확인: assembleRelease 통과. 업무폰만 연결돼 있어 **설치는 안 했다.**
+

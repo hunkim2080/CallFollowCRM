@@ -185,7 +185,12 @@ data class RegionDot(
      * 그 동네 현장의 **대표 사진**(제일 먼저 올린 것). 영상에서 **거기 도착하면 이 사진으로 바뀐다.**
      *   (2026-09-25 사장님 "그 현장에 도착할때마다 바껴야하는데") null 이면 안 바꾼다.
      */
-    val photoPath: String? = null
+    val photoPath: String? = null,
+    /**
+     * 🏠 **출발지 점.** 현장이 아니라 아침에 나선 자리다. (2026-09-27 사장님)
+     *   현장 수·동네 수에는 안 들어가고, 길만 여기서 시작한다.
+     */
+    val isStart: Boolean = false
 )
 
 /**

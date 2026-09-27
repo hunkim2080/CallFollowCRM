@@ -142,9 +142,22 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** 🏠 출발지 — 바꾸면 지도를 다시 그려야 하므로 흐름으로 들고 있는다. (2026-09-27 사장님) */
+    private val startAddrFlow =
+        kotlinx.coroutines.flow.MutableStateFlow(container.preferences.startAddrEffective)
+
+    /** 출발지를 정한다. 빈 값으로 넣으면 **사업자 주소로 되돌아간다**(지우는 길). */
+    fun setStartAddr(addr: String) {
+        container.preferences.startAddr = addr
+        startAddrFlow.value = container.preferences.startAddrEffective
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
     val myRecord: StateFlow<MyRecordState> =
-        combine(customers, jobsFlow, recordMonth, sitePhotosFlow, collabSites) { cs, js, m, ph, co ->
-            buildMyRecord(cs, js, m, ph, co)
+        startAddrFlow.flatMapLatest {
+            combine(customers, jobsFlow, recordMonth, sitePhotosFlow, collabSites) { cs, js, m, ph, co ->
+                buildMyRecord(cs, js, m, ph, co)
+            }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
 
     private val bizNameForRecord = container.preferences.bizName
@@ -263,13 +276,28 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             moneyOf[spot.name] = (moneyOf[spot.name] ?: 0) + (s.dailyWage ?: 0)
         }
         val orderOf = firstAt.entries.sortedBy { it.value }.mapIndexed { i, e -> e.key to i }.toMap()
-        val dots = counts.map { (nm, v) ->
+        val siteDots = counts.map { (nm, v) ->
             com.detailline.callfollowcrm.presentation.component.RegionDot(
                 nm, v.first, v.second, v.third, orderOf[nm] ?: 0,
                 amountManwon = moneyOf[nm] ?: 0,
                 photoPath = photoOf[nm]
             )
         }
+        // 🏠 **아침에 나선 자리.** (2026-09-27 사장님 "내가 출발하는 위치를 정해야하는데")
+        //   전엔 **첫 현장에서** 길이 시작해서, 집에서 첫 현장까지 간 거리가 통째로 빠졌다.
+        //   order = -1 이라 길도 셈도 여기서부터. 현장 수·동네 수에는 안 들어간다(따로 센다).
+        //   출발 동네가 그날 간 동네와 같으면 점을 또 찍지 않는다 — 같은 자리에 두 개가 겹친다.
+        val startAddr = container.preferences.startAddrEffective
+        val startSpot = startAddr.takeIf { it.isNotBlank() }?.let { spotOf(it) }
+        val dots =
+            if (startSpot != null && !counts.containsKey(startSpot.name))
+                listOf(
+                    com.detailline.callfollowcrm.presentation.component.RegionDot(
+                        startSpot.name, startSpot.lat, startSpot.lon,
+                        count = 0, order = -1, isStart = true
+                    )
+                ) + siteDots
+            else siteDots
         // 올해 누적 동네 수 — 지도엔 안 찍고 **숫자로만** 남긴다.
         val yearStart = yearStartOf(now)
         val yearTowns = HashSet<String>()
@@ -386,6 +414,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 topTown, top?.recordNo, month.size + collabMonth.size, towns.size, workDays
             ),
             dots = dots,
+            startAddr = startAddr,
+            startTown = startSpot?.name ?: "",
             monthLabel = java.text.SimpleDateFormat("yyyy년 M월", java.util.Locale.KOREA)
                 .format(java.util.Date(monthStart)),
             canGoNext = monthDelta < 0,
@@ -635,6 +665,10 @@ data class MyRecordState(
     val pasteText: String = "",
     /** **이번 달** 다녀온 곳 — 지도에 찍을 점(동네 하나당 하나, 몇 번 갔는지 셈). */
     val dots: List<com.detailline.callfollowcrm.presentation.component.RegionDot> = emptyList(),
+    /** 🏠 출발지로 쓰고 있는 주소. 빈 값 = 아직 안 정함(사업자 주소도 없음). (2026-09-27 사장님) */
+    val startAddr: String = "",
+    /** 그 주소의 동네 이름("화성 병점동"). 빈 값 = 주소를 못 알아봄 → 화면이 그렇게 말한다. */
+    val startTown: String = "",
     /** 보고 있는 달 — "2026년 9월". */
     val monthLabel: String = "",
     /** 다음 달로 넘어갈 수 있나(이번 달이면 false — 안 온 달은 볼 게 없다). */
