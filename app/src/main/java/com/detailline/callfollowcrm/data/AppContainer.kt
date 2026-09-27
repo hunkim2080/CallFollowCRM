@@ -30,6 +30,7 @@ import com.detailline.callfollowcrm.recording.NoOpServerUploadRepository
 import com.detailline.callfollowcrm.recording.ServerUploadRepository
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 단순한 manual DI 컨테이너. Hilt 없이 Application이 보유한다.
@@ -333,7 +334,7 @@ class AppContainer(context: Context) {
             customerRepository.observeAll().collect { list ->
                 customerSuffixCache = list
                     .mapNotNull { c ->
-                        c.phoneNumber.filter { it.isDigit() }.takeLast(8).takeIf { it.length >= 7 }
+                        PhoneKey.of(c.phoneNumber).takeIf { it.length >= 7 }
                     }
                     .toSet()
             }

@@ -7,6 +7,7 @@ import com.detailline.callfollowcrm.domain.inbox.BucketPolicy
 import com.detailline.callfollowcrm.domain.inbox.InboxClassifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 상담함/문자함 분류 저장소 — 로컬 1차 분류 적용 + 사장님 수동 이동. (2026-07-11 사장님)
@@ -100,8 +101,7 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
     }
 
     private fun suffixOf(phone: String): String {
-        val d = phone.filter { it.isDigit() }
-        return if (d.length >= 8) d.takeLast(8) else d
+        return PhoneKey.of(phone)
     }
 
     companion object { private const val TAG = "ThreadBucket" }

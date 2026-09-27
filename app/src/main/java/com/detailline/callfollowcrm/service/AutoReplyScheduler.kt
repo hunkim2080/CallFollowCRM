@@ -13,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * "처음 연락온 고객" 자동 응답 SMS 발송 스케줄러.
@@ -67,7 +68,7 @@ object AutoReplyScheduler {
         if (!isMissed && container.preferences.firstReplyIncomingTemplateId <= 0) return
 
         // 같은 번호로 이미 자동답장 대기 중이면 skip — 10초 카운트다운 중 2번째 통화가 들어와도 고객에게 문자 2통 안 나가게. (2026-07-30 버그감사)
-        val phoneKey = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val phoneKey = PhoneKey.of(phoneNumber)
         if (phoneKey.isNotBlank() && !pendingPhones.add(phoneKey)) return
 
         pending[callRecordId] = false

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 팀 관리 화면 ViewModel (프로토 #s-team).  2026-06-05.
@@ -38,7 +39,7 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
         container.smsContactCacheRepository.observeAll(200),
         container.customerRepository.observeAll()
     ) { calls, sms, customers ->
-        fun suf(p: String) = p.filter { it.isDigit() }.takeLast(8)
+        fun suf(p: String) = PhoneKey.of(p)
         val nameBySuffix = customers.mapNotNull { c ->
             c.name?.takeIf { it.isNotBlank() }?.let { suf(c.phoneNumber) to it }
         }.toMap()

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.detailline.callfollowcrm.util.PhoneKey
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
@@ -136,7 +137,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 사장님이 광고함에서 "이건 광고 아냐" → 그 번호를 예외로 등록(상담함으로 복귀). (2026-07-08 사장님) */
     fun markNotAd(phone: String) {
-        val s = phone.filter { it.isDigit() }.takeLast(8)
+        val s = PhoneKey.of(phone)
         if (s.isBlank()) return
         val next = container.preferences.adAllowlistSuffixes + s
         container.preferences.adAllowlistSuffixes = next
@@ -1134,8 +1135,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun phoneSuffix(phone: String): String {
-        val digits = phone.filter { it.isDigit() }
-        return if (digits.length >= 8) digits.takeLast(8) else digits
+        return PhoneKey.of(phone)
     }
 
     fun setFilter(f: HomeFilter) { filter.value = f }

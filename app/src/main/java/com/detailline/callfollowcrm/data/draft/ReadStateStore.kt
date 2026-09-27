@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * "최근 대화" 안 읽음(파란 점) 읽음 추적 — 카톡식.
@@ -31,8 +32,7 @@ class ReadStateStore(context: Context) {
         }.toMap()
 
     private fun suffixOf(phone: String): String {
-        val digits = phone.filter { it.isDigit() }
-        return if (digits.length >= 8) digits.takeLast(8) else digits
+        return PhoneKey.of(phone)
     }
 
     /** 이 번호 대화를 지금(또는 atMs)에 읽음으로 표시. 이후 그 시각보다 새 고객 메시지가 없으면 점이 사라진다. */

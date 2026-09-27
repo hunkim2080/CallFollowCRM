@@ -1,7 +1,7 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 140곳 / 43줄
+# 총 59곳 / 28줄
 dialog-white|presentation/screen/chat/ChatScreen.kt 2
 dialog-white|presentation/screen/customer/CustomerDetailScreen.kt 1
 dialog-white|presentation/screen/expo/ExpoScreen.kt 2
@@ -9,38 +9,23 @@ dialog-white|presentation/screen/followup/FollowUpScreen.kt 2
 dialog-white|presentation/screen/home/HomeScreen.kt 2
 dialog-white|presentation/screen/pricing/PricingItemsScreen.kt 1
 keyboard-inset|presentation/screen/notebook/NotebookScreen.kt 1
-phone-key|ai/IntakeSyncManager.kt 1
 phone-key|ai/WebFeedSyncManager.kt 1
-phone-key|data/AppContainer.kt 1
 phone-key|data/SmsCachePrefetcher.kt 1
-phone-key|data/draft/ReadStateStore.kt 1
 phone-key|data/local/entity/ThreadBucketEntity.kt 1
-phone-key|data/preferences/AppPreferences.kt 3
 phone-key|data/repository/CallRecordRepository.kt 1
 phone-key|data/repository/CustomerRepository.kt 1
 phone-key|data/repository/SmsRepository.kt 2
-phone-key|data/repository/ThreadBucketRepository.kt 1
-phone-key|presentation/screen/chat/ChatScreen.kt 3
-phone-key|presentation/screen/chat/ChatViewModel.kt 19
-phone-key|presentation/screen/customer/CustomerDetailScreen.kt 17
-phone-key|presentation/screen/customer/CustomerDetailViewModel.kt 7
-phone-key|presentation/screen/home/HomeScreen.kt 16
-phone-key|presentation/screen/home/HomeViewModel.kt 4
-phone-key|presentation/screen/newleads/NewLeadsViewModel.kt 2
-phone-key|presentation/screen/schedule/ScheduleAddScreen.kt 2
-phone-key|presentation/screen/schedule/ScheduleScreen.kt 2
-phone-key|presentation/screen/schedule/ScheduleViewModel.kt 15
-phone-key|presentation/screen/search/SearchViewModel.kt 1
-phone-key|presentation/screen/sharedsite/SharedSiteScreen.kt 3
+phone-key|presentation/screen/chat/ChatViewModel.kt 5
+phone-key|presentation/screen/customer/CustomerDetailScreen.kt 6
+phone-key|presentation/screen/customer/CustomerDetailViewModel.kt 4
+phone-key|presentation/screen/home/HomeViewModel.kt 2
+phone-key|presentation/screen/newleads/NewLeadsViewModel.kt 1
+phone-key|presentation/screen/schedule/ScheduleViewModel.kt 10
 phone-key|presentation/screen/spam/SpamListScreen.kt 1
-phone-key|presentation/screen/stats/StatsViewModel.kt 1
-phone-key|presentation/screen/team/TeamViewModel.kt 1
-phone-key|recording/AdotFolderScanner.kt 5
-phone-key|recording/CallSummaryProgress.kt 2
-phone-key|service/AutoReplyScheduler.kt 1
+phone-key|recording/AdotFolderScanner.kt 2
 phone-key|service/IncomingCallOverlay.kt 2
-phone-key|service/MmsDownloadedReceiver.kt 3
-phone-key|service/NotificationHelper.kt 2
+phone-key|service/MmsDownloadedReceiver.kt 1
+phone-key|service/NotificationHelper.kt 1
 phone-key|service/SmsReceiver.kt 1
 phone-key|util/CallLogHelper.kt 3
 phone-key|util/PhoneMatch.kt 1

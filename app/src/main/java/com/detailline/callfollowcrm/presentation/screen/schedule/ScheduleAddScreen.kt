@@ -81,6 +81,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import java.util.Calendar
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 셀프 일정 등록 화면 — 프로토 renderAddSchedule 1:1.
@@ -320,7 +321,7 @@ fun ScheduleAddScreen(
                             val d = c.phoneNumber.filter { ch -> ch.isDigit() }
                             d.length >= 8 && d.contains(typedDigits) && d != typedDigits
                         }
-                        .distinctBy { it.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8) }
+                        .distinctBy { PhoneKey.of(it.phoneNumber) }
                         .take(6).toList()
                     if (matches.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
@@ -882,7 +883,7 @@ private fun ContactImportDialog(
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 380.dp)) {
                     items(contacts, key = { it.id }) { c ->
                         val hasName = c.name?.isNotBlank() == true
-                        val suffix = c.phoneNumber.filter { it.isDigit() }.takeLast(8)
+                        val suffix = PhoneKey.of(c.phoneNumber)
                         // 힌트 우선순위: ✨AI요약 > 메모 > 짧은주소 > 최근 연락 N일 전.
                         val hint = hints[suffix]
                             ?: c.memo?.takeIf { it.isNotBlank() }

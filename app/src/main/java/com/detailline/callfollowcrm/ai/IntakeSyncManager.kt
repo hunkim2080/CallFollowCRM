@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 시공접수서 제출 동기화 (2026-06-03) — GET /api/quote/submissions 폴링.
@@ -153,7 +154,7 @@ class IntakeSyncManager(private val container: AppContainer) {
 
                 // 채팅 타임라인 카드용 이벤트 기록 — token unique IGNORE → 중복 방지.
                 runCatching {
-                    val suffix = s.customerPhone.filter { it.isDigit() }.takeLast(8)
+                    val suffix = PhoneKey.of(s.customerPhone)
                     container.intakeEventRepository.record(
                         com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity(
                             phoneSuffix = suffix,

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 검색 (2026-06-01 전면 리뉴얼, 프로토 s-search) — 이름·전화번호·**대화 전체 내용** 검색.
@@ -438,8 +439,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private fun suffixOf(phone: String): String {
-        val d = phone.filter { it.isDigit() }
-        return if (d.length >= 8) d.takeLast(8) else d
+        return PhoneKey.of(phone)
     }
 
     /**

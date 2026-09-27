@@ -20,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 2026-07-05 — MMS 다운로드 완료 수신: 다운로드된 PDU 를 파싱 → content://mms persist → 후속 훅.
@@ -226,12 +227,12 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
             //   → 방금 알린 그 문자의 mmsId 를 notifiedMmsIds 에 넣고 마커도 전진시킨다.
             runCatching {
                 val prefs = container.preferences
-                val sameNum = sender.filter { it.isDigit() }.takeLast(8)
+                val sameNum = PhoneKey.of(sender)
                 val ids = container.smsRepository
                     .queryInboxMmsSince(receivedAtMs - 3_000L, limit = 5)
                     .filter {
                         it.dateMs <= receivedAtMs + 3_000L &&
-                            it.sender.filter { c -> c.isDigit() }.takeLast(8) == sameNum
+                            PhoneKey.of(it.sender) == sameNum
                     }
                     .map { it.mmsId.toString() }
                 if (ids.isNotEmpty()) {

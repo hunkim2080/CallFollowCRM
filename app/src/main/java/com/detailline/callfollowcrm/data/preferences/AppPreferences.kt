@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 간단한 키-값 영속화. v1 에서는 DataStore 도입 부담을 피하고 SharedPreferences 직접 사용.
@@ -361,7 +362,7 @@ class AppPreferences(context: Context) {
     // ── '이 사람 고객 아님' (2026-07-18 사장님) — 협업사장·거래처·지인 등을 고객 상담으로 오인하는 AI 방지 ──
     //   '고객 아님' 표시된 번호는 고객상담 AI(페르소나·추천답변)를 안 만든다. 통화요약 같은 중립 기능은 유지.
     //   기본 = 고객(안전). 모르는 새 번호가 한 번 오간 뒤 대화방 조용한 줄로 물어 본다.
-    private fun suffixOf(phone: String): String = phone.filter { it.isDigit() }.takeLast(8)
+    private fun suffixOf(phone: String): String = PhoneKey.of(phone)
 
     /** '고객 아님'으로 표시된 번호(끝 8자리) 집합. */
     var nonCustomerSuffixes: Set<String>
@@ -910,14 +911,14 @@ class AppPreferences(context: Context) {
      * 키 = "<번호뒷자리>:<문자시각ms>". 번호별로 최근 200개만 들고 있는다(무한히 쌓이지 않게).
      */
     fun dismissedPayClaims(phone: String): Set<Long> {
-        val p = phone.filter { it.isDigit() }.takeLast(8)
+        val p = PhoneKey.of(phone)
         return prefs.getStringSet("payclaim_dismissed", emptySet()).orEmpty()
             .mapNotNull { k -> k.substringAfter("$p:", "").toLongOrNull()?.takeIf { k.startsWith("$p:") } }
             .toSet()
     }
 
     fun addDismissedPayClaim(phone: String, messageMs: Long) {
-        val p = phone.filter { it.isDigit() }.takeLast(8)
+        val p = PhoneKey.of(phone)
         val cur = prefs.getStringSet("payclaim_dismissed", emptySet()).orEmpty().toMutableList()
         cur.add("$p:$messageMs")
         val trimmed = if (cur.size > 200) cur.takeLast(200) else cur

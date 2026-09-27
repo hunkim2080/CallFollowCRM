@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.MainActivity
 import com.detailline.callfollowcrm.R
+import com.detailline.callfollowcrm.util.PhoneKey
 
 object NotificationHelper {
 
@@ -1798,7 +1799,7 @@ object NotificationHelper {
      *   '거짓 성공'을 막는다. 사장님이 실패를 인지하고 신호 좋을 때 탭해서 다시 보내게. (2026-08-11 오프라인 감사 rank1)
      */
     fun showMmsSendFailed(context: Context, phoneNumber: String) {
-        val id = famId(FAM_MMS_FAIL, phoneNumber.filter { it.isDigit() }.takeLast(8).hashCode())
+        val id = famId(FAM_MMS_FAIL, PhoneKey.of(phoneNumber).hashCode())
         showProtoPush(
             context, id, CHANNEL_AUTO_REPLY, ACCENT_PINK,
             title = "사진이 안 보내졌어요",

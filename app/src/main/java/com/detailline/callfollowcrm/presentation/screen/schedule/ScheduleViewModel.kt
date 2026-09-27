@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 시공 예약 화면의 데이터 묶음.
@@ -201,14 +202,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             container.categoryRepository.observeAll(),
             container.notebookRepository.observeWorkers()
         ) { sms, cs, cats, workers ->
-            val already = workers.map { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) }.toSet()
+            val already = workers.map { PhoneKey.of(it.phone) }.toSet()
             val tagIds = cats.filter { it.name.contains("일당") || it.name.contains("협업") }
                 .map { it.id }.toSet()
-            val nameBySuffix = cs.associateBy { it.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8) }
+            val nameBySuffix = cs.associateBy { PhoneKey.of(it.phoneNumber) }
             val out = LinkedHashMap<String, PickCandidate>()
             // ① 분류해둔 사람 먼저 — 이미 사장님이 골라둔 사람이다.
             cs.filter { it.categoryId in tagIds }.forEach { c ->
-                val suf = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
+                val suf = PhoneKey.of(c.phoneNumber)
                 if (suf.isBlank() || suf in already) return@forEach
                 out[suf] = PickCandidate(
                     phone = c.phoneNumber,
@@ -577,7 +578,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val effectiveAddress = addressOverride?.trim()?.takeIf { it.isNotBlank() } ?: customer.address
         val title = collabTitleOf(effectiveAddress, customer.name)
         val partnerName = collabPartners.value
-            .firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
+            .firstOrNull { PhoneKey.of(it.phone) == partner.takeLast(8) }
             ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(effectiveAddress).takeIf { it.isNotBlank() }
         // 출근시간 선택 시: 일정 날짜에 그 정시 박아 scheduled_at_ms + time_label 도 함께.
@@ -763,7 +764,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun phoneSuffix(phone: String): String =
-        phone.filter { it.isDigit() }.takeLast(8)
+        PhoneKey.of(phone)
 
     private fun buildState(list: List<CustomerEntity>): ScheduleUiState {
         val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())

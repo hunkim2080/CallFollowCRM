@@ -83,6 +83,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 협업 현장 (B = 협업자) — 프로토 collab-sites-proto.html 의 b-list / b-detail 1:1.
@@ -206,14 +207,14 @@ fun SharedSiteScreen(
     // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
     val partnerGroups = remember(acceptedSites, serverPartners) {
         if (serverPartners.isNotEmpty()) serverPartners.map { p ->
-            val key = p.ownerPhone.filter { it.isDigit() }.takeLast(8).ifBlank { p.ownerName }
+            val key = PhoneKey.of(p.ownerPhone).ifBlank { p.ownerName }
             PartnerGroup(
                 key = key,
                 name = p.ownerName,
                 count = p.count,
                 recentMs = p.lastAtMs,
                 wageSum = p.totalWage,
-                sites = acceptedSites.filter { it.ownerPhone.filter { c -> c.isDigit() }.takeLast(8) == key }
+                sites = acceptedSites.filter { PhoneKey.of(it.ownerPhone) == key }
                     .sortedByDescending { it.scheduledAtMs }
             )
         }.sortedByDescending { it.recentMs }
@@ -1073,7 +1074,7 @@ private data class PartnerGroup(
 )
 
 private fun groupByPartner(sites: List<SharedSiteRepository.SharedSite>): List<PartnerGroup> =
-    sites.groupBy { s -> s.ownerPhone.filter { it.isDigit() }.takeLast(8).ifBlank { s.ownerName } }
+    sites.groupBy { s -> PhoneKey.of(s.ownerPhone).ifBlank { s.ownerName } }
         .map { (key, list) ->
             PartnerGroup(
                 key = key,

@@ -181,6 +181,7 @@ import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.util.keyboardClearance
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.zIndex
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 대시보드 → 번호 탭의 메인 진입 화면.
@@ -616,7 +617,7 @@ fun ChatScreen(
     val resummarized by com.detailline.callfollowcrm.recording.CallSummaryProgress.justDone.collectAsState()
     LaunchedEffect(resummarized) {
         val done = resummarized ?: return@LaunchedEffect
-        if (done == viewModel.phoneNumber.filter { it.isDigit() }.takeLast(8)) {
+        if (done == PhoneKey.of(viewModel.phoneNumber)) {
             snackbar.showSnackbar("요약을 새로 했어요")
         }
         com.detailline.callfollowcrm.recording.CallSummaryProgress.consumeDone()
@@ -1529,8 +1530,8 @@ fun ChatScreen(
     //   백그라운드 요약기가 CallSummaryReprompt.ask 로 켜고, 이 채팅 번호와 맞으면 예/아니오를 띄움.
     val reprompt by com.detailline.callfollowcrm.recording.CallSummaryReprompt.pending.collectAsState()
     reprompt?.let { p ->
-        val mySuffix = viewModel.phoneNumber.filter { it.isDigit() }.takeLast(8)
-        if (p.phone.filter { it.isDigit() }.takeLast(8) == mySuffix) {
+        val mySuffix = PhoneKey.of(viewModel.phoneNumber)
+        if (PhoneKey.of(p.phone) == mySuffix) {
             androidx.compose.material3.AlertDialog(
                 containerColor = Color.White,
                 tonalElevation = 0.dp,

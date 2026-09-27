@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.recording
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 통화 녹음 → 서버 요약이 "진행 중"인 통화 키 집합.
@@ -20,7 +21,7 @@ object CallSummaryProgress {
     val inProgress: StateFlow<Set<String>> = _inProgress
 
     private fun key(phone: String, recordedAtMs: Long): String {
-        val suffix = phone.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phone)
         return "$suffix@$recordedAtMs"
     }
 
@@ -42,7 +43,7 @@ object CallSummaryProgress {
     val justDone: StateFlow<String?> = _justDone
 
     fun markDone(phone: String) {
-        _justDone.value = phone.filter { it.isDigit() }.takeLast(8)
+        _justDone.value = PhoneKey.of(phone)
     }
 
     fun consumeDone() {

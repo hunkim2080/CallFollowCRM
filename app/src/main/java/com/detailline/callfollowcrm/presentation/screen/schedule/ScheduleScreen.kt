@@ -118,6 +118,7 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.detailline.callfollowcrm.presentation.util.keyboardClearance
+import com.detailline.callfollowcrm.util.PhoneKey
 
 // 월 전환 Pager 풀 — 가운데(기준달) ± 1200달(±100년). 충분히 넓어 끝에 닿을 일 없음.
 private const val SCHEDULE_PAGER_CENTER = 1200
@@ -501,7 +502,7 @@ fun ScheduleScreen(
                     val c = r.first
                     val site = r.second
                     if (c != null) {
-                        val suffix = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
+                        val suffix = PhoneKey.of(c.phoneNumber)
                         val originalDate = c.scheduledWorkDate ?: 0L
                         CollabSwipeBox(
                             onDelete = {
@@ -2015,7 +2016,7 @@ private fun AssignTeamSheet(
     /** 일당 배정 통째 저장 (workerId → 일당 원). 고른 사람만 넘김 = 나머지는 해제. */
     onSaveCrew: (Map<Long, Long>) -> Unit = {}
 ) {
-    fun key(phone: String) = phone.filter { it.isDigit() }.takeLast(8)
+    fun key(phone: String) = PhoneKey.of(phone)
     // 이미 요청한 일당사장 = 처음부터 '선택됨'으로 보여줌(요청함). 해제하면 취소.
     val reqKeys = remember(assignedCollabPhones) { assignedCollabPhones.map { key(it) }.filter { it.isNotEmpty() }.toSet() }
     var selectedWorkers by remember { mutableStateOf(initiallySelected) }

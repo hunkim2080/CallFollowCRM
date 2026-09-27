@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 대시보드에서 번호 클릭 시 진입하는 채팅 화면의 ViewModel.
@@ -277,7 +278,7 @@ class ChatViewModel(
      *   요약 가져오기(에이닷/서버)는 별개 — 여기선 통화 자체(유형·시간·길이) 노출까지.
      */
     val callRecords: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
         else container.callRecordRepository.observeByPhoneSuffix(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -288,7 +289,7 @@ class ChatViewModel(
     private val _customerAskDismissed = MutableStateFlow(false)
     val showCustomerAsk: StateFlow<Boolean> =
         combine(customer, messages, isPlainThread, callRecords, _customerAskDismissed) { cust, msgs, plain, calls, dismissed ->
-            val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+            val suffix = PhoneKey.of(phoneNumber)
             // 확실한 고객(시공일·금액·계약금 있음)은 안 물음 — 물어볼 필요 없음. 앱은 모든 연락처에 record 를 만들어서
             //   'record 있음'만으론 고객 확정이 아니다. 미확정(문의 단계) 번호에만 물어 협업/거래처/지인을 걸러낸다.
             val confirmedCustomer = cust != null &&
@@ -313,7 +314,7 @@ class ChatViewModel(
 
     /** 통화 녹음 첨부 (2026-06-16) — 통화 카드에 재생 플레이어를 띄우기 위함. suffix 매칭. */
     val recordings: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity>> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
         else container.recordingRepository.observeByPhoneSuffix(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -323,7 +324,7 @@ class ChatViewModel(
      *   통화기록과 같은 suffix 매칭. 통화 카드(CallSegment)가 시각으로 짝지어 "AI 요약됨" 상태로 표시.
      */
     val callSummaries: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity>> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
         else container.callSummaryRepository.observeByPhoneSuffix(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -336,7 +337,7 @@ class ChatViewModel(
     val summarizingRecordedAt: StateFlow<Set<Long>> =
         com.detailline.callfollowcrm.recording.CallSummaryProgress.inProgress
             .map { keys ->
-                val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+                val suffix = PhoneKey.of(phoneNumber)
                 keys.mapNotNull { k ->
                     val parts = k.split("@")
                     if (parts.size == 2 && parts[0] == suffix) parts[1].toLongOrNull() else null
@@ -443,7 +444,7 @@ class ChatViewModel(
      *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
      */
     val intakeEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
         else container.intakeEventRepository.observe(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -453,7 +454,7 @@ class ChatViewModel(
      *   채팅 타임라인에 "📅 일정 변경 / 💰 금액 변경 / 💵 잔금 받음" 카드로 표시(처리 시각 기준).
      */
     val timelineEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity>> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
         else container.timelineEventRepository.observe(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -463,7 +464,7 @@ class ChatViewModel(
      *   "📜 견적서 발행 / 📋 시공접수서 발행" 카드로(발행 시각 기준). 탭하면 다시 열람.
      */
     val issuedDocs: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
         else container.issuedDocRepository.observeBySuffix(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -474,7 +475,7 @@ class ChatViewModel(
      * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).
      */
     val aiSummary: StateFlow<com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity?> = run {
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) {
             kotlinx.coroutines.flow.flowOf(null)
         } else {
@@ -1031,7 +1032,7 @@ class ChatViewModel(
     private fun captureSendSignal(sentText: String) {
         val picked = pickedChoice
         val sugs = pickedSuggestionsSnapshot ?: _suggestions.value
-        val phoneSuffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val phoneSuffix = PhoneKey.of(phoneNumber)
         val nowMs = System.currentTimeMillis()
         val event = when {
             picked != null -> {
@@ -1160,7 +1161,7 @@ class ChatViewModel(
 
     // ── 대기 중 발견 카드 영속화 (2026-06-18 사장님: 뒤로가기로 화면 나가도 ⭕/❌/나중에 고를 때까지 유지) ──
     //   항목 = 번호 끝 8자리(고정폭) + 원칙. 구분자 없이 앞 8자리=번호 키. (질문은 복원 시 카드가 템플릿으로 재생성)
-    private val principlePhoneKey: String get() = phoneNumber.filter { it.isDigit() }.takeLast(8)
+    private val principlePhoneKey: String get() = PhoneKey.of(phoneNumber)
 
     /** 발견 카드 띄울 때 같이 저장 — 화면 나갔다 와도(VM 재생성) 그대로 복원. 같은 번호 기존 항목은 교체. */
     private fun persistPendingPrinciple(d: PrincipleDiscovery) {
@@ -1452,7 +1453,7 @@ class ChatViewModel(
     }
     private suspend fun isBacklogConversation(): Boolean {
         if (installTimeMs <= 0L) return false
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         if (suffix.length < 7) return false
         val latest = runCatching { container.cachedMessageRepository.load(suffix, limit = 1) }
             .getOrDefault(emptyList()).firstOrNull()?.dateMs ?: return false
@@ -1811,7 +1812,7 @@ class ChatViewModel(
         itemsText: String?, memo: String?, docJson: String, url: String?, token: String?
     ) {
         val cid = runCatching { ensureCustomerId() }.getOrNull()
-        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val suffix = PhoneKey.of(phoneNumber)
         runCatching {
             // "수정"은 서버가 같은 링크(token)를 재사용 → 카드도 새로 만들지 말고 기존 카드를 갱신해야 함.
             //   같은 token 카드가 있으면 그 id 재사용(REPLACE=갱신) + 중복(2개 이상)은 정리 → 카드 하나로 유지. (2026-07-13 사장님)
@@ -1930,7 +1931,7 @@ class ChatViewModel(
         val picked = pickedChoice
         if (picked != null && !pickedActioned) {
             val sugs = pickedSuggestionsSnapshot ?: _suggestions.value
-            val phoneSuffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+            val phoneSuffix = PhoneKey.of(phoneNumber)
             val event = com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity(
                 phoneSuffix = phoneSuffix,
                 scenario = sugs?.scenario,

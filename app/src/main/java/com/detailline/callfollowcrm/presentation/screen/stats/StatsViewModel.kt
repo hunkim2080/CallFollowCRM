@@ -17,6 +17,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 통계 탭 — 프로토 `s-stats`(renderStats/renderStatTypes) 1:1.
@@ -751,8 +752,7 @@ private val D30_LABELS = listOf("4주전", "3주전", "2주전", "이번주")
 
 /** 전화번호 끝 8자리 = 같은 사람 판정 키 (SMS 캐시 normalizedSuffix 와 동일 규칙). */
 private fun phoneSuffix(phone: String): String {
-    val d = phone.filter { it.isDigit() }
-    return if (d.length >= 8) d.takeLast(8) else d
+    return PhoneKey.of(phone)
 }
 
 private fun monthStartOf(anyMs: Long): Long = Calendar.getInstance().apply {

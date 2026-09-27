@@ -18,6 +18,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 통화녹음(m4a) 자동 연결 — 두 경로:
@@ -401,7 +402,7 @@ object AdotFolderScanner {
             onComplete?.invoke(0)
             return
         }
-        val target = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val target = PhoneKey.of(phoneNumber)
         if (target.length < 7) {
             onComplete?.invoke(0)
             return
@@ -460,7 +461,7 @@ object AdotFolderScanner {
     ): SummarizeResult {
         if (!isConnected(context)) return SummarizeResult.NO_FOLDER
         val appCtx = context.applicationContext
-        val target = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val target = PhoneKey.of(phoneNumber)
         if (target.length < 7) return SummarizeResult.NO_FILE
         val win = 30 * 60 * 1000L
         var bestUri: String? = null
@@ -487,7 +488,7 @@ object AdotFolderScanner {
                 // 이 시각의 통화가 '탭한 그 통화'가 맞는지 통화기록으로 확인 — 아니면 안 붙인다(엉뚱한 고객 방지).
                 val owner = container.callRecordRepository.findCallAtTime(loose.recordedAt) ?: continue
                 val sameCall = if (callRecordId != null) owner.id == callRecordId
-                else owner.phoneNumber.filter { it.isDigit() }.takeLast(8) == target
+                else PhoneKey.of(owner.phoneNumber) == target
                 if (!sameCall) continue
                 bestUri = rf.uriStr; bestName = rf.name; bestAt = loose.recordedAt; bestDelta = delta
                 looseMatch = true

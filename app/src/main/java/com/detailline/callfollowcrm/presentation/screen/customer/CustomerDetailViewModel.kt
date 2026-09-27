@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.detailline.callfollowcrm.util.PhoneKey
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CustomerDetailViewModel(
@@ -103,7 +104,7 @@ class CustomerDetailViewModel(
             .flatMapLatest { c ->
                 if (c == null) emptyFlow<List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>>()
                 else container.intakeEventRepository
-                    .observe(c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8))
+                    .observe(PhoneKey.of(c.phoneNumber))
             }
             .map { list -> list.associateBy { it.token } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
@@ -351,7 +352,7 @@ class CustomerDetailViewModel(
         container.customerRepository.observeById(customerId)
             .flatMapLatest { c ->
                 val phone = c?.phoneNumber.orEmpty()
-                val suffix = phone.filter { it.isDigit() }.takeLast(8)
+                val suffix = PhoneKey.of(phone)
                 if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(null)
                 else container.conversationAiRepository.observe(suffix)
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -995,7 +996,7 @@ class CustomerDetailViewModel(
         val c = customer.value ?: return
         // cached_messages 는 권한 무관하게 우리 DB → 항상 로드. systemSms 는 권한 필요.
         viewModelScope.launch(Dispatchers.IO) {
-            val suffix = c.phoneNumber.filter { it.isDigit() }.takeLast(8)
+            val suffix = PhoneKey.of(c.phoneNumber)
             if (suffix.length >= 7) {
                 val cached = runCatching {
                     container.cachedMessageRepository.load(suffix, limit = 500)

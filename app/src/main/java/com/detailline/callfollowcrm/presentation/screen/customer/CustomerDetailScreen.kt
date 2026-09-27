@@ -147,6 +147,7 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.splitSiteAddress
 import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 메모를 저장해도 되는가 — 저장 경로가 두 곳(타이핑 debounce / 화면 나갈 때 flush)이라
@@ -780,7 +781,7 @@ fun CustomerDetailScreen(
                         container.preferences.collabAssignments.mapNotNull { e ->
                             val p = e.split("|")
                             if (p.size >= 3 && p[0].toLongOrNull() == c.id) Triple(p[1], p[2], p.getOrNull(3).orEmpty()) else null
-                        }.distinctBy { it.first.filter { ch -> ch.isDigit() }.takeLast(8) }
+                        }.distinctBy { PhoneKey.of(it.first) }
                     }
                     // 협업 사장님 부르기 — 예전엔 일정→전문가배정으로만(2026-06-13). 사장님 요청(2026-08-09)으로 협업 탭에서도 바로.
                     //   협업 사장 전용 간단 시트(CollabShareSheet, 이미 구현됨) 재연결. 팀원 배정은 일정에 그대로.
@@ -828,7 +829,7 @@ fun CustomerDetailScreen(
                                         .filterNot { e ->
                                             val p = e.split("|")
                                             p.size >= 3 && p[0].toLongOrNull() == c.id &&
-                                                p[1].filter { it.isDigit() }.takeLast(8) == partnerPhone.filter { it.isDigit() }.takeLast(8)
+                                                p[1].filter { it.isDigit() }.takeLast(8) == PhoneKey.of(partnerPhone)
                                         }.toSet()
                                     collabRefresh++
                                 }
@@ -4524,7 +4525,7 @@ private fun CollabShareSheet(
     var manualOpen by remember { mutableStateOf(false) }
     /** 이 현장에 이미 요청을 보낸 사장님(끝 8자리). 줄에 「요청함」으로 표시만 한다. */
     val requestedKeys = remember(requestedPhones) {
-        requestedPhones.map { it.filter { c -> c.isDigit() }.takeLast(8) }.filter { it.isNotEmpty() }.toSet()
+        requestedPhones.map { PhoneKey.of(it) }.filter { it.isNotEmpty() }.toSet()
     }
     /** 몇 번 같이 갔나 — 많이 부른 사람이 위로. */
     val freq = remember(workers) {
@@ -4534,9 +4535,9 @@ private fun CollabShareSheet(
     }
     val people = remember(workers, freq) {
         workers.filter { it.phone.filter { c -> c.isDigit() }.length >= 9 }
-            .distinctBy { it.phone.filter { c -> c.isDigit() }.takeLast(8) }
+            .distinctBy { PhoneKey.of(it.phone) }
             .sortedWith(compareByDescending<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity> {
-                freq[it.phone.filter { c -> c.isDigit() }.takeLast(8)] ?: 0
+                freq[PhoneKey.of(it.phone)] ?: 0
             }.thenBy { it.name })
     }
     /** 보낼 번호들 — 고른 사람 + (열어서 채웠으면) 직접 넣은 번호. */
@@ -4601,10 +4602,10 @@ private fun CollabShareSheet(
                 res.onSuccess { r ->
                     ok++
                     val partnerName = workers.firstOrNull {
-                        it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == k8
+                        PhoneKey.of(it.phone) == k8
                     }?.name ?: partner
                     // 명부에 없던 번호면 넣어둔다 — 다음엔 이름으로 고를 수 있게.
-                    if (workers.none { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == k8 }) {
+                    if (workers.none { PhoneKey.of(it.phone) == k8 }) {
                         runCatching {
                             container.notebookRepository.add(
                                 kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
@@ -4686,7 +4687,7 @@ private fun CollabShareSheet(
                     Column(Modifier.fillMaxWidth().clip(AppShape.md)
                         .border(1.dp, AppTheme.colors.line, AppShape.md)) {
                         people.forEachIndexed { idx, w ->
-                            val k8 = w.phone.filter { it.isDigit() }.takeLast(8)
+                            val k8 = PhoneKey.of(w.phone)
                             val on = k8 in selected
                             val asked = k8 in requestedKeys
                             if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
@@ -4757,13 +4758,13 @@ private fun CollabShareSheet(
                 }
 
                 // ── 일당 — 고른 사람마다. 전엔 칸이 하나뿐이라 여러 명을 부를 수 없었다.
-                val pickedPeople = people.filter { it.phone.filter { c -> c.isDigit() }.takeLast(8) in selected }
+                val pickedPeople = people.filter { PhoneKey.of(it.phone) in selected }
                 if (pickedPeople.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
                     Text("보낼 일당", style = AppType.label, fontWeight = FontWeight.Bold,
                         color = TossTextTertiary, modifier = Modifier.padding(bottom = 7.dp))
                     pickedPeople.forEach { w ->
-                        val k8 = w.phone.filter { it.isDigit() }.takeLast(8)
+                        val k8 = PhoneKey.of(w.phone)
                         androidx.compose.foundation.layout.Row(
                             Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -4844,7 +4845,7 @@ private fun CollabShareSheet(
 
                 // 📤 **버튼이 이름을 말한다** — 누구에게 가는지 마지막에 한 번 더. (2026-09-26)
                 val pickedNames = people
-                    .filter { it.phone.filter { c -> c.isDigit() }.takeLast(8) in selected }.map { it.name }
+                    .filter { PhoneKey.of(it.phone) in selected }.map { it.name }
                 val manualReady = manualOpen && partnerPhone.filter { it.isDigit() }.length >= 9
                 val total = pickedNames.size + (if (manualReady) 1 else 0)
                 Spacer(Modifier.height(16.dp))

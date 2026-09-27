@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 신규 고객 · 날짜별 (프로토 `s-newleads` / renderNewLeads).
@@ -264,8 +265,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NewLeadsUiState())
 
     private fun phoneSuffix(phone: String): String {
-        val d = phone.filter { it.isDigit() }
-        return if (d.length >= 8) d.takeLast(8) else d
+        return PhoneKey.of(phone)
     }
 
     /** 통화만 있는 신규의 "어떻게 끝났는지" — 부재중(안 받음)/수신 통화+시간/거절. */

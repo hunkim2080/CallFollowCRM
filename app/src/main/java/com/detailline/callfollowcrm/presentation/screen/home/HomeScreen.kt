@@ -173,6 +173,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.MoneyFormatter
 import androidx.compose.material.icons.filled.ChevronRight
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 업데이트 받기 — **Play 스토어 앱의 우리 앱 페이지**를 바로 연다. 사장님은 [업데이트] 한 번만 누르면 끝. (2026-09-12 사장님)
@@ -339,7 +340,7 @@ fun HomeScreen(
     //   숫자와 목록이 서로 다른 말을 하면 둘 다 못 믿는다 → **화면에 뜰 줄만** 센다.
     val todayNewShown = remember(timeline) {
         timeline.flatMap { g -> g.items }
-            .distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+            .distinctBy { PhoneKey.of(it.record.phoneNumber) }
             .count { it.isNewToday }
     }
     // 숫자엔 잡혔는데 목록엔 없는 것 = **광고·문자함으로 간 것.** 조용히 지우지 말고 어디 갔는지 말한다.
@@ -369,7 +370,7 @@ fun HomeScreen(
     val inboxChipCounts = remember(timeline, balanceDues) {
         val dues = balanceDues.mapNotNull { it.customerId }.toHashSet()
         val all = timeline.flatMap { g -> g.items }
-            .distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+            .distinctBy { PhoneKey.of(it.record.phoneNumber) }
         // 🔴 **빨간 숫자는 뜻이 하나다 — "내가 손댈 게 몇 개인가".** (2026-09-20 사장님)
         //   전엔 "몇 명인가" 를 셌다. 그래서 시공이 열 건 잡히면 **잡혀 있다는 이유로** 빨간 10 이 늘 떠 있었다.
         //   사장님: *"잡혀있어서 뜨는게 아니라... 시공대기 목록 인원한테 문자가 오면 숫자가 뜨는 것"*
@@ -795,7 +796,7 @@ fun HomeScreen(
             // 대기/최근 공용 행 렌더러 — 프로토 waiting-card·recent-row 의 공통 기반(HomeRow).
             //   expandedKey/scope/콜백을 클로저로 캡처해 두 섹션에서 동일하게 호출.
             val homeItemRow: @Composable (HomeItem) -> Unit = { item ->
-                val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                val suffix = PhoneKey.of(item.record.phoneNumber)
                 val rowKey = "row-${item.record.id}-${item.record.phoneNumber}"
                 val rowCategory = item.customer?.categoryId?.let { cid ->
                     categoryById[cid]
@@ -1202,7 +1203,7 @@ fun HomeScreen(
                 // 프로토 상담함 본문 — "지금 답장 기다려요"(미확인) + "최근 대화"(나머지) 두 섹션.
                 // 번호당 1줄만 (가장 최근). flatItems 는 최신순 → distinctBy 가 최신 1개 유지.
                 //   (2026-06-08 #4: 고객이 연속 문자/통화 시 같은 번호가 2줄 차지하던 현상 방지.)
-                val dedupItems = flatItems.distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+                val dedupItems = flatItems.distinctBy { PhoneKey.of(it.record.phoneNumber) }
                 // 자동 광고 분류 — 매우 보수적(오탐 방지 3중 가드): 저장 안 된 낯선 번호 + 내가 답장 안 함 +
                 //   "광고 아냐" 예외 아님 + 내용이 뻔한 광고(isLikelyAd). 하나라도 아니면 상담함에 그대로 남김. (2026-07-08 사장님)
                 // 🏷️ **칩으로 한 번 거른다.** 이 아래 '지금 답장 기다려요'·'최근 대화' 는 손 안 댄다 —
@@ -1237,19 +1238,19 @@ fun HomeScreen(
                 val chipOn = inboxChip != "all"
 
                 val ads = chipItems.filter { row ->
-                    val suffix = row.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                    val suffix = PhoneKey.of(row.record.phoneNumber)
                     row.customer == null && row.lastSent != true && suffix !in adAllowlist &&
                         com.detailline.callfollowcrm.util.isLikelyAd(row.lastBody ?: "", row.record.phoneNumber)
                 }
-                val adSuffixes = ads.mapTo(HashSet()) { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+                val adSuffixes = ads.mapTo(HashSet()) { PhoneKey.of(it.record.phoneNumber) }
                 fun notAd(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
-                    it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in adSuffixes
+                    PhoneKey.of(it.record.phoneNumber) !in adSuffixes
                 val waiting = chipItems.filter { it.isUnconfirmed && notAd(it) }
                 // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
                 //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
                 // 고정 거래처는 최근 대화에서 빼서 '고정' 칸으로만 보여준다. 나머지는 그대로. (2026-08-24 사장님)
-                val recent = chipItems.filter { !it.isUnconfirmed && notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in pinnedSuffixes }
-                val pinned = chipItems.filter { notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) in pinnedSuffixes }
+                val recent = chipItems.filter { !it.isUnconfirmed && notAd(it) && PhoneKey.of(it.record.phoneNumber) !in pinnedSuffixes }
+                val pinned = chipItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) in pinnedSuffixes }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 // [미수] 칩은 위 잔금 카드가 본문이다. 아래 대화 목록까지 띄우면 **같은 사람이 두 번** 나온다.
@@ -1291,11 +1292,11 @@ fun HomeScreen(
                         ) {
                             // 같은 사람의 **대화 줄**을 찾아 붙인다 — 상담함은 문자함이다.
                             val bySuffix = dedupItems.associateBy {
-                                it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                PhoneKey.of(it.record.phoneNumber)
                             }
                             balanceDues.forEachIndexed { idx, due ->
                                 if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                                val sfx = due.phone.filter { c -> c.isDigit() }.takeLast(8)
+                                val sfx = PhoneKey.of(due.phone)
                                 val item = bySuffix[sfx]
                                 OweRow(
                                     due = due,
@@ -1352,7 +1353,7 @@ fun HomeScreen(
                     }
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
-                        val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                        val suffix = PhoneKey.of(item.record.phoneNumber)
                         // 우→좌 swipe → [🚫 스팸][🧹 정리] 두 버튼. 스팸=영구 숨김, 정리=대기목록에서만. 둘 다 Snackbar Undo. (2026-06-23 사장님)
                         SpamSwipeBox(
                             onMarkSpam = {
@@ -1432,7 +1433,7 @@ fun HomeScreen(
                                             .height(1.dp).background(TossDivider)
                                     )
                                 }
-                                val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                val suffix = PhoneKey.of(rItem.record.phoneNumber)
                                 val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
                                 val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
                                 Box(Modifier.fillMaxWidth().background(Color.White)) {
@@ -1517,7 +1518,7 @@ fun HomeScreen(
                                                             .height(1.dp).background(TossDivider)
                                                     )
                                                 }
-                                                val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                                val suffix = PhoneKey.of(rItem.record.phoneNumber)
                                                 // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
                                                 val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
                                                 val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
@@ -1755,7 +1756,7 @@ fun HomeScreen(
             pinTarget?.let { target ->
                 val phone = target.record.phoneNumber
                 val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
-                val isPinnedNow = phone.filter { it.isDigit() }.takeLast(8) in pinnedSuffixes
+                val isPinnedNow = PhoneKey.of(phone) in pinnedSuffixes
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { pinTarget = null },
                     title = { Text(nm, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -1802,7 +1803,7 @@ fun HomeScreen(
             // '확인 후 발송' — 받은 문자 원문 + (카드에서 고른) 답변 전문 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
             waitingSendTarget?.let { target ->
                 val phone = target.record.phoneNumber
-                val suffix = phone.filter { it.isDigit() }.takeLast(8)
+                val suffix = PhoneKey.of(phone)
                 val nm = target.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
                 val incoming = target.lastBody?.takeIf { it.isNotBlank() }
                 val reply = waitingSendReply
