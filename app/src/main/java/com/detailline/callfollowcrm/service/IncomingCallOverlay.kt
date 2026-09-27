@@ -491,7 +491,13 @@ object IncomingCallOverlay {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             // 카드만 만질 수 있고(탭하면 그 손님 대화로), 창이 카드 높이뿐이라 받기·거절은 원래대로 눌린다.
             //   NOT_TOUCHABLE 을 빼는 게 위험했던 건 '전체화면' 창일 때다 — 지금은 위쪽 띠만 차지한다.
+            // 🔴 **NOT_TOUCH_MODAL 이 빠지면 메모를 여는 순간 통화 버튼이 다 죽는다.** (2026-09-27 사장님)
+            //   메모는 키보드를 받으려고 NOT_FOCUSABLE 을 뗀다. 그런데 안드로이드는
+            //   **포커스를 가진 창에 이 깃발이 없으면 창 밖 터치까지 그 창이 다 먹는다.**
+            //   창 높이를 카드만큼 줄인 것만으론 안 막힌다 — 높이와 상관없이 먹기 때문이다.
+            //   (같은 앱 PostCallTemplateOverlay 는 이미 달고 있었다. 여기만 빠졌다)
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -551,6 +557,8 @@ object IncomingCallOverlay {
         p.flags =
             if (focusable) p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
             else p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        // 🔒 포커스를 받는 순간이 위험한 때다. 카드 **밖** 터치는 반드시 뒤로 흘려보낸다.
+        p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
         runCatching { wm.updateViewLayout(v, p) }
             .onFailure { android.util.Log.w(TAG, "메모 창 전환 실패", it) }
     }
