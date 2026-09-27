@@ -1129,7 +1129,12 @@ private fun DetailBody(
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
         PillStrong("협업 현장")
         Spacer(Modifier.width(8.dp))
-        Text("${site.ownerName}과 함께", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+        // ☎️ 상호만 적혀 있으면 어느 사장님인지 못 알아본다. 번호를 같이 적는다. (2026-09-27 사장님)
+        Text(
+            "${site.ownerName}과 함께" +
+                (com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(site.ownerPhone).takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+            fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium
+        )
     }
     Spacer(Modifier.height(10.dp))
 

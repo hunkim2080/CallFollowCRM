@@ -2324,6 +2324,10 @@ private fun AssignTeamSheet(
                             // 📍 「며칠째 호흡」보다 **어디였는지**가 훨씬 잘 떠오른다. (2026-09-26 사장님)
                             val place = partnerLastPlace[p.phone.filter { ch -> ch.isDigit() }]
                             val meta = buildString {
+                                // ☎️ **번호를 맨 앞에.** 이름만 적혀 있으면 누군지 못 알아본다.
+                                //   (2026-09-27 사장님 "이 사람 번호가 안 뜨니까 모르겠네")
+                                com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p.phone).takeIf { it.isNotBlank() }
+                                    ?.let { append(it).append(" · ") }
                                 if (st != null && st.count > 0) {
                                     append("함께 ").append(st.count).append("번")
                                     if (!place.isNullOrBlank()) append(" · 마지막 ").append(place)
@@ -2402,7 +2406,12 @@ private fun AssignTeamSheet(
                             Column(Modifier.weight(1f)) {
                                 Text(c.name, style = AppType.label, fontWeight = FontWeight.Bold,
                                     color = TossTextPrimary, maxLines = 1)
-                                Text(c.meta, style = AppType.caption, color = TossTextTertiary, maxLines = 1)
+                                // ☎️ 고를 때도 번호가 보여야 맞는 사람인지 안다. (2026-09-27)
+                                Text(
+                                    com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(c.phone).takeIf { it.isNotBlank() }
+                                        ?.let { "$it · " + c.meta } ?: c.meta,
+                                    style = AppType.caption, color = TossTextTertiary, maxLines = 1
+                                )
                             }
                             Text("＋ 넣기", style = AppType.caption,
                                 fontWeight = FontWeight.Bold, color = purple)
@@ -2411,19 +2420,21 @@ private fun AssignTeamSheet(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            Box(
-                Modifier.fillMaxWidth().clip(AppShape.md)
-                    .background(AppTheme.colors.surfaceMuted)
+            // 🧹 **둘을 같은 덩어리로 두지 않는다.** (2026-09-27 사장님 "버튼이 겹쳐있는 디자인?")
+            //   같은 배경·같은 모서리의 칸 둘이 **간격 없이** 붙어 있어서
+            //   한 덩어리가 겹쳐 보였다. 직접 등록은 **마지막 수단**이니 글자만 남긴다.
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (addWorkerOpen) "닫기" else "찾는 사람이 없나요? 직접 등록",
+                style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(AppShape.md)
                     .clickable {
                         newName = ""; newPhone = ""; newWage = ""
                         addTeamOpen = false; addWorkerOpen = !addWorkerOpen
                     }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(if (addWorkerOpen) "닫기" else "찾는 사람이 없나요? 직접 등록",
-                    style = AppType.label, fontWeight = FontWeight.Bold, color = purple)
-            }
+                    .padding(vertical = 11.dp)
+            )
             if (addWorkerOpen) {
                 QuickAddForm(
                     // 시트 제목·빈 화면 버튼과 **같은 말**. 지난번 이름 통일 때 여기만 빠졌다. (2026-09-22 사장님)
