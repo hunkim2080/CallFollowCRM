@@ -33,7 +33,7 @@ fun startOfTodayMs(): Long {
 
 /**
  * 상태 계산 (단일 출처) — 미래 시공일=예약 · 시공 지남/완료처리/잔금받음 중 잔금 안받음=잔금미수·다받음=완료 ·
- *   그 외 14일 이내=신규, 지남=미전환.
+ *   그 외 **오늘 생긴 손님만**=신규, 그 밖은 딱지 없음. (2026-09-27 사장님)
  */
 fun customerStatusOf(
     c: CustomerEntity,
@@ -47,8 +47,15 @@ fun customerStatusOf(
         val bal = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).balanceAmount
         return if (c.balancePaidAt == null && bal > 0L) "잔금미수" else "완료"
     }
-    val ageDays = (now - c.createdAt) / 86_400_000L
-    return if (ageDays <= 14) "신규" else "미전환"
+    // 🆕 **신규는 오늘뿐이다.** (2026-09-27 사장님)
+    //   사장님: "왜 신규가 아닌데 자꾸 신규칩이 붙어다니는 거지. **하루만 지나도** 신규 태그는 없어지게"
+    //   전엔 **14일**이었다 — 보름날 사람까지 「신규」라 딱지가 아무 뜻도 없었다.
+    //   오늘 생긴 손님만 「신규」. 내일이면 뜼지 않는다.
+    if (c.createdAt >= today0) return "신규"
+    // 🚫 「미전환」은 안 붙인다. (2026-09-27 사장님 "없어도 될 태그인듯")
+    //   장부 말투고, 손님을 「전환 안 된 것」으로 부르는 말이고,
+    //   무엇보다 **할 일을 하나도 안 알려준다** — 그냥 오래됐다는 뜻이다.
+    return ""
 }
 
 /** 상태별 딱지 색 (fg, bg). CustomersScreen custTag 와 동일 팔레트. */
@@ -66,6 +73,8 @@ private fun statusColors(s: String): Pair<Color, Color> = when (s) {
  */
 @Composable
 fun CustomerStatusTag(status: String) {
+    // 빈 상태 = 딱지를 안 붙인다. 「미전환」을 없애면서 생긴 길. (2026-09-27)
+    if (status.isBlank()) return
     val (fg, bg) = statusColors(status)
     Box(
         Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)
