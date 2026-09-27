@@ -257,14 +257,18 @@ object IncomingCallOverlay {
                     isKnown = known,
                     scheduleLabel = schedule,
                     address = addr,
-                    moneyLabel = if (locked) null else money,
-                    moneyOwed = if (locked) false else owedOf(customer) > 0L,
-                    messages = if (locked) emptyList() else msgs,
+                    // 🔓 값은 **지우지 않는다.** 가리는 건 그리는 쪽(bind)이 한다.
+                    //   전에는 여기서 null 로 지워버려서, 전화를 받은 뒤에도 영영 안 보였다.
+                    moneyLabel = money,
+                    moneyOwed = owedOf(customer) > 0L,
+                    messages = msgs,
                     customerId = customer?.id,
                     loading = false,
                     status = status,
-                    lastSummary = if (locked) null else lastSumText,
-                    lastSummaryWhen = if (locked) null else lastSumWhen,
+                    lastSummary = lastSumText,
+                    lastSummaryWhen = lastSumWhen,
+                    // 벨 울릴 때 폰이 잠겨 있었나 — 받기 전까지만 가리는 데 쓴다.
+                    lockedAtRing = locked,
                     // 🔴 전엔 잠금화면에서 일정도 가렸다(돈·문자와 한 묶음). 그런데 전화가 올 때
                     //   폰은 **거의 항상 잠금**이다 — 화면이 켜져 있어도 잠금화면 위에 통화 화면이 뜬다.
                     //   결과: **진짜 전화에선 달력이 거의 안 떴다.** 미리보기에서만 보였다.
@@ -279,7 +283,7 @@ object IncomingCallOverlay {
                     firstContactAt = firstAt,
                     doneCount = doneCount,
                     scheduleUpcoming = upcoming,
-                    pastJobLines = if (locked) emptyList() else pastLines
+                    pastJobLines = pastLines
                 )
             }
         }
@@ -629,6 +633,12 @@ object IncomingCallOverlay {
         val lastSummaryWhen: String? = null,
         /** 받은 뒤(통화 중)인지 — 카드를 안 내리고 표시만 바꾼다. */
         val talking: Boolean = false,
+        /**
+         * 🔒 벨이 울릴 때 폰이 **잠겨 있었나.**
+         *   잠긴 폰이 책상 위에 있으면 옆 사람이 본다 → 받기 전까진 돈·문자·요약을 가린다.
+         *   **받으면 푼다** — 그땐 폰이 사장님 손과 귀에 있다. (2026-09-27 사장님)
+         */
+        val lockedAtRing: Boolean = false,
         /**
          * 오늘부터 2주 일정. "언제 되냐"에 전화받은 자리에서 답하려고. (2026-09-19 사장님)
          * 잠금화면에선 비어 있다.
@@ -1337,6 +1347,10 @@ private class CallerCardView(
 
     fun bind(st: IncomingCallOverlay.CallerState) {
         val isNew = !st.loading && st.status == IncomingCallOverlay.CallerStatus.NEW
+        // 🔒 잠긴 폰이 책상 위에 있는 동안만 가린다. **받으면 보여준다.** (2026-09-27 사장님)
+        //   "통화내용이나 문자내용은 왜 안 보이지" — 전화가 올 때 폰은 거의 항상 잠금이라
+        //   진짜 전화에선 요약도 문자도 거의 안 보였다. 받으면 폰은 사장님 손과 귀에 있다.
+        val hideForLock = st.lockedAtRing && !st.talking && !isPreview
         strip.setBackgroundColor(stripColor(st))
 
         nameTv.text = st.displayName
@@ -1369,7 +1383,7 @@ private class CallerCardView(
             "아직 시공 전$since"
         } else base
 
-        show(moneyTv, st.moneyLabel)
+        show(moneyTv, st.moneyLabel?.takeIf { !hideForLock })
         moneyTv.setTextColor(if (st.moneyOwed) MONEY_OWED else BODY)
 
         // 신규면 머리를 통째로 주황으로 — 그때는 가는 띠도 이름줄도 감춘다. 같은 말을 두 번 안 한다.
@@ -1386,9 +1400,9 @@ private class CallerCardView(
         bindSchedule(st.schedule)
 
         // 🧾 지난 시공 한 줄 — 없으면 아예 안 띄운다.
-        show(pastTv, st.pastJobLines.firstOrNull()?.let { "지난 시공 · $it" })
+        show(pastTv, st.pastJobLines.firstOrNull()?.takeIf { !hideForLock }?.let { "지난 시공 · $it" })
 
-        val hasSum = !st.lastSummary.isNullOrBlank()
+        val hasSum = !st.lastSummary.isNullOrBlank() && !hideForLock
         sumBox.visibility = if (hasSum) View.VISIBLE else View.GONE
         if (hasSum) {
             sumLabelTv.text = "지난 통화 요약" + (st.lastSummaryWhen?.let { " · $it" } ?: "")
@@ -1398,7 +1412,7 @@ private class CallerCardView(
         // 💬 마지막 문자 — 손님이 보낸 마지막 한 통. 없으면 내가 보낸 마지막 한 통.
         //    요약과 같은 말이면 안 띄운다 — 2026-09-22 에 이걸 뺐던 이유가 그거였다.
         val lastMsg = st.messages.lastOrNull { !it.sent } ?: st.messages.lastOrNull()
-        val msgLine = lastMsg?.body?.trim()?.takeIf { it.isNotBlank() }
+        val msgLine = lastMsg?.body?.trim()?.takeIf { it.isNotBlank() && !hideForLock }
             ?.takeIf { !saysSameAs(it, st.lastSummary) }
         if (msgLine == null) {
             msgBox.visibility = View.GONE
