@@ -179,6 +179,8 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.util.keyboardClearance
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.zIndex
 
 /**
  * 대시보드 → 번호 탭의 메인 진입 화면.
@@ -2034,6 +2036,7 @@ fun ChatScreen(
             defaultRecipient = displayName,
             onUpdatePrice = { id, priceWon -> viewModel.updateItemPrice(id, priceWon) },
             onUpdateTitle = { id, title -> viewModel.updateItemTitle(id, title) },
+            onReorderItems = { ids -> viewModel.reorderItems(ids) },
             onConfirm = { body ->
                 setInput(body)
                 // composer 채우기만 — 아직 발송 아님. 실제 발송 성공 시 markIfEstimate 가 기록.
@@ -5901,6 +5904,8 @@ private fun EstimateBuilderDialog(
     onUpdatePrice: (id: Long, priceWon: Long) -> Unit = { _, _ -> },
     /** 항목 이름을 그 자리에서 고침 → 가격표에 저장. (2026-07-10 사장님) */
     onUpdateTitle: (id: Long, title: String) -> Unit = { _, _ -> },
+    /** ↕️ 시공 항목 차례를 바꿨다 — 가격표에 저장한다. (2026-09-27 사장님) */
+    onReorderItems: (List<Long>) -> Unit = {},
     onQuoteDoc: (QuoteDocData) -> Unit = {},
     onIssueIntake: (
         items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
@@ -6089,12 +6094,35 @@ private fun EstimateBuilderDialog(
             EstLabelRow("시공 항목", if (pickedCount > 0) "${pickedCount}개 골랐어요" else "고르지 않음",
                 dim = pickedCount == 0)
             Spacer(Modifier.height(AppSpace.s12))
-            // 가격을 그 자리에서 고칠 수 있다는 힌트 한 줄 — 줄마다 ✏️ 빼고 여기로만 안내. (2026-06-25 사장님)
-            Text("이름·가격을 꾹 누르면 고칠 수 있어요",
-                style = AppType.caption, color = TossTextTertiary,
-                modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+            // ↕️ **손잡이는 필요할 때만.** (2026-09-27 사장님 "다른 방법으로 '나'가 되게 할 순 없어?")
+            //   줄마다 ≡ 를 상시로 달면 매일 보는 시트가 빽빽해진다. 순서는 어쩌다 한 번 바꾸는 일이라
+            //   **누른 그때만** 손잡이 달린 목록으로 바뀐다.
+            var orderMode by remember { mutableStateOf(false) }
+            Row(
+                Modifier.fillMaxWidth().padding(start = 2.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (orderMode) "≡ 를 끌어 차례를 바꿔요 · 가격표에도 그대로 남아요"
+                    else "이름·가격을 꾹 누르면 고칠 수 있어요",
+                    style = AppType.caption, color = TossTextTertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                if (visibleItems.size > 1) {
+                    Text(
+                        if (orderMode) "다 했어요" else "순서 바꾸기",
+                        style = AppType.label, color = TossBlue,
+                        modifier = Modifier.clip(AppShape.sm)
+                            .clickable { orderMode = !orderMode }
+                            .padding(horizontal = AppSpace.s8, vertical = AppSpace.s4)
+                    )
+                }
+            }
             // 항목 리스트 (프로토 est-row + 평당 est-area)
             // 전체 시트가 한 번에 스크롤되도록 항목은 일반 Column(내부 LazyColumn 제거).
+            if (orderMode) {
+                EstOrderList(items = visibleItems, onDone = { onReorderItems(it) })
+            } else
             Column(Modifier.fillMaxWidth()) {
                 visibleItems.forEachIndexed { idx, item ->
                     if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
@@ -6924,6 +6952,104 @@ private fun BubbleActionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = TossTextTertiary
             )
+        }
+    }
+}
+
+/**
+ * ↕️ 차례 바꾸기 목록 — 「순서 바꾸기」를 누른 동안만 나온다. (2026-09-27 사장님)
+ *   가격표 화면([PricingItemsScreen])과 **같은 손놀림**이다: ≡ 를 잡고 위아래로.
+ *   끄는 동안은 여기 목록으로 바로 반응하고, **손을 떼야** 저장한다 —
+ *   한 칸 올라갈 때마다 쓰면 목록이 다시 그려지며 손가락을 놓친다.
+ *   이 화면엔 누를 것이 없으므로 **줄 어디를 잡아도** 끌린다(가격표는 왼쪽 48dp 만 — 거긴 스크롤이 있다).
+ */
+@Composable
+private fun EstOrderList(
+    items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
+    onDone: (List<Long>) -> Unit
+) {
+    val ids = items.map { it.id }
+    val orderState = remember(ids) { mutableStateOf(ids) }
+    val dragId = remember { mutableStateOf<Long?>(null) }
+    val dragDy = remember { mutableStateOf(0f) }
+    val rowH = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateMapOf<Long, Int>()
+    }
+    val byId = items.associateBy { it.id }
+    Column(
+        Modifier.fillMaxWidth().pointerInput(ids) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                var top = 0f
+                var hit: Long? = null
+                for (id2 in orderState.value) {
+                    val hh = (rowH[id2] ?: 0).toFloat()
+                    if (down.position.y in top..(top + hh)) { hit = id2; break }
+                    top += hh
+                }
+                val id = hit ?: return@awaitEachGesture
+                dragId.value = id
+                dragDy.value = 0f
+                down.consume()
+                var going = true
+                while (going) {
+                    val ev = awaitPointerEvent()
+                    val ch = ev.changes.firstOrNull { it.id == down.id }
+                    if (ch == null || !ch.pressed) going = false else {
+                        dragDy.value += ch.positionChange().y
+                        ch.consume()
+                        val cur = orderState.value
+                        val i = cur.indexOf(id)
+                        val upH = if (i > 0) (rowH[cur[i - 1]] ?: 0) else 0
+                        val dnH = if (i < cur.lastIndex) (rowH[cur[i + 1]] ?: 0) else 0
+                        if (i > 0 && dragDy.value < -upH / 2f) {
+                            orderState.value = cur.toMutableList().apply { add(i - 1, removeAt(i)) }
+                            dragDy.value += upH
+                        } else if (i < cur.lastIndex && dragDy.value > dnH / 2f) {
+                            orderState.value = cur.toMutableList().apply { add(i + 1, removeAt(i)) }
+                            dragDy.value -= dnH
+                        }
+                    }
+                }
+                dragId.value = null
+                dragDy.value = 0f
+                onDone(orderState.value)
+            }
+        }
+    ) {
+        orderState.value.forEach { rowId ->
+            val row = byId[rowId] ?: return@forEach
+            androidx.compose.runtime.key(rowId) {
+                Row(
+                    Modifier
+                        .onSizeChanged { rowH[rowId] = it.height }
+                        .zIndex(if (dragId.value == rowId) 1f else 0f)
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                0, if (dragId.value == rowId) dragDy.value.toInt() else 0
+                            )
+                        }
+                        .fillMaxWidth()
+                        .background(
+                            if (dragId.value == rowId) AppTheme.colors.surfaceMuted else Color.Transparent
+                        )
+                        .padding(vertical = AppSpace.s12),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("≡", style = AppType.headline, color = TossTextTertiary,
+                        modifier = Modifier.padding(horizontal = AppSpace.s12))
+                    Text(
+                        row.title, style = AppType.body, color = TossTextPrimary,
+                        modifier = Modifier.weight(1f), maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${row.price / 10_000L}만원",
+                        style = AppType.label, color = TossTextSecondary,
+                        modifier = Modifier.padding(horizontal = AppSpace.s12)
+                    )
+                }
+            }
         }
     }
 }

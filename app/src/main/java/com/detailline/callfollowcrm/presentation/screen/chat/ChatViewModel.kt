@@ -202,6 +202,23 @@ class ChatViewModel(
      *   마지막으로 바꾼 값이 다음에도 그대로 뜸(가격표=한 곳에서만 관리). (2026-06-25 사장님)
      *   priceWon=원 단위(이미 *10000 된 값). 0 이하면 무시.
      */
+    /**
+     * ↕️ 시공 항목 순서 — 접수서에서 끌어 바꾼 것을 **가격표에 저장**한다. (2026-09-27 사장님)
+     *   순서를 접수서용으로 따로 두지 않는다 — 두 벌이 되면 접수서·견적서·문자 견적이 서로 다른
+     *   차례로 나간다. 저장하는 칸은 가격표 화면이 쓰는 그 칸(displayOrder) 하나다.
+     */
+    fun reorderItems(orderedIds: List<Long>) {
+        viewModelScope.launch {
+            orderedIds.forEachIndexed { i, id ->
+                val cur = container.pricingItemRepository.findById(id) ?: return@forEachIndexed
+                // 안 바뀐 줄은 굳이 쓰지 않는다 — 쓸 때마다 목록이 다시 그려진다.
+                if (cur.displayOrder != i) {
+                    container.pricingItemRepository.update(cur.copy(displayOrder = i))
+                }
+            }
+        }
+    }
+
     fun updateItemPrice(id: Long, priceWon: Long) {
         if (id <= 0L || priceWon <= 0L) return
         viewModelScope.launch {
