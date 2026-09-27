@@ -1193,10 +1193,43 @@ fun CustomerDetailScreen(
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     if (allPaid) {
-                                        CdUndoChip("완납 취소", danger = false) {
-                                            if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
-                                            else viewModel.setBalancePaid(false)
+                                        // 💰 **돈은 물어보고 뒤집는다.** (2026-09-27 사장님)
+                                        //   옆의 [시공 예약 취소]엔 확인 창이 있는데 이것만 없었다.
+                                        //   처음 보는 분이 뜻을 알려고 누르면 **받은 돈이 안 받은 돈이 되고**
+                                        //   상담함 [잔금 대기] 에 없던 손님이 올라온다.
+                                        var unpaidConfirm by remember { mutableStateOf(false) }
+                                        if (unpaidConfirm) {
+                                            androidx.compose.material3.AlertDialog(
+                                                onDismissRequest = { unpaidConfirm = false },
+                                                title = {
+                                                    Text("잔금을 아직 못 받으신 걸로 되돌릴까요?",
+                                                        fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                                },
+                                                text = {
+                                                    Text(
+                                                        "이 손님이 상담함 [잔금 대기] 로 다시 올라오고, " +
+                                                            "정산에서도 못 받은 돈으로 잡혀요.",
+                                                        style = AppType.body, color = TossTextSecondary
+                                                    )
+                                                },
+                                                confirmButton = {
+                                                    TextButton(onClick = {
+                                                        unpaidConfirm = false
+                                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
+                                                        else viewModel.setBalancePaid(false)
+                                                    }) {
+                                                        Text("되돌릴게요", color = TossBlue, fontWeight = FontWeight.Bold)
+                                                    }
+                                                },
+                                                dismissButton = {
+                                                    TextButton(onClick = { unpaidConfirm = false }) {
+                                                        Text("그냥 둘게요", color = TossTextSecondary)
+                                                    }
+                                                },
+                                                containerColor = Color.White
+                                            )
                                         }
+                                        CdUndoChip("완납 취소", danger = false) { unpaidConfirm = true }
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     if (scheduled != null) {
