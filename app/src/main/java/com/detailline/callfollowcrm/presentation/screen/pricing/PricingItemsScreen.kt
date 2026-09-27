@@ -657,6 +657,7 @@ private fun PricingItemEditDialog(
     val canSave = titleInput.isNotBlank() && priceLong > 0L
 
     AlertDialog(
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {

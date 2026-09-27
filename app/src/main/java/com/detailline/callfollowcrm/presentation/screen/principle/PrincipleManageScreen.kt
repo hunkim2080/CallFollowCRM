@@ -147,6 +147,8 @@ fun PrincipleManageScreen(
     editing?.let { p ->
         var draft by remember(p.id) { mutableStateOf(p.text) }
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { editing = null },
             title = { Text("원칙 수정", fontWeight = FontWeight.Bold) },
             text = {
@@ -172,6 +174,8 @@ fun PrincipleManageScreen(
     // 원칙 삭제 확인 — 막내가 대화를 보고 학습한 자산이라 실수 삭제 방지(끄기 대안 안내). 2026-07-30
     deleting?.let { p ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { deleting = null },
             title = { Text("이 원칙을 지울까요?", fontWeight = FontWeight.Bold) },
             text = { Text("막내가 대화를 보고 배운 내용이에요. 잠깐 끄기(스위치)만 해도 돼요. 지우면 다시 안 생겨요.") },

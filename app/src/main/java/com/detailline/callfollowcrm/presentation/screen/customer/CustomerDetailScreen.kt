@@ -519,6 +519,7 @@ fun CustomerDetailScreen(
             var asPendingConfirm by remember { mutableStateOf(false) }
             if (asPendingConfirm) {
                 androidx.compose.material3.AlertDialog(
+                    tonalElevation = 0.dp,
                     onDismissRequest = { asPendingConfirm = false },
                     title = { Text("A/S 명단에 올릴까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                     text = {
@@ -544,6 +545,7 @@ fun CustomerDetailScreen(
             var asDoneConfirm by remember { mutableStateOf(false) }
             if (asDoneConfirm) {
                 androidx.compose.material3.AlertDialog(
+                    tonalElevation = 0.dp,
                     onDismissRequest = { asDoneConfirm = false },
                     title = { Text("A/S 다녀오셨나요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                     text = {
@@ -1204,6 +1206,7 @@ fun CustomerDetailScreen(
                                         var unpaidConfirm by remember { mutableStateOf(false) }
                                         if (unpaidConfirm) {
                                             androidx.compose.material3.AlertDialog(
+                                                tonalElevation = 0.dp,
                                                 onDismissRequest = { unpaidConfirm = false },
                                                 title = {
                                                     Text("잔금을 아직 못 받으신 걸로 되돌릴까요?",
@@ -2205,6 +2208,8 @@ fun CustomerDetailScreen(
     picksToDelete?.let { (mine, team) ->
         val n = mine.size + team.size
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { picksToDelete = null },
             title = { Text("사진 ${n}장을 지울까요?", fontWeight = FontWeight.Bold) },
             text = {
@@ -2258,6 +2263,8 @@ fun CustomerDetailScreen(
     // 발행 이력 1건 삭제 확인.
     issuedDocToDelete?.let { doc ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { issuedDocToDelete = null },
             title = { Text("발행 이력에서 지울까요?", fontWeight = FontWeight.Bold) },
             text = { Text("이 발행 기록을 목록에서 지워요. 고객에게 이미 보낸 문서는 영향 없어요.") },
@@ -2456,6 +2463,8 @@ private fun IntakeReviewDialog(
 ) {
     val url = doc.url?.takeIf { it.isNotBlank() }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("시공접수서", fontWeight = FontWeight.Bold) },
         text = {
@@ -4270,6 +4279,8 @@ private fun CollabAfterCard(
         }
         if (confirmRelease) {
             androidx.compose.material3.AlertDialog(
+                containerColor = Color.White,
+                tonalElevation = 0.dp,
                 onDismissRequest = { confirmRelease = false },
                 title = { Text("요청을 취소할까요?", fontWeight = FontWeight.Bold) },
                 text = { Text("${partnerName}님께 보낸 협업 요청을 취소해요. 나중에 다시 보낼 수 있어요.") },
@@ -4418,6 +4429,8 @@ private fun CollabAfterCard(
     }
     if (confirmRelease) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmRelease = false },
             title = { Text("협업 해제할까요?", fontWeight = FontWeight.Bold) },
             text = { Text("${partnerName}님께 '협업이 해제됐어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남고, 나중에 다시 요청할 수 있어요.") },

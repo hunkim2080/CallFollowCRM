@@ -432,6 +432,7 @@ fun FollowUpScreen(
     if (recentDialogOpen) {
         val callLogPermissionMissing = !PermissionHelper.hasCallLog(context)
         AlertDialog(
+            tonalElevation = 0.dp,
             onDismissRequest = { recentDialogOpen = false },
             title = { Text("최근 통화에서 선택", color = TossTextPrimary) },
             text = {
@@ -499,6 +500,7 @@ fun FollowUpScreen(
     if (smsDialogOpen) {
         val readSmsPermissionMissing = !PermissionHelper.isGranted(context, Manifest.permission.READ_SMS)
         AlertDialog(
+            tonalElevation = 0.dp,
             onDismissRequest = { smsDialogOpen = false },
             title = { Text("최근 문자에서 선택", color = TossTextPrimary) },
             text = {

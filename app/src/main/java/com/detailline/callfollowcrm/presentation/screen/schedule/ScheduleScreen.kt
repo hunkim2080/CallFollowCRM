@@ -681,6 +681,8 @@ fun ScheduleScreen(
     // 협업 카드 밀어 "그만두기" 확인 — 수락된 협업은 상대(주인 A)에게 알림 가고 양쪽에서 빠짐. (2026-06-20 사장님)
     confirmLeaveCollab?.let { s ->
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmLeaveCollab = null },
             title = { Text("협업을 그만할까요?", fontWeight = FontWeight.Bold) },
             text = { Text("${s.ownerName}님께 '협업을 그만뒀어요' 알림이 가요. 사진·기록은 그대로 남아요.") },
@@ -2740,6 +2742,8 @@ private fun AssignTeamSheet(
             // 보낸 협업 취소 확인 — "정말 취소?" (상대에 알림 감). (2026-06-20 사장님)
             if (confirmCancel) {
                 androidx.compose.material3.AlertDialog(
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
                     onDismissRequest = { confirmCancel = false },
                     title = { Text("보낸 협업을 취소할까요?", fontWeight = FontWeight.Bold) },
                     text = { Text("요청을 뺀 사장님께 '협업이 취소됐어요' 알림이 가요. (아직 수락 전이면 조용히 빠져요)") },

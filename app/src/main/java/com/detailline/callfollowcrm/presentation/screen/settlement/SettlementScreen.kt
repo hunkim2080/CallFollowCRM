@@ -196,6 +196,8 @@ fun SettlementScreen(
     // 완납 확인
     confirmPayOff?.let { item ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmPayOff = null },
             title = { Text("전액 받았어요?", fontWeight = FontWeight.Bold) },
             text = {
@@ -221,6 +223,8 @@ fun SettlementScreen(
     // 계약금 받음 확인 (잔금과 동일 — 실수로 즉시 '받음' 처리되던 것 방지). 2026-07-30
     confirmDeposit?.let { item ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmDeposit = null },
             title = { Text("계약금 받았어요?", fontWeight = FontWeight.Bold) },
             text = {
@@ -653,6 +657,8 @@ private fun PayBlock(
                 )
                 if (confirmUndo.value) {
                     androidx.compose.material3.AlertDialog(
+                        containerColor = Color.White,
+                        tonalElevation = 0.dp,
                         onDismissRequest = { confirmUndo.value = false },
                         title = { Text("완납 취소할까요?") },
                         text = { Text("이 고객을 '완납'에서 되돌려요. 실수로 누른 거면 그대로 두세요.") },

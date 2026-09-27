@@ -154,6 +154,8 @@ fun ScheduleAddScreen(
     androidx.activity.compose.BackHandler { tryExit() }
     if (confirmExit) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmExit = false },
             title = { Text("저장 안 하고 나갈까요?") },
             text = { Text("작성 중인 일정이 사라져요.") },

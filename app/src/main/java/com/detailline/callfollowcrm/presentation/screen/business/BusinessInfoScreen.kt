@@ -177,6 +177,8 @@ fun BusinessInfoScreen(
     BackHandler(enabled = true) { tryBizExit() }
     if (confirmBizExit) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmBizExit = false },
             title = { Text("저장 안 하고 나갈까요?") },
             text = { Text("고친 사업자 정보가 사라져요.") },

@@ -66,6 +66,8 @@ fun WorkTimePickerDialog(
         val base = initialMinutes ?: 9 * 60
         val tpState = rememberTimePickerState(initialHour = base / 60, initialMinute = base % 60, is24Hour = false)
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showClock = false },
             confirmButton = {
                 TextButton(onClick = { onPick(tpState.hour * 60 + tpState.minute, days) }) {

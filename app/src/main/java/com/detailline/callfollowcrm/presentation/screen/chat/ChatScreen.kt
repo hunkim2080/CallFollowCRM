@@ -1255,6 +1255,7 @@ fun ChatScreen(
     // 🔖 저장된 메시지 모아보기 다이얼로그 — 이 번호의 별표된 메시지만 시간순.
     if (starredViewerOpen) {
         AlertDialog(
+            tonalElevation = 0.dp,
             onDismissRequest = { starredViewerOpen = false },
             title = {
                 Text(
@@ -1506,6 +1507,8 @@ fun ChatScreen(
     // 카드의 「다시 요약」 확인 — 돈과 시간이 드는 일이라 한 번 묻는다.
     redoTarget?.let { rec ->
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { redoTarget = null },
             title = { Text("이 통화를 다시 요약할까요?") },
             text = { Text("지금 요약은 새 걸로 바뀝니다. 통화가 길면 몇 분 걸려요.") },
@@ -1529,6 +1532,8 @@ fun ChatScreen(
         val mySuffix = viewModel.phoneNumber.filter { it.isDigit() }.takeLast(8)
         if (p.phone.filter { it.isDigit() }.takeLast(8) == mySuffix) {
             androidx.compose.material3.AlertDialog(
+                containerColor = Color.White,
+                tonalElevation = 0.dp,
                 onDismissRequest = { com.detailline.callfollowcrm.recording.CallSummaryReprompt.answer(false) },
                 title = { Text("이미 처리한 통화예요") },
                 text = { Text("다시 요약해드릴까요?") },
@@ -1607,6 +1612,8 @@ fun ChatScreen(
     // 자주 쓰는 문구 삭제 확인창 (앱 기조: 삭제류는 한 번 물어봄). 시트 2곳의 onDelete 가 여기로 모임. (2026-07-30)
     confirmDeleteTpl?.let { tplId ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmDeleteTpl = null },
             title = { Text("이 문구를 지울까요?", fontWeight = FontWeight.Bold) },
             text = { Text("저장한 자주 쓰는 문구가 삭제돼요.") },
@@ -2109,6 +2116,8 @@ fun ChatScreen(
     // ✨ 다듬기 확인 — 실수 탭으로 본문이 바뀌지 않게 한 번 물어봄. (2026-07-08 사장님)
     if (showPolishConfirm) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showPolishConfirm = false },
             title = { Text("글을 이쁘게 다듬어드릴까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = { Text("입력한 내용을 사장님 말투로 자연스럽게 다듬어요. 다듬은 뒤에도 고칠 수 있어요.", fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp) },
@@ -2133,6 +2142,8 @@ fun ChatScreen(
     // ✨ 다듬는 중 취소. (2026-07-08 사장님: 한 번 더 누르면 '취소할까요?')
     if (showPolishCancel) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showPolishCancel = false },
             title = { Text("다듬는 중이에요", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = { Text("다듬기를 취소할까요? 원래 쓰던 글은 그대로 남아요.", fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp) },
@@ -2153,6 +2164,8 @@ fun ChatScreen(
     // 사진 발송 시 기본 문자 앱 아님 → 지정 안내. (2026-07-08 사장님: '다른 앱 공유' 시트가 뜨면 안 됨)
     if (showSetDefaultForPhoto) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showSetDefaultForPhoto = false },
             title = { Text("사진을 바로 보내려면", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = {
@@ -3235,6 +3248,8 @@ private fun IssuedDocSegment(
 @Composable
 private fun EventNotifyConfirmDialog(body: String, onSend: () -> Unit, onDismiss: () -> Unit) {
     androidx.compose.material3.AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("고객에게 보낼까요?", fontWeight = FontWeight.ExtraBold, color = TossTextPrimary) },
         text = {
@@ -6164,6 +6179,21 @@ private fun EstimateBuilderDialog(
             //   올리고 나서 목록에 들어오는 걸 보고서야 체크하고 임시 줄을 뺀다 —
             //   먼저 빼면 방 안에서 사라졌다가 잠시 뒤 나타나 깜빡인다.
             val pendingNew = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+            /**
+             * 다 적은 직접 항목을 **가격표에 올린다.** 초점이 빠질 때만 하면
+             * 키보드만 내리고 바로 보낼 때 등록이 빠진다. (2026-09-28 테스트폰에서 확인)
+             */
+            fun commitCustomLines() {
+                customItems.forEach { c ->
+                    val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+                    if (c.name.isNotBlank() && won > 0L) {
+                        c.editing = false
+                        val t = c.name.trim()
+                        onAddPricingItem(t, won)
+                        if (pendingNew.none { it == t }) pendingNew.add(t)
+                    }
+                }
+            }
             LaunchedEffect(items, pendingNew.size) {
                 if (pendingNew.isEmpty()) return@LaunchedEffect
                 val byTitle = items.associateBy { it.title.trim() }
@@ -6240,7 +6270,7 @@ private fun EstimateBuilderDialog(
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                     .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
-                    .clickable { customItems.add(EstCustomLine()) }
+                    .clickable { commitCustomLines(); customItems.add(EstCustomLine()) }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -6377,6 +6407,7 @@ private fun EstimateBuilderDialog(
                                 area = if (isP) q.toDouble() else null
                             )
                         }
+                        commitCustomLines()
                         val customIss = customItems.mapNotNull { c ->
                             val m = c.manwon.toIntOrNull() ?: 0
                             if (c.name.isBlank() || m <= 0) null
@@ -6397,6 +6428,7 @@ private fun EstimateBuilderDialog(
             if (mode != "text") {
                 Spacer(Modifier.height(9.dp))
                 EstSheetCta("문자로 붙여넣기", enabled = anySelected, filled = false) {
+                    commitCustomLines()
                     if (anySelected) onConfirm(composeBody()) else toast("항목을 한 개 이상 골라주세요")
                 }
             }

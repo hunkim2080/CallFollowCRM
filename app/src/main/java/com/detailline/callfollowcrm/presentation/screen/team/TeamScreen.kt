@@ -302,6 +302,8 @@ fun TeamScreen(
     renameTarget?.let { m ->
         var newName by remember(m.memberId) { mutableStateOf(m.name) }
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { renameTarget = null },
             title = { Text("팀원 이름 수정", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = {

@@ -152,6 +152,8 @@ fun CashFlowCard(
     // 돈 기록 삭제 확인 — 확인·되돌리기 없이 즉시 사라져 장부가 틀어지던 것 방지. 2026-07-30
     confirmDeleteCash?.let { refId ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmDeleteCash = null },
             title = { Text("이 기록을 지울까요?", fontWeight = FontWeight.Bold) },
             text = { Text("직접 적은 돈 기록이에요. 지우면 되돌릴 수 없어요.") },
@@ -483,6 +485,8 @@ private fun AddCashDialog(
     val accent = if (isIncome) CashIn else CashOut
 
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = {
             Column {

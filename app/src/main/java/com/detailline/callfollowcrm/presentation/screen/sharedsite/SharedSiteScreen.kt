@@ -456,6 +456,8 @@ fun SharedSiteScreen(
     // 길찾기 앱 선택 — 한 번 고르면 기억(기본값). (2026-06-14 사장님)
     navChooserAddr?.let { addr ->
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { navChooserAddr = null },
             title = { Text("어떤 지도로 안내할까요?", fontWeight = FontWeight.Bold) },
             text = {
@@ -507,6 +509,8 @@ fun SharedSiteScreen(
     confirmRemoveSite?.let { s ->
         val done = s.progress == SharedSiteRepository.Progress.COMPLETED
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmRemoveSite = null },
             title = { Text(if (done) "이 현장을 정리할까요?" else "협업을 그만할까요?", fontWeight = FontWeight.Bold) },
             text = {
@@ -539,6 +543,8 @@ fun SharedSiteScreen(
     confirmCancelMine?.let { s ->
         val pending = s.status == "pending"
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmCancelMine = null },
             title = { Text(if (pending) "공유를 취소할까요?" else "이 현장을 내릴까요?", fontWeight = FontWeight.Bold) },
             text = {
@@ -563,6 +569,8 @@ fun SharedSiteScreen(
     // 완료 처리 확인 — 완료로 바꾸면 등록한 계좌가 상대 사장님께 전달돼요. (2026-06-30 사장님)
     confirmComplete?.let { s ->
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmComplete = null },
             title = { Text("완료로 바꿀까요?", fontWeight = FontWeight.Bold) },
             text = { Text("완료로 바꾸면 등록한 계좌가 상대 사장님께 전달돼요. 진행할까요?") },
@@ -585,6 +593,8 @@ fun SharedSiteScreen(
     // 증거 사진 삭제 확인 — 내가 올린 사진 ✕ 탭 → 여기. 되돌릴 수 없어 한 번 더 묻는다. (2026-07-07 사장님)
     confirmDeletePhoto?.let { (sid, photo) ->
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmDeletePhoto = null },
             title = { Text("이 사진을 삭제할까요?", fontWeight = FontWeight.Bold) },
             text = { Text("내가 올린 증거 사진을 지워요. 되돌릴 수 없어요.") },
@@ -1723,6 +1733,8 @@ private fun CollabPayoutAccountSection(
             }
             if (showSaveConfirm) {
                 androidx.compose.material3.AlertDialog(
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
                     onDismissRequest = { showSaveConfirm = false },
                     title = { Text("바뀐 계좌를 저장할까요?") },
                     text = { Text("수정한 내용을 저장하지 않고 닫으면 사라져요.") },

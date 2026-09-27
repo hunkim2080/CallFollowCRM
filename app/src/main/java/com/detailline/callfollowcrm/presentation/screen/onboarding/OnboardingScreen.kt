@@ -354,6 +354,8 @@ private fun TradeStep(
         if (showCustom) {
             var input by remember { mutableStateOf("") }
             androidx.compose.material3.AlertDialog(
+                containerColor = Color.White,
+                tonalElevation = 0.dp,
                 onDismissRequest = { showCustom = false },
                 title = { Text("업종 직접 입력") },
                 text = {

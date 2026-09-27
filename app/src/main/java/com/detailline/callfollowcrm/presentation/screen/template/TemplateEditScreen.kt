@@ -90,6 +90,8 @@ fun TemplateEditScreen(
     androidx.activity.compose.BackHandler { tryTplExit() }
     if (confirmTplExit) {
         androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { confirmTplExit = false },
             title = { Text("저장 안 하고 나갈까요?") },
             text = { Text("고친 문구가 사라져요.") },

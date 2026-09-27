@@ -296,6 +296,8 @@ private fun RuleEditorDialog(
                         Text("이 규칙 삭제", color = TossError, fontWeight = FontWeight.SemiBold)
                     }
                     if (confirmDelete) androidx.compose.material3.AlertDialog(
+                        containerColor = Color.White,
+                        tonalElevation = 0.dp,
                         onDismissRequest = { confirmDelete = false },
                         title = { Text("이 규칙을 지울까요?", fontWeight = FontWeight.Bold) },
                         text = { Text("이 정기문자 규칙이 삭제돼요. 잠깐 끄기만 할 수도 있어요.") },

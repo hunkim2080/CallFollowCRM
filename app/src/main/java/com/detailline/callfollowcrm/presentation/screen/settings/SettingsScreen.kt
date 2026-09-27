@@ -339,6 +339,8 @@ fun SettingsScreen(
                 if (bits.isEmpty()) "" else "\n   " + bits.joinToString(" · ")
         }
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { if (!mergeBusy) mergePlans = null },
             title = { Text("갈라진 손님 " + plans.size + "쌍", fontWeight = FontWeight.Bold) },
             text = {
@@ -398,6 +400,8 @@ fun SettingsScreen(
     // 되찾은 접수서 — 누구 것인지 그대로 보여준다. 숫자만 주면 확인을 못 한다.
     resyncFound?.let { found ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { resyncFound = null },
             title = { Text("접수서 " + found.size + "건을 되찾았어요", fontWeight = FontWeight.Bold) },
             text = {
@@ -429,6 +433,8 @@ fun SettingsScreen(
 
     if (showImportConfirm) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showImportConfirm = false },
             title = { Text("백업에서 가져오기", fontWeight = FontWeight.Bold) },
             text = {
@@ -450,6 +456,8 @@ fun SettingsScreen(
     }
     if (showServerRestoreConfirm) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showServerRestoreConfirm = false },
             title = { Text("서버에서 복원", fontWeight = FontWeight.Bold) },
             text = {
@@ -469,6 +477,8 @@ fun SettingsScreen(
     }
     if (restartNeeded) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { viewModel.consumeRestartNeeded() },
             title = { Text("다 되살렸어요", fontWeight = FontWeight.Bold) },
             text = { Text("앱을 완전히 껐다 다시 켜면 되살린 데이터가 모두 보여요.", fontSize = 13.5.sp, color = TossTextSecondary) },

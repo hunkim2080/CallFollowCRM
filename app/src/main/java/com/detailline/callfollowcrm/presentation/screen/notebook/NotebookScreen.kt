@@ -368,6 +368,8 @@ private fun PhraseSheet(
     var editMode by remember { mutableStateOf(false) }
     var newPhrase by remember { mutableStateOf("") }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -769,6 +771,8 @@ private fun ContactDialog(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 if (confirmDelete) AlertDialog(
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
                     onDismissRequest = { confirmDelete = false },
                     title = { Text(if (isWorker) "이 사람을 뺄까요?" else "이 거래처를 뺄까요?", fontWeight = FontWeight.Bold) },
                     text = { Text("수첩에서 빼도 함께한 현장 기록은 남아요.") },

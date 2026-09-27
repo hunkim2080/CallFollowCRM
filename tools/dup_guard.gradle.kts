@@ -49,6 +49,15 @@ val dupRules = listOf(
         instead = "Modifier.keyboardPadding()  (util/SystemBars.kt)",
         homes = listOf("/presentation/util/SystemBars.kt")
     ),
+    // ④ 창 색 — 화면마다 각자 적어서 87곳 중 55곳이 회색이었다. (2026-09-28 사장님)
+    //   "입력창 뜨면 흰색 도 있는데 회색도 적지않게나와"
+    //   안 적으면 안드로이드 기본값(회색 덧칠)이 그대로 나온다.
+    DupRule(
+        id = "dialog-white",
+        regex = Regex("""AlertDialog\((?![\s\S]{0,2500}?containerColor)"""),
+        instead = "AlertDialog(containerColor = Color.White, tonalElevation = 0.dp, …)",
+        homes = listOf()
+    ),
     // ③ 끌어서 자리 바꾸기 — 가격표와 접수서에 같은 셈이 두 벌이었다.
     DupRule(
         id = "drag-reorder",

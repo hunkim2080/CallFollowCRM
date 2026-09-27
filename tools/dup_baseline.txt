@@ -1,7 +1,13 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 130곳 / 37줄
+# 총 140곳 / 43줄
+dialog-white|presentation/screen/chat/ChatScreen.kt 2
+dialog-white|presentation/screen/customer/CustomerDetailScreen.kt 1
+dialog-white|presentation/screen/expo/ExpoScreen.kt 2
+dialog-white|presentation/screen/followup/FollowUpScreen.kt 2
+dialog-white|presentation/screen/home/HomeScreen.kt 2
+dialog-white|presentation/screen/pricing/PricingItemsScreen.kt 1
 keyboard-inset|presentation/screen/notebook/NotebookScreen.kt 1
 phone-key|ai/IntakeSyncManager.kt 1
 phone-key|ai/WebFeedSyncManager.kt 1

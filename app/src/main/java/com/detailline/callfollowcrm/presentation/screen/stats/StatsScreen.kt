@@ -1723,6 +1723,7 @@ private fun StartPointDialog(
         )
     }
     androidx.compose.material3.AlertDialog(
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("어디서 출발하세요?", style = AppType.headline, color = TossTextPrimary) },
         text = {
