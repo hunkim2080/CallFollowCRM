@@ -6130,31 +6130,50 @@ private fun EstimateBuilderDialog(
                 }
             }
             // 직접 추가 항목 — 가격표에 없는 즉석 견적(예: "실리콘 시공"). (2026-06-07 사장님 요청)
+            //   🔴 **다 적고 나면 가격표 항목과 같은 줄이 된다.** (2026-09-27 사장님)
+            //     "직접 항목추가하면 이렇게 적용되지? 가격표에서 기재한것처럼 등록되어야하는데말야"
+            //     전엔 적는 칸 두 개로 **영영** 남아 있었다. 같은 목록에 두 가지 모양이 섞이니
+            //     다 적어도 **등록이 안 된 것처럼** 보였다. 고치는 법(꾹 누르기)까지 같게 맞춘다.
             customItems.forEachIndexed { idx, c ->
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.weight(1f)) {
-                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                            c.name, { c.name = it }, placeholder = "항목명 (예: 실리콘 시공)"
-                        )
-                    }
-                    Spacer(Modifier.width(7.dp))
-                    Box(Modifier.width(96.dp)) {
-                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                            c.manwon, { c.manwon = it.filter { ch -> ch.isDigit() } },
-                            placeholder = "만원",
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                            visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
-                        )
-                    }
-                    Icon(
-                        Icons.Default.Close, "지우기", tint = TossTextTertiary,
-                        modifier = Modifier.padding(start = 8.dp)
-                            .clickable { customItems.removeAt(idx) }.size(20.dp)
+                val done = c.name.isNotBlank() && (c.manwon.toIntOrNull() ?: 0) > 0
+                if (done) {
+                    EstimateItemRow(
+                        title = c.name,
+                        price = (c.manwon.toIntOrNull() ?: 0) * 10_000L,
+                        unit = com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_FLAT,
+                        quantity = 1,
+                        // 체크를 풀면 = 이 줄을 뺀다. 직접 넣은 것이라 가격표에 남길 게 없다.
+                        onToggle = { customItems.removeAt(idx) },
+                        onIncrement = {}, onDecrement = {},
+                        onEditPrice = { manwon -> c.manwon = manwon.toString() },
+                        onEditTitle = { t -> t.trim().takeIf { it.isNotBlank() }?.let { c.name = it } }
                     )
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.weight(1f)) {
+                            com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                                c.name, { c.name = it }, placeholder = "항목명 (예: 실리콘 시공)"
+                            )
+                        }
+                        Spacer(Modifier.width(7.dp))
+                        Box(Modifier.width(96.dp)) {
+                            com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                                c.manwon, { c.manwon = it.filter { ch -> ch.isDigit() } },
+                                placeholder = "만원",
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
+                            )
+                        }
+                        Icon(
+                            Icons.Default.Close, "지우기", tint = TossTextTertiary,
+                            modifier = Modifier.padding(start = 8.dp)
+                                .clickable { customItems.removeAt(idx) }.size(20.dp)
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
