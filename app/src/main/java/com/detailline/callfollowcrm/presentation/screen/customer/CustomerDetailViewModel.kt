@@ -640,6 +640,33 @@ class CustomerDetailViewModel(
     }
 
     /** A/S 예약(시공과 별개, 무료) 설정/취소 — date=null 이면 A/S 지움. 기간(며칠) 함께. DB v43. (2026-08-01 사장님) */
+    /** 🔧 A/S 해줘야 하는 손님으로 찍는다. 상담함 [A/S] 칩에 뜨고 다른 일 칩에서는 빠진다. */
+    fun markAsPending() = viewModelScope.launch {
+        container.customerRepository.setAsPending(customerId, System.currentTimeMillis())
+    }
+
+    /**
+     * 🔧 A/S 다녀왔다 — **태그가 사라지고 쪽지 한 장이 남는다.** (2026-09-27 사장님)
+     *   "사라지면서 고객 메모에 몇날며칠 as 처리 완료된 고객이라고 자동으로 메모가 남는 거지"
+     *   사라지기만 하면 나중에 「저번에 AS 갔었나?」를 알 길이 없다. 기록이 대신 남는다.
+     */
+    fun markAsDone() = viewModelScope.launch {
+        val now = System.currentTimeMillis()
+        container.customerRepository.setAsPending(customerId, null)
+        runCatching {
+            container.customerNoteRepository.add(
+                customerId = customerId, jobId = null,
+                body = com.detailline.callfollowcrm.util.DateTimeUtils.formatKoreanMonthDay(now) + " A/S 처리 완료",
+                now = now
+            )
+        }
+    }
+
+    /** 되돌리기 — 잘못 눌렀을 때. 쪽지는 손으로 지우실 수 있게 그대로 둔다. */
+    fun undoAsDone() = viewModelScope.launch {
+        container.customerRepository.setAsPending(customerId, System.currentTimeMillis())
+    }
+
     fun updateAsSchedule(date: Long?, days: Int) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateAsSchedule(customerId, date, days)

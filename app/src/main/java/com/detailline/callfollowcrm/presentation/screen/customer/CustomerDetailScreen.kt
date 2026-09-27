@@ -505,6 +505,31 @@ fun CustomerDetailScreen(
                 }.getOrDefault(false)
             }
             var showAddressDialog by remember { mutableStateOf(false) }
+            // 🔧 [A/S 다녀왔어요] 확인 — 누르면 태그가 사라지고 쪽지 한 장이 남는다. (2026-09-27)
+            var asDoneConfirm by remember { mutableStateOf(false) }
+            if (asDoneConfirm) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { asDoneConfirm = false },
+                    title = { Text("A/S 다녀오셨나요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Text(
+                            "명단에서 빠지고, 고객 메모에 「… A/S 처리 완료」가 남아요.",
+                            fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { asDoneConfirm = false; viewModel.markAsDone() }) {
+                            Text("다녀왔어요", color = TossBlue, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { asDoneConfirm = false }) {
+                            Text("아직이에요", color = TossTextSecondary)
+                        }
+                    },
+                    containerColor = Color.White
+                )
+            }
             // 📝 쪽지를 꼬 눌러 「고쳐 적기」를 고를면 여기에 들어온다. (2026-09-27)
             var editingNote by remember {
                 mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity?>(null)
@@ -1014,6 +1039,18 @@ fun CustomerDetailScreen(
                                 trailing = if (scheduled != null) Icons.Default.Edit else Icons.Default.Add,
                                 onClick = { datePickerOpen = true }
                             )
+                            // 🔧 **A/S 해줘야 하는 손님** — 날짜를 못 잡았어도 여기 뜬다. (2026-09-27 사장님)
+                            //   "일정이 꽉 차 있어서 못 잡는 거야. 그래서 as 대기 고객으로 명단을 올려두고"
+                            if (c.asPendingAt != null) {
+                                CdKv(
+                                    "A/S",
+                                    if (c.asScheduledDate != null) "예약 잡힘 · 무료"
+                                    else "해드릴 곳 · 날짜 미정",
+                                    valueColor = AppTheme.colors.cautionText,
+                                    trailing = Icons.Default.Check,
+                                    onClick = { asDoneConfirm = true }
+                                )
+                            }
                             // 🔧 A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
                             //   **잡혀 있을 때만** 줄로 보여준다. A/S 는 가끔 있는 일인데
                             //   늘 「아직 없음」이 한 줄을 먹고 있었다 — 정보가 아니라 빈 줄이다.
@@ -1097,6 +1134,11 @@ fun CustomerDetailScreen(
                                     //   시공 예약이 있을 때만 — A/S 는 시공 **뒤**의 일이다.
                                     if (scheduled != null && c.asScheduledDate == null) {
                                         CdUndoChip("A/S 잡기", danger = false) { asPickerOpen = true }
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    // 🔧 날짜를 못 잡아도 **명단에는 올려둔다.** (2026-09-27 사장님)
+                                    if (c.asPendingAt == null) {
+                                        CdUndoChip("A/S 해드릴 곳", danger = false) { viewModel.markAsPending() }
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     if (allPaid) {

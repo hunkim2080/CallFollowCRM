@@ -68,7 +68,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 60,
+    version = 61,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1112,6 +1112,16 @@ abstract class AppDatabase : RoomDatabase() {
          *   「완료」를 두 기준으로 재던 탓에 쌓인 어긍남을 한 번에 맞춘다.
          *   이미 되돌린(완료 취소) 건은 balancePaidAt 도 비어 있으니 건들지 않는다.
          */
+        /**
+         * 🔧 **AS 해줘야 하는 손님** 표시. (2026-09-27 사장님)
+         *   일정이 꽉 차 AS 날짜를 못 잡았을 때 **명단을 올려둘 자리**가 없었다.
+         */
+        private val MIGRATION_60_61 = object : Migration(60, 61) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE customers ADD COLUMN asPendingAt INTEGER")
+            }
+        }
+
         private val MIGRATION_59_60 = object : Migration(59, 60) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 runCatching {
@@ -1254,7 +1264,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
                     MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54,
                     MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58,
-                    MIGRATION_58_59, MIGRATION_59_60
+                    MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

@@ -241,6 +241,9 @@ class CustomerRepository(
 
     suspend fun updateMemo(id: Long, memo: String) = mutate(id) { it.copy(memo = memo) }
 
+    /** 🔧 「A/S 해줘야 하는 손님」 찍기/떼기. 앱이 알 수 없는 것이라 사장님이 손으로 찍는다. (2026-09-27) */
+    suspend fun setAsPending(id: Long, at: Long?) = mutate(id) { it.copy(asPendingAt = at) }
+
     suspend fun updateName(id: Long, name: String?) = mutate(id) { it.copy(name = name) }
 
     /** 리드 온도 설정/변경/해제(null). 통화 직후 카드에서 optimistic 저장 호출. */

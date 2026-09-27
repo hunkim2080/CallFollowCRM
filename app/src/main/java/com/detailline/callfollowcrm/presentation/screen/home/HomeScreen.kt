@@ -376,17 +376,24 @@ fun HomeScreen(
         //   → 오늘 신규·시공 대기도 **답 안 한 것만** 센다. 목록은 전부 보여주되
         //     안 챙긴 게 위로 오므로(waiting 섹션이 먼저) 숫자가 가리키는 줄이 바로 보인다.
         fun pending(it: HomeItem) = it.isUnconfirmed
+        // 🔧 **AS 찍힌 손님은 다른 일 칩에서 모두 빠진다.** (2026-09-27 사장님)
+        //   "as는 시공이 이미 끝나서 잔금까지 다 받은 사람인 경우가 많아"
+        //   섞여 있으면 「시공 대기」·「잔금 대기」 숫자가 거짓말이 된다.
+        fun isAs(it: HomeItem) = it.customer?.asPendingAt != null
         mapOf(
-            "today" to all.count { it.isNewToday && pending(it) },
+            "today" to all.count { it.isNewToday && pending(it) && !isAs(it) },
             "unhandled" to all.count { pending(it) },
+            // 🔧 AS — 0명이면 칩 자체를 안 띄운다(아래 ChipRow).
+            "as" to all.count { isAs(it) },
             "wait" to all.count {
                 val c = it.customer
                 // 목록과 **같은 규칙**이어야 한다 — 숫자가 3인데 열면 5줄이면 둘 다 못 믿는다.
-                c != null && (c.scheduledWorkDate ?: 0L) >= DateTimeUtils.startOfDay(System.currentTimeMillis()) &&
+                c != null && !isAs(it) &&
+                    (c.scheduledWorkDate ?: 0L) >= DateTimeUtils.startOfDay(System.currentTimeMillis()) &&
                     !c.isWorkDone && pending(it)
             },
             // 미수는 연락이 와서가 아니라 **받을 돈이 남아서** 할 일이다 — 건수 그대로.
-            "owe" to all.count { it.customer?.id in dues }
+            "owe" to all.count { it.customer?.id in dues && it.customer?.asPendingAt == null }
         )
     }
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
@@ -1202,24 +1209,29 @@ fun HomeScreen(
                 //   거른 목록을 그대로 받으니 렌더가 통째로 재사용된다. (2026-09-20)
                 val dueIds = balanceDues.mapNotNull { it.customerId }.toHashSet()
                 val todayStart0 = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                // 🔧 AS 찍힌 손님은 다른 일 칩에서 빠진다 — 숫자와 **같은 규칙**.
                 val chipItems = when (inboxChip) {
-                    "today" -> dedupItems.filter { it.isNewToday }
+                    "as" -> dedupItems.filter { it.customer?.asPendingAt != null }
+                    "today" -> dedupItems.filter { it.isNewToday && it.customer?.asPendingAt == null }
                     // 🔨 **앞으로 할 시공만.** (2026-09-20 실기)
                     //   전엔 '예약일이 있고 완료 버튼을 안 누른 것' 이었다. 그래서 **이미 끝난 시공**이
                     //   (완료 버튼을 안 눌렀다는 이유로) 여기 들어와 초록 '완료' 딱지를 달고 앉아 있었다.
                     //   사장님: *"시공대기 칩은 시공 예약이 되어있는 고객군만"* → 예약일이 **오늘 이후**인 것만.
                     "wait" -> dedupItems.filter {
                         val c = it.customer
-                        c != null && (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
+                        c != null && c.asPendingAt == null &&
+                            (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
                     }
-                    "owe" -> dedupItems.filter { it.customer?.id in dueIds }
+                    "owe" -> dedupItems.filter { it.customer?.id in dueIds && it.customer?.asPendingAt == null }
                     // 빨간 숫자가 가리키는 것 = 답 안 한 것. 칩이 없고 **탭 숫자로만** 들어온다.
                     //   키를 "unhandled" 로 쓰면 안 된다 — 없앤 옛 칩 값이라 위 이사 코드가 되돌린다.
                     "pending" -> dedupItems.filter { it.isUnconfirmed }
                     // '끝났다' 는 앱에 이미 단일 출처가 있다 — CustomerEntity.isWorkDone
                     //   (완료 버튼 **또는** 잔금 받음. 사장님 2026-08-18 "잔금 받으면 = 완료").
                     //   칩만 다른 자를 쓰면 딱지와 목록이 서로 딴소리를 한다.
-                    "done" -> dedupItems.filter { it.customer?.isWorkDone == true }
+                    "done" -> dedupItems.filter {
+                        it.customer?.isWorkDone == true && it.customer?.asPendingAt == null
+                    }
                     else -> dedupItems
                 }
                 val chipOn = inboxChip != "all"
@@ -2547,6 +2559,12 @@ private fun InboxChips(
         //   숫자는 하단 [상담함] 탭 배지로 갔다(카톡·문자앱이 쓰는 그 자리).
         "today" to "오늘 신규",
         "wait" to "시공 대기", "owe" to "잔금 대기"
+    ) + (
+        // 🔧 AS — **0명이면 아예 안 띄운다.** (2026-09-27 사장님)
+        //   다른 칩은 0이어도 흐리게 남긴다(2026-09-20 "생겼다 없어졌다 하면 버그인가 생각할 수도") —
+        //   그건 **늘 있는 일**이라 자리가 고정돼야 하기 때문이다.
+        //   AS 는 **있다가 없는 일**이라 없을 때 자리를 비워도 고장으로 안 보인다.
+        if ((counts["as"] ?: 0) > 0) listOf("as" to "A/S") else emptyList()
     )
     // 지인 칩은 안 만든다 — 사장님: "보통 지인은 문자보다 카톡을 사용함". (2026-09-20)
     //   대신 문자함을 **택배 / 광고·인증** 둘로 가른다. 택배는 무조건 자동 SMS 로 온다.
@@ -4100,6 +4118,7 @@ private fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
     "today" -> "오늘 새로 온 문의가 없어요" to "저장 안 된 번호에서 연락이 오면 여기 쌓여요"
     "wait" -> "잡혀 있는 시공이 없어요" to "날짜를 잡으면 여기 모여요"
     "owe" -> "기다리는 잔금이 없어요" to "시공이 끝났는데 잔금이 남으면 여기 떠요"
+    "as" -> "A/S 해드릴 손님이 없어요" to null
     "done" -> "시공을 끝낸 손님이 아직 없어요" to null
     else -> "여기 아무도 없어요" to null
 }
