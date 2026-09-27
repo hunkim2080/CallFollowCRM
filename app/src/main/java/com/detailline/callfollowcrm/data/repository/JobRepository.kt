@@ -312,6 +312,12 @@ class JobRepository(
         now: Long = System.currentTimeMillis()
     ) {
         val j = jobDao.findById(jobId) ?: return
+        // ✅ **잔금까지 받았으면 시공도 끝난 것이다.** (2026-09-27 사장님)
+        //   사장님: "완료된 사람인데 「완료 안 누른 곳」에 떠 있고… 들어가 보니 전부 완료가 되어 있는데?"
+        //   원인: 「완료」를 **두 가지 뜻**으로 재고 있었다 —
+        //     딱지는 「시공일 지났고 잔금 받음」, 목록은 「[완료] 버튼을 눌렀나」.
+        //   돈을 다 받았는데 시공을 안 했을 리가 없다 → 여기서 **같이 찍어** 뜻을 하나로 만든다.
+        val alsoComplete = balancePaidAt != null && j.workCompletedAt == null
         jobDao.update(
             j.copy(
                 totalAmount = totalAmount,
@@ -319,9 +325,11 @@ class JobRepository(
                 depositPaidAt = depositPaidAt,
                 balanceAmount = balanceAmount,
                 balancePaidAt = balancePaidAt,
+                workCompletedAt = if (alsoComplete) (balancePaidAt) else j.workCompletedAt,
                 updatedAt = now
             )
         )
+        if (alsoComplete) renumberRecords(now)   // 현장 번호도 같이 붙어야 맞는다
     }
 
     /**

@@ -505,38 +505,49 @@ fun CustomerDetailScreen(
                 }.getOrDefault(false)
             }
             var showAddressDialog by remember { mutableStateOf(false) }
+            // 📝 쪽지를 꼬 눌러 「고쳐 적기」를 고를면 여기에 들어온다. (2026-09-27)
+            var editingNote by remember {
+                mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity?>(null)
+            }
+            editingNote?.let { en ->
+                com.detailline.callfollowcrm.presentation.component.NoteEditDialog(
+                    note = en,
+                    onClose = { editingNote = null },
+                    onSave = { t -> viewModel.editNote(en.id, t); editingNote = null }
+                )
+            }
 
-            // 👤 이 손님 메모 — **현장이 바뀌어도 그대로인 것.** (2026-09-18 확정 프로토)
-            //   "성향, 계좌, 통화 편한 시간". 현장별 메모(📍)는 건 안쪽에 따로 있다.
-            val custMemoFocus = remember { FocusRequester() }
+            // 👤 이 손님 메모 — **쪽지로 쌓인다.** (2026-09-27 사장님)
+            //   전엔 한 덩어리 글이라 **언제 적었는지 알 수 없었다.**
+            //   사장님이 적는 건 사건이다 — 「오늘 2시로 바뀜」. 사건은 시각이 반이다.
+            //   📌 계좌·비번처럼 늘 봐야 하는 건 맨 위에 못 박는다.
+            val custNotes by viewModel.notes.collectAsState()
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { runCatching { custMemoFocus.requestFocus() } }
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         CdTitleIcon(Icons.Filled.Person, "gray")
                         Spacer(Modifier.width(8.dp))
                         Text("이 고객 메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
-                        Spacer(Modifier.weight(1f))
-                        val savedMemo = c.memo.orEmpty()
-                        val (st, stColor) = when {
-                            shouldSaveMemo(memoDirty, memoInput, savedMemo) -> "저장 중…" to TossTextTertiary
-                            memoInput.isNotBlank() -> "저장됨" to TossSuccess
-                            else -> "자동 저장" to TossTextTertiary
+                        if (custNotes.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            Text("${custNotes.size}", fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold, color = TossTextTertiary)
                         }
-                        Text(st, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = stColor)
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text("현장이 바뀌어도 그대로인 것 · 성향, 계좌, 통화 편한 시간",
+                    Text("적으면 시각이 저절로 붙어요 · 늘 봐야 할 건 꽀 눌러 고정",
                         fontSize = 11.5.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = memoInput,
-                        onValueChange = { memoInput = it; memoDirty = true },
-                        placeholder = { Text("예) 계좌이체 선호, 오후 3시 이후 통화", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(84.dp).focusRequester(custMemoFocus),
-                        colors = tossFieldColors()
+                    com.detailline.callfollowcrm.presentation.component.NoteList(
+                        notes = custNotes,
+                        onAdd = { viewModel.addNote(it) },
+                        onEdit = { editingNote = it },
+                        onTogglePin = { viewModel.togglePinNote(it.id) },
+                        onDelete = { viewModel.deleteNote(it.id) },
+                        placeholder = "예) 계좌이체 선호, 오후 3시 이후 통화"
                     )
                 }
             }
@@ -1165,27 +1176,19 @@ fun CustomerDetailScreen(
                 DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
             }
 
-            // 📍 이 현장 메모 — **그 건에서만.** 손님 메모(👤)와 분리. (2026-09-18 확정 프로토)
+            // 📍 이 현장 메모 — **그 건에서만.** 손님 메모(👤)와 **같은 얼굴**(쪽지)로. (2026-09-27 사장님)
             //   "메모는 두 곳. 👤 이 손님 메모(현장이 바뀌어도 그대로인 것)와
-            //    📍 이 현장 메모(그 건에서만). 이름 앞에 사람/장소 표시를 붙여 헷갈리지 않게."
-            //   ⚠️ remember(key) 가 바뀔 때 빈 값이 저장되는 사고를 막으려고
-            //     손님 메모와 **같은 dirty 가드**(shouldSaveMemo)를 쓴다.
-            val memoFocus = remember { FocusRequester() }
-            val jobMemoSaved = shownJob?.memo.orEmpty()
-            var jobMemoInput by remember(shownJobId) { mutableStateOf(jobMemoSaved) }
-            var jobMemoDirty by remember(shownJobId) { mutableStateOf(false) }
-            LaunchedEffect(jobMemoInput, shownJobId) {
-                val jid = shownJobId ?: return@LaunchedEffect
-                if (!shouldSaveMemo(jobMemoDirty, jobMemoInput, jobMemoSaved)) return@LaunchedEffect
-                kotlinx.coroutines.delay(600)
-                viewModel.updateJobMemo(jid, jobMemoInput)
-            }
+            //    📍 이 현장 메모(그 건에서만)."
+            //   둘 다 NoteList 하나를 쓴다 — 따로 만들면 또 어긋난다.
             if (shownJobId != null) {
+                val jid = shownJobId
+                val jobNotes by remember(jid) { viewModel.jobNotes(jid) }
+                    .collectAsState(initial = emptyList())
                 TossCard {
                     Column {
                         androidx.compose.foundation.layout.Row(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             CdTitleIcon(Icons.Filled.EditNote, "gray")
                             Spacer(Modifier.width(8.dp))
@@ -1193,23 +1196,22 @@ fun CustomerDetailScreen(
                                 if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 메모" else "이 현장 메모",
                                 fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
                             )
-                            Spacer(Modifier.weight(1f))
-                            val (memoStatus, memoStatusColor) = when {
-                                shouldSaveMemo(jobMemoDirty, jobMemoInput, jobMemoSaved) -> "저장 중…" to TossTextTertiary
-                                jobMemoInput.isNotBlank() -> "저장됨" to TossSuccess
-                                else -> "자동 저장" to TossTextTertiary
+                            if (jobNotes.isNotEmpty()) {
+                                Spacer(Modifier.width(6.dp))
+                                Text("${jobNotes.size}", fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold, color = TossTextTertiary)
                             }
-                            Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
                         }
                         Spacer(Modifier.height(4.dp))
                         Text("이 현장에서만 · 주차, 열쇠, 자재", fontSize = 11.5.sp, color = TossTextTertiary)
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = jobMemoInput,
-                            onValueChange = { jobMemoInput = it; jobMemoDirty = true },
-                            placeholder = { Text("이 현장에서 기억할 것", color = TossTextTertiary) },
-                            modifier = Modifier.fillMaxWidth().height(120.dp).focusRequester(memoFocus),
-                            colors = tossFieldColors()
+                        com.detailline.callfollowcrm.presentation.component.NoteList(
+                            notes = jobNotes,
+                            onAdd = { viewModel.addJobNote(jid, it) },
+                            onEdit = { editingNote = it },
+                            onTogglePin = { viewModel.togglePinNote(it.id) },
+                            onDelete = { viewModel.deleteNote(it.id) },
+                            placeholder = "이 현장에서 기억할 것"
                         )
                     }
                 }

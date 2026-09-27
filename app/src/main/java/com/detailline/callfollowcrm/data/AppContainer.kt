@@ -104,6 +104,14 @@ class AppContainer(context: Context) {
     // 시공 건(이력) (DB v42) — 재방문/추가 시공 시 첫 시공 유실 방지(완료 건을 이력으로 보관). (2026-07-20)
     val jobRepository = com.detailline.callfollowcrm.data.repository.JobRepository(db.jobDao(), db.customerDao())
 
+    /**
+     * 📝 쪽지 메모 — 한 덩어리 글 대신 시각이 붙는 쪽지. (2026-09-27 사장님)
+     *   ⚠️ customerRepository·jobRepository 보다 **아래에** 있어야 한다 — 둘을 쓴다.
+     */
+    val customerNoteRepository = com.detailline.callfollowcrm.data.repository.CustomerNoteRepository(
+        db.customerNoteDao(), customerRepository, jobRepository
+    )
+
     /** 번호 모양 때문에 둘로 갈라진 손님 합치기. (2026-09-23) 되돌릴 수 없어서 부르는 쪽이 백업을 먼저 뜬다. */
     val customerMergeManager by lazy {
         com.detailline.callfollowcrm.data.repository.CustomerMergeManager(db.customerMergeDao(), db.customerDao())

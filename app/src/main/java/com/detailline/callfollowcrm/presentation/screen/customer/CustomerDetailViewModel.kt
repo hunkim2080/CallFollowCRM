@@ -37,6 +37,35 @@ class CustomerDetailViewModel(
     val customer = container.customerRepository.observeById(customerId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+
+    // ── 📝 쪽지 메모 (2026-09-27 사장님) ──────────────────────────────
+    /** 👤 이 손님 쪽지 — 📌 먼저, 그다음 최근 것부터. 차례는 DAO 한 곳에서만 정한다. */
+    val notes = container.customerNoteRepository.observeForCustomer(customerId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addNote(body: String) = viewModelScope.launch {
+        container.customerNoteRepository.add(customerId, null, body)
+    }
+
+    /** 📍 그 **건**에서만 쓰는 쪽지. 건을 바꿔 보면 그 건 것만 보인다. */
+    fun jobNotes(jobId: Long) = container.customerNoteRepository.observeForJob(jobId)
+
+    fun addJobNote(jobId: Long, body: String) = viewModelScope.launch {
+        container.customerNoteRepository.add(customerId, jobId, body)
+    }
+
+    fun editNote(id: Long, body: String) = viewModelScope.launch {
+        container.customerNoteRepository.edit(id, body)
+    }
+
+    fun togglePinNote(id: Long) = viewModelScope.launch {
+        container.customerNoteRepository.togglePin(id)
+    }
+
+    fun deleteNote(id: Long) = viewModelScope.launch {
+        container.customerNoteRepository.remove(id)
+    }
+
     val callRecords: kotlinx.coroutines.flow.StateFlow<List<CallRecordEntity>> =
         container.customerRepository.observeById(customerId)
             .flatMapLatest { c ->

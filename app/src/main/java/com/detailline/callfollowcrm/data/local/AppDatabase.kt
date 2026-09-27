@@ -38,6 +38,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
 @Database(
     entities = [
         CustomerEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity::class,
         CallRecordEntity::class,
         MessageTemplateEntity::class,
         MessageHistoryEntity::class,
@@ -67,7 +68,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 58,
+    version = 60,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -100,6 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun threadBucketDao(): com.detailline.callfollowcrm.data.local.dao.ThreadBucketDao
     abstract fun jobDao(): com.detailline.callfollowcrm.data.local.dao.JobDao
     abstract fun customerMergeDao(): com.detailline.callfollowcrm.data.local.dao.CustomerMergeDao
+    abstract fun customerNoteDao(): com.detailline.callfollowcrm.data.local.dao.CustomerNoteDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -1096,6 +1098,84 @@ abstract class AppDatabase : RoomDatabase() {
          *   기존 완료 건에 **완료 시각 순으로** 001 부터 채운다. 이후로는 완료 찍을 때 다음 번호가 붙는다.
          *   nullable 이라 새로 깐 폰(빈 표)에서도 안전 — NOT NULL 칸을 넣어 앱이 안 켜지던 사고(2026-09-17) 반복 금지.
          */
+        /**
+         * 📝 **쪽지 메모.** (2026-09-27 사장님 "언제 내가 작성했는지 모르겠고")
+         *   한 덩어리 글 → 시각이 붙는 쪽지 목록.
+         *
+         * ⚠️ **기존 메모를 한 글자도 안 잃는다** — 손님 메모·현장 메모를 각각 쪽지 한 장으로 옮긴다.
+         *   적은 시각을 모르니 createdAt = 0 → 화면에선 「예전에 적음」, 차례는 맨 아래.
+         *   원본 칸(customers.memo / jobs.memo)은 **그대로 둔다** — 캘린더·AI·미러링이 읽는다.
+         */
+        /**
+         * ✅ **잔금까지 받았는데 완료가 안 찍힌 건을 채운다.** (2026-09-27 사장님)
+         *   "완료된 사람인데 「완료 안 누른 곳」에 떠 있고, 들어가 보니 전부 완료가 되어 있는데?"
+         *   「완료」를 두 기준으로 재던 탓에 쌓인 어긍남을 한 번에 맞춘다.
+         *   이미 되돌린(완료 취소) 건은 balancePaidAt 도 비어 있으니 건들지 않는다.
+         */
+        private val MIGRATION_59_60 = object : Migration(59, 60) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                runCatching {
+                    db.execSQL(
+                        """
+                        UPDATE jobs SET workCompletedAt = balancePaidAt
+                        WHERE balancePaidAt IS NOT NULL AND workCompletedAt IS NULL
+                        """.trimIndent()
+                    )
+                }
+                runCatching {
+                    db.execSQL(
+                        """
+                        UPDATE customers SET workCompletedAt = balancePaidAt
+                        WHERE balancePaidAt IS NOT NULL AND workCompletedAt IS NULL
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+
+        private val MIGRATION_58_59 = object : Migration(58, 59) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS customer_notes (
+                        id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        customerId  INTEGER NOT NULL,
+                        jobId       INTEGER,
+                        body        TEXT NOT NULL,
+                        pinned      INTEGER NOT NULL DEFAULT 0,
+                        source      TEXT NOT NULL DEFAULT '',
+                        createdAt   INTEGER NOT NULL,
+                        updatedAt   INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_customer_notes_customerId ON customer_notes(customerId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_customer_notes_jobId ON customer_notes(jobId)")
+                runCatching {
+                    // 👤 손님 메모 → 쪽지 한 장
+                    db.execSQL(
+                        """
+                        INSERT INTO customer_notes (customerId, jobId, body, pinned, source, createdAt, updatedAt)
+                        SELECT c.id, NULL, c.memo, 0, 'legacy', 0, 0
+                        FROM customers c
+                        WHERE c.memo IS NOT NULL AND TRIM(c.memo) <> ''
+                        """.trimIndent()
+                    )
+                }
+                runCatching {
+                    // 📍 현장 메모 → 그 건의 쪽지 한 장
+                    db.execSQL(
+                        """
+                        INSERT INTO customer_notes (customerId, jobId, body, pinned, source, createdAt, updatedAt)
+                        SELECT j.customerId, j.id, j.memo, 0, 'legacy', 0, 0
+                        FROM jobs j
+                        WHERE j.memo IS NOT NULL AND TRIM(j.memo) <> ''
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+
         private val MIGRATION_57_58 = object : Migration(57, 58) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE jobs ADD COLUMN recordNo INTEGER")
@@ -1173,7 +1253,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
                     MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54,
-                    MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58
+                    MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58,
+                    MIGRATION_58_59, MIGRATION_59_60
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

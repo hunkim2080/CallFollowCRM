@@ -590,12 +590,14 @@ object IncomingCallOverlay {
         val phone = _state.value?.phoneNumber?.takeIf { it.isNotBlank() } ?: return
         ioScope.launch {
             runCatching {
-                val repo = app.container.customerRepository
-                val c = repo.upsertByPhone(phone)
-                val cal = java.util.Calendar.getInstance()
-                val stamp = "${cal.get(java.util.Calendar.MONTH) + 1}월 ${cal.get(java.util.Calendar.DAY_OF_MONTH)}일 통화"
-                val old = c.memo.trimEnd()
-                repo.updateMemo(c.id, if (old.isBlank()) "$stamp\n$body" else "$old\n\n$stamp\n$body")
+                val c = app.container.customerRepository.upsertByPhone(phone)
+                // 📝 **쪽지 한 장으로** 쌓는다 — 시각은 저절로 붙고 「통화 중」 딱지가 달린다.
+                //   전엔 메모 한 덩어리 끝에 그냥 붙였다 — 그게 얼타리의 시작이었다. (2026-09-27 사장님)
+                app.container.customerNoteRepository.add(
+                    customerId = c.id, jobId = null, body = body,
+                    source = com.detailline.callfollowcrm.data.local.entity
+                        .CustomerNoteEntity.SOURCE_CALL
+                )
             }.onFailure { android.util.Log.w(TAG, "통화 메모 저장 실패", it) }
         }
     }
