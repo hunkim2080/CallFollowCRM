@@ -107,3 +107,16 @@ Play Console → **Android 개발자 인증** → 패키지 `com.detailline.call
 "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore ringgo-release.jks -alias ringgo -storepass <비번>
 ```
 지문(SHA-256)은 비밀값이 아니다 — 공개해도 안전. 진짜 비밀은 `ringgo-release.jks` + `keystore.properties`.
+
+---
+
+## 올릴 때 같이 할 것 — 홈페이지 소식 (2026-09-27 사장님)
+
+`upload-*` 태그를 밀었으면 **si0in.kr/updates 에 이번 것도 올린다.**
+자동이 아니다 — 안 하면 페이지가 그대로 멈춰 있다(실제로 9/11~9/27 이 비어 있었다).
+
+- 등록: `POST /api/admin/updates/entry` · 관리자 Bearer · `{"items":[{"kind":"new|fix|imp","text":"..."}]}`
+- 주차 라벨은 **등록한 날(KST)** 로 정해진다. 밀린 걸 몰아 넣으면 한 주로 뭉치므로,
+  그럴 땐 `app_updates.created_at_ms` 를 그 주 날짜로 직접 넣는다(서버 재시작 불필요).
+- 글은 **손님이 알아볼 말로.** 커밋 제목을 그대로 옮기지 말 것.
+
