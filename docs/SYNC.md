@@ -11950,3 +11950,8 @@ UX 점검 **남은 것 넷 마무리.**
   실측: 송도 사장님이 「15시간 전」으로 보였으나 실제 마지막 앱 켬은 9/9(18일 전).
 - 라이브 백업: `main.py.bak-20260927-*-authguard` / `*-dashboard`
 - 다음 액션 (cowork): origin `server/main.py` 에 3건 모두 반영 필요(라이브만 패치됨).
+
+## 2026-09-27 14:00 · android (서버 직접수정)
+멤버 목록 「설치」 칸에 버전·마지막 본 시각 표시
+- 변경: 관리자 화면만. `installWhen(u)` 추가 — app_version / app_version_seen_ms 를 딱지 밑에.
+- 라이브 백업: `main.py.bak-20260927-*-instver`

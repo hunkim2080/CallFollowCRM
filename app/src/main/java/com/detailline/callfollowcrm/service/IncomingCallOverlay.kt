@@ -237,11 +237,13 @@ object IncomingCallOverlay {
             // 상태 = 색 결정. 완료(빨강) > 예정(초록) > 신규(노랑) > 그 외 기존(파랑).
             // 🚨 **아는 손님이 아닌데 스팸 앞자리면 광고 의심.** 손님이면 앞자리와 무관하게 손님이다
             //   (사무실 번호로 거는 진짜 고객도 있다). (2026-09-27 사장님)
-            val adSuspect = !known && com.detailline.callfollowcrm.util.SpamPrefix.isSpam(
-                number, container.preferences.spamPrefixes
-            )
+            //   판정은 [PhoneKind] 한 곳에서만 한다 — 070(광고)과 02(집전화)를 **다르게** 본다.
+            val kind = com.detailline.callfollowcrm.util.PhoneKind.of(number)
             val status = when {
-                adSuspect -> CallerStatus.AD_SUSPECT
+                !known && kind == com.detailline.callfollowcrm.util.PhoneKind.Kind.AD ->
+                    CallerStatus.AD_SUSPECT
+                !known && kind == com.detailline.callfollowcrm.util.PhoneKind.Kind.LANDLINE ->
+                    CallerStatus.LANDLINE
                 !known -> CallerStatus.NEW
                 customer?.workCompletedAt != null -> CallerStatus.COMPLETED
                 (customer?.scheduledWorkDate ?: 0L) > 0L -> CallerStatus.SCHEDULED
@@ -627,7 +629,13 @@ object IncomingCallOverlay {
          *   (2026-09-27 사장님 "사용자들이 착각하고 반갑게 받을까 봐 겁나네")
          *   앱은 문자함에서 이미 이 앞자리를 걸러왔는데 **통화 카드만 몰랐다.**
          */
-        AD_SUSPECT
+        AD_SUSPECT,
+        /**
+         * ☎️ **집·사무실 전화.** 02·031 같은 지역번호.
+         *   광고로 **단정하지 않는다** — 관공서·거래처·진짜 문의일 수도 있다.
+         *   다만 사장님: "고객이 핸드폰으로 하지 이런 집전화로 안 하거든" → 한 번 짚어준다.
+         */
+        LANDLINE
     }
 
     data class CallerState(
@@ -803,6 +811,8 @@ private class CallerCardView(
     //   셋 다 작아서 폰이 멀리 있으면 그냥 글씨 덩어리로 보였다. 하나로 합쳐 크게 적는다.
     private val newHead = LinearLayout(context)
     private val newTitleTv = mkText(28f, WHITE, bold = true)
+    /** 「손님은 보통 휴대폰으로 걸어요」 같은 한 줄. 광고·집전화일 때만 보인다. */
+    private val newWhyTv = mkText(12f, WHITE, bold = false)
     private val newNumTv = mkText(19f, WHITE, bold = true)
 
     // ── 🧾 지난 시공 (2026-09-19) ──
@@ -1075,6 +1085,10 @@ private class CallerCardView(
         newTitleTv.text = "새 문의"
         newHead.addView(newTitleTv)
         newHead.addView(newNumTv, rowLp(5f))
+        // ☎️ 「왜 그렇게 보는지」 한 줄 — 평소엔 숨어 있다. (2026-09-27 사장님)
+        newWhyTv.setTextColor(0xCCFFFFFF.toInt())
+        newWhyTv.visibility = View.GONE
+        newHead.addView(newWhyTv, rowLp(4f))
         newHead.visibility = View.GONE
         return newHead
     }
@@ -1347,6 +1361,8 @@ private class CallerCardView(
         st.loading -> 0xFFAEB6C2.toInt()
         // 🚨 광고 의심 = **빨강.** 노란 「새 문의」로 두면 반갑게 받는다. (2026-09-27 사장님)
         st.status == IncomingCallOverlay.CallerStatus.AD_SUSPECT -> 0xFFE03131.toInt()
+        // ☎️ 집·사무실 전화 = **회색**. 빨강은 「받지 마세요」인데 여기까진 아니다.
+        st.status == IncomingCallOverlay.CallerStatus.LANDLINE -> 0xFF7A8290.toInt()
         st.status == IncomingCallOverlay.CallerStatus.NEW -> 0xFFF59F0B.toInt()
         // 🔁 또 거는 사람 = 보라. 신규(노랑)도 기존(파랑)도 아닌 **그 사이**라 색도 따로.
         st.status == IncomingCallOverlay.CallerStatus.REPEAT -> 0xFF8B5CF6.toInt()
@@ -1365,9 +1381,10 @@ private class CallerCardView(
 
     fun bind(st: IncomingCallOverlay.CallerState) {
         val isAd = !st.loading && st.status == IncomingCallOverlay.CallerStatus.AD_SUSPECT
-        // 광고 의심도 **머리를 통째로 칠한다** — 신규와 같은 자리, 색만 빨강.
+        val isLand = !st.loading && st.status == IncomingCallOverlay.CallerStatus.LANDLINE
+        // 광고·집전화도 **머리를 통째로 칠한다** — 신규와 같은 자리, 색만 다르다.
         val isNew = !st.loading &&
-            (st.status == IncomingCallOverlay.CallerStatus.NEW || isAd)
+            (st.status == IncomingCallOverlay.CallerStatus.NEW || isAd || isLand)
         // 🔒 잠긴 폰이 책상 위에 있는 동안만 가린다. **받으면 보여준다.** (2026-09-27 사장님)
         //   "통화내용이나 문자내용은 왜 안 보이지" — 전화가 올 때 폰은 거의 항상 잠금이라
         //   진짜 전화에선 요약도 문자도 거의 안 보였다. 받으면 폰은 사장님 손과 귀에 있다.
@@ -1380,6 +1397,7 @@ private class CallerCardView(
         val chipLabel = when {
             st.loading -> "찾는 중…"
             isAd -> "070 같은 번호"
+            isLand -> "집·사무실"
             isNew -> "신규"
             // 🔁 **그 숫자 자체가 신호**다 — 세 번 거는 사람은 사려는 사람.
             isRepeat -> "${st.callNo}번째 통화"
@@ -1409,8 +1427,24 @@ private class CallerCardView(
         moneyTv.setTextColor(if (st.moneyOwed) MONEY_OWED else BODY)
 
         // 신규면 머리를 통째로 주황으로 — 그때는 가는 띠도 이름줄도 감춘다. 같은 말을 두 번 안 한다.
-        newHead.setBackgroundColor(if (isAd) 0xFFE03131.toInt() else NEW_ORANGE)
-        newTitleTv.text = if (isAd) "광고 전화로 의심" else "새 문의"
+        newHead.setBackgroundColor(
+            when {
+                isAd -> 0xFFE03131.toInt()
+                isLand -> 0xFF7A8290.toInt()
+                else -> NEW_ORANGE
+            }
+        )
+        newTitleTv.text = when {
+            isAd -> "광고 전화로 의심"
+            isLand -> "집·사무실 전화"
+            else -> "새 문의"
+        }
+        // 왜 그렇게 보는지 한 줄 — 단정하지 않고 사실만. (번호 밑, 같은 머리 안)
+        newWhyTv.text = com.detailline.callfollowcrm.util.PhoneKind.reason(
+            com.detailline.callfollowcrm.util.PhoneKind.of(st.phoneNumber)
+        ).orEmpty()
+        newWhyTv.visibility = if ((isAd || isLand) && newWhyTv.text.isNotBlank())
+            View.VISIBLE else View.GONE
         newHead.visibility = if (isNew) View.VISIBLE else View.GONE
         strip.visibility = if (isNew) View.GONE else View.VISIBLE
         head.visibility = if (isNew) View.GONE else View.VISIBLE
