@@ -51,6 +51,21 @@ object DateTimeUtils {
     /** "9/17" 같은 짧은 날짜 — 기간 꼬리표에서 끝나는 날 표시용. */
     fun formatMonthDay(epoch: Long): String = monthDayShort.format(Date(epoch))
 
+    private val monthDayKor by lazy { SimpleDateFormat("M월 d일", Locale.KOREAN) }
+    private val monthDayKorYear by lazy { SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN) }
+
+    /**
+     * "9월 22일" — 요일 없이 날짜만. 올해가 아니면 "2025년 9월 22일".
+     *   줄 안에 다른 정보와 섞일 때 쓴다 — 요일까지 붙으면 갤S9 폭에서 밀린다.
+     */
+    fun formatKoreanMonthDay(epoch: Long): String {
+        val cal = Calendar.getInstance()
+        val thisYear = cal.get(Calendar.YEAR)
+        cal.timeInMillis = epoch
+        return if (cal.get(Calendar.YEAR) == thisYear) monthDayKor.format(Date(epoch))
+        else monthDayKorYear.format(Date(epoch))
+    }
+
     /**
      * 여러 날 시공 꼬리표 — `" · 3일 (~9/17)"`. 하루짜리면 빈 문자열.
      *

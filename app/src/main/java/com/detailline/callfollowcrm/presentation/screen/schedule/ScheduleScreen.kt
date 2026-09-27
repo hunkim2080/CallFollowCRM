@@ -2323,19 +2323,32 @@ private fun AssignTeamSheet(
                             //   ⚠️ 협업으로 부른 것만 세어진다(서버 기록이 그것뿐 — 사장님 확인).
                             // 📍 「며칠째 호흡」보다 **어디였는지**가 훨씬 잘 떠오른다. (2026-09-26 사장님)
                             val place = partnerLastPlace[p.phone.filter { ch -> ch.isDigit() }]
-                            val meta = buildString {
-                                // ☎️ **번호를 맨 앞에.** 이름만 적혀 있으면 누군지 못 알아본다.
-                                //   (2026-09-27 사장님 "이 사람 번호가 안 뜨니까 모르겠네")
-                                com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p.phone).takeIf { it.isNotBlank() }
-                                    ?.let { append(it).append(" · ") }
+                            // ☎️ **번호 먼저.** 이름만 적혀 있으면 누구지 못 알아본다.
+                            //   (2026-09-27 사장님 "이 사람 번호가 안 뜼니까 모르겠네")
+                            val line1 = buildString {
+                                com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p.phone)
+                                    .takeIf { it.isNotBlank() }?.let { append(it) }
                                 if (st != null && st.count > 0) {
+                                    if (isNotEmpty()) append(" · ")
                                     append("함께 ").append(st.count).append("번")
-                                    if (!place.isNullOrBlank()) append(" · 마지막 ").append(place)
-                                    else if (st.lastAtMs > 0) append(" · ")
-                                        .append(DateTimeUtils.formatShortKoreanDate(st.lastAtMs))
+                                }
+                            }
+                            // 📅 어디였는지 **그리고 언제였는지.** 둘 다 있어야 떠오른다.
+                            //   (2026-09-27 사장님 "마지막 현장만 나오는 게 아니라 몇월 며칠까지")
+                            //   한 줄에 다 넣으면 갤S9 폭에서 잘린다 — 번호 줄과 나눈다.
+                            val line2 = buildString {
+                                if (st != null && st.count > 0) {
+                                    if (!place.isNullOrBlank()) append("마지막 ").append(place)
+                                    if (st.lastAtMs > 0) {
+                                        if (isNotEmpty()) append(" · ")
+                                        append(DateTimeUtils.formatKoreanMonthDay(st.lastAtMs))
+                                    }
                                 } else append("아직 같이 한 적 없어요")
                             }
-                            Text(meta, style = AppType.caption, color = TossTextTertiary)
+                            if (line1.isNotBlank()) Text(line1, style = AppType.caption,
+                                color = TossTextTertiary, maxLines = 1)
+                            if (line2.isNotBlank()) Text(line2, style = AppType.caption,
+                                color = TossTextTertiary, maxLines = 1)
                         }
                     }
                 }
