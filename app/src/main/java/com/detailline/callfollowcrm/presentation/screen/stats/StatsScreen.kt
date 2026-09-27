@@ -97,7 +97,9 @@ fun StatsScreen(
      */
     onOpenTodo: (Int) -> Unit = { onOpenVisited() },
     /** 주소가 없는 곳**만** 보여주러. 역시 보던 달 그대로. */
-    onOpenNoAddr: (Int) -> Unit = { onOpenVisited() }
+    onOpenNoAddr: (Int) -> Unit = { onOpenVisited() },
+    /** 💰 금액이 비어 기록에 못 오른 곳만. (2026-09-27 사장님) */
+    onOpenNoMoney: (Int) -> Unit = { onOpenVisited() }
 ) {
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
@@ -169,11 +171,12 @@ fun StatsScreen(
                 if (rec.lastNo <= 0) {
                     MyRecordEmpty()
                     Spacer(Modifier.height(12.dp))
-                } else if (rec.notDoneCount > 0 || rec.noAddrCount > 0) {
+                } else if (rec.notDoneCount > 0 || rec.noAddrCount > 0 || rec.noMoneyCount > 0) {
                     RecordTodoBar(
                         rec,
                         onOpenTodo = { onOpenTodo(monthDelta) },
-                        onOpenNoAddr = { onOpenNoAddr(monthDelta) }
+                        onOpenNoAddr = { onOpenNoAddr(monthDelta) },
+                        onOpenNoMoney = { onOpenNoMoney(monthDelta) }
                     )
                     Spacer(Modifier.height(11.dp))
                 }
@@ -285,7 +288,8 @@ private fun RecordMonthBar(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
 private fun RecordTodoBar(
     rec: MyRecordState,
     onOpenTodo: () -> Unit,
-    onOpenNoAddr: () -> Unit
+    onOpenNoAddr: () -> Unit,
+    onOpenNoMoney: () -> Unit
 ) {
     val goFirst = if (rec.notDoneCount > 0) onOpenTodo else onOpenNoAddr
     Row(
@@ -312,6 +316,18 @@ private fun RecordTodoBar(
                 "주소 없음 ${rec.noAddrCount}", style = AppType.caption,
                 fontWeight = FontWeight.ExtraBold, color = TossBlue,
                 modifier = Modifier.clip(AppShape.sm).clickable { onOpenNoAddr() }
+                    .padding(horizontal = 6.dp, vertical = 8.dp)
+            )
+        }
+        // 💰 주소는 있는데 금액이 비어 기록에 못 오른 것. (2026-09-27 사장님)
+        if (rec.noMoneyCount > 0) {
+            if (rec.notDoneCount > 0 || rec.noAddrCount > 0) {
+                Text(" \u00b7 ", style = AppType.caption, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+            }
+            Text(
+                "금액 없음 ${rec.noMoneyCount}", style = AppType.caption,
+                fontWeight = FontWeight.ExtraBold, color = TossBlue,
+                modifier = Modifier.clip(AppShape.sm).clickable { onOpenNoMoney() }
                     .padding(horizontal = 6.dp, vertical = 8.dp)
             )
         }

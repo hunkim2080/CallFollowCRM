@@ -80,6 +80,11 @@ fun VisitedScreen(
                 visitedRows = raw.visitedRows.filter { !it.hasAddr },
                 upcomingRows = raw.upcomingRows.filter { !it.hasAddr }
             )
+            // 💰 주소는 있는데 금액이 비어 기록에 못 오른 곳. (2026-09-27 사장님)
+            "money" -> raw.copy(
+                visitedRows = raw.visitedRows.filter { it.hasAddr && it.amountManwon <= 0 },
+                upcomingRows = emptyList()
+            )
             else -> raw
         }
     }
@@ -93,6 +98,7 @@ fun VisitedScreen(
                         when (only) {
                             "todo" -> "완료를 안 누른 곳"
                             "addr" -> "주소가 없는 곳"
+                            "money" -> "금액이 비어 있는 곳"
                             else -> "다녀온 현장 · ${state.monthLabel}"
                         },
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
@@ -126,8 +132,11 @@ fun VisitedScreen(
                         Text(
                             // ⚠️ 길면 [전체 보기] 와 붙어 **안내문의 일부처럼** 보이고 오탭이 난다.
                             //   하는 법은 아래 한 줄로 따로 내린다. (2026-09-25 폰에서 확인)
-                            if (only == "todo") "완료를 안 누른 곳만 보는 중"
-                            else "주소가 없는 곳만 보는 중",
+                            when (only) {
+                                "todo" -> "완료를 안 누른 곳만 보는 중"
+                                "money" -> "금액이 비어 있는 곳만 보는 중"
+                                else -> "주소가 없는 곳만 보는 중"
+                            },
                             style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
                             fontWeight = FontWeight.Bold, color = TossBlue,
                             modifier = Modifier.weight(1f)
@@ -140,8 +149,11 @@ fun VisitedScreen(
                         )
                     }
                     Text(
-                        if (only == "todo") "줄을 누르면 그 현장으로 가요 — 거기서 완료를 눌러주세요"
-                        else "줄을 누르면 그 현장으로 가요 — 거기서 주소를 채워주세요",
+                        when (only) {
+                            "todo" -> "줄을 누르면 그 현장으로 가요 — 거기서 완료를 눌러주세요"
+                            "money" -> "줄을 누르면 그 현장으로 가요 — 거기서 금액을 적어주세요"
+                            else -> "줄을 누르면 그 현장으로 가요 — 거기서 주소를 채워주세요"
+                        },
                         style = com.detailline.callfollowcrm.presentation.theme.AppType.caption,
                         color = TossTextTertiary,
                         modifier = Modifier.padding(start = 2.dp, top = 6.dp)
@@ -170,6 +182,7 @@ fun VisitedScreen(
                             speech = when (only) {
                                 "todo" -> "완료를 안 누른 곳이 없어요 · 다 챙기셨네요"
                                 "addr" -> "주소가 빠진 곳이 없어요 · 다 채우셨네요"
+                                "money" -> "금액이 빠진 곳이 없어요 · 다 적으셨네요"
                                 else -> "${state.monthLabel} 현장이 아직 없어요"
                             }
                         )

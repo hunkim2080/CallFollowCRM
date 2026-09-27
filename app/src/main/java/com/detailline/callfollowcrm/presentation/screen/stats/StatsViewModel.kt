@@ -175,12 +175,25 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         // **다녀온 현장** = 시공일이 지난 건. 「다녀온 현장」 화면과 **같은 기준**이라야 숫자가 안 엇갈린다.
         //   (2026-09-24 폰에서 7곳 vs 4곳으로 엇갈렸다 — 완료를 안 누른 3곳 때문)
         //   ⚠️ '완료를 눌렀나' 로 세지 않는다. 완료는 며칠 뒤에 누르기도 하고 안 누르기도 한다.
-        val done = js.filter { (it.scheduledWorkDate ?: 0L) in 1 until todayStart }
+        // 📒 **기록에 오를 자격** — 주소와 돈이 다 적혀야 한다. (2026-09-27 사장님)
+        //   "내 기록에 올라오는 조건은 주소와 돈이 기재되어 있어야 올라오는 거지."
+        //   못 갖춘 건 사라지는 게 아니라 위쪽 띠(「주소 없음 N · 금액 없음 N · 채우러 가기」)로 간다.
+        fun hasAddrOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+            !(j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]).isNullOrBlank()
+        fun qualifies(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+            hasAddrOf(j) && (j.totalAmount ?: 0L) > 0L
+
+        val doneAll = js.filter { (it.scheduledWorkDate ?: 0L) in 1 until todayStart }
             .sortedByDescending { it.scheduledWorkDate ?: 0L }
+        val done = doneAll.filter { qualifies(it) }
         // 지난달을 볼 땐 그 달이 이미 다 지났으므로 '오늘 이전' 조건이 저절로 만족된다.
         val month = done.filter { (it.scheduledWorkDate ?: 0L) in monthStart until monthEnd }
         // 다녀왔는데 **완료를 안 누른** 곳 — 번호가 안 붙는다. 그래서 할 일로 알려준다.
         val notDone = month.count { it.workCompletedAt == null }
+        // 못 갖춰서 기록에 못 오른 것들 — 이걸 세야 「채우러 가기」가 진짜 할 일을 가리킨다.
+        val monthAll = doneAll.filter { (it.scheduledWorkDate ?: 0L) in monthStart until monthEnd }
+        val noAddrJobs = monthAll.count { !hasAddrOf(it) }
+        val noMoneyJobs = monthAll.count { hasAddrOf(it) && (it.totalAmount ?: 0L) <= 0L }
         val towns = LinkedHashSet<String>()
         var noAddr = 0
         // 🧭 **다닌 순서대로** 모은다(먼저 간 곳부터).
@@ -199,7 +212,13 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.ARRIVED,
             com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
         )
-        val collabDone = collab.filter { it.progress in wentTo && it.scheduledAtMs in 1 until todayStart }
+        // 📍 협업도 **주소가 있어야** 기록이 된다.
+        //   ⚠️ 단, 일당까지는 안 따진다 — 그건 **부른 사장님이 적는 것**이라 내가 채울 수 없다.
+        //   돈까지 요구하면 남의 현장은 영영 기록에 못 오른다. (2026-09-27)
+        val collabDone = collab.filter {
+            it.progress in wentTo && it.scheduledAtMs in 1 until todayStart &&
+                !it.addr.isNullOrBlank()
+        }
         val collabMonth = collabDone.filter { it.scheduledAtMs in monthStart until monthEnd }
             .sortedByDescending { it.scheduledAtMs }
         for (s in collabMonth) {
@@ -358,7 +377,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             lastNo = lastNo,
             monthSites = month.size + collabMonth.size,
             towns = towns.toList(),
-            noAddrCount = noAddr,
+            noAddrCount = noAddrJobs,
+            noMoneyCount = noMoneyJobs,
             notDoneCount = notDone,
             // 글에 적히는 날짜도 **시공한 날**. 완료를 언제 눌렀는지는 손님한테 아무 뜻이 없다.
             pasteText = buildPaste(
@@ -604,6 +624,8 @@ data class MyRecordState(
     val towns: List<String> = emptyList(),
     /** 이번 달 다녀온 곳 중 **주소를 못 찾은** 곳 수. 지도·동네 수에 안 들어간다. */
     val noAddrCount: Int = 0,
+    /** 💰 주소는 있는데 **금액이 비어** 기록에 못 오른 현장 수. (2026-09-27 사장님) */
+    val noMoneyCount: Int = 0,
     /**
      * 다녀왔는데 **완료를 안 누른** 곳 수. 번호가 안 붙어 기록이 빈다.
      *   (2026-09-24 폰 실측: 9월 7곳 중 3곳이 그랬다)
