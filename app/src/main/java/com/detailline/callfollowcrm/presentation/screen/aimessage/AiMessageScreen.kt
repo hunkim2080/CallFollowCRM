@@ -44,6 +44,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.util.SmsIntentHelper
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +74,7 @@ fun AiMessageScreen(
                 .padding(inner)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .imePadding()
+                .keyboardPadding()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {

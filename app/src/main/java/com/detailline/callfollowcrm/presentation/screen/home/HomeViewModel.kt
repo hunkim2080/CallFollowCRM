@@ -981,6 +981,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     ) { records, custs, f, smsContacts, flagsAndSpam ->
         val (flags, spam, general) = flagsAndSpam
         val byPhone = custs.associateBy { it.phoneNumber }
+        // ☎️ **번호는 숫자만 보고 맞춘다.** (2026-09-27 사장님 "as 명단 올렸지만 칩이 안생김")
+        //   `byPhone` 은 글자 그대로 비교라 '010-4805-2630' 과 '01048052630' 을 딴 사람으로 봤다.
+        //   그 손님은 상담함에서 **고객 카드가 안 붙어** 이름도 딱지도 안 나오고,
+        //   A/S·시공 대기·잔금 대기 숫자에서도 통째로 빠졌다(대화방은 끝 8자리로 찾아 멀쩡했다).
+        //   뒤에 온 것이 이기게 두지 않으려고, 글자까지 같은 것을 먼저 본다.
+        val bySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
+        fun customerOf(phone: String) = byPhone[phone] ?: bySuffix[phoneSuffix(phone)]
         val callPhonesNormalized = records.map { phoneSuffix(it.phoneNumber) }.toHashSet()
         // 안 A (2026-06-08): 통화 있는 번호도 SMS 의 lastSent/lastBody 가 필요 → suffix 로 조회.
         val smsBySuffix = smsContacts.associateBy { it.normalizedSuffix }
@@ -995,7 +1002,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 val sms = smsBySuffix[suffix]
                 HomeItem(
                     record = sorted.first(),
-                    customer = byPhone[phone],
+                    customer = customerOf(phone),
                     callCount = list.size,
                     isUnconfirmed = suffix in flags.unconfirmedSuffixes,
                     isNewToday = suffix in flags.newTodaySuffixes,
@@ -1017,12 +1024,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     startedAt = null,
                     endedAt = sms.lastDateMs,
                     handledStatus = HandledStatus.SAVED.name,
-                    linkedCustomerId = byPhone[sms.address]?.id
+                    linkedCustomerId = customerOf(sms.address)?.id
                 )
                 HomeItem(
                     record = fakeRecord,
-                    customer = byPhone[sms.address]
-                        ?: byPhone.values.firstOrNull { phoneSuffix(it.phoneNumber) == sms.normalizedSuffix },
+                    customer = customerOf(sms.address),
                     callCount = 0,
                     isUnconfirmed = sms.normalizedSuffix in flags.unconfirmedSuffixes,
                     isNewToday = sms.normalizedSuffix in flags.newTodaySuffixes,

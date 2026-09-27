@@ -66,6 +66,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.SmsSender
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 private val Purple = LightColors.category
 
@@ -210,7 +211,7 @@ fun CallSummaryScreen(
             Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .imePadding()
+                .keyboardPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 16.dp)
         ) {

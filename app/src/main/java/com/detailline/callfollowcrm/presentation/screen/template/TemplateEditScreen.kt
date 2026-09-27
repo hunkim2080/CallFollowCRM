@@ -64,6 +64,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,7 +130,7 @@ fun TemplateEditScreen(
                 Modifier
                     .fillMaxWidth()
                     .background(TossGrayBg)
-                    .imePadding()
+                    .keyboardPadding()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 TossPrimaryButton(
@@ -146,7 +147,7 @@ fun TemplateEditScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
                 .verticalScroll(rememberScrollState())
-                .imePadding()
+                .keyboardPadding()
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

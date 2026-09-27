@@ -77,6 +77,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -222,7 +223,7 @@ fun FollowUpScreen(
                 .padding(inner)
                 .fillMaxSize()
                 // 키보드 올라오면 스크롤 영역 축소 → 포커스된 입력칸 자동 정렬
-                .imePadding()
+                .keyboardPadding()
                 .background(TossGrayBg)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),

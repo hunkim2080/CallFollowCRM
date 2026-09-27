@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -61,3 +62,24 @@ val keyboardClearance: WindowInsets
         } else {
             WindowInsets.navigationBars.exclude(WindowInsets.ime)
         }
+
+/**
+ * ⌨️ `.imePadding()` 자리에 쓴다 — **창이 이미 줄었으면 아무것도 안 더한다.**
+ *
+ * manifest 의 `adjustResize` 로 Android 14 까지는 **시스템이 먼저 창을 줄여준다.**
+ * 그 위에 `imePadding()` 을 또 얹으면 키보드 높이만큼 **빈 칸이 한 번 더** 생긴다 —
+ * 삼성 일부 기기는 창이 줄었는데도 ime 를 통째로 알려주기 때문이다.
+ * Android 15(API 35)+ 는 `adjustResize` 를 무시해 창이 안 줄어드니 그땐 ime 를 그대로 쓴다.
+ *
+ * 🔴 왜 또 나왔나 — 2026-09-26 에 [keyboardClearance] 로 18곳을 고쳤는데,
+ *    그때 찾은 건 `WindowInsets.ime.union(...)` **꼴뿐**이었다.
+ *    맨 `imePadding()` 으로 같은 계산을 하던 **12곳이 그대로 남아** 하루 만에 다시 나왔다.
+ *    (2026-09-27 사장님 "키패드 위.. 공백이") → 두 꼴 모두 이 파일로 모은다.
+ *
+ * ⚠️ **액티비티 창 안**에서만 쓸 것. 별도 창(Dialog·ModalBottomSheet)은 adjustResize 가
+ *    안 먹어 창이 안 줄어드니, 거기선 `imePadding()` / [keyboardClearance] 를 그대로 써야 한다.
+ *    (우리 시트 대부분은 액티비티 창 안 인라인 오버레이라 이것을 쓴다.)
+ */
+@Composable
+fun Modifier.keyboardPadding(): Modifier =
+    if (android.os.Build.VERSION.SDK_INT >= 35) this.windowInsetsPadding(WindowInsets.ime) else this

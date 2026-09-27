@@ -54,6 +54,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 @Composable
 fun PrincipleManageScreen(
@@ -79,7 +80,7 @@ fun PrincipleManageScreen(
             )
         }
     ) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).imePadding()) {
+        Column(Modifier.fillMaxSize().padding(pad).keyboardPadding()) {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),

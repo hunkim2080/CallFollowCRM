@@ -146,6 +146,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.splitSiteAddress
 import kotlinx.coroutines.launch
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 /**
  * 메모를 저장해도 되는가 — 저장 경로가 두 곳(타이핑 debounce / 화면 나갈 때 flush)이라
@@ -345,7 +346,7 @@ fun CustomerDetailScreen(
                 .fillMaxSize()
                 // imePadding() 을 verticalScroll 전에 둬서, 키보드가 올라오면 스크롤 영역이
                 // 자동으로 축소 → 포커스된 인라인 composer 가 키보드 위로 자동 정렬됨.
-                .imePadding()
+                .keyboardPadding()
                 .background(TossGrayBg)
                 .verticalScroll(scrollState)
                 // bottom 을 크게 둬서 키보드 위로 입력칸이 바짝 붙지 않고 숨 쉴 공간 확보.
@@ -612,7 +613,7 @@ fun CustomerDetailScreen(
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text("적으면 시각이 저절로 붙어요 · 늘 봐야 할 건 꽀 눌러 고정",
+                    Text("적으면 시각이 저절로 붙어요 · 늘 봐야 할 건 꾹 눌러 고정",
                         fontSize = 11.5.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
                     com.detailline.callfollowcrm.presentation.component.NoteList(

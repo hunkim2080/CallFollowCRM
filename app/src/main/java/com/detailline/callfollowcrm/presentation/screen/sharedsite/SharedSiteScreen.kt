@@ -82,6 +82,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 /**
  * 협업 현장 (B = 협업자) — 프로토 collab-sites-proto.html 의 b-list / b-detail 1:1.
@@ -313,7 +314,7 @@ fun SharedSiteScreen(
                 .padding(inner)
                 .fillMaxSize()
                 .background(TossGrayBg)
-                .imePadding()
+                .keyboardPadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 18.dp, vertical = 6.dp)
         ) {

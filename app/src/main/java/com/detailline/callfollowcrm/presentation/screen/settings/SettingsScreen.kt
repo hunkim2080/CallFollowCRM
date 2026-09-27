@@ -145,6 +145,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 /**
  * 설정 화면 — 2026-05-24 사장님 다이어트.
@@ -509,7 +510,7 @@ fun SettingsScreen(
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg)
-                .imePadding()
+                .keyboardPadding()
                 .verticalScroll(if (subPage == null) menuScroll else subScroll)
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

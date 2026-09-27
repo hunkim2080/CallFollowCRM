@@ -48,6 +48,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 // 4대 그룹(숨고 인테리어·설치수리·이사청소·자동차 잎사귀 기반). 대표업종 1개 선택 + "기타 직접입력" 크라우드소싱. (2026-09-01 사장님)
 private val TRADE_GROUPS = listOf(
@@ -107,7 +108,7 @@ fun TradeSelectScreen(
         }
     ) { inner ->
         Column(
-            Modifier.padding(inner).fillMaxSize().imePadding().verticalScroll(rememberScrollState())
+            Modifier.padding(inner).fillMaxSize().keyboardPadding().verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text("하시는 시공을 하나만 골라주세요.",

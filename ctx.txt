@@ -1,0 +1,154 @@
+===== aimessage/AiMessageScreen:76
+                      IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로") }
+                  },
+                  colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+              )
+          }
+      ) { inner ->
+          Column(
+              Modifier
+                  .padding(inner)
+                  .fillMaxSize()
+                  .verticalScroll(rememberScrollState())
+                  .imePadding()
+                  .padding(16.dp),
+===== business/BusinessInfoScreen:243
+          ) {
+              // grip 손잡이
+              Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp), contentAlignment = Alignment.Center) {
+                  Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(TossDivider))
+              }
+  
+              // ── 스크롤 본문 ──
+              Column(
+                  Modifier
+                      .weight(1f)
+                      .fillMaxWidth()
+                      .imePadding()
+                      .verticalScroll(rememberScrollState())
+===== callsummary/CallSummaryScreen:213
+                          Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                      }
+                  },
+                  colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+              )
+          }
+      ) { inner ->
+          Column(
+              Modifier
+                  .fillMaxSize()
+                  .padding(inner)
+                  .imePadding()
+                  .verticalScroll(rememberScrollState())
+===== followup/FollowUpScreen:225
+                      text = "저장만 하기",
+                      onClick = { viewModel.saveOnly(context, onDone) }
+                  )
+              }
+          }
+      ) { inner ->
+          Column(
+              modifier = Modifier
+                  .padding(inner)
+                  .fillMaxSize()
+                  // 키보드 올라오면 스크롤 영역 축소 → 포커스된 입력칸 자동 정렬
+                  .imePadding()
+                  .background(TossGrayBg)
+===== principle/PrincipleManageScreen:82
+              TopAppBar(
+                  title = { Text("막내가 알아낸 원칙", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                  navigationIcon = {
+                      IconButton(onClick = onBack) {
+                          Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
+                      }
+                  },
+                  colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+              )
+          }
+      ) { pad ->
+          Column(Modifier.fillMaxSize().padding(pad).imePadding()) {
+              LazyColumn(
+===== schedule/ScheduleAddScreen:199
+          ) {
+              // grip 손잡이
+              Box(
+                  Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+                  contentAlignment = Alignment.Center
+              ) {
+                  Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(TossDivider))
+              }
+              Column(
+                  Modifier
+                      .fillMaxWidth()
+                      .imePadding()
+                      .verticalScroll(rememberScrollState())
+===== settings/SettingsScreen:512
+          //   서브탭이 '중간부터' 보이는 버그(자동문자 등 모든 서브탭). → 메뉴/서브 스크롤 분리 + 서브 진입 시 맨 위로. (2026-08-02 사장님)
+          val menuScroll = rememberScrollState()
+          val subScroll = rememberScrollState()
+          LaunchedEffect(subPage) { if (subPage != null) subScroll.scrollTo(0) }
+          // 기본 문자 앱이면 '채팅+ 끄기' 안내는 불필요(기본앱 되면 채팅+가 꺼짐) → 그 항목 숨김. (2026-08-02 사장님)
+          val isDefaultSmsApp = remember { com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context) }
+          Column(
+              Modifier
+                  .padding(top = inner.calculateTopPadding())
+                  .fillMaxSize()
+                  .background(TossGrayBg)
+                  .imePadding()
+                  .verticalScroll(if (subPage == null) menuScroll else subScroll)
+===== sharedsite/SharedSiteScreen:316
+          }
+      ) { inner ->
+          // 목록/상세/휴지통/탭/업체드릴다운이 스크롤 상태 하나를 공유 → 뷰 바뀔 때 이전 위치가 남아 '중간부터' 보이던 버그.
+          //   뷰 정체성(아래 상태들)이 바뀌면 맨 위로. (2026-08-03 사장님 — 더보기 서브탭과 같은 부류)
+          val scrollState = rememberScrollState()
+          LaunchedEffect(selectedId, topMode, bizPartner, showTrash, listView) { scrollState.scrollTo(0) }
+          Column(
+              Modifier
+                  .padding(inner)
+                  .fillMaxSize()
+                  .background(TossGrayBg)
+                  .imePadding()
+                  .verticalScroll(scrollState)
+===== template/TemplateEditScreen:132
+                          Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
+                      }
+                  },
+                  colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+              )
+          },
+          bottomBar = {
+              Column(
+                  Modifier
+                      .fillMaxWidth()
+                      .background(TossGrayBg)
+                      .imePadding()
+                      .padding(horizontal = 20.dp, vertical = 12.dp)
+===== template/TemplateEditScreen:149
+                      enabled = canSave
+                  )
+              }
+          }
+      ) { inner ->
+          Column(
+              Modifier
+                  .padding(inner)
+                  .fillMaxSize()
+                  .background(TossGrayBg)
+                  .verticalScroll(rememberScrollState())
+                  .imePadding()
+                  .padding(horizontal = 20.dp, vertical = 8.dp),
+===== trade/TradeSelectScreen:110
+          topBar = {
+              TopAppBar(
+                  title = { Text("내 업종", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                  navigationIcon = {
+                      IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) }
+                  },
+                  colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+              )
+          }
+      ) { inner ->
+          Column(
+              Modifier.padding(inner).fillMaxSize().imePadding().verticalScroll(rememberScrollState())
+                  .padding(horizontal = 16.dp, vertical = 8.dp)

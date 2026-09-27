@@ -80,6 +80,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import java.util.Calendar
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 /**
  * 셀프 일정 등록 화면 — 프로토 renderAddSchedule 1:1.
@@ -196,7 +197,7 @@ fun ScheduleAddScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .imePadding()
+                    .keyboardPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 18.dp)
                     .padding(top = 8.dp)

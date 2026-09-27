@@ -51,6 +51,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
 /**
  * 견적서·사업자 정보 — 프로토 openBizInfo 바텀시트 1:1.
@@ -240,7 +241,7 @@ fun BusinessInfoScreen(
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .imePadding()
+                    .keyboardPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
                     .padding(top = 8.dp)
