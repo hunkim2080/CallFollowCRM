@@ -275,6 +275,8 @@ fun ChatScreen(
     // 자동요약 ON + 녹음폴더 연결이면, 방금 끝난 통화 카드에 미리 "요약 중…"을 띄운다(워커가 ~15~40초 뒤 돌아서
     //   그 전엔 정적 '요약하기' 버튼만 보이던 문제). 요약이 도착하면 그걸로 바뀌고, 안 오면 창이 지나 버튼으로 복귀. (2026-06-20 사장님)
     val autoSummaryActive = remember { viewModel.autoSummaryActive }
+    // 🈳 녹음을 못 찾은 통화 — 카드에 그 사실을 남긴다. (2026-09-28 사장님)
+    val noRecording by viewModel.noRecording.collectAsState()
     val nowTick = remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(20_000); nowTick.value = System.currentTimeMillis() } }
     val timelineItems = remember(messages, callRecords, intakeEvents, timelineEvents, issuedDocs) {
@@ -973,6 +975,7 @@ fun ChatScreen(
                                 val redoing = serverBusy && matched != null
                                 val callRec = recordingFor[ti.record.id]
                                 CallSegment(
+                                    noRecordingHere = ti.record.id in noRecording,
                                     record = ti.record,
                                     summary = matched,
                                     isSummarizing = summarizing,
@@ -2321,7 +2324,9 @@ private fun CallSegment(
     /** 「다시 요약」 — 요약이 엉뚱할 때 처음부터 다시. 녹음이 연결돼 있을 때만 보인다. */
     onRedoSummary: () -> Unit = {},
     recordingConnected: Boolean = true,
-    onConnectRecording: () -> Unit = {}
+    onConnectRecording: () -> Unit = {},
+    /** 찾아봤는데 **녹음이 없던** 통화인가. (2026-09-28 사장님) */
+    noRecordingHere: Boolean = false
 ) {
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
@@ -2521,6 +2526,26 @@ private fun CallSegment(
                 }
                 // 미요약 + 요약 가능한 통화 → 녹음 연결돼 있으면 탭하면 폴더에서 찾아 바로 요약. (2026-06-14 사장님)
                 //   녹음 미연결이면 '요약하기' 대신 '연결하기' 안내(눌러도 실패 토스트만 뜨던 혼란 제거). (2026-07-12 사장님)
+                // 🈳 **찾아봤는데 녹음이 없던 통화.** (2026-09-28 사장님 "통화요약기능이 갑자기 안됨")
+                //   토스트는 사라진다 — 그러면 다음에 또 누르고 또 아무 일도 안 난다.
+                //   짧은 통화·안 받은 통화는 에이닷이 녹음을 안 남기는 일이 흔하다.
+                summarizable && recordingConnected && noRecordingHere -> {
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.bg).padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Text("이 통화는 녹음이 없어요 · 요약할 내용이 없어요",
+                            style = AppType.caption, color = AppTheme.colors.textSub)
+                        Spacer(Modifier.height(2.dp))
+                        Text("짧은 통화나 안 받은 전화는 녹음이 안 남을 때가 있어요",
+                            style = AppType.caption, color = AppTheme.colors.textHint)
+                        Spacer(Modifier.height(7.dp))
+                        Text("다시 찾아보기",
+                            style = AppType.label, color = Color(0xFF0A7D72),
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                .clickable { onSummarizeCall() }.padding(horizontal = 8.dp, vertical = 4.dp))
+                    }
+                }
                 summarizable && recordingConnected -> {
                     Box(
                         Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))

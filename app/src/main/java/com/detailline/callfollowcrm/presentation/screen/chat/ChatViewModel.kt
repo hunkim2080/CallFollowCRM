@@ -354,6 +354,14 @@ class ChatViewModel(
             com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(container.appContext)
 
     /**
+     * 🈳 **녹음을 못 찾은 통화들**(callRecordId). 카드에 그 사실을 남긴다. (2026-09-28 사장님)
+     *   전엔 토스트로만 말하고 사라져서 「눌렀는데 아무 일도 안 남」으로 보였다.
+     *   ⚠️ 화면에서만 기억한다 — 나중에 에이닷에 녹음이 생길 수도 있으니 영구히 못 박지 않는다.
+     */
+    private val _noRecording = MutableStateFlow<Set<Long>>(emptySet())
+    val noRecording: StateFlow<Set<Long>> = _noRecording
+
+    /**
      * 통화 카드 탭 → 그 통화 한 건을 연결된 녹음 폴더에서 찾아 즉시 요약. (2026-06-14 사장님)
      *   에이닷 들어가 '공유' 안 해도 됨. 진행 중엔 CallSummaryProgress 로 스피너, 결과는 토스트.
      */
@@ -371,6 +379,11 @@ class ChatViewModel(
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.summarizeCallNow(context, container, phone, at, callRecordId = record.id)
             }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED)  // 호출 자체가 throw = 실패(파일 없음 아님)
             com.detailline.callfollowcrm.recording.CallSummaryProgress.end(phone, at)
+            // 녹음을 못 찾았으면 **카드에 남긴다.** 찾았으면 지운다(에이닷에 뒤늦게 생겼을 수 있다).
+            _noRecording.value =
+                if (res == com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE)
+                    _noRecording.value + record.id
+                else _noRecording.value - record.id
             _toast.value = when (res) {
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> "이미 요약돼 있어요"
