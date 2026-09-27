@@ -334,6 +334,14 @@ fun ScheduleScreen(
             collabSites.filter { DateTimeUtils.startOfDay(it.scheduledAtMs) == day }
                 .sortedBy { it.timeLabel ?: "" }
         }
+        // 🕐 **하루는 시간 순으로 흐른다.** 내 현장·협업을 갈라 놓지 않고 한 줄로 세운다.
+        //   (2026-09-27 사장님 "협업하는 곳을 항상 아래 배치하는데 시간이 우선이었으면 좋겠어")
+        val dayRows = remember(schedulesForSelected, collabForSelected) {
+            (schedulesForSelected.map { (it.scheduledWorkMinutes ?: Int.MAX_VALUE) to (it to null) } +
+                collabForSelected.map { collabMinutes(it) to (null to it) })
+                .sortedBy { it.first }
+                .map { it.second }
+        }
         // 이 날 응답 안 한 협업 요청 — 주황 마커 탭 시 확인 카드로. (2026-07-08 사장님)
         val pendingForSelected = remember(selectedDayMs, pendingCollabSites) {
             val day = selectedDayMs ?: return@remember emptyList()
@@ -463,8 +471,10 @@ fun ScheduleScreen(
             item(key = "day-label") {
                 DayLabel(dayMs = selectedDayMs, isToday = selectedDayMs == todayStart)
             }
-            if (schedulesForSelected.isEmpty()) {
-                if (collabForSelected.isEmpty() && asForSelected.isEmpty() && simpleForSelected.isEmpty()) {
+            // 🕐 내 현장·협업을 **한 줄로** 세웠으니, 비었는지도 한 줄로 본다.
+            //   전엔 「내 현장이 없다」로만 판단해서 **협업만 있는 날이 턴 빈 칸**으로 보였다.
+            if (dayRows.isEmpty()) {
+                if (asForSelected.isEmpty() && simpleForSelected.isEmpty()) {
                     item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
                     // 고른 날이 비었으면 **앞으로 뭐가 있는지**를 보여준다. 전엔 "없어요" 한 줄로 끝나서
                     //   다음 일정을 보려면 날짜를 하나씩 눌러봐야 했다. (2026-09-21 사장님)
@@ -478,84 +488,83 @@ fun ScheduleScreen(
                     }
                 }
             } else {
-                if (schedulesForSelected.size > 1) {
-                    item(key = "day-count") { DayCount(schedulesForSelected.size) }
+                if (dayRows.size > 1) {
+                    item(key = "day-count") { DayCount(dayRows.size) }
                 }
                 // 키 = (고객, 시공일) — 한 고객이 여러 날짜를 잡으면 id 만으론 키가 겹쳐 목록이 깨진다. (Stage A)
-                items(schedulesForSelected, key = { laneKeyOf(it) }) { c ->
-                    val suffix = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
-                    val originalDate = c.scheduledWorkDate ?: 0L
-                    CollabSwipeBox(
-                        onDelete = {
-                            viewModel.unschedule(c)
-                            uiScope.launch {
-                                val r = snackbarHostState.showSnackbar(
-                                    message = "일정에서 뺐어요 (고객·기록은 그대로)",
-                                    actionLabel = "되돌리기",
-                                    duration = androidx.compose.material3.SnackbarDuration.Short
-                                )
-                                if (r == SnackbarResult.ActionPerformed) viewModel.restoreSchedule(c.id, originalDate)
-                            }
-                        }
-                    ) {
-                        DayJobCard(
-                            customer = c,
-                            selectedDayMs = selectedDayMs,
-                            todayStart = todayStart,
-                            assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                            // 다일 공사: 이 협업자가 '일하는 날'에만 이름표 표시. days 비면=전체(하위호환). (2026-08-02 하루만 배정 버그 fix)
-                            collabPartnerNames = collabAssign[c.id].orEmpty()
-                                .filter { it.days.isEmpty() || selectedDayMs in it.days }
-                                .map { it.name to it.accepted },
-                            teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
-                            // 주소가 없어도 시트는 연다 — '내가 부른 일당' 배정은 아무것도 안 보내니 주소가 필요 없다.
-                            //   협업 요청(서버로 나가는 것)만 주소가 필수인데, 그건 시트 안에서 주소를 받아 막는다
-                            //   (needAddress + 📍현장 주소 입력칸). 2026-06-18 의 "주소 없는데 일당사장에게 알람이 갔음"은
-                            //   그 시트 가드가 담당. 여기서 통째로 막으면 일당 배정까지 못 하게 된다. (2026-07-16 사장님)
-                            onAssign = { assignTarget = c },
-                            // 시공 카드 탭 = 그날 그 고객한테 문자 보내려는 경우가 대부분 → 고객정보 대신 문자(채팅)로 바로.
-                            //   고객정보가 필요하면 채팅 헤더에서 열 수 있음(onOpenCustomerDetail). (2026-08-30 사장님)
-                            onNavigate = { addr -> launchNavigationForAddr(addr) },
-                            onCall = { phone -> dialFromSchedule(scheduleCtx, phone) },
-                            onClick = { onOpenChat(c.phoneNumber, c.id) }
-                        )
-                    }
-                }
-            }
-            if (collabForSelected.isNotEmpty()) {
-                item(key = "collab-label") {
-                    Text(
-                        "이 날 협업 ${collabForSelected.size}곳",
-                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category,
-                        modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
-                    )
-                }
-                items(collabForSelected, key = { "sh-${it.shareId}" }) { site ->
-                    CollabSwipeBox(
-                        onDelete = {
-                            // 끝난 협업은 그냥 숨김(되돌리기). 진행 중(수락된) 협업은 확인 후 "그만두기"(상대에 알림). (2026-06-20 사장님)
-                            if (site.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED) {
-                                viewModel.hideCollab(site.shareId)
+                // 🕐 **시각 하나로 줄 세운 목록.** 내 현장이든 협업이든 먼저 가는 순서대로.
+                //   (2026-09-27 사장님 "협업하는 곳을 항상 아래 배치하는데 시간이 우선이었으면 좋겠어")
+                items(
+                    dayRows,
+                    key = { r -> r.first?.let { laneKeyOf(it) } ?: ("sh-" + r.second!!.shareId) }
+                ) { r ->
+                    val c = r.first
+                    val site = r.second
+                    if (c != null) {
+                        val suffix = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
+                        val originalDate = c.scheduledWorkDate ?: 0L
+                        CollabSwipeBox(
+                            onDelete = {
+                                viewModel.unschedule(c)
                                 uiScope.launch {
                                     val r = snackbarHostState.showSnackbar(
-                                        message = "끝난 협업을 숨겼어요",
+                                        message = "일정에서 뺐어요 (고객·기록은 그대로)",
                                         actionLabel = "되돌리기",
                                         duration = androidx.compose.material3.SnackbarDuration.Short
                                     )
-                                    if (r == SnackbarResult.ActionPerformed) viewModel.unhideCollab(site.shareId)
+                                    if (r == SnackbarResult.ActionPerformed) viewModel.restoreSchedule(c.id, originalDate)
                                 }
-                            } else {
-                                confirmLeaveCollab = site
                             }
+                        ) {
+                            DayJobCard(
+                                customer = c,
+                                selectedDayMs = selectedDayMs,
+                                todayStart = todayStart,
+                                assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
+                                // 다일 공사: 이 협업자가 '일하는 날'에만 이름표 표시. days 비면=전체(하위호환). (2026-08-02 하루만 배정 버그 fix)
+                                collabPartnerNames = collabAssign[c.id].orEmpty()
+                                    .filter { it.days.isEmpty() || selectedDayMs in it.days }
+                                    .map { it.name to it.accepted },
+                                teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
+                                // 주소가 없어도 시트는 연다 — '내가 부른 일당' 배정은 아무것도 안 보내니 주소가 필요 없다.
+                                //   협업 요청(서버로 나가는 것)만 주소가 필수인데, 그건 시트 안에서 주소를 받아 막는다
+                                //   (needAddress + 📍현장 주소 입력칸). 2026-06-18 의 "주소 없는데 일당사장에게 알람이 갔음"은
+                                //   그 시트 가드가 담당. 여기서 통째로 막으면 일당 배정까지 못 하게 된다. (2026-07-16 사장님)
+                                onAssign = { assignTarget = c },
+                                // 시공 카드 탭 = 그날 그 고객한테 문자 보내려는 경우가 대부분 → 고객정보 대신 문자(채팅)로 바로.
+                                //   고객정보가 필요하면 채팅 헤더에서 열 수 있음(onOpenCustomerDetail). (2026-08-30 사장님)
+                                onNavigate = { addr -> launchNavigationForAddr(addr) },
+                                onCall = { phone -> dialFromSchedule(scheduleCtx, phone) },
+                                onClick = { onOpenChat(c.phoneNumber, c.id) }
+                            )
                         }
-                    ) {
-                        CollabDayCard(
-                            site = site,
-                            onNavigate = { addr -> launchNavigationForAddr(addr) },
-                            // 전화는 **부른 사장님**께. 고객 번호가 아니다. (2026-09-22 사장님)
-                            onCall = { phone -> dialFromSchedule(scheduleCtx, phone) },
-                            onClick = { onOpenCollabSites(site.shareId) }
-                        )
+                    } else if (site != null) {
+                        CollabSwipeBox(
+                            onDelete = {
+                                // 끝난 협업은 그냥 숨김(되돌리기). 진행 중(수락된) 협업은 확인 후 "그만두기"(상대에 알림). (2026-06-20 사장님)
+                                if (site.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED) {
+                                    viewModel.hideCollab(site.shareId)
+                                    uiScope.launch {
+                                        val r = snackbarHostState.showSnackbar(
+                                            message = "끝난 협업을 숨겼어요",
+                                            actionLabel = "되돌리기",
+                                            duration = androidx.compose.material3.SnackbarDuration.Short
+                                        )
+                                        if (r == SnackbarResult.ActionPerformed) viewModel.unhideCollab(site.shareId)
+                                    }
+                                } else {
+                                    confirmLeaveCollab = site
+                                }
+                            }
+                        ) {
+                            CollabDayCard(
+                                site = site,
+                                onNavigate = { addr -> launchNavigationForAddr(addr) },
+                                // 전화는 **부른 사장님**께. 고객 번호가 아니다. (2026-09-22 사장님)
+                                onCall = { phone -> dialFromSchedule(scheduleCtx, phone) },
+                                onClick = { onOpenCollabSites(site.shareId) }
+                            )
+                        }
                     }
                 }
             }
@@ -742,11 +751,18 @@ private fun CollabDayCard(
                     }
                 }
                 Spacer(Modifier.width(8.dp))
+                // 💰 **오른쪽 위는 돈 자리다.** 내 현장은 「80만」인데 협업만 「협업」이라 어긍났다.
+                //   (2026-09-27 사장님 "거기 내 일당이 있는 게 좋지 않을까")
+                //   협업인 건 보라 막대와 「~이 부름」이 이미 말하고 있다 — 같은 말을 두 번 안 한다.
                 Box(
                     Modifier.clip(AppShape.sm).background(AppTheme.colors.categoryBg)
                         .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
-                    Text("협업", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category)
+                    val wage = site.dailyWage ?: 0
+                    Text(
+                        if (wage > 0) "${wage}만" else "협업",
+                        fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category
+                    )
                 }
             }
             site.workSummary?.takeIf { it.isNotBlank() }?.let {
@@ -2783,4 +2799,21 @@ private fun QuickAddForm(
             ) { Text("추가", fontWeight = FontWeight.ExtraBold, color = Color.White, fontSize = 14.sp) }
         }
     }
+}
+
+/**
+ * 협업 현장의 시각을 **분**으로. 내 현장과 한 줄로 줄 세우려면 같은 자로 재야 한다.
+ *   timeLabel 은 "09:00" 같은 글자다. 없거나 이상하면 맨 뒤로 보낸다.
+ */
+private fun collabMinutes(
+    site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite
+): Int {
+    val t = site.timeLabel?.trim().orEmpty()
+    val m = Regex("""(\d{1,2})\s*:\s*(\d{2})""").find(t)
+    if (m != null) {
+        val h = m.groupValues[1].toIntOrNull() ?: return Int.MAX_VALUE
+        val mi = m.groupValues[2].toIntOrNull() ?: return Int.MAX_VALUE
+        if (h in 0..23 && mi in 0..59) return h * 60 + mi
+    }
+    return Int.MAX_VALUE
 }
