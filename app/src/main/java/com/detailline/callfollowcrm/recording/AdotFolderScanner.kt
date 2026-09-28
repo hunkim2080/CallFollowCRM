@@ -151,6 +151,27 @@ object AdotFolderScanner {
      * 무엇이 연결됐는지 사람이 읽을 수 있는 한 줄 — 사장님이 "제대로 연결됐나" 확인용. (2026-07-12 사장님)
      *   SAF 폴더면 폴더 이름 + 발견 개수, 자동찾기면 "자동 찾기 · 녹음 N개 발견". 미연결이면 null.
      */
+    /**
+     * 🕐 **마지막 녹음이 언제인가** — 며칠째 비어 있으면 녹음이 멈춘 것이다. (2026-09-28 사장님)
+     *   직원 폰에서 에이닷은 켜져 있는데 **녹음이 안 되고 있었다.** 몇 주를 모르고 지냈다.
+     *   「녹음 270개 발견」은 옛날 것을 센 숫자라 **멀쩡해 보였다** — 개수는 안 줄어드니까.
+     *   개수 옆에 **마지막 날짜**를 적으면, 설정을 열어보기만 해도 멈춘 걸 안다.
+     */
+    private fun lastRecordingAt(context: Context): Long =
+        runCatching {
+            listCandidates(context).mapNotNull { AdotFilenameParser.parseLoose(it.name)?.recordedAt }
+                .maxOrNull() ?: 0L
+        }.getOrDefault(0L)
+
+    /** 「· 마지막 9월 3일」 / 오래됐으면 「· 마지막 9월 3일 (25일째 없음)」. 없으면 빈 문자열. */
+    private fun lastRecordingSuffix(context: Context): String {
+        val at = lastRecordingAt(context)
+        if (at <= 0L) return ""
+        val days = ((System.currentTimeMillis() - at) / 86_400_000L).toInt()
+        val d = java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA).format(java.util.Date(at))
+        return if (days >= 3) " · 마지막 $d (${days}일째 새 녹음 없음)" else " · 마지막 $d"
+    }
+
     fun connectedLabel(context: Context): String? {
         val tree = getTreeUri(context)
         if (tree != null) {
@@ -158,11 +179,11 @@ object AdotFolderScanner {
             // 2026-07-16 fix: 예전엔 폴더 안 **파일 전부**를 세서(오디오인지·해석되는지 안 봄) "N개 발견"이
             //   거짓말이었다 → "찾았다면서 왜 못 찾냐". 실제로 쓸 수 있는 녹음만 센다(요약이 쓰는 기준과 동일).
             val n = runCatching { listCandidates(context).count { isUsableRecording(it.name) } }.getOrDefault(0)
-            return "폴더: ${name ?: "직접 연결한 폴더"} · 녹음 ${n}개 발견"
+            return "폴더: ${name ?: "직접 연결한 폴더"} · 녹음 ${n}개" + lastRecordingSuffix(context)
         }
         if (isMediaStoreEnabled(context) && hasAudioPermission(context)) {
             val n = runCatching { countMediaStoreCandidates(context) }.getOrDefault(0)
-            return "자동 찾기 · 녹음 ${n}개 발견"
+            return "자동 찾기 · 녹음 ${n}개" + lastRecordingSuffix(context)
         }
         return null
     }
