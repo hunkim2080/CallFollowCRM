@@ -495,10 +495,17 @@ object AdotFolderScanner {
         var nearAny = 0         // 그 통화 시각 ±30분에 있던 녹음
         var nearNoLog = 0       // 시각은 맞는데 통화 기록에서 그 통화를 못 찾음
         var nearOther = 0       // 시각은 맞는데 **다른 통화**의 녹음이었음
+        // 🕐 **가장 가까운 녹음이 얼마나 어긋났나.** (2026-09-28)
+        //   「맞는 게 없어요」만으로는 **왜** 없는지 모른다 —
+        //   9시간 어긋나 있으면 시간대, 며칠이면 딴 폰 녹음, 몇 분이면 창이 좁은 것이다.
+        var closestDelta = Long.MAX_VALUE
+        var closestAt = 0L
         for (rf in candidates) {
             AdotFilenameParser.parseLoose(rf.name)?.let {
                 usable++
-                if (kotlin.math.abs(it.recordedAt - callAtMs) <= win) nearAny++
+                val d = kotlin.math.abs(it.recordedAt - callAtMs)
+                if (d <= win) nearAny++
+                if (d < closestDelta) { closestDelta = d; closestAt = it.recordedAt }
             }
             val parsed = AdotFilenameParser.parse(rf.name) ?: continue
             if (parsed.phoneNumber.takeLast(8) != target) continue
@@ -530,7 +537,23 @@ object AdotFolderScanner {
             lastNoFileWhy = when {
                 candidates.isEmpty() -> "녹음 폴더에 소리 파일이 없어요"
                 usable == 0 -> "녹음 ${candidates.size}개가 있는데 이름에서 날짜·시각을 읽을 수 없어요"
-                nearAny == 0 -> "녹음 ${usable}개 중에 이 통화 시각과 맞는 게 없어요 (앞뒤 30분)"
+                nearAny == 0 -> buildString {
+                    append("녹음 ${usable}개 중에 이 통화 시각과 맞는 게 없어요 (앞뒤 30분)")
+                    // 가장 가까운 녹음이 **얼마나** 어긋났는지 적는다 — 이 한 줄이 원인을 가른다.
+                    if (closestAt > 0L) {
+                        val h = closestDelta / 3_600_000L
+                        val m = (closestDelta % 3_600_000L) / 60_000L
+                        val gap = when {
+                            closestDelta >= 86_400_000L -> "${closestDelta / 86_400_000L}일 차이"
+                            h > 0L -> "${h}시간 ${m}분 차이"
+                            else -> "${m}분 차이"
+                        }
+                        append(" · 제일 가까운 건 ")
+                        append(java.text.SimpleDateFormat("M월 d일 HH:mm", java.util.Locale.KOREA)
+                            .format(java.util.Date(closestAt)))
+                        append(" ($gap)")
+                    }
+                }
                 nearNoLog > 0 -> "시각이 맞는 녹음 ${nearNoLog}개가 있는데, 폰의 통화 기록에서 이 통화를 못 찾았어요"
                 nearOther > 0 -> "시각이 맞는 녹음 ${nearOther}개가 있는데 다른 통화의 것이었어요"
                 else -> "녹음 ${usable}개 중에 이 통화 것을 찾지 못했어요"
