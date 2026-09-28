@@ -265,7 +265,13 @@ object MapPalette {
 
     /** 그 달 다닌 곳 중 이름표를 붙일 넷 — **네 군데가 다 이걸 쓴다.** */
     fun namedOf(spots: List<com.detailline.callfollowcrm.presentation.component.RegionDot>): Set<String> =
-        spots.sortedByDescending { it.count }.take(NAMED_MAX).map { it.name }.toSet()
+        // 출발지는 **반드시** 이름표를 단다. (2026-09-28 사장님)
+        //   전엔 간 횟수로만 골라서, 간 적 없는 출발지(count=0)가 늘 막차로 밀려 이름이 안 붙었다.
+        //   그러면 지도에 이름 없는 점이 하나 떠 「저건 뭔지?」가 된다.
+        spots.sortedWith(
+            compareByDescending<com.detailline.callfollowcrm.presentation.component.RegionDot> { it.isStart }
+                .thenByDescending { it.count }
+        ).take(NAMED_MAX).map { it.name }.toSet()
 
     /** 바다 — 이게 있어야 육지가 육지로 보인다. */
     const val SEA = 0xFFD9E4EF

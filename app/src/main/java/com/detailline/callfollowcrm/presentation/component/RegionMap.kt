@@ -706,7 +706,8 @@ internal fun DrawScope.drawRegionMap(
     }
     val placed = ArrayList<FloatArray>()
     fun free(b: FloatArray) = placed.none { q -> b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1] }
-    for (s in spots.sortedByDescending { it.count }) {
+    // 자리 다툼에서도 출발이 먼저 — 늦게 잡으면 자리가 없어 이름이 생략된다.
+    for (s in spots.sortedWith(compareByDescending<RegionDot> { it.isStart }.thenByDescending { it.count })) {
         if (s.name !in named) continue
         val p = px(s.lon, s.lat)
         val w = lp.measureText(s.name)

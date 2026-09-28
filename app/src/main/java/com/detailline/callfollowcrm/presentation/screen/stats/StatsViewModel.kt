@@ -287,14 +287,17 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         // 🏠 **아침에 나선 자리.** (2026-09-27 사장님 "내가 출발하는 위치를 정해야하는데")
         //   전엔 **첫 현장에서** 길이 시작해서, 집에서 첫 현장까지 간 거리가 통째로 빠졌다.
         //   order = -1 이라 길도 셈도 여기서부터. 현장 수·동네 수에는 안 들어간다(따로 센다).
-        //   출발 동네가 그날 간 동네와 같으면 점을 또 찍지 않는다 — 같은 자리에 두 개가 겹친다.
+        //   ⚠️ 전엔 「같은 동네면 안 찍기」였는데, 그러면 **출발이 통째로 사라졌다**
+        //   (2026-09-28 사장님 "신원동에서 출발을 안해" — 신원동은 서초구라 「서초」로 잡혔다).
+        //   겹쳐도 찍는다 — 실제로 같은 자리니까 그게 맞는 그림이다.
         val startAddr = container.preferences.startAddrEffective
         val startSpot = startAddr.takeIf { it.isNotBlank() }?.let { spotOf(it) }
         val dots =
-            if (startSpot != null && !counts.containsKey(startSpot.name))
+            if (startSpot != null)
                 listOf(
+                    // 이름을 「출발」로 — 지도에 동네 이름이 두 번 찍히면 둘 다 못 읽는다.
                     com.detailline.callfollowcrm.presentation.component.RegionDot(
-                        startSpot.name, startSpot.lat, startSpot.lon,
+                        "출발", startSpot.lat, startSpot.lon,
                         count = 0, order = -1, isStart = true
                     )
                 ) + siteDots
