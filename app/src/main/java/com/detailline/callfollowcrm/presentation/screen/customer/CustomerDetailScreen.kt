@@ -1181,23 +1181,25 @@ fun CustomerDetailScreen(
                             //   예약 취소는 카드에 보여야 한다(전엔 날짜 팝업 안에 숨어 못 찾음 — 2026-08-28).
                             if (allPaid || scheduled != null) {
                                 Spacer(Modifier.height(10.dp))
-                                androidx.compose.foundation.layout.Row(
+                                // 📐 **넘치면 다음 줄로.** (2026-09-28 사장님 "디자인이.. 왜저래")
+                                //   Row 에 칩을 넷 넣었더니 마지막 칩이 폭이 모자라
+                                //   「시공/예약/취소」로 **글자가 세로로 쪼개졌다.**
+                                FlowRow(
                                     Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp,
+                                        androidx.compose.ui.Alignment.End),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     // 🔧 A/S 가 아직 없을 때의 **조용한 길**. 잡히면 위에 줄로 올라간다.
                                     //   시공 예약이 있을 때만 — A/S 는 시공 **뒤**의 일이다.
                                     if (scheduled != null && c.asScheduledDate == null) {
                                         CdUndoChip("A/S 잡기", danger = false) { asPickerOpen = true }
-                                        Spacer(Modifier.width(8.dp))
                                     }
                                     // 🔧 날짜를 못 잡아도 **명단에는 올려둔다.** (2026-09-27 사장님)
                                     if (c.asPendingAt == null) {
                                         // 이름이 **하는 일**을 말하게. (2026-09-27 사장님)
                                         //   「A/S 해드릴 곳」은 이름표라 누르면 뭐가 되는지 알 수 없었다.
                                         CdUndoChip("A/S 명단에 올리기", danger = false) { asPendingConfirm = true }
-                                        Spacer(Modifier.width(8.dp))
                                     }
                                     if (allPaid) {
                                         // 💰 **돈은 물어보고 뒤집는다.** (2026-09-27 사장님)
@@ -1238,9 +1240,12 @@ fun CustomerDetailScreen(
                                             )
                                         }
                                         CdUndoChip("완납 취소", danger = false) { unpaidConfirm = true }
-                                        Spacer(Modifier.width(8.dp))
                                     }
-                                    if (scheduled != null) {
+                                    // 🚫 **잔금까지 받은 일은 「예약 취소」가 말이 안 된다.** (2026-09-28 사장님)
+                                    //   "잔금까지 다 받았는데 시공예약 취소가 떠야 할까?"
+                                    //   끝난 일을 되돌리려면 **[완납 취소]가 먼저**다 — 순서가 있는 일이라
+                                    //   둘을 나란히 놔두면 돈 기록을 건너뛰고 예약만 지울 수 있다.
+                                    if (scheduled != null && !allPaid) {
                                         CdUndoChip("시공 예약 취소", danger = true) { cancelBookingConfirm = true }
                                     }
                                 }
