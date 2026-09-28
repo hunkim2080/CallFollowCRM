@@ -192,10 +192,14 @@ class CustomerRepository(
      *   끝 8자리인 이유 = 앞자리(010/+8210)만 달라지지, 뒤 8자리는 사람마다 다르다.
      */
     suspend fun findByPhone(phoneNumber: String): CustomerEntity? =
-        dao.findByPhone(phoneNumber) ?: run {
-            val last8 = PhoneKey.of(phoneNumber)
-            if (last8.length >= 8) runCatching { dao.findByDigitsSuffix(last8) }.getOrNull() else null
-        }
+        dao.findByPhone(phoneNumber)
+            // 저장은 **한 모양**(숫자만)으로 한다 → 하이픈 붙은 채로 들어와도 그 모양으로 한 번 더. (2026-09-28)
+            ?: PhoneKey.normalize(phoneNumber).takeIf { it != phoneNumber && it.isNotEmpty() }
+                ?.let { dao.findByPhone(it) }
+            ?: run {
+                val last8 = PhoneKey.of(phoneNumber)
+                if (last8.length >= 8) runCatching { dao.findByDigitsSuffix(last8) }.getOrNull() else null
+            }
     suspend fun findById(id: Long): CustomerEntity? = dao.findById(id)
     /** 2026-05-30 #7 — AutoCategoryClassifier.backfillAll 용. */
     suspend fun allOnce(): List<CustomerEntity> = dao.allOnce()
@@ -216,7 +220,10 @@ class CustomerRepository(
         val existing = findByPhone(phoneNumber)
         if (existing == null) {
             val entity = CustomerEntity(
-                phoneNumber = phoneNumber,
+                // 🔒 **번호는 한 모양으로만 적는다.** (2026-09-28 사장님 "무조건 한 번호로 통일")
+                //   전엔 들어온 글자 그대로 넣어서 `010-3404-5247` 과 `01034045247` 이
+                //   **손님 두 줄**로 갈라질 수 있었다. 보여줄 땐 하이픈이 다시 붙는다.
+                phoneNumber = PhoneKey.normalize(phoneNumber).ifBlank { phoneNumber },
                 name = name,
                 memo = memo.orEmpty(),
                 leadHeat = leadHeat?.name,

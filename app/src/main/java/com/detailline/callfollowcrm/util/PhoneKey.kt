@@ -23,6 +23,35 @@ object PhoneKey {
         return if (digits.length >= 8) digits.takeLast(8) else digits
     }
 
+    /**
+     * 🔒 **저장할 때 쓰는 단 하나의 모양.** (2026-09-28 사장님)
+     *
+     *   사장님: "우리 앱에서는 번호가 두 갈래 세 갈래로 나뉘면 안 돼.
+     *            무조건 한 번호로 통일해야 흩어지지 않지."
+     *
+     *   `010-3404-5247` · `+82 10-3404-5247` · `010 3404 5247` → 전부 `01034045247`.
+     *
+     * ⚠️ **화면에 보이는 모양이 아니다.** 보여줄 땐 [PhoneNumberFormatter.format] 이
+     *    하이픈을 붙인다 — 사장님이 보시는 건 그대로 `010-3404-5247` 이다.
+     *    여기서 숫자만 남기는 건 **DB 에 두 줄이 생기지 않게** 하려는 것뿐이다.
+     *
+     * 규칙:
+     *   · 숫자만 남긴다 (하이픈·공백·괄호 제거)
+     *   · `+82…` 는 국내형 `0…` 으로 되돌린다 — 단 **휴대폰 모양일 때만**.
+     *     `82012345678` 처럼 애매한 건 손대지 않는다(지어내면 남의 번호가 된다).
+     *   · 숫자가 하나도 없으면 원본을 그대로 (이름이 들어와 있을 수 있다 — 지우면 손실)
+     */
+    fun normalize(phone: String?): String {
+        val raw = phone?.trim().orEmpty()
+        if (raw.isEmpty()) return ""
+        val digits = raw.filter { it.isDigit() }
+        if (digits.isEmpty()) return raw
+        // +82 10 1234 5678 → 010 1234 5678. '+' 가 붙었거나, 82 다음이 1 로 시작하는 휴대폰 길이일 때만.
+        val looksIntl = digits.startsWith("82") &&
+            (raw.startsWith("+") || (digits.length in 11..12 && digits.getOrNull(2) == '1'))
+        return if (looksIntl) "0" + digits.drop(2) else digits
+    }
+
     /** 두 번호가 같은 사람인가. 한쪽이라도 비면 false — **빈 값끼리 같다고 하면 안 된다.** */
     fun same(a: String?, b: String?): Boolean {
         val ka = of(a)

@@ -221,9 +221,14 @@ fun SettingsScreen(
     // 갈라진 손님이 **있을 때만** 줄을 그린다. 합치고 나면 다음부터 안 보인다. (2026-09-24 사장님)
     //   갈라지는 원인은 이미 막혀 있어(b53e9bcf) 한 번 쓰면 다시 쓸 일이 없는 버튼이다.
     var hasSplits by remember { mutableStateOf(false) }
+    // 🔒 **합칠 건 없는데 번호 모양만 제각각인 줄** — 하이픈이 든 채로 저장된 것들. (2026-09-28 사장님)
+    //   사장님: "번호가 두 갈래 세 갈래로 나뉘면 안 돼. 무조건 한 번호로 통일해야 흩어지지 않지."
+    //   합칠 게 하나도 없어도 이게 있으면 줄을 그린다 — 정리할 게 남아 있다는 뜻이니까.
+    var untidyPhones by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
-        hasSplits = withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { container.customerMergeManager.hasSplits() }.getOrDefault(false)
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            hasSplits = runCatching { container.customerMergeManager.hasSplits() }.getOrDefault(false)
+            untidyPhones = runCatching { container.customerMergeManager.untidyPhoneCount() }.getOrDefault(0)
         }
     }
 
@@ -342,12 +347,25 @@ fun SettingsScreen(
             containerColor = Color.White,
             tonalElevation = 0.dp,
             onDismissRequest = { if (!mergeBusy) mergePlans = null },
-            title = { Text("갈라진 손님 " + plans.size + "쌍", fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    if (plans.isEmpty()) "번호 모양 " + untidyPhones + "개 정리"
+                    else "갈라진 손님 " + plans.size + "쌍",
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Text(
-                    lines + "\n\n" +
+                    (if (lines.isBlank()) "" else lines + "\n\n") +
+                        // 🔒 번호를 한 모양으로 — **보이는 건 그대로 하이픈**이라는 걸 꼭 말해준다.
+                        //   안 그러면 "내 번호 표시가 이상해지는 건가?" 하고 멈추신다. (2026-09-28)
+                        (if (untidyPhones > 0)
+                            "번호 " + untidyPhones + "개를 한 모양으로 맞춰요 " +
+                                "(010-3404-5247 → 01034045247).\n" +
+                                "화면에는 지금처럼 하이픈이 붙어 보여요 — 속에 적는 글자만 바꿔요.\n\n"
+                         else "") +
                         "일정·문자·통화요약·사진은 전부 옮겨요. 적어둔 주소·금액은 안 덮어요." +
-                        "\n합치기 직전에 백업을 먼저 떠요 — 백업이 안 되면 합치지 않아요." +
+                        "\n시작 직전에 백업을 먼저 떠요 — 백업이 안 되면 안 해요." +
                         "\n\n되돌릴 수 없어요.",
                     fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
                 )
@@ -383,6 +401,8 @@ fun SettingsScreen(
                         mergePlans = null
                         hasSplits = runCatching { container.customerMergeManager.hasSplits() }
                             .getOrDefault(false)   // 합쳤으면 줄이 바로 사라진다
+                        untidyPhones = runCatching { container.customerMergeManager.untidyPhoneCount() }
+                            .getOrDefault(0)
                         Toast.makeText(
                             context,
                             when {
@@ -391,6 +411,12 @@ fun SettingsScreen(
                                 r.clashingJobs > 0 ->
                                     r.mergedPairs.toString() + "쌍 합쳤어요. 같은 날 일정이 " +
                                         r.clashingJobs + "건 겹쳤으니 일정 탭에서 확인해주세요"
+                                // 합친 게 없어도 모양을 고쳤으면 그걸 말해준다 — 아무 말 없으면 안 된 줄 아신다.
+                                r.mergedPairs == 0 && r.tidiedPhones > 0 ->
+                                    "번호 " + r.tidiedPhones + "개를 한 모양으로 맞췄어요"
+                                r.tidiedPhones > 0 ->
+                                    r.mergedPairs.toString() + "쌍 합치고 번호 " + r.tidiedPhones +
+                                        "개를 한 모양으로 맞췄어요"
                                 else -> r.mergedPairs.toString() + "쌍 합쳤어요 — 이력이 한곳에 모였어요"
                             },
                             Toast.LENGTH_LONG
@@ -621,8 +647,16 @@ fun SettingsScreen(
                     //   (2026-09-23 사장님: 복원한 폰에서 한 건이 조용히 빠져 고객 전화로 알게 됨)
                     // 같은 사람이 손님 둘로 갈라진 것 합치기 — 번호를 하이픈 있게/없게 적어서 생긴 자국이다.
                     //   (고침 b53e9bcf 로 새로 생기진 않지만 옛 것은 그대로 남아 이력이 쪼개져 쌓인다)
-                    if (hasSplits) LockRow(Icons.Filled.Merge, TossBlueSoft, TossBlue, "갈라진 손님 합치기",
-                        "같은 번호인데 손님이 둘로 나뉘어 있으면", first = true) {
+                    if (hasSplits || untidyPhones > 0) LockRow(
+                        Icons.Filled.Merge, TossBlueSoft, TossBlue, "번호 한 줄로 모으기",
+                        // 무엇이 몇 개인지 **누르기 전에** 보이게. (2026-09-28 사장님)
+                        buildString {
+                            if (hasSplits) append("둘로 갈라진 손님 합치기")
+                            if (hasSplits && untidyPhones > 0) append(" · ")
+                            if (untidyPhones > 0) append("번호 모양 ${untidyPhones}개 정리")
+                        },
+                        first = true
+                    ) {
                         if (!mergeBusy) {
                             mergeBusy = true
                             settingsScope.launch {
@@ -632,7 +666,9 @@ fun SettingsScreen(
                                 mergeBusy = false
                                 when {
                                     plans == null -> Toast.makeText(context, "찾다가 막혔어요 — 잠시 후 다시", Toast.LENGTH_LONG).show()
-                                    plans.isEmpty() -> Toast.makeText(context, "갈라진 손님이 없어요 — 다 하나로 되어 있어요", Toast.LENGTH_LONG).show()
+                                    // 합칠 쌍이 없어도 **모양만 고칠 줄**이 있으면 그 길로 보낸다. (2026-09-28)
+                                    plans.isEmpty() && untidyPhones > 0 -> mergePlans = emptyList()
+                                    plans.isEmpty() -> Toast.makeText(context, "번호가 다 한 줄로 모여 있어요", Toast.LENGTH_LONG).show()
                                     else -> mergePlans = plans
                                 }
                             }

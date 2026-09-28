@@ -5,6 +5,7 @@ import com.detailline.callfollowcrm.data.local.dao.CustomerMergeDao
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.util.PhoneMatch
 import java.util.Calendar
+import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
  * 번호 모양 때문에 **둘로 갈라진 손님**을 하나로 합친다. (2026-09-23 사장님 "갈라진 손님 6쌍 합쳐")
@@ -47,12 +48,26 @@ class CustomerMergeManager(
          *   여기 담아 돌려주면 부르는 쪽이 구글에서 지운다.
          *   (합치기는 DB 계층이라 캘린더를 직접 못 부른다.)
          */
-        val orphanedCalendarEventIds: List<String> = emptyList()
+        val orphanedCalendarEventIds: List<String> = emptyList(),
+        /** 🔒 번호 글자를 한 모양으로 바꾼 줄 수. (2026-09-28) */
+        val tidiedPhones: Int = 0
     )
 
     /** 갈라진 쌍이 있나. **설정 줄을 그릴지 말지**에만 쓴다(가벼운 SQL 한 번). */
     suspend fun hasSplits(): Boolean =
         runCatching { mergeDao.splitPairCount() > 0 }.getOrDefault(false)
+
+    /**
+     * 🔒 **합칠 건 없는데 번호 모양만 제각각인 줄**이 몇 개인가. (2026-09-28 사장님)
+     *   `010-3404-5247` 처럼 하이픈이 든 채 저장된 줄. 합치기와 같이 정리한다.
+     *   여긴 **세기만** 한다 — 바꾸는 건 [merge] 안에서, 사장님이 누르신 뒤에.
+     */
+    suspend fun untidyPhoneCount(): Int = runCatching {
+        mergeDao.allCustomers().count {
+            val fixed = PhoneKey.normalize(it.phoneNumber)
+            fixed.isNotEmpty() && fixed != it.phoneNumber
+        }
+    }.getOrDefault(0)
 
     /** 합칠 쌍 찾기 — 바꾸는 건 없다. 미리보기용. */
     suspend fun findPlans(): List<Plan> {
@@ -117,10 +132,29 @@ class CustomerMergeManager(
                 merged = fillBlanks(merged, loser)
                 runCatching { mergeDao.deleteCustomer(loserId) }
             }
-            runCatching { customerDao.update(merged.copy(updatedAt = System.currentTimeMillis())) }
+            // 🔒 남는 줄의 번호도 **한 모양으로**. 안 그러면 합쳐놓고 또 하이픈 채로 남는다.
+            val tidyPhone = PhoneKey.normalize(merged.phoneNumber).ifBlank { merged.phoneNumber }
+            runCatching {
+                customerDao.update(
+                    merged.copy(phoneNumber = tidyPhone, updatedAt = System.currentTimeMillis())
+                )
+            }
             pairs++
         }
-        return Result(pairs, jobs, clash, others, orphans.distinct())
+        // 🔒 **합칠 게 없는데 모양만 제각각인 줄**도 여기서 같이 정리한다. (2026-09-28 사장님)
+        //   한 줄씩 본다 — 통째 UPDATE 로 하면 두 줄이 같은 값이 되는 순간
+        //   unique 가 걸려 **앱이 아예 안 켜진다**(2026-09-17 전례).
+        //   이미 그 번호를 쓰는 줄이 있으면 **건드리지 않는다** — 다음 합치기가 잡는다.
+        var tidied = 0
+        val now = System.currentTimeMillis()
+        for (c in runCatching { mergeDao.allCustomers() }.getOrDefault(emptyList())) {
+            val fixed = PhoneKey.normalize(c.phoneNumber)
+            if (fixed.isBlank() || fixed == c.phoneNumber) continue
+            val taken = runCatching { customerDao.findByPhone(fixed) }.getOrNull()
+            if (taken != null && taken.id != c.id) continue
+            if (runCatching { mergeDao.setPhone(c.id, fixed, now) }.isSuccess) tidied++
+        }
+        return Result(pairs, jobs, clash, others, orphans.distinct(), tidied)
     }
 
     /**

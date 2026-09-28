@@ -20,6 +20,10 @@ interface CustomerMergeDao {
     @Query("SELECT * FROM customers")
     suspend fun allCustomers(): List<CustomerEntity>
 
+    /** 🔒 번호 글자만 한 모양으로 바꾼다(합칠 게 없는 줄). (2026-09-28) */
+    @Query("UPDATE customers SET phoneNumber = :phone, updatedAt = :now WHERE id = :id")
+    suspend fun setPhone(id: Long, phone: String, now: Long)
+
     /**
      * 갈라진 쌍이 **몇 쌍이나 있나**. 설정 화면이 줄을 그릴지 말지 정하는 데만 쓴다.
      *   고객 전체를 앱으로 끌어오지 않고 SQL 에서 센다 — 화면 열 때마다 도는 것이라 가벼워야 한다.
