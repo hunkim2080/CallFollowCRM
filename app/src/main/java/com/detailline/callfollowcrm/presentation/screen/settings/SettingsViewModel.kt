@@ -370,6 +370,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             try {
                 val result = DataBackup.export(container.appContext)
                 _lastBackupAt.value = System.currentTimeMillis()
+                // 파일로 내보낼 때도 상한(20MB)이 있다 — 빠졌으면 말한다. (2026-09-28)
+                DataBackup.lastFilesStat.note.takeIf { it.isNotBlank() }?.let {
+                    _backupMessage.value = "백업 파일을 만들었어요.$it"
+                }
                 _shareRequest.value = result
             } catch (e: Exception) {
                 _backupMessage.value = "백업을 만들지 못했어요 — 잠시 후 다시 시도해주세요."
@@ -410,7 +414,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 val ok = container.backupRepository.push(b64)
                 if (ok) {
                     _lastBackupAt.value = System.currentTimeMillis()
-                    _backupMessage.value = "서버에 백업했어요! (${bytes.size / 1024}KB) 이제 폰을 바꿔도 안전해요."
+                    // 🗣 **다 안 담겼으면 그렇다고 말한다.** (2026-09-28 페이블 지적)
+                    //   전엔 상한에 걸린 사진을 조용히 버리고 「안전해요」라고만 했다.
+                    //   사장님은 백업을 믿고 폰을 바꾸신다 — 그때야 사진이 없는 걸 아신다.
+                    val note = DataBackup.lastFilesStat.note
+                    _backupMessage.value =
+                        "서버에 백업했어요! (${bytes.size / 1024}KB) 이제 폰을 바꿔도 안전해요.$note"
                 } else {
                     _backupMessage.value = "서버 백업에 실패했어요 — 인터넷을 확인하고 다시 시도해주세요."
                 }
@@ -439,6 +448,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
                     val r = DataBackup.importBytes(container.appContext, bytes)
+                    // 🔑 **복원했으면 내가 주인이다.** (2026-09-28 페이블 지적)
+                    //   안 적어두면 자동 백업이 「다른 폰이 주인」으로 보고 **사흘을 쉰다** —
+                    //   폰 바꾸고 복원한 그 사흘이 제일 위험한 때다.
+                    val serverAt = runCatching { container.backupRepository.status()?.updatedAtMs }
+                        .getOrNull() ?: 0L
+                    DataBackup.markRestoredFromServer(container.appContext, serverAt)
                     _backupMessage.value = "서버에서 복원 완료! 고객 ${r.customers}명 · ${r.rows}건을 되살렸어요."
                     _restartNeeded.value = true
                 }

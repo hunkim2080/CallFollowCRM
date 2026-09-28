@@ -71,6 +71,14 @@ interface JobDao {
     @Query("SELECT COUNT(*) FROM jobs WHERE customerId = :customerId AND scheduledWorkDate = :dayMs")
     suspend fun countByCustomerAndDate(customerId: Long, dayMs: Long): Int
 
+    /**
+     * 그 고객·그 날의 건 **전부**. (2026-09-28)
+     *   개수만으로는 **연타**(같은 걸 두 번 누름)와 **하루 두 현장**(다른 일)을 못 가른다.
+     *   주소와 만든 시각을 봐야 한다.
+     */
+    @Query("SELECT * FROM jobs WHERE customerId = :customerId AND scheduledWorkDate = :dayMs")
+    suspend fun jobsAt(customerId: Long, dayMs: Long): List<JobEntity>
+
     /** 그 고객·그 날의 건 1개 — 일정 카드(밀어서 빼기)가 '어느 건'인지 특정할 때. */
     @Query("SELECT * FROM jobs WHERE customerId = :customerId AND scheduledWorkDate = :dayMs ORDER BY id ASC LIMIT 1")
     suspend fun jobAt(customerId: Long, dayMs: Long): JobEntity?

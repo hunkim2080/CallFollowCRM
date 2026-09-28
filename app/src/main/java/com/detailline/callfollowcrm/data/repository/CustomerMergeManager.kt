@@ -35,7 +35,20 @@ class CustomerMergeManager(
         val droppedNames: List<String>,
     )
 
-    data class Result(val mergedPairs: Int, val movedJobs: Int, val clashingJobs: Int, val movedOthers: Int)
+    data class Result(
+        val mergedPairs: Int,
+        val movedJobs: Int,
+        val clashingJobs: Int,
+        val movedOthers: Int,
+        /**
+         * 📅 **주인을 잃은 구글 캘린더 일정 id 들.** (2026-09-28)
+         *   합치면 두 일정 중 하나만 남는다. 남지 못한 쪽은 앱에서 가리킬 길이 사라지는데
+         *   **구글 달력엔 그대로 있다** — 앱이 못 지우는 유령 일정이 된다.
+         *   여기 담아 돌려주면 부르는 쪽이 구글에서 지운다.
+         *   (합치기는 DB 계층이라 캘린더를 직접 못 부른다.)
+         */
+        val orphanedCalendarEventIds: List<String> = emptyList()
+    )
 
     /** 갈라진 쌍이 있나. **설정 줄을 그릴지 말지**에만 쓴다(가벼운 SQL 한 번). */
     suspend fun hasSplits(): Boolean =
@@ -85,6 +98,7 @@ class CustomerMergeManager(
         var jobs = 0
         var clash = 0
         var others = 0
+        val orphans = mutableListOf<String>()
         for (p in plans) {
             val keeper = runCatching { customerDao.findById(p.keeperId) }.getOrNull() ?: continue
             var merged = keeper
@@ -96,14 +110,28 @@ class CustomerMergeManager(
                     if (dayKeyOf(r.workDate) in keeperDays) clash++
                 }
                 others += moveEverything(loserId, keeper.id)
+                // 📅 **합친 뒤 주인을 잃는 일정**을 먼저 적어둔다. (2026-09-28)
+                //   fillBlanks 는 남는 쪽이 비었을 때만 버리는 쪽 id 를 가져온다.
+                //   남는 쪽에 이미 있으면 버리는 쪽 id 는 사라지는데 **구글 일정은 남는다.**
+                orphans += orphanedEventIds(merged, loser)
                 merged = fillBlanks(merged, loser)
                 runCatching { mergeDao.deleteCustomer(loserId) }
             }
             runCatching { customerDao.update(merged.copy(updatedAt = System.currentTimeMillis())) }
             pairs++
         }
-        return Result(pairs, jobs, clash, others)
+        return Result(pairs, jobs, clash, others, orphans.distinct())
     }
+
+    /**
+     * 📅 합치고 나면 **아무도 안 가리키게 될** 캘린더 일정 id.
+     *   남는 쪽에 이미 일정이 있을 때만 생긴다 — 그때 버리는 쪽 것이 고아가 된다.
+     */
+    private fun orphanedEventIds(keep: CustomerEntity, loser: CustomerEntity): List<String> =
+        listOfNotNull(
+            loser.workCalendarEventId?.takeIf { it.isNotBlank() && !keep.workCalendarEventId.isNullOrBlank() },
+            loser.asCalendarEventId?.takeIf { it.isNotBlank() && !keep.asCalendarEventId.isNullOrBlank() }
+        )
 
     // ── 속 ──────────────────────────────────────────────────────────────
 

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.detailline.callfollowcrm.util.PhoneKey
 
 class CustomerRepository(
     private val dao: CustomerDao,
@@ -177,7 +178,24 @@ class CustomerRepository(
         }.getOrDefault(emptyList())
     }
 
-    suspend fun findByPhone(phoneNumber: String): CustomerEntity? = dao.findByPhone(phoneNumber)
+    /**
+     * ☎️ **번호로 손님 찾기 — 이 앱의 유일한 길.** (2026-09-28)
+     *
+     * 하이픈·공백·국가번호(+82)는 사람이 보기엔 같은 번호인데 글자로는 다르다.
+     *   `010-3404-5247` · `+821034045247` · `01034045247` — 전부 한 사람이다.
+     *   전엔 여기가 **글자가 똑같아야만** 찾았다. 그래서 전화가 다른 모양으로 들어오면
+     *   알림에 이름 대신 번호가 뜨고, 단골에게 「이 사람 고객인가요?」가 또 뜨고,
+     *   통화 요약이 그 손님에게 안 붙었다.
+     *   (만들 때 쓰는 [upsertByPhone] 은 2026-09-18 에 이미 고쳤는데 **여기만 남아 있었다.**)
+     *
+     * 규칙: 정확히 같은 글자로 먼저 → 없으면 **끝 8자리**로 한 번 더.
+     *   끝 8자리인 이유 = 앞자리(010/+8210)만 달라지지, 뒤 8자리는 사람마다 다르다.
+     */
+    suspend fun findByPhone(phoneNumber: String): CustomerEntity? =
+        dao.findByPhone(phoneNumber) ?: run {
+            val last8 = PhoneKey.of(phoneNumber)
+            if (last8.length >= 8) runCatching { dao.findByDigitsSuffix(last8) }.getOrNull() else null
+        }
     suspend fun findById(id: Long): CustomerEntity? = dao.findById(id)
     /** 2026-05-30 #7 — AutoCategoryClassifier.backfillAll 용. */
     suspend fun allOnce(): List<CustomerEntity> = dao.allOnce()
@@ -194,11 +212,8 @@ class CustomerRepository(
     ): CustomerEntity = writeMutex.withLock {
         val now = System.currentTimeMillis()
         // 하이픈/공백 때문에 같은 사람을 못 알아보고 **고객을 하나 더 만들던 것**. (2026-09-18)
-        //   정확히 같은 문자열로 먼저 찾고, 없으면 끝 8자리로 한 번 더.
-        val existing = dao.findByPhone(phoneNumber) ?: run {
-            val d = phoneNumber.filter { it.isDigit() }
-            if (d.length >= 8) runCatching { dao.findByDigitsSuffix(d.takeLast(8)) }.getOrNull() else null
-        }
+        //   찾는 규칙은 [findByPhone] 한 곳에만 둔다 — 두 벌로 두니 한쪽만 고쳐졌었다. (2026-09-28)
+        val existing = findByPhone(phoneNumber)
         if (existing == null) {
             val entity = CustomerEntity(
                 phoneNumber = phoneNumber,

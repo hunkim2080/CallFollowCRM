@@ -316,14 +316,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     //   계산은 SettlementScreen 과 동일한 SettlementCalc 단일 출처.
     // ────────────────────────────────────────────────────────
 
-    /** 아직 못 받은 돈 총액 (돈 정보 있는 고객의 미수 합). */
-    val outstandingTotal: StateFlow<Long> = customers.map { list ->
-        list.filter { SettlementCalc.hasMoney(it) }.sumOf { SettlementCalc.rowOf(it).outstanding }
+    // 📒 **정산 화면과 똑같은 장부를 본다.** (2026-09-28 페이블 지적)
+    //   전엔 여기서 **고객 표만** 더했다. 정산 화면은 2026-09-18 부터 **건마다** 세는데.
+    //   그래서 1차 잔금이 남았는데 2차를 새로 잡으면 고객 카드엔 2차 금액이 들어가
+    //   정산엔 「미수 1건」, 홈엔 「미수 0건」 — **못 받은 돈이 홈에서 사라졌다.**
+    private val settleBook: StateFlow<List<com.detailline.callfollowcrm.domain.settlement.SettleBookRow>> =
+        combine(customers, container.jobRepository.observeAll()) { list, jobs ->
+            SettlementCalc.book(list, jobs)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 아직 못 받은 돈 총액. */
+    val outstandingTotal: StateFlow<Long> = settleBook.map { rows ->
+        rows.sumOf { it.calc.outstanding }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
-    /** 미수(못 받은 돈 > 0)인 고객 수. */
-    val outstandingCount: StateFlow<Int> = customers.map { list ->
-        list.filter { SettlementCalc.hasMoney(it) }.count { SettlementCalc.rowOf(it).outstanding > 0 }
+    /** 미수(못 받은 돈 > 0)인 **건** 수 — 정산 화면의 「미수 N건」과 같은 수. */
+    val outstandingCount: StateFlow<Int> = settleBook.map { rows ->
+        rows.count { it.calc.outstanding > 0 }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // ────────────────────────────────────────────────────────

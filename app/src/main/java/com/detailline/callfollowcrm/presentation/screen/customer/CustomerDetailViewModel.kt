@@ -226,6 +226,8 @@ class CustomerDetailViewModel(
                     now = now
                 )
             }.getOrDefault(0L)
+            // 0 = 안 만들어짐(그 날 그 현장이 이미 있음). 조용히 넘어가지 않는다. (2026-09-28)
+            if (id <= 0L) _toast.value = "그 날은 이미 잡혀 있어요 — 일정에서 확인해주세요"
             onDone(id)
         }
     }

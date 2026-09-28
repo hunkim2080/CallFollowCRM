@@ -63,7 +63,7 @@ class JobRepositoryStageATest {
     @Test
     fun `일주일 뒤 현장을 추가해도 첫 일정이 안 지워지고 둘 다 남는다`() = runTest {
         val jobDao = mock<JobDao> {
-            onBlocking { countByCustomerAndDate(1L, day7) } doReturn 0
+            onBlocking { jobsAt(1L, day7) } doReturn emptyList()
             onBlocking { insert(any()) } doReturn 20L
             // 등록 후 이 고객의 '시공일 있는' 건 = 첫 현장 + 추가 현장 (오름차순)
             onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(job(10L, day1), job(20L, day7))
@@ -100,9 +100,13 @@ class JobRepositoryStageATest {
     }
 
     @Test
-    fun `같은 고객 같은 날은 중복으로 안 쌓인다`() = runTest {
+    fun `같은 날 같은 현장을 또 넣으면 안 쌓인다`() = runTest {
+        // 2026-09-28: 옛 규칙은 「같은 날이면 무조건 막음」이었다. 그래서 **하루 두 현장**이
+        //   말없이 사라졌다(사장님: "인테리어 업체는 한 번호에 현장 여러 개").
+        //   이제는 **같은 주소**일 때만 같은 현장으로 보고 막는다. 규칙 = SameDayGuard.
+        val site = "수원시 영통구 1"
         val jobDao = mock<JobDao> {
-            onBlocking { countByCustomerAndDate(1L, day7) } doReturn 1
+            onBlocking { jobsAt(1L, day7) } doReturn listOf(job(10L, day7).copy(address = site))
             onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(job(10L, day7))
         }
         val customerDao = mock<CustomerDao> {
@@ -112,12 +116,35 @@ class JobRepositoryStageATest {
 
         val id = repo.addJob(
             customerId = 1L, scheduledWorkDate = day7,
-            scheduledWorkMinutes = null, scheduledWorkDays = 1, address = null,
+            scheduledWorkMinutes = null, scheduledWorkDays = 1, address = site,
             totalAmount = null, depositAmount = null, depositPaidAt = null, now = now
         )
 
         assertEquals(0L, id)
         verifyBlocking(jobDao, never()) { insert(any()) }
+    }
+
+    @Test
+    fun `같은 날이라도 다른 현장이면 둘 다 남는다`() = runTest {
+        // 아침 한 집, 오후 한 집. 전엔 둘째가 사라지고도 「일정 등록 완료」라고 했다. (2026-09-28)
+        val jobDao = mock<JobDao> {
+            onBlocking { jobsAt(1L, day7) } doReturn
+                listOf(job(10L, day7).copy(address = "수원시 영통구 1", createdAt = now - 60_000L))
+            onBlocking { insert(any()) } doReturn 21L
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(job(10L, day7), job(21L, day7))
+        }
+        val customerDao = mock<CustomerDao> {
+            onBlocking { findById(1L) } doReturn customer()
+        }
+        val repo = JobRepository(jobDao, customerDao)
+
+        val id = repo.addJob(
+            customerId = 1L, scheduledWorkDate = day7,
+            scheduledWorkMinutes = null, scheduledWorkDays = 1, address = "용인시 기흥구 2",
+            totalAmount = null, depositAmount = null, depositPaidAt = null, now = now
+        )
+
+        assertEquals("둘째 현장도 만들어져야 한다", 21L, id)
     }
 
     @Test

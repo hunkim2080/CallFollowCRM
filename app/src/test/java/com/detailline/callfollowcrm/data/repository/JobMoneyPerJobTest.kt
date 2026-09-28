@@ -167,7 +167,7 @@ class JobMoneyPerJobTest {
     @Test
     fun `1차보다 앞 날짜로 현장을 더 잡아도 1차 전표는 안 건드린다`() = runTest {
         val jobDao = mock<JobDao> {
-            onBlocking { countByCustomerAndDate(1L, past2) } doReturn 0
+            onBlocking { jobsAt(1L, past2) } doReturn emptyList()
             onBlocking { insert(any()) } doReturn 30L
             // 등록 후: 그저께 건 + 내일 건 (오름차순)
             onBlocking { scheduledByCustomerOnce(1L) } doReturn

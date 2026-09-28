@@ -52,34 +52,24 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     private val rows: StateFlow<List<SettleItem>> =
         combine(customersFlow, jobsFlow) { list, jobs ->
             val byId = list.associateBy { it.id }
-            val idsWithJobs = jobs.map { it.customerId }.toHashSet()
-            val fromJobs = jobs.mapNotNull { j ->
-                val c = byId[j.customerId] ?: return@mapNotNull null
-                val calc = SettlementCalc.rowOf(j)
-                if (calc.total <= 0L && calc.received <= 0L) return@mapNotNull null
+            val jobById = jobs.associateBy { it.id }
+            // 📒 장부는 **SettlementCalc.book 한 곳**에서만 만든다. (2026-09-28)
+            //   전엔 이 목록을 여기서 만들고, 홈 미수금 카드는 고객 표만 더했다 →
+            //   1차 미수 + 2차 완납인 손님이 정산엔 뜨고 **홈엔 안 떴다.**
+            //   여기선 이름·번호·주소만 입힌다(화면용). 돈 규칙은 손대지 않는다.
+            SettlementCalc.book(list, jobs).mapNotNull { row ->
+                val c = byId[row.customerId] ?: return@mapNotNull null
+                val j = row.jobId?.let { jobById[it] }
                 SettleItem(
                     customerId = c.id,
-                    jobId = j.id,
+                    jobId = row.jobId,
                     name = c.name?.takeIf { it.isNotBlank() },
                     phone = c.phoneNumber,
-                    calc = calc,
-                    scheduledWorkDate = j.scheduledWorkDate,
-                    address = j.address?.takeIf { it.isNotBlank() } ?: c.address
+                    calc = row.calc,
+                    scheduledWorkDate = row.scheduledWorkDate,
+                    address = j?.address?.takeIf { it.isNotBlank() } ?: c.address
                 )
             }
-            val fromCustomers = list.filter { it.id !in idsWithJobs && SettlementCalc.hasMoney(it) }
-                .map { c ->
-                    SettleItem(
-                        customerId = c.id,
-                        jobId = null,
-                        name = c.name?.takeIf { it.isNotBlank() },
-                        phone = c.phoneNumber,
-                        calc = SettlementCalc.rowOf(c),
-                        scheduledWorkDate = c.scheduledWorkDate,
-                        address = c.address
-                    )
-                }
-            (fromJobs + fromCustomers)
                     // 시공일 오름차순(낮은 날짜부터) — 사장님 요청 2026-06-04. 날짜 없으면 맨 뒤,
                     //   동일 날짜는 미수 큰 순. (미수/완료 목록 모두 이 순서를 따름)
                     .sortedWith(

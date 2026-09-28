@@ -370,6 +370,15 @@ fun SettingsScreen(
                                 .onFailure { android.util.Log.e("Merge", "합치기 실패", it) }
                                 .getOrNull()
                         }
+                        // 📅 합치면서 주인을 잃은 구글 일정을 지운다 — 안 지우면 달력에 유령이 남는다. (2026-09-28)
+                        if (r != null && r.orphanedCalendarEventIds.isNotEmpty()) {
+                            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                runCatching {
+                                    container.calendarSyncManager
+                                        .deleteOrphanedEvents(r.orphanedCalendarEventIds)
+                                }
+                            }
+                        }
                         mergeBusy = false
                         mergePlans = null
                         hasSplits = runCatching { container.customerMergeManager.hasSplits() }

@@ -107,7 +107,7 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
         if (_saving.value) return
         _saving.value = true
         viewModelScope.launch {
-            withContext(NonCancellable) {
+            val newJobId = withContext(NonCancellable) {
                 val customer = container.customerRepository.upsertByPhone(
                     phoneNumber = phone.trim(),
                     name = name.trim().takeIf { it.isNotBlank() }
@@ -118,7 +118,7 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                 //   CustomerEntity 시공필드는 addJob 안에서 '대표 건' 미러로 자동 갱신 → 기존 화면(홈·챗·접수서 등) 무변경.
                 val nowMs = System.currentTimeMillis()
                 val depositPaidAtMs = if (depositPaid && (depositAmount ?: 0L) > 0L) nowMs else null
-                container.jobRepository.addJob(
+                val newJobId = container.jobRepository.addJob(
                     customerId = id,
                     scheduledWorkDate = DateTimeUtils.startOfDay(dayMs),
                     scheduledWorkMinutes = workMinutes,
@@ -143,12 +143,20 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                     }
                 }
                 runCatching { container.autoCategoryClassifier.reclassify(id) }
+                newJobId   // 만들었으면 새 건 id, 안 만들었으면 0 — 아래 안내 문구가 이걸 본다
             }
             // 캘린더 등록은 서버 미전송(로컬 CustomerEntity only) → admin KPI 측정용 여정 이벤트만 발사. (2026-06-25 cowork 요청)
             val label = name.trim().takeIf { it.isNotBlank() } ?: ("…" + digits.takeLast(4))
             container.journeyEventRepository.track("schedule_create", screen = "schedule", target = label)
             _saving.value = false
-            _toast.value = "일정 등록 완료"
+            // 🔴 **안 만들어졌으면 「완료」라고 하지 않는다.** (2026-09-28 페이블 지적)
+            //   전엔 같은 날 건이 있으면 조용히 버리고도 「일정 등록 완료」였다.
+            //   사장님은 등록된 줄 알고 그 현장을 못 보신다.
+            _toast.value = if (newJobId > 0L) {
+                "일정 등록 완료"
+            } else {
+                "그 날 그 현장은 이미 있어요 — 일정에서 확인해주세요"
+            }
             onDone()
         }
     }

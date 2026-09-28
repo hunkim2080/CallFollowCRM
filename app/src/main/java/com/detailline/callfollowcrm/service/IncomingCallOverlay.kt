@@ -151,13 +151,9 @@ object IncomingCallOverlay {
         loadJob = ioScope.launch {
             val container = app.container
             val digits = number.filter { it.isDigit() }
-            val national = if (digits.startsWith("82")) "0" + digits.removePrefix("82") else digits
-
-            val customer = runCatching {
-                container.customerRepository.findByPhone(number)
-                    ?: container.customerRepository.findByPhone(digits)
-                    ?: container.customerRepository.findByPhone(national)
-            }.getOrNull()
+            // 번호 모양(하이픈·+82)은 이제 findByPhone 이 알아서 맞춘다 — 여기서 세 번 부르던 것을 지웠다.
+            //   (2026-09-28: 이 화면만 세 겹으로 막고 있었고, 나머지 22곳은 못 찾고 있었다)
+            val customer = runCatching { container.customerRepository.findByPhone(number) }.getOrNull()
 
             val schedule = scheduleLabelOf(customer)
             // 칩 우선순위를 정하려고 — **아직 안 끝난 예약이 있으면** 그게 제일 급한 말이다.

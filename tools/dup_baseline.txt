@@ -1,7 +1,7 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 59곳 / 28줄
+# 총 58곳 / 27줄
 dialog-white|presentation/screen/chat/ChatScreen.kt 2
 dialog-white|presentation/screen/customer/CustomerDetailScreen.kt 1
 dialog-white|presentation/screen/expo/ExpoScreen.kt 2
@@ -13,7 +13,6 @@ phone-key|ai/WebFeedSyncManager.kt 1
 phone-key|data/SmsCachePrefetcher.kt 1
 phone-key|data/local/entity/ThreadBucketEntity.kt 1
 phone-key|data/repository/CallRecordRepository.kt 1
-phone-key|data/repository/CustomerRepository.kt 1
 phone-key|data/repository/SmsRepository.kt 2
 phone-key|presentation/screen/chat/ChatViewModel.kt 5
 phone-key|presentation/screen/customer/CustomerDetailScreen.kt 6

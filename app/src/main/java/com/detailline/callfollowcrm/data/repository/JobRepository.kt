@@ -105,8 +105,21 @@ class JobRepository(
 
     /**
      * 새 시공 건 등록 — 같은 고객의 기존 일정을 **덮지 않고** 건으로 쌓는다.
-     *   같은 고객·같은 날이 이미 있으면 중복 생성 안 함(연타 가드).
-     * @return 새 job id (중복이면 0)
+     *
+     * 🔴 **하루에 두 현장은 정상이다.** (2026-09-28 페이블 지적)
+     *   전엔 「같은 고객 + 같은 날」이면 무조건 안 만들었다(연타 가드).
+     *   그런데 사장님이 2026-09-11 에 하신 말이 **"인테리어 업체는 한 번호에 현장 여러 개"** 다.
+     *   아침 한 집, 오후 한 집 — 둘째 현장을 넣으면 **주소도 돈도 통째로 사라졌고**
+     *   화면은 「일정 등록 완료」라고 했다.
+     *
+     *   연타(같은 걸 두 번 누름)와 하루 두 현장(다른 일)을 **같은 자로 쟀던 것**이 뿌리다.
+     *   이제 진짜 연타만 막는다:
+     *     · 같은 날 + **같은 주소** → 같은 현장이다
+     *     · 같은 날 + 몇 초 안에 또 → 손가락이 두 번 닿은 것
+     *   주소가 다르면(또는 한쪽만 비었으면) **다른 현장**이라 보고 만든다.
+     *
+     * @return 새 job id. **0 이면 안 만든 것** — 부르는 쪽은 이 값을 보고
+     *         「완료」 대신 무슨 일이 있었는지 사장님께 말해야 한다.
      */
     suspend fun addJob(
         customerId: Long,
@@ -119,7 +132,10 @@ class JobRepository(
         depositPaidAt: Long?,
         now: Long
     ): Long {
-        if (jobDao.countByCustomerAndDate(customerId, scheduledWorkDate) > 0) {
+        // 규칙은 SameDayGuard 한 곳에만 — 여기(저장소)는 DB 에서 꺼내 넘기기만 한다.
+        val sameDay = jobDao.jobsAt(customerId, scheduledWorkDate)
+            .map { com.detailline.callfollowcrm.domain.schedule.SameDayGuard.Existing(it.address, it.createdAt) }
+        if (com.detailline.callfollowcrm.domain.schedule.SameDayGuard.isRetap(sameDay, address, now)) {
             recomputeMirror(customerId, now)
             return 0L
         }

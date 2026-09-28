@@ -205,6 +205,25 @@ object DataBackup {
     /** 방금 백업했다고 기록 — 자동 백업(워커)이 부른다. */
     fun markBackedUpNow(context: Context) = setLastBackupAt(context, System.currentTimeMillis())
 
+    /**
+     * 🔑 **서버에서 복원했다 = 이제 내가 이 장부의 주인이다.** (2026-09-28)
+     *
+     * 왜 필요한가 — 자동 백업에는 「복사폰이 업무폰 백업을 덮지 않게」 하는 가드가 있다:
+     *   서버 것이 내가 올린 것보다 새것이면 다른 폰이 주인이라 보고 **사흘까지 쉰다.**
+     *   그런데 **복원 직후**가 정확히 그 모양이다(내 시각=옛날, 서버 시각=방금).
+     *   그래서 폰을 새로 바꾸고 복원한 **가장 위험한 사흘** 동안 자동 백업이 멈췄다.
+     *
+     * 지금 시각이 아니라 **복원한 그 백업의 시각**을 적는다 —
+     *   거짓말을 안 하면서(그 시점까지는 진짜로 서버에 있다) 가드를 정확히 푼다.
+     *   20시간 간격 규칙에 따라 곧 한 번 올라간다.
+     *
+     * @param backupAtMs 복원한 백업이 만들어진 시각. 모르면 지금.
+     */
+    fun markRestoredFromServer(context: Context, backupAtMs: Long) {
+        val at = if (backupAtMs > 0L) backupAtMs else System.currentTimeMillis()
+        if (at > lastBackupAt(context)) setLastBackupAt(context, at)
+    }
+
     // ─────────────────────────── 가져오기(복원) ───────────────────────────
 
     /** IO 스레드에서 호출. uri = 사용자가 고른 백업 파일(zip 또는 json). */
@@ -590,6 +609,14 @@ object DataBackup {
     /** 사진이 **몇 장 중 몇 장** 담겼는지. 조용히 자르지 않기 위해 기록한다. (2026-09-28) */
     data class FilesStat(val wanted: Int, val packed: Int) {
         val missing: Int get() = (wanted - packed).coerceAtLeast(0)
+
+        /**
+         * 🗣 **빠진 게 있으면 그 자리에서 말한다.** 없으면 빈 글자(조용히). (2026-09-28)
+         *   세어만 두고 말 안 하면 없는 것과 같다 — 사장님은 폰을 바꾼 뒤에야 아신다.
+         */
+        val note: String
+            get() = if (missing <= 0) "" else
+                " 다만 사진 ${wanted}장 중 ${packed}장만 담겼어요(용량 한계) — 나머지는 앱에 그대로 있어요."
     }
 
     @Volatile

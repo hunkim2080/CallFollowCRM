@@ -31,7 +31,49 @@ data class SettleRow(
  * 잔금 추정 규칙 (CustomerEntity 주석과 일치): balance = totalAmount − depositAmount.
  *   사장님이 잔금 금액을 직접 박았으면 그게 우선(수동 우선).
  */
+/**
+ * 📒 **돈이 걸린 「건」 한 줄.** 정산 화면과 홈 미수금 카드가 **같은 장부**를 보게 하는 단위.
+ *   (2026-09-28 — 전엔 정산은 건마다, 홈은 고객마다 세어 **금액이 갈렸다.**)
+ */
+data class SettleBookRow(
+    val customerId: Long,
+    /** 건에서 온 줄이면 건 id. 시공일을 아직 안 잡아 건이 없는 고객이면 null. */
+    val jobId: Long?,
+    val calc: SettleRow,
+    val scheduledWorkDate: Long?
+)
+
 object SettlementCalc {
+
+    /**
+     * 📒 **장부 전체 — 이 앱에서 「못 받은 돈」을 세는 유일한 목록.** (2026-09-28)
+     *
+     * 규칙:
+     *   · 건(件)이 있으면 **건마다 한 줄**. 1차 미수와 2차 완납이 따로 보여야 하니까.
+     *     (돈이 아예 안 적힌 건은 뺀다 — 시공일만 잡아둔 건까지 세면 목록이 지저분해진다.)
+     *   · 건이 하나도 없는 고객(돈은 넣었는데 시공일을 안 잡음)은 **고객 카드로 한 줄.**
+     *     건이 있는 고객을 여기서 또 세면 **같은 돈을 두 번 센다.**
+     *
+     * 왜 여기 있나: 전엔 정산 화면이 이 목록을 자기 안에서 만들고,
+     *   홈 미수금 카드는 고객 표만 더했다. **같은 물음에 두 답**이 나왔다.
+     */
+    fun book(
+        customers: List<CustomerEntity>,
+        jobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
+    ): List<SettleBookRow> {
+        val byId = customers.associateBy { it.id }
+        val idsWithJobs = jobs.mapNotNull { byId[it.customerId]?.id }.toHashSet()
+        val fromJobs = jobs.mapNotNull { j ->
+            byId[j.customerId] ?: return@mapNotNull null
+            val calc = rowOf(j)
+            if (calc.total <= 0L && calc.received <= 0L) return@mapNotNull null
+            SettleBookRow(j.customerId, j.id, calc, j.scheduledWorkDate)
+        }
+        val fromCustomers = customers
+            .filter { it.id !in idsWithJobs && hasMoney(it) }
+            .map { SettleBookRow(it.id, null, rowOf(it), it.scheduledWorkDate) }
+        return fromJobs + fromCustomers
+    }
 
     /** 돈 정보가 하나라도 있으면 정산 대상 (아무 금액도 없는 고객은 정산 목록에서 제외). */
     fun hasMoney(c: CustomerEntity): Boolean =

@@ -235,6 +235,24 @@ class CalendarSyncManager(
         }
     }
 
+    /**
+     * 📅 **주인을 잃은 일정들을 구글에서 지운다.** (2026-09-28)
+     *   손님 둘을 합치면 일정도 하나만 남는다. 남지 못한 쪽은 앱에서 가리킬 길이 사라지는데
+     *   구글 달력엔 그대로 있어서 **앱이 못 지우는 유령 일정**이 됐다.
+     *   합치기가 그 id 들을 모아 넘겨준다.
+     *   @return 실제로 지운 개수 (연동이 안 돼 있으면 0 — 그땐 애초에 올라간 것도 없다)
+     */
+    suspend fun deleteOrphanedEvents(eventIds: List<String>): Int {
+        if (eventIds.isEmpty()) return 0
+        val token = connection.getTokenSilently() ?: return 0
+        val cal = store.getCalendarId() ?: return 0
+        var n = 0
+        for (ev in eventIds.filter { it.isNotBlank() }.distinct()) {
+            runCatching { api.deleteEvent(token, cal, ev) }.onSuccess { n++ }
+        }
+        return n
+    }
+
     /** 고객 삭제 시 그 고객의 모든 이벤트 정리. */
     suspend fun deleteCustomerEvents(customerId: Long) {
         val token = connection.getTokenSilently() ?: return
