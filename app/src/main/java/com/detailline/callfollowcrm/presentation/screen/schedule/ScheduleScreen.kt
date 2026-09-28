@@ -2598,6 +2598,22 @@ private fun AssignTeamSheet(
                                 color = TossTextSecondary, maxLines = 1)
                         }
                     }
+                    // ⏰ **되돌릴 길을 눈에 보이게.** (2026-09-28)
+                    //   시간 칩은 다시 누르면 꺼지긴 했다 — 그런데 **그걸 알 길이 없었다.**
+                    //   시트를 열면 지난번 시간이 이미 골라져 있어서, 「시간 안 정하고 보내기」를
+                    //   하려면 우연히 같은 칩을 또 눌러봐야 했다.
+                    //   고객 상세 시트엔 이 칩이 있는데 **여기만 없었다** — 같은 일을 두 곳에서
+                    //   따로 만들면 늘 한쪽이 빠진다.
+                    val noHour = startHour !in 0..23
+                    Box(
+                        Modifier.clip(RoundedCornerShape(999.dp))
+                            .background(if (noHour) purple else TossGrayBg)
+                            .clickable { startHour = -1 }
+                            .padding(horizontal = 13.dp, vertical = 8.dp)
+                    ) {
+                        Text("안 정함", style = AppType.caption, fontWeight = FontWeight.Bold,
+                            color = if (noHour) Color.White else TossTextSecondary, maxLines = 1)
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 SheetFieldLabel("전달 메모")
