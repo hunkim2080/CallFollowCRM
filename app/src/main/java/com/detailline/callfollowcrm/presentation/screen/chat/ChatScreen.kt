@@ -277,6 +277,7 @@ fun ChatScreen(
     val autoSummaryActive = remember { viewModel.autoSummaryActive }
     // 🈳 녹음을 못 찾은 통화 — 카드에 그 사실을 남긴다. (2026-09-28 사장님)
     val noRecording by viewModel.noRecording.collectAsState()
+    val noRecordingWhy by viewModel.noRecordingWhy.collectAsState()
     val nowTick = remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(20_000); nowTick.value = System.currentTimeMillis() } }
     val timelineItems = remember(messages, callRecords, intakeEvents, timelineEvents, issuedDocs) {
@@ -976,6 +977,7 @@ fun ChatScreen(
                                 val callRec = recordingFor[ti.record.id]
                                 CallSegment(
                                     noRecordingHere = ti.record.id in noRecording,
+                                    noRecordingWhy = noRecordingWhy,
                                     record = ti.record,
                                     summary = matched,
                                     isSummarizing = summarizing,
@@ -2326,7 +2328,9 @@ private fun CallSegment(
     recordingConnected: Boolean = true,
     onConnectRecording: () -> Unit = {},
     /** 찾아봤는데 **녹음이 없던** 통화인가. (2026-09-28 사장님) */
-    noRecordingHere: Boolean = false
+    noRecordingHere: Boolean = false,
+    /** 왜 못 찾았는지 한 줄. null 이면 일반적인 안내. */
+    noRecordingWhy: String? = null
 ) {
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
@@ -2537,7 +2541,7 @@ private fun CallSegment(
                         Text("이 통화는 녹음이 없어요 · 요약할 내용이 없어요",
                             style = AppType.caption, color = AppTheme.colors.textSub)
                         Spacer(Modifier.height(2.dp))
-                        Text("짧은 통화나 안 받은 전화는 녹음이 안 남을 때가 있어요",
+                        Text(noRecordingWhy ?: "짧은 통화나 안 받은 전화는 녹음이 안 남을 때가 있어요",
                             style = AppType.caption, color = AppTheme.colors.textHint)
                         Spacer(Modifier.height(7.dp))
                         Text("다시 찾아보기",

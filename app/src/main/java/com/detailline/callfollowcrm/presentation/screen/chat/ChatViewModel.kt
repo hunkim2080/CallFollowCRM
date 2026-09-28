@@ -361,6 +361,10 @@ class ChatViewModel(
     private val _noRecording = MutableStateFlow<Set<Long>>(emptySet())
     val noRecording: StateFlow<Set<Long>> = _noRecording
 
+    /** 못 찾은 이유 한 줄 — 카드에 그대로 적는다. (2026-09-28 사장님) */
+    private val _noRecordingWhy = MutableStateFlow<String?>(null)
+    val noRecordingWhy: StateFlow<String?> = _noRecordingWhy
+
     /**
      * 통화 카드 탭 → 그 통화 한 건을 연결된 녹음 폴더에서 찾아 즉시 요약. (2026-06-14 사장님)
      *   에이닷 들어가 '공유' 안 해도 됨. 진행 중엔 CallSummaryProgress 로 스피너, 결과는 토스트.
@@ -384,11 +388,16 @@ class ChatViewModel(
                 if (res == com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE)
                     _noRecording.value + record.id
                 else _noRecording.value - record.id
+            _noRecordingWhy.value =
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.lastNoFileWhy
             _toast.value = when (res) {
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> "이미 요약돼 있어요"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "통화 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
-                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요. 통화 녹음이 켜져 있는지 확인해주세요."
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE ->
+                    // 왜 못 찾았는지를 그대로 말한다. (2026-09-28 사장님 "토스트가 깜빡하고 끝나")
+                    com.detailline.callfollowcrm.recording.AdotFolderScanner.lastNoFileWhy
+                        ?: "이 통화의 녹음 파일을 못 찾았어요. 통화 녹음이 켜져 있는지 확인해주세요."
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED -> "통화 요약을 끝내지 못했어요. 잠시 후 다시 시도해주세요. (계속되면 알려주세요)"
             }
         }
@@ -415,7 +424,10 @@ class ChatViewModel(
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> null
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> null
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "통화 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
-                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요. 오래된 통화는 녹음이 지워졌을 수 있어요."
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE ->
+                    // 왜 못 찾았는지를 그대로 말한다. (2026-09-28 사장님 "토스트가 깜빡하고 끝나")
+                    com.detailline.callfollowcrm.recording.AdotFolderScanner.lastNoFileWhy
+                        ?: "이 통화의 녹음 파일을 못 찾았어요. 오래된 통화는 녹음이 지워졌을 수 있어요."
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED -> "다시 요약하지 못했어요. 잠시 후 한 번 더 해주세요."
             }
         }

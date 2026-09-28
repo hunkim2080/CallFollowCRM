@@ -542,6 +542,15 @@ object DataBackup {
     //   만드는 순간 또 그만큼이 더 필요하다. 60MB 상한이면 폰이 못 버틴다.
     //   → 상한을 확 낮추고, 그래도 모자라면 사진 없이 다시 만든다(백업 자체는 반드시 성공하게).
     /** 첨부 하나당 상한. */
+    /**
+     * 📷 **사진은 줄여서 담는다.** (2026-09-28 사장님 「가」 선택)
+     *   전엔 2MB 넘는 사진을 통째로 건너뛰어서, 요즘 폰 사진이 **한 장도 안 담겼다**
+     *   (업무폰 백업 실물: site_photos 35줄인데 담긴 사진 1장).
+     *   긴 변 1280px · JPEG 80% 면 장당 ~200KB — 35장이 7MB 라 상한 안에 넉넉히 들어간다.
+     *   원본 화질은 포기한다. **안 담기는 것보다 낫다.**
+     */
+    private const val PHOTO_MAX_PX = 1280
+    private const val PHOTO_QUALITY = 80
     private const val FILE_MAX_BYTES = 2 * 1024 * 1024
     /** 파일로 내보낼 때(zip) 첨부 총량. */
     private const val FILES_TOTAL_EXPORT = 20 * 1024 * 1024
@@ -550,19 +559,63 @@ object DataBackup {
     private const val TPL_DIR = "template_photos"
     private const val SITE_DIR = "site_photos"
 
+    /**
+     * 사진을 **긴 변 [PHOTO_MAX_PX] 까지 줄이고** JPEG 로 다시 굽는다. 못 줄이면 원본 그대로.
+     *   백업에 담을 때만 쓴다 — 폰 안의 원본은 건드리지 않는다.
+     */
+    private fun shrinkPhoto(bytes: ByteArray): ByteArray = runCatching {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val long = maxOf(bounds.outWidth, bounds.outHeight)
+        if (long <= 0) return@runCatching bytes
+        var sample = 1
+        while (long / sample > PHOTO_MAX_PX * 2) sample *= 2
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            ?: return@runCatching bytes
+        val w = bmp.width; val h = bmp.height
+        val scaled = if (maxOf(w, h) > PHOTO_MAX_PX) {
+            val r = PHOTO_MAX_PX.toFloat() / maxOf(w, h)
+            android.graphics.Bitmap.createScaledBitmap(bmp, (w * r).toInt().coerceAtLeast(1),
+                (h * r).toInt().coerceAtLeast(1), true)
+        } else bmp
+        val baos = java.io.ByteArrayOutputStream()
+        scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, PHOTO_QUALITY, baos)
+        if (scaled !== bmp) scaled.recycle()
+        bmp.recycle()
+        val outB = baos.toByteArray()
+        if (outB.isNotEmpty() && outB.size < bytes.size) outB else bytes
+    }.getOrDefault(bytes)
+
+    /** 사진이 **몇 장 중 몇 장** 담겼는지. 조용히 자르지 않기 위해 기록한다. (2026-09-28) */
+    data class FilesStat(val wanted: Int, val packed: Int) {
+        val missing: Int get() = (wanted - packed).coerceAtLeast(0)
+    }
+
+    @Volatile
+    var lastFilesStat: FilesStat = FilesStat(0, 0)
+        private set
+
     /** DB 가 가리키는 첨부 파일들을 읽어 base64 로. key = DB 에 저장된 원래 주소/경로. */
     private fun dumpFiles(
         context: Context, db: androidx.sqlite.db.SupportSQLiteDatabase, totalMax: Int
     ): JSONObject {
         val out = JSONObject()
         var total = 0
-        fun add(key: String, bytes: ByteArray, mime: String, name: String) {
-            if (bytes.isEmpty() || bytes.size > FILE_MAX_BYTES) return
+        var wanted = 0
+        var packed = 0
+        fun add(key: String, raw: ByteArray, mime: String, name: String) {
+            wanted++
+            if (raw.isEmpty()) return
+            // 📷 **줄여서** 담는다 — 원본 그대로면 한 장에 상한을 다 써버린다.
+            val bytes = if (mime.startsWith("image")) shrinkPhoto(raw) else raw
+            if (bytes.size > FILE_MAX_BYTES) return
             if (total + bytes.size > totalMax) return
             out.put(key, JSONObject()
                 .put("b64", Base64.encodeToString(bytes, Base64.NO_WRAP))
                 .put("mime", mime).put("name", name))
             total += bytes.size
+            packed++
         }
         // 문구 첨부 — 최신 것부터(총량 상한에 걸리면 옛 것이 잘리게)
         runCatching {
@@ -582,11 +635,14 @@ object DataBackup {
                     val p = c.getString(0) ?: continue
                     if (out.has(p)) continue
                     val f = File(p)
-                    if (!f.exists() || f.length() > FILE_MAX_BYTES) continue
+                    // ⚠️ 여기서 2MB 로 거르지 않는다 — 요즘 폰 사진은 대부분 그보다 커서
+                    //    **한 장도 안 담겼다.** 줄이는 건 add() 가 한다. (2026-09-28 사장님)
+                    if (!f.exists()) continue
                     add(p, runCatching { f.readBytes() }.getOrNull() ?: continue, "image/jpeg", f.name)
                 }
             }
         }
+        lastFilesStat = FilesStat(wanted, packed)
         return out
     }
 

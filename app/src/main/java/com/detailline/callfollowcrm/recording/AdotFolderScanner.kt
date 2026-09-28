@@ -217,7 +217,19 @@ object AdotFolderScanner {
     private fun getTreeUri(context: Context): Uri? {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_TREE_URI, null) ?: return null
-        return runCatching { Uri.parse(raw) }.getOrNull()
+        val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return null
+        // 🔑 **아직 볼 수 있는 폴더인지 확인한다.** (2026-09-28 사장님 "토스트가 깜빡하고 끝나")
+        //   전엔 저장해 둔 **주소 글자만** 읽었다. 앱을 지웠다 깔거나 안드로이드가 권한을 회수하면
+        //   주소는 남아 있어 「연결됨」인데 폴더는 못 열어 **모든 통화가 「녹음 못 찾음」**이 된다.
+        //   그러면 카드는 계속 「이 통화 요약하기」를 내밀고, 눌러도 토스트만 깜빡인다 — 막다른 길.
+        //   권한이 없으면 null 을 돌려 **「연결 설정하러 가기」로 바뀌게** 한다(나갈 길이 생긴다).
+        //   ⚠️ 저장된 주소는 지우지 않는다 — 사장님이 같은 폴더를 다시 고르실 수 있다.
+        val allowed = runCatching {
+            context.contentResolver.persistedUriPermissions.any {
+                it.isReadPermission && it.uri == uri
+            }
+        }.getOrDefault(true)   // 못 물어보면 예전처럼 있다고 본다(괜히 끊지 않게)
+        return if (allowed) uri else null
     }
 
     /**
@@ -250,6 +262,15 @@ object AdotFolderScanner {
     }
 
     /** 요약에 실제로 쓸 수 있는 녹음인가 = 오디오 + 파일명에서 최소한 '시각'은 나온다. 개수 표시도 이 기준. */
+    /**
+     * 🔎 **왜 못 붙였나** — 마지막 실패 이유 한 줄. (2026-09-28 사장님)
+     *   토스트가 하나뿐이라 셋 중 어디서 틀어졌는지 사장님도 나도 알 수가 없었다.
+     *   화면에서만 쓰는 값이라 저장하지 않는다.
+     */
+    @Volatile
+    var lastNoFileWhy: String? = null
+        private set
+
     private fun isUsableRecording(name: String): Boolean =
         isAudioName(name) && AdotFilenameParser.parseLoose(name) != null
 
@@ -469,7 +490,16 @@ object AdotFolderScanner {
         var bestAt = 0L
         var bestDelta = Long.MAX_VALUE
         val candidates = listCandidates(appCtx).filter { isAudioName(it.name) }
+        // 어디서 틀어졌는지 세어 둔다 — 아래에서 이유 한 줄로 만든다.
+        var usable = 0          // 이름에서 시각을 읽을 수 있는 녹음
+        var nearAny = 0         // 그 통화 시각 ±30분에 있던 녹음
+        var nearNoLog = 0       // 시각은 맞는데 통화 기록에서 그 통화를 못 찾음
+        var nearOther = 0       // 시각은 맞는데 **다른 통화**의 녹음이었음
         for (rf in candidates) {
+            AdotFilenameParser.parseLoose(rf.name)?.let {
+                usable++
+                if (kotlin.math.abs(it.recordedAt - callAtMs) <= win) nearAny++
+            }
             val parsed = AdotFilenameParser.parse(rf.name) ?: continue
             if (parsed.phoneNumber.takeLast(8) != target) continue
             val delta = kotlin.math.abs(parsed.recordedAt - callAtMs)
@@ -486,15 +516,28 @@ object AdotFolderScanner {
                 val delta = kotlin.math.abs(loose.recordedAt - callAtMs)
                 if (delta > win || delta >= bestDelta) continue
                 // 이 시각의 통화가 '탭한 그 통화'가 맞는지 통화기록으로 확인 — 아니면 안 붙인다(엉뚱한 고객 방지).
-                val owner = container.callRecordRepository.findCallAtTime(loose.recordedAt) ?: continue
+                val owner = container.callRecordRepository.findCallAtTime(loose.recordedAt)
+                if (owner == null) { nearNoLog++; continue }
                 val sameCall = if (callRecordId != null) owner.id == callRecordId
                 else PhoneKey.of(owner.phoneNumber) == target
-                if (!sameCall) continue
+                if (!sameCall) { nearOther++; continue }
                 bestUri = rf.uriStr; bestName = rf.name; bestAt = loose.recordedAt; bestDelta = delta
                 looseMatch = true
             }
         }
-        val uriStr = bestUri ?: return SummarizeResult.NO_FILE
+        val uriStr = bestUri ?: run {
+            // 🔎 **어디서 틀어졌는지 한 줄로.** 이게 없으면 사장님은 토스트가 깜빡이는 것만 본다.
+            lastNoFileWhy = when {
+                candidates.isEmpty() -> "녹음 폴더에 소리 파일이 없어요"
+                usable == 0 -> "녹음 ${candidates.size}개가 있는데 이름에서 날짜·시각을 읽을 수 없어요"
+                nearAny == 0 -> "녹음 ${usable}개 중에 이 통화 시각과 맞는 게 없어요 (앞뒤 30분)"
+                nearNoLog > 0 -> "시각이 맞는 녹음 ${nearNoLog}개가 있는데, 폰의 통화 기록에서 이 통화를 못 찾았어요"
+                nearOther > 0 -> "시각이 맞는 녹음 ${nearOther}개가 있는데 다른 통화의 것이었어요"
+                else -> "녹음 ${usable}개 중에 이 통화 것을 찾지 못했어요"
+            }
+            return SummarizeResult.NO_FILE
+        }
+        lastNoFileWhy = null
         // 이미 요약돼 있으면 재과금 없이 스킵. 단, 시각 드리프트로 '탭한 통화카드'엔 안 붙어 있을 수 있어
         //   사용자가 직접 탭한 그 통화기록(callRecordId)에 강제 연결 → 카드에 즉시 표시.
         //   (2026-06-18 버그: "이미 요약돼 있어요" 토스트인데 화면엔 요약이 안 보임.
