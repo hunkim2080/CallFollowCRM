@@ -917,6 +917,25 @@ class AppPreferences(context: Context) {
             .toSet()
     }
 
+    /**
+     * 🔨 「시공 끝났나요?」에 **「아직이에요」** 하신 것 — 그 날짜로는 다시 안 묻는다. (2026-09-28)
+     *   날짜를 새로 잡으시면 키가 바뀌므로 **그때는 다시 묻는다** — 미뤄진 일은 언젠가 끝나니까.
+     */
+    fun workDoneAsked(phone: String): Set<Long> {
+        val p = PhoneKey.of(phone)
+        return prefs.getStringSet("workdone_dismissed", emptySet()).orEmpty()
+            .mapNotNull { k -> k.substringAfter("$p:", "").toLongOrNull()?.takeIf { k.startsWith("$p:") } }
+            .toSet()
+    }
+
+    fun addWorkDoneAsked(phone: String, workDayMs: Long) {
+        val p = PhoneKey.of(phone)
+        val cur = prefs.getStringSet("workdone_dismissed", emptySet()).orEmpty().toMutableList()
+        cur.add("$p:$workDayMs")
+        val trimmed = if (cur.size > 200) cur.takeLast(200) else cur
+        prefs.edit().putStringSet("workdone_dismissed", trimmed.toSet()).apply()
+    }
+
     fun addDismissedPayClaim(phone: String, messageMs: Long) {
         val p = PhoneKey.of(phone)
         val cur = prefs.getStringSet("payclaim_dismissed", emptySet()).orEmpty().toMutableList()

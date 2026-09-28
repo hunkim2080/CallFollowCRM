@@ -1138,6 +1138,39 @@ fun ChatScreen(
             //   실측: 받은 문자 1,085통 중 50통이 이런 문자였다(오탐 0). 지금은 사장님이 그걸 보고
             //   정산에 들어가 직접 눌러야 한다.
             //   ⚠️ **자동으로 처리하지 않는다.** 판별이 틀리면 안 받은 돈이 '받음'이 되고 미수금이 사라진다.
+            // 🔨 **시공일이 지났는데 아직 「끝났다」가 안 찍힌 손님** — 짐작하지 말고 묻는다.
+            //   (2026-09-28 사장님: "예약일이 지난 건 완료보다 … 선택할 수 있게 하는 게 어떨까?
+            //    지금 고객한테 입금이란 단어가 나오면 나한테 묻게 되어 있잖아 그런 식으로 말야")
+            //
+            //   전엔 화면마다 답이 달랐다 — 딱지는 「예약일 지나면 끝난 것」으로 **짐작**하고,
+            //   미수 카드·잔금 알림은 「[완료]를 눌러야 끝난 것」으로 봤다.
+            //   시공이 미뤄졌는데 날짜를 안 고치면 딱지는 「끝났다」는데 알림은 조용했다.
+            //
+            //   ⚠️ **자동으로 안 찍는다.** 못 물어보면 손해가 없다(홈에서 직접 누르면 된다).
+            //   잘못 찍으면 **안 한 일이 「끝난 일」이 돼 잔금 독촉이 나간다** — 돌이킬 수 없는 쪽이다.
+            val workDoneAsked by viewModel.workDoneAsked.collectAsState()
+            val workDoneAsk = remember(customer, workDoneAsked) {
+                // 언제 묻는지는 WorkDoneAsk 한 곳에 — 화면에 적으면 폰에 그런 손님이 없을 때
+                //   아무도 못 본다. 순수 함수라 단위 테스트가 매 빌드마다 대신 본다.
+                customer?.let { cc ->
+                    com.detailline.callfollowcrm.domain.schedule.WorkDoneAsk.lastDayToAsk(
+                        scheduledWorkDate = cc.scheduledWorkDate,
+                        scheduledWorkDays = cc.scheduledWorkDays,
+                        workCompletedAt = cc.workCompletedAt,
+                        balancePaidAt = cc.balancePaidAt,
+                        alreadyAsked = workDoneAsked,
+                        todayStartMs = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                    )
+                }
+            }
+            workDoneAsk?.let { lastDay ->
+                WorkDoneAskCard(
+                    workLastDayMs = lastDay,
+                    onYes = { viewModel.markWorkCompleted(); viewModel.dismissWorkDoneAsk(lastDay) },
+                    onNo = { viewModel.dismissWorkDoneAsk(lastDay) }
+                )
+            }
+
             val payDismissed by viewModel.payClaimDismissed.collectAsState()
             val payClaim = remember(messages, customer, payDismissed) {
                 val last = messages.firstOrNull()
@@ -3765,6 +3798,62 @@ private fun TradeAskCard(
 /** 돈 표기 — 규칙은 MoneyFormatter 한 곳에. 손님이 보는 글이라 **안 깎는다**. (2026-09-28) */
 private fun payWonLabel(won: Long): String =
     com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)
+
+/**
+ * 🔨 **"시공일이 지났는데 끝났나요?" 확인 카드.** (2026-09-28 사장님)
+ *
+ * 「입금했습니다」 카드의 쌍둥이다 — 같은 규칙으로 움직인다:
+ *   **앱은 짐작하지 않는다. 사장님이 고르신다.**
+ *
+ * 왜 묻기만 하나: 잘못 찍으면 **안 한 일이 「끝난 일」이 되고, 손님에게 잔금 독촉이 나간다.**
+ *   못 물어보는 건 손해가 없다 — 예전처럼 홈에서 [완료]를 누르면 된다.
+ *
+ * 「아직이에요」를 고르면 **그 시공일로는 다시 안 묻는다.**
+ *   날짜를 새로 잡으시면 키가 바뀌어 그때 다시 묻는다 — 미뤄진 일도 언젠가 끝나니까.
+ */
+@Composable
+private fun WorkDoneAskCard(
+    workLastDayMs: Long,
+    onYes: () -> Unit,
+    onNo: () -> Unit
+) {
+    val purple = Color(0xFF6B4FBB)
+    val days = ((DateTimeUtils.startOfDay(System.currentTimeMillis()) - workLastDayMs)
+        / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(1)
+    val dayLabel = java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
+        .format(java.util.Date(workLastDayMs))
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(AppTheme.colors.primaryBg)
+            .padding(horizontal = 15.dp, vertical = 13.dp)
+    ) {
+        Text(
+            "시공일이 지났어요",
+            fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = purple
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "${dayLabel}로 잡혀 있었어요 (${days}일 지남). 이 현장 끝났나요?",
+            fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp
+        )
+        Spacer(Modifier.height(11.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(
+                "네, 끝났어요",
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(purple)
+                    .clickable(onClick = onYes).padding(horizontal = 14.dp, vertical = 9.dp)
+            )
+            Text(
+                "아직이에요",
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                    .clickable(onClick = onNo).padding(horizontal = 14.dp, vertical = 9.dp)
+            )
+        }
+    }
+}
 
 /**
  * "입금했습니다" 확인 카드. (2026-09-17 사장님)

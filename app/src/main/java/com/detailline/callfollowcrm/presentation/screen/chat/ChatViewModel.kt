@@ -707,6 +707,41 @@ class ChatViewModel(
     }
 
     /** [네, 받았어요] — 잔금 받음으로 기록. 고객 상세의 '잔금 확인'과 같은 처리. */
+    // ── 🔨 「시공일이 지났는데 끝났나요?」 (2026-09-28 사장님) ──────────────
+    //   짐작하지 않는다. 「입금했습니다」 카드와 **같은 규칙**이다 —
+    //   못 물어보면 손해가 없고(예전처럼 홈에서 직접 누르면 된다),
+    //   **잘못 찍으면** 안 한 일이 「끝난 일」이 돼 잔금 독촉이 나간다.
+    //   ⚠️ init 블록은 이 선언보다 **위**에 있다 — 거기서 채우면 아직 없는 걸 만지게 된다.
+    //      그래서 선언 자리에서 바로 읽는다. (2026-09-28, Kotlin 선언 순서 함정)
+    private val _workDoneAsked =
+        MutableStateFlow(container.preferences.workDoneAsked(phoneNumber))
+    val workDoneAsked = _workDoneAsked.asStateFlow()
+
+    /** 「아직이에요」 — 그 시공일로는 다시 안 묻는다. 날짜를 새로 잡으면 다시 묻는다. */
+    fun dismissWorkDoneAsk(workDayMs: Long) {
+        _workDoneAsked.value = _workDoneAsked.value + workDayMs
+        container.preferences.addWorkDoneAsked(phoneNumber, workDayMs)
+    }
+
+    fun reloadWorkDoneAsked() {
+        _workDoneAsked.value = container.preferences.workDoneAsked(phoneNumber)
+    }
+
+    /** 「네, 끝났어요」 — 고객 카드와 대표 건 둘 다 찍는다(WorkCompletionManager 한 곳). */
+    fun markWorkCompleted(onDone: (Boolean) -> Unit = {}) {
+        val c = customer.value
+        if (c == null) { _toast.value = "고객 정보가 없어요"; onDone(false); return }
+        viewModelScope.launch {
+            val ok = runCatching {
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    container.workCompletionManager.setCompleted(c.id, System.currentTimeMillis())
+                }
+            }.isSuccess
+            _toast.value = if (ok) "시공 완료로 기록했어요" else "기록하지 못했어요"
+            onDone(ok)
+        }
+    }
+
     fun markBalancePaid(onDone: (Boolean) -> Unit = {}) {
         val c = customer.value
         if (c == null) { _toast.value = "고객 정보가 없어요"; onDone(false); return }

@@ -1151,23 +1151,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 오늘 시공 히어로 [완료] → 완료처리. 그 현장을 오늘 히어로에서 제외(완료 반영). (2026-06-08 #2) */
     fun markJobCompleted(customerId: Long) = viewModelScope.launch {
-        runCatching {
-            val now = System.currentTimeMillis()
-            container.customerRepository.updateWorkCompletedAt(customerId, now)
-            // 🔴 **건에도 찍는다.** 전엔 고객 카드에만 찍혀서 건 탭의 '완료' 표시가 틀렸다.
-            //   (jobs.workCompletedAt 은 마이그레이션·아카이브 때만 채워졌다. 2026-09-18 연결부 점검)
-            container.jobRepository.representativeJobId(customerId, now)
-                ?.let { container.jobRepository.setWorkCompleted(it, now, now) }
-        }
+        // 완료를 찍는 길은 WorkCompletionManager 하나뿐 — 화면마다 따로 적으면 한쪽이 빠진다. (2026-09-28)
+        runCatching { container.workCompletionManager.setCompleted(customerId, System.currentTimeMillis()) }
     }
     /** 완료 처리 되돌리기 (스낵바 '되돌리기'). */
     fun undoJobCompleted(customerId: Long) = viewModelScope.launch {
-        runCatching {
-            val now = System.currentTimeMillis()
-            container.customerRepository.updateWorkCompletedAt(customerId, null)
-            container.jobRepository.representativeJobId(customerId, now)
-                ?.let { container.jobRepository.setWorkCompleted(it, null, now) }
-        }
+        runCatching { container.workCompletionManager.setCompleted(customerId, null) }
     }
 
     /**
@@ -1175,18 +1164,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   balanceAmount 비어 있으면 (총액-계약금)으로 채우고 balancePaidAt=now → 고객상세 '잔금 받음' + 미수금에서 빠짐.
      */
     fun markJobCompletedBalancePaid(customerId: Long) = viewModelScope.launch {
-        runCatching {
-            val now = System.currentTimeMillis()
-            val c = container.customerRepository.findById(customerId)
-            container.customerRepository.updateWorkCompletedAt(customerId, now)
-            container.jobRepository.representativeJobId(customerId, now)
-                ?.let { container.jobRepository.setWorkCompleted(it, now, now) }   // 건에도 (2026-09-18)
-            if (c != null) {
-                val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
-                if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)
-                container.customerRepository.updateBalancePaidAt(customerId, now)
-            }
-        }
+        runCatching { container.workCompletionManager.setCompletedAndPaid(customerId) }
     }
 
     /**

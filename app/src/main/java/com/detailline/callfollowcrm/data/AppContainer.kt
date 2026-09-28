@@ -113,6 +113,16 @@ class AppContainer(context: Context) {
         db.customerNoteDao(), customerRepository, jobRepository
     )
 
+    /**
+     * ✅ 「이 시공 끝났다」를 찍는 단 한 곳. (2026-09-28)
+     *   고객 카드와 **대표 건** 둘 다 찍어야 해서, 화면마다 따로 적으면 한쪽이 빠진다.
+     *   ⚠️ customerRepository·jobRepository 보다 **아래에** 있어야 한다 — 둘을 쓴다.
+     */
+    val workCompletionManager =
+        com.detailline.callfollowcrm.data.repository.WorkCompletionManager(
+            customerRepository, jobRepository
+        )
+
     /** 번호 모양 때문에 둘로 갈라진 손님 합치기. (2026-09-23) 되돌릴 수 없어서 부르는 쪽이 백업을 먼저 뜬다. */
     val customerMergeManager by lazy {
         com.detailline.callfollowcrm.data.repository.CustomerMergeManager(db.customerMergeDao(), db.customerDao())
