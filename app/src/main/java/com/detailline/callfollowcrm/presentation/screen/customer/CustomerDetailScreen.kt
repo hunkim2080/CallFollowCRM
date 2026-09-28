@@ -1409,6 +1409,33 @@ fun CustomerDetailScreen(
             fun exitPickMode() {
                 pickMode = false; pickedMine = emptySet(); pickedTeam = emptySet()
             }
+            // 🛟 **서버에만 남은 내 사진** — 폰을 재설치하면 이렇게 된다. (2026-09-28 사장님)
+            //   사장님: "그럼 직원폰에 그대로 보이게 해줄수 있는거아니야?"
+            //   맞다 — 서버에 살아 있으니 내려받으면 된다. 보기만 하면 반쪽이라
+            //   **되살려서** 내 기록·영상·백업에도 다시 들어가게 한다.
+            val restorable by viewModel.restorable.collectAsState()
+            if (restorable.isNotEmpty()) {
+                TossCard {
+                    Column(Modifier.padding(2.dp)) {
+                        Text("서버에 이 현장 사진 ${restorable.size}장이 있어요",
+                            style = AppType.headline, color = TossTextPrimary)
+                        Spacer(Modifier.height(4.dp))
+                        Text("폰을 다시 깔면서 사진이 빠졌어요. 되살리면 내 기록·영상에도 다시 들어가요.",
+                            style = AppType.caption, color = TossTextTertiary)
+                        Spacer(Modifier.height(11.dp))
+                        Box(
+                            Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
+                                .clickable { viewModel.restorePhotosFromServer() }
+                                .padding(vertical = 13.dp),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            Text("사진 ${restorable.size}장 되살리기",
+                                style = AppType.label, color = Color.White)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

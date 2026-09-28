@@ -250,7 +250,37 @@ class CustomerDetailViewModel(
         //   그래서 서버 목록에선 '남이 올린 것'(팀원·협업 사장)만 남긴다. (2026-08-13 웹 백필 도입)
         container.sitePhotoServerRepository.fetch(owner, cust).onSuccess { list ->
             _teamPhotos.value = list.filter { !it.isOwner }
+            // 🛟 **내가 올렸는데 폰엔 없는 사진** — 재설치하면 이렇게 된다. (2026-09-28 사장님)
+            //   서버엔 살아 있으니 되살릴 수 있다. 로컬에 이미 있으면 굳이 안 센다.
+            _restorable.value =
+                if (sitePhotos.value.isEmpty()) list.filter { it.isOwner } else emptyList()
         }
+    }
+
+    /** 🛟 서버에만 있는 내 사진 — 되살릴 수 있는 것들. 폰에 사진이 하나도 없을 때만 찬다. */
+    private val _restorable =
+        MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())
+    val restorable = _restorable.asStateFlow()
+
+    /**
+     * 🛟 서버 사진을 폰으로 되살린다. 보기만 되던 것을 **기록으로** 돌려놓는다 —
+     *   내 기록·영상·인증샷·백업이 전부 로컬 사진을 본다.
+     */
+    fun restorePhotosFromServer() = viewModelScope.launch {
+        val list = _restorable.value
+        if (list.isEmpty()) return@launch
+        _toast.value = "사진을 되살리는 중…"
+        var ok = 0
+        withContext(NonCancellable) {
+            val jid = runCatching { container.jobRepository.representativeJobId(customerId) }.getOrNull()
+            // 올린 순서대로 — 그래야 「대표 사진」이 원래 것과 같아진다.
+            list.sortedBy { it.uploadedAtMs }.forEach { p ->
+                val bmp = p.bitmap ?: return@forEach
+                if (container.sitePhotoRepository.addFromBitmap(customerId, bmp, jid, p.uploadedAtMs)) ok++
+            }
+        }
+        _restorable.value = emptyList()
+        _toast.value = if (ok > 0) "사진 ${ok}장을 되살렸어요" else "되살리지 못했어요"
     }
 
     /** 팀원이 이 고객(현장)에 남긴 현장 메모(특이사항). 고객 상세 열 때 가져옴. */

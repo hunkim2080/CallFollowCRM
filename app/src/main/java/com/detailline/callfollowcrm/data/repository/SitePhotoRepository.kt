@@ -77,6 +77,39 @@ class SitePhotoRepository(
         }.getOrDefault(false)
     }
 
+    /**
+     * 🛟 **서버에 있던 사진을 폰으로 되살린다.** (2026-09-28 사장님)
+     *   폰을 재설치하면 앱 안 사진이 통째로 지워진다. 서버에 올라간 것만 살아남는데,
+     *   그건 **보기만** 되고 내 기록·영상·백업엔 안 들어갔다. 로컬로 내려받아야 온전해진다.
+     *   @param takenAt 서버에 올린 시각 — 그래야 순서가 원래대로 선다.
+     */
+    suspend fun addFromBitmap(
+        customerId: Long,
+        bitmap: android.graphics.Bitmap,
+        jobId: Long? = null,
+        takenAt: Long = System.currentTimeMillis()
+    ): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val file = File(photoDir(), "${customerId}_${takenAt}_${System.nanoTime()}.jpg")
+            file.outputStream().use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+            }
+            if (file.length() == 0L) {
+                runCatching { file.delete() }
+                return@runCatching false
+            }
+            dao.insert(
+                SitePhotoEntity(
+                    customerId = customerId, jobId = jobId,
+                    filePath = file.absolutePath, createdAt = takenAt,
+                    // 서버에서 온 것이니 **다시 올릴 필요 없다** 고 표시.
+                    serverUploadedAt = System.currentTimeMillis()
+                )
+            )
+            true
+        }.getOrDefault(false)
+    }
+
     /** DB 행 + 실제 파일 삭제. */
     suspend fun delete(id: Long) = withContext(Dispatchers.IO) {
         runCatching {
