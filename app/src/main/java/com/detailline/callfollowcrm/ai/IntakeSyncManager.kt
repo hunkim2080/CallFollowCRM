@@ -9,6 +9,7 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 import com.detailline.callfollowcrm.util.PhoneKey
+import com.detailline.callfollowcrm.util.DateTimeUtils
 
 /**
  * 시공접수서 제출 동기화 (2026-06-03) — GET /api/quote/submissions 폴링.
@@ -102,17 +103,34 @@ class IntakeSyncManager(private val container: AppContainer) {
             //   성공해야만 imported 에 넣어 다음 폴링서 재시도되게(반쪽 처리 방지).
             val processed = runCatching {
                 val c = container.customerRepository.upsertByPhone(phoneNumber = s.customerPhone)
+                // 📋 **넣은 것과 못 넣은 것을 세어 둔다.** (2026-09-28)
+                //   아래 가드들은 「로컬에 이미 있으면 안 덮는다」가 맞다(사장님이 통화로 확정한 값 보호).
+                //   문제는 **알림이 늘 「반영됐어요」라고 말한 것** — 단골은 하나도 안 들어가는데.
+                //   그래서 사장님이 안 열어보고, 손님이 새로 적어낸 주소·날짜가 조용히 묻혔다.
+                val applied = mutableListOf<String>()
+                val kept = mutableListOf<String>()
                 val fullAddr = listOfNotNull(s.address, s.dong).joinToString(" ").trim()
                 // 주소는 '기존 로컬 값이 비었을 때만' 채운다(총액·메모·계약금과 동일 가드). 예전엔 무조건 덮어써
                 //   사장님이 통화로 확정해둔 주소를 접수서 제출이 조용히 갈아치웠음(무음 소실). (2026-08-11 데이터안전 감사 rank6)
-                if (fullAddr.isNotBlank() && c.address.isNullOrBlank()) container.customerRepository.updateAddress(c.id, fullAddr)
+                if (fullAddr.isNotBlank()) {
+                    if (c.address.isNullOrBlank()) {
+                        container.customerRepository.updateAddress(c.id, fullAddr)
+                        applied += "주소"
+                    } else if (c.address.trim() != fullAddr) {
+                        kept += "주소"   // 손님이 적어낸 주소가 카드와 다르다 — 사장님이 봐야 한다
+                    }
+                }
                 val workMs = workMsOf(s)
                 android.util.Log.i(
                     "IntakeSync",
                     "tok=${s.token} cid=${c.id} y=${s.workYear} mo=${s.workMonth} d=${s.workDay} conf=${s.confirmedDateIso} => workMs=$workMs total=${s.total}"
                 )
                 // 시공예약일도 '기존 로컬 값이 없을 때만' 채운다 — 사장님이 통화로 잡아둔 시공일을 접수서가 덮지 않게. (2026-08-11 데이터안전 감사 rank6)
+                if (workMs != null && c.scheduledWorkDate != null &&
+                    DateTimeUtils.startOfDay(c.scheduledWorkDate!!) != DateTimeUtils.startOfDay(workMs)
+                ) kept += "시공일"
                 if (c.scheduledWorkDate == null) workMs?.let {
+                    applied += "시공일"
                     container.customerRepository.updateScheduledWorkDate(c.id, it)
                     // 접수서로 잡힌 일정도 jobs 에 들어가야 달력에 뜬다. (2026-09-15 사장님)
                     runCatching {
@@ -133,6 +151,9 @@ class IntakeSyncManager(private val container: AppContainer) {
                 val totalWon = s.total.toLong() * 10_000L
                 if (s.total > 0 && (c.totalAmount == null || c.totalAmount == 0L)) {
                     container.customerRepository.updateTotalAmount(c.id, totalWon)
+                    applied += "금액"
+                } else if (s.total > 0 && c.totalAmount != totalWon) {
+                    kept += "금액"
                 }
                 // 계약금도 고객 카드에 반영. ratio → 총액 × %/100. 수동 입력분 존중. (2026-06-14 사장님)
                 //   fixed → depositValue 를 그대로(원 단위). 2026-07-04(c16bc39)부터 서버가 fixed 계약금을 '원'으로
@@ -145,6 +166,9 @@ class IntakeSyncManager(private val container: AppContainer) {
                 }
                 if (depositWon > 0 && (c.depositAmount == null || c.depositAmount == 0L)) {
                     container.customerRepository.updateDepositAmount(c.id, depositWon)
+                    applied += "계약금"
+                } else if (depositWon > 0 && c.depositAmount != depositWon) {
+                    kept += "계약금"
                 }
 
                 val nm = s.customerName.ifBlank { s.customerPhone }
@@ -175,7 +199,8 @@ class IntakeSyncManager(private val container: AppContainer) {
                     NotificationHelper.showIntakeSubmitted(
                         context, s.token, s.customerPhone, nm,
                         address = fullAddr.ifBlank { "주소 미입력" },
-                        dateLabel = dateLabel, totalManwon = s.total
+                        dateLabel = dateLabel, totalManwon = s.total,
+                        applied = applied, kept = kept
                     )
                 }
             }.onFailure {

@@ -51,6 +51,24 @@ interface MessageHistoryDao {
     suspend fun lastSentAtForPhone(phone: String): Long?
 
     /**
+     * 📮 **바로 그 문자**의 「보냄」 기록 — 통신사가 실패를 알려왔을 때 되돌리려고 찾는다. (2026-09-28)
+     *   번호만으로 찾으면 **몇 분 전에 보낸 다른 문자**를 잡는다(테스트폰에서 실제로 그랬다).
+     *   그래서 ① 본문이 같고 ② 그 발송 시각 뒤에 적힌 것만 본다.
+     */
+    @Query("""
+        SELECT * FROM message_histories
+        WHERE phoneNumber = :phone AND createdAt >= :sinceMs AND messageBody = :body
+          AND status IN ('AUTO_SENT','INLINE_SENT','MANUAL_MARK_SENT','ESTIMATE_SENT')
+        ORDER BY createdAt DESC
+        LIMIT 1
+    """)
+    suspend fun lastSentRowForPhone(phone: String, sinceMs: Long, body: String): MessageHistoryEntity?
+
+    /** 📮 그 기록 하나의 상태만 바꾼다(보냄 → 실패). 본문·시각은 그대로. */
+    @Query("UPDATE message_histories SET status = :status WHERE id = :id")
+    suspend fun updateStatus(id: Long, status: String)
+
+    /**
      * 최근 자동답장(부재중 첫 응답) 기록 — 홈 "자동답장" 카드용 (2026-06-01).
      *   AUTO_SENT/AUTO_FAILED 만 (AUTO_CANCELLED = 사장님 본인이 취소 → 카드로 안 보여줌).
      *   sinceMs 이후, 최신순 limit 개.

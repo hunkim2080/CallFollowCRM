@@ -19,6 +19,25 @@ class MessageHistoryRepository(private val dao: MessageHistoryDao) {
     /** 이 번호로 실제 문자가 나간 마지막 시각(ms). 없으면 null. 부재중 자동발송 쿨다운 판정용(ⓑ). */
     suspend fun lastSentAtForPhone(phone: String): Long? = dao.lastSentAtForPhone(phone)
 
+    /**
+     * 📮 **「보냈다」를 「못 보냈다」로 되돌린다.** (2026-09-28)
+     *   통신사가 뒤늦게 실패를 알려왔을 때 [SmsSentReceiver] 가 부른다. 두 가지가 같이 풀린다:
+     *     ① 홈 자동답장 카드가 **빨갛게 「실패」**로 바뀐다 (AUTO_FAILED 를 카드가 이미 읽는다)
+     *     ② 24시간 쿨다운이 풀린다 — 쿨다운 쿼리는 실패 기록을 안 세니까 **다음 통화에 다시 보낸다**
+     *   @return 되돌린 기록이 있으면 true.
+     */
+    suspend fun markLastSendFailed(phone: String, sinceMs: Long, body: String): Boolean {
+        val row = dao.lastSentRowForPhone(phone, sinceMs, body) ?: return false
+        // 자동답장은 AUTO_FAILED, 내가 직접 보낸 건 INLINE_FAILED — 홈 카드는 자동 것만 본다.
+        val failed = if (row.status == MessageStatus.AUTO_SENT.name) {
+            MessageStatus.AUTO_FAILED
+        } else {
+            MessageStatus.INLINE_FAILED
+        }
+        dao.updateStatus(row.id, failed.name)
+        return true
+    }
+
     /** 최근 자동답장 기록 (홈 카드). AUTO_SENT/AUTO_FAILED, sinceMs 이후 최신순 limit 개. */
     fun observeRecentAutoReplies(sinceMs: Long, limit: Int = 5): Flow<List<MessageHistoryEntity>> =
         dao.observeRecentAutoReplies(sinceMs, limit)

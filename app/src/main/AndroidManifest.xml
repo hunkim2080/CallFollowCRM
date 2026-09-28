@@ -299,6 +299,12 @@
             android:name=".service.MmsSentReceiver"
             android:exported="false" />
 
+        <!-- SMS 직접 발송 결과 콜백. 내부 PendingIntent 전용. (2026-09-28)
+             없을 땐 "보냈어요"가 거짓말이 됐다 — SmsSentReceiver 주석 참고. -->
+        <receiver
+            android:name=".service.SmsSentReceiver"
+            android:exported="false" />
+
         <!--
             2026-05-29 Default SMS 앱 자격 컴포넌트 (3/4) — RESPOND_VIA_MESSAGE service.
             자동차/스마트워치/시스템 빠른 답장 UI 가 호출하는 headless 서비스.

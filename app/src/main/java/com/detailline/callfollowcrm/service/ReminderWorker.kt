@@ -313,7 +313,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         //   dedup 키(settle:{id}:{시공일})가 하루 1회를 보장하므로 상한 불필요. 프로토 '오전 10시경'은 목표시각. (2026-08-11 알림 감사)
         if (hour < 9) return
 
-        val threshold = DateTimeUtils.startOfDay(now) - 3 * DateTimeUtils.DAY_MS // 시공 후 3일 경과
+        val todayStart = DateTimeUtils.startOfDay(now)
         val prefs = container.preferences
         val keys = prefs.reminderNotifiedKeys.toMutableSet()
         var changed = false
@@ -331,18 +331,21 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             if (row.total <= 0L) continue
             val remaining = row.outstanding
             if (remaining <= 0L) continue
-            val scheduled = j.scheduledWorkDate ?: continue
-            // 여러 날 공사는 **끝나는 날** 기준 — 3일 공사 첫날부터 세면 사장님이 현장에 있는데 잔금 독촉이 간다.
-            val lastDay = DateTimeUtils.startOfDay(scheduled) +
-                (j.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
-            if (lastDay > threshold) continue // 아직 3일 안 지남(또는 미래)
+            // 🔴 **시공이 끝나야 미수다.** (2026-09-20 사장님 · 2026-09-28 알림에도 적용)
+            //   전엔 여기만 옛 규칙(예약일 + 3일)이었다 — 미수 카드·정산은 이미 완료일 기준인데.
+            //   그래서 **시공이 연기됐는데 날짜를 안 고친 건**이 3일 뒤 알림으로 떴고,
+            //   [잔금 요청 보내기] 를 누르면 **아직 일도 안 한 손님에게 독촉 문자**가 나갔다.
+            //   판단은 SettlementCalc 한 곳에서만 — 두 벌로 두면 또 이렇게 갈린다.
+            val overdue = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+                .overdueDays(j, todayStart) ?: continue
+            if (overdue < 3) continue   // 끝난 날로부터 3일은 기다린다(바로 독촉하지 않는다)
 
             val c = byId[j.customerId] ?: continue
             // dedup 키를 **건 id** 로 — 고객+시공일 키는 같은 날 두 현장을 한 건으로 뭉쳤다.
             val key = "settlej:${j.id}"
             if (key in keys) continue
             val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
-            val daysSince = ((now - lastDay) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)
+            val daysSince = overdue
             NotificationHelper.showBalanceDue(
                 applicationContext, c.id, c.phoneNumber, nm, remaining / 10_000L, daysSince
             )

@@ -43,8 +43,14 @@ object SmsSender {
     ) == PackageManager.PERMISSION_GRANTED
 
     /**
-     * @return 발송 호출 성공 여부 (= SmsManager 까지 안전하게 전달). 실제 통신사 전달 성공은
-     *         별도 PendingIntent 콜백이 필요하지만, 이 앱은 UX 안 막기 위해 fire-and-forget.
+     * @return **넘기기까지** 성공했는지. 통신사가 실제로 보냈는지는 여기서 알 수 없다 —
+     *         그건 [SmsSentReceiver] 가 나중에 듣고, 실패면 사장님께 알리고 기록을 되돌린다.
+     *
+     * 📮 **결과를 안 받으면 「보냈다」가 거짓말이 된다.** (2026-09-28)
+     *   전엔 sentIntent 를 null 로 줬다. 전파가 약하거나 통신사가 거절해도 이 함수는 true 를 냈고,
+     *   화면엔 「자동문자 보냈어요」, 기록엔 AUTO_SENT, 그 기록이 **24시간 쿨다운**을 걸어
+     *   다음 통화에도 안 보냈다. 손님은 첫 응대를 통째로 못 받는다.
+     *   MMS 는 진작 결과를 받고 있었다(MmsSentReceiver) — 문자만 빠져 있던 **두 벌**이다.
      */
     fun sendDirect(context: Context, phoneNumber: String, body: String, persistLocalOnFail: Boolean = true): Boolean {
         if (!hasPermission(context)) return false
@@ -58,10 +64,16 @@ object SmsSender {
             } ?: return false
 
             val parts = sms.divideMessage(body)
+            val sentPi = com.detailline.callfollowcrm.service.SmsSentReceiver
+                .pendingIntent(context, phoneNumber, body)
             if (parts.size <= 1) {
-                sms.sendTextMessage(phoneNumber, null, body, null, null)
+                sms.sendTextMessage(phoneNumber, null, body, sentPi, null)
             } else {
-                sms.sendMultipartTextMessage(phoneNumber, null, parts, null, null)
+                // 길어서 쪼갠 문자는 조각마다 결과가 온다. 같은 쪽지를 주고 **한 조각만 실패해도**
+                //   실패로 본다 — 손님이 반쪽짜리 문자를 받는 것도 못 받은 것과 같다.
+                sms.sendMultipartTextMessage(
+                    phoneNumber, null, parts, ArrayList(List(parts.size) { sentPi }), null
+                )
             }
             true
         }.getOrDefault(false)

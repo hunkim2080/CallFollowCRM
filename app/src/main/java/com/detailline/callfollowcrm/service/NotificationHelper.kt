@@ -77,6 +77,7 @@ object NotificationHelper {
     internal const val FAM_SMS = 16              // 수신 문자
     internal const val FAM_POSTCALL = 17         // 통화 후 "문자 보낼까요?"
     internal const val FAM_MMS_FAIL = 18         // MMS 발송 실패
+    internal const val FAM_SMS_FAIL = 20         // 문자 발송 실패
     internal const val FAM_SINGLE = 19           // 하나짜리 알림들(아래 상수로 번호 고정)
 
     /**
@@ -102,6 +103,7 @@ object NotificationHelper {
         "수신 문자" to FAM_SMS,
         "통화 후 문자" to FAM_POSTCALL,
         "MMS 발송실패" to FAM_MMS_FAIL,
+        "문자 발송실패" to FAM_SMS_FAIL,
         "하나짜리 알림" to FAM_SINGLE,
     )
 
@@ -1251,7 +1253,11 @@ object NotificationHelper {
         name: String,
         address: String,
         dateLabel: String? = null,
-        totalManwon: Int = 0
+        totalManwon: Int = 0,
+        /** 📋 실제로 고객 카드에 **넣은** 칸들. 빈 목록이면 「반영됐다」고 말하지 않는다. */
+        applied: List<String> = emptyList(),
+        /** 📋 카드에 이미 값이 있어 **안 넣은** 칸들. 손님이 적어낸 것과 다르니 사장님이 봐야 한다. */
+        kept: List<String> = emptyList()
     ) {
         val notifId = famId(FAM_INTAKE, token.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -1273,7 +1279,21 @@ object NotificationHelper {
             context, notifId, CHANNEL_INTAKE, ACCENT_PURPLE,
             title = "시공접수서 회신 도착",
             msg = msg,
-            note = "📍 $address\n주소·시공일이 고객 카드에 자동 반영됐어요.",
+            // 📋 **안 한 일을 했다고 말하지 않는다.** (2026-09-28 페이블 지적)
+            //   전엔 조건 없이 「주소·시공일이 자동 반영됐어요」였다. 그런데 카드에 이미 값이 있으면
+            //   **아무것도 안 들어간다**(통화로 확정한 값을 보호하는 옳은 규칙). 단골은 늘 그 경우다.
+            //   그 말을 믿고 안 열어보면 손님이 새로 적어낸 주소로 안 가고 **옛 주소로 간다.**
+            note = buildString {
+                append("📍 $address")
+                if (applied.isNotEmpty()) {
+                    append("\n${applied.joinToString("·")}을 고객 카드에 넣었어요.")
+                }
+                if (kept.isNotEmpty()) {
+                    append("\n⚠ ${kept.joinToString("·")}은 카드에 이미 적힌 게 있어 그대로 뒀어요 — 눌러서 확인하세요.")
+                } else if (applied.isEmpty()) {
+                    append("\n고객 카드는 그대로예요 — 눌러서 확인하세요.")
+                }
+            },
             contentIntent = pending,
             actions = listOf(PushAction("일정 확인", pending))
         )
@@ -1798,6 +1818,23 @@ object NotificationHelper {
      * MMS(사진) 직접 발송 실패 알림 — 지하·약신호 현장에서 사진이 실제론 못 나갔는데 '사진 보냈어요'로 뜨던
      *   '거짓 성공'을 막는다. 사장님이 실패를 인지하고 신호 좋을 때 탭해서 다시 보내게. (2026-08-11 오프라인 감사 rank1)
      */
+    /**
+     * 📮 **문자가 안 나갔다고 알린다.** (2026-09-28 페이블 지적)
+     *   전엔 조용했다 — 화면엔 「보냈어요」가 떠 있고 손님은 아무것도 못 받았다.
+     *   사장님이 알아야 전화라도 한 통 하신다.
+     * @param why 통신사가 준 이유(전파 없음 / 유심 / 거절) — 없으면 비워둔다.
+     */
+    fun showSmsSendFailed(context: Context, phoneNumber: String, why: String) {
+        val id = famId(FAM_SMS_FAIL, PhoneKey.of(phoneNumber).hashCode())
+        val tail = if (why.isBlank()) "" else " ($why)"
+        showProtoPush(
+            context, id, CHANNEL_AUTO_REPLY, ACCENT_PINK,
+            title = "문자가 안 보내졌어요",
+            msg = "${formatPhone(phoneNumber)} — 손님은 못 받았어요.$tail 눌러서 다시 보내주세요.",
+            contentIntent = chatPending(context, phoneNumber, id)
+        )
+    }
+
     fun showMmsSendFailed(context: Context, phoneNumber: String) {
         val id = famId(FAM_MMS_FAIL, PhoneKey.of(phoneNumber).hashCode())
         showProtoPush(

@@ -252,8 +252,14 @@ class CustomerDetailViewModel(
             _teamPhotos.value = list.filter { !it.isOwner }
             // 🛟 **내가 올렸는데 폰엔 없는 사진** — 재설치하면 이렇게 된다. (2026-09-28 사장님)
             //   서버엔 살아 있으니 되살릴 수 있다. 로컬에 이미 있으면 굳이 안 센다.
+            // 🩹 **DB 줄이 아니라 진짜 파일을 센다.** (2026-09-28)
+            //   전엔 sitePhotos 가 비었는지만 봤다. 그런데 백업을 되돌린 폰은 **줄은 있고 파일은 없다** —
+            //   사진 칸은 깨진 자리로 남는데 「되살리기」는 영영 안 뜬다. 직원 폰이 딱 그랬다.
+            val aliveOnPhone = sitePhotos.value.count {
+                runCatching { java.io.File(it.filePath).exists() }.getOrDefault(false)
+            }
             _restorable.value =
-                if (sitePhotos.value.isEmpty()) list.filter { it.isOwner } else emptyList()
+                if (aliveOnPhone == 0) list.filter { it.isOwner } else emptyList()
         }
     }
 
