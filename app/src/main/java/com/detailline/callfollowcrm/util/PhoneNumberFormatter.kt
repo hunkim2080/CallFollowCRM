@@ -82,6 +82,13 @@ object PhoneNumberFormatter {
                     else -> "${d.take(2)}-${d.substring(2, 6)}-${d.drop(6)}"
                 }
             }
+            // 1588·1577·1644 같은 **대표번호**는 4-4 로 끊는다. (2026-09-28)
+            //   전엔 여기 규칙이 없어서 지역번호처럼 잘라 `158-812-34` 가 됐다.
+            //   10·11 로 시작하는 건 휴대폰(010/011)이라 뺀다.
+            digits.startsWith("1") && !digits.startsWith("10") && !digits.startsWith("11") -> {
+                val d = digits.take(8)
+                if (d.length <= 4) d else "${d.take(4)}-${d.drop(4)}"
+            }
             digits.startsWith("01") -> {
                 val d = digits.take(11)
                 when (d.length) {

@@ -1525,14 +1525,13 @@ object NotificationHelper {
     }
 
     /** "010-1234-5678" 식 포맷 — 알림 제목용 단순 포맷터. */
-    private fun formatPhone(raw: String): String {
-        val digits = raw.filter { it.isDigit() }
-        return when (digits.length) {
-            11 -> "${digits.substring(0,3)}-${digits.substring(3,7)}-${digits.substring(7)}"
-            10 -> "${digits.substring(0,3)}-${digits.substring(3,6)}-${digits.substring(6)}"
-            else -> raw
-        }
-    }
+    /**
+     * 📞 번호를 하이픈 붙여 보여준다. 규칙은 [PhoneNumberFormatter] 한 곳. (2026-09-28)
+     *   전엔 여기서 자기가 셌는데 **서울 02 번호를 `021-234-5678` 로 틀리게** 적었다
+     *   (`02-1234-5678` 이어야 한다). 1588 대표번호도 하이픈이 안 붙었다.
+     */
+    private fun formatPhone(raw: String): String =
+        com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)
 
     /**
      * "조용한" 후속 안내 알림 — 2번째 이후 통화이고 사장님이 아직 답 안 보낸 경우.

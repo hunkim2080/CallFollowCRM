@@ -463,19 +463,10 @@ private fun formatBizNo(raw: String): String {
     }
 }
 
-/** 전화번호 자동 하이픈 — 휴대폰 010-XXXX-XXXX / 서울 02-XXXX-XXXX / 그 외 3-3(4)-4. 입력 중 자동. */
+/**
+ * 📞 입력 도중에도 하이픈을 붙여준다. 규칙은 [PhoneNumberFormatter] 한 곳. (2026-09-28)
+ *   전엔 여기서 자기가 셌는데 **1588 대표번호를 `158-8-1234` 로 쪼갰다.**
+ */
 private fun formatPhoneInput(raw: String): String {
-    val d = raw.filter { it.isDigit() }.take(11)
-    return when {
-        d.startsWith("02") -> when {
-            d.length <= 2 -> d
-            d.length <= 5 -> "${d.take(2)}-${d.drop(2)}"
-            d.length <= 9 -> "${d.take(2)}-${d.substring(2, d.length - 4)}-${d.takeLast(4)}"
-            else -> "${d.take(2)}-${d.substring(2, 6)}-${d.takeLast(4)}"
-        }
-        d.length <= 3 -> d
-        d.length <= 7 -> "${d.take(3)}-${d.drop(3)}"
-        d.length <= 10 -> "${d.take(3)}-${d.substring(3, d.length - 4)}-${d.takeLast(4)}"
-        else -> "${d.take(3)}-${d.substring(3, 7)}-${d.takeLast(4)}"
-    }
+    return com.detailline.callfollowcrm.util.PhoneNumberFormatter.formatProgressive(raw)
 }

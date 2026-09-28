@@ -222,10 +222,9 @@ class CustomerMergeManager(
             olderTiebreak = -c.id.toInt(),
         )
 
-    private fun prettyPhone(p: String): String {
-        val d = p.filter { it.isDigit() }
-        return if (d.length == 11) "${d.take(3)}-${d.substring(3, 7)}-${d.substring(7)}" else p
-    }
+    /** 📞 규칙은 [PhoneNumberFormatter] 한 곳. 전엔 11자리만 하이픈이 붙었다. (2026-09-28) */
+    private fun prettyPhone(p: String): String =
+        com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p)
 }
 
 /**
