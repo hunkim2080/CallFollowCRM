@@ -3345,6 +3345,24 @@ async def get_suggestions(phone: str):
 _KST = _dt.timezone(_dt.timedelta(hours=9))
 
 
+def _kst(ms) -> _dt.datetime:
+    """epoch(ms) → **서울 시간** 그대로. (2026-09-28 사장님 「서버날짜 서울」)
+
+    왜 있나: 전엔 같은 뜻을 네 가지로 적고 있었다.
+      · ``utcfromtimestamp(ms/1000) + timedelta(hours=9)``  → 맞음
+      · ``utcfromtimestamp(ms/1000 + 9*3600)``              → 맞음(다른 표기)
+      · ``fromtimestamp(ms/1000)``                          → **서버 컴퓨터 시간대**
+      · ``fromtimestamp(ms/1000 + 9*3600)``                 → **18시간 앞**(+9 를 두 번)
+
+    셋째는 맥미니가 KST 라 우연히 맞았고, 넷째는 실제로 틀려서
+    박람회 계약 시각과 문제 신고 알림 시각이 9시간 앞으로 찍히고 있었다.
+
+    tz 를 안 붙인(naive) 시각을 준다 — 지금까지 맞게 돌던 자리와 **글자 하나까지 같게**
+    하려고. 날짜끼리 빼고 더해야 하는 자리는 예전처럼 ``tz=_KST`` 를 쓴다.
+    """
+    return _dt.datetime.utcfromtimestamp(float(ms) / 1000.0) + _dt.timedelta(hours=9)
+
+
 def _usage_stats_since_ms(period: str) -> int:
     """period → 집계 시작 시각 (epoch ms). 알 수 없는 값은 'all'(=0) 처리."""
     period = (period or "all").strip().lower()
@@ -5796,7 +5814,8 @@ def _alert_500(path: str, status: int, detail: str, key: Optional[str] = None) -
         _alert_last_by_path[key] = now
         _alert_hour_bucket[1] += 1
 
-        when = _dt.datetime.now().strftime("%m/%d %H:%M:%S")
+        # 서버 컴퓨터 시간대가 아니라 **서울 시간**으로. (2026-09-28)
+        when = _kst(time.time() * 1000).strftime("%m/%d %H:%M:%S")
         head = (u"🔴 *손님 길 %d*" % status) if critical else (u"🚨 *서버 %d*" % status)
         _alert_send(head + u" `%s`" % (path or "?")[:120]
                     + chr(10) + (detail or u"(내용 없음)")[:300]
@@ -6790,7 +6809,7 @@ async def admin_visits(token: str = "", hours: int = 24, bots: int = 0) -> HTMLR
         ).fetchall()
 
     def when(ms):
-        d = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        d = _kst(ms)
         return d.strftime("%m/%d %H:%M:%S")
 
     def device(ua):
@@ -7378,7 +7397,8 @@ def _blog_db_init() -> None:
 
 
 def _kst_now() -> "_dt.datetime":
-    return _dt.datetime.utcnow() + _dt.timedelta(hours=9)
+    """지금 이 순간의 **서울 시간**. 규칙은 _kst 한 곳에. (2026-09-28)"""
+    return _kst(time.time() * 1000)
 
 
 # (2026-09-13) 썸네일이 전부 같은 파랑이라 목록이 파란 상자 벽처럼 보였다.
@@ -7556,7 +7576,7 @@ _BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가�
 
 
 def _render_blog_post_html(post: dict) -> str:
-    created = _dt.datetime.utcfromtimestamp(post["created_at_ms"] / 1000) + _dt.timedelta(hours=9)
+    created = _kst(post["created_at_ms"])
     date_label = f"{created.year}. {created.month}. {created.day}"
     thumb_url = _HOME_BASE + (post.get("thumb") or "/static/thumbs/default.png")
     url = f"{_HOME_BASE}/blog/{post['slug']}"
@@ -8130,7 +8150,7 @@ def _render_blog_index_html(page: int = 1, cat: str = "") -> str:
             "FROM blog_posts ORDER BY created_at_ms DESC").fetchall()
     cards = []
     for slug, title, desc, cat_, ms, thumb in rows:
-        dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        dt = _kst(ms)
         cards.append({"slug": slug, "title": title, "description": desc,
                       "category": cat_, "date": f"{dt.year}. {dt.month}. {dt.day}",
                       "thumb": thumb or "/static/thumbs/default.png"})
@@ -8289,7 +8309,7 @@ def _render_updates_dynamic() -> str:
     weeks: dict[str, list] = {}
     order: list[str] = []
     for kind, text, ms in rows:
-        dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        dt = _kst(ms)
         wk_idx = min((dt.day - 1) // 7, 4)
         label = f"{dt.year}. {dt.month}. {_WEEK_KO[wk_idx]} 주"
         if label not in weeks:
@@ -9369,7 +9389,7 @@ async def admin_beta_dashboard_data(
         for r in api_rows:
             ts = r[5] or 0
             try:
-                dt = _dt.datetime.utcfromtimestamp(ts / 1000) + _dt.timedelta(hours=9)
+                dt = _kst(ts)
                 k = dt.strftime("%Y-%m-%d")
             except Exception:
                 continue
@@ -9378,7 +9398,7 @@ async def admin_beta_dashboard_data(
         # 빈 날짜 0 채우기 (시계열 연속)
         daily_series: list = []
         for i in range(days - 1, -1, -1):
-            d = _dt.datetime.utcfromtimestamp((now - i * 86_400_000) / 1000) + _dt.timedelta(hours=9)
+            d = _kst((now - i * 86_400_000))
             k = d.strftime("%Y-%m-%d")
             daily_series.append({
                 "date": k,
@@ -9424,7 +9444,7 @@ async def admin_beta_dashboard_data(
         def _fmt_dt(ms):
             if not ms: return ""
             try:
-                dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+                dt = _kst(ms)
                 return dt.strftime("%m/%d %H:%M")
             except Exception:
                 return ""
@@ -9550,7 +9570,7 @@ async def admin_beta_dashboard_data(
             per_user_calls[phone] = per_user_calls.get(phone, 0) + 1
             per_user_cost[phone] = per_user_cost.get(phone, 0.0) + (cost_usd or 0.0)
             try:
-                dt = _dt.datetime.utcfromtimestamp(ts / 1000) + _dt.timedelta(hours=9)
+                dt = _kst(ts)
                 per_user_ai_days.setdefault(phone, set()).add(dt.strftime("%Y-%m-%d"))
             except Exception:
                 pass
@@ -13365,7 +13385,7 @@ async def download_apk_version():
         "size_bytes": stat.st_size,
         "size_mb": round(stat.st_size / 1024 / 1024, 1),
         "mtime_ms": int(stat.st_mtime * 1000),
-        "mtime_iso": _dt.datetime.fromtimestamp(stat.st_mtime).strftime(
+        "mtime_iso": _kst((stat.st_mtime) * 1000).strftime(
             "%Y-%m-%d %H:%M"
         ),
         "version": version_text or "v0.2-beta",  # §3 (2026-06-18) — VERSION.txt 없을 때 fallback.
@@ -13560,7 +13580,7 @@ def _conversion_notice(plan: str, free_until_ms: Optional[int]) -> Optional[dict
     start_txt = None
     if free_until_ms:
         import datetime as _dt
-        _d = _dt.datetime.fromtimestamp(free_until_ms / 1000)
+        _d = _kst(free_until_ms)
         start_txt = f"{_d.year}년 {_d.month}월 {_d.day}일"
     after = (f"{start_txt + '부터 ' if start_txt else ''}"
              f"월 {info['totalKrw']:,}원(부가세 포함)")
@@ -16483,7 +16503,7 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
     time_label = (time_label_raw or "").strip()
     if not time_label and scheduled_at_ms:
         try:
-            time_label = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
+            time_label = _kst(scheduled_at_ms).strftime("%H:%M")
         except Exception:
             time_label = ""
     out = {
@@ -16893,7 +16913,7 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         tl = (time_label_raw or "").strip()
         if not tl and scheduled_at_ms:
             try:
-                tl = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
+                tl = _kst(scheduled_at_ms).strftime("%H:%M")
             except Exception:
                 tl = ""
         # §A-3 owner_name (raw 우선, 없으면 registered owner, 최종 fallback "사장님")
@@ -17907,7 +17927,7 @@ def _remind_pass() -> None:
         tl = (time_label_raw or "").strip()
         if not tl and scheduled_at_ms:
             try:
-                tl = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
+                tl = _kst(scheduled_at_ms).strftime("%H:%M")
             except Exception:
                 tl = ""
         # §A-3 — owner_name_raw 우선 ('디테일라인')
@@ -18610,7 +18630,7 @@ async def labor_history(phone: str, limit: int = 50) -> dict:
             except Exception:
                 photos = []
         try:
-            date_str = _dt.datetime.fromtimestamp(worked_at_ms / 1000).strftime("%Y-%m-%d")
+            date_str = _kst(worked_at_ms).strftime("%Y-%m-%d")
         except Exception:
             date_str = ""
         sites.append({
@@ -18624,7 +18644,7 @@ async def labor_history(phone: str, limit: int = 50) -> dict:
     last_worked_at_str = ""
     if last_worked:
         try:
-            last_worked_at_str = _dt.datetime.fromtimestamp(last_worked / 1000).strftime("%Y-%m-%d")
+            last_worked_at_str = _kst(last_worked).strftime("%Y-%m-%d")
         except Exception:
             pass
 
@@ -19093,7 +19113,7 @@ async def shared_link_page(share_id: str) -> HTMLResponse:
     date_label = ""
     if scheduled_at:
         try:
-            date_label = _dt.datetime.fromtimestamp(scheduled_at / 1000).strftime("%Y년 %m월 %d일 (%a)")
+            date_label = _kst(scheduled_at).strftime("%Y년 %m월 %d일 (%a)")
         except Exception:
             date_label = ""
     date_label = _html.escape(date_label)
@@ -20227,7 +20247,7 @@ def _format_schedule_label(scheduled_at_ms: int, scheduled_days: int) -> str:
         return "미정 (사장님이 곧 알려드려요)"
     import datetime
     # KST 변환 (UTC+9)
-    dt = datetime.datetime.utcfromtimestamp(scheduled_at_ms / 1000) + datetime.timedelta(hours=9)
+    dt = _kst(scheduled_at_ms)
     wn = ["월", "화", "수", "목", "금", "토", "일"]
     wd = wn[dt.weekday()]
     if scheduled_days and scheduled_days > 1:
@@ -20902,8 +20922,7 @@ def _render_intake_receipt_html(data: dict) -> str:
     # 제출 시각 (KST)
     submitted_label = ""
     if data.get("submitted_at_ms"):
-        _dt = (datetime.datetime.utcfromtimestamp(data["submitted_at_ms"] / 1000)
-               + datetime.timedelta(hours=9))
+        _dt = (_kst(data["submitted_at_ms"]))
         submitted_label = f"{_dt.year}. {_dt.month}. {_dt.day}. {_dt.hour:02d}:{_dt.minute:02d} 접수"
 
     # 견적 항목
@@ -21411,13 +21430,13 @@ def _format_quote_doc_items_rows(items: list[dict]) -> str:
 
 def _format_quote_doc_issue_date(issued_at_ms: int) -> str:
     import datetime
-    dt = datetime.datetime.utcfromtimestamp(issued_at_ms / 1000) + datetime.timedelta(hours=9)
+    dt = _kst(issued_at_ms)
     return f"{dt.year}. {dt.month:02d}. {dt.day:02d}"
 
 
 def _format_quote_doc_valid_label(expires_at_ms: int) -> str:
     import datetime
-    dt = datetime.datetime.utcfromtimestamp(expires_at_ms / 1000) + datetime.timedelta(hours=9)
+    dt = _kst(expires_at_ms)
     return f"{dt.year}. {dt.month:02d}. {dt.day:02d} 까지"
 
 
@@ -23604,7 +23623,7 @@ def _build_next_block_html(items: list[dict]) -> str:
 def _expiry_label(expires_at_ms: int) -> str:
     """epoch ms → '5/31 (일요일)' 형태 (만료 안내 표시용)."""
     import datetime
-    dt = datetime.datetime.utcfromtimestamp(expires_at_ms / 1000) + datetime.timedelta(hours=9)
+    dt = _kst(expires_at_ms)
     wn = ["월","화","수","목","금","토","일"]
     return f"{dt.month}/{dt.day} ({wn[dt.weekday()]}요일)"
 
@@ -23612,7 +23631,7 @@ def _expiry_label(expires_at_ms: int) -> str:
 def _short_date_label(ms: int) -> str:
     """epoch ms → '6/5 (목)' 형태 (오늘 현장 날짜 헤더용, KST)."""
     import datetime
-    dt = datetime.datetime.utcfromtimestamp(ms / 1000) + datetime.timedelta(hours=9)
+    dt = _kst(ms)
     wn = ["월","화","수","목","금","토","일"]
     return f"{dt.month}/{dt.day} ({wn[dt.weekday()]})"
 
@@ -23690,10 +23709,10 @@ async def team_member_page(token: str) -> HTMLResponse:
                 except json.JSONDecodeError:
                     txt = ""
                 if txt:
-                    _dtn = _dt.datetime.utcfromtimestamp(cms / 1000) + _dt.timedelta(hours=9)
+                    _dtn = _kst(cms)
                     read_label = None
                     if read_at:
-                        _dr = _dt.datetime.utcfromtimestamp(read_at / 1000) + _dt.timedelta(hours=9)
+                        _dr = _kst(read_at)
                         read_label = f"{_dr.month}/{_dr.day} {_dr.hour:02d}:{_dr.minute:02d}"
                     notes.append({
                         "text": txt, "time": f"{_dtn.hour:02d}:{_dtn.minute:02d}",
@@ -28092,7 +28111,7 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     except Exception:
         items = []
     import datetime as _dt
-    dt = _dt.datetime.fromtimestamp((c[12] or 0) / 1000 + 9 * 3600).strftime("%Y-%m-%d %H:%M")
+    dt = _kst((c[12] or 0)).strftime("%Y-%m-%d %H:%M")
     lines = ""
     for it in items:
         qty = ("" if it.get("kind") == "service"
@@ -28902,7 +28921,7 @@ async def diagnostics_report(req: DiagnosticsReport) -> dict:
         con.commit()
     # 슬랙 캐치 알림 (best-effort — 실패해도 저장은 됨)
     import datetime as _dt
-    when = _dt.datetime.fromtimestamp(now / 1000 + 9 * 3600).strftime("%m-%d %H:%M")
+    when = _kst(now).strftime("%m-%d %H:%M")
     who = _fmt_phone(req.phone) or "번호미상"
     head = f"🐞 문제 신고 #{rid} · {who} · v{req.version or '?'} · {req.device or '?'} (Android {req.android or '?'}) · {when}"
     body_txt = ""
@@ -28998,7 +29017,7 @@ def _render_diag_html(rows, token: str = "") -> str:
     cards = []
     for r in rows:
         rid, phone, version, device, android, note, report, image_path, cms, resolved = r
-        when = _dt.datetime.utcfromtimestamp((cms or 0) / 1000 + 9 * 3600).strftime("%m/%d %H:%M")
+        when = _kst((cms or 0)).strftime("%m/%d %H:%M")
         done = bool(resolved)
         cls = "done" if done else "open"
         pill = ('<span class="pill done">✓ 개선함</span>' if done
@@ -29114,7 +29133,7 @@ def _ym_kst(ms) -> str:
     if not ms:
         return ""
     import datetime as _d
-    return _d.datetime.utcfromtimestamp(int(ms) / 1000 + 9 * 3600).strftime("%Y-%m")
+    return _kst(int(ms)).strftime("%Y-%m")
 
 
 @app.get("/api/shared/monthly")

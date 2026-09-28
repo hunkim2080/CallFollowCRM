@@ -3117,9 +3117,9 @@ private fun CdUndoChip(label: String, danger: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** 원 → "N만원"(만 단위로 떨어지면) / "N원". */
+/** 원 → "N만원"(만 단위로 떨어지면) / "N원". 규칙은 MoneyFormatter 한 곳에. (2026-09-28) */
 private fun manwonLabel(won: Long): String =
-    if (won % 10000L == 0L) "%,d만원".format(won / 10000L) else "%,d원".format(won)
+    com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)
 
 // (payStatusLabel / MoneyEditPill 제거 — 돈도 CdKv 한 줄로 바뀌면서 쓸 곳이 없어졌다. 2026-09-20)
 

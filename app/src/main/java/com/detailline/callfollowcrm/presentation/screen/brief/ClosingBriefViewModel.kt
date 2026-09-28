@@ -131,13 +131,16 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
         )
     }
 
-    private fun formatMoney(won: Long): String {
-        // 만원 단위로 읽기 쉽게. 1,200,000 → "120만", 50,000 → "5만", 5,000 → "5,000".
-        return when {
-            won >= 10_000 && won % 10_000 == 0L -> "${won / 10_000}만"
-            else -> "%,d".format(won)
+    /**
+     * 브리핑 한 줄 — 뒤에 "원"을 따로 붙이는 자리라 여기선 숫자만 만든다.
+     *   1,200,000 → "120만", 5,000 → "5,000". 규칙은 MoneyFormatter 한 곳에. (2026-09-28)
+     */
+    private fun formatMoney(won: Long): String =
+        if (won >= 10_000 && won % 10_000 == 0L) {
+            com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(won, "만")
+        } else {
+            "%,d".format(won)
         }
-    }
 }
 
 data class BriefJob(

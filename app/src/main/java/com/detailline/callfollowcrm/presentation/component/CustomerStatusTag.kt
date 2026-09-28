@@ -180,7 +180,10 @@ private fun filterTagLabel(c: CustomerEntity, filter: String): String? = when (f
     // 얼마가 남았나.
     "owe" -> {
         val owed = c.balanceAmount ?: c.totalAmount?.let { t -> t - (c.depositAmount ?: 0L) }
-        if (owed != null && owed > 0L) "잔금 ${owed / 10_000L}만" else null
+        // 딱지는 자리가 없다 → 내림. 정확한 금액은 고객 정보에서 본다. (2026-09-28 사장님 「내림」)
+        if (owed != null && owed > 0L)
+            "잔금 " + com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(owed, "만")
+        else null
     }
     else -> null
 }

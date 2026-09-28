@@ -31,9 +31,11 @@ class PricingItemFormatTest {
         // 만약 어딘가 ×10000 을 한 번 더 하면 30만원 입력이 3000000000 이 되어 "30만원"이 안 나옴.
         val thirtyManWon = 300_000L   // 정상: 30만원 = 300,000원
         assertEquals("30만원", PricingItemRepository.formatWon(thirtyManWon))
-        // 이중곱된 값(버그)은 절대 "30만원"이 아님을 확인.
+        // 이중곱된 값(버그)은 절대 "30만원"이 아님을 확인 — 이게 이 테스트의 본뜻이다.
         val doubled = 30_0000_0000L   // 30 * 10000 * 10000 (버그 시나리오)
-        assertEquals("300000만원", PricingItemRepository.formatWon(doubled))
+        assertNotEquals("30만원", PricingItemRepository.formatWon(doubled))
+        // 2026-09-28: 만원 표기를 MoneyFormatter 한 곳으로 모으면서 큰 수에 콤마가 붙는다(읽기 쉬우라고).
+        assertEquals("300,000만원", PricingItemRepository.formatWon(doubled))
     }
 
     // ── 문자 추출 upsert dedup 키 (2026-07-02 문자 기반 가격 추출) ──

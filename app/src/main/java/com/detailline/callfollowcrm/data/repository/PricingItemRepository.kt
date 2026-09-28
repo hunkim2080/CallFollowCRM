@@ -129,8 +129,7 @@ class PricingItemRepository(private val dao: PricingItemDao) {
          *   앱은 ×10000 을 두 번 하지 않는다는 것을 여기 테스트로 못박음. (2026-07-02 가격 온보딩)
          */
         fun formatWon(price: Long): String =
-            if (price >= 10000 && price % 10000L == 0L) "${price / 10000}만원"
-            else "${"%,d".format(price)}원"
+            com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(price)
 
         /**
          * 항목 dedup 키 — 공백 제거 + 소문자 제목 + 카테고리. 문자 추출 upsert 매칭용. (2026-07-02)

@@ -298,7 +298,8 @@ fun QuoteDocScreen(
                     Text("· 계약금 입금 시 시공일이 확정됩니다", fontSize = 12.sp, color = SealRed,
                         fontWeight = FontWeight.Medium, lineHeight = 21.sp)
                     // 잔금 안내 — 계약금 제외하고 시공 후 입금. 만원 딱 떨어지면 만원 표기. (2026-07-04 사장님)
-                    val depLabel = if (depWon % 10_000L == 0L) "${depWon / 10_000L}만원" else "${won(depWon)}원"
+                    // 손님이 읽는 문서다 — **한 푼도 안 깎는다.** 규칙은 MoneyFormatter 한 곳에. (2026-09-28)
+                    val depLabel = com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(depWon)
                     Text("· 시공이 끝난 뒤 계약금 ${depLabel}을 제외하고 입금해주시면 됩니다", fontSize = 12.sp,
                         color = TossTextSecondary, lineHeight = 21.sp)
                 } else {

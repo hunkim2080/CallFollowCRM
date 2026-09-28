@@ -3762,9 +3762,9 @@ private fun TradeAskCard(
     }
 }
 
-/** 돈 표기 — 만원 단위로 떨어지면 "95만원", 아니면 "1,234,500원". */
+/** 돈 표기 — 규칙은 MoneyFormatter 한 곳에. 손님이 보는 글이라 **안 깎는다**. (2026-09-28) */
 private fun payWonLabel(won: Long): String =
-    if (won % 10_000L == 0L) "${won / 10_000L}만원" else com.detailline.callfollowcrm.util.MoneyFormatter.won(won)
+    com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)
 
 /**
  * "입금했습니다" 확인 카드. (2026-09-17 사장님)

@@ -339,7 +339,9 @@ class CalendarSyncManager(
         val region = addr?.let { regionOf(it) }
         val who = c.name?.takeIf { it.isNotBlank() }
         val base = region ?: who ?: c.phoneNumber
-        val moneyTag = c.totalAmount?.takeIf { it > 0L }?.let { "[${it / 10_000L}]" } ?: ""
+        // 캘린더 제목은 자리가 좁다 → 내림해서 만 단위 숫자만. (2026-09-28 사장님 「내림」)
+        val moneyTag = c.totalAmount?.takeIf { it > 0L }
+            ?.let { "[" + com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(it, "") + "]" } ?: ""
         val summary = if (type == ScheduleType.WORK) "🏗️$moneyTag $base".trim()
         else "🔧$moneyTag $base (A/S)".trim()
 
@@ -428,9 +430,9 @@ class CalendarSyncManager(
         return if (parts.size >= 2) parts.joinToString(" ") else null
     }
 
-    /** 원 → 보기 좋은 금액. 만원 단위 딱 떨어지면 "N만원", 아니면 콤마. */
+    /** 원 → 보기 좋은 금액. 규칙은 MoneyFormatter 한 곳에. (2026-09-28 여섯 벌 정리) */
     private fun won(amount: Long): String =
-        if (amount % 10_000L == 0L) "${amount / 10_000L}만원" else "%,d원".format(amount)
+        com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(amount)
 
     /**
      * 캘린더 제목에 쓸 지역 — "서울 송파구", "경기 안산시". (2026-09-14 사장님 예전 양식)
