@@ -16,7 +16,8 @@ import java.io.File
  *   백필 업로드. 그래야 PC 웹에서 사장님 사진을 날짜별로 보고 블로그용으로 내려받음. (2026-08-13 사장님)
  *
  * 원칙:
- *   - **웹 로그인(webViewerActive) 상태일 때만** 올림 → 웹 안 쓰는 사람은 서버 비용/개인정보 0 ([[WebFeedSyncManager]] 와 동일 게이트).
+ *   - **항상 올림** (2026-09-28 사장님). 전엔 웹 로그인 중에만 올렸는데, 그 탓에 직원 폰을
+ *     재설치했을 때 사진이 사라졌다 — 웹을 쓴 기간 것만 서버에 남아 있었다.
  *   - 오래된 것부터(createdAt ASC) 올려 전/후 자동추정 순서 보존.
  *   - 1280px 압축([ImageEncoder]) → ≤1MB. 완료 표시(serverUploadedAt)로 중복 방지.
  *   - 서버 오류(예: 티어 게이트 403)면 그 라운드 중단 → 다음 기회(앱 재시작/재로그인)에 재시도.
@@ -38,7 +39,12 @@ class OwnerPhotoUploadManager(
 
     /** 미업로드 로컬 사진을 순서대로 서버에 올림. @return 이번에 올린 장수. */
     suspend fun uploadPending(): Int = mutex.withLock {
-        if (!prefs.webViewerActive) return@withLock 0
+        // 📸 **웹을 안 써도 항상 올린다.** (2026-09-28 사장님 "사진은 항상 서버에 올려야지")
+        //   전엔 `webViewerActive`(PC 웹 쓰는 동안)에만 올렸다 — 서버 비용을 아끼려던 것이었는데,
+        //   그 바람에 **직원 폰 재설치 때 사진이 사라졌다.** 웹을 쓴 기간의 세 현장만 서버에 있었고
+        //   나머지는 폰에만 있다가 같이 지워졌다. 백업은 2MB 상한에 걸려 거의 안 담겼고.
+        //   사진은 다시 못 찍는다 — 아껴야 할 것은 서버 용량이 아니라 **사장님 일의 기록**이다.
+        //   (1280px·JPEG 로 줄여 올리므로 장당 ~200KB. [ImageEncoder])
         val ownerPhone = prefs.bizPhone.trim()
         if (ownerPhone.filter { it.isDigit() }.length < 9) return@withLock 0
 
