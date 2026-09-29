@@ -265,6 +265,18 @@ class CustomerDetailViewModel(
         }
     }
 
+    /**
+     * 🔄 사진을 돌려 저장한다. **크게 보기를 닫을 때 한 번만** 부른다 —
+     *   누를 때마다 쓰면 그만큼 화질이 깎인다. 0 도면 아무것도 안 한다.
+     */
+    fun rotatePhoto(photoId: Long, degrees: Int) = viewModelScope.launch {
+        if (degrees % 360 == 0) return@launch
+        val ok = withContext(NonCancellable) {
+            runCatching { container.sitePhotoRepository.rotate(photoId, degrees) }.getOrDefault(false)
+        }
+        if (!ok) _toast.value = "사진을 돌리지 못했어요"
+    }
+
     /** 🛟 서버에만 있는 내 사진 — 되살릴 수 있는 것들. 폰에 사진이 하나도 없을 때만 찬다. */
     private val _restorable =
         MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())

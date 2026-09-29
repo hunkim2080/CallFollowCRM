@@ -110,6 +110,45 @@ class SitePhotoRepository(
         }.getOrDefault(false)
     }
 
+    /**
+     * 🔄 **사진을 돌려서 파일에 그대로 쓴다.** (2026-09-30 사장님)
+     *
+     *   돌아서 들어온 사진은 EXIF(방향 표시)가 없거나 틀린 것이라 **자동으로는 못 고친다.**
+     *   그래서 사장님이 돌린 대로 **픽셀 자체를 돌려** 다시 쓴다 — 그래야 어디서 봐도 똑바로다.
+     *
+     *   서버에 올린 표시(serverUploadedAt)를 **지운다** → 업로더가 알아서 다시 올린다.
+     *   안 그러면 폰은 바로 섰는데 **PC 웹은 누운 채로** 남는다.
+     *
+     * @param degrees 90 의 배수. 0 이면 아무것도 안 한다(네 번 눌러 제자리로 온 경우).
+     * @return 성공 여부.
+     */
+    suspend fun rotate(photoId: Long, degrees: Int): Boolean = withContext(Dispatchers.IO) {
+        val deg = ((degrees % 360) + 360) % 360
+        if (deg == 0) return@withContext true
+        runCatching {
+            val path = dao.filePathOf(photoId) ?: return@runCatching false
+            val file = File(path)
+            if (!file.exists()) return@runCatching false
+            val src = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                ?: return@runCatching false
+            val m = android.graphics.Matrix().apply { postRotate(deg.toFloat()) }
+            val out = android.graphics.Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
+            // 임시 파일에 먼저 쓴다 — 쓰다 죽으면 원본이 깨진 채로 남으면 안 된다.
+            val tmp = File(file.absolutePath + ".rot")
+            tmp.outputStream().use { o ->
+                out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, o)
+            }
+            if (tmp.length() == 0L) { runCatching { tmp.delete() }; return@runCatching false }
+            if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true); runCatching { tmp.delete() }
+            }
+            if (src !== out) runCatching { src.recycle() }
+            // 서버에 다시 올리게 표시를 지운다.
+            runCatching { dao.markUploaded(photoId, null) }
+            true
+        }.getOrDefault(false)
+    }
+
     /** DB 행 + 실제 파일 삭제. */
     suspend fun delete(id: Long) = withContext(Dispatchers.IO) {
         runCatching {

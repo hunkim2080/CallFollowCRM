@@ -33,5 +33,5 @@ interface SitePhotoDao {
 
     /** 서버 업로드 완료 표시(ts) 또는 파일없음 표식(-1) — 다음 백필서 제외. */
     @Query("UPDATE site_photos SET serverUploadedAt = :ts WHERE id = :id")
-    suspend fun markUploaded(id: Long, ts: Long)
+    suspend fun markUploaded(id: Long, ts: Long?)
 }

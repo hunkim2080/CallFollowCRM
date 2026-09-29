@@ -148,6 +148,7 @@ import com.detailline.callfollowcrm.util.splitSiteAddress
 import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 import com.detailline.callfollowcrm.util.PhoneKey
+import androidx.compose.ui.graphics.graphicsLayer
 
 /**
  * 메모를 저장해도 되는가 — 저장 경로가 두 곳(타이핑 debounce / 화면 나갈 때 flush)이라
@@ -207,6 +208,8 @@ fun CustomerDetailScreen(
     var amountChangeReason by remember { mutableStateOf<Pair<Long, Long>?>(null) }
     // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    /** 🔄 크게 보는 그 사진의 id — 돌려서 저장하려면 어느 줄인지 알아야 한다. (2026-09-30) */
+    var fullscreenPhotoId by remember { mutableStateOf(0L) }
     // 팀/서버 현장사진(비트맵) 풀스크린 — base64 디코드본이라 Uri 가 아닌 Bitmap.
     var fullscreenBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     // 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 전화 알게 되면 가져옴.
@@ -1522,6 +1525,7 @@ fun CustomerDetailScreen(
                                                             pickedMine =
                                                                 if (picked) pickedMine - cell.id else pickedMine + cell.id
                                                         } else {
+                                                            fullscreenPhotoId = cell.id
                                                             fullscreenImageUri =
                                                                 android.net.Uri.fromFile(java.io.File(cell.filePath))
                                                         }
@@ -2088,40 +2092,71 @@ fun CustomerDetailScreen(
 
     // 풀스크린 이미지 뷰어 — 썸네일 탭 시 표시. 검은 배경 + X 닫기.
     fullscreenImageUri?.let { uri ->
+        // 🔄 **돌린 각도는 화면에만 둔다.** 파일은 **닫을 때 한 번만** 쓴다. (2026-09-30 사장님)
+        //   "왼쪽 오른쪽 한 번 누르고 끄면 그렇게 저장되는 건가~?" → 네.
+        //   누를 때마다 다시 쓰면 그만큼 화질이 깎인다. 네 번 눌러 제자리로 오면 **아무것도 안 쓴다.**
+        var rot by remember(fullscreenPhotoId) { mutableStateOf(0) }
+        val closeAndSave = {
+            if (rot % 360 != 0 && fullscreenPhotoId > 0L) {
+                viewModel.rotatePhoto(fullscreenPhotoId, rot)
+            }
+            fullscreenImageUri = null
+            fullscreenPhotoId = 0L
+        }
         Dialog(
-            onDismissRequest = { fullscreenImageUri = null },
+            onDismissRequest = closeAndSave,
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            androidx.compose.foundation.layout.Box(
+            androidx.compose.foundation.layout.BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .clickable { fullscreenImageUri = null },
+                    // 사진을 눌러도 닫히게 — 원래 그랬다. 돌리기 버튼은 이 위에 얹혀 안 눌린다.
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { closeAndSave() },
                 contentAlignment = androidx.compose.ui.Alignment.Center
             ) {
+                // 90·270 도로 돌리면 가로세로가 바뀐다 → 화면 밖으로 나가지 않게 그만큼 줄인다.
+                val sideways = (rot % 180) != 0
+                val shrink = if (sideways) minOf(maxWidth / maxHeight, maxHeight / maxWidth) else 1f
                 coil.compose.AsyncImage(
                     model = uri,
                     contentDescription = "사진",
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().graphicsLayer {
+                        rotationZ = rot.toFloat(); scaleX = shrink; scaleY = shrink
+                    },
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
                 IconButton(
-                    onClick = { fullscreenImageUri = null },
+                    onClick = closeAndSave,
                     modifier = Modifier
                         .align(androidx.compose.ui.Alignment.TopEnd)
                         .padding(16.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "닫기",
-                        tint = Color.White
-                    )
+                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = Color.White)
+                }
+                // 🔄 돌리기 — **크게 보면서** 돌린다. 작은 썸네일에선 제대로 됐는지 안 보인다.
+                //   「골라 지우기」 안에 안 넣는다: 지우기는 되돌릴 수 없고 돌리기는 자주 하는 일이라,
+                //   섞으면 **돌리려다 지운다.**
+                if (fullscreenPhotoId > 0L) {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .align(androidx.compose.ui.Alignment.BottomCenter)
+                            .padding(bottom = 34.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        PhotoRotateBtn("↺  왼쪽") { rot -= 90 }
+                        PhotoRotateBtn("↻  오른쪽") { rot += 90 }
+                    }
                 }
             }
         }
     }
 
     // 팀/서버 현장사진(비트맵) 풀스크린 뷰어.
+    //   ⚠️ 여기엔 돌리기가 없다 — 남의 사진(팀원·서버)이라 우리 파일이 아니다.
     fullscreenBitmap?.let { bmp ->
         Dialog(
             onDismissRequest = { fullscreenBitmap = null },
@@ -5264,3 +5299,17 @@ private fun PastJobKv(k: String, v: String, vColor: Color) {
     }
 }
 
+/** 🔄 까만 화면 위에서도 읽히게 — 반투명 흰 알약. (2026-09-30 사장님) */
+@Composable
+private fun PhotoRotateBtn(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+        modifier = Modifier
+            .clip(AppShape.pill)
+            .background(Color.White.copy(alpha = 0.16f))
+            .border(1.dp, Color.White.copy(alpha = 0.34f), AppShape.pill)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 11.dp)
+    )
+}
