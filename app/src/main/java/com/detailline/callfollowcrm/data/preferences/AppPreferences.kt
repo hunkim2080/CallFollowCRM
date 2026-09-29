@@ -944,6 +944,14 @@ class AppPreferences(context: Context) {
      *   저장 규칙이 바뀌기 전에 하이픈 채로 저장된 줄들을 앱 켤 때 1회 정리한다.
      *   실패하면 안 세워서 다음 실행에 다시 해본다.
      */
+    /**
+     * 🔗 확실한 쌍(통일하면 글자까지 같아지는 것)을 한 번 합쳤나. (2026-09-30)
+     *   실패하면 안 세워서 다음 실행에 다시 해본다. 백업이 안 되면 합치지 않는다.
+     */
+    var surePairsMerged: Boolean
+        get() = prefs.getBoolean("sure_pairs_merged", false)
+        set(v) { prefs.edit().putBoolean("sure_pairs_merged", v).apply() }
+
     var phoneShapesTidied: Boolean
         get() = prefs.getBoolean("phone_shapes_tidied", false)
         set(v) { prefs.edit().putBoolean("phone_shapes_tidied", v).apply() }

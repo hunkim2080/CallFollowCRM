@@ -30,6 +30,9 @@ class CallFollowCrmApplication : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** 🔗 저절로 합쳐도 되는 쌍의 최대 개수. 이보다 많으면 규칙이 이상한 것이라 아무것도 안 한다. */
+    private val SURE_MERGE_MAX = 30
+
     /** 앱 수명 동안 도는 IO 스코프 — SmsSender 등 컴포넌트의 fire-and-forget 보존 작업용. */
     val applicationScope: CoroutineScope get() = appScope
 
@@ -122,6 +125,44 @@ class CallFollowCrmApplication : Application() {
                         container.preferences.phoneShapesTidied = true
                         if (n > 0) android.util.Log.i("PhoneTidy", "번호 모양 ${n}개를 한 모양으로 맞췄다")
                     }
+            }
+            // 🔗 **확실한 쌍은 저절로 합친다.** (2026-09-30 사장님 "굳이 왜 내가 눌러야 해?")
+            //   「통일하면 글자까지 똑같아지는 것」만 — 그런 쌍은 같은 사람일 수밖에 없다.
+            //   끝 8자리만 같은 애매한 쌍(02 유선 vs 010 휴대폰)은 **손 안 댄다.**
+            //     그건 남남일 수 있어서 설정 화면에서 미리보기·백업을 거쳐야 한다.
+            //   ⚠️ 합치기 전에 **서버 백업을 먼저 뜬다.** 되돌릴 수 없는 일이라,
+            //     백업이 안 되면 아무것도 안 한다. (설정 화면이 하는 것과 같은 순서)
+            if (!container.preferences.surePairsMerged) {
+                runCatching {
+                    val plans = container.customerMergeManager.findSurePlans()
+                    if (plans.isEmpty()) {
+                        container.preferences.surePairsMerged = true
+                    } else if (plans.size > SURE_MERGE_MAX) {
+                        // 🛑 **너무 많으면 손대지 않는다.** 규칙이 잘못됐다는 뜻일 수 있다.
+                        //   자동으로 합치는 건 되돌릴 수 없어서, 이상하면 **아무것도 안 하는 쪽**이 맞다.
+                        //   설정 화면의 손버튼은 그대로 쓸 수 있다(미리보기·백업을 거친다).
+                        android.util.Log.w(
+                            "PhoneMerge",
+                            "확실한 쌍이 ${plans.size}개나 된다 — 이상해서 자동으로 안 합친다"
+                        )
+                    } else {
+                        val backedUp = runCatching {
+                            val bytes = com.detailline.callfollowcrm.util.DataBackup.serverBlobBytes(this@CallFollowCrmApplication)
+                            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                            container.backupRepository.push(b64)
+                        }.getOrDefault(false)
+                        if (backedUp) {
+                            val r = container.customerMergeManager.merge(plans)
+                            container.preferences.surePairsMerged = true
+                            android.util.Log.i(
+                                "PhoneMerge",
+                                "갈라진 손님 ${r.mergedPairs}쌍을 저절로 합쳤다 (일정 ${r.movedJobs}건 옮김)"
+                            )
+                        } else {
+                            android.util.Log.w("PhoneMerge", "백업이 안 돼서 합치지 않았다 — 다음에 다시")
+                        }
+                    }
+                }
             }
             // 2026-06-07 — 견적 기록 버그 수정 전(6/6 이전) 잘못 쌓인 "견적 회신 챙기기" 데이터 1회 정리.
             if (!container.preferences.estimateSentLegacyCleaned) {

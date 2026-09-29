@@ -69,6 +69,28 @@ class CustomerMergeManager(
         }
     }.getOrDefault(0)
 
+    /**
+     * 🔗 **묻지 않고 합쳐도 되는 쌍** — 번호를 한 모양으로 바꾸면 **글자까지 똑같아지는** 것만.
+     *   (2026-09-30 사장님 "바로 합치고 다시는 이런 일 벌어지지 않도록 해. 굳이 왜 내가 눌러야 해?")
+     *
+     * 왜 조건을 좁히나 — 지금 「같은 사람」 기준은 **끝 8자리**다. 그걸로 자동으로 합치면:
+     *   `02-1234-5678` 과 `010-1234-5678` 이 둘 다 열쇠 `12345678` 이라 **남을 붙인다.**
+     *   (070·031 도 마찬가지. 손님 둘이 한 줄이 되면 되돌릴 수 없다.)
+     *
+     * 통일하면 글자까지 같아지는 쌍은 **같은 사람일 수밖에 없다** —
+     *   `010-3404-5247` 과 `01034045247` 은 하이픈만 다른 같은 번호다.
+     *
+     * 애매한 쌍(끝 8자리만 같은 것)은 지금처럼 **설정 화면에서 미리보기 → 백업 → 확인** 을 거친다.
+     */
+    suspend fun findSurePlans(): List<Plan> =
+        findPlans().filter { p ->
+            val ids = p.loserIds + p.keeperId
+            val shapes = runCatching { mergeDao.allCustomers() }.getOrDefault(emptyList())
+                .filter { it.id in ids }
+                .map { PhoneKey.normalize(it.phoneNumber) }
+            shapes.size == ids.size && shapes.toSet().size == 1 && shapes.first().isNotBlank()
+        }
+
     /** 합칠 쌍 찾기 — 바꾸는 건 없다. 미리보기용. */
     suspend fun findPlans(): List<Plan> {
         val all = runCatching { mergeDao.allCustomers() }.getOrDefault(emptyList())
