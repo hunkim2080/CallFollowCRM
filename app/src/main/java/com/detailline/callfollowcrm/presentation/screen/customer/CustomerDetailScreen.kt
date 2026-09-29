@@ -1451,7 +1451,7 @@ fun CustomerDetailScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(
                             // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
-                            if (pickMode) "사진 고르는 중"
+                            if (pickMode) "지울 사진 고르는 중"
                             else (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
                                 (if (photoTotal == 0) "" else " ${photoTotal}장 / ${photoMax}"),
                             fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
@@ -1463,7 +1463,13 @@ fun CustomerDetailScreen(
                             PhotoHeadBtn("취소", filled = false) { exitPickMode() }
                         } else {
                             if (photoTotal > 0) {
-                                PhotoHeadBtn("고르기", filled = false) { pickMode = true }
+                                // 🏷 **「고르기」는 뭘 고르는지를 안 말한다.** (2026-09-30 사장님)
+                                //   "뭘 고르라는 거지? 라는 생각이 들더라"
+                                //   그렇다고 「지우기」로만 하면 **전부 다 지워질 것처럼** 들린다(사장님 지적).
+                                //   「골라 지우기」 — 고른다는 것과 지운다는 것이 둘 다 들어간다.
+                                //   ⚠️ 색은 **중립 그대로**. 이 버튼은 아무것도 안 지운다(고르는 화면으로 갈 뿐).
+                                //     빨강은 진짜 지우는 버튼에만 — 겁나는 버튼은 안 쓰게 된다.
+                                PhotoHeadBtn("골라 지우기", filled = false) { pickMode = true }
                                 Spacer(Modifier.width(4.dp))
                             }
                             if (photoTotal < photoMax) {
@@ -1622,7 +1628,9 @@ fun CustomerDetailScreen(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
                             Text(
-                                if (pickedCount == 0) "지울 사진을 눌러 고르세요" else "${pickedCount}장 고름",
+                                // 「고른 것만 지워요」 — 전체가 날아갈까 걱정 안 하시게. (2026-09-30 사장님)
+                                if (pickedCount == 0) "지울 사진을 눌러 고르세요 · 고른 것만 지워요"
+                                else "${pickedCount}장 고름 · 고른 것만 지워요",
                                 fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
                                 color = if (pickedCount == 0) TossTextTertiary else TossTextSecondary,
                                 modifier = Modifier.weight(1f)
