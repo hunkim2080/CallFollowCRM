@@ -64,6 +64,19 @@ val dupRules = listOf(
         regex = Regex("""add\(\s*i\s*[-+]\s*1\s*,\s*removeAt\(\s*i\s*\)\s*\)"""),
         instead = "DragReorder.step(order, id, dy, upH, dnH)  (util/DragReorder.kt)",
         homes = listOf("/util/DragReorder.kt")
+    ),
+    // ⑤ 손님 번호를 **통일 안 하고** 저장하는 곳. (2026-09-29 사장님)
+    //   "우리 앱에서는 번호가 두 갈래 세 갈래로 나뉘면 안 돼. 무조건 한 번호로 통일해야 흩어지지 않지."
+    //   "이걸 개선하면 다음에도 이런 일이 안 생겨야 하는데"
+    //
+    //   같은 손님이 두 줄로 갈라지는 길은 **손님을 만드는 곳**과 **백업을 되돌리는 곳** 둘뿐이었다.
+    //   둘 다 PhoneKey.normalize 를 거치게 막아뒀다. 이 규칙은 **셋째 길이 생기는 것**을 잡는다 —
+    //   customers 테이블에 직접 넣는 코드가 새로 생기면 빌드가 실패한다.
+    DupRule(
+        id = "customer-insert-raw",
+        regex = Regex("INSERT\\s+(?:OR\\s+REPLACE\\s+)?INTO\\s+`?customers`?"),
+        instead = "CustomerRepository.upsertByPhone(...) — 번호를 PhoneKey.normalize 로 통일해 넣는다",
+        homes = listOf("/util/DataBackup.kt", "/data/local/AppDatabase.kt")
     )
 )
 

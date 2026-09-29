@@ -110,6 +110,19 @@ class CallFollowCrmApplication : Application() {
             //      두 카테고리가 되살아나고, 이젠 숨기는 코드도 없어서 **보라 딱지로 튀어나온다.**
             //      지울 게 없으면 조회 두 번에 끝나므로 켤 때마다 돌려도 싸다.
             runCatching { container.autoCategoryClassifier.removeAutoCategories() }
+            // 🔒 **번호 모양을 한 줄로.** 모든 사장님 폰에서 저절로 1회. (2026-09-29 사장님)
+            //   "내 폰만 고치는 게 아니라 사용자들도 모두 고쳐져야 하는 일인 거지."
+            //   글자만 바꾸므로 **줄이 사라지지 않는다** — 그래서 안 물어보고 돌려도 된다.
+            //   (줄이 사라지는 '갈라진 손님 합치기' 는 지금도 사장님 확인 뒤에만 한다.)
+            //   마이그레이션으로 안 하는 이유: unique 충돌이면 **앱이 안 켜진다**(2026-09-17 전례).
+            //   여기서 실패하면 플래그를 안 세워 다음 실행에 다시 해본다.
+            if (!container.preferences.phoneShapesTidied) {
+                runCatching { container.customerMergeManager.tidyPhoneShapes() }
+                    .onSuccess { n ->
+                        container.preferences.phoneShapesTidied = true
+                        if (n > 0) android.util.Log.i("PhoneTidy", "번호 모양 ${n}개를 한 모양으로 맞췄다")
+                    }
+            }
             // 2026-06-07 — 견적 기록 버그 수정 전(6/6 이전) 잘못 쌓인 "견적 회신 챙기기" 데이터 1회 정리.
             if (!container.preferences.estimateSentLegacyCleaned) {
                 // DELETE 성공했을 때만 플래그 세우기 — 중간 실패 시 다음 실행에 재시도(영영 안 지워지는 것 방지). (2026-08-11 데이터안전 감사)

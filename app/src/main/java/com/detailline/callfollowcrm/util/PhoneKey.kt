@@ -52,6 +52,27 @@ object PhoneKey {
         return if (looksIntl) "0" + digits.drop(2) else digits
     }
 
+    /**
+     * 🔒 **복원할 때 쓰는 통일형 — 줄을 절대 잃지 않는다.** (2026-09-29 사장님)
+     *
+     *   백업 복원이 **백업에 적힌 글자 그대로** 손님을 넣고 있었다. 그래서 옛 백업을 되돌리면
+     *   갈라진 번호가 **그대로 다시 살아났다** — 치워도 다시 생기는 길이 여기였다.
+     *
+     *   그냥 통일형으로 바꾸면 위험하다: 백업 안에 두 줄이 있으면 같은 번호가 되고,
+     *   `INSERT OR REPLACE` 가 **한 줄을 지운다**(unique 충돌). 손님이 조용히 사라진다.
+     *
+     *   그래서 **이미 쓰인 번호면 원본을 그대로 둔다.** 갈라진 채로 남지만 **잃지는 않는다** —
+     *   그건 「갈라진 손님 합치기」가 사장님 확인을 받고 처리할 일이다.
+     *
+     * @param taken 이번 복원에서 이미 쓴 번호들.
+     */
+    fun normalizeUnique(phone: String?, taken: Set<String>): String {
+        val raw = phone?.trim().orEmpty()
+        val fixed = normalize(raw)
+        if (fixed.isEmpty() || fixed == raw) return raw
+        return if (fixed in taken) raw else fixed
+    }
+
     /** 두 번호가 같은 사람인가. 한쪽이라도 비면 false — **빈 값끼리 같다고 하면 안 된다.** */
     fun same(a: String?, b: String?): Boolean {
         val ka = of(a)

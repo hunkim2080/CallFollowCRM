@@ -141,10 +141,26 @@ class CustomerMergeManager(
             }
             pairs++
         }
-        // 🔒 **합칠 게 없는데 모양만 제각각인 줄**도 여기서 같이 정리한다. (2026-09-28 사장님)
-        //   한 줄씩 본다 — 통째 UPDATE 로 하면 두 줄이 같은 값이 되는 순간
-        //   unique 가 걸려 **앱이 아예 안 켜진다**(2026-09-17 전례).
-        //   이미 그 번호를 쓰는 줄이 있으면 **건드리지 않는다** — 다음 합치기가 잡는다.
+        return Result(pairs, jobs, clash, others, orphans.distinct(), tidyPhoneShapes())
+    }
+
+    /**
+     * 🔒 **번호 글자를 한 모양으로.** 줄은 하나도 안 사라진다 — 글자만 바꾼다. (2026-09-28)
+     *
+     * 그래서 **물어보지 않고 저절로 돌려도 되는 일**이다. (앱 켤 때 1회 · 합치기 때도 같이)
+     *   사장님: "내 폰만 고치는 게 아니라 사용자들도 모두 고쳐져야 하는 일인 거지."
+     *   설정 버튼은 그 사장님만 누른다 — 다른 분들은 그런 게 있는 줄도 모른다.
+     *
+     * 안전하게 하는 법:
+     *   · **한 줄씩** 본다. 통째 UPDATE 로 하면 두 줄이 같은 값이 되는 순간
+     *     unique 가 걸려 **앱이 아예 안 켜진다**(2026-09-17 전례).
+     *   · 그 번호를 이미 쓰는 줄이 있으면 **건드리지 않는다** — 그건 갈라진 쌍이고,
+     *     합치기(사장님 확인 필요)가 잡을 일이다.
+     *   · 한 줄이 실패해도 나머지는 계속한다.
+     *
+     * @return 모양을 바꾼 줄 수.
+     */
+    suspend fun tidyPhoneShapes(): Int {
         var tidied = 0
         val now = System.currentTimeMillis()
         for (c in runCatching { mergeDao.allCustomers() }.getOrDefault(emptyList())) {
@@ -154,7 +170,7 @@ class CustomerMergeManager(
             if (taken != null && taken.id != c.id) continue
             if (runCatching { mergeDao.setPhone(c.id, fixed, now) }.isSuccess) tidied++
         }
-        return Result(pairs, jobs, clash, others, orphans.distinct(), tidied)
+        return tidied
     }
 
     /**

@@ -921,6 +921,15 @@ class AppPreferences(context: Context) {
      * 🔨 「시공 끝났나요?」에 **「아직이에요」** 하신 것 — 그 날짜로는 다시 안 묻는다. (2026-09-28)
      *   날짜를 새로 잡으시면 키가 바뀌므로 **그때는 다시 묻는다** — 미뤄진 일은 언젠가 끝나니까.
      */
+    /**
+     * 🔒 번호 모양을 한 번 맞췄나. (2026-09-29)
+     *   저장 규칙이 바뀌기 전에 하이픈 채로 저장된 줄들을 앱 켤 때 1회 정리한다.
+     *   실패하면 안 세워서 다음 실행에 다시 해본다.
+     */
+    var phoneShapesTidied: Boolean
+        get() = prefs.getBoolean("phone_shapes_tidied", false)
+        set(v) { prefs.edit().putBoolean("phone_shapes_tidied", v).apply() }
+
     fun workDoneAsked(phone: String): Set<Long> {
         val p = PhoneKey.of(phone)
         return prefs.getStringSet("workdone_dismissed", emptySet()).orEmpty()

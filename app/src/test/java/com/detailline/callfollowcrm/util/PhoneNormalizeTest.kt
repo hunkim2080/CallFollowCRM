@@ -65,6 +65,31 @@ class PhoneNormalizeTest {
         assertEquals(n("82012345678"), n(n("82012345678")))
     }
 
+    // ── 복원할 때: 통일하되 **줄을 잃지 않는다** ────────────────────
+    @Test fun `복원 - 처음 보는 번호면 통일한다`() {
+        assertEquals("01034045247", PhoneKey.normalizeUnique("010-3404-5247", emptySet()))
+    }
+
+    @Test fun `복원 - 이미 쓴 번호면 원본을 그대로 둔다`() {
+        // 🔴 통일해버리면 INSERT OR REPLACE 가 unique 충돌에서 **손님 한 줄을 지운다.**
+        //   갈라진 채로 남는 건 고칠 수 있지만, 사라진 손님은 못 되살린다.
+        assertEquals(
+            "010-3404-5247",
+            PhoneKey.normalizeUnique("010-3404-5247", setOf("01034045247"))
+        )
+    }
+
+    @Test fun `복원 - 이미 통일형인 번호는 그대로`() {
+        assertEquals("01034045247", PhoneKey.normalizeUnique("01034045247", emptySet()))
+        // 자기 자신이 taken 에 있어도(같은 줄을 두 번 보는 경우) 값은 안 변한다.
+        assertEquals("01034045247", PhoneKey.normalizeUnique("01034045247", setOf("01034045247")))
+    }
+
+    @Test fun `복원 - 빈 값과 글자는 안 건드린다`() {
+        assertEquals("", PhoneKey.normalizeUnique(null, emptySet()))
+        assertEquals("번호없음", PhoneKey.normalizeUnique("번호없음", emptySet()))
+    }
+
     @Test fun `열쇠는 그대로 맞는다`() {
         // 통일한 값이든 원본이든 [PhoneKey.of] 로 찾는 결과는 같아야 한다 —
         //   안 그러면 통일하는 순간 지난 기록을 못 찾는다.

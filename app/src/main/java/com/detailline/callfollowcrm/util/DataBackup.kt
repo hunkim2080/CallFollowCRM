@@ -260,6 +260,13 @@ object DataBackup {
                 if (curCols.isEmpty()) continue   // 현재 스키마에 없는 테이블 → 건너뜀
                 val arr = tables.optJSONArray(table) ?: continue
                 var restoredInThisTable = 0
+                // 🔒 **복원하면서 번호를 한 모양으로.** (2026-09-29 사장님)
+                //   전엔 백업에 적힌 글자 그대로 넣어서, 옛 백업을 되돌리면 **갈라진 번호가 다시 살아났다.**
+                //   저장은 막아뒀는데 복원이 뚫려 있었다 — 치워도 또 생기는 길.
+                //   같은 번호가 두 번 나오면 뒤엣것은 **원본 그대로** 둔다 — INSERT OR REPLACE 가
+                //   unique 충돌에서 **손님 한 줄을 지워버리기** 때문이다. 갈라져도 잃지는 않는다.
+                val tidyPhones = table == "customers"
+                val usedPhones = HashSet<String>()
                 for (r in 0 until arr.length()) {
                     val row = arr.optJSONObject(r) ?: continue
                     val cols = ArrayList<String>()
@@ -270,6 +277,15 @@ object DataBackup {
                     val colList = cols.joinToString(",") { "`$it`" }
                     val args = arrayOfNulls<Any?>(cols.size)
                     for (i in cols.indices) args[i] = bindValue(row.get(cols[i]))
+                    if (tidyPhones) {
+                        val pi = cols.indexOf("phoneNumber")
+                        if (pi >= 0) {
+                            val fixed = com.detailline.callfollowcrm.util.PhoneKey
+                                .normalizeUnique(args[pi] as? String, usedPhones)
+                            args[pi] = fixed
+                            usedPhones.add(fixed)
+                        }
+                    }
                     db.execSQL("INSERT OR REPLACE INTO `$table` ($colList) VALUES ($placeholders)", args)
                     restoredInThisTable++
                     totalRows++
