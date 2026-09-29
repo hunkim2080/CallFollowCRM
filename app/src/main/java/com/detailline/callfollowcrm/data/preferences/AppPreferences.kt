@@ -369,10 +369,28 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet(KEY_NON_CUSTOMER, emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet(KEY_NON_CUSTOMER, value).apply()
 
-    /** 이 번호가 '고객 아님'인가. */
+    /**
+     * 이 번호가 '고객 아님'인가.
+     *
+     * ☎️ **지역번호·광고번호는 묻지 않고 고객으로도 안 친다.** (2026-09-29 사장님)
+     *   "지역번호나 광고번호는 고객이다 고객아니다 고르는 버튼이 나올 이유가 없음."
+     *   앱은 이미 042·070·1588 이 무엇인지 안다([PhoneKind]) — 그걸 여기서 쓴다.
+     *   여기 한 곳을 고치면 **네 곳이 같이** 조용해진다:
+     *     대화방 물음 줄 · 고객상담 AI 준비 · 문자 답변 미리 준비 · 「이 주소 시공 현장인가요?」
+     *
+     *   ⚠️ 순서가 중요하다 — **사장님이 직접 답한 것이 언제나 이긴다.**
+     *      사무실 전화로 연락하는 손님도 있다. [고객] 을 누르시면 그 뒤로는 고객이다.
+     */
     fun isNonCustomer(phone: String): Boolean {
         val s = suffixOf(phone)
-        return s.length >= 7 && s in nonCustomerSuffixes
+        if (s.length < 7) return false
+        if (s in nonCustomerSuffixes) return true          // 사장님이 「고객 아님」이라 하심
+        if (s in customerAskedSuffixes) return false       // 사장님이 「고객」이라 하심 — 이게 이긴다
+        return when (com.detailline.callfollowcrm.util.PhoneKind.of(phone)) {
+            com.detailline.callfollowcrm.util.PhoneKind.Kind.LANDLINE,
+            com.detailline.callfollowcrm.util.PhoneKind.Kind.AD -> true
+            else -> false
+        }
     }
 
     /** '고객?' 질문에 답한(고객/아님) 번호 — 다시 안 물음. */
