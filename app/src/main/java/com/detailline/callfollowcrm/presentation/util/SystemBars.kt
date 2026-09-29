@@ -16,6 +16,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
 
 /**
  * 하단 내비게이션 바 높이(dp).
@@ -104,14 +107,25 @@ fun Modifier.keyboardPadding(): Modifier {
     val view = LocalView.current
     // 시스템이 말하는 키보드 높이. 키보드가 오르내리면 이 값이 바뀌어 여기가 다시 계산된다.
     val imePx = WindowInsets.ime.getBottom(density)
-    if (imePx <= 0) return this
-    // 📏 **창이 이미 줄었나를 잰다.** 버전으로 짐작하지 않는다. (2026-09-29 사장님)
-    //   adjustResize 가 먹는 폰은 시스템이 창을 먼저 줄여준다 → 그만큼은 이미 비어 있다.
-    //   안 먹는 폰(안드로이드 15 + edge-to-edge)은 창이 그대로다 → 키보드만큼 우리가 띄워야 한다.
-    //   제조사마다 다르므로 **재는 것만이 모든 폰에서 맞는다.**
-    val screenPx = view.resources.displayMetrics.heightPixels
     val windowPx = view.rootView.height
-    val shrunkPx = (screenPx - windowPx).coerceAtLeast(0)
+
+    // 📏 **기준선 = 키보드가 닫혀 있을 때의 창 높이.** 버전으로 짐작하지 않는다.
+    //   (2026-09-29 사장님 "매번 기종이 바뀌면 어떻게 테스트해?" → 재서 정한다)
+    //
+    //   ⚠️ 화면 전체 높이와 비교하면 **화면 분할**에서 틀린다 — 창이 원래 절반인데
+    //      그걸 「키보드가 줄인 것」으로 오해해 안 띄우고, **입력칸이 키보드에 가린다.**
+    //      그 창이 키보드 없을 때 얼마였는지만 기억하면 분할이든 팝업이든 전부 맞는다.
+    var baseHeightPx by remember { mutableIntStateOf(0) }
+    if (imePx <= 0) {
+        if (windowPx > 0) baseHeightPx = windowPx   // 키보드 없는 지금이 기준선
+        return this
+    }
+
+    //   창이 줄어든 만큼은 시스템이 이미 비워준 것이다(adjustResize 가 먹는 폰).
+    //   안 줄었으면(안드로이드 15+ edge-to-edge · S23U 실측) 우리가 키보드만큼 띄운다.
+    //   기준선을 아직 모르면(키보드가 열린 채로 화면이 뜬 경우) **띄우는 쪽**으로 —
+    //   틀려도 빈 칸이 조금 생길 뿐, 글자가 가리지는 않는다.
+    val shrunkPx = if (baseHeightPx > 0) (baseHeightPx - windowPx).coerceAtLeast(0) else 0
     val padPx = (imePx - shrunkPx).coerceAtLeast(0)
     if (padPx <= 0) return this
     return this.padding(bottom = with(density) { padPx.toDp() })
