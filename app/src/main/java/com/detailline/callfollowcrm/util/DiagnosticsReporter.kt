@@ -40,12 +40,17 @@ object DiagnosticsReporter {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    fun buildReport(prefs: AppPreferences, userNote: String): String {
+    fun buildReport(prefs: AppPreferences, userNote: String, keyboard: String? = null): String {
         val sb = StringBuilder()
         sb.append("[시공막내 진단]\n")
         sb.append("버전: ${BuildConfig.VERSION_NAME} (code ${BuildConfig.VERSION_CODE})\n")
         sb.append("기기: ${Build.MANUFACTURER} ${Build.MODEL}\n")
         sb.append("안드로이드: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})\n")
+        // ⌨️ **키보드 숫자** — 기종마다 다른 그 문제를 **폰 없이** 고치려고. (2026-09-29 사장님)
+        //   "매번 기종이 바뀌면 나중에 사용자들 키보드가 다 다를 텐데 어떻게 테스트해?"
+        //   창이 줄었는지(adjustResize 가 먹는지)가 제조사마다 다르다. 그 숫자를 같이 받으면
+        //   그 폰이 없어도 무엇이 어긋났는지 바로 보인다.
+        keyboard?.let { sb.append("키보드: $it\n") }
 
         sb.append("\n[사용자 메모]\n")
         sb.append(userNote.trim().ifBlank { "(없음)" }).append("\n")
@@ -99,7 +104,11 @@ object DiagnosticsReporter {
      * @param imageUri 스크린샷 등(선택) — 있으면 base64(dataURL)로 함께 전송(5MB 이하).
      * 서버: POST /api/diagnostics/report {phone, version, device, android, note, report, image?}
      */
-    suspend fun sendToServer(context: Context, prefs: AppPreferences, note: String, imageUri: Uri?): Boolean =
+    suspend fun sendToServer(
+        context: Context, prefs: AppPreferences, note: String, imageUri: Uri?,
+        /** ⌨️ 이 폰에서 키보드가 어떻게 잡히는지 — 기종마다 다른 문제를 폰 없이 고치려고. (2026-09-29) */
+        keyboard: String? = null
+    ): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
                 val body = JSONObject().apply {
@@ -108,7 +117,7 @@ object DiagnosticsReporter {
                     put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
                     put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
                     put("note", note.trim())
-                    put("report", buildReport(prefs, note))
+                    put("report", buildReport(prefs, note, keyboard))
                     if (imageUri != null) {
                         runCatching {
                             context.contentResolver.openInputStream(imageUri)?.use { ins ->

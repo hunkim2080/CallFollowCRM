@@ -268,6 +268,8 @@ fun SettingsScreen(
     }
     BackHandler(enabled = subPage != null) { subPage = null }
 
+    // ⌨️ 키보드 숫자는 **화면 안에서** 재야 한다(코루틴 안에서는 못 잰다). (2026-09-29 사장님)
+    val keyboardDiag = com.detailline.callfollowcrm.presentation.util.keyboardDiagLine()
     if (showDiagnostics) {
         DiagnosticsDialog(
             onDismiss = { showDiagnostics = false },
@@ -276,7 +278,7 @@ fun SettingsScreen(
                 Toast.makeText(context, "진단을 보내는 중…", Toast.LENGTH_SHORT).show()
                 settingsScope.launch {
                     val ok = com.detailline.callfollowcrm.util.DiagnosticsReporter
-                        .sendToServer(context, container.preferences, note, shotUri)
+                        .sendToServer(context, container.preferences, note, shotUri, keyboardDiag)
                     if (ok) {
                         Toast.makeText(context, "진단을 보냈어요. 고맙습니다.", Toast.LENGTH_LONG).show()
                     } else {
@@ -284,7 +286,9 @@ fun SettingsScreen(
                         Toast.makeText(context, "바로 전송이 안 돼 공유로 열었어요", Toast.LENGTH_LONG).show()
                         com.detailline.callfollowcrm.util.DiagnosticsReporter.share(
                             context,
-                            com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(container.preferences, note),
+                            com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(
+                                container.preferences, note, keyboardDiag
+                            ),
                             shotUri
                         )
                     }

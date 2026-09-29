@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalView
 
 /**
  * 하단 내비게이션 바 높이(dp).
@@ -80,6 +81,38 @@ val keyboardClearance: WindowInsets
  *    안 먹어 창이 안 줄어드니, 거기선 `imePadding()` / [keyboardClearance] 를 그대로 써야 한다.
  *    (우리 시트 대부분은 액티비티 창 안 인라인 오버레이라 이것을 쓴다.)
  */
+/**
+ * ⌨️ **지금 이 폰에서 키보드가 어떻게 잡히는지** 한 줄로. 진단 보내기에 담는다. (2026-09-29 사장님)
+ *   기종마다 다른 문제라 **그 폰이 없어도** 이 숫자만 보면 어긋난 데가 보인다.
+ *   개인정보가 아니다 — 화면 크기 숫자뿐.
+ */
 @Composable
-fun Modifier.keyboardPadding(): Modifier =
-    if (android.os.Build.VERSION.SDK_INT >= 35) this.windowInsetsPadding(WindowInsets.ime) else this
+fun keyboardDiagLine(): String {
+    val density = LocalDensity.current
+    val view = LocalView.current
+    val imePx = WindowInsets.ime.getBottom(density)
+    val screenPx = view.resources.displayMetrics.heightPixels
+    val windowPx = view.rootView.height
+    val shrunkPx = (screenPx - windowPx).coerceAtLeast(0)
+    return "ime=${imePx}px 화면=${screenPx}px 창=${windowPx}px 줄어듦=${shrunkPx}px " +
+        "더띄움=${(imePx - shrunkPx).coerceAtLeast(0)}px"
+}
+
+@Composable
+fun Modifier.keyboardPadding(): Modifier {
+    val density = LocalDensity.current
+    val view = LocalView.current
+    // 시스템이 말하는 키보드 높이. 키보드가 오르내리면 이 값이 바뀌어 여기가 다시 계산된다.
+    val imePx = WindowInsets.ime.getBottom(density)
+    if (imePx <= 0) return this
+    // 📏 **창이 이미 줄었나를 잰다.** 버전으로 짐작하지 않는다. (2026-09-29 사장님)
+    //   adjustResize 가 먹는 폰은 시스템이 창을 먼저 줄여준다 → 그만큼은 이미 비어 있다.
+    //   안 먹는 폰(안드로이드 15 + edge-to-edge)은 창이 그대로다 → 키보드만큼 우리가 띄워야 한다.
+    //   제조사마다 다르므로 **재는 것만이 모든 폰에서 맞는다.**
+    val screenPx = view.resources.displayMetrics.heightPixels
+    val windowPx = view.rootView.height
+    val shrunkPx = (screenPx - windowPx).coerceAtLeast(0)
+    val padPx = (imePx - shrunkPx).coerceAtLeast(0)
+    if (padPx <= 0) return this
+    return this.padding(bottom = with(density) { padPx.toDp() })
+}
