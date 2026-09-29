@@ -9907,7 +9907,42 @@ async def admin_beta_dashboard_data(
             "SELECT ts_ms, path, status, detail FROM system_errors "
             "ORDER BY ts_ms DESC LIMIT 10"
         ).fetchall()
+        # 추가97 (2026-09-30) — 📱 **앱이 죽은 기록** (서버 에러와 다른 것이다).
+        # 전엔 누가 죽었는지 알려면 **사람마다 페이지를 열어봐야** 했다 — 그래서 아무도 안 봤다.
+        _crash_rows = con.execute(
+            """SELECT owner_phone, extra_json, created_at_ms FROM app_events
+               WHERE event_name = 'app_crash' AND created_at_ms >= ?
+               ORDER BY created_at_ms DESC LIMIT 50""",
+            (cutoff,),
+        ).fetchall()
+        _crash_total = con.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT owner_phone) FROM app_events "
+            "WHERE event_name = 'app_crash' AND created_at_ms >= ?",
+            (cutoff,),
+        ).fetchone()
+        app_crash_list = []
+        for _cp, _cj, _cts in _crash_rows:
+            try:
+                _ex = json.loads(_cj) if _cj else {}
+                if not isinstance(_ex, dict):
+                    _ex = {}
+            except Exception:
+                _ex = {}
+            _b = _crash_brief(str(_ex.get("report") or ""))
+            app_crash_list.append({
+                "name": _user_name(_cp),
+                "phone": _fmt_phone(_cp),
+                "phone_raw": _cp,
+                "at_ms": _cts,
+                "version": _b["version"] or str(_ex.get("v") or ""),
+                "cause": _b["cause"],
+                "where": _b["where"],
+            })
+
         system_health = {
+            "app_crash_count": (_crash_total[0] if _crash_total else 0),
+            "app_crash_users": (_crash_total[1] if _crash_total else 0),
+            "app_crashes": app_crash_list,
             "today_errors": err_today,
             "errors_24h": err_24h,
             "recent": [
@@ -10454,6 +10489,17 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         + '명 등록 · 클릭 = 미등록 명단'
         + trendBadge(tr.settled && { cur: tr.settled.cur, prev: tr.settled.prev }) + '</div></div>' +
       healthCard +
+      // 추가97 (2026-09-30) — 📱 **앱 죽음.** 서버 에러(🩺)와 다른 것이다.
+      //   🩺 = 우리 서버가 삐끗한 것 / 📱 = 쓰는 분 폰에서 앱이 꺼진 것.
+      ((sh.app_crash_count || 0) === 0
+        ? '<div class="kpi"><div class="lbl">📱 앱 죽음</div>'
+          + '<div class="val" style="color:var(--success); font-size:20px;">없음</div>'
+          + '<div class="sub2">이 기간 0건</div></div>'
+        : '<div class="kpi" style="cursor:pointer; border:1.5px solid var(--error);"'
+          + ' onclick="openDrill(\\'app_crashes\\', \\'💥 앱이 죽은 기록\\')">'
+          + '<div class="lbl">📱 앱 죽음</div>'
+          + '<div class="val" style="color:var(--error)">' + sh.app_crash_count + '건</div>'
+          + '<div class="sub2">' + sh.app_crash_users + '명 · 클릭 = 누가·왜</div></div>') +
       mixCard;
 
     // Network 신호 (클릭 시 drill-down)
@@ -10465,6 +10511,12 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
                last: u.last ? timeAgo(Date.now() - u.last) : '접속 기록 없음' };
     });
     // 추가93 — 최근 서버 에러 (건강 카드 클릭)
+    // 추가97 (2026-09-30) — 💥 앱이 죽은 기록 (앱 죽음 카드 클릭)
+    LAST_DETAILS['app_crashes'] = (sh.app_crashes || []).map(function(c){
+      return { name: c.name, phone: c.phone, phone_raw: c.phone_raw,
+               t: new Date(c.at_ms).toLocaleString('ko-KR', { hour12: false }),
+               version: c.version || '-', cause: c.cause || '-', where: c.where || '' };
+    });
     LAST_DETAILS['sys_errors'] = (sh.recent || []).map(function(e){
       return { t: new Date(e.ts_ms).toLocaleString('ko-KR', { hour12: false }),
                path: e.path || '-', status: e.status, detail: e.detail || '-' };
@@ -10939,6 +10991,17 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         '<span style="font-family:monospace; font-size:11px;">' + escape(r.path) + '</span>',
         '<span class="badge off">' + r.status + '</span>',
         '<span style="font-size:11px; color:#5A6472;">' + escape(r.detail) + '</span>',
+      ]; };
+    } else if (kind === 'app_crashes') {
+      // 추가97 (2026-09-30) — 💥 앱이 죽은 기록. **어디서** 칸이 고칠 자리다.
+      head = ['누구', '언제', '버전', '무엇이', '어디서'];
+      cols = function(r){ return [
+        '<a href="/admin/user/' + encodeURIComponent(r.phone_raw) + '" style="color:#3182F6; text-decoration:none;"><b>'
+          + escape(r.name) + '</b></a><br><span style="font-size:11px; color:#9AA3AF">' + escape(r.phone) + '</span>',
+        '<span style="font-size:11px;">' + escape(r.t) + '</span>',
+        '<span class="badge cool">' + escape(r.version) + '</span>',
+        '<span style="font-size:11px; color:#C2103A; font-weight:700;">' + escape(r.cause) + '</span>',
+        '<span style="font-family:monospace; font-size:10.5px; color:#5A6472;">' + escape(r.where || '-') + '</span>',
       ]; };
     } else if (kind === 'at_risk' || kind === 'unsettled') {
       // 추가87 — ⚠️ 이탈 위험 / 추가89 — 🌱 시공일 미등록 명단 (같은 컬럼)
@@ -11663,6 +11726,51 @@ async def admin_user_detail_data(
                 "at_ms": ts,
             })
 
+        # ── 6.6) 💥 죽은 기록 · ⬆️ 업데이트 (추가97 — 2026-09-30 사장님)
+        # **여정 200건과 따로 가져온다.** 많이 쓰는 분은 하루에 200건이 넘는다 —
+        # 그 안에 섞어 두면 어제 죽은 게 오늘 밀려나서 **영영 안 보인다.**
+        # 이 둘은 드물고 제일 중요해서, 잘리지 않게 자기 자리를 준다.
+        def _load_extra(js):
+            if not js:
+                return {}
+            try:
+                o = json.loads(js)
+                return o if isinstance(o, dict) else {}
+            except Exception:
+                return {}
+
+        app_crashes = []
+        for cj, cts in con.execute(
+            """SELECT extra_json, created_at_ms FROM app_events
+               WHERE owner_phone = ? AND event_name = 'app_crash'
+               ORDER BY created_at_ms DESC LIMIT 20""",
+            (target,),
+        ).fetchall():
+            ex = _load_extra(cj)
+            rep = str(ex.get("report") or "")
+            b = _crash_brief(rep)
+            app_crashes.append({
+                "at_ms": cts,
+                "version": b["version"] or str(ex.get("v") or ""),
+                "cause": b["cause"],
+                "where": b["where"],
+                "report": rep,
+            })
+
+        app_updates = []
+        for uj, utg, uts in con.execute(
+            """SELECT extra_json, target, created_at_ms FROM app_events
+               WHERE owner_phone = ? AND event_name = 'app_update'
+               ORDER BY created_at_ms DESC LIMIT 20""",
+            (target,),
+        ).fetchall():
+            ex = _load_extra(uj)
+            app_updates.append({
+                "at_ms": uts,
+                "label": utg or "",
+                "first": bool(ex.get("first")),
+            })
+
         # ── 7) last_active_ms = 앱 실행 시각 (추가41 — beta_whitelist.last_seen_ms 만)
         # 사장님 의도: "앱 켜기만 해도 활동". 폴링 endpoint 들이 _touch_beta_whitelist 호출해서 갱신.
         # LLM 사용 (api_usage MAX) 은 별도 의미라 합치지 않음.
@@ -11686,9 +11794,41 @@ async def admin_user_detail_data(
         "feature_counts": feature_counts,
         "recent_api": recent_api,
         "events_journey": events_journey,  # 추가51 (2026-06-21) — 사용자 여정
+        "app_crashes": app_crashes,        # 추가97 (2026-09-30) — 💥 이 사람 앱이 죽은 기록
+        "app_updates": app_updates,        # 추가97 (2026-09-30) — ⬆️ 이 사람이 올린 기록
         "last_active_ms": last_active_ms,
         "schedule_count": schedule_count,  # 추가55 (2026-06-23) — 캘린더 시공일 등록 누적
     }
+
+
+def _crash_brief(report: str) -> dict:
+    """💥 죽은 기록에서 **눈으로 볼 세 가지**만 뽑는다. (추가97 · 2026-09-30)
+
+    기록은 수십 줄이다. 그중 고칠 때 쓰는 건 셋뿐 —
+      · version — 그때 **어느 버전**이었나 (「이 버전부터 터졌다」가 여기서 나온다)
+      · cause   — **무엇이** 터졌나 (맨 첫 줄)
+      · where   — **우리 코드** 어디서 (`at com.detailline…` 첫 줄)
+                  나머지는 안드로이드 속이라 우리가 고칠 게 없다.
+    """
+    version, cause, where = "", "", ""
+    body = False
+    for ln in (report or "").splitlines():
+        t = ln.strip()
+        if not body:
+            if t.startswith("version="):
+                version = t[8:].strip()[:20]
+            if t == "":
+                body = True
+            continue
+        if not cause and t:
+            cause = t[:300]
+            continue
+        if not where and t.startswith("at com.detailline."):
+            where = t[3:].strip()[:200]
+    if not cause:
+        first = [x for x in (report or "").splitlines() if x.strip()]
+        cause = first[0].strip()[:300] if first else ""
+    return {"version": version, "cause": cause, "where": where}
 
 
 _ADMIN_USER_DETAIL_HTML = """<!doctype html>
@@ -11789,6 +11929,30 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
                         margin-top:2px; }
   .ses-hdr.ses-single .ses-inline { color:var(--t1); font-weight:800;
                                     font-size:12.5px; margin-left:4px; }
+  /* 추가97 (2026-09-30) — 💥 죽은 기록 · ⬆️ 업데이트 */
+  .ses-ver { color:var(--t3); font-weight:700; font-size:10.5px; margin-left:6px;
+             background:var(--bg); border-radius:6px; padding:1px 6px; }
+  .ev-upd { border-left-color:#3182F6; }
+  .crash-strip { background:#FFF1F3; border:1.5px solid #F0436A; border-radius:12px;
+                 padding:11px 13px 8px; margin:2px 0 12px; }
+  .crash-strip .ttl { font-weight:800; font-size:13.5px; color:#C2103A; }
+  .crash-strip .sub { font-size:11.5px; color:#8A5560; margin-top:2px; }
+  .crash-item { border-top:1px dashed #F3C3CD; margin-top:8px; padding-top:8px; }
+  .crash-item .cz { font-size:12px; font-weight:800; color:#1B1D1F; word-break:break-all; }
+  .crash-item .wh { font-size:11px; color:#5A6472; word-break:break-all; margin-top:2px;
+                    font-family:ui-monospace,Menlo,monospace; }
+  .crash-item .wn { font-size:10.5px; color:#9AA3AF; margin-top:3px; }
+  .crash-item > details > summary { font-size:10.5px; color:#8A5560; cursor:pointer;
+                                    font-weight:700; padding:4px 0 0; }
+  .crash-item pre { background:#fff; border-radius:8px; padding:9px 10px; margin:5px 0 0;
+                    font-size:10.5px; line-height:1.5; max-height:280px; overflow:auto;
+                    white-space:pre-wrap; word-break:break-all; color:#3A4250; }
+  .upd-strip { background:#EDF4FF; border-radius:11px; padding:9px 12px; margin:2px 0 12px;
+               font-size:12px; color:#1B4FA8; font-weight:700; line-height:1.7; }
+  .upd-row { background:#EDF4FF; border-radius:9px; padding:6px 11px; margin:4px 0;
+             font-size:12.5px; font-weight:800; color:#1B4FA8; }
+  .crash-row { background:#FFF1F3; border-radius:9px; padding:6px 11px; margin:4px 0;
+               font-size:12.5px; font-weight:800; color:#C2103A; }
   /* 추가54 (2026-06-23) — 페이지 재설계 (Hero / 숫자 / 탭 / 접힘) */
   .hero { background:linear-gradient(135deg, #0B0F19 0%, #1B2236 100%);
           color:#fff; border-radius:16px; padding:18px 18px 16px; margin-top:14px;
@@ -12332,6 +12496,8 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'llm_use':        '⚙️',
         'schedule_create':'📅',  // 추가55 — 시공일 등록
         'error':          '⚠️',
+        'app_crash':      '💥',  // 추가97 — 앱이 죽음
+        'app_update':     '⬆️',  // 추가97 — 올림
       };
       var EVENT_LABEL = {
         'screen_view':    '화면 진입',
@@ -12341,6 +12507,8 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'llm_use':        'AI 사용',
         'schedule_create':'시공일 등록',  // 추가55
         'error':          '에러',
+        'app_crash':      '앱이 죽음',   // 추가97
+        'app_update':     '업데이트',    // 추가97
       };
       var EVENT_CLASS = {
         'screen_view':    'ev-view',
@@ -12350,6 +12518,8 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'llm_use':        'ev-ai',
         'schedule_create':'ev-sch',  // 추가55
         'error':          'ev-err',
+        'app_crash':      'ev-err',   // 추가97
+        'app_update':     'ev-upd',   // 추가97
       };
       var SCREEN_LABEL = {
         'home':            '홈',
@@ -12411,6 +12581,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'permissions':     '권한 허용',
         'follow_up':       '팔로업',
         'call_summary':    '통화 요약',
+        'app':             '앱',      // 추가97 — 화면이 아니라 앱 자체에 일어난 일
       };
 
       // 짧은 상대 시각 (방금 / 5분 전 / 2시간 전 / 어제 / N일 전)
@@ -12447,7 +12618,43 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         return dayLbl + ' ' + hm(s) + ' ~ ' + hm(e);
       }
 
+      // 💥 **죽은 적이 있으면 맨 위에.** (추가97 · 2026-09-30 사장님)
+      //   "사람들 오류날 때 우리가 그 로그를 보고 고쳐줄 수 있어야 하는데"
+      //   여정 줄 사이에 묻어두면 못 찾는다 — 제일 먼저 보이게 둔다.
       var jhtml = '';
+      var crashes = d.app_crashes || [];
+      if (crashes.length > 0) {
+        var cItems = '';
+        for (var ci = 0; ci < crashes.length; ci++) {
+          var cc = crashes[ci];
+          cItems += '<div class="crash-item">'
+            + '<div class="cz">' + esc(cc.cause || '(원인 줄이 없어요)') + '</div>'
+            + (cc.where ? '<div class="wh">' + esc(cc.where) + '</div>' : '')
+            + '<div class="wn">' + fmtShort(cc.at_ms)
+            + (cc.version ? ' · ' + esc(cc.version) : '') + '</div>'
+            + '<details><summary>기록 전체 보기</summary><pre>'
+            + esc(cc.report || '') + '</pre></details>'
+            + '</div>';
+        }
+        jhtml += '<div class="crash-strip">'
+          + '<div class="ttl">💥 앱이 죽은 적 ' + crashes.length + '번</div>'
+          + '<div class="sub">마지막 ' + fmtShort(crashes[0].at_ms)
+          + (crashes[0].version ? ' · ' + esc(crashes[0].version) : '')
+          + ' · 아래 <b>어디서</b> 줄이 고칠 자리예요</div>'
+          + cItems + '</div>';
+      }
+      // ⬆️ **올린 기록** — "날짜 부분에 업데이트한 게 찍히면 좋겠네" (2026-09-30 사장님)
+      var updates = d.app_updates || [];
+      if (updates.length > 0) {
+        var uTxt = '';
+        for (var ui = 0; ui < updates.length; ui++) {
+          var uu = updates[ui];
+          uTxt += '<div>' + (uu.first ? '📥 처음 깔았어요' : '⬆️ ' + esc(uu.label || ''))
+               + ' <span style="color:#7A93BE; font-weight:600;">· ' + fmtShort(uu.at_ms)
+               + '</span></div>';
+        }
+        jhtml += '<div class="upd-strip">' + uTxt + '</div>';
+      }
       if (journey.length === 0) {
         jhtml = '<div class="empty">아직 여정 데이터 없음 (안드로이드 측 이벤트 발사 후 보임)</div>';
       } else {
@@ -12504,7 +12711,12 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
             var ev0 = ses.events[0];
             var sc0 = SCREEN_LABEL[ev0.screen] || ev0.screen || '(빈)';
             var lbl0;
-            if (ev0.event_name === 'llm_use' || ev0.event_name === 'feature_use') lbl0 = '⚙️ AI · ' + sc0;
+            // 추가97 — 켜자마자 보낸 죽음·업데이트가 1건 세션으로 자주 온다. 「앱」 한 글자로 두면 못 읽는다.
+            if (ev0.event_name === 'app_crash') lbl0 = '💥 앱이 죽었어요';
+            else if (ev0.event_name === 'app_update') lbl0 = (ev0.extra && ev0.extra.first)
+                ? '📥 처음 깔았어요 · ' + (ev0.target || '')
+                : '⬆️ 업데이트 ' + (ev0.target || '');
+            else if (ev0.event_name === 'llm_use' || ev0.event_name === 'feature_use') lbl0 = '⚙️ AI · ' + sc0;
             else if (ev0.event_name === 'schedule_create') lbl0 = '📅 시공일 등록';
             else if (ev0.event_name === 'screenshot') lbl0 = '📸 캡쳐 · ' + sc0;
             else if (ev0.event_name === 'button_click') lbl0 = '👆 ' + (ev0.target || '버튼');
@@ -12514,8 +12726,27 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
             continue;
           }
 
+          // 추가97 — **그때 어느 버전이었나.** 이게 있어야 「이 버전부터 터졌다」가 보인다.
+          var sesV = '';
+          for (var vi = ses.events.length - 1; vi >= 0; vi--) {
+            var _ex = ses.events[vi].extra;
+            if (_ex && _ex.v) { sesV = _ex.v; break; }
+          }
           jhtml += '<div class="ses-hdr">🕐 ' + fmtSesHdr(ses.start_ms, ses.end_ms)
-                + '<span class="ses-meta">· ' + durLbl + ' · ' + ses.events.length + '건</span></div>';
+                + '<span class="ses-meta">· ' + durLbl + ' · ' + ses.events.length + '건</span>'
+                + (sesV ? '<span class="ses-ver">' + esc(sesV) + '</span>' : '') + '</div>';
+          // 추가97 — 죽음·업데이트는 **접힌 자세히 안에 묻지 않는다.** 그 자리에 그대로 띄운다.
+          for (var bi = 0; bi < ses.events.length; bi++) {
+            var be = ses.events[bi];
+            if (be.event_name === 'app_update') {
+              jhtml += '<div class="upd-row">'
+                + (be.extra && be.extra.first
+                    ? '📥 처음 깔았어요 · ' + esc(be.target || '')
+                    : '⬆️ 업데이트 ' + esc(be.target || '')) + '</div>';
+            } else if (be.event_name === 'app_crash') {
+              jhtml += '<div class="crash-row">💥 여기서 죽었어요 — 위 빨간 상자에 기록</div>';
+            }
+          }
 
           // 화면 카운트 집계 (event_name + screen 기준, target 무시)
           // 추가68 — screen_view 는 아이콘 없이 (default = 진입). 다른 event 만 아이콘.
@@ -12531,6 +12762,10 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
               scKey = '📅 시공일 등록';
             } else if (ev.event_name === 'screenshot') {
               scKey = '📸 캡쳐 · ' + evScreen;
+            } else if (ev.event_name === 'app_crash') {
+              scKey = '💥 앱이 죽음';                       // 추가97
+            } else if (ev.event_name === 'app_update') {
+              scKey = '⬆️ 업데이트 ' + (ev.target || '');   // 추가97
             } else if (ev.event_name === 'button_click') {
               scKey = '👆 ' + (ev.target || '버튼');
             } else {
@@ -18937,6 +19172,10 @@ class AppEventItem(BaseModel):
     target: Optional[str] = None               # 'btn_reply_suggest' 같은 식별자
     extra: Optional[dict] = None               # 자유 페이로드
     timestamp_ms: Optional[int] = None         # 안드로이드 측 발생 시각 (없으면 서버 now)
+    # 🔎 추가97 (2026-09-30) — 앱 버전. **이 칸이 없어서 그동안 조용히 버려지고 있었다.**
+    #   (pydantic 은 모르는 칸을 말없이 버린다 — 앱은 잘 보내는데 서버엔 안 남았다.)
+    #   "이 부분에도 날짜 부분에 업데이트한 게 찍히면 좋겠네" 를 하려면 이게 있어야 한다.
+    v: Optional[str] = None                    # '0.2.2379'
 
 
 class AppEventRequest(BaseModel):
@@ -18974,7 +19213,12 @@ async def app_event_log(req: AppEventRequest) -> dict:
         ts = int(it.timestamp_ms) if it.timestamp_ms else now
         # 추가56 fix (2026-06-25) — _json undefined NameError 500. 안드로이드 진단으로 잡힘.
         # extra 가 있는 이벤트 (backfill 의 {backfilled:true} 등) = 500 → 배치 통째 실패 → 재발사 무한 루프.
-        extra_str = json.dumps(it.extra, ensure_ascii=False) if it.extra else None
+        # 🔎 추가97 (2026-09-30) — 버전을 extra 안에 접어 넣는다.
+        #   칸(컬럼)을 새로 파면 라이브 DB 를 건드려야 한다 — 그럴 만한 일이 아니다.
+        _extra = dict(it.extra) if it.extra else {}
+        if it.v:
+            _extra["v"] = str(it.v)[:20]
+        extra_str = json.dumps(_extra, ensure_ascii=False) if _extra else None
         rows.append((
             owner_phone,
             (it.event_name or "")[:50],
