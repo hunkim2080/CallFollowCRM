@@ -952,6 +952,20 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("sure_pairs_merged", false)
         set(v) { prefs.edit().putBoolean("sure_pairs_merged", v).apply() }
 
+    /**
+     * 🌙 **마감 브리핑(밤 9시)을 받을까.** (2026-09-30 사장님)
+     *   "처음 가입하는 사람들은 깜짝 놀랄 수 있을 것 같은데. 기본값으로 꺼져 있게 해줘."
+     *   새로 깐 폰은 **꺼진 채로** 시작한다. 쓰던 분은 앱 켤 때 한 번 켜준다(아래 briefDefaultDecided).
+     */
+    var dailyBriefEnabled: Boolean
+        get() = prefs.getBoolean("daily_brief_enabled", false)
+        set(v) { prefs.edit().putBoolean("daily_brief_enabled", v).apply() }
+
+    /** 위 기본값을 한 번 정했나 — 쓰던 분 것을 꺼버리지 않으려고. */
+    var briefDefaultDecided: Boolean
+        get() = prefs.getBoolean("brief_default_decided", false)
+        set(v) { prefs.edit().putBoolean("brief_default_decided", v).apply() }
+
     var phoneShapesTidied: Boolean
         get() = prefs.getBoolean("phone_shapes_tidied", false)
         set(v) { prefs.edit().putBoolean("phone_shapes_tidied", v).apply() }

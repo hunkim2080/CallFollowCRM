@@ -2393,6 +2393,8 @@ private fun AutoSmsSection(
     var missedNew by remember { mutableStateOf(prefs.autoMissedNewText) }
     var missedReturn by remember { mutableStateOf(prefs.autoMissedReturnText) }
     var d1On by remember { mutableStateOf(prefs.d1AutoEnabled) }
+    // 🌙 마감 브리핑 — 새로 깐 분은 꺼진 채로 시작한다. (2026-09-30 사장님)
+    var briefOn by remember { mutableStateOf(prefs.dailyBriefEnabled) }
     var d1Hour by remember { mutableStateOf(prefs.d1SendHour) }
     var d1Text by remember { mutableStateOf(prefs.d1AutoText) }
     var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
@@ -2441,6 +2443,20 @@ private fun AutoSmsSection(
             Spacer(Modifier.height(8.dp))
             AutoTextArea(d1Text) { d1Text = it; prefs.d1AutoText = it }
             AutoNote("전날 이 시각에 막내가 “보낼까요?” 하고 먼저 물어봐요. 사장님이 확인 눌러야 고객에게 나가요 — 무음 자동발송이 아니에요.")
+        }
+
+        // 🌙 마감 브리핑 — 밤 9시에 그날 정리. **끌 수 있어야 한다.** (2026-09-30 사장님)
+        //   "처음 가입하는 사람들은 깜짝 놀랄 수 있을 것 같은데. 기본값으로 꺼져 있게 해줘."
+        //   전엔 스위치가 아예 없어서 끌 방법이 없었다.
+        AutoCard(
+            Icons.Filled.BarChart, Color(0xFFEDEBFB), Color(0xFF5A4A7A),
+            "마감 브리핑", null, "밤 9시 · 그날 한 줄 정리",
+            briefOn, { briefOn = it; prefs.dailyBriefEnabled = it }
+        ) {
+            AutoNote(
+                "밤 9시에 오늘 새로 온 손님·받은 돈·내일 시공을 한 번에 알려줘요.\n" +
+                    "고객에게 나가는 건 아무것도 없어요 — 사장님만 보는 알림이에요."
+            )
         }
 
         // ③ 오늘 시공 도착 안내

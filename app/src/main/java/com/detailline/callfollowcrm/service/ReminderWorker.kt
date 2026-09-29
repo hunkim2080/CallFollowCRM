@@ -118,6 +118,9 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         // 전용 워커(정시)면 게이트 무시(Doze 로 좀 늦어도 그날 밤 발사). 주기워커=백스톱이면 21시 이후 아무 때나
         //   (상한 23시 제거 — 정시 워커가 놓친 날/늦은 밤도 그날 안에 구제). 중복은 아래 brief:날짜 키로 방지. (2026-07-30)
         if (!ignoreHourGate && hour < 21) return // 프로토 brief = 오후 9시.
+        // 🌙 **끄셨으면 안 보낸다.** 새로 깐 폰은 꺼진 채로 시작한다. (2026-09-30 사장님)
+        //   "처음 가입하는 사람들은 깜짝 놀랄 수 있을 것 같은데."
+        if (!container.preferences.dailyBriefEnabled) return
 
         val todayStart = DateTimeUtils.startOfDay(now)
         val prefs = container.preferences

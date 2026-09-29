@@ -119,6 +119,17 @@ class CallFollowCrmApplication : Application() {
             //   (줄이 사라지는 '갈라진 손님 합치기' 는 지금도 사장님 확인 뒤에만 한다.)
             //   마이그레이션으로 안 하는 이유: unique 충돌이면 **앱이 안 켜진다**(2026-09-17 전례).
             //   여기서 실패하면 플래그를 안 세워 다음 실행에 다시 해본다.
+            // 🌙 마감 브리핑 기본값을 **한 번만** 정한다. (2026-09-30 사장님)
+            //   새로 깐 폰 = 꺼진 채로(놀라지 않게). 이미 쓰시던 폰 = 켜둔 채로(갑자기 사라지면 안 되니).
+            //   판단은 「손님이 한 명이라도 있나」 — 빈 폰이면 방금 깐 것이다.
+            if (!container.preferences.briefDefaultDecided) {
+                runCatching {
+                    val fresh = com.detailline.callfollowcrm.util.DataBackup
+                        .isLedgerEmpty(this@CallFollowCrmApplication)
+                    container.preferences.dailyBriefEnabled = !fresh
+                    container.preferences.briefDefaultDecided = true
+                }
+            }
             if (!container.preferences.phoneShapesTidied) {
                 runCatching { container.customerMergeManager.tidyPhoneShapes() }
                     .onSuccess { n ->
