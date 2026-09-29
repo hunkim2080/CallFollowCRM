@@ -50,6 +50,9 @@ class JourneyEventRepository(
             m.forEach { (k, v) -> if (v != null) ex.put(k, v) }
             if (ex.length() > 0) o.put("extra", ex)
         }
+        // 🔎 **어느 버전에서 한 행동인지** 같이 남긴다. (2026-09-30 사장님)
+        //   이게 없으면 「이때부터 안 됐다」를 맞춰볼 수가 없다 — 고칠 단서가 통째로 빈다.
+        o.put("v", com.detailline.callfollowcrm.BuildConfig.VERSION_NAME)
         o.put("timestamp_ms", System.currentTimeMillis())
         synchronized(lock) {
             buffer.add(o)

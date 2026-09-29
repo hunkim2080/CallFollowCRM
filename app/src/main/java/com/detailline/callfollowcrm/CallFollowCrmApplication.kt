@@ -79,6 +79,8 @@ class CallFollowCrmApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 💥 **제일 먼저 단다.** 이 줄 뒤에 죽는 것만 잡힌다 — 앞에서 죽으면 못 잡는다.
+        com.detailline.callfollowcrm.util.CrashCatcher.install(this)
         registerForegroundTracking()  // 앱 포그라운드 여부 추적(백그라운드 폴링/헬스 낭비 게이트). (2026-08-11 성능감사)
         // 어디서 깔았나(Play/직접) — 서버가 '진짜 바깥 회원' 을 갈라 세는 데 쓴다. 한 번만 읽는다. (2026-09-23 사장님)
         com.detailline.callfollowcrm.ai.SessionAuthInterceptor.installSource = detectInstallSource()
@@ -119,6 +121,35 @@ class CallFollowCrmApplication : Application() {
             //   (줄이 사라지는 '갈라진 손님 합치기' 는 지금도 사장님 확인 뒤에만 한다.)
             //   마이그레이션으로 안 하는 이유: unique 충돌이면 **앱이 안 켜진다**(2026-09-17 전례).
             //   여기서 실패하면 플래그를 안 세워 다음 실행에 다시 해본다.
+            // 🔎 **지난번에 죽었으면 지금 보낸다.** (2026-09-30 사장님)
+            //   "사람들 오류날 때 우리가 그 로그를 보고 고쳐줄 수 있어야 하는데"
+            //   죽는 순간엔 못 보낸다(앱이 무너지는 중) → 파일에 적어두고 **다음 켤 때** 보낸다.
+            //   개인정보는 안 담는다 — 어디서 왜 죽었는지와 버전·기기뿐.
+            runCatching {
+                com.detailline.callfollowcrm.util.CrashCatcher
+                    .takeSaved(this@CallFollowCrmApplication)?.let { report ->
+                        container.journeyEventRepository.track(
+                            "app_crash", screen = "app",
+                            extra = mapOf("report" to report.take(4000))
+                        )
+                        android.util.Log.w("CrashCatcher", "지난번 죽은 기록을 보냅니다")
+                    }
+            }
+            // 🔎 **버전이 바뀌었으면 여정에 찍는다.** (2026-09-30 사장님)
+            //   "이 부분에도 날짜 부분에 업데이트한 게 찍히면 좋겠네."
+            //   관리자 여정에서 「이 사람 그때 올렸구나 → 그 뒤로 이게 터졌네」가 보인다.
+            runCatching {
+                val now = com.detailline.callfollowcrm.BuildConfig.VERSION_NAME
+                val before = container.preferences.lastSeenVersion
+                if (before != now) {
+                    container.preferences.lastSeenVersion = now
+                    container.journeyEventRepository.track(
+                        "app_update", screen = "app",
+                        target = if (before.isBlank()) now else "$before → $now",
+                        extra = mapOf("from" to before, "to" to now, "first" to before.isBlank())
+                    )
+                }
+            }
             // 🌙 마감 브리핑 기본값을 **한 번만** 정한다. (2026-09-30 사장님)
             //   새로 깐 폰 = 꺼진 채로(놀라지 않게). 이미 쓰시던 폰 = 켜둔 채로(갑자기 사라지면 안 되니).
             //   판단은 「손님이 한 명이라도 있나」 — 빈 폰이면 방금 깐 것이다.

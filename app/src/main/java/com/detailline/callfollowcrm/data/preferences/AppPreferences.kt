@@ -962,6 +962,11 @@ class AppPreferences(context: Context) {
         set(v) { prefs.edit().putBoolean("daily_brief_enabled", v).apply() }
 
     /** 위 기본값을 한 번 정했나 — 쓰던 분 것을 꺼버리지 않으려고. */
+    /** 🔎 지난번에 켰을 때의 앱 버전 — 바뀌면 「업데이트」로 여정에 찍는다. (2026-09-30) */
+    var lastSeenVersion: String
+        get() = prefs.getString("last_seen_version", "").orEmpty()
+        set(v) { prefs.edit().putString("last_seen_version", v).apply() }
+
     var briefDefaultDecided: Boolean
         get() = prefs.getBoolean("brief_default_decided", false)
         set(v) { prefs.edit().putBoolean("brief_default_decided", v).apply() }
