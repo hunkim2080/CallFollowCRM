@@ -7,6 +7,8 @@ import com.detailline.callfollowcrm.data.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * 협업 현장(B = 협업자) 화면 ViewModel.
@@ -31,6 +33,27 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     /** 업체별(§B) 서버 집계 — 비어 있으면 화면이 로컬 그룹핑으로 폴백. */
     private val _partners = MutableStateFlow<List<SharedSiteRepository.Partner>>(emptyList())
     val partners = _partners.asStateFlow()
+
+    /**
+     * 🤝 **내 시공 일정** — 협업 요청 카드가 「그날 되나?」를 말하려면 필요하다. (2026-09-30 사장님)
+     *   "내 스케줄이 있는지 없는지 보고 수락을 해야 한단 말이지?
+     *    근데 이 부분에 캘린더가 없으면 확인을 나갔다 와야 해."
+     *   취소한 건은 뺀다 — 취소한 일정 때문에 「겹쳐요」라고 하면 될 일을 거절하게 된다.
+     */
+    val myJobs: kotlinx.coroutines.flow.StateFlow<List<com.detailline.callfollowcrm.domain.collab.CollabDayCheck.MyJob>> =
+        container.jobRepository.observeAll()
+            .map { jobs ->
+                jobs.filter { it.scheduledWorkDate != null && it.cancelledAt == null }
+                    .map { j ->
+                        com.detailline.callfollowcrm.domain.collab.CollabDayCheck.MyJob(
+                            startMs = j.scheduledWorkDate ?: 0L,
+                            minutes = j.scheduledWorkMinutes,
+                            // 동네만 — 「경기 수원시 장안구 상률로 32」 를 다 적으면 칸에 안 들어간다.
+                            place = com.detailline.callfollowcrm.util.RegionName.shortRegion(j.address)
+                        )
+                    }
+            }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()

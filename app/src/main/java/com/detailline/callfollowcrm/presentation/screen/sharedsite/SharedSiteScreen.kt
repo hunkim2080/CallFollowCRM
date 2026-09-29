@@ -84,6 +84,8 @@ import java.util.Date
 import java.util.Locale
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 import com.detailline.callfollowcrm.util.PhoneKey
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.util.DateTimeUtils
 
 /**
  * 협업 현장 (B = 협업자) — 프로토 collab-sites-proto.html 의 b-list / b-detail 1:1.
@@ -106,6 +108,8 @@ fun SharedSiteScreen(
     initialTab: String? = null
 ) {
     val sites by viewModel.sites.collectAsState()
+    // 🤝 내 시공 일정 — 협업 요청 카드가 「그날 되나?」를 말하는 데 쓴다. (2026-09-30 사장님)
+    val myJobs by viewModel.myJobs.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val photos by viewModel.photos.collectAsState()
@@ -347,6 +351,7 @@ fun SharedSiteScreen(
                     if (openPartner == null && pendingSites.isNotEmpty()) {
                         PendingInbox(
                             sites = pendingSites,
+                            myJobs = myJobs,
                             isExpired = { viewModel.acceptExpired(it) },
                             onAccept = { site ->
                                 if (viewModel.acceptExpired(site)) {
@@ -807,6 +812,8 @@ private fun CollabTopTabs(current: String, onSelect: (String) -> Unit) {
 @Composable
 private fun PendingInbox(
     sites: List<SharedSiteRepository.SharedSite>,
+    /** 🤝 내 시공 일정 — 「그날 되나?」를 말하려면 필요하다. (2026-09-30 사장님) */
+    myJobs: List<com.detailline.callfollowcrm.domain.collab.CollabDayCheck.MyJob>,
     isExpired: (SharedSiteRepository.SharedSite) -> Boolean,
     onAccept: (SharedSiteRepository.SharedSite) -> Unit,
     onReject: (SharedSiteRepository.SharedSite) -> Unit,
@@ -882,10 +889,36 @@ private fun PendingInbox(
                 fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 21.sp,
                 maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
-            site.workSummary?.let {
-                Spacer(Modifier.height(3.dp))
-                Text(it, fontSize = 12.sp, color = Color(0xFF6B5E86), fontWeight = FontWeight.Medium,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            // 🤝 **결론을 맨 위에.** 수락할지는 「그날 내가 비었나」로 정해진다. (2026-09-30 사장님)
+            //   "내 스케줄이 있는지 없는지 보고 수락을 해야 한단 말이지?
+            //    근데 이 부분에 캘린더가 없으면 확인을 나갔다 와야 해."
+            //   전엔 이 답이 화면에 없어 일정 탭으로 나갔다 와야 했다.
+            val dayCheck = remember(site.shareId, site.scheduledAtMs, myJobs) {
+                com.detailline.callfollowcrm.domain.collab.CollabDayCheck.check(
+                    requestAtMs = site.scheduledAtMs,
+                    // 자정(0시)으로 저장된 건 「시간 미정」이다 — 시간 비교를 하면 안 된다.
+                    requestHasTime = timeText(site) != null,
+                    myJobs = myJobs
+                )
+            }
+            if (site.scheduledAtMs > 0L) {
+                Spacer(Modifier.height(10.dp))
+                CollabVerdict(dayCheck, timeText(site))
+            }
+            // 💬 **전해둘 말** — 주차·현관 비번이 여기 온다. 전엔 한 줄로 잘려서
+            //   「현관 비번…」 하고 끊겼다. **비번이 잘리면 안 알려준 것과 같다.** (2026-09-30 사장님)
+            site.workSummary?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(9.dp))
+                Column(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(Color.White)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Text("전해둘 말", style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                        color = TossTextTertiary)
+                    Spacer(Modifier.height(3.dp))
+                    Text(it, style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                        maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
             // 언제·얼마 — 한 칸에 나란히. 일당은 수락 판단에 제일 중요하니 크게.
             Spacer(Modifier.height(11.dp))
@@ -914,6 +947,12 @@ private fun PendingInbox(
                         color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
                     )
                 }
+            }
+            // 📅 **그 주** — 앞뒤 며칠 어디 가는지. 점이 아니라 **동네 이름**으로
+            //   (일정 탭 달력이 이미 그렇게 한다). (2026-09-30 사장님 "주소가 나와야지")
+            if (site.scheduledAtMs > 0L) {
+                Spacer(Modifier.height(9.dp))
+                CollabWeekStrip(site.scheduledAtMs, myJobs)
             }
             if (expired) {
                 Spacer(Modifier.height(8.dp))
@@ -1990,5 +2029,100 @@ private fun ReasonRow(text: String, onClick: () -> Unit) {
     ) {
         Text("· $text", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3E7A), modifier = Modifier.weight(1f))
         Text("›", fontSize = 16.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * 🤝 **그날 되나?** 한 줄 결론. (2026-09-30 사장님)
+ *   비었으면 초록, 같은 날 일정이 있으면 노랑, **시간까지 겹치면** 주황.
+ *   제일 중요한 말이라 카드 맨 위에 둔다 — 스크롤해서 찾게 하면 안 본다.
+ */
+@Composable
+private fun CollabVerdict(
+    r: com.detailline.callfollowcrm.domain.collab.CollabDayCheck.Result,
+    requestTime: String?
+) {
+    val free = r.kind == com.detailline.callfollowcrm.domain.collab.CollabDayCheck.Kind.FREE
+    val clash = r.kind == com.detailline.callfollowcrm.domain.collab.CollabDayCheck.Kind.TIME_CLASH
+    val bg = if (free) AppTheme.colors.doneBg else AppTheme.colors.cautionBg
+    val fg = if (free) AppTheme.colors.doneText else AppTheme.colors.cautionText
+    val head = when {
+        free -> "그날은 비어 있어요"
+        clash -> "⚠️ 그날 시간이 겹쳐요"
+        else -> "그날 다른 현장이 있어요"
+    }
+    val where = r.place?.takeIf { it.isNotBlank() }
+    val detail = if (free) "내 일정에 잡힌 게 없어요." else buildString {
+        requestTime?.let { append(it); append(" 요청인데, ") }
+        r.timeLabel?.let { append(it); append("에 ") }
+        append(where ?: "다른 현장")
+        append(if (clash) " 현장이 있어요." else " 현장이 있어요. 시간은 안 겹쳐요.")
+    }
+    Column(
+        Modifier.fillMaxWidth().clip(AppShape.md).background(bg)
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+    ) {
+        Text(head, style = AppType.body, fontWeight = FontWeight.ExtraBold, color = fg)
+        Spacer(Modifier.height(3.dp))
+        Text(detail, style = AppType.caption, color = TossTextSecondary)
+    }
+}
+
+/**
+ * 📅 **그 주 띠** — 일요일~토요일 일곱 칸. 그날 가는 **동네 이름**을 적는다.
+ *   (2026-09-30 사장님 "우리 점 찍혀있는 거 이제 안 하기로 한 거 아니니. 주소가 나와야지")
+ *   일정 탭 달력이 이미 동네 이름을 쓴다 — 같은 표기로 맞춘다.
+ */
+@Composable
+private fun CollabWeekStrip(
+    requestAtMs: Long,
+    myJobs: List<com.detailline.callfollowcrm.domain.collab.CollabDayCheck.MyJob>
+) {
+    val days = remember(requestAtMs, myJobs) {
+        val day0 = DateTimeUtils.startOfDay(requestAtMs)
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = day0 }
+        // 그 주 일요일로 되감는다.
+        val back = cal.get(java.util.Calendar.DAY_OF_WEEK) - java.util.Calendar.SUNDAY
+        val sunday = day0 - back * DateTimeUtils.DAY_MS
+        (0..6).map { i ->
+            val d = sunday + i * DateTimeUtils.DAY_MS
+            val mine = myJobs.filter { DateTimeUtils.startOfDay(it.startMs) == d }
+            val place = mine.firstNotNullOfOrNull { it.place?.takeIf { p -> p.isNotBlank() } }
+            // 한 날에 두 곳이면 「수원 +1」 — 칸이 좁다.
+            val label = when {
+                place == null -> null
+                mine.size > 1 -> "$place +${mine.size - 1}"
+                else -> place
+            }
+            Triple(d, label, d == day0)
+        }
+    }
+    val dow = listOf("일", "월", "화", "수", "목", "금", "토")
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            days.forEachIndexed { i, (dayMs, place, isRequest) ->
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = dayMs }
+                Column(
+                    Modifier.weight(1f).clip(AppShape.sm)
+                        .background(if (isRequest) CollabPurple else Color.White)
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(dow[i], style = AppType.caption, fontWeight = FontWeight.Bold,
+                        color = if (isRequest) Color.White.copy(alpha = 0.78f) else TossTextTertiary,
+                        maxLines = 1)
+                    Text("${cal.get(java.util.Calendar.DAY_OF_MONTH)}",
+                        style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                        color = if (isRequest) Color.White else TossTextPrimary, maxLines = 1)
+                    Text(place.orEmpty(), style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                        color = if (isRequest) Color.White else AppTheme.colors.cautionText,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Clip)
+                }
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text("그 주에 내가 가는 곳 · 보라 = 요청받은 날",
+            style = AppType.caption, color = TossTextTertiary,
+            modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
