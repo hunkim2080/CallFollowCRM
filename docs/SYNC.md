@@ -12363,5 +12363,23 @@ UX 점검 **남은 것 넷 마무리.**
   클릭 → 누구·언제·버전·무엇이·어디서 표. 전엔 **사람마다 페이지를 열어봐야** 알 수 있었다.
 - 검증: `py_compile` · 두 화면 `<script>` 를 **node --check** (파이썬은 따옴표 안쪽을 안 본다 —
   전에 onclick 따옴표로 화면이 백지 된 적 있음) · `_crash_brief` 단위 확인 4가지 통과.
-- ⏳ **라이브 미반영** — 사장님 신호 받고 올린다(라이브는 origin 보다 193커밋 뒤, 통짜 배포 금물).
-- commit: (아래)
+- ✅ **라이브 반영 완료** (사장님 "고고", 2026-09-30 08:13). 절차: 라이브 main.py 내려받기 →
+  **그 파일에** 패치(앵커 18곳 전부 맞음) → 로컬 py_compile + node --check →
+  서버에 올려 거기서 py_compile(**Python 3.9.6**) → 백업 `main.py.bak-20260930-081306-diag`
+  → swap → kickstart → `bash smoke.sh` **10/10**.
+- 🔎 **진짜 경로로 확인** (/health 는 무슨 일이 나도 200이라 무의미):
+  · `/admin/user/{phone}/data` 200 + `app_crashes`·`app_updates` 칸 생김
+  · `/admin/user/{phone}` 200 + `crash-strip`·`ses-ver`·`d.app_crashes` 들어감
+  · `/admin/beta/dashboard/data` 200 + `system_health.app_crash_count`
+  · `/admin/beta/dashboard` 200 + 「앱 죽음」 카드 + `kind === 'app_crashes'`
+- 🔑 **버렸던 버전이 이제 들어온다** — 앱 모양 그대로 한 건 보내 되읽기: `extra = {'v': '0.2.2398'}`.
+- 💥 **죽음 한 건을 실제로 흘려봤다**(넣기 전 0건 → 끝에 0건, 넣은 그 한 줄만 지움):
+  · 사람 페이지 = 버전 `0.2.2398` / 무엇이 `IllegalStateException: Cannot access database on the main thread`
+    / **어디서** `JobRepository.jobsAt(JobRepository.kt:118)` ← 고칠 자리가 한 줄로 나온다
+  · 대시보드 = 「1건 / 1명」 + 표 한 줄
+- ⚠️ 겪은 것: 앞단 방화벽이 **python-urllib User-Agent 를 403** 으로 막는다(앱은 OkHttp 라 무관).
+  서버에 요청 넣어 확인할 땐 **curl** 로.
+- ⚠️ 테스트폰으로는 확인 못 했다 — `flush()` 가 **사업자 번호 9자리 이상일 때만** 보낸다.
+  테스트폰엔 그게 없어서 이벤트가 아예 안 나간다(버퍼에만 쌓임).
+- 라이브 stderr 깨끗 · 시작 정상.
+- commit: 3fe32120
