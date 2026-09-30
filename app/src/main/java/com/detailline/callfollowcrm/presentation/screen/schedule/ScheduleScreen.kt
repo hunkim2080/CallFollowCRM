@@ -2610,7 +2610,11 @@ private fun AssignTeamSheet(
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                SheetFieldLabel("전달 메모")
+                // 🧬 적는 곳과 **보는 곳의 이름이 달랐다.** (2026-10-01 사장님)
+                //   여기어 「전달 메모」로 적었는데, 받는 사장님 화면엔 「전해둘 말」로 뜨다.
+                //   적는 사람과 읽는 사람이 **같은 칸을 다른 이름으로** 부르면,
+                //   「그 메모 어디 적었지?」가 서로 안 통한다.
+                SheetFieldLabel("전해둘 말")
                 SheetTextField(
                     memo, { memo = it },
                     placeholder = "예: 현장 앞에서 만나요 · 사다리차 · 현관 비번 1234#",
