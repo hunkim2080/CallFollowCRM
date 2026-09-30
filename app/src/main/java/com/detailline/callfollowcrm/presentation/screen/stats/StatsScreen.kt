@@ -134,23 +134,20 @@ fun StatsScreen(
                     // 부제로 헤더에 무게 → 무거운 파란 카드에 제목이 안 눌림. (2026-08-02 사장님 A안 승인)
                     Column {
                         Text("내 기록", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
-                        Text("내가 다녀온 현장", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextInfo, letterSpacing = (-0.1).sp)
+                        // 🔢 전엔 오른쪽에 「현장 026」 배지가 **설명 없이** 떠 있었다.
+                        //   이 달 숫자(12곳)와 나란히 있어 **둘 중 뭐가 맞나** 싶었다. (2026-09-30 사장님)
+                        //   숫자를 배지로 두지 말고 **말로 풀면** 설명이 필요 없다.
+                        Text(
+                            if (rec.lastNo > 0) "내가 다녀온 현장 · 지금까지 ${rec.lastNo}곳" else "내가 다녀온 현장",
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextInfo,
+                            letterSpacing = (-0.1).sp
+                        )
                     }
                 },
-                actions = {
-                    // 「현장 026」 — **누적 번호는 달과 무관하다.** 달 화면 안에 있으면
-                    //   이번 달 것으로 읽힌다 → 제목 옆 작은 배지로 뺀다. (프로토 .badge)
-                    if (rec.lastNo > 0) {
-                        Box(
-                            Modifier.padding(end = 18.dp).clip(AppShape.pill)
-                                .background(AppTheme.colors.primaryBg)
-                                .padding(horizontal = 11.dp, vertical = 5.dp)
-                        ) {
-                            Text("현장 %03d".format(rec.lastNo), style = AppType.caption,
-                                fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                        }
-                    }
-                },
+                // 🗑 오른쪽 「현장 026」 배지를 없앤다. (2026-09-30 사장님 프로토)
+                //   이 달 숫자(12곳)과 나란히 있어 **둘 중 뭐가 맞나** 싶었다.
+                //   숫자를 배지로 두지 말고 바로 밑 부제에 **말로 풀었다**
+                //   — 「내가 다녀온 현장 · 지금까지 26곳」. 그러면 설명이 필요 없다.
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         }
@@ -171,15 +168,11 @@ fun StatsScreen(
                 if (rec.lastNo <= 0) {
                     MyRecordEmpty()
                     Spacer(Modifier.height(12.dp))
-                } else if (rec.notDoneCount > 0 || rec.noAddrCount > 0 || rec.noMoneyCount > 0) {
-                    RecordTodoBar(
-                        rec,
-                        onOpenTodo = { onOpenTodo(monthDelta) },
-                        onOpenNoAddr = { onOpenNoAddr(monthDelta) },
-                        onOpenNoMoney = { onOpenNoMoney(monthDelta) }
-                    )
-                    Spacer(Modifier.height(11.dp))
                 }
+                // 🗑 맨 위 「완료 안 누름 2 · 주소 없음 2」 줄을 **치웠다.** (2026-09-30 사장님 프로토)
+                //   열자마자 잔소리부터 보였다 — 처음 쓰는 분은 **내가 뭘 잘못했나**로 시작한다.
+                //   게다가 **어느 현장인지** 안 알려줘서 눌러도 목록으로만 갔다.
+                //   이제 그 말은 **현장 줄 하나하나에** 붙는다(위 nudge). 거기가 고칠 수 있는 자리다.
             }
             // ── ③ 지도 — **주인공.** 이 탭에서 남한테 보여줄 수 있는 건 지도다.
             //   숫자는 나만 본다. 그래서 숫자 세 칸도 지도 **바로 밑**에 붙였다.
@@ -464,53 +457,81 @@ private fun MyRecordMap(
         } else {
         // ── 세 칸 — **지도를 설명하는 숫자**다. 지도와 붙어 있어야 같은 말이 된다. (프로토 ④ .strip)
         //   셋이 서로 다른 말을 한다: 곳 수 = 결과 · 나간 날 = 몸이 나간 날 · 매출 = 그 결과.
+        // 🔢 **하나만 크게.** 전엔 12곳·12일·737만이 **같은 크기**라,
+        //   뭘 자랑해야 할지 화면이 안 정해줬다. (2026-09-30 사장님 프로토)
+        //   제일 하고 싶은 자랑은 **몇 곳 다녀왔나**다. 나머지는 밑에 한 줄로 붙인다.
         Spacer(Modifier.height(AppSpace.s12))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            StripCell("현장", "${rec.monthSites}곳", Modifier.weight(1f))
-            StripCell("나간 날", "${rec.monthWorkDays}일", Modifier.weight(1f))
-            StripCell(
-                "매출",
-                java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                    .format(rec.monthSalesManwon) + "만",
-                Modifier.weight(1f)
-            )
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(horizontal = 2.dp)) {
+            Text("${rec.monthSites}", style = AppType.hero, color = TossBlue)
+            Spacer(Modifier.width(3.dp))
+            Text("곳", style = AppType.title, color = TossTextPrimary,
+                modifier = Modifier.padding(bottom = 4.dp))
         }
-        // 지난달 대비 — 문구 그대로, 자리만 지도 아래로. 줄었다고 숨기지 않는다(기록이니까).
-        if (rec.prevMonthSites >= 0) {
-            val d = rec.monthSites - rec.prevMonthSites
-            Spacer(Modifier.height(AppSpace.s8))
-            Text(
-                when {
-                    d > 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳 · ${d}곳 늘었어요"
-                    d < 0 -> "지난달 ${rec.prevMonthSites}곳 → 이번 달 ${rec.monthSites}곳"
-                    else -> "지난달과 같아요 · ${rec.monthSites}곳"
-                },
-                style = AppType.caption,
-                color = if (d > 0) AppTheme.colors.done else TossTextTertiary,
-                fontWeight = if (d > 0) FontWeight.Bold else FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 2.dp)
-            )
-        }
-        // ── 만들기 — **나란히.** 영상은 전엔 인증샷 창을 열어야 나와서 있는 줄도 몰랐다. (프로토 ⑥)
+        Text(
+            buildString {
+                append(rec.monthLabel.substringAfter("년 ")).append("에 다녀온 현장")
+                // 줄었다고 숨기지 않는다 — 기록이니까. 늘었을 때만 힘줘 적는다.
+                if (rec.prevMonthSites >= 0) {
+                    val d = rec.monthSites - rec.prevMonthSites
+                    when {
+                        d > 0 -> append(" · 지난달보다 ").append(d).append("곳 더")
+                        d < 0 -> append(" · 지난달 ").append(rec.prevMonthSites).append("곳")
+                        else -> append(" · 지난달과 같아요")
+                    }
+                }
+            },
+            style = AppType.label, color = TossTextInfo,
+            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+        )
+        // 나머지 숫자는 **한 줄로.** 각자 칸을 주면 또 셋 다 주인공이 된다.
+        Spacer(Modifier.height(AppSpace.s8))
+        Text(
+            buildString {
+                append("나간 날 ").append(rec.monthWorkDays).append("일")
+                if (rec.towns.isNotEmpty()) append(" · 동네 ").append(rec.towns.size).append("개")
+                if (rec.monthSalesManwon > 0) {
+                    append(" · 매출 ")
+                    append(java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
+                        .format(rec.monthSalesManwon)).append("만")
+                }
+            },
+            style = AppType.caption, color = TossTextTertiary,
+            modifier = Modifier.padding(horizontal = 2.dp)
+        )
+        // ── 만들기 — **영상이 주인공.** (2026-09-30 사장님 프로토)
+        //   전엔 회색 버튼 둘이 나란했다. **뭘 만드는지 눌러야 알아서** 처음 쓰는 분은 안 눌렀다.
+        //   ⚠️ 둘 다 크면 **둘 다 안 누른다.** 하나만 주인공으로 두고 나머지는 조용한 줄로.
         if (rec.lastNo > 0) {
             Spacer(Modifier.height(AppSpace.s12))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier.weight(1f).clip(AppShape.md).background(AppTheme.colors.primaryBg)
-                        .clickable { onShot() }.padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("인증샷", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
-                        color = TossBlue)
+            Row(
+                Modifier.fillMaxWidth().clip(AppShape.lg).background(TossBlue)
+                    .clickable { onReel() }.padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("이 달을 영상으로", style = AppType.headline,
+                        fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    Spacer(Modifier.height(2.dp))
+                    // **무엇이 나오는지** 적는다. 눌러야만 아는 건 안 누른다.
+                    Text(
+                        "지도 위를 트럭이 달리는 " +
+                            com.detailline.callfollowcrm.util.RecordReel
+                                .secondsFor(rec.dots.size).toInt() +
+                            "초짜리\n그대로 인스타·블로그에 올리면 돼요",
+                        style = AppType.caption, color = Color.White.copy(alpha = 0.92f)
+                    )
                 }
-                Box(
-                    Modifier.weight(1f).clip(AppShape.md).background(TossBlue)
-                        .clickable { onReel() }.padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("영상 만들기", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
-                        color = Color.White)
-                }
+                Text("›", style = AppType.title, color = Color.White)
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            Box(
+                Modifier.fillMaxWidth().clip(AppShape.md)
+                    .border(1.dp, AppTheme.colors.line, AppShape.md)
+                    .clickable { onShot() }.padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("사진 한 장으로 (인증샷)", style = AppType.label,
+                    fontWeight = FontWeight.ExtraBold, color = TossTextInfo)
             }
         }
         }   // ── 기록 없는 달 … else 끝 ──
@@ -1383,6 +1404,26 @@ private fun MyRecordRows(
                         },
                         style = AppType.caption, color = TossTextTertiary, maxLines = 1
                     )
+                    // 💬 **왜 번호가 없는지 그 줄에서 말한다.** (2026-09-30 사장님 프로토)
+                    //   전엔 맨 위에 「완료 안 누름 2 · 주소 없음 2」라고 **숫자로만** 적혀 있어
+                    //   어느 현장인지 알 수가 없었다. 알려주면서 동시에 시킬 수 있는 자리는 여기다.
+                    val nudge = when {
+                        r.upcoming || r.collab -> null
+                        r.addr == null -> "주소를 적으면 지도에 찍혀요"
+                        r.no == null -> "완료를 누르면 번호가 붙어요"
+                        r.amountManwon <= 0 -> "금액을 적으면 매출에 들어가요"
+                        else -> null
+                    }
+                    nudge?.let {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            it, style = AppType.caption,
+                            fontWeight = FontWeight.Bold, color = AppTheme.colors.cautionText,
+                            modifier = Modifier.clip(AppShape.sm)
+                                .background(AppTheme.colors.cautionBg)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
                 // 번호가 없는 줄 = 아직 완료를 안 누른 것. **여기서 바로** 누르게 한다.
                 //   전엔 이 글씨를 눌러도 목록으로만 갔다 — 버튼처럼 생겼는데 아무 일도 안 났다.
