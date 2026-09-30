@@ -554,11 +554,15 @@ object RecordReel {
                 ?.let { lastMadeSize = "$W × $H"; return it }
         }
         // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
+        //   ⚠️ 전엔 이 길만 **20컷**이었다 — 안 되는 건 **크기** 때문이지 컷 수 때문이 아니다.
+        //   이 길로 떨어진 폰은 작긴 작은데 **뚝뚝 끊기까지** 했다.
+        //   (2026-09-30 사장님 "영상이 … 약간 버벅이는데")
+        //   크기만 줄이고 컷 수는 **24로 맞춘다.** 한 컷당 받는 양이 줄지 않게 양도 올렸다.
         val w2 = 540
         val h2 = 960
         return VideoMaker.make(
-            outFile = out, width = w2, height = h2, fps = 20, seconds = seconds,
-            bitRate = 3_500_000, progress = forward
+            outFile = out, width = w2, height = h2, fps = 24, seconds = seconds,
+            bitRate = 4_200_000, progress = forward
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos, END_HOLD) }
             ?.also { lastMadeSize = "$w2 × $h2" }
         } finally {
