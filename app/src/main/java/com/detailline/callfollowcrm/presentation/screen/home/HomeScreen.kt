@@ -967,7 +967,7 @@ fun HomeScreen(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
                         collabTodayCount = collabTodaySites.size,
-                        collabToday = collabTodaySites.firstOrNull(),
+                        collabTodaySites = collabTodaySites,
                         collabNext = collabBandNext,
                         onOpenChat = { phone, cid -> onOpenChat(phone, cid) },
                         onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
@@ -2268,8 +2268,11 @@ private fun TodayBand(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     collabTodayCount: Int,
-    /** 오늘 잡힌 협업 현장(있으면). 내 시공이 없어도 **오늘 갈 데가 있으면** 띠가 말해야 한다. */
-    collabToday: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite? = null,
+    /**
+     * 오늘 잡힌 협업 현장 **전부**. 내 시공이 없어도 **오늘 갈 데가 있으면** 띠가 말해야 한다.
+     *   🕐 전엔 **한 곳만** 받아서, 협업이 둘이면 둘째를 그릴 수가 없었다. (2026-10-01)
+     */
+    collabTodaySites: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList(),
     /** 내일 이후 가장 빠른 협업 현장. '다음' 후보다 — 내 시공보다 빠를 수 있다. */
     collabNext: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite? = null,
     onOpenChat: (phone: String, customerId: Long?) -> Unit,
@@ -2281,9 +2284,25 @@ private fun TodayBand(
 ) {
     val now = System.currentTimeMillis()
     val dayStart = DateTimeUtils.startOfDay(now)
-    // 시간 정해진 것 먼저, 그 안에서 이른 순. 시간 없는 건 뒤로.
-    val ordered = todayJobs.sortedBy { it.scheduledWorkMinutes ?: 1_440 }
-    val total = ordered.size + collabTodayCount
+    // 🕐 **내 것·남의 것을 안 가리고 시간순.** (2026-10-01 사장님)
+    //   "내 현장(시간 미정)이 첫 번째에 있고 9시 협업 현장이 두 번째에 있더라고.
+    //    시간순으로 떠야 하지 않을까? 시간 미정이면 맨 마지막에 와야 하고 말야"
+    //   전엔 **「내 시공 먼저, 그 뒤에 협업」**이었다 — 일정 탭은 2026-09-27 에 고쳤는데
+    //   **홈은 안 고쳤다.** 같은 규칙을 두 곳에 적어놓았으니 한 곳만 고쳐진 것이다.
+    //   🔒 세는 자는 [DayOrder] 한 곳이다. 아침에 보는 건 **먼저 가는 곳**이지 누구 것이 아니다.
+    val ordered = remember(todayJobs, collabTodaySites) {
+        val mine = todayJobs.map {
+            com.detailline.callfollowcrm.domain.schedule.DayOrder
+                .jobMinutes(it.scheduledWorkMinutes) to (it to null)
+        }
+        val theirs = collabTodaySites.map {
+            com.detailline.callfollowcrm.domain.schedule.DayOrder
+                .collabMinutes(it.timeLabel, it.scheduledAtMs) to
+                (null to it)
+        }
+        (mine + theirs).sortedBy { it.first }.map { it.second }
+    }
+    val total = ordered.size
     val target = ordered.firstOrNull()
     val next = nextJobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= dayStart }
     // ⭐ 협업도 '내 다음 일정'이다. 전엔 내 시공만 봐서 **내일 협업 가는 날에도** "다음 · 9/28" 이라 했다.
@@ -2309,7 +2328,9 @@ private fun TodayBand(
         androidx.compose.foundation.pager.HorizontalPager(state = pager) { page ->
             if (page < todaySlots) {
                 // 이 쪽이 가리키는 오늘 현장. 내 시공을 먼저, 그 뒤에 협업 현장.
-                val slot = ordered.getOrNull(page)
+                val row = ordered.getOrNull(page)
+                val slot = row?.first
+                val collabHere = row?.second
                 if (slot != null) {
                     val mins = slot.scheduledWorkMinutes
                     val timeText = mins?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "시간 미정"
@@ -2333,9 +2354,9 @@ private fun TodayBand(
                         onAction = { if (passed) onComplete(slot) else onNavigateAddr(addr) },
                         onTap = { onOpenChat(slot.phoneNumber, slot.id) }
                     )
-                } else if (collabToday != null) {
-                    // 오늘 갈 데가 협업 현장뿐일 때. 전엔 이 경우에도 "오늘은 시공이 없어요" 라고 했다.
-                    //   협업은 **보라 결** — 일정 탭에서 쓰는 그 색이라 종류가 바로 갈린다.
+                } else if (collabHere != null) {
+                    // 협업은 **보라 결** — 일정 탭에서 쓰는 그 색이라 종류가 바로 갈린다.
+                    val collabToday = collabHere
                     val cAddr = collabToday.addr?.trim()?.takeIf { it.isNotBlank() }
                     BandShell(
                         bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,

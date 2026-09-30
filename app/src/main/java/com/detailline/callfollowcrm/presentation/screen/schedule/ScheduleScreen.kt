@@ -2861,15 +2861,11 @@ private fun QuickAddForm(
  */
 private fun collabMinutes(
     site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite
-): Int {
-    val t = site.timeLabel?.trim().orEmpty()
-    val m = Regex("""(\d{1,2})\s*:\s*(\d{2})""").find(t)
-    if (m != null) {
-        val h = m.groupValues[1].toIntOrNull() ?: return Int.MAX_VALUE
-        val mi = m.groupValues[2].toIntOrNull() ?: return Int.MAX_VALUE
-        if (h in 0..23 && mi in 0..59) return h * 60 + mi
-    }
-    return Int.MAX_VALUE
-}
+): Int = com.detailline.callfollowcrm.domain.schedule.DayOrder
+    .collabMinutes(site.timeLabel, site.scheduledAtMs)
+// 🔴 여기서 **직접 셌었다.** 그런데 「9:00」 모양만 읽었고, 서버가 주는 건 **「오전 9시」** 뿐이다
+//   (2026-09-30 실측: 오전 9시·오전 8시·오후 1시·오후 2시 — 콜론 모양은 하나도 없다).
+//   그래서 **못 읽고 전부 맨 뒤로** 밀었다 — 2026-09-27 에 「시간순으로」 고쳤다고 적어두고
+//   실제로는 안 고쳐져 있었다. 셈은 [DayOrder] 한 곳으로 옮겼다.
 
 private val NEWLINE: String = String(charArrayOf(0x0A.toChar()))
