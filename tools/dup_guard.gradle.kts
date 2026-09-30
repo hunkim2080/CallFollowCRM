@@ -35,6 +35,15 @@ data class DupRule(
 )
 
 val dupRules = listOf(
+    // ⑥ 서버가 받아주는 사진 크기 — 앵이 **두 곳에** 적어두고 있었다. (2026-09-30 사장님)
+    //   "두벌로 되는거 있는지체크했니."
+    //   서버 한도가 바뀌면 **한쪽만 고치게 된다** — 그럼 사진이 조용히 안 올라간다.
+    DupRule(
+        id = "upload-cap",
+        regex = Regex("""1_400_000"""),
+        instead = "ImageEncoder.CAP_CHARS",
+        homes = listOf("/util/ImageEncoder.kt")
+    ),
     // ① 번호 맞추기 — 2026-09-27 상담함 사고의 정체.
     DupRule(
         id = "phone-key",

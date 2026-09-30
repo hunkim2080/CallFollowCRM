@@ -189,6 +189,11 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
     private fun startSmsFailWatch(phone: String) {
         failJob?.cancel()
         failJob = viewModelScope.launch {
+            // 🧬 ⚠️ **서버와 짝이 맞아야 하는 숫자**다. (2026-09-30)
+            //   서버는 문자를 보낸 뒤 **45초**에 통신사 회신을 물어보고,
+            //   그 답을 **10분**동안 들고 있는다(AUTH_SMS_RESULT_TTL_MS).
+            //   그래서 여기는 **45초보다 늦게, 10분보다 일찍** 물어야 한다.
+            //   서버 쪽 숫자를 고치면 **여기도 같이** 봐야 한다 — 안 그러면 조용히 「모름」만 나온다.
             for (waitMs in longArrayOf(50_000L, 15_000L)) {
                 delay(waitMs)
                 val now = _state.value

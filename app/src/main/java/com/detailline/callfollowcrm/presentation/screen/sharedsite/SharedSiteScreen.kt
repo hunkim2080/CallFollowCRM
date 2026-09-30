@@ -2150,17 +2150,21 @@ private fun CollabHistory(
     val p = remember(key, partners) {
         partners.firstOrNull { it.ownerPhone.filter { c -> c.isDigit() } == key }
     }
-    // 달별 — 「8월 3곳 · 9월 5곳」. 최근 넉 달만(더 적으면 옛날 얘기라 판단에 안 쓴다).
+    // 달별 — 「8월 3곳 · 9월 5곳」. 최근 넉 달만(더 옛날은 판단에 안 쓴다).
+    //   🧬 **세는 규칙은 내가 안 적는다** — [SharedSiteRepository.countedForHistory] · [ymOf] 를 쓴다.
+    //   전엔 여기서 따로 셌다가 「협업 기록」 화면과 **답이 달랐다**. (2026-09-30 사장님)
     val months = remember(key, doneSites) {
         doneSites.asSequence()
-            .filter { it.ownerPhone.filter { c -> c.isDigit() } == key && it.scheduledAtMs > 0L }
-            .groupBy {
-                val cal = java.util.Calendar.getInstance().apply { timeInMillis = it.scheduledAtMs }
-                cal.get(java.util.Calendar.YEAR) * 100 + (cal.get(java.util.Calendar.MONTH) + 1)
+            .filter {
+                it.ownerPhone.filter { c -> c.isDigit() } == key &&
+                    SharedSiteRepository.countedForHistory(it)
             }
+            .groupBy { SharedSiteRepository.ymOf(it.scheduledAtMs) }
             .toSortedMap()
             .entries.toList().takeLast(4)
-            .joinToString(" · ") { (ym, list) -> "${ym % 100}월 ${list.size}곳" }
+            .joinToString(" · ") { (ym, list) ->
+                "${ym.substringAfter('-').trimStart('0')}월 ${list.size}곳"
+            }
     }
     val count = p?.count ?: 0
     Column(

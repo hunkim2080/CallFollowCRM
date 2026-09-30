@@ -104,11 +104,12 @@ class CollabRecordViewModel(private val container: AppContainer) : ViewModel() {
         val EMPTY_AGG = DirectionAgg(0, 0, 0, emptyList())
         private val KST = java.time.ZoneId.of("Asia/Seoul")
 
-        /** epoch ms → "yyyy-MM" (KST 기준). */
-        fun ymOf(ms: Long): String {
-            val d = java.time.Instant.ofEpochMilli(ms).atZone(KST).toLocalDate()
-            return "%04d-%02d".format(d.year, d.monthValue)
-        }
+        /**
+         * epoch ms → "yyyy-MM" (KST 기준).
+         * 🧬 셈은 [SharedSiteRepository.ymOf] **한 곳**에 있다 — 여기선 그걸 부르기만 한다.
+         *   (2026-09-30 사장님 "두벌로 되는거 있는지체크했니" — 요청 카드와 답이 달랐다)
+         */
+        fun ymOf(ms: Long): String = SharedSiteRepository.ymOf(ms)
 
         /** epoch ms → "7/3(목)" (KST). */
         fun dayLabel(ms: Long): String {

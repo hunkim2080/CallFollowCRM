@@ -74,7 +74,9 @@ class OwnerPhotoUploadManager(
             }
             val b64 = ImageEncoder.fileToJpegBase64(file) ?: continue   // 디코드 실패 → 다음 기회
             val dataUrl = "data:image/jpeg;base64,$b64"
-            if (dataUrl.length > 1_400_000) continue   // 압축해도 1MB 초과면 이번엔 skip
+            // 🧬 서버가 받아주는 크기는 [ImageEncoder.CAP_CHARS] **한 곳**에 적는다.
+            //   여기 따로 적어두면 서버 한도가 바뀔 때 한쪽만 고치게 된다. (2026-09-30 사장님)
+            if (dataUrl.length > com.detailline.callfollowcrm.util.ImageEncoder.CAP_CHARS) continue
 
             val res = serverRepo.uploadOwnerPhoto(
                 ownerPhone, custPhone, dataUrl, p.label ?: "시공 사진",

@@ -118,6 +118,29 @@ class SharedSiteRepository(
         val paid: Boolean?   // null = 로컬 폴백(입금여부 서버만 알아서 모름)
     )
 
+    companion object {
+        private val KST: java.time.ZoneId = java.time.ZoneId.of("Asia/Seoul")
+
+        /**
+         * 🧬 **협업을 달로 묶는 규칙 — 여기 한 곳.** (2026-09-30 사장님 "두벌로 되는거 있는지체크했니")
+         *
+         *   전엔 「협업 기록」 화면과 「요청 카드」가 **각자** 셌다 —
+         *   기록 화면은 **수락된 것만**, 카드는 **전부**. 같은 물음에 답이 둘이었다.
+         *   ("9월 7곳" vs "9월 5곳" 이 한 앱 안에서 나올 수 있었다)
+         *
+         *   ⚠️ **수락한 것만 센다.** 거절했거나 아직 답 안 한 요청은 「함께한 현장」이 아니다.
+         *   ⚠️ 달은 **서울 시간** 기준. 자정 근처 건이 앞뒤 달로 갈리면 안 된다.
+         */
+        fun countedForHistory(site: SharedSite): Boolean =
+            site.status == "accepted" && site.scheduledAtMs > 0L
+
+        /** epoch ms → "yyyy-MM" (서울 시간). */
+        fun ymOf(ms: Long): String {
+            val d = java.time.Instant.ofEpochMilli(ms).atZone(KST).toLocalDate()
+            return "%04d-%02d".format(d.year, d.monthValue)
+        }
+    }
+
     data class InviteResult(
         val shareId: String,
         val route: String,           // "inapp" (상대도 앱 사장) | "link" (웹링크)
