@@ -1024,7 +1024,11 @@ fun ChatScreen(
                                     } else {
                                         // 접수서 = 서버 링크(고객이 작성한 실제 폼) 열기 — 앱 내 웹뷰(브라우저 없어도 열림). 없으면 견적 요약 문서로. (2026-07-13 사장님: 크롬 의존 제거)
                                         val url = ti.doc.url?.takeIf { it.isNotBlank() }
-                                        if (url != null) com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(context, url, "시공접수서")
+                                        // 📌 비고를 **보는 자리에서** 고칠 수 있게 토큰·현재 비고를 같이 넘긴다. (2026-09-30 사장님)
+                                        if (url != null) com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+                                            context, url, "시공접수서",
+                                            memoToken = ti.doc.token, memoText = ti.doc.memo.orEmpty()
+                                        )
                                         else quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
                                     }
                                 },

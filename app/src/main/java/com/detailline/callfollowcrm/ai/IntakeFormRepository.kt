@@ -56,6 +56,36 @@ class IntakeFormRepository(
      * 시공접수서 발급 v2 (맥미니 §19.2, 2026-06-03) — POST /api/quote/issue.
      *   req: 견적(items 만원)+시공일+계약금+사업자정보. res: smsDraft(앱이 SMS 본문 prefill → 사장님 ▶).
      */
+    /**
+     * 📌 **발행한 접수서의 비고를 고친다.** (2026-09-30 사장님)
+     *   "시공접수서에 비고란은 각 사장이 입력해야하는건데. 수정할수가없네.?"
+     *   전엔 발행할 때 한 번 실리고 끝이었다.
+     *   ⚠️ 서버가 **그 접수서를 발행한 사장님인지** 확인한다(접수서 링크는 고객에게도 간다).
+     */
+    suspend fun updateOwnerMemo(
+        token: String,
+        ownerMemo: String,
+        devicePhone: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject()
+                .put("ownerMemo", ownerMemo)
+                .put("devicePhone", devicePhone.filter { it.isDigit() })
+                .toString().toRequestBody(jsonMedia)
+            val req = Request.Builder()
+                .url("$baseUrl/api/quote/" + token.trim() + "/owner-memo")
+                .post(payload).build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) {
+                    val detail = runCatching { JSONObject(body).optString("detail") }.getOrNull()
+                    throw IOException(detail?.takeIf { it.isNotBlank() } ?: "고치지 못했어요 (HTTP ${resp.code})")
+                }
+                JSONObject(body).optString("ownerMemo")
+            }
+        }
+    }
+
     suspend fun issueQuote(
         customerName: String,
         customerPhone: String,

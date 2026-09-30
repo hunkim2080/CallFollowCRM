@@ -20941,6 +20941,48 @@ def _persist_quote_issue_to_db(
         con.commit()
 
 
+class OwnerMemoRequest(BaseModel):
+    """📌 발행한 접수서의 비고(사장님 특이사항) 고치기. (추가99b · 2026-09-30)"""
+    model_config = _camel_model_config()
+    ownerMemo: str = ""
+    devicePhone: Optional[str] = None                  # 고치려는 사장님 phone
+
+
+@app.post("/api/quote/{token}/owner-memo")
+async def quote_owner_memo(token: str, req: OwnerMemoRequest) -> dict:
+    """📌 **접수서 비고를 나중에 고친다.** (2026-09-30 사장님)
+
+    사장님: "시공접수서에 비고란은 각 사장이 입력해야하는건데. 수정할수가없네.?"
+    → 전엔 발행할 때 한 번만 실렸다. 접수서를 보다가 고칠 자리가 없었다.
+
+    ⚠️ **발행한 본인만** 고친다. 접수서 링크는 고객에게도 가는데,
+       고객이 「사장님 특이사항」을 고칠 수 있으면 안 된다.
+       그래서 이 창구는 **앱에서만** 부르고, 그 접수서의 owner_phone 과 맞을 때만 쓴다.
+    """
+    tok = (token or "").strip()
+    if not tok:
+        raise HTTPException(400, "token 필수")
+    memo = (req.ownerMemo or "").strip()[:300]
+    who = _norm_phone(req.devicePhone or "")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone FROM intake_forms WHERE token = ?", (tok,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "그 접수서를 못 찾았어요")
+        owner = _norm_phone(row[0] or "")
+        # 접수서에 주인이 안 적힌 옛 건은 막지 않는다(앱에서만 부르는 창구라 그 정도가 맞다).
+        if owner and who and owner != who:
+            raise HTTPException(403, "이 접수서를 발행한 분만 고칠 수 있어요")
+        con.execute(
+            "UPDATE intake_forms SET owner_memo = ? WHERE token = ?",
+            (memo or None, tok),
+        )
+        con.commit()
+    print(f"[quote/owner-memo] {tok} ← {len(memo)}자")
+    return {"ok": True, "ownerMemo": memo}
+
+
 # ============================================================================
 # 추가99 — 기존 접수서 날짜 -9h 보정 (추가95 P0 fix 의 과거 데이터 마이그레이션)
 # work_year/month/day (사장님이 고른 원본 값) 기준으로 재계산 →

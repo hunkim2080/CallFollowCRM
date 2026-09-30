@@ -15,6 +15,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 /**
  * 앱 내 문서 웹뷰 (동의문·처리방침 등) — 외부 브라우저 없이 항상 열림. (2026-07-11 사장님 지적)
@@ -69,6 +71,52 @@ class DocWebViewActivity : ComponentActivity() {
         bar.addView(back)
         bar.addView(titleView)
 
+        // 📌 **비고 고치기** — 접수서를 보다가 그 자리에서. (2026-09-30 사장님)
+        //   "시공접수서에 비고란은 각 사장이 입력해야하는건데. 수정할수가없네.?"
+        //   ⚠️ 이 화면은 **앱 안**이다. 링크만 받은 고객에게는 이 단추가 없다 — 읽기 그대로다.
+        val memoToken = intent.getStringExtra(EXTRA_MEMO_TOKEN)?.trim().orEmpty()
+        if (memoToken.isNotEmpty()) {
+            var memoNow = intent.getStringExtra(EXTRA_MEMO_TEXT).orEmpty()
+            val edit = TextView(this).apply {
+                text = "비고 고치기"
+                textSize = 14f
+                setTextColor(Color.parseColor("#3182F6"))
+                setPadding(dp(10), dp(6), dp(4), dp(6))
+                setOnClickListener {
+                    val input = android.widget.EditText(this@DocWebViewActivity).apply {
+                        setText(memoNow)
+                        setSelection(memoNow.length)
+                        hint = "예: 사다리차 비용은 별도예요 · 주차공간 미리 부탁드려요"
+                        minLines = 2
+                        setPadding(dp(18), dp(12), dp(18), dp(12))
+                    }
+                    android.app.AlertDialog.Builder(this@DocWebViewActivity)
+                        .setTitle("비고 (사장님 특이사항)")
+                        .setMessage("고객에게 미리 알릴 약속·안내를 적어요. 접수서에 바로 반영돼요.")
+                        .setView(input)
+                        .setPositiveButton("저장") { _, _ ->
+                            val next = input.text?.toString().orEmpty().trim()
+                            val phone = com.detailline.callfollowcrm.data.preferences
+                                .AppPreferences(this@DocWebViewActivity).bizPhone
+                            lifecycleScope.launch {
+                                com.detailline.callfollowcrm.ai.IntakeFormRepository()
+                                    .updateOwnerMemo(memoToken, next, phone)
+                                    .onSuccess {
+                                        memoNow = it
+                                        toast(if (it.isBlank()) "비고를 지웠어요" else "비고를 고쳤어요")
+                                        // 고친 게 **바로 보여야** 고친 것이다 — 화면을 다시 불러온다.
+                                        web?.reload()
+                                    }
+                                    .onFailure { e -> toast(e.message ?: "고치지 못했어요") }
+                            }
+                        }
+                        .setNegativeButton("닫기", null)
+                        .show()
+                }
+            }
+            bar.addView(edit)
+        }
+
         val divider = android.view.View(this).apply {
             setBackgroundColor(Color.parseColor("#EEF1F5"))
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
@@ -120,6 +168,10 @@ class DocWebViewActivity : ComponentActivity() {
         })
     }
 
+    private fun toast(msg: String) {
+        android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     override fun onDestroy() {
         web?.destroy()
         web = null
@@ -129,18 +181,34 @@ class DocWebViewActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_URL = "url"
         private const val EXTRA_TITLE = "title"
+        /** 📌 접수서 토큰 — 주면 「비고 고치기」 단추가 생긴다. (2026-09-30) */
+        private const val EXTRA_MEMO_TOKEN = "memoToken"
+        private const val EXTRA_MEMO_TEXT = "memoText"
         private const val ERROR_HTML =
             "<html><body style='font-family:sans-serif;padding:40px 24px;color:#3A4250;line-height:1.6'>" +
                 "<h3 style='color:#0B0F19'>내용을 불러오지 못했어요</h3>" +
                 "<p>인터넷 연결을 확인한 뒤 다시 해주세요.</p></body></html>"
 
-        /** 문서 웹뷰 열기 — 어디서든 context 로 호출. 브라우저 유무와 무관하게 앱 안에서 표시. */
-        fun open(ctx: Context, url: String, title: String) {
+        /**
+         * 문서 웹뷰 열기 — 어디서든 context 로 호출. 브라우저 유무와 무관하게 앱 안에서 표시.
+         *   memoToken 을 주면 상단에 **「비고 고치기」** 가 생긴다(접수서 전용). (2026-09-30 사장님)
+         */
+        fun open(
+            ctx: Context,
+            url: String,
+            title: String,
+            memoToken: String? = null,
+            memoText: String = ""
+        ) {
             runCatching {
                 ctx.startActivity(
                     Intent(ctx, DocWebViewActivity::class.java).apply {
                         putExtra(EXTRA_URL, url)
                         putExtra(EXTRA_TITLE, title)
+                        memoToken?.takeIf { it.isNotBlank() }?.let {
+                            putExtra(EXTRA_MEMO_TOKEN, it)
+                            putExtra(EXTRA_MEMO_TEXT, memoText)
+                        }
                         if (ctx !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 )

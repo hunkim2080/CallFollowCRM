@@ -2329,7 +2329,11 @@ fun CustomerDetailScreen(
             },
             onOpenLink = { url ->
                 // 앱 내 웹뷰로 열기 — 브라우저 없어도 항상 열림. (2026-07-13 사장님: 크롬 의존 제거)
-                com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(context, url, "시공접수서")
+                // 📌 챗에서 여는 것과 **똑같이** 고칠 수 있어야 한다 — 한쪽만 되면 그게 더 헷갈린다.
+                com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+                    context, url, "시공접수서",
+                    memoToken = doc.token, memoText = doc.memo.orEmpty()
+                )
                 intakeReviewDoc = null
             },
             onDismiss = { intakeReviewDoc = null }
