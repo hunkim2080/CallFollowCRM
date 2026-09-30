@@ -562,7 +562,7 @@ class SharedSiteRepository(
     private fun parseSites(body: String): List<SharedSite> {
         if (body.isBlank()) return emptyList()
         val arr: JSONArray = JSONObject(body).optJSONArray("sites") ?: return emptyList()
-        return (0 until arr.length()).mapNotNull { i ->
+        return mergeSameSite((0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             SharedSite(
                 shareId = o.optString("share_id"),
@@ -580,8 +580,42 @@ class SharedSiteRepository(
                 progress = Progress.from(o.optString("progress")),
                 createdAtMs = o.optLong("created_at_ms")
             )
-        }
+        })
     }
+
+    /**
+     * 🤝 **같은 현장이 두 벌이면 한 벌로.** (2026-09-30 사장님 "상률로32 이현장 왜2개로 표시되지")
+     *
+     * 같은 사장(ownerPhone) · 같은 주소 · 같은 시각이면 **같은 현장**이다.
+     * 실제로 그렇게 두 번 온 것이 4건 있었다 — 보낸 분이 며칠 뒤 또 보낸 것이다.
+     *
+     * 남길 쪽 = **내용이 더 찬 쪽.** 나중 것이 일당도 시간도 비어 있는 경우가 있었다
+     * (그래서 일정에 「00:00 · 금액 없음」으로 떴다). 그냥 최신을 남기면 **적힌 걸 잃는다.**
+     *
+     * ⚠️ 주소가 없으면 합치지 않는다 — 주소 없는 현장끼리 엮으면 **다른 현장이 사라진다.**
+     * ⚠️ 시각이 다르면 합치지 않는다 — 오전·오후 두 번 가는 진짜 두 건일 수 있다.
+     */
+    internal fun mergeSameSite(list: List<SharedSite>): List<SharedSite> {
+        if (list.size < 2) return list
+        val out = LinkedHashMap<String, SharedSite>()
+        val loose = ArrayList<SharedSite>()
+        for (site in list) {
+            val addr = site.addr?.filter { !it.isWhitespace() }.orEmpty()
+            if (addr.isBlank() || site.scheduledAtMs <= 0L) { loose.add(site); continue }
+            val key = phoneKey(site.ownerPhone) + "|" + addr + "|" + site.scheduledAtMs
+            val prev = out[key]
+            out[key] = if (prev == null || richness(site) > richness(prev)) site else prev
+        }
+        return out.values.toList() + loose
+    }
+
+    /** 어느 쪽이 더 찼나 — 일당·시간·전해둘 말·진행이 있으면 그쪽이 진짜다. */
+    internal fun richness(s: SharedSite): Int =
+        (if (s.dailyWage != null) 2 else 0) +
+            (if (!s.timeLabel.isNullOrBlank()) 2 else 0) +
+            (if (!s.workSummary.isNullOrBlank()) 1 else 0) +
+            (if (!s.memo.isNullOrBlank()) 1 else 0) +
+            (if (s.progress != Progress.ASSIGNED) 1 else 0)
 
     private fun phoneKey(phone: String): String = phone.filter { it.isDigit() }
 }

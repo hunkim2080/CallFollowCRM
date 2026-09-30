@@ -16893,12 +16893,16 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
     #     날짜 다르면 새 share 만들어짐. 둘 다 NULL 인 케이스(날짜 없는 invite) 는 기존처럼 매치.
     with db_conn() as _con:
         title_match = title or ""
+        # 🤝 **주소로도 알아본다.** 제목은 나중에 바뀔 수 있다 — 같은 날 같은 주소면 같은 현장이다.
+        #   (2026-09-30 사장님 "상률로32 이현장 왜2개로 표시되지" — 같은 현장이 두 벌로 왔다)
+        addr_match = (addr or "").strip()
         existing = _con.execute(
             """
             SELECT share_id FROM shared_sites
             WHERE owner_phone = ?
               AND partner_phone = ?
-              AND IFNULL(title,'') = ?
+              AND ( IFNULL(title,'') = ?
+                    OR (? <> '' AND IFNULL(addr,'') = ?) )
               AND IFNULL(scheduled_at_ms, 0) = IFNULL(?, 0)
               AND status IN ('pending','accepted')
               AND paid_at_ms IS NULL
@@ -16906,7 +16910,8 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
             ORDER BY created_at_ms DESC
             LIMIT 1
             """,
-            (owner_phone, partner_phone, title_match, req.scheduled_at_ms),
+            (owner_phone, partner_phone, title_match,
+             addr_match, addr_match, req.scheduled_at_ms),
         ).fetchone()
     if existing:
         existing_id = existing[0]
