@@ -3298,12 +3298,9 @@ private fun startNavToAddress(context: android.content.Context, address: String)
 
 /** 시스템 다이얼러를 연다. ACTION_DIAL 은 권한 불필요, 자동 발신도 안 함. */
 private fun dialPhone(context: android.content.Context, phoneNumber: String) {
-    runCatching {
-        val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
-            data = android.net.Uri.parse("tel:$phoneNumber")
-        }
-        context.startActivity(intent)
-    }
+    // ☎️ 전화 거는 자리는 **한 곳**이다 — 거는 번호를 기억해 두어야
+    //   통화가 시작될 때 그 손님 카드를 띄운다. (2026-09-30 사장님)
+    com.detailline.callfollowcrm.util.PhoneDialer.open(context, phoneNumber)
 }
 
 /**

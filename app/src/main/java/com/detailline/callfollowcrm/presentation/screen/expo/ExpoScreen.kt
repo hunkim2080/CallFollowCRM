@@ -2359,7 +2359,5 @@ private fun openUrl(ctx: android.content.Context, url: String) {
 private fun dialPhone(ctx: android.content.Context, phone: String) {
     val digits = phone.filter { it.isDigit() || it == '+' }
     if (digits.isBlank()) return
-    runCatching {
-        ctx.startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$digits")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
+    com.detailline.callfollowcrm.util.PhoneDialer.open(ctx, digits)
 }

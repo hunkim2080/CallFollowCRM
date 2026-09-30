@@ -507,7 +507,7 @@ private fun ContactCard(
             Spacer(Modifier.height(11.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 NbActBtn("전화", TossSuccess, Modifier.weight(1f), enabled = c.phone.isNotBlank()) {
-                    runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${c.phone}"))) }
+                    com.detailline.callfollowcrm.util.PhoneDialer.open(context, c.phone)
                 }
                 NbActBtn("문자", TossBlue, Modifier.weight(1f), enabled = c.phone.isNotBlank()) { onSms() }
                 NbActBtn(if (isWorker) "단가·메모" else "메모·분류", TossTextSecondary, Modifier.weight(1f), enabled = true) { onEdit() }

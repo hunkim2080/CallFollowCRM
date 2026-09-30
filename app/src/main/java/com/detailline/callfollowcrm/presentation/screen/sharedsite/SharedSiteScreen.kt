@@ -870,12 +870,7 @@ private fun PendingInbox(
                     onClick = { off ->
                         annotated.getStringAnnotations("tel", off, off).firstOrNull()?.let { a ->
                             runCatching {
-                                dialCtx.startActivity(
-                                    android.content.Intent(
-                                        android.content.Intent.ACTION_DIAL,
-                                        android.net.Uri.parse("tel:" + a.item)
-                                    )
-                                )
+                                com.detailline.callfollowcrm.util.PhoneDialer.open(dialCtx, a.item)
                             }
                         }
                     }
@@ -1953,12 +1948,7 @@ private fun LinkifiedMemo(memo: String, baseColor: Color) {
         style = TextStyle(color = baseColor, fontSize = 14.sp, lineHeight = 21.sp),
         onClick = { offset ->
             annotated.getStringAnnotations("tel", offset, offset).firstOrNull()?.let { ann ->
-                runCatching {
-                    ctx.startActivity(
-                        Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + ann.item))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }
+                com.detailline.callfollowcrm.util.PhoneDialer.open(ctx, ann.item)
             }
         }
     )

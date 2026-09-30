@@ -48,8 +48,27 @@ class CallStateReceiver : BroadcastReceiver() {
                 IncomingCallOverlay.onRinging(context, incoming)
             }
             // 받았다고 내리지 않는다 — 통화하면서 주소·잔금을 봐야 한다. (2026-09-17 사장님)
-            TelephonyManager.EXTRA_STATE_OFFHOOK -> IncomingCallOverlay.onAnswered(context)
-            TelephonyManager.EXTRA_STATE_IDLE -> IncomingCallOverlay.onCallGone(context)
+            TelephonyManager.EXTRA_STATE_OFFHOOK -> {
+                // ☎️ **내가 건 전화에도 같은 카드.** (2026-09-30 사장님)
+                //   "전화를 걸어도 이게 똑같이 떴으면 좋겠어… 내가 전화하면서도 메모나 일정 같은 걸 볼 수 있잖아"
+                //
+                //   받는 전화는 **벨(RINGING)** 에 번호가 실려 온다. 그런데 **거는 전화엔 벨이 없다** —
+                //   안드로이드는 「통화 중」이라고만 알려주고 번호는 안 준다(Android 10 부터 막힘).
+                //   그래서 **앱에서 다이얼러를 열 때 적어둔 번호**([PhoneDialer])를 쓴다.
+                //
+                //   ⚠️ 벨을 거쳐 온 것(= 받은 전화)은 이미 카드가 떠 있다. 덮어쓰지 않는다.
+                if (prev != TelephonyManager.EXTRA_STATE_RINGING) {
+                    com.detailline.callfollowcrm.util.PhoneDialer.take()?.let { dialed ->
+                        IncomingCallOverlay.onRinging(context, dialed)
+                    }
+                }
+                IncomingCallOverlay.onAnswered(context)
+            }
+            TelephonyManager.EXTRA_STATE_IDLE -> {
+                // 안 쓴 기억은 버린다 — 다이얼러만 열고 안 걸었을 수도 있다.
+                com.detailline.callfollowcrm.util.PhoneDialer.clear()
+                IncomingCallOverlay.onCallGone(context)
+            }
         }
 
         // 통화 종료 시점 판정:

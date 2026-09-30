@@ -3588,12 +3588,7 @@ private fun HomeRow(
                 }
                 IconButton(
                     onClick = {
-                        runCatching {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
-                                data = android.net.Uri.parse("tel:${item.record.phoneNumber}")
-                            }
-                            context.startActivity(intent)
-                        }
+                        com.detailline.callfollowcrm.util.PhoneDialer.open(context, item.record.phoneNumber)
                     },
                     modifier = Modifier.size(36.dp)
                 ) {
@@ -3716,11 +3711,7 @@ private fun HomeRow(
                             label = "전화",
                             enabled = true,
                             onClick = {
-                                val intent = android.content.Intent(
-                                    android.content.Intent.ACTION_DIAL,
-                                    android.net.Uri.parse("tel:${item.record.phoneNumber}")
-                                )
-                                runCatching { context.startActivity(intent) }
+                                runCatching { com.detailline.callfollowcrm.util.PhoneDialer.open(context, item.record.phoneNumber) }
                                     .onFailure {
                                         android.widget.Toast.makeText(
                                             context, "다이얼러를 열 수 없어요", android.widget.Toast.LENGTH_SHORT
@@ -4295,11 +4286,9 @@ private fun AdRow(item: HomeItem, onOpenChat: () -> Unit, onNotAd: () -> Unit) {
 }
 
 private fun dialHome(context: android.content.Context, phone: String) {
-    runCatching {
-        context.startActivity(
-            android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$phone"))
-        )
-    }
+    // ☎️ 전화 거는 자리는 **한 곳**이다 — 거는 번호를 기억해 두어야
+    //   통화가 시작될 때 그 손님 카드를 띄운다. (2026-09-30 사장님)
+    com.detailline.callfollowcrm.util.PhoneDialer.open(context, phone)
 }
 
 /**

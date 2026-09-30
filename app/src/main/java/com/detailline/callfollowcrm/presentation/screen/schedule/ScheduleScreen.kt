@@ -1686,14 +1686,8 @@ private fun GoBtn(label: String, primary: Boolean, onClick: () -> Unit) {
 
 /** 시스템 전화 앱을 연다. ACTION_DIAL 은 권한이 필요 없고, 저절로 걸리지도 않는다. */
 private fun dialFromSchedule(context: android.content.Context, phoneNumber: String) {
-    runCatching {
-        context.startActivity(
-            android.content.Intent(
-                android.content.Intent.ACTION_DIAL,
-                android.net.Uri.parse("tel:$phoneNumber")
-            )
-        )
-    }
+    // ☎️ 전화 거는 자리는 **한 곳**이다. (2026-09-30 사장님)
+    com.detailline.callfollowcrm.util.PhoneDialer.open(context, phoneNumber)
 }
 
 /** 프로토 .assign-btn — blue-tint 알약(배정) / 회색 텍스트(변경). */
