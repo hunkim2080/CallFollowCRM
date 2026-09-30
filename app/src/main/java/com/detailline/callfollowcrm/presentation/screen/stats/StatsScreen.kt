@@ -419,8 +419,12 @@ private fun MyRecordMap(
         Text(
             buildString {
                 append("🚛 가 간 순서대로 달려요 · 톡 치면 다시 · 두 손가락으로 확대")
-                val townDots = rec.dots.count { !it.isStart }
-                if (rec.yearTownCount > townDots) append(" · 올해 ").append(rec.yearTownCount).append("개 동네")
+                // 이 카드는 **그 달** 지도다. 전엔 여기 「올해 48개 동네」를 붙였다 —
+                //   9월을 보는데 1년치가 섞였다. (2026-09-30 사장님
+                //   "아니 9월데이터를 보는데 왜 1년치가나오냐고")
+                //   자리를 없앤 게 아니라 **그 달 숫자로** 바꿼다 —
+                //   윗줄은 「… 외 4곳」이라 모두 몇 곳인지 안 보인다.
+                if (rec.towns.size > 1) append(" · ").append(rec.towns.size).append("개 동네")
             },
             style = AppType.caption, color = TossTextTertiary,
             modifier = Modifier.padding(horizontal = 2.dp)
