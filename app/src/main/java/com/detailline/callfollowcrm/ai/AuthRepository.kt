@@ -30,6 +30,13 @@ class AuthRepository(
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     data class CodeRequested(val expiresInSec: Int)
+
+    /**
+     * 📵 **그 인증문자, 못 갔다.** (2026-09-30 사장님)
+     *   say = 쓰는 분께 보여줄 말 · act = 다음에 누를 것(report/rephone/retry).
+     *   **말과 다음 할 일을 서버가 준다** — 문구를 고치려고 앱을 새로 올리지 않아도 된다.
+     */
+    data class SmsFail(val code: String, val reason: String, val say: String, val act: String)
     data class Verified(
         val status: String,
         val freeUntilMs: Long?,
@@ -60,6 +67,36 @@ class AuthRepository(
                 CodeRequested(expiresInSec = o.optInt("expiresInSec", 300))
             }
         }
+    }
+
+    /**
+     * 📵 **그 문자 갔어요?** — 코드 입력 화면에서 한 번 물어본다. (2026-09-30 사장님)
+     *
+     * 서버는 45초쯤에 통신사 회신을 받아 이미 알고 있다. 전엔 그걸 **사장님 슬랙에만** 말하고
+     * 쓰는 분에겐 아무 말도 안 했다 — 오지 않을 문자를 기다리게 뒀다.
+     *
+     * ⚠️ **모르면 아무 말도 안 한다.** 못 간 게 확실할 때만 SmsFail 을 돌려준다 —
+     *    인터넷이 잠깐 끊긴 걸 「문자 안 갔어요」로 잘못 말하면 될 가입도 막는다.
+     */
+    suspend fun smsResult(phone: String): SmsFail? = withContext(Dispatchers.IO) {
+        runCatching {
+            val digits = phone.filter { it.isDigit() }
+            if (digits.length < 9) return@runCatching null
+            val req = Request.Builder().url("$baseUrl/api/auth/sms-result?phone=$digits").get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                val o = parseBody(resp.body?.string())
+                if (o.optString("state") != "failed") return@use null
+                val say = o.optString("say").trim()
+                if (say.isEmpty()) return@use null
+                SmsFail(
+                    code = o.optString("code"),
+                    reason = o.optString("reason"),
+                    say = say,
+                    act = o.optString("act").ifBlank { "retry" }
+                )
+            }
+        }.getOrNull()
     }
 
     /** ② 인증번호 검증. 결과 status = enrolled / member / waitlisted. */

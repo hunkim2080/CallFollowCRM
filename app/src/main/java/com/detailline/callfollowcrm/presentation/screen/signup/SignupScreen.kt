@@ -5,7 +5,9 @@ import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.navigationBars
@@ -255,6 +257,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
 
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupViewModel, s: SignupViewModel.UiState) {
+    // 안내창 여닫이 — 아래 「문자가 안 와요」 와 **못 갔다고 알려주는 상자** 둘 다 이걸 연다.
+    var helpOpen by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -295,6 +299,40 @@ private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupV
                 }
             )
         }
+        // 📵 **못 갔으면 그 자리에서 말한다.** (2026-09-30 사장님)
+        //   "사용자한테 너 단말기는 문자를 못받는 단말기다. 이렇게 안내 팝업 보여줬어?"
+        //   전엔 통신사 회신이 **사장님 슬랙에만** 갔다 — 쓰는 분은 안 올 문자를 기다렸다.
+        //   ⚠️ 못 간 게 **확실할 때만** 뜬다. 모를 땐 아무 말도 안 한다(될 가입을 막으면 안 된다).
+        s.smsFail?.let { f ->
+            Spacer(Modifier.height(14.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(AppShape.lg)
+                    // 빨강 = 이 앱에서 「내가 손대야 하는 것」 색. 가입이 막힌 거라 노랑(주의)보다 세다.
+                    .background(AppTheme.colors.unpaidBg)
+                    .border(1.5.dp, AppTheme.colors.unpaidText, AppShape.lg)
+                    .padding(horizontal = 14.dp, vertical = 13.dp)
+            ) {
+                // 맨 앞 이모지는 폰마다 다르게 그려진다 — 빌드 감시가 막는다. 빨간 테두리가 이미 눈에 띈다.
+                Text("문자가 안 갔어요", style = AppType.body,
+                    fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.unpaidText)
+                Spacer(Modifier.height(5.dp))
+                // 무슨 말을 할지·다음에 뭘 누를지는 **서버가 준다** — 이유마다 다르고,
+                // 문구를 고치려고 앱을 새로 올리지 않아도 된다.
+                Text(f.say, style = AppType.label, color = Tag)
+                Spacer(Modifier.height(11.dp))
+                when (f.act) {
+                    "report" -> PrimaryButton(label = "가입 오류 신고", enabled = true, loading = false) { helpOpen = true }
+                    "rephone" -> PrimaryButton(label = "번호 다시 입력", enabled = true, loading = false) { vm.backToPhone() }
+                    else -> PrimaryButton(label = "인증번호 다시 받기", enabled = true, loading = false) { vm.requestCode() }
+                }
+                if (f.act != "rephone") {
+                    Spacer(Modifier.height(9.dp))
+                    Text("다른 번호로 해볼게요", style = AppType.label, color = Sub, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth().clickable { vm.backToPhone() }.padding(4.dp),
+                        textAlign = TextAlign.Center)
+                }
+            }
+        }
     }
     PrimaryButton(label = "확인", enabled = s.code.length == 6 && !s.loading, loading = s.loading) { vm.verify() }
     Spacer(Modifier.height(14.dp))
@@ -312,7 +350,6 @@ private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupV
 
     // 📵 **막다른 길을 없앤다.** 문자가 안 오면 지금까지는 앱을 닫는 것 말고 할 게 없었다.
     //   (2026-09-26 사장님: "인증문자를 못 받으면 가입을 못 한다. 나도 알 수 없고")
-    var helpOpen by remember { mutableStateOf(false) }
     Spacer(Modifier.height(4.dp))
     Text("문자가 안 와요", style = AppType.label, color = Sub,
         modifier = Modifier.fillMaxWidth().clickable { helpOpen = true }.padding(6.dp),

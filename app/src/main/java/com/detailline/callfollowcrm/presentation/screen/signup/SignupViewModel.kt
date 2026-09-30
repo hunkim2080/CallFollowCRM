@@ -35,7 +35,9 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
         val loading: Boolean = false,
         val error: String? = null,     // 일회성 토스트 문구
         val info: String? = null,      // 일회성 안내 토스트
-        val resendSec: Int = 0         // >0 = 재발송까지 남은 초(카운트다운)
+        val resendSec: Int = 0,        // >0 = 재발송까지 남은 초(카운트다운)
+        // 📵 문자가 **못 갔다고 통신사가 알려온** 경우. null = 모름(아무 말도 안 한다). (2026-09-30)
+        val smsFail: com.detailline.callfollowcrm.ai.AuthRepository.SmsFail? = null
     )
 
     /** enrolled/member 최종 결과 — 화면이 받아서 bizPhone 저장 + 화면 전환. waitlisted 는 phase 로 처리. */
@@ -54,6 +56,7 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
 
     private var smsJob: Job? = null
     private var resendJob: Job? = null
+    private var failJob: Job? = null
 
     fun onPhoneChange(v: String) { _state.update { it.copy(phone = v) } }
     fun onCodeChange(v: String) {
@@ -90,9 +93,10 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.authRepository.requestCode(s.phone)
                 .onSuccess {
-                    _state.update { st -> st.copy(phase = Phase.CODE, loading = false, code = "", info = "인증번호를 보냈어요. 잠시만요…") }
+                    _state.update { st -> st.copy(phase = Phase.CODE, loading = false, code = "", info = "인증번호를 보냈어요. 잠시만요…", smsFail = null) }
                     startResendCountdown(60)
                     startSmsAutoRead(System.currentTimeMillis() - 3000)
+                    startSmsFailWatch(s.phone)
                 }
                 .onFailure { e ->
                     val msg = (e as? AuthException)?.message ?: "발송에 실패했어요. 잠시 후 다시 시도해주세요"
@@ -109,6 +113,7 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
         if (s.loading) return
         if (s.code.length != 6) { _state.update { it.copy(error = "인증번호 6자리를 입력해주세요") }; return }
         _state.update { it.copy(loading = true) }
+        failJob?.cancel()   // 코드를 넣었다 = 문자가 왔다. 더 물어볼 이유가 없다.
         viewModelScope.launch {
             container.authRepository.verifyCode(s.phone, s.code)
                 .onSuccess { v ->
@@ -157,7 +162,7 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun backToPhone() {
-        smsJob?.cancel(); resendJob?.cancel()
+        smsJob?.cancel(); resendJob?.cancel(); failJob?.cancel()
         _state.update { UiState(phone = it.phone) }
     }
 
@@ -170,6 +175,30 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
                 delay(1000); n--
             }
             _state.update { it.copy(resendSec = 0) }
+        }
+    }
+
+    /**
+     * 📵 **그 문자 갔는지 서버에 물어본다.** (2026-09-30 사장님)
+     *
+     * 통신사 회신은 보통 45초 안에 서버로 온다 → **50초에 한 번**, 아직 모르면 **15초 뒤 한 번 더.**
+     * 딱 두 번이다 — 계속 물으면 배터리만 먹는다. 대부분(문자가 잘 간 경우)은 아무 일도 안 일어난다.
+     *
+     * 멈추는 때: 코드를 넣었을 때 · 화면을 벗어났을 때 · 번호를 다시 입력할 때.
+     */
+    private fun startSmsFailWatch(phone: String) {
+        failJob?.cancel()
+        failJob = viewModelScope.launch {
+            for (waitMs in longArrayOf(50_000L, 15_000L)) {
+                delay(waitMs)
+                val now = _state.value
+                // 코드가 이미 들어왔으면(자동 읽기 성공 포함) 물어볼 이유가 없다.
+                if (now.phase != Phase.CODE || now.code.isNotEmpty() || now.phone != phone) return@launch
+                val fail = container.authRepository.smsResult(phone) ?: continue
+                if (_state.value.phase != Phase.CODE || _state.value.code.isNotEmpty()) return@launch
+                _state.update { it.copy(smsFail = fail) }
+                return@launch
+            }
         }
     }
 
@@ -190,7 +219,7 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    override fun onCleared() { smsJob?.cancel(); resendJob?.cancel() }
+    override fun onCleared() { smsJob?.cancel(); resendJob?.cancel(); failJob?.cancel() }
 
     private companion object {
         private val SIX = Regex("(\\d{6})")
