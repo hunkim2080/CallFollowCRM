@@ -285,6 +285,35 @@ object RecordReel {
      */
     const val END_HOLD = 0.12f
 
+    /** 제일 짧은 영상. 두세 곳뿐인 달도 이보다 짧으면 볼 새가 없다. */
+    const val MIN_SECONDS = 10f
+    /** 제일 긴 영상. 더 늘리면 올릴 때 부담스럽다 (사장님 "10-15초"). */
+    const val MAX_SECONDS = 15f
+
+    /**
+     * 🎬 **몇 초짜리로 만들까** — 곳이 많으면 길게. (2026-09-30 사장님)
+     *
+     *   "현장에 따라 10-15초 나오게 해야 버벅이는 것처럼 안 보이지 않을까?"
+     *
+     * 전엔 **10초 고정**이었다. 3곳이든 12곳이든 10초 —
+     * 많이 다닌 달일수록 트럭이 **한 곳당 1초도 못 쓰고** 튀듯 지나갔다.
+     * 컷 수(24)는 멀쩡한데 **한 컷 사이에 움직이는 거리가 커서** 버벅이는 것처럼 보인다.
+     *
+     * 재는 것은 **들르는 횟수**(구간 수)다. 점 개수가 아니라 — 출발점은 달리는 구간이 아니다.
+     * 끝에서 [END_HOLD] 만큼은 멈춰 있으니 그만큼 빼고 나눈다.
+     *
+     * @param stops 지도에 찍히는 점 개수(출발 포함)
+     */
+    fun secondsFor(stops: Int): Float {
+        val legs = (stops - 1).coerceAtLeast(1)          // 달리는 구간 수
+        val driving = legs * SEC_PER_LEG                 // 구간 하나에 이만큼은 쓰자
+        val total = driving / (1f - END_HOLD)            // 끝에 멈춰 있는 시간까지 더해서
+        return total.coerceIn(MIN_SECONDS, MAX_SECONDS)
+    }
+
+    /** 한 구간(앞 현장 → 다음 현장)에 주고 싶은 시간. 이보다 빠르면 눈이 못 따라간다. */
+    private const val SEC_PER_LEG = 1.3f
+
     private fun font(ctx: Context, id: Int): Typeface? =
         runCatching { ResourcesCompat.getFont(ctx, id) }.getOrNull()
 
@@ -511,7 +540,8 @@ object RecordReel {
     suspend fun make(
         ctx: Context,
         d: Data,
-        seconds: Float = 10f,
+        /** 안 주면 **곳 수에 맞춰** 정한다 — [secondsFor]. (2026-09-30 사장님) */
+        seconds: Float = secondsFor(d.dots.size),
         progress: VideoMaker.Progress? = null
     ): File? {
         lastMadeSize = null
