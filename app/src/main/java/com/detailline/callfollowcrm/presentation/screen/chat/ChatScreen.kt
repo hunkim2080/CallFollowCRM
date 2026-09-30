@@ -3282,7 +3282,7 @@ private fun IssuedDocSegment(
         }
         doc.memo?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(2.dp))
-            Text("특이사항: $it", fontSize = 11.5.sp, color = TossTextTertiary,
+            Text("비고: $it", fontSize = 11.5.sp, color = TossTextTertiary,
                 modifier = Modifier.padding(start = 20.dp), maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
@@ -6486,7 +6486,8 @@ private fun EstimateBuilderDialog(
             //   ⚠️ 의미: 사장님이 고객에게 '미리 알릴' 약속·고지사항 (고객이 주는 정보 X). (2026-07-06 사장님 정정)
             if (mode != "text") {
                 Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("특이사항", if (memo.isBlank()) "안 적어도 돼요" else "적었어요",
+                // 이름은 **비고** 하나로. 사장님이 그렇게 부르고, 견적서 문서 블록 제목도 이미 비고다. (2026-09-30)
+                EstLabelRow("비고", if (memo.isBlank()) "안 적어도 돼요" else "적었어요",
                     dim = memo.isBlank())
                 Spacer(Modifier.height(AppSpace.s4))
                 Text("고객에게 미리 알릴 약속·안내를 적어요 (견적서·접수서에 표시)",

@@ -2561,7 +2561,7 @@ private fun IntakeReviewDialog(
                         fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
                 }
                 doc.memo?.takeIf { it.isNotBlank() }?.let {
-                    Text("· 특이사항 : $it", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
+                    Text("· 비고 : $it", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("고객이 작성한 주소·상세는 아래 링크에서 확인돼요.", fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp)

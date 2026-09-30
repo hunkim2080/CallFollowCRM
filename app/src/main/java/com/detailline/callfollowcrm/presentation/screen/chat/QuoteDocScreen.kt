@@ -307,7 +307,8 @@ fun QuoteDocScreen(
                 }
                 Text("· 유효기간 : 발행일로부터 ${validDays}일", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 data.memo?.takeIf { it.isNotBlank() }?.let { m ->
-                    Text("· 특이사항 : $m", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
+                    // 이 블록 제목이 이미 「비고」다 — 안에 또 「특이사항」을 붙이면 같은 말을 두 번 한다.
+                    Text("· $m", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 }
                 // ── 서명란: 견적일자 + 직인 ──
                 Spacer(Modifier.height(22.dp))

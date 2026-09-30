@@ -91,7 +91,7 @@ class DocWebViewActivity : ComponentActivity() {
                         setPadding(dp(18), dp(12), dp(18), dp(12))
                     }
                     android.app.AlertDialog.Builder(this@DocWebViewActivity)
-                        .setTitle("비고 (사장님 특이사항)")
+                        .setTitle("비고")
                         .setMessage("고객에게 미리 알릴 약속·안내를 적어요. 접수서에 바로 반영돼요.")
                         .setView(input)
                         .setPositiveButton("저장") { _, _ ->

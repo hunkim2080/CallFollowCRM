@@ -20736,7 +20736,7 @@ def _build_owner_memo_html(memo) -> str:
         return ""
     return (
         '\n    <div class="q-card">'
-        '\n      <div class="q-card-h"><span class="q-step">📌</span>사장님 특이사항</div>'
+        '\n      <div class="q-card-h"><span class="q-step">📌</span>사장님 비고</div>'
         '\n      <div style="padding:4px 2px; font-size:14.5px; line-height:1.6; '
         'color:#0B0F19; white-space:pre-wrap;">' + _html.escape(m) + "</div>"
         "\n    </div>"
@@ -21268,7 +21268,7 @@ def _render_intake_receipt_html(data: dict) -> str:
     _om = (data.get("owner_memo") or "").strip()
     if _om:
         owner_memo_html = (
-            "<div class='card'><div class='card-h'>📌 사장님 특이사항</div>"
+            "<div class='card'><div class='card-h'>📌 사장님 비고</div>"
             f"<div style='font-size:14.5px;line-height:1.6;color:#0B0F19;white-space:pre-wrap'>{_html.escape(_om)}</div></div>")
 
     return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
