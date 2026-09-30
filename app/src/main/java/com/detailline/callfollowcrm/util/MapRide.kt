@@ -170,6 +170,11 @@ object MapRide {
         at: At,
         t: Float,
         /**
+         * 🎥 들르는 곳들의 (lon, lat) — **구간을 화면에 담으려면** 양 끝이 어디인지 알아야 한다.
+         *   비워두면 예전처럼 트럭을 정확히 따라간다(옛 동작 그대로).
+         */
+        stopsLL: List<Pair<Double, Double>> = emptyList(),
+        /**
          * 얼마나 당겨서 따라붙을지.
          *   2.6 까지 당겼더니 먼 구간에서 트럭이 **1초에 화면 두 칸 반**을 지나가 휘딝거렸고,
          *   지도에 그려진 게 별로 없어 **벌판처럼** 보였다. (2026-09-25 단위 테스트가 잡음)
@@ -185,15 +190,75 @@ object MapRide {
         // 뒤로 갈수록 천천히 멈춘다(ease-out) — 뚝 서면 흔들린 것처럼 보인다.
         val e = 1f - (1f - g) * (1f - g) * (1f - g)
 
-        val zoom = followZoom + (restZoom - followZoom) * e
-        // 트럭을 화면 한가운데로: cLon = mid - panX*span/zoom  →  panX = (mid - lon)*zoom/span
-        val fx = if (b.spanLon > 0) ((b.midLon - at.lon) * zoom / b.spanLon).toFloat() else 0f
-        val fy = if (b.spanLat > 0) ((at.lat - b.midLat) * zoom / b.spanLat).toFloat() else 0f
+        // 🎥 **구간을 잡아놓고 지나가게 둔다.** (2026-10-01 사장님 "버벅이는데")
+        //   전엔 트럭을 **정확히 가운데** 두려고 매 컷 지도를 밀었다 —
+        //   지도엔 동네 이름과 도로선이 있어서, 매 컷 다시 그려지면 **글자가 떨린다.**
+        //   컷을 늘려도 안 없어진다(24컷·누락 0 인데도 버벅여 보였다. 2026-09-30 실측).
+        //   이제 한 구간을 가는 **내내 지도는 그 자리에 서고**, 현장에서 **쉬는 동안** 다음 화면으로 미끄러진다.
+        val legShot = legFraming(b, at, stopsLL, followZoom)
+        val zoom = legShot.zoom + (restZoom - legShot.zoom) * e
+        val fx = legShot.panX
+        val fy = legShot.panY
         // 📌 **끝까지 정가운데.** (2026-09-25 사장님 "확대를 해도 그 가운데가 유지되는거 맞지?")
         //   손가락으로 끌 땐 '지도를 잃지 말자'고 가장자리에서 잡아둔다.
         //   하지만 지도는 **전국이 다 그려져 있어** 더 밀어도 빈 데가 안 나온다.
         //   그래서 카메라는 안 잡는다 — 가장자리 동네(강서·동탄)에서도 트럭이 가운데다.
         return Shot(zoom, fx + (restPanX - fx) * e, fy + (restPanY - fy) * e)
+    }
+
+    /**
+     * 🎥 **지금 구간을 화면에 담는 한 컷.** 구간이 바뀌는 순간에만 움직인다.
+     *
+     * 담는 것 = 앞 현장 · 다음 현장 **둘 다.** 그래야 「어디서 어디로 가는지」가 한 화면에 보인다.
+     * 구간이 길면 저절로 덜 당겨지고(멀리서), 짧으면 더 당겨진다(가까이).
+     *
+     * ⚠️ **구간이 바뀌는 순간 뚝 끊기면 안 된다.** 현장에 닿아 쉬는 동안([MapRide.PAUSE])
+     *    다음 화면으로 **미끄러져** 간다 — 그 사이에만 지도가 움직인다.
+     * ⚠️ [stopsLL] 이 비면 예전처럼 트럭을 정확히 따라간다(옛 동작 보존).
+     */
+    private fun legFraming(
+        b: Bounds, at: At, stopsLL: List<Pair<Double, Double>>, followZoom: Float
+    ): Shot {
+        if (stopsLL.size < 2) return trackTruck(b, at, followZoom)
+        val i = at.arrived.coerceIn(0, stopsLL.size - 1)
+        val j = (i + 1).coerceAtMost(stopsLL.size - 1)
+        val now = frameOf(b, stopsLL[i], stopsLL[j], followZoom)
+        // 막 도착했으면 **앞 구간 화면에서 지금 화면으로** 미끄러진다. 그 창이 쉬는 시간이다.
+        val arriveT = at.arriveAt.getOrNull(i) ?: 0f
+        val since = (at.nowT - arriveT).coerceAtLeast(0f)
+        if (i == 0 || since >= PAUSE) return now
+        val prev = frameOf(b, stopsLL[(i - 1).coerceAtLeast(0)], stopsLL[i], followZoom)
+        val g = (since / PAUSE).coerceIn(0f, 1f)
+        val e = 1f - (1f - g) * (1f - g) * (1f - g)   // 끝에서 천천히 — 뚝 서면 흔들린 것처럼 보인다
+        return Shot(
+            prev.zoom + (now.zoom - prev.zoom) * e,
+            prev.panX + (now.panX - prev.panX) * e,
+            prev.panY + (now.panY - prev.panY) * e
+        )
+    }
+
+    /** 두 지점을 **둘 다** 담는 한 컷. */
+    private fun frameOf(
+        b: Bounds, a: Pair<Double, Double>, c: Pair<Double, Double>, followZoom: Float
+    ): Shot {
+        val midLon = (a.first + c.first) / 2
+        val midLat = (a.second + c.second) / 2
+        // 구간이 화면의 이만큼만 차지하게 — 가장자리에 붙으면 답답하다.
+        val useLon = if (b.spanLon > 0) kotlin.math.abs(a.first - c.first) / b.spanLon else 0.0
+        val useLat = if (b.spanLat > 0) kotlin.math.abs(a.second - c.second) / b.spanLat else 0.0
+        val need = max(useLon, useLat) / 0.62
+        // 너무 당기면 벌판처럼 보이고(2026-09-25), 너무 빠지면 트럭이 깨알이 된다.
+        val zoom = if (need <= 0.0) followZoom else (1.0 / need).toFloat().coerceIn(1.0f, followZoom)
+        val px = if (b.spanLon > 0) ((b.midLon - midLon) * zoom / b.spanLon).toFloat() else 0f
+        val py = if (b.spanLat > 0) ((midLat - b.midLat) * zoom / b.spanLat).toFloat() else 0f
+        return Shot(zoom, px, py)
+    }
+
+    /** 옛 동작 — 트럭을 정확히 가운데. [stopsLL] 을 안 줄 때만 쓴다. */
+    private fun trackTruck(b: Bounds, at: At, followZoom: Float): Shot {
+        val px = if (b.spanLon > 0) ((b.midLon - at.lon) * followZoom / b.spanLon).toFloat() else 0f
+        val py = if (b.spanLat > 0) ((at.lat - b.midLat) * followZoom / b.spanLat).toFloat() else 0f
+        return Shot(followZoom, px, py)
     }
 
     /** 당겨져 있을 땐 **동네 이름을 다 보여준다** — 안 그러면 지금 어디인지 알 수가 없다. */

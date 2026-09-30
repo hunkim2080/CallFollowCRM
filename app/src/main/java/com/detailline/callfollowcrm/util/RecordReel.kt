@@ -434,6 +434,8 @@ object RecordReel {
                 b = com.detailline.callfollowcrm.util.MapRide.bounds(ordered0.map { it.lon to it.lat }),
                 at = ride!!,
                 t = t,
+                // 🎥 구간을 화면에 담으려면 **들르는 곳 좌표**가 필요하다. (2026-10-01)
+                stopsLL = ordered0.map { it.lon to it.lat },
                 restZoom = d.zoom, restPanX = d.panX, restPanY = d.panY
             )
             androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
