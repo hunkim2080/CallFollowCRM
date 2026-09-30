@@ -1168,10 +1168,23 @@ fun ChatScreen(
                 }
             }
             workDoneAsk?.let { lastDay ->
+                // 💰 받을 잔금이 얼마인지 같이 넘긴다 — 「다 받았나요?」를 물으려면 금액이 보여야 한다.
+                //   금액을 안 적은 현장은 0 이 되고, 그때는 예전처럼 **끝났는지만** 묻는다.
+                val doneOutstanding = customer?.let {
+                    com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(it).outstanding
+                } ?: 0L
                 WorkDoneAskCard(
                     workLastDayMs = lastDay,
-                    onYes = { viewModel.markWorkCompleted(); viewModel.dismissWorkDoneAsk(lastDay) },
-                    onNo = { viewModel.dismissWorkDoneAsk(lastDay) }
+                    outstandingWon = doneOutstanding,
+                    // 다 받았다 = 일도 끝났고 돈도 들어왔다. **두 개를 한 번에** 찍는다.
+                    onDoneAndPaid = {
+                        viewModel.markWorkCompleted(); viewModel.markBalancePaid()
+                        viewModel.dismissWorkDoneAsk(lastDay)
+                    },
+                    // 일은 끝났는데 돈은 아직 — 완료만. 미수금으로 남아 알림이 계속 챙긴다.
+                    onDoneOnly = { viewModel.markWorkCompleted(); viewModel.dismissWorkDoneAsk(lastDay) },
+                    // 그날 안 갔다 — **아무것도 안 찍는다.** 잘못 찍으면 손님에게 잔금 독촉이 나간다.
+                    onNotYet = { viewModel.dismissWorkDoneAsk(lastDay) }
                 )
             }
 
@@ -3818,14 +3831,21 @@ private fun payWonLabel(won: Long): String =
 @Composable
 private fun WorkDoneAskCard(
     workLastDayMs: Long,
-    onYes: () -> Unit,
-    onNo: () -> Unit
+    /** 아직 받을 돈. 0 이면 금액을 안 적은 현장이라 **돈 얘기를 꺼내지 않는다.** */
+    outstandingWon: Long,
+    /** 일도 끝났고 돈도 받았다 — 완료 + 잔금을 **한 번에** 찍는다. */
+    onDoneAndPaid: () -> Unit,
+    /** 일은 끝났는데 돈은 아직 — 완료만. 미수금으로 남는다. */
+    onDoneOnly: () -> Unit,
+    /** 그날 안 갔다 — **아무것도 안 찍는다.** */
+    onNotYet: () -> Unit
 ) {
     val purple = Color(0xFF6B4FBB)
     val days = ((DateTimeUtils.startOfDay(System.currentTimeMillis()) - workLastDayMs)
         / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(1)
     val dayLabel = java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
         .format(java.util.Date(workLastDayMs))
+    val asksMoney = outstandingWon > 0L
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -3837,23 +3857,53 @@ private fun WorkDoneAskCard(
             fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = purple
         )
         Spacer(Modifier.height(4.dp))
+        // 💰 **돈까지 한 번에 묻는다.** (2026-09-28 사장님 "잔금 다 받았나요? 받았으면 완료처리가 자동으로")
+        //   전엔 「끝났나요?」만 물어서, 「네」를 눌러도 **완료만** 찍히고 돈은 그대로였다.
+        //   사장님은 정산에 또 들어가 잔금을 찍어야 했다 — 한 가지 일에 두 번 손이 갔다.
         Text(
-            "${dayLabel}로 잡혀 있었어요 (${days}일 지남). 이 현장 끝났나요?",
+            if (asksMoney)
+                "${dayLabel}로 잡혀 있었어요 (${days}일 지남).\n" +
+                    "받을 잔금 " +
+                    com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(outstandingWon) +
+                    ", 다 받으셨나요?"
+            else "${dayLabel}로 잡혀 있었어요 (${days}일 지남). 이 현장 끝났나요?",
             fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp
         )
         Spacer(Modifier.height(11.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
-                "네, 끝났어요",
+                if (asksMoney) "네, 다 받았어요" else "네, 끝났어요",
                 fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(purple)
-                    .clickable(onClick = onYes).padding(horizontal = 14.dp, vertical = 9.dp)
+                    .clickable(onClick = if (asksMoney) onDoneAndPaid else onDoneOnly)
+                    .padding(horizontal = 14.dp, vertical = 9.dp)
             )
+            if (asksMoney) {
+                // 일은 끝났는데 돈은 아직 — **완료만.** 미수금으로 남아 알림이 계속 챙긴다.
+                Text(
+                    "아직 못 받았어요",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                        .clickable(onClick = onDoneOnly).padding(horizontal = 14.dp, vertical = 9.dp)
+                )
+            } else {
+                Text(
+                    "아직이에요",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                        .clickable(onClick = onNotYet).padding(horizontal = 14.dp, vertical = 9.dp)
+                )
+            }
+        }
+        // ⚠️ **안 간 날일 수도 있다.** 시공이 미뤄졌는데 날짜를 안 고친 경우가 그렇다.
+        //   이걸 안 두면 「아직 못 받았어요」를 눌러 **안 한 일이 끝난 일**이 되고,
+        //   그다음부터 손님에게 잔금 독촉이 나간다. 잘못 찍는 쪽이 훨씬 비싸다.
+        if (asksMoney) {
+            Spacer(Modifier.height(9.dp))
             Text(
-                "아직이에요",
-                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
-                    .clickable(onClick = onNo).padding(horizontal = 14.dp, vertical = 9.dp)
+                "그날 시공을 안 했어요",
+                fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                modifier = Modifier.clickable(onClick = onNotYet).padding(vertical = 3.dp)
             )
         }
     }
