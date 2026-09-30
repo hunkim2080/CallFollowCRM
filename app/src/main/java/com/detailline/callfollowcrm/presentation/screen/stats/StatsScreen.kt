@@ -649,12 +649,16 @@ private fun ShotPreviewDialog(
     androidx.compose.runtime.DisposableEffect(previewPhotos) {
         onDispose { for (b in previewPhotos.values) runCatching { b.recycle() } }
     }
-    // 10초에 한 바퀴, 계속. 영상과 **같은 길이**라야 "이대로 나오겠구나" 가 맞는다.
+    // 한 바퀴 도는 데 걸리는 시간 = **진짜 영상 길이.**
+    //   영상과 같은 길이라야 "이대로 나오겠구나" 가 맞는다 — 그렇게 적어두고도
+    //   10초로 박아두어, 곳이 많은 달은 미리보기가 **진짜보다 빨리** 돌았다.
+    //   (2026-09-30 폰에서 발견 — 미리보기 10초 / 실제 15초)
+    val reelMs = (com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size) * 1000f).toInt()
     val reelT by androidx.compose.animation.core.rememberInfiniteTransition(label = "reelPrev")
         .animateFloat(
             initialValue = 0f, targetValue = 1f,
             animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                animation = tween(10_000, easing = androidx.compose.animation.core.LinearEasing)
+                animation = tween(reelMs, easing = androidx.compose.animation.core.LinearEasing)
             ),
             label = "t"
         )
@@ -779,7 +783,11 @@ private fun ShotPreviewDialog(
                 if (previewVideo) {
                     Spacer(Modifier.height(AppSpace.s4))
                     Text(
-                        "저장되는 영상과 같은 그림이에요 · 릴스용 9:16 · 10초",
+                        // 길이는 **곳 수에 따라** 달라진다(10~15초) — 「10초」로 박아두면
+                        //   화면과 실제가 다른 말을 한다. (2026-09-30 폰에서 발견)
+                        "저장되는 영상과 같은 그림이에요 · 릴스용 9:16 · " +
+                            com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size)
+                                .toInt().toString() + "초",
                         style = AppType.caption, color = TossTextTertiary,
                         modifier = Modifier.padding(start = 2.dp)
                     )
@@ -924,7 +932,10 @@ private fun ShotPreviewDialog(
                 // 저장하면 몇 픽셀인지 — 올리기 전에 알면 자르지 않는다. (시안 "1080 × 1350")
                 Spacer(Modifier.height(AppSpace.s8))
                 Text(
-                    if (previewVideo) "저장 크기 · 720 × 1280 (릴스 9:16) · 10초"
+                    // 길이는 **곳 수에 따라** 달라진다 — 「10초」을 두 군데에 박아두고 있었다.
+                    //   (2026-09-30 폰에서 발견 — 화면은 10초라는데 실제는 15초)
+                    if (previewVideo) "저장 크기 · 720 × 1280 (릴스 9:16) · " +
+                        com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size).toInt() + "초"
                     else if (shape == ShotShape.STICKER) "저장 크기 · 배경 없는 스티커 (1080 폭)"
                     else "저장 크기 · 1080 × ${ratio.h}",
                     style = AppType.caption, color = TossTextTertiary,
@@ -1036,7 +1047,9 @@ private fun ShotPreviewDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         // 바로 만들지 않는다 — **먼저 보여준다.**
-                        Text("영상으로 보기 (릴스용 10초)", style = AppType.label,
+                        Text("영상으로 보기 (릴스용 " +
+                            com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size).toInt() +
+                            "초)", style = AppType.label,
                             fontWeight = FontWeight.ExtraBold, color = TossBlue)
                     }
                 }
@@ -1188,7 +1201,7 @@ private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
         ) { it.amountManwon.toFloat() }
     )
     // 동네는 **한 곳 도착에 한 칸**. 나간 날은 동네별 현장 수로 나눈다(날짜별 자료는 없다).
-    if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "동네", "올해 다녀온 동네") { 1f })
+    if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "올해 동네", "올해 다녀온 동네") { 1f })
     if (rec.monthWorkDays > 0)
         add(BigPick("${rec.monthWorkDays}", "일", "현장", "이번 달 현장에 나간 날") { it.count.toFloat() })
     // 🚛 **달린 거리** — 길을 타고 간 거리라 직선보다 훨씬 정직하다.
