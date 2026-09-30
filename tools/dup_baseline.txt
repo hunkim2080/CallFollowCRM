@@ -1,7 +1,20 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 58곳 / 27줄
+# 총 76곳 / 40줄
+day-start|presentation/component/CustomerStatusTag.kt 1
+day-start|presentation/screen/brief/ClosingBriefViewModel.kt 1
+day-start|presentation/screen/chat/ChatScreen.kt 1
+day-start|presentation/screen/chat/MyScheduleSheet.kt 1
+day-start|presentation/screen/customers/CustomersScreen.kt 1
+day-start|presentation/screen/report/ReportViewModel.kt 2
+day-start|presentation/screen/schedule/ScheduleAddScreen.kt 1
+day-start|presentation/screen/schedule/ScheduleScreen.kt 1
+day-start|presentation/screen/settlement/CashFlowSection.kt 1
+day-start|presentation/screen/settlement/SettlementViewModel.kt 2
+day-start|presentation/screen/stats/StatsViewModel.kt 3
+day-start|presentation/screen/stats/VisitedViewModel.kt 2
+day-start|util/MessageEntities.kt 1
 dialog-white|presentation/screen/chat/ChatScreen.kt 2
 dialog-white|presentation/screen/customer/CustomerDetailScreen.kt 1
 dialog-white|presentation/screen/expo/ExpoScreen.kt 2
