@@ -66,8 +66,18 @@ private val Disabled = Color(0xFFE2E6EC)
 private val Tag = Color(0xFF3A4250)
 private val Sub = Color(0xFF8A93A2)
 
-/** 📵 인증문자가 안 올 때 **사람에게 닿는 유일한 길.** 사장님이 직접 정한 번호. (2026-09-26) */
-private const val HELP_PHONE = "010-3969-0479"
+/** 📵 인증문자가 안 올 때 **사람에게 닿는 유일한 길.** 사장님이 직접 정한 번호. (2026-09-30 바뀜) */
+private const val HELP_PHONE = "010-8005-6674"
+
+/**
+ * 📵 신고 문자 본문 — **사장님이 직접 적어주신 문장 그대로.** (2026-09-30)
+ *   "버튼누르면 문자내용으로 「이 번호로 인증번호가 안옵니다 해결부탁드립니다!」 이렇게 미리 적혀있어서"
+ *
+ * ⚠️ 「이 번호」는 **보낸 사람 번호**를 뜻한다 — 받는 문자에 발신번호가 찍히니 그걸로 통한다.
+ *    다만 **다른 폰으로 보내는 경우**(내 폰이 문자가 안 되니 가족 폰으로)에 그게 어긋난다.
+ *    그래서 아래 줄에 가입하려던 번호를 한 줄 덧붙인다 — 사장님 문장은 건드리지 않는다.
+ */
+private const val HELP_SMS_BODY = "이 번호로 인증번호가 안옵니다 해결부탁드립니다!"
 
 /**
  * 회원가입 (첫 화면) — 폰 인증번호. docs/ANDROID_HANDOFF_signup_auth.md.
@@ -320,7 +330,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupV
 private fun SmsHelpDialog(myPhone: String, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val clip = LocalClipboardManager.current
-    val body = "가입인증 오류 — 인증문자가 안 와요. 제 번호: " + myPhone
+    val body = HELP_SMS_BODY + "\n(가입하려는 번호: " + myPhone + ")"
     AlertDialog(
         onDismissRequest = onClose,
         containerColor = Color.White,
@@ -333,6 +343,10 @@ private fun SmsHelpDialog(myPhone: String, onClose: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Text("그래도 없으면 아래로 문자 주세요. 바로 도와드릴게요.",
                     style = AppType.body, color = Sub)
+                Spacer(Modifier.height(10.dp))
+                // 보내기 전에 **무슨 글이 나가는지** 보여준다. 모르고 누르게 하지 않는다.
+                Text("\"" + HELP_SMS_BODY + "\"",
+                    style = AppType.label, color = Ink, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(14.dp))
                 Box(
                     Modifier.fillMaxWidth()
@@ -369,7 +383,7 @@ private fun SmsHelpDialog(myPhone: String, onClose: () -> Unit) {
                 }
                 onClose()
             }) {
-                Text("문자 보내기", color = Blue, fontWeight = FontWeight.ExtraBold)
+                Text("가입 오류 신고", color = Blue, fontWeight = FontWeight.ExtraBold)
             }
         },
         dismissButton = {
