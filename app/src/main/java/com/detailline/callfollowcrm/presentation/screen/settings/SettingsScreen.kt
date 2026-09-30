@@ -3858,12 +3858,36 @@ private fun AppFooter() {
                 modifier = Modifier.clickable { openLink(com.detailline.callfollowcrm.AppConfig.PRIVACY_POLICY_URL) }.padding(4.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Text(
-            "시공막내 버전 ${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME}",
-            color = TossTextSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // 📰 **버전을 누르면 「뭐가 달라졌나」를 보여준다.** (2026-10-01 사장님)
+        //   "시공막내 버전 000000 이 영역을 클릭하면 이번 업데이트 내용?
+        //    이 간략하게라도 정리되서 보였으면 좋겠어 내가 파악하기 위함임"
+        //
+        //   ⚠️ **소식을 앱에 또 적지 않는다.** 홈페이지 주간 소식(si0in.kr/updates)이
+        //   이미 **그 한 곳**이다. 앱에 또 적으면 두 벌이 되고, 한쪽만 고치게 된다.
+        //   그래서 **그 페이지를 앱 안에서 여는다**(브라우저 없어도 열린다).
+        Row(
+            Modifier.clip(AppShape.sm)
+                .clickable {
+                    com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+                        linkCtx,
+                        com.detailline.callfollowcrm.AppConfig.BASE_URL + "/updates",
+                        "이번 업데이트"
+                    )
+                }
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "시공막내 버전 ${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME}",
+                color = TossTextSecondary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.width(6.dp))
+            // 누를 수 있다는 것을 **보이게** 한다 — 안 그러면 있는 줄도 모른다.
+            Text("뭐가 달라졌나 ›", color = TossBlue, fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold)
+        }
         if (builtAt.isNotEmpty()) {
             Spacer(Modifier.height(3.dp))
             Text(
