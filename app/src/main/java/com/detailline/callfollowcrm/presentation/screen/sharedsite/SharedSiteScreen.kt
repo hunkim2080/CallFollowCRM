@@ -352,6 +352,9 @@ fun SharedSiteScreen(
                         PendingInbox(
                             sites = pendingSites,
                             myJobs = myJobs,
+                            // 🤝 이 사장님과 **해온 이력** — 수락 판단의 절반이다. (2026-09-30 사장님)
+                            partners = serverPartners,
+                            doneSites = sites,
                             isExpired = { viewModel.acceptExpired(it) },
                             onAccept = { site ->
                                 if (viewModel.acceptExpired(site)) {
@@ -814,6 +817,10 @@ private fun PendingInbox(
     sites: List<SharedSiteRepository.SharedSite>,
     /** 🤝 내 시공 일정 — 「그날 되나?」를 말하려면 필요하다. (2026-09-30 사장님) */
     myJobs: List<com.detailline.callfollowcrm.domain.collab.CollabDayCheck.MyJob>,
+    /** 🤝 사장님별 합계(몇 번 · 얼마 · 얼마 받음). 서버가 이미 세어 준다. */
+    partners: List<SharedSiteRepository.Partner>,
+    /** 🤝 이미 수락해 해온 현장들 — 달별로 묶는 데 쓴다. */
+    doneSites: List<SharedSiteRepository.SharedSite>,
     isExpired: (SharedSiteRepository.SharedSite) -> Boolean,
     onAccept: (SharedSiteRepository.SharedSite) -> Unit,
     onReject: (SharedSiteRepository.SharedSite) -> Unit,
@@ -900,6 +907,10 @@ private fun PendingInbox(
                 Spacer(Modifier.height(10.dp))
                 CollabVerdict(dayCheck, timeText(site))
             }
+            // 🤝 **이 사장님과 해온 이력.** (2026-09-30 사장님 "이력들도 보이면 좋을 것 같은데?")
+            //   「그날 되나」 다음으로 수락을 가르는 건 **이 사람과 해봤나 · 돈은 제때 줬나**다.
+            Spacer(Modifier.height(8.dp))
+            CollabHistory(site, partners, doneSites)
             // 💬 **전해둘 말** — 주차·현관 비번이 여기 온다. 전엔 한 줄로 잘려서
             //   「현관 비번…」 하고 끊겼다. **비번이 잘리면 안 알려준 것과 같다.** (2026-09-30 사장님)
             site.workSummary?.takeIf { it.isNotBlank() }?.let {
@@ -2114,5 +2125,70 @@ private fun CollabWeekStrip(
         Text("그 주에 내가 가는 곳 · 보라 = 요청받은 날",
             style = AppType.caption, color = TossTextTertiary,
             modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+/**
+ * 🤝 **이 사장님과 얼마나 해왔나.** (2026-09-30 사장님)
+ *
+ *   "이 사장과 어디 현장을 같이 해왔는지? 이력들도 보이면 좋을 것 같은데?"
+ *   "8월 9월 월별로 보이면 좋을듯."
+ *
+ * 서버를 새로 부르지 않는다 — 이미 받아둔 [SharedSiteRepository.Partner](합계)와
+ * 수락해 해온 현장 목록으로 만든다. 요청 카드는 **빨리 떠야** 하는 자리다.
+ *
+ * ⚠️ **처음인 사장님도 말해준다.** 아무 말도 안 하면 「이력이 없는 건지 안 불러온 건지」 모른다.
+ * ⚠️ 못 받은 돈은 **있을 때만** 적는다. 다 받았는데 「0원 밀림」이라 적으면 의심부터 하게 된다.
+ */
+@Composable
+private fun CollabHistory(
+    site: SharedSiteRepository.SharedSite,
+    partners: List<SharedSiteRepository.Partner>,
+    doneSites: List<SharedSiteRepository.SharedSite>
+) {
+    val key = site.ownerPhone.filter { it.isDigit() }
+    val p = remember(key, partners) {
+        partners.firstOrNull { it.ownerPhone.filter { c -> c.isDigit() } == key }
+    }
+    // 달별 — 「8월 3곳 · 9월 5곳」. 최근 넉 달만(더 적으면 옛날 얘기라 판단에 안 쓴다).
+    val months = remember(key, doneSites) {
+        doneSites.asSequence()
+            .filter { it.ownerPhone.filter { c -> c.isDigit() } == key && it.scheduledAtMs > 0L }
+            .groupBy {
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = it.scheduledAtMs }
+                cal.get(java.util.Calendar.YEAR) * 100 + (cal.get(java.util.Calendar.MONTH) + 1)
+            }
+            .toSortedMap()
+            .entries.toList().takeLast(4)
+            .joinToString(" · ") { (ym, list) -> "${ym % 100}월 ${list.size}곳" }
+    }
+    val count = p?.count ?: 0
+    Column(
+        Modifier.fillMaxWidth().clip(AppShape.md).background(Color.White)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        if (count <= 0) {
+            // 처음 함께하는 분 — **나쁜 말이 아니다.** 사실만 적는다.
+            Text("처음 함께하는 사장님이에요", style = AppType.label,
+                fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text("계좌와 일당을 먼저 맞춰두면 좋아요", style = AppType.caption, color = TossTextTertiary)
+        } else {
+            Text(
+                "이 사장님과 ${count}번 함께했어요" +
+                    (if (p!!.paidTotal > 0) " · " + p.paidTotal + "만원 받음" else ""),
+                style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+            )
+            if (months.isNotBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(months, style = AppType.caption, color = TossTextTertiary)
+            }
+            // 💸 🔴 **「아직 N만원 안 들어왔어요」는 안 적는다.** (2026-09-30 폰에서 확인하고 뺀 것)
+            //   사장님 폰 실측: 함께한 현장 **22곳**인데 「받은 일당」은 **25만원**이었다.
+            //   돈을 안 받은 게 아니라 **입금을 앱에 다 안 찍으신 것**이다.
+            //   그대로 빼면 「아직 525만원 안 들어왔어요」가 뜨고,
+            //   멀줦한 사장님을 **돈 안 주는 사람으로** 만든다. 그건 안 하느니만 못하다.
+            //   진짜 미수를 말하려면 **입금이 꼬박꼬박 찍힐 때**에야 한다.
+        }
     }
 }
