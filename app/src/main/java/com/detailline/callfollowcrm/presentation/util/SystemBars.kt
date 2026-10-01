@@ -16,6 +16,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import com.detailline.callfollowcrm.domain.ui.KeyboardFit
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -116,9 +119,16 @@ fun Modifier.keyboardPadding(): Modifier {
     //      그걸 「키보드가 줄인 것」으로 오해해 안 띄우고, **입력칸이 키보드에 가린다.**
     //      그 창이 키보드 없을 때 얼마였는지만 기억하면 분할이든 팝업이든 전부 맞는다.
     var baseHeightPx by remember { mutableIntStateOf(0) }
+    // 이 자리 **아래**로 창 바닥까지 남은 픽셀(하단 탭바 등). 재서 쓴다.
+    var belowPx by remember { mutableIntStateOf(0) }
+    val measureBelow = Modifier.onGloballyPositioned { c ->
+        val bottom = c.boundsInWindow().bottom.toInt()
+        val b = (view.rootView.height - bottom).coerceAtLeast(0)
+        if (b != belowPx) belowPx = b
+    }
     if (imePx <= 0) {
         if (windowPx > 0) baseHeightPx = windowPx   // 키보드 없는 지금이 기준선
-        return this
+        return this.then(measureBelow)
     }
 
     //   창이 줄어든 만큼은 시스템이 이미 비워준 것이다(adjustResize 가 먹는 폰).
@@ -126,7 +136,12 @@ fun Modifier.keyboardPadding(): Modifier {
     //   기준선을 아직 모르면(키보드가 열린 채로 화면이 뜬 경우) **띄우는 쪽**으로 —
     //   틀려도 빈 칸이 조금 생길 뿐, 글자가 가리지는 않는다.
     val shrunkPx = if (baseHeightPx > 0) (baseHeightPx - windowPx).coerceAtLeast(0) else 0
-    val padPx = (imePx - shrunkPx).coerceAtLeast(0)
-    if (padPx <= 0) return this
-    return this.padding(bottom = with(density) { padPx.toDp() })
+    // 🔑 **이 자리 아래로 남은 만큼은 빼야 한다.** (2026-10-02 사장님 "아직도 개선 안 됨")
+    //   키보드 높이는 **창 바닥** 기준인데, 하단 탭바가 있는 화면은 **탭바 위에서 이미 끝난다.**
+    //   안 빼면 탭바 높이만큼 **두 번** 빠져 그만큼 빈 띠가 생긴다.
+    //   S23U 실측(고객 정보): 키보드 991px · 탭바 316px → 675px 만 띄워야 하는데 991px 을 띄웠다.
+    //   📏 **재서 정한다** — 화면마다 탭바가 있고 없고를 손으로 적으면 또 한 곳이 빠진다.
+    val padPx = KeyboardFit.padPx(imePx, shrunkPx, belowPx)
+    if (padPx <= 0) return this.then(measureBelow)
+    return this.then(measureBelow).padding(bottom = with(density) { padPx.toDp() })
 }
