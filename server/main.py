@@ -17080,7 +17080,8 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
     with db_conn() as con:
         # §H — owner_phone / title 도 같이 가져옴 (FCM 본문용)
         row = con.execute(
-            "SELECT partner_phone, status, owner_phone, title FROM shared_sites WHERE share_id = ?",
+            "SELECT partner_phone, status, owner_phone, title, scheduled_at_ms "
+            "FROM shared_sites WHERE share_id = ?",
             (share_id,),
         ).fetchone()
         if not row:
@@ -17090,6 +17091,19 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
         if row[1] in ("accepted", "declined", "ended"):
             # 이미 응답한 / 종료된 share 는 재변경 차단 (단순화)
             raise HTTPException(409, f"이미 {row[1]} 상태입니다")
+        # 🗓️ **지난 날짜 현장은 수락할 수 없다.** (2026-10-01 사장님)
+        #   "날짜가 지난 협업요청이 수락이 되네..?" — 9.30 현장이 10/1 에 수락됐다.
+        #   앜에서도 막았지만 **옛 버전을 쓰는 사람**은 그대로 통과한다 — 문은 여기 있어야 한다.
+        #   · **어제 이하만** 막는다. 오늘은 통과 — 아침에 불러 그날 합류하는 일이 흔하다.
+        #   · 날짜가 없으면(0) 안 막는다 — 「날짜 미정」으로 먼저 잡는 요청이 있다.
+        #   · **거절은 언제든 된다** — 지난 요청을 치우지도 못하게 막으면 영영 남는다.
+        sched_ms = row[4] or 0
+        if req.accept and sched_ms > 0:
+            def _ymd(ms) -> int:
+                d = _kst(ms)
+                return d.year * 10000 + d.month * 100 + d.day
+            if _ymd(sched_ms) < _ymd(now):
+                raise HTTPException(409, "시공 날짜가 지난 현장입니다 — 날짜를 다시 잡아 보내달라고 하세요.")
         owner_phone_for_fcm = row[2]
         site_title = row[3] or ""
         # §I (2026-06-18) — B 가 보낸 partner_name(상호) 박기 (있을 때만).

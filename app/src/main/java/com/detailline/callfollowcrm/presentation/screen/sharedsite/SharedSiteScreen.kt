@@ -1057,14 +1057,7 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Uni
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(6.dp))
-                // A측 상태: 완료 / 출발·도착(진행) / 수락 대기 / 예정
-                val (stTxt, stBg, stFg) = when {
-                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", AppTheme.colors.doneBg, Color(0xFF0E9F56))
-                    site.status == "pending" -> Triple("수락 대기", AppTheme.colors.categoryBg, CollabPurple)
-                    site.progress == SharedSiteRepository.Progress.DEPARTED -> Triple("출발", AppTheme.colors.primaryBg, ProtoBlue)
-                    site.progress == SharedSiteRepository.Progress.ARRIVED -> Triple("도착", AppTheme.colors.primaryBg, ProtoBlue)
-                    else -> Triple("예정", AppTheme.colors.primaryBg, ProtoBlue)
-                }
+                val (stTxt, stBg, stFg) = collabStatusTag(site)
                 Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
                     Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
                 }
@@ -1202,12 +1195,7 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(6.dp))
-                // 상태 태그 — 완료 / 예정 / 수락 대기. (2026-06-14 사장님)
-                val (stTxt, stBg, stFg) = when {
-                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", AppTheme.colors.doneBg, Color(0xFF0E9F56))
-                    site.status == "pending" -> Triple("수락 대기", AppTheme.colors.categoryBg, CollabPurple)
-                    else -> Triple("예정", AppTheme.colors.primaryBg, AppTheme.colors.primary)
-                }
+                val (stTxt, stBg, stFg) = collabStatusTag(site)
                 Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
                     Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
                 }
@@ -1895,6 +1883,38 @@ private fun CollabPayoutAccountSection(
 }
 
 // 날짜 라벨: 오늘/내일/M.d
+/**
+ * 🏷️ **협업 현장 상태 딱지 — 만드는 자리 하나.** (글자·바탕·글씨색)
+ *
+ *   전엔 **두 군데에 따로** 적혀 있었다(내가 공유한 쪽 / 공유받은 쪽).
+ *   그래서 한쪽엔 「출발·도착」이 있고 한쪽엔 없는 채로 갈라져 있었다.
+ *
+ *   🗓️ **「지남」** — 그 날이 지났는데 완료를 안 찍은 현장. (2026-10-01 사장님)
+ *     9.30 현장이 10월 1일에도 「예정」으로 떠 있었다. **지난 일을 앞일처럼 말하면 안 된다.**
+ *     출발·도착까지 찍은 건 그대로 둔다 — 거기서 멈춘 것을 보여주는 게 더 정확하다.
+ */
+@Composable
+private fun collabStatusTag(
+    site: SharedSiteRepository.SharedSite
+): Triple<String, Color, Color> = when {
+    // 끝난 건 끝난 것 — 날이 지났든 말든 「완료」가 맨 위다.
+    site.progress == SharedSiteRepository.Progress.COMPLETED ->
+        Triple("완료", AppTheme.colors.doneBg, Color(0xFF0E9F56))
+    // 🗓️ **날이 지났는데 안 끝난 것.** 「출발」·「수락 대기」·「예정」보다 이게 먼저다. (2026-10-01 사장님)
+    //   9.30 현장에 10월 1일에도 「출발」이 붙어 있으면 **지금 가는 중으로 읽힌다.**
+    //   어디까지 갔는지는 카드를 열면 배정·출발·도착·완료 줄에 그대로 있다.
+    com.detailline.callfollowcrm.domain.collab.CollabDayCheck.dayPassed(site.scheduledAtMs) ->
+        Triple("지남", AppTheme.colors.neutralBg, TossTextTertiary)
+    site.status == "pending" ->
+        Triple("수락 대기", AppTheme.colors.categoryBg, CollabPurple)
+    site.progress == SharedSiteRepository.Progress.DEPARTED ->
+        Triple("출발", AppTheme.colors.primaryBg, ProtoBlue)
+    site.progress == SharedSiteRepository.Progress.ARRIVED ->
+        Triple("도착", AppTheme.colors.primaryBg, ProtoBlue)
+    else ->
+        Triple("예정", AppTheme.colors.primaryBg, ProtoBlue)
+}
+
 /** 시공일이 '오늘보다 미래'면 true → 출발 버튼을 미리 못 누르게(그날만 누름). 날짜 없으면(0) 막지 않음. (2026-06-23 사장님) */
 private fun isBeforeScheduledDay(scheduledAtMs: Long): Boolean {
     if (scheduledAtMs <= 0L) return false
