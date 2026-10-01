@@ -2099,98 +2099,27 @@ fun CustomerDetailScreen(
     }
 
     // 풀스크린 이미지 뷰어 — 썸네일 탭 시 표시. 검은 배경 + X 닫기.
+    // 📷 내가 올린 현장 사진 — **돌리면 저장된다.** (공용 뷰어, 2026-10-01)
     fullscreenImageUri?.let { uri ->
-        // 🔄 **돌린 각도는 화면에만 둔다.** 파일은 **닫을 때 한 번만** 쓴다. (2026-09-30 사장님)
-        //   "왼쪽 오른쪽 한 번 누르고 끄면 그렇게 저장되는 건가~?" → 네.
-        //   누를 때마다 다시 쓰면 그만큼 화질이 깎인다. 네 번 눌러 제자리로 오면 **아무것도 안 쓴다.**
-        var rot by remember(fullscreenPhotoId) { mutableStateOf(0) }
-        val closeAndSave = {
-            if (rot % 360 != 0 && fullscreenPhotoId > 0L) {
-                viewModel.rotatePhoto(fullscreenPhotoId, rot)
-            }
-            fullscreenImageUri = null
-            fullscreenPhotoId = 0L
-        }
-        Dialog(
-            onDismissRequest = closeAndSave,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            androidx.compose.foundation.layout.BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    // 사진을 눌러도 닫히게 — 원래 그랬다. 돌리기 버튼은 이 위에 얹혀 안 눌린다.
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null
-                    ) { closeAndSave() },
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                // 90·270 도로 돌리면 가로세로가 바뀐다 → 화면 밖으로 나가지 않게 그만큼 줄인다.
-                val sideways = (rot % 180) != 0
-                val shrink = if (sideways) minOf(maxWidth / maxHeight, maxHeight / maxWidth) else 1f
-                coil.compose.AsyncImage(
-                    model = uri,
-                    contentDescription = "사진",
-                    modifier = Modifier.fillMaxWidth().graphicsLayer {
-                        rotationZ = rot.toFloat(); scaleX = shrink; scaleY = shrink
-                    },
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-                IconButton(
-                    onClick = closeAndSave,
-                    modifier = Modifier
-                        .align(androidx.compose.ui.Alignment.TopEnd)
-                        .padding(16.dp)
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = Color.White)
-                }
-                // 🔄 돌리기 — **크게 보면서** 돌린다. 작은 썸네일에선 제대로 됐는지 안 보인다.
-                //   「골라 지우기」 안에 안 넣는다: 지우기는 되돌릴 수 없고 돌리기는 자주 하는 일이라,
-                //   섞으면 **돌리려다 지운다.**
-                if (fullscreenPhotoId > 0L) {
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier
-                            .align(androidx.compose.ui.Alignment.BottomCenter)
-                            .padding(bottom = 34.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        PhotoRotateBtn("↺  왼쪽") { rot -= 90 }
-                        PhotoRotateBtn("↻  오른쪽") { rot += 90 }
-                    }
-                }
-            }
-        }
+        com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+            photos = listOf(
+                com.detailline.callfollowcrm.presentation.component.ViewerPhoto
+                    .OfFile(uri, fullscreenPhotoId)
+            ),
+            onDismiss = { fullscreenImageUri = null; fullscreenPhotoId = 0L },
+            onSaveRotation = { id, deg -> viewModel.rotatePhoto(id, deg) }
+        )
     }
 
-    // 팀/서버 현장사진(비트맵) 풀스크린 뷰어.
-    //   ⚠️ 여기엔 돌리기가 없다 — 남의 사진(팀원·서버)이라 우리 파일이 아니다.
+    // 📷 팀원·서버에서 받은 현장 사진 — **돌려 보기만** 된다(내 파일이 아니다).
+    //   2026-10-01 전엔 여기선 돌리기가 아예 없었다. 사장님 "사진 회전기능 왜 추가안됐니"
     fullscreenBitmap?.let { bmp ->
-        Dialog(
-            onDismissRequest = { fullscreenBitmap = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { fullscreenBitmap = null },
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    bitmap = bmp.asImageBitmap(),
-                    contentDescription = "현장 사진",
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-                IconButton(
-                    onClick = { fullscreenBitmap = null },
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(16.dp)
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = Color.White)
-                }
-            }
-        }
+        com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+            photos = listOf(
+                com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(bmp)
+            ),
+            onDismiss = { fullscreenBitmap = null }
+        )
     }
 
     if (nameDialogOpen && customer != null) {
@@ -4523,44 +4452,19 @@ private fun CollabAfterCard(
             }
         )
     }
-    // 사진 스와이프 뷰어 — 전체화면 검정 + 좌우로 휙휙 넘김 + 페이지 표시 + 닫기(X). 카톡식. (2026-07-01 사장님)
+    // 📷 협업 증거 사진 — 좌우로 넘김. **돌려 보기만** 된다(남의 사진).
+    //   2026-10-01 공용 뷰어로 옮김 — 전엔 여기도 돌리기가 없었다.
+    //   사장님 "사진 회전기능 왜 추가안됐니" — 크게 보는 자리가 다섯인데 한 군데에만 넣었었다.
     viewerIdx?.let { startIdx ->
         val bmps = remember(photos) { photos.mapNotNull { it.bitmap } }
         if (bmps.isNotEmpty()) {
-            val pagerState = androidx.compose.foundation.pager.rememberPagerState(
-                initialPage = startIdx.coerceIn(0, bmps.size - 1)
-            ) { bmps.size }
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { viewerIdx = null },
-                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(Color.Black)) {
-                    androidx.compose.foundation.pager.HorizontalPager(
-                        state = pagerState, modifier = Modifier.fillMaxSize(), pageSpacing = 12.dp
-                    ) { page ->
-                        androidx.compose.foundation.Image(
-                            bitmap = bmps[page].asImageBitmap(),
-                            contentDescription = "현장 사진 ${page + 1}",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                        )
-                    }
-                    androidx.compose.foundation.layout.Box(
-                        Modifier.align(androidx.compose.ui.Alignment.TopCenter).padding(top = 18.dp)
-                            .clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text("${pagerState.currentPage + 1} / ${bmps.size}", color = Color.White,
-                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                    androidx.compose.foundation.layout.Box(
-                        Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(14.dp).size(38.dp)
-                            .clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.55f))
-                            .clickable { viewerIdx = null },
-                        contentAlignment = androidx.compose.ui.Alignment.Center
-                    ) { Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-                }
-            }
+            com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+                photos = bmps.map {
+                    com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(it)
+                },
+                startIndex = startIdx,
+                onDismiss = { viewerIdx = null }
+            )
         }
     }
 }
@@ -5308,17 +5212,3 @@ private fun PastJobKv(k: String, v: String, vColor: Color) {
     }
 }
 
-/** 🔄 까만 화면 위에서도 읽히게 — 반투명 흰 알약. (2026-09-30 사장님) */
-@Composable
-private fun PhotoRotateBtn(label: String, onClick: () -> Unit) {
-    Text(
-        label,
-        fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
-        modifier = Modifier
-            .clip(AppShape.pill)
-            .background(Color.White.copy(alpha = 0.16f))
-            .border(1.dp, Color.White.copy(alpha = 0.34f), AppShape.pill)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 11.dp)
-    )
-}

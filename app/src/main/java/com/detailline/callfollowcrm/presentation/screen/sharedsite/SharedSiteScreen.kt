@@ -623,24 +623,15 @@ fun SharedSiteScreen(
 
     // 증거사진 풀스크린 뷰어 — 카톡식: 전체화면 검정 배경 + 사진 가운데, 아무데나 탭하면 닫힘. (2026-07-01 사장님)
     //   usePlatformDefaultWidth=false 라야 다이얼로그가 화면 가득(예전엔 좁은 카드라 세로사진이 하단에 붙어 보였음).
+    // 📷 협업 현장 사진 — **돌려 보기만** 된다(남의 사진). 공용 뷰어. (2026-10-01)
+    //   전엔 크게 보기만 되고 돌릴 수가 없었다 — 누운 사진은 누운 채로 봐야 했다.
     fullscreenPhoto?.let { bmp ->
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { fullscreenPhoto = null },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                Modifier.fillMaxSize().background(Color.Black)
-                    .clickable { fullscreenPhoto = null },
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    bitmap = bmp.asImageBitmap(),
-                    contentDescription = "현장 사진",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-            }
-        }
+        com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+            photos = listOf(
+                com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(bmp)
+            ),
+            onDismiss = { fullscreenPhoto = null }
+        )
     }
 
     // 현장 사진 — 카톡식 바텀시트(아래서 위로 올라오는 갤러리). "파일에서"는 시스템 피커 fallback. (2026-06-14 사장님)

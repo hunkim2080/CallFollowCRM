@@ -1769,43 +1769,21 @@ fun ChatScreen(
     }
 
     // 풀스크린 이미지 뷰어 — 한 번에 온 사진 전부 좌우 스와이프 + 핀치/더블탭 줌. (2026-06-16 사장님)
+    // 📷 문자 사진 — 공용 뷰어. 여기도 **돌려 보기**가 된다(남이 보낸 사진이라 저장은 안 됨).
+    //   2026-10-01 사장님 "사진 회전기능 왜 추가안됐니" — 크게 보는 자리 다섯 중 네 곳에 없었다.
     fullscreenImages?.let { imgs ->
-        if (imgs.isNotEmpty()) Dialog(
-            onDismissRequest = { fullscreenImages = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            val pagerState = rememberPagerState(
-                initialPage = fullscreenStart.coerceIn(0, imgs.size - 1)
-            ) { imgs.size }
-            var curZoomed by remember { mutableStateOf(false) }
-            LaunchedEffect(pagerState.currentPage) { curZoomed = false }
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black),
-                contentAlignment = Alignment.Center
-            ) {
-                HorizontalPager(
-                    state = pagerState,
-                    userScrollEnabled = !curZoomed,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    ZoomableAsyncImage(
-                        uri = imgs[page],
-                        isCurrentPage = page == pagerState.currentPage,
-                        onZoomedChange = { z -> if (page == pagerState.currentPage) curZoomed = z },
-                        onTap = { fullscreenImages = null }
-                    )
-                }
-                IconButton(
-                    onClick = { fullscreenImages = null },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                ) {
-                    Icon(Icons.Default.Close, "닫기", tint = Color.White)
-                }
-                // 사진 저장(다운로드) — 지금 보고 있는 사진을 휴대폰 갤러리에 저장. (2026-06-23 사장님)
-                IconButton(
-                    onClick = {
+        if (imgs.isNotEmpty()) {
+            com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+                photos = imgs.map {
+                    com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfFile(it)
+                },
+                startIndex = fullscreenStart,
+                onDismiss = { fullscreenImages = null },
+                // 사진 저장(다운로드) — 지금 보고 있는 사진을 휴대폰 갤러리에. (2026-06-23 사장님)
+                topStartAction = { page ->
+                    IconButton(onClick = {
                         viewModel.trackJourney("capture", "image_download")
-                        imgs.getOrNull(pagerState.currentPage)?.let { uri ->
+                        imgs.getOrNull(page)?.let { uri ->
                             scope.launch {
                                 val ok = saveImageToGallery(context, uri)
                                 android.widget.Toast.makeText(
@@ -1815,21 +1793,11 @@ fun ChatScreen(
                                 ).show()
                             }
                         }
-                    },
-                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
-                ) {
-                    Icon(Icons.Default.FileDownload, "사진 저장", tint = Color.White)
+                    }) {
+                        Icon(Icons.Default.FileDownload, "사진 저장", tint = Color.White)
+                    }
                 }
-                if (imgs.size > 1) {
-                    Text(
-                        "${pagerState.currentPage + 1} / ${imgs.size}",
-                        color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp)
-                            .clip(RoundedCornerShape(999.dp)).background(Color(0x66000000))
-                            .padding(horizontal = 14.dp, vertical = 5.dp)
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -3027,64 +2995,6 @@ private fun playerClock(ms: Int): String {
     return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
 }
 
-/**
- * 풀스크린 사진 한 장 — 핀치 줌(1~5배) + 줌 상태에서 이동(pan) + 더블탭 줌/복원, 단일탭 닫기. (2026-06-16 사장님)
- *   줌 안 된 1배 상태의 한 손가락 드래그는 소비하지 않아 HorizontalPager 가 페이지 넘김을 받는다.
- *   (멀티터치=핀치이거나 이미 줌된 상태일 때만 제스처 소비 → 스와이프와 줌이 충돌하지 않음.)
- */
-@Composable
-private fun ZoomableAsyncImage(
-    uri: android.net.Uri,
-    isCurrentPage: Boolean,
-    onZoomedChange: (Boolean) -> Unit,
-    onTap: () -> Unit
-) {
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    // 다른 페이지로 넘어가면 줌/이동 리셋.
-    LaunchedEffect(isCurrentPage) { if (!isCurrentPage) { scale = 1f; offset = Offset.Zero } }
-    LaunchedEffect(scale) { onZoomedChange(scale > 1.02f) }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val multiTouch = event.changes.count { it.pressed } >= 2
-                        if (scale > 1.02f || multiTouch) {
-                            val zoom = event.calculateZoom()
-                            val pan = event.calculatePan()
-                            val newScale = (scale * zoom).coerceIn(1f, 5f)
-                            scale = newScale
-                            offset = if (newScale > 1f) offset + pan else Offset.Zero
-                            event.changes.forEach { it.consume() }
-                        }
-                        if (event.changes.none { it.pressed }) break
-                    }
-                }
-            }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { if (scale <= 1.02f) onTap() },
-                    onDoubleTap = {
-                        if (scale > 1.02f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
-                    }
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        AsyncImage(
-            model = uri,
-            contentDescription = "사진",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y)
-        )
-    }
-}
 
 /**
  * 채팅 안 시공접수서 제출 이벤트 카드 (2026-06-05) — 고객이 접수서를 작성 완료한 사실을 타임라인에 표시.
