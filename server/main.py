@@ -6631,10 +6631,29 @@ async def home_blog(page: int = 1, cat: str = ""):
         _render_blog_index_html(page=page, cat=cat)))
 
 
+def _strip_site_chrome(html: str) -> str:
+    """📰 **앱 안에서 열 때는 홈페이지 옷을 벗긴다.** (2026-10-01)
+
+    머리띠(기능·요금제·블로그·계산기 + 「무료로 시작하기」)와 꼬리는
+    **처음 오는 손님**을 위한 것이다. 이미 앱을 쓰고 계신 분께는
+    가입 버튼을 내미는 꼴이고, 폰 폭에선 메뉴가 두 줄로 깨진다.
+
+    ⚠️ 페이지는 **하나 그대로** 쓴다 — 앱용을 따로 만들면 소식이 두 벌이 된다.
+    """
+    import re as _re
+    out = _re.sub(r"<nav\b.*?</nav>", "", html, flags=_re.S)
+    out = _re.sub(r"<footer\b.*?</footer>", "", out, flags=_re.S)
+    return out
+
+
 @app.get("/updates", response_class=HTMLResponse, include_in_schema=False)
-async def home_updates():
+async def home_updates(app: int = 0):
     # 추가105 — app_updates 주 단위 자동 그룹을 상단에 주입
-    return HTMLResponse(content=_inject_site_verify(_render_updates_dynamic()))
+    html = _render_updates_dynamic()
+    # 📰 app=1 — 앱 안 웹뷰에서 열 때. 소식만 보여준다. (2026-10-01 사장님)
+    if app:
+        html = _strip_site_chrome(html)
+    return HTMLResponse(content=_inject_site_verify(html))
 
 
 @app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)

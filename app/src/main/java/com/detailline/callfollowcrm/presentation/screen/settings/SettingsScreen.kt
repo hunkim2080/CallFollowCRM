@@ -3878,7 +3878,10 @@ private fun AppFooter() {
                 .clickable {
                     com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
                         linkCtx,
-                        com.detailline.callfollowcrm.AppConfig.BASE_URL + "/updates",
+                        // ?app=1 — 홈페이지 메뉴·「무료로 시작하기」를 벗고 **소식만** 보여준다.
+                        //   이미 쓰고 계신 분께 가입 버튼을 내민 꼴이고,
+                        //   폰 폭에선 메뉴가 두 줄로 깨졌다. (2026-10-01 폰에서 발견)
+                        com.detailline.callfollowcrm.AppConfig.BASE_URL + "/updates?app=1",
                         "이번 업데이트"
                     )
                 }
