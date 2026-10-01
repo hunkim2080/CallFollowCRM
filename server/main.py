@@ -24596,6 +24596,17 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
     phone = _norm_phone(req.phone)
     if not phone or len(phone) < 10:
         raise HTTPException(400, "전화번호 형식 오류")
+    # 🔑 **심사용 번호는 문자를 안 보낸다.** (2026-10-01)
+    #   구글 심사자는 우리 문자를 받을 수 없다. 그런데 앱은
+    #   **request-code 가 성공해야** 인증번호 칸으로 넘어간다 — 보내다 실패하면
+    #   마스터 코드를 써보지도 못하고 **거기서 막힌다.**
+    #   한도(하루 5회·전체 상한)도 안 썰는다 — 문자를 안 보냈으니 돈이 안 든다.
+    #   ⚠️ 코드는 여기서 안 준다. verify-code 가 AUTH_MASTER_CODE 로 따로 받는다.
+    if AUTH_MASTER_CODE and phone in {
+        _norm_phone(p) for p in AUTH_MASTER_PHONES_RAW.split(",") if p.strip()
+    }:
+        print(f"[auth/request] {phone} → 마스터 번호(문자 생략)")
+        return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
     now = _now_ms()
     today = _dt.datetime.fromtimestamp(now / 1000, tz=_KST).strftime("%Y-%m-%d")
     with db_conn() as con:
