@@ -104,8 +104,28 @@ fun keyboardDiagLine(): String {
         "더띄움=${(imePx - shrunkPx).coerceAtLeast(0)}px"
 }
 
+/**
+ * ⌨️ **키보드만큼** 띄운다 — 키보드가 내려가면 0.
+ *   화면 가운데 흐르는 내용(스크롤 영역)에 쓴다.
+ */
 @Composable
-fun Modifier.keyboardPadding(): Modifier {
+fun Modifier.keyboardPadding(): Modifier = bottomFitPadding(withNavBar = false)
+
+/**
+ * ⌨️⬇️ **키보드 또는 내비바 중 큰 쪽**만큼 띄운다.
+ *   화면 **바닥에 붙는 것**(인라인 시트·고정 버튼줄)에 쓴다 —
+ *   키보드가 내려가도 내비바(◁ ○ ▢)에 가리면 안 되니까.
+ *
+ *   🔴 전엔 `windowInsetsPadding(keyboardClearance)` 라는 **딴 길**이었다.
+ *      그쪽은 **자기가 어디 있는지를 몰라서**, 하단 탭바가 있는 화면에서
+ *      탭바 높이만큼 더 띄웠다(2026-10-02 S23U 빈 띠 313px). 같은 셈이 두 벌이면 한쪽만 고쳐진다.
+ */
+@Composable
+fun Modifier.keyboardOrNavPadding(): Modifier = bottomFitPadding(withNavBar = true)
+
+/** 🔒 셈은 여기 하나 — [KeyboardFit.padPx]. 위 둘은 입구일 뿐이다. */
+@Composable
+private fun Modifier.bottomFitPadding(withNavBar: Boolean): Modifier {
     val density = LocalDensity.current
     val view = LocalView.current
     // 시스템이 말하는 키보드 높이. 키보드가 오르내리면 이 값이 바뀌어 여기가 다시 계산된다.
@@ -126,9 +146,12 @@ fun Modifier.keyboardPadding(): Modifier {
         val b = (view.rootView.height - bottom).coerceAtLeast(0)
         if (b != belowPx) belowPx = b
     }
+    val navBarPx = if (withNavBar) WindowInsets.navigationBars.getBottom(density) else 0
     if (imePx <= 0) {
         if (windowPx > 0) baseHeightPx = windowPx   // 키보드 없는 지금이 기준선
-        return this.then(measureBelow)
+        val navOnly = KeyboardFit.padPx(0, 0, belowPx, navBarPx)
+        return if (navOnly <= 0) this.then(measureBelow)
+        else this.then(measureBelow).padding(bottom = with(density) { navOnly.toDp() })
     }
 
     //   창이 줄어든 만큼은 시스템이 이미 비워준 것이다(adjustResize 가 먹는 폰).
@@ -141,7 +164,7 @@ fun Modifier.keyboardPadding(): Modifier {
     //   안 빼면 탭바 높이만큼 **두 번** 빠져 그만큼 빈 띠가 생긴다.
     //   S23U 실측(고객 정보): 키보드 991px · 탭바 316px → 675px 만 띄워야 하는데 991px 을 띄웠다.
     //   📏 **재서 정한다** — 화면마다 탭바가 있고 없고를 손으로 적으면 또 한 곳이 빠진다.
-    val padPx = KeyboardFit.padPx(imePx, shrunkPx, belowPx)
+    val padPx = KeyboardFit.padPx(imePx, shrunkPx, belowPx, navBarPx)
     if (padPx <= 0) return this.then(measureBelow)
     return this.then(measureBelow).padding(bottom = with(density) { padPx.toDp() })
 }

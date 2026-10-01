@@ -35,6 +35,20 @@ data class DupRule(
 )
 
 val dupRules = listOf(
+    // ⑦ ⌨️ 키보드 여백 — **세 번째로 터진 자리.** (2026-10-02 사장님 "이것도 두벌이다 뭐다 하는거 아니니")
+    //   9/26 에 18곳을 고쳤는데 다른 표기 12곳이 남아 하루 만에 다시 났고,
+    //   10/2 엔 `keyboardPadding()` 만 고쳤더니 `windowInsetsPadding(keyboardClearance)` 16곳이
+    //   그대로 남아 **하단 탭바가 있는 화면에서 또** 났다(S23U 빈 띠 313px).
+    //   셈이 여러 벌이면 **한쪽만 고쳐진다** — 그래서 입구를 둘로 묶고 나머지를 막는다.
+    //     · 흐르는 내용   → `Modifier.keyboardPadding()`
+    //     · 바닥에 붙는 것 → `Modifier.keyboardOrNavPadding()`
+    //   (Scaffold 의 contentWindowInsets 자리만 keyboardClearance 를 쓴다 — 거긴 Modifier 를 못 받는다)
+    DupRule(
+        id = "keyboard-pad",
+        regex = Regex("""\.imePadding\(\)|windowInsetsPadding\(\s*(keyboardClearance|WindowInsets\.ime)"""),
+        instead = "Modifier.keyboardPadding() / Modifier.keyboardOrNavPadding()",
+        homes = listOf("/util/SystemBars.kt")
+    ),
     // ⑦ 하루의 시작(오늘 0시) — **공용을 쓰는 곳이 175곳인데 손으로 적은 게 20곳** 남아 있었다.
     //   (2026-09-30 사장님 "두벌로 되는거 있는지체크했니." — 세어보니 그렇다)
     //   날짜 경계는 **오늘이 언제 시작하느냐**를 정하는 자리다 —

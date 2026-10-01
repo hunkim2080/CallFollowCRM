@@ -12618,3 +12618,19 @@ Play 거부의 진짜 원인 = **내가 9/26~28 에 넣은 인증문자 방파�
 - ⚠️ **눈으로 못 봤다** — S23U 는 읽기 전용(설치 금지)이고 테스트폰은 지금 안 붙어 있다.
   대신 **실측 숫자를 단위 시험 7개에 박았다**(KeyboardFitTest): 991·316 → 675, 내용 바닥 = 1325(키보드 윗선).
 - 다음 액션: 사장님이 S23U 에서 **플레이 내부테스트로 업데이트** 후 고객 정보 메모칸 확인
+
+## 2026-10-02 00:40 · android
+키보드 여백 — 세 벌을 한 셈으로 모으고, 네 번째는 빌드가 막는다
+- 사장님: "이것도 두벌이다 뭐다 하는거 아니니" → **맞다. 세 벌이었다.**
+  ① `keyboardPadding()` (00:10 에 고친 것) ② `windowInsetsPadding(keyboardClearance)` **16곳**
+  ③ `windowInsetsPadding(WindowInsets.ime)` 1곳
+  → ②에 **일정·정산 탭**이 들어 있었다. 탭바가 있는 화면이라 **같은 빈 띠가 그대로 남아 있었다.**
+- 합침: 셈은 `KeyboardFit.padPx(ime, shrunk, below, navBar)` **하나**. 입구만 둘 —
+  · 흐르는 내용 → `Modifier.keyboardPadding()`
+  · 바닥에 붙는 것 → `Modifier.keyboardOrNavPadding()` (키보드/내비바 **큰 쪽**만, 더하지 않음)
+  17곳 전환. 남은 `keyboardClearance` 는 **Scaffold.contentWindowInsets 2곳뿐**(Modifier 를 못 받는 자리).
+- 🛡️ `tools/dup_guard.gradle.kts` 에 **keyboard-pad 규칙 추가** — `.imePadding()` /
+  `windowInsetsPadding(keyboardClearance|WindowInsets.ime)` 를 화면 코드에서 쓰면 **빌드 실패**.
+  (기준선 76 → **75**, 한 벌 줄었다)
+- 단위 시험 7개(KeyboardFitTest) 통과 · 빌드 EXIT=0
+- 다음 액션: 사장님 S23U 플레이 내부테스트 업데이트 후 확인

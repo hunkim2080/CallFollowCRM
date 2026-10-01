@@ -26,6 +26,13 @@ object KeyboardFit {
      *   안 빼면 **탭바 높이만큼 두 번** 빠져 그만큼 빈 띠가 생긴다.
      *   (2026-10-02 S23U 실측: 키보드 991 · 탭바 316 → 675 만 띄워야 하는데 991 을 띄웠다)
      */
-    fun padPx(imePx: Int, shrunkPx: Int, belowPx: Int): Int =
-        (imePx - shrunkPx.coerceAtLeast(0) - belowPx.coerceAtLeast(0)).coerceAtLeast(0)
+    fun padPx(imePx: Int, shrunkPx: Int, belowPx: Int, navBarPx: Int = 0): Int {
+        val below = belowPx.coerceAtLeast(0)
+        val forIme = (imePx - shrunkPx.coerceAtLeast(0) - below).coerceAtLeast(0)
+        // ⬇️ 키보드가 내려갔을 때 **내비바**만큼은 띄워야 하는 자리도 있다(바닥에 붙는 시트).
+        //   더하지 않고 **큰 쪽**만 쓴다 — 키보드가 올라오면 키보드가 내비바를 이미 덮는다.
+        //   더하면 내비바 높이만큼 빈 칸이 남는다. (2026-07-15 사장님 "여기도 빈공간있다")
+        val forNav = (navBarPx.coerceAtLeast(0) - below).coerceAtLeast(0)
+        return maxOf(forIme, forNav)
+    }
 }

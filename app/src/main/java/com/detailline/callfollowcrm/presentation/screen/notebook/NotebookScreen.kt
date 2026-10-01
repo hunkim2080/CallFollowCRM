@@ -89,7 +89,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.MoneyFormatter
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
-import com.detailline.callfollowcrm.presentation.util.keyboardClearance
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 /**
  * 수첩 (2026-06-01) — 일당/거래처 한 곳 관리. 설정에서 진입.
@@ -621,12 +621,12 @@ private fun ContactDialog(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                // ⚠️ .navigationBarsPadding().imePadding() 를 이어 붙이면 두 여백이 **더해진다**.
+                // ⚠️ 내비바 여백과 키보드 여백을 **이어 붙이면 둘이 더해진다**.
                 //   키보드가 올라오면 키보드가 내비바를 이미 덮으므로, 더하면 내비바 높이만큼이
                 //   빈 공간으로 남는다(사장님 2026-07-15 "여기도 빈공간있다").
                 //   → union = 둘 중 **큰 쪽**만. 키보드 올라오면 키보드 높이, 내려가면 내비바 높이.
                 //   (Android 15+/targetSdk35 는 adjustResize 를 안 쓰고 앱이 인셋을 직접 처리한다.)
-                .windowInsetsPadding(keyboardClearance)
+                .keyboardOrNavPadding()
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 620.dp)
@@ -836,7 +836,7 @@ private fun SavedPeoplePicker(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                .windowInsetsPadding(keyboardClearance)  // 합치면 안 됨(위 주석)
+                .keyboardOrNavPadding()  // 합치면 안 됨(위 주석)
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 620.dp)
