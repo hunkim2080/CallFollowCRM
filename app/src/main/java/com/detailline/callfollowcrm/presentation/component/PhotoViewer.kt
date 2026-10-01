@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.util.navBarBottomDp
 import com.detailline.callfollowcrm.presentation.theme.AppType
 
 /**
@@ -216,7 +217,12 @@ private fun ViewerPage(
         //   확대 중엔 숨긴다: 들여다보는 중엔 손가락이 아래쪽에 있어 잘못 눌린다.
         if (!isZoomed) {
             androidx.compose.foundation.layout.Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp),
+                // 🖐️ **시스템 버튼(||| ○ ‹) 위로 띄운다.** (2026-10-02 사장님 "사진 회전은 어느곳에서해야해?")
+                //   34dp 로 박아뒀더니 S23U(내비바 45dp)에서 **버튼이 통째로 가려** 있었다.
+                //   사장님은 기능이 없는 줄 아셨다. 이 창은 Dialog(별도 창)라 내비바 인셋이
+                //   0 으로 오는 기기가 있어, 그걸 대신 재주는 [navBarBottomDp] 를 쓴다.
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(bottom = navBarBottomDp() + 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // 남의 사진은 돌려도 안 남는다 — **돌리고 나서** 조용히 알려준다.
