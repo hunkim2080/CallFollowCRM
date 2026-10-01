@@ -355,14 +355,20 @@ fun SharedSiteScreen(
                             // 🤝 이 사장님과 **해온 이력** — 수락 판단의 절반이다. (2026-09-30 사장님)
                             partners = serverPartners,
                             doneSites = sites,
-                            isExpired = { viewModel.acceptExpired(it) },
+                            blockReason = { viewModel.cannotAcceptReason(it) },
                             onAccept = { site ->
-                                if (viewModel.acceptExpired(site)) {
-                                    android.widget.Toast.makeText(context, "수락 시간이 지났어요 — 12시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
+                                // 🚧 **못 받을 요청이면 받지 않는다.** 왜인지도 같이 말한다. (2026-10-01)
+                                val why = viewModel.cannotAcceptReason(site)
+                                if (why != null) {
+                                    android.widget.Toast.makeText(context, why, android.widget.Toast.LENGTH_LONG).show()
                                 } else viewModel.respond(site, true)
                             },
-                            // 거절 = 사유 고르기 시트(요청자에게 전달). 만료된 요청 '지우기'는 사유 없이 바로. (2026-07-08 사장님)
-                            onReject = { site -> if (viewModel.acceptExpired(site)) viewModel.respond(site, false) else declineReasonTarget = site },
+                            // 거절 = 사유 고르기 시트(요청자에게 전달). 못 받을 요청 '지우기'는 사유 없이 바로. (2026-07-08 사장님)
+                            //   지난 날짜 현장에 거절 사유를 고르게 하는 건 말이 안 된다.
+                            onReject = { site ->
+                                if (viewModel.cannotAcceptReason(site) != null) viewModel.respond(site, false)
+                                else declineReasonTarget = site
+                            },
                             onOpen = { selectedId = it.shareId }
                         )
                         Spacer(Modifier.height(16.dp))
@@ -433,9 +439,14 @@ fun SharedSiteScreen(
                         }
                     },
                     onRespond = { accept ->
+                        // 🚧 **여긴 전에 아무것도 안 봤다.** (2026-10-01 사장님 "날짜가 지난 협업요청이 수락이 되네..?")
+                        //   받은함 카드만 만료를 봤고, 열어서 수락하면 **지난 날짜도 그냥 들어갔다.**
+                        val why = viewModel.cannotAcceptReason(selected)
                         when {
+                            accept && why != null ->
+                                android.widget.Toast.makeText(context, why, android.widget.Toast.LENGTH_LONG).show()
                             accept -> viewModel.respond(selected, true)
-                            viewModel.acceptExpired(selected) -> { viewModel.respond(selected, false); selectedId = null }  // 만료 '지우기'
+                            why != null -> { viewModel.respond(selected, false); selectedId = null }  // 못 받을 요청 '지우기'
                             else -> declineReasonTarget = selected   // 거절 = 사유 고르기 시트
                         }
                     },
@@ -812,7 +823,8 @@ private fun PendingInbox(
     partners: List<SharedSiteRepository.Partner>,
     /** 🤝 이미 수락해 해온 현장들 — 달별로 묶는 데 쓴다. */
     doneSites: List<SharedSiteRepository.SharedSite>,
-    isExpired: (SharedSiteRepository.SharedSite) -> Boolean,
+    /** 지금 수락할 수 없으면 **왜인지 한 줄**, 받을 수 있으면 null. [SharedSiteViewModel.cannotAcceptReason] */
+    blockReason: (SharedSiteRepository.SharedSite) -> String?,
     onAccept: (SharedSiteRepository.SharedSite) -> Unit,
     onReject: (SharedSiteRepository.SharedSite) -> Unit,
     onOpen: (SharedSiteRepository.SharedSite) -> Unit
@@ -827,7 +839,8 @@ private fun PendingInbox(
         Text("응답 기다려요", fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
     }
     sites.forEach { site ->
-        val expired = isExpired(site)
+        val blockWhy = blockReason(site)
+        val expired = blockWhy != null
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
@@ -951,10 +964,12 @@ private fun PendingInbox(
                 Spacer(Modifier.height(9.dp))
                 CollabWeekStrip(site.scheduledAtMs, myJobs)
             }
-            if (expired) {
+            if (blockWhy != null) {
                 Spacer(Modifier.height(8.dp))
-                Text("⏰ 수락 시간이 지났어요 (12시간 경과) — 함께하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
-                    fontSize = 11.5.sp, color = com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 16.sp)
+                // 왜 못 받는지는 [SharedSiteViewModel.cannotAcceptReason] 한 곳에서 온다 —
+                //   화면이 제 나름대로 또 적으면 둘이 달라진다.
+                Text("⏰ " + blockWhy, style = AppType.label,
+                    color = com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 16.sp)
             }
             Spacer(Modifier.height(11.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

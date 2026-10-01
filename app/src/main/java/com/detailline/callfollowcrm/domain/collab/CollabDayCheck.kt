@@ -22,6 +22,26 @@ object CollabDayCheck {
      */
     const val WORK_SPAN_MS = 4L * 60 * 60 * 1000
 
+    /**
+     * 🗓️ **그 현장 날짜가 이미 지났나.** (2026-10-01 사장님 "날짜가 지난 협업요청이 수락이 되네..?")
+     *
+     *   9.30 오전 9시 현장이 10/1 에 수락됐다. 수락을 막는 자가
+     *   **「요청 보낸 지 12시간」 하나뿐**이고 **시공 날짜는 아무도 안 봤다.**
+     *
+     *   · **어제 이하면 지난 것.** 어제 갔어야 할 현장을 오늘 수락하는 건 뜻이 없다.
+     *   · **오늘은 아직 아니다** — 아침에 불러서 그날 합류하는 일이 흔하다.
+     *   · **날짜가 없으면(0) 막지 않는다** — 「날짜 미정」으로 먼저 잡는 요청이 있다.
+     */
+    fun dayPassed(scheduledAtMs: Long, nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (scheduledAtMs <= 0L) return false
+        return ymd(scheduledAtMs) < ymd(nowMs)
+    }
+
+    private fun ymd(ms: Long): Int {
+        val z = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.of("Asia/Seoul"))
+        return z.year * 10000 + z.monthValue * 100 + z.dayOfMonth
+    }
+
     /** 그날 내 현장 하나. */
     data class MyJob(
         val startMs: Long,

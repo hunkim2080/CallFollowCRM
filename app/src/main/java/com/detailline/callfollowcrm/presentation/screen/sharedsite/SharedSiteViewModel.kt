@@ -160,6 +160,32 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
+     * 🗓️ **시공 날짜가 이미 지났나.** (2026-10-01 사장님 "날짜가 지난 협업요청이 수락이 되네..?")
+     *
+     *   어제 이하면 지난 것이다. **오늘은 아직 아니다** — 아침에 불러서 그날 합류하는 일이 흔하다.
+     *   날짜가 없으면(0) 막지 않는다 — 「날짜 미정」으로 먼저 잡는 요청이 있다.
+     */
+    fun dayPassed(site: SharedSiteRepository.SharedSite): Boolean =
+        com.detailline.callfollowcrm.domain.collab.CollabDayCheck.dayPassed(site.scheduledAtMs)
+    // 🔒 날짜 셈은 [CollabDayCheck] 한 곳 — 폰 없이도 매 빌드가 검사한다(CollabDayCheckTest).
+
+    /**
+     * 🚧 **지금 이 요청을 수락할 수 있나 — 답하는 자리는 여기 하나.**
+     *   못 하면 **왜인지 한 줄**로 돌려준다. null 이면 수락해도 된다.
+     *
+     *   전엔 받은함 카드만 [acceptExpired] 를 봤고 **상세 화면은 아무것도 안 봤다** —
+     *   열어서 수락하면 만료든 지난 날짜든 그냥 들어갔다. 같은 물음에 답이 둘이면
+     *   한쪽은 반드시 틀린다.
+     */
+    fun cannotAcceptReason(site: SharedSiteRepository.SharedSite): String? = when {
+        dayPassed(site) ->
+            "시공 날짜가 지났어요 — ${site.ownerName}께 날짜를 다시 잡아 보내달라고 하세요."
+        acceptExpired(site) ->
+            "수락 시간이 지났어요 (12시간 경과) — 함께하려면 ${site.ownerName}께 다시 보내달라고 하세요."
+        else -> null
+    }
+
+    /**
      * 받은 협업 요청이 48h 지나 inbox 에서 아예 사라져야 하는지 (2026-07-09 사장님 "48시간 되면 이 카드 없어지는거지").
      *   앵커는 acceptExpired 와 동일(서버 created_at_ms 우선, 없으면 첫 관측). 앵커 0이면 숨기지 않음(안전).
      *   화면(pendingSites)에서 이걸로 걸러 카드 자체를 제거. (12~48h 사이는 "지났어요" 상태로 계속 보임.)
