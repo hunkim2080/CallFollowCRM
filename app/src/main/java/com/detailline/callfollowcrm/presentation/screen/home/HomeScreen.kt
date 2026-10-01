@@ -165,6 +165,7 @@ import androidx.compose.ui.graphics.Brush
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppSize
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
@@ -641,6 +642,34 @@ fun HomeScreen(
                     counts = inboxChipCounts,
                     generalBadge = generalUnread
                 )
+            }
+
+            // 📬 **전부 읽음으로** — 안 읽은 게 있을 때만 뜬다. (2026-10-01 사장님)
+            //   사장님: "상담함 1이 안 사라진데.. 아마 광고문자 아닐까 싶어.
+            //            전부 읽음으로 처리 있어야 하지 않을까"
+            //   광고엔 답장을 할 수가 없다 → 답장으로만 지워지던 숫자는 지울 길이 없었다.
+            //   🔒 평소엔 **아예 없다** — 화면을 더 어수선하게 만들지 않는다.
+            //      지우는 건 빨간 숫자뿐이고 대화는 그대로라, 묻지 않고 바로 하되 **되돌리기**를 준다.
+            val boxNow = inboxTab == 1
+            val unreadNow = if (boxNow) generalUnread else consultUnread
+            androidx.compose.animation.AnimatedVisibility(visible = unreadNow > 0) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = AppSpace.s16, vertical = AppSpace.s4),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Box(
+                        Modifier.clip(AppShape.sm)
+                            .clickable { viewModel.markAllRead(boxNow) }
+                            .padding(horizontal = AppSpace.s8, vertical = AppSpace.s4)
+                    ) {
+                        Text(
+                            "✓ 전부 읽음으로",
+                            style = AppType.label,
+                            fontWeight = FontWeight.Bold,
+                            color = TossBlue
+                        )
+                    }
+                }
             }
 
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려

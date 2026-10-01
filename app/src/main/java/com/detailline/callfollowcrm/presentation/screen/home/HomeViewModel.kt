@@ -294,11 +294,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 미확인 KPI = 최근 7일 내 문의 (SMS 수신 또는 부재중 통화) 받았는데 사장님이 답장 한 번도 안 한 번호 수.
      * 사장님 결정 (2026-05-24) — 이전엔 CallRecord.handledStatus 기반이었으나 정의 변경.
      */
-    val unhandledCount: StateFlow<Int> = combine(
-        smsContactsState, callsForFlags, hiddenForConsult, scheduledCustomerSuffixes, spamPrefixesFlow
-    ) { smsContacts, calls, spam, scheduled, _ ->
-        val (missed, _, handledMs) = calls
-        unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs).size
+    // 📅 **7일 창은 볼 때마다 다시 잡는다.** (2026-10-01)
+    //   전엔 앱을 켠 **그 시점**에 한 번 계산한 값(sevenDayWindowStart)을 그대로 썼다.
+    //   폰을 며칠 안 끄면 창이 7일이 아니라 **10일·12일로 늘어났다** — 9월 19일 문자가
+    //   10월 1일까지 「답장 기다려요」에 남아 있던 게 이것이다.
+    //   목록(timelineFlags)은 2026-08-13 에 이미 _todayTick 으로 고쳤는데 **여기만 빠졌다.**
+    val unhandledCount: StateFlow<Int> = _todayTick.flatMapLatest { now ->
+        val sevenStart = DateTimeUtils.startOfDay(now) - 6L * 24 * 60 * 60 * 1000
+        combine(
+            smsContactsState, callsForFlags, hiddenForConsult, scheduledCustomerSuffixes, spamPrefixesFlow
+        ) { smsContacts, calls, spam, scheduled, _ ->
+            val (missed, _, handledMs) = calls
+            unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs, sevenStart).size
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** 오늘 ~ 오늘+6일(7일 윈도우) 시공 예약된 고객 수. */
@@ -1112,27 +1120,56 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }.sortedByDescending { it.lastDateMs }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 문자함에서 안 읽은 **번호들**. 숫자도 「전부 읽음으로」도 여기서 나온다. */
+    private val generalUnreadPhones: StateFlow<List<String>> =
+        generalThreads.map { list -> list.filter { it.unread }.map { it.phone } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** 문자함 배지 = 안 읽은 문자함 스레드 수(크롬 탭 옆 숫자). */
     val generalUnreadCount: StateFlow<Int> =
-        generalThreads.map { list -> list.count { it.unread } }
+        generalUnreadPhones.map { it.size }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /**
+     * 상담함에서 **안 읽은 번호들**. (2026-10-01 — 전엔 수만 셌다)
+     *
+     *   숫자와 「전부 읽음으로」가 **같은 줄자**를 쓰게 한다. 따로 세면
+     *   「1」인데 비울 게 없거나, 비웠는데 「1」이 남는다.
+     *   상담함 = 스팸/문자함(GENERAL) 제외 + 마지막이 고객 메시지 + 그 시각 > 읽은 시각.
+     */
+    private val consultUnreadPhones: StateFlow<List<String>> = combine(
+        smsContactsState, hiddenForConsult, spamGate, readStates
+    ) { contacts, hidden, spam, reads ->
+        contacts.mapNotNull { c ->
+            if (c.normalizedSuffix in hidden) return@mapNotNull null
+            if (spam.isSpam(c.address, c.normalizedSuffix)) return@mapNotNull null
+            val readMs = reads[c.normalizedSuffix] ?: 0L
+            if (!c.lastSent && c.lastDateMs > readMs) c.address else null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * 상담함 배지 = 안 읽은 상담함 스레드 수. 문자함과 **동일하게 읽으면(챗 열면) 줄어든다**. (2026-07-13 사장님)
      *   ⚠️ 예전엔 unhandledCount(미확인=답장 안 한 문의, 7일 윈도우)를 배지로 썼는데, 그건 '읽어도 안 줄고 답장해야 줄어'
      *      "확인했는데 안 지워진다"는 혼란을 줬음. 배지 = 안 읽음(readState 기준)으로 통일.
-     *   상담함 = 스팸/문자함(GENERAL) 제외 + 마지막이 고객 메시지 + 그 시각 > 읽은 시각.
      */
-    val consultUnreadCount: StateFlow<Int> = combine(
-        smsContactsState, hiddenForConsult, spamGate, readStates
-    ) { contacts, hidden, spam, reads ->
-        contacts.count { c ->
-            if (c.normalizedSuffix in hidden) return@count false
-            if (spam.isSpam(c.address, c.normalizedSuffix)) return@count false
-            val readMs = reads[c.normalizedSuffix] ?: 0L
-            !c.lastSent && c.lastDateMs > readMs
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val consultUnreadCount: StateFlow<Int> =
+        consultUnreadPhones.map { it.size }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /**
+     * 📬 **전부 읽음으로** — 지금 보고 있는 함의 안 읽은 것을 한 번에. (2026-10-01 사장님)
+     *
+     *   사장님: "상담함 1이 안 사라진데.. 고객이 보내옴. 아마 광고문자 아닐까 싶어.
+     *            전부 읽음으로 처리 있어야 하지 않을까"
+     *   광고엔 답장을 할 수가 없으니, 답장으로만 지워지던 숫자는 **지울 길이 없었다.**
+     *
+     *   지우는 건 **빨간 숫자뿐** — 대화도 고객도 그대로다. 새 문자가 오면 다시 안 읽음이 된다.
+     */
+    fun markAllRead(generalBox: Boolean) = viewModelScope.launch {
+        val phones = if (generalBox) generalUnreadPhones.value else consultUnreadPhones.value
+        container.readStateStore.markAllRead(phones)
+    }
 
     /** 상담함 카드 → 문자함으로(사장님이 "고객 아님"). 영구(OWNER) — 자동 재분류가 못 되돌림. */
     fun moveToGeneral(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {
@@ -1230,7 +1267,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   2026-06-07 사장님 통점: 옛날엔 이 밀기가 '스팸 마킹'이라 답장 안 한 진짜 고객이 스팸으로 빠졌음.
      *   이제 정상 고객으로 두고 대기 목록에서만 치움. 신규/최근대화엔 그대로 보임.
      */
+    /**
+     * 길게 눌러 「대기목록에서 정리」. **읽음도 같이 찍는다.** (2026-10-01)
+     *   전엔 카드만 숨고 **빨간 숫자가 남아서**, 정리를 해도 숫자가 안 없어졌다.
+     *   사장님이 「정리」를 누른 건 **다 봤다**는 뜻이다.
+     */
     fun dismissUnconfirmed(phoneNumber: String) {
+        container.readStateStore.markRead(phoneNumber)
         val suf = phoneSuffix(phoneNumber)
         if (suf.isBlank()) return
         // 정리 시각 기록 — 이 이후 새 고객 메시지가 오면 다시 대기목록에 뜬다.
@@ -1492,6 +1535,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     init {
         // 📮 하단 탭 배지로 흘려보낸다. **WhileSubscribed 가 아니라** viewModelScope 로 모으는 이유 —
         //   상담함 화면을 떠나면 구독이 끊겨 값이 멈춘다. 탭바는 다른 탭에서도 숫자를 보여야 한다.
+        //
+        // 🔴 **빨간 숫자 = 안 읽은 수.** (2026-10-01 사장님 "상담함 1이 안 사라진데")
+        //   전엔 [unhandledCount](답장 안 한 수)를 보냈다 — **읽어도, 정리해도 안 줄었다.**
+        //   광고 문자엔 답장을 할 수가 없으니 **없앨 방법이 아예 없었다.**
+        //   2026-07-13 에 「배지=안 읽음」으로 정해놓고 화면 안 숫자만 고치고
+        //   **하단 탭을 빠뜨린 것**이다. 같은 규칙을 두 곳에 적어서 한 곳만 고쳐졌다.
+        viewModelScope.launch {
+            consultUnreadCount.collect { container.inboxUnreadCount.value = it }
+        }
+        // 숫자를 눌렀을 때 「답장 기다려요」로 걸러주는 건 그대로 — 그건 **할 일 목록**이라
+        //   읽었다고 사라지면 안 된다. 거를 게 있을 때만 거른다.
         viewModelScope.launch {
             unhandledCount.collect { container.inboxUnansweredCount.value = it }
         }

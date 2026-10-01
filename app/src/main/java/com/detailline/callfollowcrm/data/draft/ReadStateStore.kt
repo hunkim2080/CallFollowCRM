@@ -44,4 +44,32 @@ class ReadStateStore(context: Context) {
         prefs.edit().putLong(suffix, atMs).apply()
         _readStates.value = _readStates.value + (suffix to atMs)
     }
+
+    /**
+     * 📬 **전부 읽음으로** — 여러 대화를 한 번에. (2026-10-01 사장님)
+     *
+     *   광고 문자 하나 때문에 빨간 숫자가 안 없어지는데, **답장할 수도 없어서**
+     *   없앨 방법이 아예 없었다. 하나씩 열어 지우게 하지 않는다.
+     *
+     *   ⚠️ 지우는 건 **빨간 숫자뿐**이다 — 대화도 고객도 그대로 남는다.
+     *     새 문자가 오면 그 시각이 더 최신이라 **다시 안 읽음**이 된다.
+     *   화면 한 번 그리는 값을 한 번에 쓴다(번호마다 쓰면 목록이 수십 번 다시 그려진다).
+     */
+    fun markAllRead(phones: Collection<String>, atMs: Long = System.currentTimeMillis()) {
+        if (phones.isEmpty()) return
+        val next = HashMap(_readStates.value)
+        val edit = prefs.edit()
+        var changed = false
+        for (phone in phones) {
+            val suffix = suffixOf(phone)
+            if (suffix.isBlank()) continue
+            if (atMs <= (next[suffix] ?: 0L)) continue
+            edit.putLong(suffix, atMs)
+            next[suffix] = atMs
+            changed = true
+        }
+        if (!changed) return
+        edit.apply()
+        _readStates.value = next
+    }
 }

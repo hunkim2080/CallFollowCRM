@@ -182,13 +182,19 @@ fun AppRoot(container: AppContainer) {
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     if (showTabBar) {
-                        // 상담함 배지 = **답장 안 한 수 + 받은 협업 요청 수**. (2026-09-20 사장님)
+                        // 상담함 배지 = **안 읽은 대화 수 + 받은 협업 요청 수**. (2026-10-01 사장님)
                         //   둘 다 "내가 손댈 것" 이라 한 숫자로 합친다. 빨간 숫자는 뜻이 하나여야 한다.
                         //   [답장 대기] 칩을 빼면서 그 숫자가 여기로 왔다 — 카톡·문자앱이 쓰는 그 자리.
+                        //
+                        // 🔴 전엔 **답장 안 한 수**였다. 그래서 **읽어도 안 줄고**, 길게 눌러 정리해도 안 줄었다.
+                        //   광고 문자엔 답장을 할 수가 없으니 「1」을 없앨 방법이 아예 없었다.
+                        //   카톡·문자앱이 쓰는 자리면 카톡·문자앱의 뜻(안 읽음)이어야 한다.
                         val pendingCollab by container.collabEventCenter.pendingInvites.collectAsState()
+                        val unread by container.inboxUnreadCount.collectAsState()
+                        // 숫자를 눌렀을 때 「답장 기다려요」로 걸러주는 쪽은 **답장 기준 그대로**.
                         val unanswered by container.inboxUnansweredCount.collectAsState()
                         RingTabBar(
-                            inboxBadge = (unanswered + pendingCollab.size).takeIf { it > 0 },
+                            inboxBadge = (unread + pendingCollab.size).takeIf { it > 0 },
                             currentRoute = if (currentRoute in RING_TAB_ROUTES) currentRoute else lastTabRoute,
                             onSelect = { route ->
                                 // 2026-06-07 사장님 통점: 탭이 가끔 안 눌림.

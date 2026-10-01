@@ -284,6 +284,18 @@ class AppContainer(context: Context) {
     val inboxUnansweredCount = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /**
+     * 🔴 하단 [상담함] 탭에 **찍히는 빨간 숫자 = 안 읽은 대화 수.** (2026-10-01 사장님)
+     *
+     *   [inboxUnansweredCount](답장 안 한 수)와 **뜻이 다르다.**
+     *   · 안 읽음  → **열어보면** 줄어든다. 빨간 숫자는 이걸 쓴다.
+     *   · 답장 안 함 → **답장해야** 줄어든다. 「답장 기다려요」 목록이 쓴다(할 일 목록이라 그게 맞다).
+     *
+     *   전엔 빨간 숫자도 '답장 안 함'이었다 — 광고 문자에는 답장을 할 수가 없어
+     *   「1」이 **영영 안 없어졌다**(사장님 "상담함 1이 안 사라진데").
+     */
+    val inboxUnreadCount = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /**
      * 하단 [상담함] 탭의 빨간 숫자를 **이미 상담함에 있는데** 눌렀을 때 올라가는 신호.
      *   숫자를 눌렀으면 그게 가리키는 것이 나와야 한다 — 전엔 아무 일도 안 일어났다.
      *   (2026-09-21 사장님 "5라고 찍혀있지만 눌렀을 때 뭐 변화가 없어서")
