@@ -151,8 +151,8 @@ class CustomerDetailViewModel(
 
     fun setJobTotalAmount(jobId: Long, won: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            runCatching {
-                val j = container.jobRepository.findById(jobId) ?: return@runCatching
+            SaveGuard.run("총금액", _toast) {
+                val j = container.jobRepository.findById(jobId) ?: return@run
                 container.jobRepository.updateMoney(
                     jobId = jobId,
                     totalAmount = won,
@@ -167,8 +167,8 @@ class CustomerDetailViewModel(
 
     fun setJobDepositAmount(jobId: Long, won: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            runCatching {
-                val j = container.jobRepository.findById(jobId) ?: return@runCatching
+            SaveGuard.run("계약금", _toast) {
+                val j = container.jobRepository.findById(jobId) ?: return@run
                 container.jobRepository.updateMoney(
                     jobId = jobId,
                     totalAmount = j.totalAmount,
@@ -237,7 +237,9 @@ class CustomerDetailViewModel(
 
     /** 발행 이력 1건 삭제(잘못 발행/정리용). */
     fun deleteIssuedDoc(id: Long) {
-        viewModelScope.launch { runCatching { container.issuedDocRepository.delete(id) } }
+        viewModelScope.launch {
+            SaveGuard.run("문서 지우기", _toast) { container.issuedDocRepository.delete(id) }
+        }
     }
 
     /** 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 상세 열 때 가져옴. 팀원 건은 파란 이름표. */

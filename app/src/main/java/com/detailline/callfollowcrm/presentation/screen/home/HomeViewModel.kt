@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.home
 
+import kotlinx.coroutines.flow.asStateFlow
+import com.detailline.callfollowcrm.presentation.util.SaveGuard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -1194,16 +1196,29 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         return PhoneKey.of(phone)
     }
 
+    /**
+     * 💬 화면에 한마디 — **고객 상세·협업 화면이 쓰는 그 모양 그대로.** (2026-10-02)
+     *   새 방식을 만들지 않는다(§12). 홈엔 이 통로가 아예 없어서 **완료를 못 찍어도 아무 말이 없었다.**
+     */
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast = _toast.asStateFlow()
+    fun consumeToast() { _toast.value = null }
+
     fun setFilter(f: HomeFilter) { filter.value = f }
 
     /** 오늘 시공 히어로 [완료] → 완료처리. 그 현장을 오늘 히어로에서 제외(완료 반영). (2026-06-08 #2) */
     fun markJobCompleted(customerId: Long) = viewModelScope.launch {
         // 완료를 찍는 길은 WorkCompletionManager 하나뿐 — 화면마다 따로 적으면 한쪽이 빠진다. (2026-09-28)
-        runCatching { container.workCompletionManager.setCompleted(customerId, System.currentTimeMillis()) }
+        // 💾 **못 찍으면 말한다.** 전엔 조용해서, 완료가 안 됐는데 끝난 줄 알고 넘어갔다. (2026-10-02)
+        SaveGuard.run("완료", _toast) {
+            container.workCompletionManager.setCompleted(customerId, System.currentTimeMillis())
+        }
     }
     /** 완료 처리 되돌리기 (스낵바 '되돌리기'). */
     fun undoJobCompleted(customerId: Long) = viewModelScope.launch {
-        runCatching { container.workCompletionManager.setCompleted(customerId, null) }
+        SaveGuard.run("완료 되돌리기", _toast) {
+            container.workCompletionManager.setCompleted(customerId, null)
+        }
     }
 
     /**

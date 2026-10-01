@@ -467,6 +467,11 @@ fun HomeScreen(
 
     // 미확인 swipe-to-spam Snackbar Undo.
     val snackbarHostState = remember { SnackbarHostState() }
+    // 💬 ViewModel 이 보낸 한마디 → 스낵바. 고객 상세가 쓰는 그 방식 그대로. (2026-10-02)
+    val vmToast by viewModel.toast.collectAsState()
+    LaunchedEffect(vmToast) {
+        vmToast?.let { msg -> snackbarHostState.showSnackbar(msg); viewModel.consumeToast() }
+    }
 
     // 오늘 시공 히어로 [완료] → 프로토 openComplete 팝업 (시공 완료 · 고생하셨습니다).
     var completeTarget by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerEntity?>(null) }
