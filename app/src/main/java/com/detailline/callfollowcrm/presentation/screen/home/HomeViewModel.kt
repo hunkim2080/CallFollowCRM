@@ -1166,9 +1166,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *
      *   지우는 건 **빨간 숫자뿐** — 대화도 고객도 그대로다. 새 문자가 오면 다시 안 읽음이 된다.
      */
-    fun markAllRead(generalBox: Boolean) = viewModelScope.launch {
+    private var lastMarkAllRead: Map<String, Long> = emptyMap()
+
+    /** 몇 개를 읽음으로 바꿨는지 돌려준다 — 0 이면 스낵바도 안 띄운다. */
+    fun markAllRead(generalBox: Boolean): Int {
         val phones = if (generalBox) generalUnreadPhones.value else consultUnreadPhones.value
-        container.readStateStore.markAllRead(phones)
+        lastMarkAllRead = container.readStateStore.markAllRead(phones)
+        return lastMarkAllRead.size
+    }
+
+    /** ↩️ 방금 「전부 읽음으로」 한 것 되돌리기. */
+    fun undoMarkAllRead() {
+        container.readStateStore.restoreReadStates(lastMarkAllRead)
+        lastMarkAllRead = emptyMap()
     }
 
     /** 상담함 카드 → 문자함으로(사장님이 "고객 아님"). 영구(OWNER) — 자동 재분류가 못 되돌림. */

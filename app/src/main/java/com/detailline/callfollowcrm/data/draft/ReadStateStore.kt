@@ -55,20 +55,40 @@ class ReadStateStore(context: Context) {
      *     새 문자가 오면 그 시각이 더 최신이라 **다시 안 읽음**이 된다.
      *   화면 한 번 그리는 값을 한 번에 쓴다(번호마다 쓰면 목록이 수십 번 다시 그려진다).
      */
-    fun markAllRead(phones: Collection<String>, atMs: Long = System.currentTimeMillis()) {
-        if (phones.isEmpty()) return
+    fun markAllRead(phones: Collection<String>, atMs: Long = System.currentTimeMillis()): Map<String, Long> {
+        if (phones.isEmpty()) return emptyMap()
         val next = HashMap(_readStates.value)
+        val before = HashMap<String, Long>()
         val edit = prefs.edit()
-        var changed = false
         for (phone in phones) {
             val suffix = suffixOf(phone)
             if (suffix.isBlank()) continue
-            if (atMs <= (next[suffix] ?: 0L)) continue
+            val prev = next[suffix] ?: 0L
+            if (atMs <= prev) continue
+            before[suffix] = prev          // 0 = 원래 한 번도 안 읽은 것
             edit.putLong(suffix, atMs)
             next[suffix] = atMs
-            changed = true
         }
-        if (!changed) return
+        if (before.isEmpty()) return emptyMap()
+        edit.apply()
+        _readStates.value = next
+        return before
+    }
+
+    /**
+     * ↩️ [markAllRead] 되돌리기 — 바꾸기 전 값으로 되돌린다. (2026-10-01)
+     *   한 번에 백 개를 비우는 일이라 **무를 수 있어야** 한다.
+     *   값이 0 이던 것(한 번도 안 읽은 것)은 **칸 자체를 지운다** — 0 을 적어두면
+     *   "0 에 읽었다"는 기록이 남아 나중에 헷갈린다.
+     */
+    fun restoreReadStates(before: Map<String, Long>) {
+        if (before.isEmpty()) return
+        val next = HashMap(_readStates.value)
+        val edit = prefs.edit()
+        for ((suffix, prev) in before) {
+            if (prev > 0L) { edit.putLong(suffix, prev); next[suffix] = prev }
+            else { edit.remove(suffix); next.remove(suffix) }
+        }
         edit.apply()
         _readStates.value = next
     }

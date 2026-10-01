@@ -654,13 +654,30 @@ fun HomeScreen(
             val unreadNow = if (boxNow) generalUnread else consultUnread
             androidx.compose.animation.AnimatedVisibility(visible = unreadNow > 0) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = AppSpace.s16, vertical = AppSpace.s4),
+                    Modifier.fillMaxWidth().padding(horizontal = AppSpace.s8),
                     horizontalArrangement = Arrangement.End
                 ) {
+                    // 🖐️ **손가락이 닿는 크기.** (2026-10-01 사장님 "파란 점도 없어져야하는거아니야?")
+                    //   처음엔 글자에 8·4dp 만 둘러 높이가 ~25dp 였다. 내 adb 탭은 정중앙을 찍어
+                    //   들어갔지만 **손가락으로는 빗나간다** — 눌렀는데 아무 일도 안 일어난 것이다.
+                    //   누르는 것은 48dp 는 돼야 한다.
                     Box(
-                        Modifier.clip(AppShape.sm)
-                            .clickable { viewModel.markAllRead(boxNow) }
-                            .padding(horizontal = AppSpace.s8, vertical = AppSpace.s4)
+                        Modifier.heightIn(min = 48.dp).clip(AppShape.sm)
+                            .clickable {
+                                // 📣 **눌렀다는 티를 낸다.** 조용히 사라지기만 하면 눌렸는지 알 수가 없다.
+                                //   백 개를 한 번에 비우는 일이라 **되돌리기**도 같이 준다.
+                                val n = viewModel.markAllRead(boxNow)
+                                if (n > 0) scope.launch {
+                                    val r = snackbarHostState.showSnackbar(
+                                        "${n}개를 읽음으로 바꿨어요",
+                                        actionLabel = "되돌리기",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) viewModel.undoMarkAllRead()
+                                }
+                            }
+                            .padding(horizontal = AppSpace.s12),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "✓ 전부 읽음으로",
