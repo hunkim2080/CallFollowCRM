@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.chat
 
+import com.detailline.callfollowcrm.presentation.util.SaveGuard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -1904,13 +1905,17 @@ class ChatViewModel(
      */
     fun setScheduledWorkDate(timestampMs: Long) = viewModelScope.launch {
         val id = ensureCustomerId()
-        withContext(Dispatchers.IO + NonCancellable) {
-            runCatching {
+        // 💾 **안 됐는데 「등록했어요」라고 말하면 안 된다.** (2026-10-02)
+        //   전얻 저장이 실패해도 아래 말이 그대로 떴다 —
+        //   사장님은 일정이 잡힌 줄 알고 그날 다른 일을 받는다.
+        val saved = withContext(Dispatchers.IO + NonCancellable) {
+            SaveGuard.run("시공일", _toast) {
                 container.customerRepository.updateScheduledWorkDate(id, timestampMs)
                 // 일정 탭·달력은 jobs 를 본다 — 같이 밀어넣어야 화면에 반영된다. (2026-09-15 사장님)
                 container.jobRepository.syncRepresentativeFromCustomer(id, System.currentTimeMillis())
-            }
+            } != null
         }
+        if (!saved) return@launch
         // 캘린더 등록 KPI — 채팅 AI제안 [시공일 등록]도 한 건으로 집계. (2026-06-25 cowork 요청)
         container.journeyEventRepository.track(
             "schedule_create", screen = "chat", target = "…" + phoneNumber.filter { it.isDigit() }.takeLast(4)
@@ -1944,7 +1949,7 @@ class ChatViewModel(
         if (clean.isBlank()) return@launch
         val id = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
-            runCatching { container.customerRepository.updateAddress(id, clean) }
+            SaveGuard.run("현장 주소", _toast) { container.customerRepository.updateAddress(id, clean) }
         }
         _toast.value = "현장 주소를 등록했어요"
     }
@@ -1953,7 +1958,9 @@ class ChatViewModel(
     fun setAsScheduleDate(timestampMs: Long) = viewModelScope.launch {
         val id = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
-            runCatching { container.customerRepository.updateAsSchedule(id, timestampMs, 1) }
+            SaveGuard.run("A/S 일정", _toast) {
+                container.customerRepository.updateAsSchedule(id, timestampMs, 1)
+            }
         }
         _toast.value = "A/S 예약일을 등록했어요"
     }
@@ -1962,7 +1969,7 @@ class ChatViewModel(
     fun setScheduledWorkMinutes(minutes: Int?) = viewModelScope.launch {
         val id = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
-            runCatching {
+            SaveGuard.run("시공 시각", _toast) {
                 container.customerRepository.updateScheduledWorkMinutes(id, minutes)
                 container.jobRepository.syncRepresentativeFromCustomer(id, System.currentTimeMillis())
             }
@@ -1973,7 +1980,7 @@ class ChatViewModel(
     fun setScheduledWorkTiming(minutes: Int?, days: Int) = viewModelScope.launch {
         val id = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
-            runCatching {
+            SaveGuard.run("시공 시간·기간", _toast) {
                 container.customerRepository.updateScheduledWorkTiming(id, minutes, days)
                 container.jobRepository.syncRepresentativeFromCustomer(id, System.currentTimeMillis())
             }

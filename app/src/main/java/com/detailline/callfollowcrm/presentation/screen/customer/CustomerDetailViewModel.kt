@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.customer
 
+import com.detailline.callfollowcrm.presentation.util.SaveGuard
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -138,7 +139,9 @@ class CustomerDetailViewModel(
      */
     fun updateJobMemo(jobId: Long, memo: String) {
         viewModelScope.launch {
-            runCatching { container.jobRepository.updateMemo(jobId, memo) }
+            // 💾 조용히 삼키지 않는다 — 현관 비번·주차 메모가 그렇게 사라지면
+            //   다음 날 현장 앞에서 못 들어간다. (2026-10-02)
+            SaveGuard.run("현장 메모", _toast) { container.jobRepository.updateMemo(jobId, memo) }
         }
     }
 
@@ -180,7 +183,7 @@ class CustomerDetailViewModel(
 
     fun setJobDepositPaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            runCatching {
+            SaveGuard.run("계약금 받음", _toast) {
                 container.jobRepository.setDepositPaid(jobId, if (paid) System.currentTimeMillis() else null)
             }
         }
@@ -189,7 +192,7 @@ class CustomerDetailViewModel(
     /** 잔금 받음 — **완료도 자동**(JobRepository.setBalancePaid 안에서). */
     fun setJobBalancePaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            runCatching {
+            SaveGuard.run("잔금 받음", _toast) {
                 container.jobRepository.setBalancePaid(jobId, if (paid) System.currentTimeMillis() else null)
             }
         }
@@ -197,7 +200,7 @@ class CustomerDetailViewModel(
 
     fun setJobAddress(jobId: Long, address: String?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            runCatching { container.jobRepository.updateAddress(jobId, address) }
+            SaveGuard.run("현장 주소", _toast) { container.jobRepository.updateAddress(jobId, address) }
         }
     }
 
@@ -497,15 +500,19 @@ class CustomerDetailViewModel(
 
     fun updateMemo(memo: String) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateMemo(customerId, memo)
-            markTodayCallsAsHandled()
+            SaveGuard.run("손님 메모", _toast) {
+                container.customerRepository.updateMemo(customerId, memo)
+                markTodayCallsAsHandled()
+            }
         }
     }
 
     fun updateName(name: String) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateName(customerId, name.takeIf { it.isNotBlank() })
-            markTodayCallsAsHandled()
+            SaveGuard.run("이름", _toast) {
+                container.customerRepository.updateName(customerId, name.takeIf { it.isNotBlank() })
+                markTodayCallsAsHandled()
+            }
         }
     }
 
@@ -537,9 +544,11 @@ class CustomerDetailViewModel(
 
     fun setDepositAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateDepositAmount(customerId, amount)
-            // 2026-05-30 #7 — 입금 변경 후 자동 카테고리 갱신.
-            container.autoCategoryClassifier.reclassify(customerId)
+            SaveGuard.run("계약금", _toast) {
+                container.customerRepository.updateDepositAmount(customerId, amount)
+                // 2026-05-30 #7 — 입금 변경 후 자동 카테고리 갱신.
+                container.autoCategoryClassifier.reclassify(customerId)
+            }
         }
     }
 
@@ -576,8 +585,10 @@ class CustomerDetailViewModel(
 
     fun setBalanceAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateBalanceAmount(customerId, amount)
-            container.autoCategoryClassifier.reclassify(customerId)
+            SaveGuard.run("잔금", _toast) {
+                container.customerRepository.updateBalanceAmount(customerId, amount)
+                container.autoCategoryClassifier.reclassify(customerId)
+            }
         }
     }
 
@@ -649,7 +660,9 @@ class CustomerDetailViewModel(
      */
     fun setTotalAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateTotalAmount(customerId, amount)
+            SaveGuard.run("총금액", _toast) {
+                container.customerRepository.updateTotalAmount(customerId, amount)
+            }
         }
     }
 
