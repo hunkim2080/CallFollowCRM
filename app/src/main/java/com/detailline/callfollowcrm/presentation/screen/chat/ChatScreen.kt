@@ -2221,9 +2221,6 @@ fun ChatScreen(
     }
 }
 
-/** 통화 구간 카드 색 — 문자(파랑)와 구분되는 청록. 프로토 .chat-call (#0E9E90/#EAF4F1). */
-private val CallTeal = Color(0xFF0E9E90)
-private val CallTealSoft = LightColors.doneBg
 
 /**
  * 채팅 타임라인 한 항목 — 문자(Msg) 또는 통화(Call). 2026-06-01.
@@ -4040,58 +4037,6 @@ private fun AiDisclaimer(modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * 2026-05-28 v2 (킬러 콘텐츠 1단계 — 의도 분화):
- *   label != null 이면 카드 상단에 작은 intent 라벨 줄 ("💰 견적 안내") 노출.
- *   label == null (옛 스키마 fallback) 이면 기존 모양 그대로 (번호 + 본문).
- *
- * 사장님 결정 — 답변 카드 안 상단에 이모지 + 짧은 라벨. 본문 읽기 전에 어떤 전략의 답변인지 0.5초 안에 파악.
- */
-@Composable
-private fun SuggestionChip(index: Int, label: String?, text: String, onTap: () -> Unit) {
-    // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려.
-    //   sizeIn(minHeight=48dp) 으로 단일 라인 케이스도 최소 터치 보장.
-    //   vertical padding 10dp → 12dp 로 시각적 여유.
-    // 프로토 .sug-chip — 흰 카드(238px) + .cl(✨ 파란 라벨) + .ct(검은 본문).
-    val chipInteraction = remember { MutableInteractionSource() }
-    val chipShape = RoundedCornerShape(15.dp)
-    Surface(
-        modifier = Modifier
-            .width(238.dp)
-            .pressScale(chipInteraction)                 // 눌림 '쏙'
-            .tossCardShadow(chipShape)                   // M3 2dp → 프로토 부드러운 그림자
-            .clickable(interactionSource = chipInteraction, indication = null) { onTap() },
-        shape = chipShape,
-        color = Color.White,
-        shadowElevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(12.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    label?.takeIf { it.isNotBlank() } ?: "추천 $index",
-                    color = TossBlue,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text,
-                color = TossTextPrimary,
-                fontSize = 13.sp,
-                lineHeight = 19.sp,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
 
 /**
  * (Phase 2) 원칙 발견 카드 — design-preview/proto-principle-discovery.html 의 .disc / .resolved 1:1.
@@ -4223,27 +4168,6 @@ private data class ResolvedStyle(
     val border: Color
 )
 
-/** 프로토 .act-chip — 흰 알약 + 파란 아이콘 + 라벨 (견적 작성 / 내 일정 확인 / 문구 넣기). */
-@Composable
-private fun ActChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onTap: () -> Unit) {
-    val actInteraction = remember { MutableInteractionSource() }
-    val actShape = RoundedCornerShape(999.dp)
-    Row(
-        modifier = Modifier
-            .pressScale(actInteraction)
-            .tossCardShadow(actShape)                    // 프로토 .act-chip box-shadow:var(--shadow) — 테두리만 있고 빠졌던 그림자 복원
-            .clip(actShape)
-            .background(Color.White)
-            .border(1.dp, com.detailline.callfollowcrm.presentation.theme.TossDivider, actShape)
-            .clickable(interactionSource = actInteraction, indication = null) { onTap() }
-            .padding(horizontal = 13.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, tint = TossBlue, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(5.dp))
-        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
-    }
-}
 
 /**
  * 대화 바로 위 **할 일 줄** — 주소 한 줄 + [접수서 보내기][일정 확인][문구 넣기]. (2026-09-23 사장님)
@@ -4478,25 +4402,6 @@ private fun ActionMenuRow(
     }
 }
 
-@Composable
-private fun TemplatePill(template: MessageTemplateEntity, onTap: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = Color.White,
-        onClick = onTap
-    ) {
-        Box(modifier = Modifier
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-        ) {
-            Text(
-                template.title,
-                color = TossBlue,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp
-            )
-        }
-    }
-}
 
 /*
  * (지움 2026-09-21) Composer 위 [⚡ 액션] 토글 + 퀵액션 칩 5개 — **화면에 안 뜨는 죽은 코드**였다.
@@ -4747,135 +4652,6 @@ private fun dialPhone(context: android.content.Context, phoneNumber: String) {
     com.detailline.callfollowcrm.util.PhoneDialer.open(context, phoneNumber)
 }
 
-/**
- * aiSummary 가 null 일 때 placeholder 카드.
- *   2026-05-26 사장님 보고 fix: "통화요약 안 됐을 때 작성 중 표시 + 접혀있는 느낌".
- *   - 헤더 라인: ✨ 대화 요약 작성 중...  (AnimatedDots — 점이 순환)
- *   - collapsed=true 면 한 줄 헤더만 (composer focus / 사장님 접음)
- *   - collapsed=false 면 헤더 + ShimmerLine 2줄 (요약 본문이 곧 올 자리)
- *   - 어느 상태든 헤더 영역 탭 = 토글 (UnifiedSummaryCard 와 일관)
- */
-@Composable
-private fun SummaryLoadingPlaceholder(
-    collapsed: Boolean,
-    onToggleCollapsed: () -> Unit
-) {
-    if (collapsed) {
-        // CollapsedSummaryHeader 와 동일한 시각 톤 — 한 줄 작은 칩.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 4.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
-                .clickable { onToggleCollapsed() }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 6.dp)
-            com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
-                text = "대화 요약 작성 중",
-                color = TossBlue,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                "▼",
-                color = TossTextSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    } else {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
-                .padding(14.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onToggleCollapsed() }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 6.dp)
-                com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
-                    text = "대화 요약 작성 중",
-                    color = TossBlue,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "▲",
-                    color = TossTextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 6.dp)
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            // 본문 자리 — shimmer 2줄로 "여기 곧 채워집니다" affordance.
-            com.detailline.callfollowcrm.presentation.theme.ShimmerLine(
-                modifier = Modifier.fillMaxWidth(0.85f)
-            )
-            Spacer(Modifier.height(6.dp))
-            com.detailline.callfollowcrm.presentation.theme.ShimmerLine(
-                modifier = Modifier.fillMaxWidth(0.6f)
-            )
-        }
-    }
-}
-
-/**
- * 요약 생성이 실패했을 때 placeholder — 무한 shimmer 대신 탭하면 다시 시도.
- *   추천 영역 "⚠️ 추천을 못 만들었어요 — ↻ 다시" 와 동일 UX. (2026-06-30)
- */
-@Composable
-private fun SummaryFailedPlaceholder(
-    onRetry: () -> Unit
-) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
-                .clickable { onRetry() }
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "요약을 못 만들었어요 · 다시",
-                color = TossError,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                Icons.Default.Refresh,
-                contentDescription = "다시 시도",
-                tint = TossError,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        // 계속 실패하면(서버 크레딧/네트워크/오디오 읽기 등) 앱 안에서 바로 진단 보내기. (2026-07-29 사장님)
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        val diagPrefs = remember {
-            (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
-        }
-        com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt(
-            prefs = diagPrefs,
-            tag = "요약 못 함",
-            modifier = Modifier.padding(horizontal = 14.dp),
-            prompt = "계속 안 되나요?",
-            buildExtra = { "통화 요약 실패 — 서버 STT/요약 응답 실패(크레딧/네트워크/오디오 읽기 등)" }
-        )
-    }
-}
 
 /**
  * 2026-05-24 — composer focus (ime 떠있음) 시 대화 요약 + AI 제안 박스를 한 줄로 압축.
@@ -5088,116 +4864,6 @@ private fun UnifiedSummaryCard(
     }
 }
 
-/**
- * P1 — ChatScreen 상단 대화 요약 박스. 에이닷 벤치마킹. (UnifiedSummaryCard 로 대체됨, 호환 위해 보존)
- * conversationSummaryJson (List<String>) 표시. 박스 없으면 null 받아서 호출 측이 안 그림.
- */
-@Composable
-private fun ConversationSummaryBox(
-    entity: com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity
-) {
-    val lines = com.detailline.callfollowcrm.ai.parseConversationLines(entity.conversationSummaryJson)
-    if (lines.isEmpty()) return
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .padding(14.dp)
-    ) {
-        com.detailline.callfollowcrm.presentation.theme.AiMark(TossBlue, 13.dp, 5.dp)
-        Text(
-            "대화 요약",
-            style = MaterialTheme.typography.labelMedium,
-            color = TossBlue,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(8.dp))
-        lines.forEach { line ->
-            Text(
-                line,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextPrimary,
-                modifier = Modifier.padding(vertical = 2.dp)
-            )
-        }
-    }
-}
-
-/**
- * P2 — AI 제안 박스. nextActionJson 파싱해서 표시. 박스 없으면 안 그림.
- * urgency 별 색상: high=빨강 / medium=노랑 / low=파랑.
- * [버튼] 탭 = onAction(action) — 호출부에서 action_type 별 분기.
- */
-@Composable
-private fun NextActionBox(json: String?, onAction: (NextAction) -> Unit) {
-    val action = NextAction.parse(json) ?: return
-    val accent = when (action.urgency) {
-        "high" -> TossError
-        "medium" -> TossWarning
-        else -> TossBlue
-    }
-    val bg = when (action.urgency) {
-        "high" -> AppTheme.colors.unpaidBg
-        "medium" -> AppTheme.colors.cautionBg
-        else -> TossBlueSoft
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp)
-            .padding(bottom = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                com.detailline.callfollowcrm.presentation.theme.AiMark(accent, 12.dp, 4.dp)
-                Text(
-                    "AI 제안",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = accent,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                action.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = TossTextPrimary,
-                fontWeight = FontWeight.SemiBold
-            )
-            action.subtitle?.let { sub ->
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    sub,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextSecondary
-                )
-            }
-        }
-        action.primaryLabel?.let { label ->
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = accent,
-                onClick = { onAction(action) }
-            ) {
-                Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                    Text(
-                        label,
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-    }
-}
 
 /** 바텀시트 손잡이 바 — '내 시공 일정' 시트(ModalBottomSheet)와 통일감. (2026-06-23 사장님) */
 @Composable

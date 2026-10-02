@@ -310,7 +310,3 @@ private fun SoundCard(content: @Composable ColumnScope.() -> Unit) {
     )
 }
 
-@Composable
-private fun SectionDivider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-}

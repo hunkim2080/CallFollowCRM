@@ -2512,28 +2512,6 @@ private fun IntakeReviewDialog(
     )
 }
 
-/**
- * ModalBottomSheet 의 Dialog window 가 softInputMode 가 ADJUST_RESIZE 아닐 때 강제 설정.
- * 이게 없으면 dialog window 가 IME 응답 안 함 → WindowInsets.ime 도 0, visibleDisplayFrame 차이도 0.
- * Compose BOM 2024.06.00 + Samsung/Android 10 조합에서 ModalBottomSheet 가 이 상태로 시작하는 케이스 대응.
- */
-@Composable
-private fun ForceDialogAdjustResize() {
-    val view = LocalView.current
-    DisposableEffect(view) {
-        val window = view.findDialogWindow()
-        val oldSoftInputMode = window?.attributes?.softInputMode
-        window?.setSoftInputMode(
-            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
-        )
-        onDispose {
-            if (oldSoftInputMode != null) {
-                window.setSoftInputMode(oldSoftInputMode)
-            }
-        }
-    }
-}
 
 private fun android.view.View.findDialogWindow(): android.view.Window? {
     var p: android.view.ViewParent? = parent
@@ -2544,55 +2522,6 @@ private fun android.view.View.findDialogWindow(): android.view.Window? {
     return null
 }
 
-/**
- * 키보드 높이 측정 fallback.
- * sheet Dialog window 안에서 `WindowInsets.ime` 가 0 반환하는 케이스 대비.
- * `View.getWindowVisibleDisplayFrame()` 으로 root view 높이와 visible 높이 차이를 keyboard 높이로 추정.
- * 차이가 root 의 15% 이하면 키보드 없는 것으로 간주.
- */
-@Composable
-private fun rememberKeyboardHeightDp(): Dp {
-    val view = LocalView.current
-    val density = LocalDensity.current
-    var keyboardHeightPx by remember { mutableIntStateOf(0) }
-
-    DisposableEffect(view) {
-        val rect = android.graphics.Rect()
-        val listener = android.view.ViewTreeObserver.OnGlobalLayoutListener {
-            view.rootView.getWindowVisibleDisplayFrame(rect)
-            val rootHeight = view.rootView.height
-            val visibleHeight = rect.height()
-            val diff = rootHeight - visibleHeight
-            keyboardHeightPx = if (diff > rootHeight * 0.15f) diff else 0
-        }
-        view.viewTreeObserver.addOnGlobalLayoutListener(listener)
-        onDispose {
-            view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
-        }
-    }
-
-    return with(density) { keyboardHeightPx.toDp() }
-}
-
-/**
- * Compose WindowInsets.navigationBars 가 0 을 반환하는 케이스를 대비한 fallback.
- * Android 내장 dimen `navigation_bar_height` 를 직접 읽어 px → dp 변환.
- * Samsung/Android 10 의 ModalBottomSheet Dialog window 에서 inset 이 0 으로 들어오는 환경 대응.
- */
-@Composable
-private fun navigationBarFallbackPadding(): Dp {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val px = remember(context) {
-        val resId = context.resources.getIdentifier(
-            "navigation_bar_height",
-            "dimen",
-            "android"
-        )
-        if (resId > 0) context.resources.getDimensionPixelSize(resId) else 0
-    }
-    return with(density) { px.toDp() }
-}
 
 // ChatBottomSheet + ChatBubble 은 메인 ChatScreen 으로 대체되어 제거됨 (2026-05-19).
 // 같은 SMS/MMS 표시 + composer 기능이 대시보드 진입 시 메인 뷰로 옮겨졌다.
@@ -2735,98 +2664,6 @@ private fun PersonaLine(emoji: String, text: String?) {
     }
 }
 
-@Composable
-private fun SummaryItem(summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity) {
-    val title = summary.title
-    val summaryBody = summary.summaryText
-    val transcript = summary.transcriptText
-    Column(Modifier.fillMaxWidth()) {
-        if (!title.isNullOrBlank()) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                color = TossTextPrimary,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(2.dp))
-        }
-        val metaParts = buildList {
-            summary.recordedAt?.let { add(DateTimeUtils.formatShort(it)) }
-            summary.phoneNumber?.let { add(it) }
-            add(summaryBadge(summary.sourceType))
-        }
-        if (metaParts.isNotEmpty()) {
-            Text(
-                metaParts.joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                color = TossTextTertiary
-            )
-            Spacer(Modifier.height(6.dp))
-        }
-        if (!summaryBody.isNullOrBlank()) {
-            Text(
-                summaryBody,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextSecondary
-            )
-        }
-        if (!transcript.isNullOrBlank()) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "녹음 내용",
-                style = MaterialTheme.typography.labelMedium,
-                color = TossTextTertiary
-            )
-            Text(
-                transcript,
-                style = MaterialTheme.typography.bodySmall,
-                color = TossTextSecondary,
-                maxLines = 12
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScheduleRow(
-    label: String,
-    dateLabel: String,
-    ddayLabel: String,
-    emphasize: Boolean = false
-) {
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium,
-                color = TossTextTertiary
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                dateLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (emphasize) TossTextPrimary else TossTextSecondary,
-                fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Normal
-            )
-        }
-        Text(
-            ddayLabel,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (emphasize) TossBlue else TossTextSecondary,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-private fun summaryBadge(raw: String): String = when (raw) {
-    "ADOT_SHARE" -> "통화 녹음"
-    "MANUAL_PASTE" -> "직접 붙여넣음"
-    "AI_SERVER" -> "AI 서버"
-    else -> raw
-}
 
 private data class MessageRow(
     val timeMs: Long,
@@ -2899,54 +2736,6 @@ private fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
 //   CurrentStatusBadge, PipelineProgress, ChoiceState, StatusChoiceChip
 //   갤메시지 식 사장님 카테고리 시스템으로 통일 (P2 카테고리 시스템에서 대체).
 
-/**
- * 기본 정보 카드 안의 이름 표시/편집 행.
- *  - 이름 있으면: 이름 텍스트 + 작은 ✏ 버튼 (탭 → 편집 다이얼로그)
- *  - 이름 없으면: "+ 이름 추가" 회색 텍스트 링크
- * 전엔 OutlinedTextField 가 항상 큰 면적을 차지했음. 이제 평소엔 한 줄만.
- */
-@Composable
-private fun NameRow(currentName: String, onEdit: () -> Unit) {
-    if (currentName.isBlank()) {
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                .clickable { onEdit() }
-                .padding(vertical = 4.dp, horizontal = 2.dp)
-        ) {
-            Text(
-                "+ 이름 추가",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextTertiary,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    } else {
-        // 이름 + ✏ 를 가까이 묶고, 우측은 빈 공간으로 채워서 클릭 영역은 row 전체.
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                .clickable { onEdit() }
-                .padding(vertical = 4.dp, horizontal = 2.dp)
-        ) {
-            Text(
-                currentName,
-                style = MaterialTheme.typography.titleMedium,
-                color = TossTextPrimary,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "✏",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextTertiary
-            )
-        }
-    }
-}
 
 /** 이름 편집 다이얼로그. 작은 input + 저장/취소. 저장 시 즉시 DB 커밋. */
 @Composable
@@ -2985,37 +2774,6 @@ private fun NameEditDialog(
     )
 }
 
-/**
- * 전화번호 옆의 작은 원형 전화 아이콘 버튼. 탭하면 시스템 다이얼러를 열어
- * 번호가 자동 입력된 상태로 사용자가 직접 발신 버튼을 누름 (자동 발신 X, 권한 X).
- */
-@Composable
-private fun CallIconButton(phoneNumber: String) {
-    val context = LocalContext.current
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(com.detailline.callfollowcrm.presentation.theme.TossBlueSoft)
-            .clickable { dialPhone(context, phoneNumber) },
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        androidx.compose.material3.Icon(
-            Icons.Default.Phone,
-            contentDescription = "전화 걸기",
-            tint = TossBlue,
-            modifier = Modifier.size(18.dp)
-        )
-    }
-}
-
-/** 프로토 .hd heat 점 색 — hot=빨강/warm=앰버/cold=회색/그 외(미분류=신규)=파랑. */
-private fun heatDotColor(heat: String?): Color = when (heat?.uppercase()) {
-    "HOT" -> LightColors.unpaid
-    "WARM" -> LightColors.caution
-    "COLD" -> Color(0xFFC2C9D2)
-    else -> LightColors.primary
-}
 
 /**
  * 카드 제목 왼쪽 아이콘 칩. (2026-09-20 사장님)
@@ -3513,88 +3271,6 @@ private fun PaymentRow(
 /** PaymentRow 의 4가지 상태 — 시각 분리용 enum. */
 private enum class PaymentState { EMPTY, PROMISED, RECEIVED, SKIPPED }
 
-/**
- * 2026-05-30 사장님 #4 통점 — 총금액 입력 영역.
- *
- * 사장님이 시공비 총액을 박으면 잔금 = 총금액 - 계약금 으로 자동 계산되어 잔금 PaymentRow 에 표시됨.
- * 사장님이 잔금을 직접 수정하면 그게 우선. 총금액 미입력이면 잔금 자동 계산 X (옛 동작).
- *
- * UI: EMPTY (총금액 미입력) = 작은 버튼, FILLED (입력됨) = 금액 + 수정.
- */
-@Composable
-private fun TotalAmountRow(
-    totalAmount: Long?,
-    depositAmount: Long?,
-    balanceAmount: Long?,
-    onTotalChange: (Long?) -> Unit
-) {
-    var editing by remember(totalAmount) { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "총금액",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TossTextPrimary,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(6.dp))
-        if (editing) {
-            PaymentInlineEditor(
-                initialAmount = totalAmount?.takeIf { it > 0L },
-                onCancel = { editing = false },
-                onSave = { newAmount ->
-                    onTotalChange(newAmount)
-                    editing = false
-                }
-            )
-        } else if (totalAmount == null || totalAmount == 0L) {
-            // EMPTY — 작은 버튼
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-                    .background(TossGrayBg)
-                    .clickable { editing = true }
-                    .padding(vertical = 10.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                Text(
-                    "총금액 입력 → 잔금 자동 계산",
-                    color = TossTextSecondary,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 13.sp
-                )
-            }
-        } else {
-            androidx.compose.foundation.layout.Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Text(
-                    "₩${formatThousands(totalAmount)}",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = TossTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                androidx.compose.material3.TextButton(onClick = { editing = true }) {
-                    Text("수정", color = TossTextSecondary, fontSize = 12.sp)
-                }
-                androidx.compose.material3.TextButton(onClick = { onTotalChange(null) }) {
-                    Text("지움", color = TossTextTertiary, fontSize = 12.sp)
-                }
-            }
-            // 사장님 참고 — 자동 계산 미리보기 (사장님이 안 박았어도)
-            if (depositAmount != null && depositAmount > 0L && balanceAmount == null) {
-                val auto = (totalAmount - depositAmount).coerceAtLeast(0L)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "= 잔금 자동 ₩${formatThousands(auto)} (총 - 계약금)",
-                    color = TossBlue,
-                    fontSize = 11.sp
-                )
-            }
-        }
-    }
-}
 
 /**
  * 인플레이스 입력 모드 — 펼침 시 카드 안 같은 자리에 등장 (다이얼로그 X).
@@ -3711,100 +3387,6 @@ private val ThousandsSeparatorTransformation = androidx.compose.ui.text.input.Vi
 // 2026-05-25: StatusPill / statusColors 제거 — status pill UI 폐기.
 //   카테고리 chip 으로 대체 예정 (Phase 2).
 
-private fun callTypeLabel(raw: String): String = when (raw) {
-    "INCOMING" -> "수신"
-    "OUTGOING" -> "발신"
-    "MISSED" -> "부재중"
-    "REJECTED" -> "거절"
-    "MANUAL" -> "수동 등록"
-    else -> "통화"
-}
-
-/** 통화 한 줄 + 매칭된 녹음 ▶ 버튼 (여러 개면 가로로 나열, 1번/2번 표시). */
-@Composable
-private fun CallRecordRow(
-    line: String,
-    recordings: List<RecordingAttachmentEntity>,
-    onPlay: (RecordingAttachmentEntity) -> Unit
-) {
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            line,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TossTextSecondary,
-            modifier = Modifier.weight(1f)
-        )
-        if (recordings.size == 1) {
-            androidx.compose.material3.TextButton(
-                onClick = { onPlay(recordings.first()) },
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-            ) {
-                Text("▶ 녹음", color = TossBlue, fontWeight = FontWeight.SemiBold)
-            }
-        } else if (recordings.size > 1) {
-            recordings.forEachIndexed { idx, rec ->
-                androidx.compose.material3.TextButton(
-                    onClick = { onPlay(rec) },
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
-                ) {
-                    Text("▶${idx + 1}", color = TossBlue, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
-/**
- * 녹음 첨부 표시용 라벨. 파일명 그대로 보여주면 보기 흉하므로 파일명에서
- * 녹음 시각을 파싱해 "5/15 11:16 녹음" 형태로 정리. 패턴 안 맞으면 최후 fallback.
- */
-private fun formatRecordingTitle(rec: RecordingAttachmentEntity): String {
-    val parsed = com.detailline.callfollowcrm.recording.AdotFilenameParser.parse(rec.fileName)
-    if (parsed != null) {
-        return "${DateTimeUtils.formatShort(parsed.recordedAt)} 녹음"
-    }
-    // 패턴 미일치 (수동 선택 등) — 확장자만 떼고 보여줌
-    val stem = rec.fileName.substringAfterLast('/').substringBeforeLast('.')
-    return if (stem.length > 24) stem.take(22) + "…" else stem
-}
-
-private fun playRecording(context: android.content.Context, fileUri: String) {
-    runCatching {
-        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-            setDataAndType(android.net.Uri.parse(fileUri), "audio/*")
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(intent)
-    }
-}
-
-/**
- * 카테고리 알약. 할당 = 파랑 톤, 미할당 = "+ 카테고리" 회색.
- * 탭하면 [CategoryPickerDialog].
- */
-@Composable
-private fun CategoryPill(label: String, assigned: Boolean, onClick: () -> Unit) {
-    val fg = if (assigned) TossBlue else TossTextSecondary
-    val bg = if (assigned) com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
-        else AppTheme.colors.bg
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        modifier = Modifier
-            .background(bg, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Text(
-            label,
-            color = fg,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
 
 /** 분류 타일 한 칸 — 큰 이모지 + 이름(두 줄까지) + 몇 명. (2026-09-19 사장님) */
 @Composable
@@ -4000,27 +3582,6 @@ private fun CategoryNameInputDialog(
     )
 }
 
-@Composable
-private fun CategoryChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val fg = if (selected) Color.White else TossTextPrimary
-    val bg = if (selected) TossBlue else Color.White
-    val border = if (selected) TossBlue else com.detailline.callfollowcrm.presentation.theme.TossDivider
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-            .background(bg)
-            .border(1.dp, border, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Text(
-            label,
-            color = fg,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-        )
-    }
-}
 
 /**
  * "📍 현장 주소" 카드 탭 시 뜨는 입력 다이얼로그 (2026-05-28, DB v15).
@@ -4864,67 +4425,6 @@ private fun CollabShareSheet(
     }
 }
 
-@Composable
-private fun CollabPhoneChip(label: String, onClick: () -> Unit) {
-    Box(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
-            .clickable { onClick() }
-            .padding(horizontal = 11.dp, vertical = 7.dp)
-    ) {
-        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, maxLines = 1)
-    }
-}
-
-/**
- * "📩 주고받은 문자" 접이식 섹션의 단일 메시지 행 (2026-05-27).
- *   - 발신 (sent=true) = 사장님이 보낸 = 파란 칩 + 우측 정렬 톤
- *   - 수신 (sent=false) = 고객이 보낸 = 회색 칩 + 좌측 정렬 톤
- *   - 본문 + 시각 (2줄 max truncate)
- * ChatScreen 의 ChatBubble 보다 간소화. 대화 흐름 빠르게 훑기 용도.
- */
-@Composable
-private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage) {
-    val sent = msg.sent
-    val bgColor = if (sent) TossBlueSoft else AppTheme.colors.bg
-    val labelText = if (sent) "보냄" else "받음"
-    val labelColor = if (sent) TossBlue else TossTextSecondary
-
-    androidx.compose.foundation.layout.Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-            .background(bgColor)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.Top
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            androidx.compose.foundation.layout.Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Text(
-                    labelText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = labelColor,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(msg.dateMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TossTextTertiary
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                msg.body,
-                style = MaterialTheme.typography.bodySmall,
-                color = TossTextPrimary,
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-        }
-    }
-}
 
 /**
  * 건(件) 탭 — 한 고객의 시공을 크롬 새 탭처럼 옆으로. (2026-09-17 사장님 "B안이 괜찮다")
@@ -5151,67 +4651,4 @@ private fun JobTab(
     }
 }
 
-/**
- * 지난 건 하나의 기록 — 읽기 전용. (2026-09-17 B안)
- * 끝난 일이라 여기서 고칠 게 없다. 고칠 일이 생기면 그때 붙인다.
- */
-@Composable
-private fun PastJobPanel(job: com.detailline.callfollowcrm.data.local.entity.JobEntity) {
-    val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(job)
-    TossCard {
-        Column {
-            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(if (job.workCompletedAt != null) "🧾" else "🔨", fontSize = 13.sp)
-                Spacer(Modifier.width(6.dp))
-                // 예정 건도 이 칸에 들어온다 — '끝난 시공' 이라고 쓰면 거짓말. (2026-09-17)
-                Text(
-                    if (job.workCompletedAt != null) "끝난 시공" else "앞으로 잡힌 시공",
-                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                job.scheduledWorkDate?.let {
-                    DateTimeUtils.formatKoreanDate(it) +
-                        DateTimeUtils.workPeriodSuffix(it, job.scheduledWorkDays)
-                } ?: "날짜 미상",
-                fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
-            )
-            if (!job.address.isNullOrBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text("${job.address}", fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 17.sp)
-            }
-            if (settle.total > 0L) {
-                Spacer(Modifier.height(12.dp))
-                PastJobKv("총 금액", manwonLabel(settle.total), TossTextPrimary)
-                if (settle.depositAmount > 0L) {
-                    PastJobKv("계약금", manwonLabel(settle.depositAmount), TossTextSecondary)
-                }
-                PastJobKv(
-                    if (settle.isPaidOff) "잔금" else "남은 돈",
-                    if (settle.isPaidOff) "전액 완납" else manwonLabel(settle.outstanding),
-                    if (settle.isPaidOff) TossSuccess else com.detailline.callfollowcrm.presentation.theme.TossError
-                )
-            }
-            if (job.memo.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
-                Text("메모", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                Spacer(Modifier.height(4.dp))
-                Text(job.memo, fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PastJobKv(k: String, v: String, vColor: Color) {
-    androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-    ) {
-        Text(k, fontSize = 13.5.sp, color = TossTextTertiary)
-        Spacer(Modifier.weight(1f))
-        Text(v, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = vColor)
-    }
-}
 

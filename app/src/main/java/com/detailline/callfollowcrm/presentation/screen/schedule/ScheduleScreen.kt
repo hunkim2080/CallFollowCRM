@@ -1738,26 +1738,6 @@ private val ASSIGN_TINTS = listOf(
     LightColors.cautionBg to Color(0xFFE0920C),
 )
 
-@Composable
-private fun PayStatusReadOnly(row: com.detailline.callfollowcrm.domain.settlement.SettleRow) {
-    fun manwon(won: Long) = (won / 10_000L).toInt()
-    val total = "총 %,d만원".format(manwon(row.total))
-    Column {
-        Text(total, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-        Spacer(Modifier.height(3.dp))
-        val hasDeposit = row.depositAmount > 0L
-        val (plain, emphasis, emColor) = when {
-            row.isPaidOff -> Triple("", "전액 완납", TossSuccess)
-            hasDeposit && !row.depositPaid -> Triple("계약금 ${manwon(row.depositAmount)}만 · 잔금 ${manwon(row.balanceAmount)}만 ", "미수", TossError)
-            hasDeposit -> Triple("계약금 ${manwon(row.depositAmount)}만 받음 · ", "잔금 ${manwon(row.balanceAmount)}만 남음", TossError)
-            else -> Triple("계약금 없음 · ", "전액 ${manwon(row.total)}만 미수", TossError)
-        }
-        Row {
-            if (plain.isNotEmpty()) Text(plain, fontSize = 12.5.sp, color = TossTextTertiary)
-            Text(emphasis, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = emColor)
-        }
-    }
-}
 
 /** "5월 29일 (금)" — 프로토 cal-day-label 포맷 (연도 없음). */
 private fun koreanMonthDay(ms: Long): String =

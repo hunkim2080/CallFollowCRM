@@ -3313,68 +3313,6 @@ private fun CompletionDialog(
     }
 }
 
-/**
- * 홈 미수금 진입 카드 — "아직 못 받은 돈 OO원 · N곳" → 탭하면 정산 화면.
- *   미수 0 이면 긍정 프레이밍("모두 받았어요"). 정산 Phase 1 (2026-06-01).
- *
- * ⛔ **지금 아무 데서도 안 부른다 — 일부러 그렇다.** (확인 2026-09-28)
- *   프로토(실전 스펙)의 상담함에 미수금 카드가 없어서 2026-06-01 에 뺐다.
- *   미수금은 **정산 탭**이 집이다(바로 위 `item(key = "today-hero")` 아래 주석 참고).
- *   되살리려면 **프로토를 먼저 고치고** 사장님 확인을 받는다 — CLAUDE.md §0.
- *   지우지 않고 남겨둔 이유: 되돌릴 때 호출 한 줄만 넣으면 되게.
- *   (viewModel 의 outstandingTotal/Count 는 지금 **막내 팁 노출 조건**에만 쓰인다.)
- */
-@Composable
-private fun OutstandingCard(
-    outstandingTotal: Long,
-    outstandingCount: Int,
-    onClick: () -> Unit
-) {
-    TossCard(onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (outstandingCount > 0) TossError.copy(alpha = 0.10f) else TossSuccess.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Payments, null, tint = TossTextSecondary, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (outstandingCount > 0) "아직 못 받은 돈" else "정산 · 받을 돈 정리",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TossTextSecondary,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.height(2.dp))
-                if (outstandingCount > 0) {
-                    Text(
-                        MoneyFormatter.won(outstandingTotal),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TossError
-                    )
-                    Text(
-                        "미수 ${outstandingCount}곳",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextTertiary
-                    )
-                } else {
-                    Text(
-                        "다 받으셨어요",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TossSuccess
-                    )
-                }
-            }
-            Icon(Icons.Default.ChevronRight, "정산 열기", tint = TossTextTertiary)
-        }
-    }
-}
 
 /**
  * 홈 진입 카드 (정기문자 / 시공 안내 등) — 이모지 + 라벨 + 강조 값 + chevron. N>0 일 때만 노출. (2026-06-01)
@@ -3565,101 +3503,6 @@ private fun InboxAlert(
     }
 }
 
-/**
- * 부재중 → 자동답장 카드 — 막내 비서가 사장님 대신 첫 인사를 보낸 기록 (최근 24h).
- *   프로토 'team-alert missed' 벤치마킹. 각 줄 탭 = 그 고객 대화로 진입.
- *   실패 건은 빨강 강조 ("직접 보내주세요"). 2026-06-01.
- */
-@Composable
-private fun AutoReplyCard(
-    items: List<AutoReplyItem>,
-    onOpenChat: (String, Long?) -> Unit
-) {
-    TossCard {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🤖", fontSize = 16.sp)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "막내가 자동 답장했어요",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TossTextPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "부재중 전화에 사장님 대신 첫 인사를 보냈어요",
-                style = MaterialTheme.typography.bodySmall,
-                color = TossTextTertiary
-            )
-            items.forEach { ar ->
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onOpenChat(ar.phone, ar.customerId) }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (ar.failed) TossError.copy(alpha = 0.10f)
-                                else TossSuccess.copy(alpha = 0.12f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (ar.failed) Icons.Default.CallMissed else Icons.AutoMirrored.Filled.Chat,
-                            contentDescription = null,
-                            tint = if (ar.failed) TossError else TossSuccess,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            ar.customerName ?: PhoneNumberFormatter.format(ar.phone),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TossTextPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            buildString {
-                                append(if (ar.failed) "발송 실패 — 직접 보내주세요" else "보냄")
-                                append(" · ")
-                                append(DateTimeUtils.formatShort(ar.createdAt))
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (ar.failed) TossError else TossTextTertiary,
-                            maxLines = 1
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(TossBlueSoft)
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            "대화",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TossBlue,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 /*
  * (지움 2026-09-21) KPI 카드 3장(🆕 오늘 신규 · ⚠️ 미확인 · 📅 이번주 시공) —
@@ -3886,41 +3729,6 @@ private fun InlineActionButton(
     }
 }
 
-/**
- * 홈 리스트 카드 우측 상단의 영업 상태 알약. 4색 톤은 CustomerDetail 의 statusColors 와 일관.
- * 별도 파일로 분리하지 않은 이유: 작고, 변경 시 두 화면을 함께 보는 게 자연스러움.
- */
-@Composable
-private fun StatusBadgeSmall(label: String) {
-    val (fg, bg) = statusColors(label)
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            label,
-            color = fg,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-private fun statusColors(label: String): Pair<Color, Color> {
-    val blue = TossBlue to TossBlueSoft
-    val green = TossSuccess to LightColors.doneBg
-    val gray = TossTextSecondary to LightColors.bg
-    val red = TossError to LightColors.unpaidBg
-    return when (label) {
-        "신규 문의", "견적 대기", "견적 발송" -> blue
-        "예약 대기", "예약 확정" -> green
-        "시공 완료" -> gray
-        "보류", "이탈" -> red
-        else -> blue
-    }
-}
 
 /**
  * 미확인 카드 우→좌 swipe → "광고/스팸" 영구 마킹.
@@ -4037,93 +3845,6 @@ private fun CallTypeIndicator(callType: String) {
     }
 }
 
-/**
- * 갤메시지 식 "카테고리 추가" 다이얼로그.
- *  - 입력칸: 카테고리 이름 한 줄만.
- *  - placeholder 예시는 사장님 도메인 (AS 고객 / 일당 / 아르바이트 등) 기반.
- *
- * 2026-05-25: 이모지 입력란 제거 — 한글 단어로 충분히 구별됨. 사장님 인지 부담 X.
- *   CategoryEntity.emoji 필드는 유지 (legacy + 추후 AI 자동 매핑 여지).
- */
-@Composable
-private fun CategoryAddDialog(
-    onDismiss: () -> Unit,
-    onAdd: (name: String, emoji: String?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    val fieldColors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = TossBlue,
-        unfocusedBorderColor = com.detailline.callfollowcrm.presentation.theme.TossDivider,
-        focusedTextColor = TossTextPrimary,
-        unfocusedTextColor = TossTextPrimary,
-        cursorColor = TossBlue,
-        focusedContainerColor = Color.White,
-        unfocusedContainerColor = Color.White
-    )
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                "카테고리 추가",
-                color = TossTextPrimary,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-                Text(
-                    "이름만 적으면 막내가 대화 내용 보고 알아서 나눠드려요.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextSecondary
-                )
-                androidx.compose.material3.OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = { Text("예: AS 고객, 협업 사장, 친구", color = TossTextTertiary) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = fieldColors
-                )
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(
-                onClick = {
-                    if (name.isNotBlank()) onAdd(name.trim(), null)
-                }
-            ) { Text("추가", color = TossBlue, fontWeight = FontWeight.SemiBold) }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("취소", color = TossTextSecondary)
-            }
-        },
-        containerColor = Color.White,
-        tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
-    )
-}
-
-/**
- * 서버 살아있음 indicator — 작은 동그라미.
- * alive == null = 첫 체크 전(회색) / true = 초록 / false = 빨강.
- * tap 시 onClick (상위에서 다이얼로그 띄움).
- */
-@Composable
-private fun ServerStatusDot(alive: Boolean?, onClick: () -> Unit) {
-    val color = when (alive) {
-        true -> TossSuccess
-        false -> TossError
-        null -> TossTextTertiary
-    }
-    Box(
-        modifier = Modifier
-            .size(10.dp)
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(color)
-            .clickable { onClick() }
-    )
-}
 
 /**
  * 프로토 .ai-badge (renderAiBadge) — 상담함 앱바 오른쪽 "{업종} AI" 알약.
@@ -4208,29 +3929,6 @@ private fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit) 
     }
 }
 
-/** 프로토 waiting-head — "지금 답장 기다려요" + 카운트 알약 + "← 밀어서 정리". */
-@Composable
-private fun WaitingHeader(count: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 4.dp, start = 4.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("지금 답장 기다려요", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-        Spacer(Modifier.width(8.dp))
-        // 프로토 .count-pill — 빨강(bg #FDEAEF / fg error)
-        Box(
-            Modifier.background(AppTheme.colors.unpaidBg, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
-        ) {
-            Text("$count", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
-        }
-        Spacer(Modifier.weight(1f))
-        // 프로토 .swipe-hint — 회색칩 배경
-        Text("← 밀어서 스팸·지인·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
-            modifier = Modifier.background(TossGrayBg, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp))
-    }
-}
 
 /**
  * 칩을 켰는데 아무것도 없을 때 할 말. (2026-09-20 실기)
@@ -4360,47 +4058,6 @@ private fun SecSub(text: String) {
     )
 }
 
-/** 📁 광고함 헤더 — 접이식. 자동으로 걸러낸 광고 개수 + 펼치기. (2026-07-08 사장님) */
-@Composable
-private fun AdBoxHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)
-            .clip(RoundedCornerShape(10.dp)).clickable { onToggle() }.padding(vertical = 4.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("광고 ${count}건 자동으로 치웠어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
-            color = TossTextTertiary, modifier = Modifier.weight(1f))
-        Text(if (expanded) "접기 ▾" else "확인 ▸", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
-    }
-}
-
-/** 광고함 한 줄 — 발신·미리보기 + [광고 아님](되살리기). 탭 = 대화 열기. (2026-07-08 사장님) */
-@Composable
-private fun AdRow(item: HomeItem, onOpenChat: () -> Unit, onNotAd: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable { onOpenChat() }.padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                item.customer?.name?.takeIf { it.isNotBlank() } ?: item.record.phoneNumber,
-                fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-            item.lastBody?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(2.dp))
-                Text(it, fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            "광고 아님", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(TossBlueSoft)
-                .clickable { onNotAd() }.padding(horizontal = 10.dp, vertical = 6.dp)
-        )
-    }
-}
 
 private fun dialHome(context: android.content.Context, phone: String) {
     // ☎️ 전화 거는 자리는 **한 곳**이다 — 거는 번호를 기억해 두어야
@@ -4704,49 +4361,6 @@ private const val RECENT_MORE = 30
 
 private data class RecentTag(val text: String, val fg: Color, val bg: Color)
 
-/**
- * 프로토 recent .tag — 고객 상태에서 파생. 시공일 잡힘=시공 D-N(파랑)/오늘=D-DAY/지남=완료(회색),
- *   잔금 받음=완료(회색), 계약금만=계약금(초록), 그 외 태그 없음. (견적 발송 amber 는 이력 필요 → 후속)
- */
-private fun recentStatusTag(
-    c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?,
-    filter: String = "all"
-): RecentTag? {
-    if (c == null) return null
-    val blueFg = TossBlue; val blueBg = LightColors.primaryBg
-    val greenFg = Color(0xFF0E9F56); val greenBg = LightColors.doneBg
-    val grayFg = TossTextTertiary; val grayBg = TossGrayBg
-
-    // ⭐ 칩이 이미 말해준 건 뱃지가 또 말하지 않는다. 그 안에서 **갈리는 것**을 보여준다.
-    //   (2026-09-21 사장님: "종료 고객인데 '완료'만 있으면 무슨 소용이야. 며칠날 끝났는지가 포인트")
-    if (filter == "done") {
-        // 끝난 날. 오른쪽 시각은 '마지막 문자' 라 이 답을 못 한다.
-        val doneAt = c.doneAtMs
-        return if (doneAt != null) RecentTag(RECENT_MD_FORMAT.format(java.util.Date(doneAt)) + " 끝", grayFg, grayBg)
-        else null
-    }
-    if (filter == "owe") {
-        // 얼마가 남았나. 전엔 여기도 '완료' 가 붙어 아무 말도 안 했다.
-        val owed = c.balanceAmount ?: (c.totalAmount?.let { t -> t - (c.depositAmount ?: 0L) })
-        return if (owed != null && owed > 0L) {
-            val man = owed / 10_000L
-            RecentTag(if (man > 0L) "잔금 ${man}만" else "잔금", blueFg, blueBg)
-        } else null
-    }
-
-    val sched = c.scheduledWorkDate
-    if (sched != null && sched > 0L) {
-        val days = ((DateTimeUtils.startOfDay(sched) - DateTimeUtils.startOfDay(System.currentTimeMillis())) / DateTimeUtils.DAY_MS).toInt()
-        return when {
-            days > 0 -> RecentTag("시공 D-$days", blueFg, blueBg)
-            days == 0 -> RecentTag("시공 D-DAY", blueFg, blueBg)
-            else -> if (c.workCompletedAt != null) RecentTag("완료", grayFg, grayBg) else RecentTag("지남", grayFg, grayBg)
-        }
-    }
-    if (c.balancePaidAt != null) return RecentTag("완료", grayFg, grayBg)
-    if (c.depositPaidAt != null) return RecentTag("계약금", greenFg, greenBg)
-    return null
-}
 
 /** 최근 대화 줄에서 쓰는 날짜 포맷 — 줄마다 새로 만들면 낭비라 하나만 둔다. (2026-09-15) */
 private val RECENT_MD_FORMAT = java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN)

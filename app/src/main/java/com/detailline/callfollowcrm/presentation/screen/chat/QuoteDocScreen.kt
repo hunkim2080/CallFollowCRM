@@ -82,8 +82,6 @@ data class QuoteDocData(
 )
 
 private val SealRed = Color(0xFFD6342C)
-private val DocBorder = Color(0xFFCFD6DF)
-private val DocHeaderBg = LightColors.bg
 
 private fun won(n: Long): String = NumberFormat.getNumberInstance(Locale.KOREA).format(n)
 

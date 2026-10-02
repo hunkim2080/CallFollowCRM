@@ -280,70 +280,6 @@ private fun RecordMonthBar(rec: MyRecordState, onShiftMonth: (Int) -> Unit) {
     }
 }
 
-/**
- * 할 일 한 줄. **있을 때만 뜬다.** (프로토 ② .todobar)
- *
- * 전엔 자랑하는 화면 한복판에 파랑·빨강 경고가 **두 줄** 박혀 있어 시끄러웠다.
- * 한 줄로 합치되, **어느 쪽을 누르느냐에 따라 가는 곳이 다르다** —
- * 「완료 안 누름」은 완료 안 누른 것만, 「주소 없음」은 주소 없는 것만.
- * (합쳤다고 한 군데로만 보내면, 2026-09-25 에 고친 "안 한 것만 보기" 가 도로 없어진다)
- */
-@Composable
-private fun RecordTodoBar(
-    rec: MyRecordState,
-    onOpenTodo: () -> Unit,
-    onOpenNoAddr: () -> Unit,
-    onOpenNoMoney: () -> Unit
-) {
-    val goFirst = if (rec.notDoneCount > 0) onOpenTodo else onOpenNoAddr
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
-            .background(AppTheme.colors.primaryBg)
-            .padding(horizontal = 13.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(7.dp).clip(AppShape.pill).background(TossBlue))
-        Spacer(Modifier.width(8.dp))
-        if (rec.notDoneCount > 0) {
-            Text(
-                "완료 안 누름 ${rec.notDoneCount}", style = AppType.caption,
-                fontWeight = FontWeight.ExtraBold, color = TossBlue,
-                modifier = Modifier.clip(AppShape.sm).clickable { onOpenTodo() }
-                    .padding(horizontal = 6.dp, vertical = 8.dp)
-            )
-        }
-        if (rec.notDoneCount > 0 && rec.noAddrCount > 0) {
-            Text(" \u00b7 ", style = AppType.caption, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-        }
-        if (rec.noAddrCount > 0) {
-            Text(
-                "주소 없음 ${rec.noAddrCount}", style = AppType.caption,
-                fontWeight = FontWeight.ExtraBold, color = TossBlue,
-                modifier = Modifier.clip(AppShape.sm).clickable { onOpenNoAddr() }
-                    .padding(horizontal = 6.dp, vertical = 8.dp)
-            )
-        }
-        // 💰 주소는 있는데 금액이 비어 기록에 못 오른 것. (2026-09-27 사장님)
-        if (rec.noMoneyCount > 0) {
-            if (rec.notDoneCount > 0 || rec.noAddrCount > 0) {
-                Text(" \u00b7 ", style = AppType.caption, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-            }
-            Text(
-                "금액 없음 ${rec.noMoneyCount}", style = AppType.caption,
-                fontWeight = FontWeight.ExtraBold, color = TossBlue,
-                modifier = Modifier.clip(AppShape.sm).clickable { onOpenNoMoney() }
-                    .padding(horizontal = 6.dp, vertical = 8.dp)
-            )
-        }
-        Spacer(Modifier.weight(1f))
-        Text(
-            "채우러 가기 \u203a", style = AppType.caption,
-            fontWeight = FontWeight.ExtraBold, color = TossBlue,
-            modifier = Modifier.clip(AppShape.sm).clickable { goFirst() }
-                .padding(horizontal = 8.dp, vertical = 8.dp)
-        )
-    }
-}
 
 /**
  * 아직 한 곳도 안 한 사람에게 — **"기록이 없어요" 라고 하지 않는다.** 그건 내 탓처럼 들린다.
@@ -548,18 +484,6 @@ private fun MyRecordMap(
     }
 }
 
-/** 지도 밑 작은 칸 하나 — 라벨은 작게, 숫자는 굵게. (프로토 .strip) */
-@Composable
-private fun StripCell(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
-            .padding(horizontal = 9.dp, vertical = 8.dp)
-    ) {
-        Text(label, style = AppType.caption, color = TossTextTertiary, maxLines = 1)
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold,
-            color = TossTextPrimary, letterSpacing = (-0.3).sp, maxLines = 1)
-    }
-}
 
 /**
  * 인증샷 미리보기 — **보고 나서** 저장한다. (2026-09-24 사장님)
@@ -1683,16 +1607,6 @@ private fun LegendItem(color: Color, label: String) {
     }
 }
 
-@Composable
-private fun MkRow(label: String, value: String, valueColor: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, fontSize = 14.sp, color = TossTextPrimary)
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = valueColor)
-    }
-}
 
 /* ─────────────── 시공 종류 ─────────────── */
 

@@ -739,19 +739,6 @@ private fun FChip(label: String, on: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** 프로토 .or-div — 가운데 글자 + 좌우 선. */
-@Composable
-private fun OrDivider(text: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 15.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-            modifier = Modifier.padding(horizontal = 10.dp))
-        Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
-    }
-}
 
 /**
  * 한 줄짜리 고르기 행 — `오전 9시 ›` 처럼 지금 값만 보여주고, 누르면 고르는 창이 열린다.
@@ -857,74 +844,6 @@ private fun InlineMonthCalendar(
     }
 }
 
-/** 통화·문자한 고객 picker (프로토 openSchedPeoplePick). */
-@Composable
-private fun ContactImportDialog(
-    contacts: List<CustomerEntity>,
-    hints: Map<String, String>,
-    onPick: (CustomerEntity) -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
-                .padding(vertical = 16.dp)
-        ) {
-            Text("통화·문자한 고객", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-            // 번호만으론 누군지 모르니 ✨요약/메모/주소/최근연락을 힌트로 같이 보여줌. (2026-06-11 사장님)
-            Text("번호 아래 힌트로 누군지 확인하고 골라요.", fontSize = 12.sp, color = TossTextTertiary,
-                modifier = Modifier.padding(horizontal = 20.dp))
-            Spacer(Modifier.height(8.dp))
-            if (contacts.isEmpty()) {
-                Text("불러올 고객이 아직 없어요", fontSize = 14.sp, color = TossTextTertiary,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp))
-            } else {
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 380.dp)) {
-                    items(contacts, key = { it.id }) { c ->
-                        val hasName = c.name?.isNotBlank() == true
-                        val suffix = PhoneKey.of(c.phoneNumber)
-                        // 힌트 우선순위: ✨AI요약 > 메모 > 짧은주소 > 최근 연락 N일 전.
-                        val hint = hints[suffix]
-                            ?: c.memo?.takeIf { it.isNotBlank() }
-                            ?: c.address?.takeIf { it.isNotBlank() }
-                            ?: lastContactHint(c.updatedAt)
-                        Column(
-                            Modifier.fillMaxWidth().clickable { onPick(c) }
-                                .padding(horizontal = 20.dp, vertical = 11.dp)
-                        ) {
-                            Text(
-                                if (hasName) c.name!! else PhoneNumberFormatter.format(c.phoneNumber),
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            // 이름 있으면: 번호 · 힌트 / 이름 없으면: 힌트만(번호는 위에).
-                            Text(
-                                if (hasName) PhoneNumberFormatter.format(c.phoneNumber) + (hint?.let { " · $it" } ?: "")
-                                else (hint ?: PhoneNumberFormatter.format(c.phoneNumber)),
-                                fontSize = 12.sp, color = TossTextTertiary,
-                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** updatedAt → "오늘 연락 / 어제 연락 / N일 전 연락" (번호만 있는 고객 식별 힌트). */
-private fun lastContactHint(updatedAt: Long): String {
-    val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
-    val days = ((today - DateTimeUtils.startOfDay(updatedAt)) / DateTimeUtils.DAY_MS).toInt()
-    return when {
-        days <= 0 -> "오늘 연락"
-        days == 1 -> "어제 연락"
-        days in 2..30 -> "${days}일 전 연락"
-        else -> DateTimeUtils.formatDateOnly(updatedAt) + " 연락"
-    }
-}
 
 /** 새 거래처 추가 다이얼로그 (프로토 addPartner). */
 @Composable
@@ -994,10 +913,6 @@ private val QUICK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
     "오전 9시" to 9 * 60, "오전 8시" to 8 * 60, "오전 10시" to 10 * 60
 )
 
-private val WORK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
-    "오전 8시" to 8 * 60, "오전 9시" to 9 * 60, "오전 10시" to 10 * 60, "오전 11시" to 11 * 60,
-    "오후 1시" to 13 * 60, "오후 2시" to 14 * 60, "오후 3시" to 15 * 60, "오후 4시" to 16 * 60
-)
 
 /** 시공 기간 빠른 선택 (라벨 → 일수). 프로토 schedDaysChips: 당일/2/3/4/5/일주일+직접. */
 private val WORK_DAYS_OPTIONS: List<Pair<String, Int>> = listOf(

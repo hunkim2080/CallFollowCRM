@@ -575,14 +575,3 @@ private fun callTypeLabelKorean(raw: String): String = when (raw) {
     else -> "통화"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = TossBlue,
-    unfocusedBorderColor = TossDivider,
-    focusedTextColor = TossTextPrimary,
-    unfocusedTextColor = TossTextPrimary,
-    cursorColor = TossBlue,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White
-)

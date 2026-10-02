@@ -594,7 +594,6 @@ private fun ToggleHalf(label: String, selected: Boolean, color: Color, onClick: 
     }
 }
 
-private fun signedWon(v: Long): String = (if (v >= 0) "+" else "−") + MoneyFormatter.won(kotlin.math.abs(v))
 
 /** 만 단위로 떨어지면 "130만원", 아니면 "37,000원". 화면 단위를 만원으로 모으기 위한 것. (2026-09-20 사장님) */
 private fun manwonOrWon(won: Long): String =

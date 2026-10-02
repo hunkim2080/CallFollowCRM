@@ -897,12 +897,3 @@ private fun NbChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun DialogField(label: String, value: String, keyboard: KeyboardType = KeyboardType.Text, onChange: (String) -> Unit) {
-    Column(Modifier.padding(vertical = 4.dp)) {
-        com.detailline.callfollowcrm.presentation.component.SheetFieldLabel(label)
-        com.detailline.callfollowcrm.presentation.component.SheetTextField(
-            value, onChange, placeholder = "", keyboardType = keyboard
-        )
-    }
-}

@@ -263,10 +263,6 @@ fun SettlementScreen(
 
 private val SettleTopTop = Color(0xFF272D3D)
 private val SettleTopBottom = Color(0xFF14171F)
-private val PrevUpFg = Color(0xFF7CF0B0)
-private val PrevUpBg = Color(0x3316C172)   // rgba(22,193,114,.2)
-private val PrevDownFg = Color(0xFFFFAFC0)
-private val PrevDownBg = Color(0x33F0436A)  // rgba(240,67,106,.2)
 private val GoalGold = Color(0xFFFFD479)
 private val PaceAhead = Color(0xFF7BE0A8)
 private val PaceBehind = Color(0xFFFFC658)

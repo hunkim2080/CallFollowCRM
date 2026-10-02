@@ -2226,19 +2226,6 @@ private fun BigButton(text: String, enabled: Boolean, bg: Color, fg: Color, onCl
     ) { Text(text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = fg) }
 }
 
-@Composable
-private fun MenuCard(title: String, desc: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-            Text(desc, fontSize = 12.sp, color = T3, fontWeight = FontWeight.Medium)
-        }
-        Icon(Icons.Default.KeyboardArrowRight, null, tint = T3, modifier = Modifier.size(24.dp))
-    }
-}
 
 @Composable
 private fun InputDialog(

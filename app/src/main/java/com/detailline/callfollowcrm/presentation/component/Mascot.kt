@@ -55,9 +55,6 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val MascotEyeColor = Color(0xFF2B3243)
 private val MascotCheekColor = Color(0xFFFFB3C1)
-private val MascotHatLight = Color(0xFFFFCB5B)
-private val MascotHatDark = LightColors.caution
-private val MascotHatBrimDark = Color(0xFFE8910A)
 private val MascotFaceLight = LightColors.primaryBg
 private val MascotFaceDark = Color(0xFFCFE0FF)
 
