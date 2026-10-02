@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 
 /**
@@ -89,18 +90,35 @@ fun FullscreenPhotoViewer(
     topStartAction: (@Composable (Int) -> Unit)? = null
 ) {
     if (photos.isEmpty()) return
-    // 쪽마다 돌린 각도. 닫을 때 **한 번에** 저장한다.
+    val ctx0 = androidx.compose.ui.platform.LocalContext.current
+    // 쪽마다 돌린 각도. 저장은 **한 번에** 한다 — 누를 때마다 쓰면 화질이 깎인다.
     val rotations = remember(photos) { mutableStateMapOf<Int, Int>() }
-    val closeAndSave = {
-        if (onSaveRotation != null) {
-            for ((idx, deg) in rotations) {
-                if (deg % 360 == 0) continue
-                val p = photos.getOrNull(idx)
-                if (p is ViewerPhoto.OfFile && p.photoId > 0L) onSaveRotation(p.photoId, deg)
-            }
-        }
-        onDismiss()
+
+    /** 아직 저장 안 한 **내 사진**의 돌린 각도들. 남의 사진은 여기 안 들어온다. */
+    fun pending(): List<Pair<Long, Int>> = rotations.mapNotNull { (idx, deg) ->
+        if (deg % 360 == 0) return@mapNotNull null
+        (photos.getOrNull(idx) as? ViewerPhoto.OfFile)
+            ?.takeIf { it.photoId > 0L }?.let { it.photoId to deg }
     }
+
+    val saveAll = {
+        val list = pending()
+        if (onSaveRotation != null && list.isNotEmpty()) {
+            for ((id, deg) in list) onSaveRotation(id, deg)
+            rotations.clear()
+            android.widget.Toast.makeText(ctx0, "돌려서 저장했어요", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 💾 **그냥 닫으면 묻는다.** (2026-10-02 사장님 "적용 버튼이 생겨야 하지 않을까?
+    //   그냥 끄는 UX 는 사람들이 익숙하지 않지 않니?")
+    //   전엔 **말없이 저장**했다 — 저장됐는지 알 길이 없어 사장님도 9/30 에 물어보셔야 아셨다.
+    //   삼성 갤러리와 같은 방식으로 맞춘다: 돌린 채 닫으려 하면 **저장할지 묻는다.**
+    var askSave by remember { mutableStateOf(false) }
+    val tryClose = {
+        if (onSaveRotation != null && pending().isNotEmpty()) askSave = true else onDismiss()
+    }
+    val closeAndSave = tryClose
     Dialog(
         onDismissRequest = closeAndSave,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -122,9 +140,15 @@ fun FullscreenPhotoViewer(
                     rotation = rotations[page] ?: 0,
                     onRotate = { d -> rotations[page] = (rotations[page] ?: 0) + d },
                     onZoomedChange = { z -> if (page == pagerState.currentPage) zoomed = z },
-                    onTapClose = closeAndSave,
+                    onTapClose = tryClose,
                     canSave = onSaveRotation != null &&
+                        (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true,
+                    // 돌린 게 있고 **내 사진**일 때만 [이대로 저장] 이 나타난다.
+                    onSaveNow = if (
+                        onSaveRotation != null &&
+                        ((rotations[page] ?: 0) % 360) != 0 &&
                         (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
+                    ) ({ saveAll(); onDismiss() }) else null
                 )
             }
             // 여러 장이면 몇 번째인지. 한 장이면 군더더기라 안 띄운다.
@@ -155,6 +179,42 @@ fun FullscreenPhotoViewer(
                     "✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold
                 )
             }
+            // 💾 돌려놓고 그냥 닫으려 할 때 — **실수로 날아가지 않게.**
+            if (askSave) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { askSave = false },
+                    containerColor = AppTheme.colors.surface,
+                    tonalElevation = 0.dp,
+                    title = {
+                        androidx.compose.material3.Text(
+                            "돌린 걸 저장할까요?", style = AppType.title,
+                            fontWeight = FontWeight.Bold, color = AppTheme.colors.text
+                        )
+                    },
+                    text = {
+                        androidx.compose.material3.Text(
+                            "저장하지 않으면 돌리기 전으로 돌아가요.",
+                            style = AppType.body, color = AppTheme.colors.textSub
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = { askSave = false; saveAll(); onDismiss() }
+                        ) {
+                            androidx.compose.material3.Text(
+                                "저장", fontWeight = FontWeight.Bold, color = AppTheme.colors.primary
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = { askSave = false; onDismiss() }
+                        ) {
+                            androidx.compose.material3.Text("그냥 닫기", color = AppTheme.colors.textHint)
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -167,7 +227,9 @@ private fun ViewerPage(
     onRotate: (Int) -> Unit,
     onZoomedChange: (Boolean) -> Unit,
     onTapClose: () -> Unit,
-    canSave: Boolean
+    canSave: Boolean,
+    /** 돌린 게 있을 때만 들어온다 — null 이면 [이대로 저장] 을 안 그린다. */
+    onSaveNow: (() -> Unit)? = null
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -256,6 +318,8 @@ private fun ViewerPage(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ViewerRotateBtn("↺  왼쪽") { onRotate(-90) }
                     ViewerRotateBtn("↻  오른쪽") { onRotate(90) }
+                    // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
+                    onSaveNow?.let { ViewerRotateBtn("이대로 저장", filled = true, onClick = it) }
                 }
             }
         }
@@ -270,14 +334,18 @@ private fun ViewerPage(
  *   **검정 반투명 + 흰 테두리**로 맞춘다 — 어떤 사진 위든 읽힌다.
  */
 @Composable
-private fun ViewerRotateBtn(label: String, onClick: () -> Unit) {
+private fun ViewerRotateBtn(label: String, filled: Boolean = false, onClick: () -> Unit) {
     Box(
         Modifier
             // 누르는 것은 48dp 는 돼야 한다 — 손가락은 정중앙을 못 찍는다. (2026-10-01)
             .heightIn(min = 48.dp)
             .clip(AppShape.pill)
-            .background(Color.Black.copy(alpha = 0.55f))
-            .border(1.dp, Color.White.copy(alpha = 0.34f), AppShape.pill)
+            .background(if (filled) AppTheme.colors.primary else Color.Black.copy(alpha = 0.55f))
+            .border(
+                1.dp,
+                if (filled) Color.Transparent else Color.White.copy(alpha = 0.34f),
+                AppShape.pill
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
