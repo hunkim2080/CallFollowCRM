@@ -16,13 +16,14 @@
 //  = 표를 **사람 기억으로 적는 한** 표는 계속 썩는다. 썩은 표는
 //    "공용이 없네, 새로 만들자" 를 유발한다 → 두 벌 → 한쪽만 고쳐짐 → 또 터짐.
 //
-//  그래서 **표 자체를 빌드가 지킨다.** 검사 네 가지:
+//  그래서 **표 자체를 빌드가 지킨다.** 검사 다섯 가지:
 //
 //    ① 유령 — 표·문서가 가리키는 파일 경로가 실제로 없으면 실패
 //    ② 거짓 — dup_guard 의 규칙 목록과 CLAUDE.md 에 적힌 목록이 다르면 실패
 //    ③ 누락 — **새로 공용이 된 파일**(여러 곳에서 쓰이기 시작한 것)이
 //              §12 표에도 기준선에도 없으면 실패
 //    ④ 복사본 — `XxxNew` · `Xxx2` 처럼 **옆에 하나 더 만든 흔적**이 이름에 남으면 실패
+//    ⑤ 출처 — **「무엇을 만들까」의 출처**(`docs/PROTOTYPES.md`)가 비거나 썩으면 실패
 //
 //  ③ 이 핵심이다. 오늘 놓친 세 개가 정확히 ③ 이다.
 //
@@ -34,6 +35,7 @@ val rulesDoc = File(rootDir, "CLAUDE.md")
 val rulesSrc = File(rootDir, "app/src/main/java/com/detailline/callfollowcrm")
 val rulesBaseline = File(rootDir, "tools/shared_baseline.txt")
 val dupGuardFile = File(rootDir, "tools/dup_guard.gradle.kts")
+val protoDoc = File(rootDir, "docs/PROTOTYPES.md")
 
 /** 공용으로 볼 자리 — 여기 있는 파일이 여러 곳에서 쓰이면 「공용」이다. */
 val sharedDirs = listOf("util/", "domain/", "presentation/util/", "presentation/component/")
@@ -169,6 +171,41 @@ tasks.register("checkRules") {
                 copies.joinToString("\n") { "     · $it" } +
                 "\n     → 옆에 만들지 말고 **기존 것을 고쳐서** 쓰세요 (§12-D)." +
                 "\n        뜻이 있는 이름이면 이름을 바꿔 주세요."
+        }
+
+        // ── ⑤ 스펙 출처 — 「무엇을 만들까」가 비거나 썩는 것 (§0) ───────────
+        //   바이브코딩에서 제일 비싼 사고는 **사장님 의도와 다른 걸 만드는 것**이고,
+        //   그 뿌리는 "출처가 없어서 AI 가 빈칸을 상상으로 채우는 것"이다.
+        //   2026-10-02 까지 §0 은 2026-09-21 에 멈춘 html 한 파일만 가리켰다.
+        //   그래서 출처를 docs/PROTOTYPES.md 한 군데로 모으고, **그 문서를 빌드가 지킨다.**
+        if (!protoDoc.exists()) {
+            bad += "⑤ **`docs/PROTOTYPES.md` 가 없습니다** — §0 이 가리키는 스펙 출처입니다.\n" +
+                "     → 되살리세요. 이게 없으면 화면을 **상상으로** 만들게 됩니다."
+        } else {
+            val pd = protoDoc.readText()
+            // 표 줄 = "| ... | `artifact/…` 또는 경로 | ..." — 살아 있는 스펙이 몇 줄인가
+            val live = pd.lines().count { it.startsWith("|") && it.contains("artifact/") }
+            if (live < 5) {
+                bad += "⑤ `docs/PROTOTYPES.md` 의 살아 있는 프로토가 ${live}줄뿐입니다 (5줄 미만).\n" +
+                    "     → 표가 비면 §0 이 가리킬 게 없어집니다. 지우지 말고 「옛것」으로 내리세요."
+            }
+            // 그 문서가 가리키는 repo 파일이 실제로 있나 (html·md·sh 까지 본다)
+            val deadPaths = Regex("""`([A-Za-z0-9_\-/.]+\.(?:html|md|sh|py))`""").findAll(pd)
+                .map { it.groupValues[1] }
+                .filter { it.contains('/') }
+                .distinct()
+                .filter { File(rootDir, it).exists().not() }
+                .toList()
+            if (deadPaths.isNotEmpty()) {
+                bad += "⑤ `docs/PROTOTYPES.md` 가 **없는 파일**을 가리킵니다:\n" +
+                    deadPaths.joinToString("\n") { "     · $it" } +
+                    "\n     → 경로를 고치거나 그 줄을 지우세요."
+            }
+            // §0 이 이 문서를 가리키고 있나 (둘이 끊기면 아무도 안 본다)
+            if (!doc.contains("docs/PROTOTYPES.md")) {
+                bad += "⑤ CLAUDE.md §0 이 `docs/PROTOTYPES.md` 를 가리키지 않습니다.\n" +
+                    "     → §0 에 출처로 적어야 다음 사람이 그 문서를 봅니다."
+            }
         }
 
         if (bad.isNotEmpty()) {
