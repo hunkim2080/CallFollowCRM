@@ -703,8 +703,8 @@ fun SettingsScreen(
                     }
                     LockRow(Icons.Filled.Block, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "스팸 차단 번호",
                         "스팸 등록한 번호 · 여기서 풀기", onClick = onOpenSpamList)
-                    LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "사생활 번호",
-                        "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
+                    LockRow(Icons.Filled.Person, AppTheme.colors.categoryBg, AppTheme.colors.category, "지인 번호",
+                        "문자함 [지인] 에 모여요 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고.
                     LockRow(Icons.Filled.BugReport, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }

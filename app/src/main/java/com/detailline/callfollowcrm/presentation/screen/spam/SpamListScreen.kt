@@ -76,10 +76,10 @@ fun SpamListScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    val title = if (isPersonal) "사생활 번호" else "스팸 차단 번호"
-    val swipeWord = if (isPersonal) "'사생활'" else "'스팸'"
-    val emptyTitle = if (isPersonal) "사생활로 옮긴 번호가 없어요" else "스팸으로 등록한 번호가 없어요"
-    val undoToast = if (isPersonal) "다시 시공막내가 잡아요" else "스팸을 풀었어요 — 다시 보여요"
+    val title = if (isPersonal) "지인 번호" else "스팸 차단 번호"
+    val swipeWord = if (isPersonal) "'지인'" else "'스팸'"
+    val emptyTitle = if (isPersonal) "지인으로 옮긴 번호가 없어요" else "스팸으로 등록한 번호가 없어요"
+    val undoToast = if (isPersonal) "지인에서 풀었어요 — 상담함으로 돌아와요" else "스팸을 풀었어요 — 다시 보여요"
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -136,7 +136,7 @@ fun SpamListScreen(
             ) {
                 item {
                     val intro = if (isPersonal)
-                        "사생활(개인 연락처)로 옮긴 번호예요. 시공막내가 안 잡아요. '해제'하면 다시 보여요."
+                        "지인으로 옮긴 번호예요. 문자함 [지인] 에서 보이고, 시공막내가 안 건드려요. '해제'하면 상담함으로 돌아와요."
                     else
                         "잘못 등록했으면 '해제'를 누르세요 — 다시 상담함·신규에 보여요."
                     Text(
@@ -155,6 +155,10 @@ fun SpamListScreen(
                                 onUnmark = {
                                     scope.launch {
                                         container.spamPhoneRepository.unmark(entry.phoneSuffix)
+                                        // 👥 바구니도 같이 미운다 — 안 지우면 문자함 [광고] 로 간다. (2026-10-02)
+                                        if (isPersonal) {
+                                            container.threadBucketRepository.releaseFriend(entry.phoneSuffix)
+                                        }
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(context, undoToast, Toast.LENGTH_SHORT).show()
                                         }

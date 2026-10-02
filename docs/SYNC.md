@@ -12773,3 +12773,13 @@ CLAUDE.md §13 — 받은 자료 10가지를 **우리 코드에 돌려 숫자 �
 - ⚠️ **가리는 기능이 아니다.** 상담함에서 치워 고객 사이에 안 섞이게 하는 것뿐 —
   누가 폰을 보면 문자함 [지인] 에서 그대로 보인다. (사장님 의도 ㉮ 확인함)
 - 테스트폰 확인: 칩 3개 뜸 → 꾹 눌러 「지인으로」 → 「지인으로 옮겼어요」 → [지인 1] 에 들어옴 → 되돌림
+
+## 2026-10-02 지인 · android
+「사생활」을 없에고 「지인」 하나로 통일. 예전에 찍어둔 번호도 문자함 [지인] 에서 다 보인다.
+- 변경: SpamPhoneDao.observePersonalSuffixes / SpamPhoneRepository.personalSuffixes /
+  ThreadBucketRepository.moveToFriend · releaseFriend · REASON_FRIEND /
+  HomeViewModel.moveToFriend(버컷+kind='personal' 동시) · generalThreads 가 지인은 통과시피
+- 폰 확인(테스트폰 23514638000c7ece): 상담함 밀어서 [지인] → 문자함 [지인] 에 보이고
+  → 더보기 「지인 번호」 목록에 뜨고 → 「해제」하니 상담함으로 돌아왔다 (한 바퀴 통과)
+- 고침: 「해제」가 표시만 지우고 바구니를 남기던 것 — 그러면 문자함 [광고] 로 엉뚱하게 떨어졌다
+- 다음 액션: 없음 (사장님 폰은 내부테스트 업데이트 필요)

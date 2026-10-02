@@ -1421,10 +1421,15 @@ fun HomeScreen(
                                 }
                             },
                             onMarkPersonal = {
-                                viewModel.markSpam(item.record.phoneNumber, item.customer?.name?.takeIf { it.isNotBlank() }, "personal")
+                                // 👥 「사생활」을 없애고 **지인으로 통일**. 상담함에서 빠지고
+                                //   문자함 [지인] 에 모이면서, 시공막내도 안 건드린다. (2026-10-02 사장님)
+                                viewModel.moveToFriend(
+                                    item.record.phoneNumber,
+                                    item.customer?.name?.takeIf { it.isNotBlank() }
+                                )
                                 scope.launch {
                                     val r = snackbarHostState.showSnackbar(
-                                        message = "사생활 번호로 옮겼어요 — 시공막내가 안 잡아요",
+                                        message = "지인으로 옮겼어요 — 문자함 [지인] 에 있어요",
                                         actionLabel = "되돌리기",
                                         duration = SnackbarDuration.Short
                                     )
@@ -1584,14 +1589,15 @@ fun HomeScreen(
                                                         }
                                                     },
                                                     onSecond = {
-                                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
+                                                        // 👥 지인으로 통일 (2026-10-02 사장님)
+                                                        viewModel.moveToFriend(rItem.record.phoneNumber, rName)
                                                         scope.launch {
-                                                            val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 시공막내가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                            val r = snackbarHostState.showSnackbar("지인으로 옮겼어요 — 문자함 [지인] 에 있어요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
                                                             if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
                                                         }
                                                     },
                                                     firstLabel = "스팸",
-                                                    secondLabel = "사생활",
+                                                    secondLabel = "지인",
                                                     firstColor = TossError,
                                                     secondColor = AppTheme.colors.category,
                                                     firstIcon = Icons.Filled.Block,
@@ -1984,7 +1990,7 @@ fun HomeScreen(
                     emptySub = when (boxSub) {
                         "parcel" -> "운송장·배송 문자는 여기로 모여요"
                         // 👥 **어떻게 넣는지**를 빈 화면이 알려준다 — 안 그러면 쓸 줄을 모른다.
-                        "friend" -> "상담함에서 그 사람을 꾹 눌러 [지인으로] 를 고르면 여기로 와요"
+                        "friend" -> "상담함에서 카드를 밀어 [지인] 을 눌러요"
                         else -> "인증번호·광고 문자는 여기로 모여요"
                     },
                     pinnedSuffixes = pinnedSuffixes,
@@ -3938,7 +3944,7 @@ private fun SpamSwipeBox(
         onSecond = onMarkPersonal,
         onThird = onCleanup,
         firstLabel = "스팸",
-        secondLabel = "사생활",
+        secondLabel = "지인",
         thirdLabel = "정리",
         firstColor = TossError,
         secondColor = AppTheme.colors.category,
@@ -4221,7 +4227,7 @@ private fun WaitingHeader(count: Int) {
         }
         Spacer(Modifier.weight(1f))
         // 프로토 .swipe-hint — 회색칩 배경
-        Text("← 밀어서 스팸·사생활·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+        Text("← 밀어서 스팸·지인·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
             modifier = Modifier.background(TossGrayBg, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp))
     }
 }

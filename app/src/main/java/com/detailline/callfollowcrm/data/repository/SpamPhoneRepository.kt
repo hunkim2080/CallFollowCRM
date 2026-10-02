@@ -15,6 +15,9 @@ class SpamPhoneRepository(private val dao: SpamPhoneDao) {
 
     val suffixes: Flow<Set<String>> = dao.observeSuffixes().map { it.toHashSet() }
 
+    /** 👥 지인(옛 「사생활」)으로 찍은 번호만. 문자함 [지인] 이 이걸로 모은다. (2026-10-02) */
+    val personalSuffixes: Flow<Set<String>> = dao.observePersonalSuffixes().map { it.toHashSet() }
+
     /** '스팸 목록' 화면용 — 최근 등록순 전체 엔티티. (2026-06-23 사장님) */
     val all: Flow<List<SpamPhoneEntity>> = dao.observeAll()
 

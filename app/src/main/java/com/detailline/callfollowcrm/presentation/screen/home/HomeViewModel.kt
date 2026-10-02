@@ -162,9 +162,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 스팸 판정 = swipe 마킹(suffix) ∪ 앞자리 등록(prefix). 둘 중 하나라도 걸리면 상담함 목록·집계에서 제외.
      *   2026-06-17 사장님: "스팸 등록되면 상담함에 들어오지 못함" — 들어오지 못하니 추천도 준비 안 함.
      */
+    /** 👥 지인(옛 「사생활」) 번호 — 문자함 [지인] 이 이걸로 모은다. (2026-10-02 사장님) */
+    private val personalSuffixes: StateFlow<Set<String>> =
+        container.spamPhoneRepository.personalSuffixes
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     private val spamGate: StateFlow<SpamGate> =
         combine(spamSuffixes, spamPrefixesFlow) { suf, pre -> SpamGate(suf, pre) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpamGate(emptySet(), emptySet()))
+
+    /** 👥 문자함이 보는 문 — **스팸은 막고, 지인은 통과.** (2026-10-02) */
+    private val generalGate: StateFlow<Pair<SpamGate, Set<String>>> =
+        combine(spamGate, personalSuffixes) { g, p -> g to p }
+            .stateIn(
+                viewModelScope, SharingStarted.WhileSubscribed(5_000),
+                SpamGate(emptySet(), emptySet()) to emptySet()
+            )
 
     // ── 상담함/문자함 분류 (2026-07-11 사장님) ───────────────────────────────────────
     /** 분류 전체(suffix→행). 문자함 목록/배지가 GENERAL 행을 쓴다. */
@@ -1101,13 +1114,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // ── 문자함(고객 아님) 목록 + 배지 (2026-07-11 사장님) ─────────────────────────
     /** 문자함 스레드 — GENERAL 분류된 SMS 연락처. 삼성 기본 메시지처럼 단순 목록. 스팸은 여기서도 숨김. */
     val generalThreads: StateFlow<List<GeneralThread>> = combine(
-        smsContactsState, bucketMap, customers, readStates, spamGate
-    ) { contacts, buckets, custs, reads, spam ->
+        smsContactsState, bucketMap, customers, readStates, generalGate
+    ) { contacts, buckets, custs, reads, gate ->
+        val (spam, personal) = gate
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
         contacts.mapNotNull { c ->
-            val b = buckets[c.normalizedSuffix] ?: return@mapNotNull null
-            if (b.bucket != com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL) return@mapNotNull null
-            if (spam.isSpam(c.address, c.normalizedSuffix)) return@mapNotNull null   // 스팸은 문자함에도 안 보임
+            // 👥 **지인은 통과시킨다.** (2026-10-02 사장님 "사생활로 찍어둔 번호는 지인함에서 다 볼 수 있어야")
+            //   예전 「사생활」 번호는 문자함 통(GENERAL)에 들어온 적이 없고 스팸과 같이 숨겨져 있었다.
+            //   지인은 **숨기는 게 아니라 따로 모으는 것**이라 여기선 막지 않는다.
+            val isFriendNo = c.normalizedSuffix in personal
+            val b = buckets[c.normalizedSuffix]
+            if (!isFriendNo) {
+                if (b == null) return@mapNotNull null
+                if (b.bucket != com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL) return@mapNotNull null
+                if (spam.isSpam(c.address, c.normalizedSuffix)) return@mapNotNull null   // 진짜 스팸만 숨김
+            }
             val readMs = reads[c.normalizedSuffix] ?: 0L
             GeneralThread(
                 phone = c.address,
@@ -1116,10 +1137,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 lastBody = c.lastBody,
                 lastDateMs = c.lastDateMs,
                 lastSent = c.lastSent,
-                isAd = b.reason == "광고",
+                isAd = b?.reason == "광고",
                 // 👥 사장님이 직접 찍은 것. 글자로는 알 수 없다. (2026-10-02)
-                isFriend = b.reason ==
-                    com.detailline.callfollowcrm.data.repository.ThreadBucketRepository.REASON_FRIEND,
+                //   옛 「사생활」 번호도 같은 칸을 쓰므로 **한 목록에서 다 보인다.**
+                isFriend = isFriendNo,
                 unread = !c.lastSent && c.lastDateMs > readMs
             )
         }.sortedByDescending { it.lastDateMs }
@@ -1186,10 +1207,24 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         lastMarkAllRead = emptyMap()
     }
 
-    /** 👥 지인으로 — 문자함 [지인] 칸으로 간다. 상담함에서 치우는 것뿐, 가리는 건 아니다. (2026-10-02) */
-    fun moveToFriend(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {
-        runCatching { container.threadBucketRepository.moveToFriend(phoneNumber) }
-    }
+    /**
+     * 👥 **지인으로** — 「사생활」을 없애고 이걸로 통일했다. (2026-10-02 사장님)
+     *   두 가지가 **같이** 일어난다. 아내·친구에게 바라는 건 결국 둘 다라서다.
+     *     ① 상담함에서 빠지고 **문자함 [지인]** 에 모인다 (문자는 그대로 보인다)
+     *     ② **시공막내가 안 건드린다** — 자동문자·AI 추천이 가족에게 가면 안 된다
+     *   ②는 옛 「사생활」이 하던 일이다. 표시는 `spam_phones.kind='personal'` 그대로 쓴다 —
+     *   **예전에 찍어둔 번호가 그대로 지인함에 보이게** 하려면 같은 칸을 써야 한다.
+     */
+    fun moveToFriend(phoneNumber: String, displayName: String? = null) =
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { container.threadBucketRepository.moveToFriend(phoneNumber) }
+            runCatching {
+                container.spamPhoneRepository.mark(
+                    com.detailline.callfollowcrm.util.PhoneKey.of(phoneNumber),
+                    phoneNumber, displayName, kind = "personal"
+                )
+            }
+        }
 
     /** 상담함 카드 → 문자함으로(사장님이 "고객 아님"). 영구(OWNER) — 자동 재분류가 못 되돌림. */
     fun moveToGeneral(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {

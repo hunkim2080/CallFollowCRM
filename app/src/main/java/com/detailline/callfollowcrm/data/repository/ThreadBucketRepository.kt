@@ -122,6 +122,21 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
         }
     }
 
+    /**
+     * 👥 **지인 해제** — 찍은 표시를 지우면 바구니도 같이 버려야 한다. (2026-10-02)
+     *
+     *   ⚠️ 이걸 안 하니 해제한 번호가 상담함으로 안 돌아오고 바구니가 남아서
+     *   문자함 **[광고] 칸에 엉뚱하게 떨어진다** — 진짜 광고가 아닌데.
+     *   표시(`spam_phones`)와 바구니(`thread_buckets`)는 **같이 바뀜다.**
+     */
+    suspend fun releaseFriend(suffix: String) {
+        if (suffix.isBlank()) return
+        runCatching {
+            val cur = dao.findBySuffix(suffix)
+            if (cur?.reason == REASON_FRIEND) dao.deleteBySuffix(suffix)
+        }
+    }
+
     private fun suffixOf(phone: String): String {
         return PhoneKey.of(phone)
     }
