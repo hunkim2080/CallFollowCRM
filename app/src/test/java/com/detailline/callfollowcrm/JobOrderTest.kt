@@ -75,4 +75,39 @@ class JobOrderTest {
     fun `빈 목록이어도 1차부터 센다`() {
         assertEquals(1, JobOrder.nth(emptyList(), 5L))
     }
+
+    /**
+     * 🔴 2026-09-18 — 「1차를 취소했더니 **빈 자리가 2차·신규**」
+     *   취소를 빼는 건 **부르는 쪽 책임**이다. 뺀 목록을 주면 셈은 **당겨서** 센다.
+     *   (2026-10-03 추가 — 주석엔 세 사고가 적혀 있는데 이 둘은 시험이 없었다)
+     */
+    @Test
+    fun `취소한 건을 뺀 목록을 주면 차수가 당겨진다`() {
+        val 취소뺀목록 = listOf(D0923 to 2L, D1010 to 3L)   // 1번(D0918)이 취소됨
+        val order = JobOrder.order(취소뺀목록)
+        assertEquals("취소를 빼면 2번이 1차가 된다", 1, JobOrder.nth(order, 2L))
+        assertEquals(2, JobOrder.nth(order, 3L))
+    }
+
+    /**
+     * 🔴 2026-09-19 — 「탭은 취소를 빼고 세는데 메모는 다 세서 **1차를 고르면 2차 메모**가 나오네」
+     *   = **같은 목록을 주면 어디서 불러도 같은 답**이어야 화면끼리 안 어긋난다.
+     */
+    @Test
+    fun `같은 목록이면 탭과 메모와 사진이 같은 차수를 본다`() {
+        val items = listOf(D1010 to 3L, D0918 to 1L, null to 9L, D0923 to 2L)
+        val 탭 = JobOrder.order(items)
+        val 메모 = JobOrder.order(items)
+        val 사진 = JobOrder.order(items)
+        assertEquals(탭, 메모)
+        assertEquals(탭, 사진)
+        assertEquals(listOf(1L, 2L, 3L, 9L), 탭)
+    }
+
+    /** 정렬 키 — 날짜 없는 건은 **가장 큰 값**을 받아 맨 뒤로 간다. */
+    @Test
+    fun `정렬 키는 날짜 없는 건에 가장 큰 값을 준다`() {
+        assertEquals(Long.MAX_VALUE, JobOrder.key(null, 1L).first)
+        assertEquals(D0918, JobOrder.key(D0918, 1L).first)
+    }
 }
