@@ -25,7 +25,7 @@ import androidx.room.PrimaryKey
 data class JobEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val customerId: Long,
-    val scheduledWorkDate: Long? = null,
+    override val scheduledWorkDate: Long? = null,
     val scheduledWorkMinutes: Int? = null,
     val scheduledWorkDays: Int = 1,
     val address: String? = null,
@@ -66,4 +66,4 @@ data class JobEntity(
     val recordNo: Int? = null,
     val createdAt: Long,
     val updatedAt: Long
-)
+) : com.detailline.callfollowcrm.domain.job.RepresentativeJob.Dated

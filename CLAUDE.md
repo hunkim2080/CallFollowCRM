@@ -342,8 +342,8 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 9가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw`
+**`dup_guard` 가 지금 막는 10가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -396,6 +396,7 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 | 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest` 직접 |
 | 전화 걸기 | `util/PhoneDialer.kt` | `"tel:" ` URI 직접 |
 | 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
+| 대표 건 고르기 | `domain/job/RepresentativeJob.kt` | `firstOrNull { … >= today } ?: last()` 를 직접 |
 | 그날 갈 곳 순서 | `domain/schedule/DayOrder.kt` | 화면에서 직접 시각 파싱 |
 | 협업 날짜 판단 | `domain/collab/CollabDayCheck.kt` | 화면에서 날짜 비교 |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |

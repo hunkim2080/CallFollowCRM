@@ -78,7 +78,8 @@ class CustomerRepository(
         val jobs = dao2.scheduledByCustomerOnce(customerId)
         if (jobs.isEmpty()) return
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
-        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
+        // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03)
+        val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: return
         val addr = c.address?.trim()?.takeIf { it.isNotBlank() }
         val sameMoney = moneyOf(c) == listOf(rep.totalAmount, rep.depositAmount, rep.depositPaidAt,
                                              rep.balanceAmount, rep.balancePaidAt)
@@ -118,7 +119,10 @@ class CustomerRepository(
             val addr = c.address?.trim()?.takeIf { it.isNotBlank() } ?: continue
             val jobs = runCatching { dao2.scheduledByCustomerOnce(c.id) }.getOrDefault(emptyList())
             if (jobs.isEmpty()) continue
-            val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
+            // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03)
+            //   여긴 손님을 하나씩 도는 루프라 못 고르면 **그 손님만 건너뛴다**(멈추지 않는다).
+            val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)
+                ?: continue
             if (rep.address?.trim()?.takeIf { it.isNotBlank() } == addr) continue
             runCatching {
                 dao2.update(rep.copy(address = addr, updatedAt = System.currentTimeMillis()))

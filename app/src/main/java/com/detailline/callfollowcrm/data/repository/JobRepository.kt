@@ -176,7 +176,8 @@ class JobRepository(
         val day = c.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
         val jobs = jobDao.scheduledByCustomerOnce(customerId)
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
-        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.lastOrNull()
+        // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03 — 같은 규칙이 세 곳에 조금씩 다르게 있었다)
+        val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)
         when {
             day == null -> rep?.let { jobDao.update(it.copy(scheduledWorkDate = null, updatedAt = now)) }
             rep != null -> jobDao.update(
@@ -233,7 +234,8 @@ class JobRepository(
         val c = customerDao.findById(customerId) ?: return
         val jobs = jobDao.scheduledByCustomerOnce(customerId)
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
-        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.lastOrNull()
+        // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03 — 같은 규칙이 세 곳에 조금씩 다르게 있었다)
+        val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)
         customerDao.update(
             c.copy(
                 scheduledWorkDate = rep?.scheduledWorkDate,
@@ -299,7 +301,8 @@ class JobRepository(
         val jobs = jobDao.scheduledByCustomerOnce(customerId)
         if (jobs.isEmpty()) return
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
-        val rep = jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()
+        // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03)
+        val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: return
         customerDao.update(
             c.copy(
                 totalAmount = rep.totalAmount,
@@ -462,7 +465,8 @@ class JobRepository(
         val jobs = jobDao.scheduledByCustomerOnce(customerId)
         if (jobs.isEmpty()) return null
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
-        return (jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today } ?: jobs.last()).id
+        // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03)
+        return com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)?.id
     }
 
     /** 이 고객에게 시공일이 잡힌 건이 하나라도 남아 있나. 취소 후 '고객 카드도 백지로 할지' 판단용. */

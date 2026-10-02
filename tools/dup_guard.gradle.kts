@@ -91,6 +91,16 @@ val dupRules = listOf(
         instead = "DateTimeUtils.startOfMonth(ms) / DateTimeUtils.shiftMonth(anchor, delta)",
         homes = listOf("/util/DateTimeUtils.kt")
     ),
+    // 🏷️ 대표 건 고르기 — 고객 카드가 가리키는 그 하나. (2026-10-03)
+    //   같은 규칙이 **세 곳에 조금씩 다른 글자**로 있었다(`?: jobs.lastOrNull()` · `?: jobs.last()`).
+    //   한쪽만 고치면 **고객 카드와 정산이 서로 다른 건을 가리킨다** —
+    //   2026-09-17 잘못된 미수 알람, 2026-09-18 1차 잔금 기록 사라짐이 그 모양이다.
+    DupRule(
+        id = "rep-job",
+        regex = Regex("""firstOrNull \{[^}]*>=\s*today[^}]*\}"""),
+        instead = "RepresentativeJob.pick(jobs, todayMs)  (domain/job/RepresentativeJob.kt)",
+        homes = listOf("/domain/job/RepresentativeJob.kt")
+    ),
     // ① 번호 맞추기 — 2026-09-27 상담함 사고의 정체.
     DupRule(
         id = "phone-key",

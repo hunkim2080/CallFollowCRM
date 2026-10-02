@@ -87,6 +87,10 @@ object IncomingCallOverlay {
             val c = runCatching {
                 val all = app.container.customerRepository.observeScheduled().first()
                 val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+                // 🏷️ 모양은 `RepresentativeJob.pick` 과 닮았지만 **다른 셈**이다. (2026-10-03)
+                //   · 저쪽은 **한 손님의 건들**(시공일 오름차순이 보장됨)이라 마지막을 집으면 된다
+                //   · 여기는 **여러 손님**이고 차례를 못 믿어서 `maxByOrNull` 로 가장 늦은 걸 집는다
+                //   같이 고칠 일이 아니라서(§12-3) 합치지 않았다.
                 all.firstOrNull { (it.scheduledWorkDate ?: 0L) >= today }
                     ?: all.maxByOrNull { it.scheduledWorkDate ?: 0L }
             }.getOrNull()
