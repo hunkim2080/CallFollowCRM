@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -194,17 +194,26 @@ private fun ViewerPage(
             },
         contentAlignment = Alignment.Center
     ) {
-        // 90·270 도로 돌리면 가로세로가 바뀐다 → 화면 밖으로 나가지 않게 그만큼 줄인다.
+        // 🔄 **돌려도 작아지지 않게.** (2026-10-02 사장님 "사진이 회전하면 작아져")
+        //   전엔 90도로 돌릴 때 **화면 비율만큼 통째로 줄였다**(1080/2316 ≈ 0.47) —
+        //   화면 밖으로 안 나가게 하려던 건데, **사진이 절반으로 쪼그라들었다.**
+        //   제대로 된 방법: 줄이지 말고 **담는 그릇의 가로세로를 바꿔** 끼운다.
+        //   눕힐 그릇(H×W)에 맞춰 그린 뒤 90도 돌리면 정확히 화면(W×H)을 채운다.
         val sideways = (rotation % 180) != 0
-        val shrink = if (sideways) minOf(maxWidth / maxHeight, maxHeight / maxWidth) else 1f
-        val imgMod = Modifier.fillMaxSize().graphicsLayer {
+        val boxW = if (sideways) maxHeight else maxWidth
+        val boxH = if (sideways) maxWidth else maxHeight
+        val imgMod = Modifier.size(boxW, boxH).graphicsLayer {
             rotationZ = rotation.toFloat()
-            scaleX = shrink * scale; scaleY = shrink * scale
+            scaleX = scale; scaleY = scale
             translationX = offset.x; translationY = offset.y
         }
+        val ctx = androidx.compose.ui.platform.LocalContext.current
         when (photo) {
+            // 🖼️ 열쇠에 **파일이 바뀐 시각**을 붙인다 — 안 그러면 돌려도 **옛 그림**이 남는다.
+            //   (2026-10-02 사장님 "작은 사진은 그대로인데 들어가면 회전되어 있어")
             is ViewerPhoto.OfFile -> coil.compose.AsyncImage(
-                model = photo.uri, contentDescription = "사진",
+                model = com.detailline.callfollowcrm.util.PhotoModel.of(ctx, photo.uri),
+                contentDescription = "사진",
                 modifier = imgMod, contentScale = ContentScale.Fit
             )
             is ViewerPhoto.OfBitmap -> Image(

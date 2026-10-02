@@ -1522,8 +1522,11 @@ fun CustomerDetailScreen(
                                         when (cell) {
                                             is com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity -> {
                                                 picked = cell.id in pickedMine
+                                                // 🖼️ 열쇠에 **파일이 바뀐 시각**을 붙인다 — 안 그러면 돌려도
+                                                //   **여기 작은 사진만 옛 그림**으로 남는다. (2026-10-02 사장님)
                                                 coil.compose.AsyncImage(
-                                                    model = java.io.File(cell.filePath),
+                                                    model = com.detailline.callfollowcrm.util.PhotoModel
+                                                        .of(LocalContext.current, cell.filePath),
                                                     contentDescription = "현장 사진",
                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                                     modifier = Modifier.fillMaxSize().clickable {
