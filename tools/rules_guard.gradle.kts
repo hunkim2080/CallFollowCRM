@@ -16,12 +16,13 @@
 //  = 표를 **사람 기억으로 적는 한** 표는 계속 썩는다. 썩은 표는
 //    "공용이 없네, 새로 만들자" 를 유발한다 → 두 벌 → 한쪽만 고쳐짐 → 또 터짐.
 //
-//  그래서 **표 자체를 빌드가 지킨다.** 검사 세 가지:
+//  그래서 **표 자체를 빌드가 지킨다.** 검사 네 가지:
 //
 //    ① 유령 — 표·문서가 가리키는 파일 경로가 실제로 없으면 실패
 //    ② 거짓 — dup_guard 의 규칙 목록과 CLAUDE.md 에 적힌 목록이 다르면 실패
 //    ③ 누락 — **새로 공용이 된 파일**(여러 곳에서 쓰이기 시작한 것)이
 //              §12 표에도 기준선에도 없으면 실패
+//    ④ 복사본 — `XxxNew` · `Xxx2` 처럼 **옆에 하나 더 만든 흔적**이 이름에 남으면 실패
 //
 //  ③ 이 핵심이다. 오늘 놓친 세 개가 정확히 ③ 이다.
 //
@@ -151,6 +152,23 @@ tasks.register("checkRules") {
                 "\n     → §12 「공용이 있는 자리」 표에 한 줄씩 적고," +
                 "\n        `gradlew rulesBaselineUpdate` 로 기준선을 갱신하세요." +
                 "\n     (표에 없으면 다음 사람이 똑같은 걸 또 만듭니다 — 그게 두 벌의 시작입니다)"
+        }
+
+        // ── ④ 복사본 이름 — 「깨질까 봐 옆에 하나 더」의 흔적 (§12-D) ───────
+        //   사장님 자료(2026-10-02): "기존 코드가 깨질까 봐 불안해서 옆에 새로 하나 더
+        //   만드는 방식은 절대 금지한다." 그 흔적은 **이름에 남는다** — XxxNew · Xxx2 · XxxV2.
+        //   지금 0개다. 생기는 순간 막는다. (DataBackup 처럼 뜻이 있는 이름은 안 걸린다)
+        val copyNames = Regex("""(New|Old|Copy|Temp|V2|2)$""")
+        val copies = rulesSrc.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { copyNames.containsMatchIn(it.nameWithoutExtension) }
+            .map { it.invariantSeparatorsPath.substringAfter("/com/detailline/callfollowcrm/") }
+            .toList()
+        if (copies.isNotEmpty()) {
+            bad += "④ **이름만 바꾼 복사본처럼 보이는 파일**이 있습니다:\n" +
+                copies.joinToString("\n") { "     · $it" } +
+                "\n     → 옆에 만들지 말고 **기존 것을 고쳐서** 쓰세요 (§12-D)." +
+                "\n        뜻이 있는 이름이면 이름을 바꿔 주세요."
         }
 
         if (bad.isNotEmpty()) {
