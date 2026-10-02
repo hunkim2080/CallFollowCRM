@@ -69,7 +69,13 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
     version = 61,
-    exportSchema = false
+    // 🗄️ **DB 모양을 파일로 내보낸다.** (2026-10-02 Fable 점검 🔥2)
+    //   전엔 false 였다 — 그래서 **지금 DB 가 어떤 모양인지 git 에 아무 기록이 없었다.**
+    //   2026-09-17 에 마이그레이션 INSERT 가 NOT NULL 칸을 빼먹어 **새로 깐 폰에서 앱이
+    //   아예 안 켜진** 사고가 났는데, 기계가 그걸 미리 볼 방법이 없었다.
+    //   이제 `app/schemas/<DB>/61.json` 이 git 에 남고, 그 파일을 **단위 테스트가 읽어
+    //   「저장할 때 반드시 채워야 하는 칸」을 센다** (MigrationInsertColumnsTest).
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun customerDao(): CustomerDao

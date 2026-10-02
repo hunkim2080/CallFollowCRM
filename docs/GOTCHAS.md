@@ -112,9 +112,31 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
 - **Composable 안에서 early return** → 슬롯테이블이 어긋나 recompose 때 크래시. **세 번 밟았다.**
   지금은 `tools/compose_guard` 가 **빌드로 막는다** — 우회하지 말고 `if/else` 로 감싼다
 - **Room 마이그레이션 INSERT 에 NOT NULL 칸을 빼먹으면** 새로 깐 폰에서 **앱이 아예 안 켜진다**
-  (2026-09-17 `jobs.memo` 실사고). 배포 전 **로컬 sqlite 에 Room 스키마로 한 번 돌려본다**
+  (2026-09-17 `jobs.memo` 실사고).
+- 🤖 **이제 기계가 본다** — `app/src/test/.../DbUpgradeChainTest.kt` (2026-10-02).
+  `gradlew testReleaseUnitTest` 와 **CI 가 배포 전에** 돌린다. 검사 6가지:
+  선언한 마이그레이션이 다 등록됐나 · 등록만 되고 선언 없는 건 없나 ·
+  **올라올 길이 끊긴 버전이 없나**(일부러 버린 1·2 는 예외) · 한 단씩(n→n+1) 이어지나 ·
+  **DB 모양 파일이 지금 버전과 같나** · 마지막 마이그레이션이 지금 버전까지 와 있나.
+  ⚠️ 우리는 `fallbackToDestructiveMigration` 을 **일부러 안 쓴다**(데이터를 조용히 지우는 것보다
+  죽는 게 낫다). 그래서 **길이 끊기면 그대로 앱이 안 켜진다** — 이 테스트가 그걸 막는다.
+
 - **`@Entity(indices=)` 와 마이그레이션의 `CREATE INDEX` 가 다르면** 첫 쿼리에서 크래시
 - **KDoc 주석 안에 `image/*`** 를 쓰면 `*/` 로 읽혀 빌드가 깨진다
+
+### 🗄️ DB 버전을 올릴 때 (순서대로)
+
+1. 엔티티를 고치고 `AppDatabase` 의 `version` 을 **+1**
+2. `MIGRATION_<이전>_<새>` 를 만들고 **`addMigrations(...)` 에 등록** (등록을 빼먹는 게 사고다)
+3. `gradlew assembleRelease` → `app/schemas/<DB>/<새버전>.json` 이 생긴다
+4. **그 json 을 git 에 같이 올린다.** 안 올리면 `DbUpgradeChainTest` 가 실패한다.
+   (2026-10-02 까지 `exportSchema = false` 라 **DB 모양이 git 에 아예 없었다**)
+5. 데이터를 옮기는 `INSERT ... SELECT` 를 썼으면 **그 테이블의 NOT NULL·기본값 없는 칸을
+   전부 채웠는지** 새 json 으로 직접 확인한다 (마이그레이션 당시 칸 목록은 버전마다 달라
+   기계가 자동으로 못 본다 — 2026-10-02 에 해보고 오탐이 나서 뺐다)
+6. 🎯 **다음 DB 버전부터는 진짜로 올려보는 시험이 가능하다** —
+   `61.json` 이 생겼으니 61→62 는 Room `MigrationTestHelper`(androidTest, 테스트폰)로
+   **실제 DB 를 만들어 올려볼** 수 있다. 다음 버전 올릴 때 같이 만든다
 
 ---
 

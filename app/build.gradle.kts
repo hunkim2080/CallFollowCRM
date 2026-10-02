@@ -45,6 +45,12 @@ if (wantsReleaseBuild) {
     }
 }
 
+// 🗄️ Room 이 내보내는 DB 모양 파일의 자리. git 에 올라가야 **기계가 읽을 수** 있다. (2026-10-02)
+//   app/schemas/com.detailline.callfollowcrm.data.local.AppDatabase/61.json
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.detailline.callfollowcrm"
     compileSdk = 36
