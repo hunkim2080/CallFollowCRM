@@ -219,3 +219,7 @@ apply(from = "$rootDir/tools/compose_guard.gradle.kts")
 //   "모양은 같고 코드는 둘인거? … 그래서 계속 반복된 오류가 생기는것같아. 인정해?" → 인정.
 //   기억이 아니라 빌드가 지킨다. 늘어나면 assembleRelease 가 실패한다.
 apply(from = "$rootDir/tools/dup_guard.gradle.kts")
+
+// 📋 룰 문서가 코드와 어긋나는 것 — tools/rules_guard.gradle.kts (2026-10-02)
+//   "반복 지속적으로 터지는 문제를 방지하기 위해" — 표가 썩으면 또 새로 만든다.
+apply(from = "$rootDir/tools/rules_guard.gradle.kts")

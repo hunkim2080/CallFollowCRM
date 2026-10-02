@@ -1,0 +1,28 @@
+# 지금 「공용」인 파일들 — 새로 생기면 CLAUDE.md §12 표에 한 줄 적어야 빌드가 통과한다.
+# 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
+# 줄 모양: <파일이름> <쓰는 파일 수> <경로>
+# 총 24개 (3곳 이상에서 쓰이는 것)
+DateTimeUtils 58 util/DateTimeUtils.kt
+PhoneNumberFormatter 42 util/PhoneNumberFormatter.kt
+PhoneKey 27 util/PhoneKey.kt
+AddressExtractor 15 util/AddressExtractor.kt
+SettlementCalc 14 domain/settlement/SettlementCalc.kt
+SmsSender 11 util/SmsSender.kt
+MoneyFormatter 10 util/MoneyFormatter.kt
+PermissionHelper 10 util/PermissionHelper.kt
+RegionName 9 util/RegionName.kt
+SpamPrefix 9 util/SpamPrefix.kt
+PhoneDialer 8 util/PhoneDialer.kt
+NavApp 7 util/NavApp.kt
+DefaultSmsAppHelper 6 util/DefaultSmsAppHelper.kt
+LogRedact 6 util/LogRedact.kt
+MapGeo 5 util/MapGeo.kt
+SmsIntentHelper 5 util/SmsIntentHelper.kt
+CallLogHelper 4 util/CallLogHelper.kt
+ContactNameResolver 4 util/ContactNameResolver.kt
+DataBackup 4 util/DataBackup.kt
+BucketPolicy 3 domain/inbox/BucketPolicy.kt
+InboxClassifier 3 domain/inbox/InboxClassifier.kt
+NonCustomerHeuristics 3 domain/inbox/NonCustomerHeuristics.kt
+CashFlowCalc 3 domain/settlement/CashFlowCalc.kt
+SaveGuard 3 presentation/util/SaveGuard.kt

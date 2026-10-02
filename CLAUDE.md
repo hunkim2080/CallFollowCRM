@@ -175,75 +175,161 @@ RING-GO 관련 작업이 끝난 시점에 Cowork 는 자동으로 hugman2080@gma
 - 순서: 시도1·2·3 실패 → **멈춤** → 레퍼런스 조사(원인 가설을 근거 있게) → 그 위에서 다시 시도. "내 추측"보다 "검증된 사례"를 우선.
 - 원격 하드웨어 이슈(OEM 특성 등)일수록 특히 — 혼자 재현 디버깅엔 한계가 있으니 남의 해법부터 본다.
 
-## 12. 🧬 두 벌 만들지 않기 — **고치기 전에 센다** (2026-10-02 사장님 지시)
+## 12. 🧬 두 벌 만들지 않기 — **고치기 전에 세는 절차** (2026-10-02 사장님 지시)
 
-사장님: *"어떤 경우는 두 벌을 만들고 세 벌을 만들어야 하는 거야? 잘못된 거라면 왜 이런 현상이 발생하는지도 설명해줘"*
+사장님: *"앱 업그레이드를 하면서 **반복 지속적으로 터지는** 문제를 방지하려고 보는 거다"*
+사장님: *"「두 벌 만들지 않기」 이러면 솔직히 모를 것 같은데? **구체적으로 가이드**를 알려줘야 하지 않을까?"*
 
-실제로 **세 번 밟았다** — 키보드 여백(9/26 · 9/27 · 10/2). 매번 "고쳤다"고 보고했는데
-**다른 이름으로 적힌 같은 셈**이 남아 또 터졌다. 원인은 기술이 아니라 **순서**다.
+맞다. 「두 벌 만들지 마라」는 **원칙이라 읽어도 뭘 할지 모른다.** 그래서 아래는 **그대로 따라 하는 절차**다.
 
-### 12-1. 고치기 전에 **몇 군데인지 센다** (건너뛰기 금지)
-코드를 한 줄 고치기 전에 **먼저 grep 으로 세고, 센 수를 사장님께 말한다.**
-- 뜻이 같아도 **글자가 다르면 안 걸린다.** 한 가지 표기로만 찾지 말고 **최소 세 가지 꼴**로 찾는다.
-  (실제 사고: `imePadding()` · `windowInsetsPadding(keyboardClearance)` · `windowInsetsPadding(WindowInsets.ime)` — 같은 뜻, 전혀 다른 글자)
-- **둘 이상이면 먼저 합치고 나서 고친다.** 한 곳만 고치면 반드시 다시 터진다.
+> 왜 이게 재발의 뿌리인가: 키보드 여백을 **세 번** 터뜨렸다(9/26 · 9/27 · 10/2).
+> 매번 "고쳤습니다" 라고 보고했는데, **같은 셈이 다른 이름으로** 남아 또 터졌다.
+> 고치는 실력이 아니라 **고치기 전에 세지 않은 것**이 원인이다.
 
-### 12-2. **옆에 하나 더 만들지 않는다**
-기존 걸 건드리면 딴 데가 깨질까 봐 **비슷한 걸 새로 만드는 것 = 금지.**
-기존 공용을 **고쳐서 쓴다.** 그 공용을 쓰는 화면이 열 곳이면 **열 곳 다** 같이 본다.
-합치기가 정말 위험하면 만들지 말고 **사장님께 묻는다.**
+---
 
-### 12-3. 두 벌이 **맞는** 경우 — 가르는 잣대는 하나
+### 12-A. 🚦 이 절차를 **언제** 밟나 — 하나라도 맞으면 무조건
+
+- 사장님이 **「또 그러네」 · 「고쳤다더니」 · 「아직도 안 돼」** 라고 한다 → **백 퍼센트 두 벌이다.** 세고 시작.
+- **화면에 보이는 것**을 바꾼다 (문구·버튼·색·여백·딱지·빈 화면)
+- **계산**을 바꾼다 (돈·날짜·거리·개수·번호 맞추기)
+- **새 화면/새 파일**을 만든다 → 같은 일을 하는 게 이미 있나 먼저 본다
+- 서버와 **같은 규칙**을 앱에도 적는다 (예: 0원은 「서비스」 — 양쪽에 같은 규칙이 있다)
+
+### 12-B. 🔎 **세는 법** — 이름을 다섯 갈래로 찾는다
+
+같은 뜻인데 **글자가 다르면 grep 에 안 걸린다.** 이게 세 번 터진 이유다.
+그래서 **아래 다섯 가지를 다 돌려본다.** (하나라도 생략하면 또 남는다)
+
+```bash
+cd /d/dev/CallFollowCRM/app/src/main/java/com/detailline/callfollowcrm
+
+# ① 영어 함수/속성 이름 그대로
+grep -rn "imePadding" --include=*.kt .
+
+# ② 그 일을 하는 **안드로이드/라이브러리 API 이름** (우리가 감싸기 전 날것)
+grep -rn "WindowInsets" --include=*.kt .
+
+# ③ **한국어 뜻**으로 주석을 뒤진다 — 주석이 같은 일을 가리킨다
+grep -rn "키보드\|여백\|가림" --include=*.kt .
+
+# ④ **값 자체** (숫자·색·문자열 — 이름 없이 박아둔 것)
+grep -rnE "1_400_000|0xFF3182F6|\"오늘\"" --include=*.kt .
+
+# ⑤ 비슷한 **파일 이름**
+find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
+```
+
+**찾은 수를 사장님께 말한다** — "N 군데입니다" 를 먼저 보고하고 고친다.
+
+### 12-C. 📊 센 수에 따라 **할 일이 정해진다**
+
+| 센 결과 | 무엇을 하나 |
+|---|---|
+| **1곳** | 그냥 고친다. 끝. |
+| **2~5곳** | **먼저 공용 하나로 합친다** → 그 다음 고친다. 한 곳만 고치면 **반드시 다시 터진다.** |
+| **6곳 이상** | 사장님께 **"N곳입니다, 합치는 데 시간이 더 걸립니다"** 를 먼저 말하고 합친다. |
+| **서버에도 같은 규칙이 있다** | 코드를 나눌 수 없으니 **양쪽에 같은 규칙을 적고, 서로를 주석으로 가리킨다** (`QuoteMoney.kt` ↔ `main.py` 의 `_quote_*`). |
+
+### 12-D. 🔧 **합치는 법** — 다섯 단계, 순서대로
+
+1. **공용 파일을 만든다.** 자리는 — 셈·판단이면 `domain/`, 안드로이드가 필요하면 `util/`,
+   화면 조각이면 `presentation/component/`, Modifier 면 `presentation/util/`.
+2. **순수한 셈은 단위 테스트를 쓴다** (`app/src/test/` 아래, 이름은 `<공용이름>Test`).
+   폰에서 눈으로 못 보는 건 **테스트가 대신 본다** — 실측값을 테스트에 박아둔다
+   (예: `KeyboardFitTest` 에 S23U 의 991 / 316 / 675 가 박혀 있다).
+3. **찾은 N곳을 전부 바꾼다.** 하나라도 남기면 안 한 것과 같다.
+   바꾼 뒤 **12-B 의 다섯 갈래를 다시 돌려 0 인지 확인**한다.
+4. **가드 규칙을 추가한다** → `tools/dup_guard.gradle.kts` 의 `dupRules` 에 한 칸.
+   ```kotlin
+   DupRule(
+       id = "내-규칙-이름",
+       regex = Regex("""막고 싶은 옛 표기"""),
+       instead = "대신 이걸 쓰세요  (경로)",
+       homes = listOf("/util/내공용.kt")   // 공용 자기 집은 세지 않는다
+   ),
+   ```
+   그리고 `gradlew dupBaselineUpdate` (**줄였을 때만**).
+5. **§12 표에 한 줄 적는다.** → 안 적으면 **빌드가 실패한다**(12-E).
+
+### 12-E. 🤖 이제 **빌드가 대신 센다** (사람 기억에 안 맡긴다)
+
+사람 기억으로는 안 지켜졌다 — **룰을 적은 그날 세 번 안 지켰다**(SaveGuard · PhotoModel · QuoteMoney).
+그래서 두 가드가 대신 본다.
+
+| 가드 | 무엇을 막나 | 실패하면 |
+|---|---|---|
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (8가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** | 「룰 문서가 코드와 어긋났습니다」 |
+
+**`dup_guard` 가 지금 막는 8가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw`
+
+→ **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
+
+- **공용 전체 목록은 `tools/shared_baseline.txt` 에 빌드가 직접 적는다** (지금 24개).
+  3곳 이상에서 쓰이기 시작한 파일이 생기면 **표에 적으라고 빌드가 멈춘다.**
+- ⚠️ 가드는 **`assembleRelease`·`bundleRelease` 에만** 걸린다. `assembleDebug` 는 다 통과한다.
+- ⚠️ 가드는 **주석도 센다.** 주석에 옛 표기를 적기만 해도 실패한다 — 말을 바꿔 적는다.
+- ⚠️ 가드는 **이미 아는 것만** 막는다. 그래서 12-B(세기)를 건너뛰면 소용없다.
+- ⚠️ 뒷문(`-PskipDupCheck` / `-PskipRulesCheck` 등)은 **사장님이 쓰라고 할 때만.**
+
+### 12-F. ✅ 두 벌이 **맞는** 경우 — 가르는 잣대는 하나
+
 > **"저쪽이 바뀌면 이쪽도 반드시 같이 바뀌어야 하나?"**
 
-- **예 → 한 곳이어야 한다.** (키보드 여백, 번호 맞추기, 오늘 0시, 사진 크게 보기)
+- **예 → 한 곳이어야 한다.** (키보드 여백 · 번호 맞추기 · 오늘 0시 · 사진 크게 보기)
 - **아니오 → 둘이어도 된다.** 역할이 다른 **겹겹의 문**은 두 벌이 아니다.
   (예: 지난 날짜 협업 수락을 **앱도 막고 서버도 막는다** — 앱은 미리 알려주는 쪽,
    서버는 옛 버전까지 끝내 막는 쪽. 하나가 뚫려도 다른 하나가 막는다.)
 
 겉모양이 같은지로 보지 말고 **같이 고쳐야 하는지**로 본다.
 
-### 12-4. 다 만든 뒤 **스스로 한 번 더 센다**
-작업을 끝냈다고 말하기 전에: *"방금 만든 것과 **같은 일을 하는 코드가 다른 이름으로** 또 있나?"*
-한 번 더 grep 한다. 그러고 나서 보고한다.
+### 12-G. 🧪 실제 사례 — 키보드 여백 (세 번 터진 것)
 
-### 12-5. 새 공용을 만들면 **빌드가 지키게 한다**
-사람 기억으로는 안 지켜진다(세 번 밟은 게 증거다).
-`tools/dup_guard.gradle.kts` 에 **규칙을 추가**해 옛 표기를 쓰면 **빌드가 실패**하게 만든다.
-⚠️ 가드는 **이미 아는 것만** 막는다 — 그래서 12-1·12-4 를 건너뛰면 소용없다.
-⚠️ 가드는 **`assembleRelease`·`bundleRelease` 에만** 걸린다 (compose_guard 만 항상).
-   `assembleDebug` 는 **다 통과한다** → 폰에 넣을 땐 항상 `assembleRelease`.
-⚠️ 뒷문(`-PskipDupCheck` 등 4종)은 **사장님이 쓰라고 할 때만.** 급해서 끄면 룰이 조용히 꺼진 채 나간다.
-⚠️ 가드는 **주석도 센다.** 주석에 옛 표기를 적기만 해도 빌드가 깨진다 — 말을 바꿔 적는다.
+```
+❌ 터지던 모양 — 같은 셈이 세 가지 글자로
+   화면 A:  Modifier.imePadding()
+   화면 B:  Modifier.windowInsetsPadding(WindowInsets.ime)
+   화면 C:  Modifier.windowInsetsPadding(keyboardClearance)
+   → 9/26 에 18곳을 고쳤는데 다른 표기 12곳이 남아 **하루 만에 또** 났다
+
+✅ 지금 모양 — 셈은 한 곳, 입구는 둘
+   domain/ui/KeyboardFit.kt          ← 셈 (순수 함수 + 단위 테스트 7개)
+   presentation/util/SystemBars.kt   ← 입구
+       Modifier.keyboardPadding()        (흐르는 내용)
+       Modifier.keyboardOrNavPadding()   (바닥에 붙는 것)
+   tools/dup_guard: keyboard-pad 규칙이 옛 표기 세 가지를 **전부** 막는다
+```
 
 ### 📌 공용이 있는 자리 (여기 것을 쓴다 · 새로 짜지 않는다)
+
 | 무엇 | 공용 | 쓰지 말 것 |
 |---|---|---|
 | 키보드 여백 | `Modifier.keyboardPadding()` / `.keyboardOrNavPadding()` (`presentation/util/SystemBars.kt`, 셈은 `domain/ui/KeyboardFit.kt`) | `imePadding()`, `windowInsetsPadding(ime/keyboardClearance)` |
 | 전화번호 맞추기 | `util/PhoneKey.kt` | `takeLast(8)`, 글자 그대로 비교 |
+| 전화번호 보여주기 | `util/PhoneNumberFormatter.kt` | 하이픈 직접 끼우기 |
 | 오늘 0시·날짜 경계 | `util/DateTimeUtils.startOfDay(ms)` | `set(HOUR_OF_DAY, 0)` |
+| 돈 보여주기 | `util/MoneyFormatter.kt` | `String.format("%,d")` 직접 |
 | 사진 크게 보기·돌리기 | `presentation/component/PhotoViewer.kt` | 화면마다 Dialog 새로 만들기 |
-| 전화 걸기 | `util/PhoneDialer.kt` | `Intent(ACTION_DIAL)` 직접 |
+| 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest` 직접 |
+| 전화 걸기 | `util/PhoneDialer.kt` | `"tel:" ` URI 직접 |
+| 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
 | 그날 갈 곳 순서 | `domain/schedule/DayOrder.kt` | 화면에서 직접 시각 파싱 |
 | 협업 날짜 판단 | `domain/collab/CollabDayCheck.kt` | 화면에서 날짜 비교 |
-| 사진 업로드 한도 | `util/ImageEncoder.CAP_CHARS` | `1_400_000` 직접 |
-| 완료 찍기 | `WorkCompletionManager` | 화면마다 따로 |
-| 돈 계산 | `domain/settlement/SettlementCalc` | 화면에서 직접 합산 |
-| 끌어서 순서 바꾸기 | `util/DragReorder.kt` | 화면마다 복사 |
-| 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
-| 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest`·`rememberAsyncImagePainter` 직접 |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
+| 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |
+| 주소 뽑기 | `util/AddressExtractor.kt` | 화면에서 정규식 |
+| 상담함/문자함 가르기 | `domain/inbox/InboxClassifier.kt` · `BucketPolicy.kt` | 화면에서 직접 판단 |
+| 사진 업로드 한도 | `util/ImageEncoder.CAP_CHARS` | `1_400_000` 직접 |
+| 문자 보내기 | `util/SmsSender.kt` | `SmsManager` 직접 |
+| 권한 묻기 | `util/PermissionHelper.kt` | 화면마다 런처 |
+| 끌어서 순서 바꾸기 | `util/DragReorder.kt` | 화면마다 복사 |
+| 완료 찍기 | `data/repository/WorkCompletionManager.kt` | 화면마다 따로 |
+| 로그에 번호 가리기 | `util/LogRedact.kt` | 번호를 그대로 로그 |
 
-> 새 공용을 만들면 **이 표에 한 줄 추가**한다. 표에 없으면 다음 사람이 또 새로 만든다.
-> (⚠️ 이 세 줄은 **룰을 적은 당일 세 번 빠뜨린 것**이다 — 2026-10-02 Fable 점검에서 발견.
->  표를 적는 것까지가 작업이다.)
-
-### 📌 이 중 **빌드가 실제로 막는 것** = `tools/dup_guard.gradle.kts` 8가지뿐
-`keyboard-pad` · `day-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` ·
-`drag-reorder` · `customer-insert-raw`
-**나머지 줄은 사람이 지켜야 한다** — "빌드가 막아줄 거야" 라고 믿지 말 것.
-그리고 가드는 **「쓰지 말 것」을 0 으로 만들라는 뜻이 아니다** — **지금보다 늘면** 실패한다(기준선 방식).
-지금 남아 있는 것: `takeLast(8)` 43곳 · `HOUR_OF_DAY, 0)` 20곳 — **줄이는 건 환영, 늘리는 건 실패.**
+> **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-E).
+> 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**
 
 ## 13. 🩺 AI 가 자주 치는 사고 — **우리 코드에서 센 것만** (2026-10-02 사장님 지시)
 
