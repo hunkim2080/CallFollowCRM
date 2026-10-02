@@ -20567,9 +20567,67 @@ def _build_items_html(items: list[dict]) -> str:
             spec_html = f'<em>{int(price)}만원/평 × {_html.escape(str(area))}평</em>'
         rows.append(
             f'<div class="q-tr"><span class="q-c1">{name}{spec_html}</span>'
-            f'<span class="q-c2">{_format_won(amount)}</span></div>'
+            f'<span class="q-c2" style="color:{_quote_amount_color(it.get("name"), amount) or "inherit"}">'
+            f'{_quote_amount_label(it.get("name"), amount)}</span></div>'
         )
     return "".join(rows)
+
+
+
+# ────────────────────────────────────────────────────────────────────────
+# 🏷️ **「서비스」와 「할인」 — 고객이 보는 문서에서.** (2026-10-02 사장님)
+#
+#   사장님: "0만원으로 입력하면 그 항목이 「서비스」로 표기되면 좋겠어.
+#            「할인」 품목에 금액을 넣으면 **빨간 글씨로 마이너스** 처리되고,
+#            **고객한테도 얼마 할인해주는지 딱** 보이면 좋겠다."
+#
+#   ⚠️ 규칙은 앱(`domain/quote/QuoteMoney.kt`)과 **똑같아야 한다.**
+#      코드를 나눌 수 없으니 **같은 규칙을 양쪽에 적어둔다** —
+#      한쪽만 고치면 **앱에선 빠지는데 고객 문서엔 더해지는** 일이 난다.
+#        · 0원이면 「서비스」 (할인은 0원이어도 서비스가 아니다)
+#        · 이름에 「할인」이 들어가면 **빼기** — 빨간 글씨에 −금액
+# ────────────────────────────────────────────────────────────────────────
+
+_QUOTE_RED = "#F04452"      # 할인
+_QUOTE_GREEN = "#0E9F56"    # 서비스
+
+
+def _quote_is_discount(name) -> bool:
+    return "\ud560\uc778" in (name or "")
+
+
+def _quote_is_service(name, won: int) -> bool:
+    return (not _quote_is_discount(name)) and int(won or 0) == 0
+
+
+def _quote_money(won: int) -> str:
+    """원 → '40만원' / '1,500,000원'. 0 은 '0원'(합계 자리용)."""
+    won = int(won or 0)
+    if won == 0:
+        return "0\uc6d0"
+    if won >= 10000 and won % 10000 == 0:
+        return f"{won // 10000}\ub9cc\uc6d0"
+    return f"{won:,}\uc6d0"
+
+
+def _quote_amount_label(name, won: int) -> str:
+    """그 줄 금액을 사람 말로. 「서비스」 / 「−10만원」 / 「200만원」."""
+    won = int(won or 0)
+    if _quote_is_service(name, won):
+        return "\uc11c\ube44\uc2a4"
+    if _quote_is_discount(name):
+        return "\u2212" + _quote_money(abs(won))
+    return _quote_money(won)
+
+
+def _quote_amount_color(name, won: int) -> str:
+    """그 줄 금액 글씨색. 보통은 빈 문자열(원래 색)."""
+    won = int(won or 0)
+    if _quote_is_discount(name):
+        return _QUOTE_RED
+    if _quote_is_service(name, won):
+        return _QUOTE_GREEN
+    return ""
 
 
 def _build_deposit_html(deposit_mode: str, deposit_amount_krw: int,
@@ -21262,7 +21320,9 @@ def _render_intake_receipt_html(data: dict) -> str:
             "<div style='display:flex;justify-content:space-between;padding:9px 0;"
             "border-bottom:1px solid #F1F3F6;font-size:14.5px'>"
             f"<span style='color:#333D4B'>{name}{unit}</span>"
-            f"<span style='font-weight:700;color:#0B0F19'>{price}만원</span></div>")
+            f"<span style='font-weight:700;color:"
+            f"{_quote_amount_color(it.get('name'), price * 10000) or '#0B0F19'}'>"
+            f"{_quote_amount_label(it.get('name'), price * 10000)}</span></div>")
     if not item_rows:
         item_rows.append("<div style='padding:9px 0;color:#9AA3AF;font-size:14px'>견적 항목이 등록되지 않았어요.</div>")
     total_man = int(data.get("total_man") or 0)
@@ -21722,11 +21782,11 @@ def _format_quote_doc_label_won(amount_man: int) -> str:
 
 
 def _format_quote_doc_unit(it: dict) -> str:
-    """단가 표기 — pyeong/flat 구분."""
+    """단가 표기 — pyeong/flat 구분. 「서비스」·「할인」은 금액 칸과 같은 말로. (2026-10-02)"""
     price = int(it.get("price_man") or 0)
     if it.get("unit") == "pyeong" and it.get("area"):
         return f"{price}만원/평 × {it.get('area')}평"
-    return f"{price}만원"
+    return _quote_amount_label(it.get("name"), price * 10000)
 
 
 def _format_quote_doc_items_rows(items: list[dict]) -> str:
@@ -21747,7 +21807,8 @@ def _format_quote_doc_items_rows(items: list[dict]) -> str:
         rows.append(
             f'<tr><td class="qd-n">{name}</td>'
             f'<td class="qd-u">{unit}</td>'
-            f'<td class="qd-a">{amount}원</td></tr>'
+            f'<td class="qd-a" style="color:{_quote_amount_color(it.get("name"), amount_man * 10000) or "inherit"}">'
+            f'{_quote_amount_label(it.get("name"), amount_man * 10000)}</td></tr>'
         )
     return "".join(rows)
 

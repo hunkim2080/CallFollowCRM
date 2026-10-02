@@ -6048,8 +6048,18 @@ private fun EstimateBuilderDialog(
     //   override 로 바로 반영해 레이스(옛 값으로 들어감)를 없앤다. visibleItems 가 곧 '효과적 가격' 리스트라
     //   본문·견적서·접수서 전부 자동으로 바뀐 값을 쓴다. (2026-06-25 사장님)
     val visibleItems = baseItems.map { it.copy(price = draft.priceOverrides[it.id] ?: it.price, title = draft.titleOverrides[it.id] ?: it.title) }
-    val totalSum = visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price } +
-        customItems.sumOf { (it.manwon.toIntOrNull() ?: 0) * 10_000L }
+    // 🏷️ **할인은 더하는 게 아니라 뺀다.** (2026-10-02 사장님)
+    //   전엔 「할인 10만원」을 체크하면 합계가 **10만원 올라갔다** — 깎아주려다 올린 것이다.
+    //   무엇이 할인인지는 [QuoteMoney] 한 곳에서 가른다(서버도 같은 규칙).
+    val totalSum = com.detailline.callfollowcrm.domain.quote.QuoteMoney.total(
+        visibleItems.mapNotNull { it ->
+            val q = selectedQty[it.id] ?: 0
+            if (q <= 0) null else it.title to (q * it.price)
+        } + customItems.mapNotNull { c ->
+            val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+            if (c.name.isBlank()) null else c.name.trim() to won
+        }
+    )
     val anySelected = selectedQty.values.any { it > 0 } ||
         customItems.any { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
     val help = when (mode) {
@@ -6065,12 +6075,15 @@ private fun EstimateBuilderDialog(
             if (qty <= 0) return@mapNotNull null
             val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
             val spec = if (isPyeong) "${item.price / 10_000L}만원/평 × ${qty}평" else "1식"
-            val amount = if (isPyeong) item.price * qty else item.price
+            val amount0 = if (isPyeong) item.price * qty else item.price
+            // 🏷️ 고객 문서에도 **빼기로** 담는다 — 앱에선 빠지는데 문서엔 더해지면 안 된다.
+            val amount = com.detailline.callfollowcrm.domain.quote.QuoteMoney.signed(item.title, amount0)
             QuoteLine(item.title, spec, amount)
         }
         val customLines = customItems.mapNotNull { c ->
             val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
-            if (c.name.isBlank() || won <= 0) null else QuoteLine(c.name.trim(), "1식", won)
+            if (c.name.isBlank() || won <= 0) null
+            else QuoteLine(c.name.trim(), "1식", com.detailline.callfollowcrm.domain.quote.QuoteMoney.signed(c.name.trim(), won))
         }
         return QuoteDocData(
             lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0,
@@ -6726,9 +6739,13 @@ private fun EstimateItemRow(
                 )
             } else {
                 // 꾹(롱프레스) = 그 자리에서 가격 수정. 그냥 탭은 무시 — 스크롤 중 실수 편집 방지. (2026-07-13 사장님)
+                // 🏷️ 0원이면 「서비스」, 「할인」이면 빨간 −금액. (2026-10-02 사장님)
                 Text(
-                    if (isPyeong) "${formatWon(price)}/평" else formatWon(price),
-                    color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    if (isPyeong) "${formatWon(price)}/평" else com.detailline.callfollowcrm.domain.quote.QuoteMoney.label(title, price),
+                    color = if (com.detailline.callfollowcrm.domain.quote.QuoteMoney.isDiscount(title)) TossError
+                        else if (com.detailline.callfollowcrm.domain.quote.QuoteMoney.isService(title, price)) TossSuccess
+                        else TossTextSecondary,
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold,
                     // 숫자를 **고정폭**으로 — 안 그러면 50/85/100 처럼 자릿수가 다를 때
                     //   글자 폭이 달라져 금액이 세로로 안 맞는다. (2026-09-22 사장님)
                     style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
@@ -6753,7 +6770,7 @@ private fun EstimateItemRow(
                 Spacer(Modifier.width(8.dp))
                 StepperButton("+", onClick = onIncrement)
                 Spacer(Modifier.weight(1f))
-                Text("= ${formatWon(price * quantity)}", fontSize = 12.5.sp,
+                Text("= ${com.detailline.callfollowcrm.domain.quote.QuoteMoney.label(title, price * quantity)}", fontSize = 12.5.sp,
                     fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
             }
         }
@@ -7197,9 +7214,13 @@ private fun EstOrderList(
                         modifier = Modifier.weight(1f), maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
+                    // 🏷️ 여기서도 같은 말로 — 가격표에서 「할인」을 만들 때 바로 보인다.
                     Text(
-                        "${row.price / 10_000L}만원",
-                        style = AppType.label, color = TossTextSecondary,
+                        com.detailline.callfollowcrm.domain.quote.QuoteMoney.label(row.title, row.price),
+                        style = AppType.label,
+                        color = if (com.detailline.callfollowcrm.domain.quote.QuoteMoney.isDiscount(row.title)) TossError
+                            else if (com.detailline.callfollowcrm.domain.quote.QuoteMoney.isService(row.title, row.price)) TossSuccess
+                            else TossTextSecondary,
                         modifier = Modifier.padding(horizontal = AppSpace.s12)
                     )
                 }
