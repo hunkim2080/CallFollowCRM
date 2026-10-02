@@ -80,8 +80,8 @@ class VisitedViewModel(container: AppContainer, private val monthDelta: Int = 0)
         cs: List<CustomerEntity>,
         js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
     ): List<CustomerEntity> {
-        val ms = shiftMonth(monthStartOf(System.currentTimeMillis()), monthDelta)
-        val me = shiftMonth(ms, +1)
+        val ms = DateTimeUtils.shiftMonth(DateTimeUtils.startOfMonth(System.currentTimeMillis()), monthDelta)
+        val me = DateTimeUtils.shiftMonth(ms, +1)
         val byId = cs.associateBy { it.id }
         val fromJobs = js.mapNotNull { j ->
             val d = j.scheduledWorkDate ?: return@mapNotNull null
@@ -113,7 +113,7 @@ class VisitedViewModel(container: AppContainer, private val monthDelta: Int = 0)
     ): VisitedState {
         val now = System.currentTimeMillis()   // 매번 현재 기준 (stale fix)
         val todayStart = DateTimeUtils.startOfDay(now)
-        val monthStart = shiftMonth(monthStartOf(now), monthDelta)
+        val monthStart = DateTimeUtils.shiftMonth(DateTimeUtils.startOfMonth(now), monthDelta)
         val jobs = monthUnits(cs, js)
 
         fun toRow(c: CustomerEntity): VisitedRow {
@@ -158,10 +158,8 @@ class VisitedViewModel(container: AppContainer, private val monthDelta: Int = 0)
     private fun dateMd(ms: Long): String = Calendar.getInstance().apply { timeInMillis = ms }
         .let { "${it.get(Calendar.MONTH) + 1}/${it.get(Calendar.DAY_OF_MONTH)}" }
 
-    // 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 여기 있던 사본 두 개를 지웠다. (2026-10-02)
-    private fun monthStartOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
+    // 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 중간 다리도 없애고 바로 부른다. (2026-10-03)
 
-    private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
     private fun monthOf(anchorMs: Long): Int =
         Calendar.getInstance().apply { timeInMillis = anchorMs }.get(Calendar.MONTH) + 1

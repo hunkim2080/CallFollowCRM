@@ -133,7 +133,7 @@ fun ScheduleAddScreen(
             ?: DateTimeUtils.startOfDay(System.currentTimeMillis())
     }
     var dayMs by remember { mutableLongStateOf(seedDayMs) }
-    var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(seedDayMs)) }
+    var monthAnchor by remember { mutableLongStateOf(DateTimeUtils.startOfMonth(seedDayMs)) }
     var workMinutes by remember { mutableStateOf(9 * 60) } // 프로토 기본 오전 9시 (미정 없음)
     var workDays by remember { mutableStateOf(1) }
 
@@ -238,7 +238,7 @@ fun ScheduleAddScreen(
                 InlineMonthCalendar(
                     monthAnchor = monthAnchor,
                     selectedDayMs = dayMs,
-                    onShiftMonth = { monthAnchor = shiftMonth(monthAnchor, it) },
+                    onShiftMonth = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, it) },
                     onSelect = { dayMs = it }
                 )
                 if (!allDay) {
@@ -883,9 +883,7 @@ private fun NewVendorDialog(
 private data class SelCell(val dayStartMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean)
 
 // 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
-private fun monthAnchorOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun buildSelectCells(monthAnchor: Long, todayStart: Long): List<SelCell> {
     val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }

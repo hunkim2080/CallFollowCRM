@@ -431,12 +431,6 @@ internal suspend fun saveImageToGallery(context: android.content.Context, uri: a
         }.getOrDefault(false)
     }
 
-// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 글자가 여덟 가지였다)
-internal fun estMonthAnchor(anyMs: Long): Long =
-    com.detailline.callfollowcrm.util.DateTimeUtils.startOfMonth(anyMs)
-
-internal fun estShiftMonth(anchor: Long, delta: Int): Long =
-    com.detailline.callfollowcrm.util.DateTimeUtils.shiftMonth(anchor, delta)
 
 /** 시작일~끝날이 **며칠짜리 공사**인지. 끝날이 없으면 당일(1일). */
 internal fun estDaysBetween(startMs: Long?, endMs: Long?): Int {

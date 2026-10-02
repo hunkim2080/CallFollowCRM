@@ -1,7 +1,7 @@
 # 화면 코드에 손으로 적은 값(색·글자크기·모서리) 개수 — 늘어나면 빌드 실패.
 # 다시 적기: gradlew styleBaselineUpdate   (줄었을 때만 하세요)
 # theme/ 와 screen/expo/(박람회)는 세지 않습니다.
-# 총 2632곳 / 65파일
+# 총 2632곳 / 71파일
 component/AccountInput.kt 10
 component/AddressSearchDialog.kt 4
 component/CallSummaryConsentDialog.kt 9
@@ -30,11 +30,14 @@ screen/chat/MyScheduleSheet.kt 7
 screen/chat/QuoteDocScreen.kt 55
 screen/collab/CollabRecordScreen.kt 34
 screen/consent/ConsentScreen.kt 13
-screen/customer/CustomerDetailScreen.kt 255
+screen/customer/CustomerCollabParts.kt 49
+screen/customer/CustomerDetailBits.kt 32
+screen/customer/CustomerDetailScreen.kt 174
 screen/customers/CustomersScreen.kt 17
 screen/estimate/EstimateFollowupScreen.kt 6
 screen/followup/FollowUpScreen.kt 3
-screen/home/HomeScreen.kt 234
+screen/home/HomeScreen.kt 113
+screen/home/HomeScreenCards.kt 121
 screen/home/MessageBoxSection.kt 14
 screen/login/LoginScreen.kt 33
 screen/newleads/NewLeadsScreen.kt 45
@@ -50,13 +53,16 @@ screen/recurring/RecurringMessagesScreen.kt 14
 screen/reminder/ScheduleReminderScreen.kt 6
 screen/report/ReportScreen.kt 37
 screen/schedule/ScheduleAddScreen.kt 58
-screen/schedule/ScheduleScreen.kt 107
+screen/schedule/ScheduleParts.kt 41
+screen/schedule/ScheduleScreen.kt 66
 screen/search/SearchScreen.kt 49
-screen/settings/SettingsScreen.kt 242
+screen/settings/SettingsCards.kt 54
+screen/settings/SettingsScreen.kt 188
 screen/settings/SoundSettingsScreen.kt 13
 screen/settlement/CashFlowSection.kt 26
 screen/settlement/SettlementScreen.kt 51
-screen/sharedsite/SharedSiteScreen.kt 243
+screen/sharedsite/SharedSiteParts.kt 5
+screen/sharedsite/SharedSiteScreen.kt 238
 screen/signup/SignupScreen.kt 30
 screen/spam/SpamListScreen.kt 7
 screen/stats/StatsScreen.kt 55

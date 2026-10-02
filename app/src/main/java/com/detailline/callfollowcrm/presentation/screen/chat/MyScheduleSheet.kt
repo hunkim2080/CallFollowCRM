@@ -80,11 +80,11 @@ fun MyScheduleSheet(
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
     // 월 전환 = HorizontalPager (일정 탭처럼 옆으로 쓸면 한 달씩 — 손가락 1:1, 놓으면 스냅). (2026-06-30 사장님)
-    val baseAnchor = remember(nowMs) { miniMonthAnchor(nowMs) }
+    val baseAnchor = remember(nowMs) { DateTimeUtils.startOfMonth(nowMs) }
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = MINI_PAGER_CENTER) { MINI_PAGER_COUNT }
     val pagerScope = androidx.compose.runtime.rememberCoroutineScope()
     val viewedMonthAnchor by remember {
-        androidx.compose.runtime.derivedStateOf { miniShiftMonth(baseAnchor, pagerState.currentPage - MINI_PAGER_CENTER) }
+        androidx.compose.runtime.derivedStateOf { DateTimeUtils.shiftMonth(baseAnchor, pagerState.currentPage - MINI_PAGER_CENTER) }
     }
     var selectedDayMs by remember { mutableStateOf<Long?>(todayStart) }
 
@@ -145,7 +145,7 @@ fun MyScheduleSheet(
                 state = pagerState,
                 verticalAlignment = Alignment.Top
             ) { page ->
-                val pageCells = buildMiniCells(miniShiftMonth(baseAnchor, page - MINI_PAGER_CENTER), jobs, todayStart)
+                val pageCells = buildMiniCells(DateTimeUtils.shiftMonth(baseAnchor, page - MINI_PAGER_CENTER), jobs, todayStart)
                 Column(Modifier.fillMaxWidth()) {
                     repeat(6) { week ->
                         Row(modifier = Modifier.fillMaxWidth()) {
@@ -372,12 +372,6 @@ private fun miniJobCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
     val end = s + (days - 1) * DateTimeUtils.DAY_MS
     return dayStart in s..end
 }
-
-// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 글자가 여덟 가지였다)
-private fun miniMonthAnchor(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
-
-private fun miniShiftMonth(anchorMs: Long, delta: Int): Long =
-    DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun buildMiniCells(monthAnchor: Long, jobs: List<CustomerEntity>, todayStart: Long): List<MiniCell> {
     val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }

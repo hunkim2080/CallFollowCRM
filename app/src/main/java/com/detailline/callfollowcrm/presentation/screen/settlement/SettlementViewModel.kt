@@ -103,7 +103,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     // ── 월매출 대시보드 (프로토 settle-top) ──────────────────────────
     // 프로토 renderSettle: 월 이동 + "이번 달 받은 돈" + 전월 대비 + 목표 진행률 + 페이스.
     // 받은 돈 = 그 달에 paidAt 찍힌 계약금/잔금 합. 전월 대비 = 직전 달 받은돈과 비교.
-    private val currentMonthAnchor = monthStartOf(System.currentTimeMillis())
+    private val currentMonthAnchor = DateTimeUtils.startOfMonth(System.currentTimeMillis())
 
     /** 다크카드가 보여줄 달(월초 epoch). 기본 = 이번 달. */
     private val monthAnchor = MutableStateFlow(currentMonthAnchor)
@@ -117,11 +117,11 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 현재 달(월초 epoch)을 매번 다시 계산 — 앱을 달 넘겨 켜둬도 정확. currentMonthAnchor(생성시점 고정)는 초기 seed 로만. (2026-08-13 stale-month fix) */
-    private fun liveMonthAnchor(): Long = monthStartOf(System.currentTimeMillis())
+    private fun liveMonthAnchor(): Long = DateTimeUtils.startOfMonth(System.currentTimeMillis())
 
-    fun prevMonth() { monthAnchor.value = shiftMonth(monthAnchor.value, -1) }
+    fun prevMonth() { monthAnchor.value = DateTimeUtils.shiftMonth(monthAnchor.value, -1) }
     fun nextMonth() {
-        val next = shiftMonth(monthAnchor.value, +1)
+        val next = DateTimeUtils.shiftMonth(monthAnchor.value, +1)
         if (next <= liveMonthAnchor()) monthAnchor.value = next   // 미래 달로는 못 감
     }
 
@@ -137,8 +137,8 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         goalManwon: Int,
         st: SettlementUiState
     ): SettleTopState {
-        val monthEnd = shiftMonth(anchor, +1)
-        val prevStart = shiftMonth(anchor, -1)
+        val monthEnd = DateTimeUtils.shiftMonth(anchor, +1)
+        val prevStart = DateTimeUtils.shiftMonth(anchor, -1)
         val received = receivedInMonth(customers, jobs, anchor, monthEnd)
         val prevReceived = receivedInMonth(customers, jobs, prevStart, anchor)
         val prevPct = when {
@@ -308,10 +308,8 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 // ── 월 계산 헬퍼 ─────────────────────────────────────────────────
-// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 여기 있던 사본 두 개를 지웠다. (2026-10-02)
-private fun monthStartOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 중간 다리도 없애고 바로 부른다. (2026-10-03)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun monthLabelOf(anchorMs: Long): String = Calendar.getInstance().apply { timeInMillis = anchorMs }
     .let { "${it.get(Calendar.YEAR)}년 ${it.get(Calendar.MONTH) + 1}월" }

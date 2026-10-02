@@ -43,8 +43,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
      */
     private val jobsFlow = container.jobRepository.observeAll()
     private val sentThisMonth = customers.flatMapLatest {
-        val ms = monthStartOf(System.currentTimeMillis())
-        container.messageHistoryRepository.observeSentCountBetween(ms, shiftMonth(ms, +1))
+        val ms = DateTimeUtils.startOfMonth(System.currentTimeMillis())
+        container.messageHistoryRepository.observeSentCountBetween(ms, DateTimeUtils.shiftMonth(ms, +1))
     }
 
     // 문의 추이용 실제 문의 소스 — 받은 문자/MMS 캐시 + 받은 전화. (고객 카드 createdAt 아님)
@@ -199,8 +199,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         collab: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList()
     ): MyRecordState {
         val now = System.currentTimeMillis()
-        val monthStart = shiftMonth(monthStartOf(now), monthDelta)
-        val monthEnd = shiftMonth(monthStart, +1)
+        val monthStart = DateTimeUtils.shiftMonth(DateTimeUtils.startOfMonth(now), monthDelta)
+        val monthEnd = DateTimeUtils.shiftMonth(monthStart, +1)
         val addrOf = cs.associate { it.id to it.address }
         val todayStart = DateTimeUtils.startOfDay(now)
         // **다녀온 현장** = 시공일이 지난 건. 「다녀온 현장」 화면과 **같은 기준**이라야 숫자가 안 엇갈린다.
@@ -414,7 +414,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         //   협업은 하루로 센다(서버가 며칠짜리인지 안 준다).
         val workDays = month.sumOf { it.scheduledWorkDays.coerceAtLeast(1) } + collabMonth.size
         // 지난달 — 달을 넘겨보게 해놨으니 비교가 자연스럽다. 자료가 없으면 -1(문구 생략).
-        val prevStart = shiftMonth(monthStart, -1)
+        val prevStart = DateTimeUtils.shiftMonth(monthStart, -1)
         val prevCount = done.count { (it.scheduledWorkDate ?: 0L) in prevStart until monthStart }
         val hasPrev = js.any { (it.scheduledWorkDate ?: 0L) in 1 until monthStart }
         val topTown = top?.let {
@@ -527,11 +527,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         monthDelta: Int = 0
     ): StatsUiState {
         val now = System.currentTimeMillis()   // 매번 현재 기준 (stale-month fix)
-        val monthStart = shiftMonth(monthStartOf(now), monthDelta)
-        val monthEnd = shiftMonth(monthStart, +1)
-        val lastMonthStart = shiftMonth(monthStart, -1)
-        val lastYearStart = shiftMonth(monthStart, -12)
-        val lastYearEnd = shiftMonth(monthEnd, -12)
+        val monthStart = DateTimeUtils.shiftMonth(DateTimeUtils.startOfMonth(now), monthDelta)
+        val monthEnd = DateTimeUtils.shiftMonth(monthStart, +1)
+        val lastMonthStart = DateTimeUtils.shiftMonth(monthStart, -1)
+        val lastYearStart = DateTimeUtils.shiftMonth(monthStart, -12)
+        val lastYearEnd = DateTimeUtils.shiftMonth(monthEnd, -12)
         // 현장 수 = **건** 기준. 건이 하나도 없는 옛 고객만 고객 표로 센다.
         val hasAnyJob = js.map { it.customerId }.toHashSet()
         // ⚠️ **「다녀온 현장」은 지난 것만 센다.** 앞으로 올 예약을 같이 세면
@@ -775,10 +775,8 @@ private fun phoneSuffix(phone: String): String {
     return PhoneKey.of(phone)
 }
 
-// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 여기 있던 사본 두 개를 지웠다. (2026-10-02)
-private fun monthStartOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 중간 다리도 없애고 바로 부른다. (2026-10-03)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun monthOf(anchorMs: Long): Int =
     Calendar.getInstance().apply { timeInMillis = anchorMs }.get(Calendar.MONTH) + 1

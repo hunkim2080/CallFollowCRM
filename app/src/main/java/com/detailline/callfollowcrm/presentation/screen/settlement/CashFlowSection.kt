@@ -94,7 +94,7 @@ fun CashFlowCard(
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
 
-    var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(nowMs)) }
+    var monthAnchor by remember { mutableLongStateOf(DateTimeUtils.startOfMonth(nowMs)) }
     var selectedDay by remember { mutableStateOf<Long?>(todayStart) }
     var showAddFor by remember { mutableStateOf<Long?>(null) }
     var confirmDeleteCash by remember { mutableStateOf<Long?>(null) }   // 돈 기록 삭제 확인(즉시삭제 방지). 2026-07-30
@@ -117,8 +117,8 @@ fun CashFlowCard(
             monthAgg = monthAgg,
             todayStart = todayStart,
             selectedDay = selectedDay,
-            onPrev = { monthAnchor = shiftMonthMs(monthAnchor, -1) },
-            onNext = { monthAnchor = shiftMonthMs(monthAnchor, +1) },
+            onPrev = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, -1) },
+            onNext = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, +1) },
             onSelect = { selectedDay = it },
             onAddRecord = { showAddFor = selectedDay ?: todayStart }
         )
@@ -613,9 +613,7 @@ private data class CashCell(
 )
 
 // 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
-private fun monthAnchorOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonthMs(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun buildCashCells(monthAnchor: Long, byDay: Map<Long, List<CashItem>>, todayStart: Long): List<CashCell> {
     val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }
@@ -641,6 +639,6 @@ private fun buildCashCells(monthAnchor: Long, byDay: Map<Long, List<CashItem>>, 
 }
 
 private fun monthAggregate(items: List<CashItem>, monthAnchor: Long): CashDayAgg {
-    val next = shiftMonthMs(monthAnchor, +1)
+    val next = DateTimeUtils.shiftMonth(monthAnchor, +1)
     return CashFlowCalc.aggOf(items.filter { it.dayStartMs in monthAnchor until next })
 }

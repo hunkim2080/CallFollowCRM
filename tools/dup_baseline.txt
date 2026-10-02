@@ -1,7 +1,7 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 63곳 / 32줄
+# 총 58곳 / 32줄
 day-start|presentation/component/CustomerStatusTag.kt 1
 day-start|presentation/screen/customers/CustomersScreen.kt 1
 day-start|presentation/screen/report/ReportViewModel.kt 1
@@ -20,7 +20,7 @@ phone-key|data/local/entity/ThreadBucketEntity.kt 1
 phone-key|data/repository/CallRecordRepository.kt 1
 phone-key|data/repository/SmsRepository.kt 2
 phone-key|presentation/screen/chat/ChatViewModel.kt 5
-phone-key|presentation/screen/customer/CustomerDetailScreen.kt 6
+phone-key|presentation/screen/customer/CustomerDetailScreen.kt 1
 phone-key|presentation/screen/customer/CustomerDetailViewModel.kt 4
 phone-key|presentation/screen/home/HomeViewModel.kt 2
 phone-key|presentation/screen/newleads/NewLeadsViewModel.kt 1

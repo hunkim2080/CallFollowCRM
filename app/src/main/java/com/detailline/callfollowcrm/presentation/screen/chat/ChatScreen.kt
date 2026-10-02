@@ -452,7 +452,7 @@ fun ChatScreen(
     // P3 — 견적서 작성기 (사장님 결정 2026-05-24): send_estimate 액션 시 템플릿 picker 대신 띄움.
     var showEstimateBuilder by remember { mutableStateOf(false) }
     // 견적 만들기 상태 — ChatScreen 보관(미리보기 닫고 와도 선택 유지). (2026-06-08 #5)
-    val estimateDraft = remember { EstimateDraft(estMonthAnchor(System.currentTimeMillis())) }
+    val estimateDraft = remember { EstimateDraft(DateTimeUtils.startOfMonth(System.currentTimeMillis())) }
     // 견적서(직인) 미리보기 — null 아니면 QuoteDocScreen 오버레이 표시 (견적 2단계).
     var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
     // 발행 이력 카드 → 견적서 '다시 보기' 리뷰 — 닫으면 채팅으로만 복귀(편집기 X). (2026-07-07 사장님)
@@ -2056,7 +2056,7 @@ fun ChatScreen(
             (estCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
         }
         // 미리보기로 갈 때만 sheet 닫고 draft 유지. 발송/취소 등 '종료' 시에만 draft 초기화. (2026-06-08 #5)
-        fun resetEstimateDraft() = estimateDraft.reset(estMonthAnchor(System.currentTimeMillis()))
+        fun resetEstimateDraft() = estimateDraft.reset(DateTimeUtils.startOfMonth(System.currentTimeMillis()))
         EstimateBuilderDialog(
             items = pricingItems,
             draft = estimateDraft,
@@ -4675,7 +4675,7 @@ private fun EstimateBuilderDialog(
                 Spacer(Modifier.height(AppSpace.s12))
                 EstInlineCalendar(
                     estCalMonth, workDateMs, workEndMs,
-                    onShiftMonth = { estCalMonth = estShiftMonth(estCalMonth, it) },
+                    onShiftMonth = { estCalMonth = DateTimeUtils.shiftMonth(estCalMonth, it) },
                     onPick = { day ->
                         // 한 번 = 시작일, 그 뒤 **더 나중 날을 한 번 더** = 끝날. 그 외에는 다시 시작.
                         //   (프로토는 마우스로 끄는 방식이지만, 폰에선 끄는 게 안 먹는다 — 두 번 누르기로 옮겼다.)
@@ -5321,7 +5321,7 @@ private fun EstInlineCalendar(
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = EST_PAGER_CENTER) { EST_PAGER_COUNT }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val viewed by remember {
-        androidx.compose.runtime.derivedStateOf { estShiftMonth(base, pagerState.currentPage - EST_PAGER_CENTER) }
+        androidx.compose.runtime.derivedStateOf { DateTimeUtils.shiftMonth(base, pagerState.currentPage - EST_PAGER_CENTER) }
     }
     // 회색 상자가 아니라 **흰 카드** — 일정 탭 달력과 같은 바탕. (2026-09-24 사장님)
     Column(
@@ -5351,7 +5351,7 @@ private fun EstInlineCalendar(
         val s0 = startMs?.let { DateTimeUtils.startOfDay(it) }
         val e0 = endMs?.let { DateTimeUtils.startOfDay(it) }
         androidx.compose.foundation.pager.HorizontalPager(state = pagerState, verticalAlignment = Alignment.Top) { page ->
-            val cells = buildEstCells(estShiftMonth(base, page - EST_PAGER_CENTER))
+            val cells = buildEstCells(DateTimeUtils.shiftMonth(base, page - EST_PAGER_CENTER))
             Column(Modifier.fillMaxWidth()) {
                 repeat(6) { w ->
                     Row(Modifier.fillMaxWidth()) {
