@@ -1117,6 +1117,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 lastDateMs = c.lastDateMs,
                 lastSent = c.lastSent,
                 isAd = b.reason == "광고",
+                // 👥 사장님이 직접 찍은 것. 글자로는 알 수 없다. (2026-10-02)
+                isFriend = b.reason ==
+                    com.detailline.callfollowcrm.data.repository.ThreadBucketRepository.REASON_FRIEND,
                 unread = !c.lastSent && c.lastDateMs > readMs
             )
         }.sortedByDescending { it.lastDateMs }
@@ -1181,6 +1184,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun undoMarkAllRead() {
         container.readStateStore.restoreReadStates(lastMarkAllRead)
         lastMarkAllRead = emptyMap()
+    }
+
+    /** 👥 지인으로 — 문자함 [지인] 칸으로 간다. 상담함에서 치우는 것뿐, 가리는 건 아니다. (2026-10-02) */
+    fun moveToFriend(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {
+        runCatching { container.threadBucketRepository.moveToFriend(phoneNumber) }
     }
 
     /** 상담함 카드 → 문자함으로(사장님이 "고객 아님"). 영구(OWNER) — 자동 재분류가 못 되돌림. */
@@ -1698,6 +1706,8 @@ data class GeneralThread(
     val lastDateMs: Long,
     val lastSent: Boolean,
     val isAd: Boolean,        // 광고로 걸러진 것 → '광고' 딱지
+    /** 👥 사장님이 「지인으로」 찍은 것 — 문자함 [지인] 칸에 모인다. (2026-10-02) */
+    val isFriend: Boolean = false,
     val unread: Boolean
 )
 

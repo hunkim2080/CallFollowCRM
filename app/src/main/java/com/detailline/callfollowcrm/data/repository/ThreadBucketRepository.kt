@@ -100,9 +100,35 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
         }
     }
 
+    /**
+     * 👥 **지인으로 찍기.** (2026-10-02 사장님 "광고 택배 옆에 지인 목록을 하나 만들어서")
+     *
+     *   광고·택배는 **글자를 보고** 저절로 갈리지만, **지인은 알 길이 없다** —
+     *   아내 문자와 손님 문자는 글만 봐선 똑같다. 그래서 **사장님이 직접 찍는다.**
+     *   문자함(GENERAL) 안에 두고 [REASON_FRIEND] 로 표시만 남긴다 — 통은 그대로다.
+     *
+     *   ⚠️ **가리는 기능이 아니다.** 상담함에서 치워 **고객 사이에 안 섞이게** 하는 것뿐이고,
+     *      누가 폰을 보면 문자함 [지인] 에서 그대로 보인다.
+     */
+    suspend fun moveToFriend(phone: String, now: Long = System.currentTimeMillis()) {
+        val suffix = suffixOf(phone)
+        if (suffix.isBlank()) return
+        runCatching {
+            dao.upsert(
+                ThreadBucketEntity(
+                    suffix, BucketPolicy.GENERAL, BucketPolicy.SRC_OWNER, REASON_FRIEND, now, null
+                )
+            )
+        }
+    }
+
     private fun suffixOf(phone: String): String {
         return PhoneKey.of(phone)
     }
 
-    companion object { private const val TAG = "ThreadBucket" }
+    companion object {
+        private const val TAG = "ThreadBucket"
+        /** 👥 지인 표시 — 이 글자 하나로 문자함 [지인] 칸이 갈린다. 바꾸면 **옛 표시가 안 걸린다.** */
+        const val REASON_FRIEND = "지인"
+    }
 }

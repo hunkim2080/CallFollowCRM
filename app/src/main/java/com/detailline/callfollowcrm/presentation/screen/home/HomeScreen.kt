@@ -1773,6 +1773,26 @@ fun HomeScreen(
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
+                            // 👥 **지인으로** — 아는 사람이 손님 사이에 섞여 있을 때. (2026-10-02 사장님)
+                            //   스팸도 아니고 그냥 정리도 아니다. 문자함 [지인] 칸으로 간다.
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                    .clickable {
+                                        spamTarget = null
+                                        viewModel.moveToFriend(phone)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("지인으로 옮겼어요 — 문자함 [지인] 에 있어요")
+                                        }
+                                    }
+                                    .padding(14.dp)
+                            ) {
+                                Column {
+                                    Text("지인으로", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                    Text("손님이 아니라 아는 사람 — 문자함 [지인] 으로 모아요",
+                                        fontSize = 12.sp, color = TossTextTertiary)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
                             Box(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
                                     .clickable {
@@ -1925,29 +1945,48 @@ fun HomeScreen(
                 // 📦 택배 / 광고·인증 가르기. (2026-09-20 사장님)
                 //   발신번호 8자리는 "손님 아님" 까지만 말해준다 — 택배사도 8자리라 글자를 봐야 갈린다.
                 //   여긴 이미 '손님 아님' 으로 걸러진 구역이라 글자를 봐도 안전하다(포워딩 걱정 없음).
+                // 👥 **지인이 맨 먼저다.** 사장님이 **직접 찍은** 것이라 글자로 때려맞힌 것보다 세다.
+                //   (2026-10-02 사장님 "광고 택배 옆에 지인 목록을 하나 만들어서")
+                val friends = generalThreads.filter { it.isFriend }
                 val parcels = generalThreads.filter {
-                    com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                    !it.isFriend &&
+                        com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
                 }
-                val ads = generalThreads.filterNot {
-                    com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                val ads = generalThreads.filter {
+                    !it.isFriend &&
+                        !com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
                 }
-                val boxThreads = if (boxSub == "parcel") parcels else ads
+                val boxThreads = when (boxSub) {
+                    "parcel" -> parcels
+                    "friend" -> friends
+                    else -> ads
+                }
                 // 📨 가르기는 **문자함 안에서**. 둘이 합치면 문자함 전부라 빠지는 게 없다.
                 Row(
                     Modifier.fillMaxWidth().background(Color.White)
                         .padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 9.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    BoxSubChip("광고", ads.size, boxSub != "parcel") { boxSub = "ad" }
+                    BoxSubChip("광고", ads.size, boxSub == "ad") { boxSub = "ad" }
                     BoxSubChip("택배", parcels.size, boxSub == "parcel") { boxSub = "parcel" }
+                    // 👥 「사생활」은 숨기는 느낌이라 안 쓴다 — **지인**. (2026-10-02 사장님과 정함)
+                    BoxSubChip("지인", friends.size, boxSub == "friend") { boxSub = "friend" }
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                 MessageBoxSection(
                     threads = boxThreads,
                     // 빈 화면은 **누른 칩 얘기**여야 한다. (2026-09-20 실기)
-                    emptySpeech = if (boxSub == "parcel") "온 택배 문자가 없어요" else "광고·인증 문자가 없어요",
-                    emptySub = if (boxSub == "parcel") "운송장·배송 문자는 여기로 모여요"
-                        else "인증번호·광고 문자는 여기로 모여요",
+                    emptySpeech = when (boxSub) {
+                        "parcel" -> "온 택배 문자가 없어요"
+                        "friend" -> "지인으로 옮긴 사람이 없어요"
+                        else -> "광고·인증 문자가 없어요"
+                    },
+                    emptySub = when (boxSub) {
+                        "parcel" -> "운송장·배송 문자는 여기로 모여요"
+                        // 👥 **어떻게 넣는지**를 빈 화면이 알려준다 — 안 그러면 쓸 줄을 모른다.
+                        "friend" -> "상담함에서 그 사람을 꾹 눌러 [지인으로] 를 고르면 여기로 와요"
+                        else -> "인증번호·광고 문자는 여기로 모여요"
+                    },
                     pinnedSuffixes = pinnedSuffixes,
                     onOpen = { phone -> onOpenChat(phone, null) },
                     onMoveToConsult = { phone ->
