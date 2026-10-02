@@ -303,12 +303,18 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 
 ### 12-G. 🤖 이제 **빌드가 대신 센다** (사람 기억에 안 맡긴다)
 
+> 가드 **7개**가 `assembleRelease`·`bundleRelease` 에 걸려 있다 —
+> `compose` · `brand` · `dup` · `style` · `rules` · `save` · `size`.
+> 전부 **기준선 방식**이다: 지금 숫자를 적어두고 **늘어나면 실패**. 줄이는 건 환영.
+
 사람 기억으로는 안 지켜졌다 — **룰을 적은 그날 세 번 안 지켰다**(SaveGuard · PhotoModel · QuoteMoney).
 그래서 두 가드가 대신 본다.
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
 | `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (8가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 13곳) | 「조용히 실패하는 곳이 생겼습니다」 |
+| `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
 **`dup_guard` 가 지금 막는 9가지** — 이게 **빌드가 막아주는 전부**다:

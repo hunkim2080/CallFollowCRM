@@ -229,3 +229,9 @@ apply(from = "$rootDir/tools/dup_guard.gradle.kts")
 // 📋 룰 문서가 코드와 어긋나는 것 — tools/rules_guard.gradle.kts (2026-10-02)
 //   "반복 지속적으로 터지는 문제를 방지하기 위해" — 표가 썩으면 또 새로 만든다.
 apply(from = "$rootDir/tools/rules_guard.gradle.kts")
+
+// 🤫 사장님이 누른 저장이 조용히 실패하는 것 — tools/save_guard.gradle.kts (2026-10-02)
+apply(from = "$rootDir/tools/save_guard.gradle.kts")
+
+// 📏 화면 파일이 더 커지는 것 — tools/size_guard.gradle.kts (2026-10-02)
+apply(from = "$rootDir/tools/size_guard.gradle.kts")

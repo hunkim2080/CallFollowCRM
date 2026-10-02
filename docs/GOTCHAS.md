@@ -46,12 +46,17 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
 - ✅ 끝에 `$LASTEXITCODE` 를 **반드시** 찍는다. `BUILD=0` 이 아니면 **아무것도 안 된 것**이다
 - adb · git · scp 는 Bash 에서 해도 된다
 
-**가드는 release 빌드에만 걸린다.** `assembleDebug` 는 dup/style/brand 를 **안 탄다**
-(compose_guard 만 `preBuild` 라 항상 탄다). 그래서 **폰에 넣을 땐 항상 `assembleRelease`.**
+**가드는 release 빌드에만 걸린다.** 가드는 7개 —
+`compose` · `brand` · `dup` · `style` · `rules` · `save` · `size`.
+`assembleDebug` 는 **compose 만** 탄다(그건 `preBuild` 라 항상). 나머지 6개는 **안 탄다.**
+그래서 **폰에 넣을 땐 항상 `assembleRelease`.**
 
-**가드 뒷문**(`-PskipDupCheck` / `-PskipStyleCheck` / `-PskipBrandCheck` / `-PskipComposeCheck`)은
+**가드 뒷문**(`-PskipDupCheck` / `-PskipStyleCheck` / `-PskipBrandCheck` / `-PskipComposeCheck` /
+`-PskipRulesCheck` / `-PskipSaveCheck` / `-PskipSizeCheck`)은
 **사장님이 쓰라고 할 때만.** 급해서 끄면 룰이 조용히 꺼진 채 배포된다.
-`dupBaselineUpdate` / `styleBaselineUpdate` 는 **합쳐서 줄였을 때만** 돌린다 — 늘려놓고 돌리면 기준선이 썩는다.
+기준선 다시 적기(`dupBaselineUpdate` · `styleBaselineUpdate` · `rulesBaselineUpdate` ·
+`saveBaselineUpdate` · `sizeBaselineUpdate`)는 **줄였을 때만** 돌린다 —
+늘려놓고 돌리면 기준선이 썩고, 그러면 가드가 아무것도 안 막는다.
 
 ---
 
@@ -146,6 +151,10 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
   그 안에 **사장님이 손으로 적은 걸 저장하는 자리**가 섞여 있었다 (현장 메모가 조용히 안 저장됨)
 - **사장님이 적은 것**(메모·금액·일정·사진·고객)을 저장하는 자리는 **실패하면 화면에 말한다** —
   공용 `presentation/util/SaveGuard.kt` 를 쓴다. 조용히 넘겨도 되는 건 **지워도 되는 것**(캐시·임시파일)뿐
+- 🤖 **이제 빌드가 막는다** — `tools/save_guard.gradle.kts` (2026-10-02).
+  `*ViewModel.kt` 안에서 **저장처럼 생긴 함수**가 `runCatching` 을 쓰면서 **말하는 통로가 하나도
+  없으면** 그 개수가 기준선(`tools/save_baseline.txt`, 지금 13곳)보다 **늘어나면 빌드 실패.**
+  ⚠️ 기준선에 남은 13곳은 **「괜찮다」가 아니라 「아직 안 봤다」**는 뜻이다 — 하나씩 보고 줄인다.
 - **막는 것은 서버가 최종 결정권자다.** 앱에서만 막으면 **옛 버전은 그대로 통과**한다 (2026-10-02 실제로 그랬다).
   둘 다 넣고 **끝까지 쏴서** 확인한다(409 가 정말 오는지)
 

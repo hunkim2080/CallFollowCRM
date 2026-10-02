@@ -725,7 +725,8 @@ class CustomerDetailViewModel(
     fun markAsDone() = viewModelScope.launch {
         val now = System.currentTimeMillis()
         container.customerRepository.setAsPending(customerId, null)
-        runCatching {
+        // A/S 처리 쪽지를 남긴다 — 사장님이 나중에 보는 기록이니 안 적혔으면 말한다. (2026-10-02)
+        SaveGuard.run("A/S 처리 쪽지", _toast) {
             container.customerNoteRepository.add(
                 customerId = customerId, jobId = null,
                 body = com.detailline.callfollowcrm.util.DateTimeUtils.formatKoreanMonthDay(now) + " A/S 처리 완료",
