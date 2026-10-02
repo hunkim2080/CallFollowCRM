@@ -6814,16 +6814,12 @@ private data class EstCell(val dayMs: Long, val dom: Int, val dow: Int, val inMo
 private const val EST_PAGER_CENTER = 1200
 private const val EST_PAGER_COUNT = 2400   // ±100개월
 
-private fun estMonthAnchor(anyMs: Long): Long = java.util.Calendar.getInstance().apply {
-    timeInMillis = anyMs
-    set(java.util.Calendar.DAY_OF_MONTH, 1)
-    set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-    set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-}.timeInMillis
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 글자가 여덟 가지였다)
+private fun estMonthAnchor(anyMs: Long): Long =
+    com.detailline.callfollowcrm.util.DateTimeUtils.startOfMonth(anyMs)
 
-private fun estShiftMonth(anchor: Long, delta: Int): Long = java.util.Calendar.getInstance().apply {
-    timeInMillis = anchor; add(java.util.Calendar.MONTH, delta); set(java.util.Calendar.DAY_OF_MONTH, 1)
-}.timeInMillis
+private fun estShiftMonth(anchor: Long, delta: Int): Long =
+    com.detailline.callfollowcrm.util.DateTimeUtils.shiftMonth(anchor, delta)
 
 private fun buildEstCells(anchor: Long): List<EstCell> {
     val today = DateTimeUtils.startOfDay(System.currentTimeMillis())

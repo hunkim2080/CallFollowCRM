@@ -175,7 +175,14 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     private val tradeForRecord = container.preferences.ownerTrades.firstOrNull().orEmpty()
     private val phoneForRecord = container.preferences.bizPhone
 
-    /** 올해 1월 1일 0시. */
+    /**
+     * 올해 1월 1일 0시.
+     *
+     * ⚠️ **달의 시작과 다른 셈이다** — 여기만 쓰는 **해의 경계**라 `DateTimeUtils` 로 안 옮겼다.
+     *   (2026-10-02: 달 경계는 글자 여덟 가지로 흩어져 있어 공용으로 합쳤는데, 이건 한 곳뿐이다.
+     *    두 번째 자리가 생기면 그때 `DateTimeUtils.startOfYear` 로 옮긴다 — §12-C 「2곳 이상」)
+     *   `dup_guard` 의 `month-start` 기준선에 이 한 줄이 남아 있는 이유가 이것이다.
+     */
     private fun yearStartOf(ms: Long): Long = java.util.Calendar.getInstance().apply {
         timeInMillis = ms
         set(java.util.Calendar.MONTH, 0); set(java.util.Calendar.DAY_OF_MONTH, 1)
@@ -768,18 +775,10 @@ private fun phoneSuffix(phone: String): String {
     return PhoneKey.of(phone)
 }
 
-private fun monthStartOf(anyMs: Long): Long = Calendar.getInstance().apply {
-    timeInMillis = anyMs
-    set(Calendar.DAY_OF_MONTH, 1)
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 여기 있던 사본 두 개를 지웠다. (2026-10-02)
+private fun monthStartOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long = Calendar.getInstance().apply {
-    timeInMillis = anchorMs
-    add(Calendar.MONTH, delta)
-    set(Calendar.DAY_OF_MONTH, 1)
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun monthOf(anchorMs: Long): Int =
     Calendar.getInstance().apply { timeInMillis = anchorMs }.get(Calendar.MONTH) + 1

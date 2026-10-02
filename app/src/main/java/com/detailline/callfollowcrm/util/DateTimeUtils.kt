@@ -106,6 +106,33 @@ object DateTimeUtils {
     }
 
     /**
+     * 📅 **그 달 1일 00:00.** (2026-10-02 — 같은 셈이 네 가지 글자로 15곳에 흩어져 있었다)
+     *   정산·통계·내기록·일정·마감브리핑이 **각자** 달 경계를 세고 있었다.
+     *   한쪽만 고치면 **같은 달인데 화면마다 합계가 다르게** 나온다.
+     */
+    fun startOfMonth(epoch: Long): Long {
+        val cal = Calendar.getInstance().apply { timeInMillis = epoch }
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
+    /**
+     * 📅 **달 넘기기** — delta 달 만큼 옮긴 뒤 그 달 1일 00:00.
+     *   `delta = -1` 이면 지난달, `+1` 이면 다음달. 연말·연초(12월 → 1월)와
+     *   말일(1월 31일에서 +1 → 2월 1일)도 Calendar 가 알아서 맞춘다.
+     */
+    fun shiftMonth(anchorEpoch: Long, delta: Int): Long {
+        val cal = Calendar.getInstance().apply { timeInMillis = anchorEpoch }
+        cal.add(Calendar.MONTH, delta)
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
+    /**
      * targetEpoch 가 오늘 기준 몇 일 전/후인지를 사람이 읽기 좋은 라벨로.
      *   오늘 -> "D-day" / "오늘"
      *   미래 -> "D-N"  (N일 남음)

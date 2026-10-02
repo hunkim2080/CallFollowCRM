@@ -963,19 +963,10 @@ private fun NewVendorDialog(
 // ── 인라인 달력 셀 ──
 private data class SelCell(val dayStartMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean)
 
-private fun monthAnchorOf(anyMs: Long): Long {
-    val cal = Calendar.getInstance().apply {
-        timeInMillis = anyMs
-        set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }
-    return cal.timeInMillis
-}
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
+private fun monthAnchorOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long {
-    val cal = Calendar.getInstance().apply { timeInMillis = anchorMs; add(Calendar.MONTH, delta); set(Calendar.DAY_OF_MONTH, 1) }
-    return cal.timeInMillis
-}
+private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun buildSelectCells(monthAnchor: Long, todayStart: Long): List<SelCell> {
     val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }

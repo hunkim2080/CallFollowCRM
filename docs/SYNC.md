@@ -12920,3 +12920,23 @@ Fable 코드 점검(🔥1·🔥2)을 고쳤다. 사장님 "ㄱㄱ 해줘"
 - 폰 확인: 해당 없음 (테스트·빌드 설정)
 - 다음 액션: 🧹3 죽은 코드 2,300줄 · 🧹4 monthStartOf 세 벌 합치기 ·
   (상위권 위로) 저장에 SaveGuard 강제 가드 · 화면 파일 크기 기준선 · 주간 품질 계기판
+
+## 2026-10-02 달 경계 한 곳으로 · android
+Fable 🧹4. **§12-B 대로 다섯 갈래로 세보니 Fable 이 본 3곳이 아니라 글자 여덟 가지였다.**
+- 센 결과: `monthStartOf`(3) · `monthAnchorOf`(2) · `monthAnchor`(1) · `estMonthAnchor`(1) ·
+  `miniMonthAnchor`(1) · `shiftMonth`(5) · `shiftMonthMs`(1) · `estShiftMonth`(1) ·
+  `miniShiftMonth`(1) · 손으로 적은 `set(DAY_OF_MONTH,1)` — **10개 파일**
+  (정산·현금흐름·통계·내기록·일정·일정추가·마감브리핑·리포트·챗 견적달력·내일정 시트)
+- 공용 추가: `DateTimeUtils.startOfMonth(ms)` · `DateTimeUtils.shiftMonth(anchor, delta)`
+  → 10개 파일의 사본을 전부 공용 호출로 바꿨다
+- 새 테스트 `DateTimeUtilsMonthTest` **13건** — 말일 23:59 · 12월→1월(해 넘김) · 1월→12월 ·
+  **1월 31일 +1달 = 2월 1일**(Calendar 가 3월로 튀는 함정) · 12번 넘기면 한 해 · 왕복 제자리 ·
+  달의 시작 = 하루의 시작
+- dup_guard 규칙 **`month-start`** 추가(§12-5) → 다시 흩어지면 빌드 실패.
+  기준선 **75 → 63곳**(12곳 줄었다). CLAUDE.md 공용 표에 한 줄 + 막는 규칙 9가지로 갱신
+- 남긴 1곳: `StatsViewModel.yearStartOf` — **해의 경계**라 다른 셈이고 한 곳뿐이다.
+  왜 안 옮겼는지 주석으로 적어뒀다(§12-C 「2곳 이상이면 합친다」 — 아직 1곳)
+- 숫자: 단위테스트 **766 → 779건**, 실패 0. 빌드 통과(dup 63 · style 2807 · rules 24 · compose OK)
+- 폰 확인: **못 봄** — 순수 셈이라 단위테스트 13개가 대신 봤다
+- 다음 액션: 🧹3 죽은 코드 2,300줄 · (상위권 위로) 저장에 SaveGuard 강제 가드 ·
+  화면 파일 크기 기준선 · 주간 품질 계기판

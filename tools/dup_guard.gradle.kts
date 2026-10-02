@@ -79,6 +79,18 @@ val dupRules = listOf(
         instead = "PhoneDialer.open(context, 번호)  (util/PhoneDialer.kt)",
         homes = listOf("/util/PhoneDialer.kt")
     ),
+    // ⑧ 📅 달의 시작·달 넘기기 — **글자가 여덟 가지로 흩어져 있었다.** (2026-10-02 Fable 점검 🧹4)
+    //     monthStartOf · monthAnchorOf · monthAnchor · estMonthAnchor · miniMonthAnchor ·
+    //     shiftMonth · shiftMonthMs · estShiftMonth · miniShiftMonth · 그리고 손으로 적은 것들.
+    //   정산·통계·내기록·일정·마감브리핑·리포트·챗 견적달력이 **각자** 달 경계를 셌다 —
+    //   한쪽만 고치면 **같은 달인데 화면마다 합계가 다르게** 나온다.
+    //   이제 `DateTimeUtils.startOfMonth / shiftMonth` 한 곳이고 단위테스트 13개가 지킨다.
+    DupRule(
+        id = "month-start",
+        regex = Regex("""set\(\s*(?:java\.util\.)?Calendar\.DAY_OF_MONTH,\s*1\s*\)"""),
+        instead = "DateTimeUtils.startOfMonth(ms) / DateTimeUtils.shiftMonth(anchor, delta)",
+        homes = listOf("/util/DateTimeUtils.kt")
+    ),
     // ① 번호 맞추기 — 2026-09-27 상담함 사고의 정체.
     DupRule(
         id = "phone-key",

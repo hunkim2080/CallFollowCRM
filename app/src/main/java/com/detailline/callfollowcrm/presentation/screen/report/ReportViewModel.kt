@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.data.repository.SuggestionEventRepository
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.util.AddressExtractor
@@ -168,14 +169,12 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 기간 [from, to) epoch ms. now 기준. */
     private fun rangeOf(p: ReportPeriod): Pair<Long, Long> {
-        val cal = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }
-        val startThisMonth = cal.timeInMillis
+        // 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 글자가 여덟 가지였다)
+        val cal = Calendar.getInstance()
+        val startThisMonth = DateTimeUtils.startOfMonth(cal.timeInMillis)
         return when (p) {
-            ReportPeriod.THIS_MONTH -> startThisMonth to (cal.clone() as Calendar).apply { add(Calendar.MONTH, 1) }.timeInMillis
-            ReportPeriod.LAST_MONTH -> (cal.clone() as Calendar).apply { add(Calendar.MONTH, -1) }.timeInMillis to startThisMonth
+            ReportPeriod.THIS_MONTH -> startThisMonth to DateTimeUtils.shiftMonth(startThisMonth, 1)
+            ReportPeriod.LAST_MONTH -> DateTimeUtils.shiftMonth(startThisMonth, -1) to startThisMonth
             ReportPeriod.LAST_3M -> (cal.clone() as Calendar).apply { add(Calendar.MONTH, -2) }.timeInMillis to
                 (cal.clone() as Calendar).apply { add(Calendar.MONTH, 1) }.timeInMillis
         }

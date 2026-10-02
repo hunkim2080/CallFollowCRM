@@ -1867,27 +1867,11 @@ private fun asCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
     return dayStart in s..end
 }
 
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
 /** 어떤 ms 가 들어와도 그 달 1일의 startOfDay 로 정규화. */
-private fun monthAnchor(anyMs: Long): Long {
-    val cal = Calendar.getInstance().apply {
-        timeInMillis = anyMs
-        set(Calendar.DAY_OF_MONTH, 1)
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    return cal.timeInMillis
-}
+private fun monthAnchor(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long {
-    val cal = Calendar.getInstance().apply {
-        timeInMillis = anchorMs
-        add(Calendar.MONTH, delta)
-        set(Calendar.DAY_OF_MONTH, 1)
-    }
-    return cal.timeInMillis
-}
+private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 /** fromAnchor → toAnchor 사이의 달 수(부호 있음). page 인덱스 계산용. */
 private fun monthsBetween(fromAnchor: Long, toAnchor: Long): Int {

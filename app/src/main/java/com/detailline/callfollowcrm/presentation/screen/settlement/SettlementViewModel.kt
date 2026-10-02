@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.screen.settlement
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.domain.settlement.CashFlowCalc
 import com.detailline.callfollowcrm.domain.settlement.CashItem
 import com.detailline.callfollowcrm.domain.settlement.SettleRow
@@ -307,18 +308,10 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 // ── 월 계산 헬퍼 ─────────────────────────────────────────────────
-private fun monthStartOf(anyMs: Long): Long = Calendar.getInstance().apply {
-    timeInMillis = anyMs
-    set(Calendar.DAY_OF_MONTH, 1)
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 여기 있던 사본 두 개를 지웠다. (2026-10-02)
+private fun monthStartOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonth(anchorMs: Long, delta: Int): Long = Calendar.getInstance().apply {
-    timeInMillis = anchorMs
-    add(Calendar.MONTH, delta)
-    set(Calendar.DAY_OF_MONTH, 1)
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+private fun shiftMonth(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun monthLabelOf(anchorMs: Long): String = Calendar.getInstance().apply { timeInMillis = anchorMs }
     .let { "${it.get(Calendar.YEAR)}년 ${it.get(Calendar.MONTH) + 1}월" }

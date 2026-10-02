@@ -311,8 +311,8 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 | `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (8가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 8가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw`
+**`dup_guard` 가 지금 막는 9가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -359,6 +359,7 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 | 전화번호 맞추기 | `util/PhoneKey.kt` | `takeLast(8)`, 글자 그대로 비교 |
 | 전화번호 보여주기 | `util/PhoneNumberFormatter.kt` | 하이픈 직접 끼우기 |
 | 오늘 0시·날짜 경계 | `util/DateTimeUtils.startOfDay(ms)` | `set(HOUR_OF_DAY, 0)` |
+| 달의 시작·달 넘기기 | `util/DateTimeUtils.startOfMonth(ms)` / `.shiftMonth(anchor, delta)` | `set(DAY_OF_MONTH, 1)`, `monthStartOf`·`monthAnchor(Of)`·`shiftMonth(Ms)` 를 화면마다 새로 |
 | 돈 보여주기 | `util/MoneyFormatter.kt` | `String.format("%,d")` 직접 |
 | 사진 크게 보기·돌리기 | `presentation/component/PhotoViewer.kt` | 화면마다 Dialog 새로 만들기 |
 | 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest` 직접 |

@@ -27,11 +27,8 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
     private val todayEnd = todayStart + DateTimeUtils.DAY_MS
     private val tomorrowStart = todayEnd
     private val tomorrowEnd = tomorrowStart + DateTimeUtils.DAY_MS
-    private val monthStart = Calendar.getInstance().apply {
-        timeInMillis = now
-        set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    // 📅 이번 달 매출 경계 — 셈은 DateTimeUtils 한 곳. (2026-10-02)
+    private val monthStart = DateTimeUtils.startOfMonth(now)
     private val goalWon = container.preferences.monthlyGoalManwon.toLong() * 10_000L
 
     val state: StateFlow<ClosingBriefState> =

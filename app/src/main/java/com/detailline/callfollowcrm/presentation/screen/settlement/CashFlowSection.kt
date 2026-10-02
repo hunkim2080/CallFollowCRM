@@ -613,17 +613,10 @@ private data class CashCell(
     val agg: CashDayAgg
 )
 
-private fun monthAnchorOf(anyMs: Long): Long = Calendar.getInstance().apply {
-    timeInMillis = anyMs
-    set(Calendar.DAY_OF_MONTH, 1)
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
+// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
+private fun monthAnchorOf(anyMs: Long): Long = DateTimeUtils.startOfMonth(anyMs)
 
-private fun shiftMonthMs(anchorMs: Long, delta: Int): Long = Calendar.getInstance().apply {
-    timeInMillis = anchorMs
-    add(Calendar.MONTH, delta)
-    set(Calendar.DAY_OF_MONTH, 1)
-}.timeInMillis
+private fun shiftMonthMs(anchorMs: Long, delta: Int): Long = DateTimeUtils.shiftMonth(anchorMs, delta)
 
 private fun buildCashCells(monthAnchor: Long, byDay: Map<Long, List<CashItem>>, todayStart: Long): List<CashCell> {
     val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }
