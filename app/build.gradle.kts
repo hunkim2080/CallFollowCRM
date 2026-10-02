@@ -235,3 +235,6 @@ apply(from = "$rootDir/tools/save_guard.gradle.kts")
 
 // 📏 화면 파일이 더 커지는 것 — tools/size_guard.gradle.kts (2026-10-02)
 apply(from = "$rootDir/tools/size_guard.gradle.kts")
+
+// 🩺 품질 계기판 (막지 않고 재서 적기만) — gradlew health (2026-10-02)
+apply(from = "$rootDir/tools/health_report.gradle.kts")
