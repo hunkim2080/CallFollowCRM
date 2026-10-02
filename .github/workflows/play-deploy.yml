@@ -80,6 +80,21 @@ jobs:
           fi
           echo "✓ keystore OK ($(wc -c < ringgo-release.jks) bytes) · google-services OK — 둘 다 검증 통과"
 
+      # 🧪 **시험이 먼저다.** (2026-10-02 사장님)
+      #   아래에 '플레이에는 시험을 통과한 것만 올린다' 라고 적혀 있었는데
+      #   **정작 시험 단계가 없었다** — 화재경보기 760개를 달아두고 전원을 안 꽂은 꼴이었다.
+      #   돈·날짜·번호 셈이 깨지면 **여기서 막혀 플레이에 올라가지 않는다.**
+      - name: 자동 시험 (단위테스트 — 깨지면 배포 중단)
+        run: ./gradlew testReleaseUnitTest --no-daemon --stacktrace
+
+      - name: 시험 결과 남겨두기 (실패해도 올린다)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+
       - name: AAB 빌드 (서명·versionCode 자동)
         run: ./gradlew bundleRelease --no-daemon --stacktrace
 

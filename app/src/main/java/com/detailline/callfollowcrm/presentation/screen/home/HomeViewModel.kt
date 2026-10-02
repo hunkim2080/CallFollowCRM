@@ -485,7 +485,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         // 연타/이중 기록 방지 — 같은 eventId 는 한 번만 지출 기록(멱등). dismiss 가 비동기라 연타 창이 있음. (2026-07-30 버그감사)
         if (!recordedLaborEventIds.add(eventId)) return@launch
         if (manwon > 0L) {
-            runCatching {
+            // 🤫 일당은 **나간 돈**이다 — 안 적히면 정산이 틀어진다. (2026-10-02)
+            SaveGuard.run("일당 지출", _toast) {
                 container.manualCashRepository.add(
                     dayMs = System.currentTimeMillis(),
                     amount = manwon * 10_000L,
@@ -1269,7 +1270,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   balanceAmount 비어 있으면 (총액-계약금)으로 채우고 balancePaidAt=now → 고객상세 '잔금 받음' + 미수금에서 빠짐.
      */
     fun markJobCompletedBalancePaid(customerId: Long) = viewModelScope.launch {
-        runCatching { container.workCompletionManager.setCompletedAndPaid(customerId) }
+        // 🤫 전엔 조용히 삼켰다 — 실패해도 화면은 성공한 척했다. 돈 자리는 **말해야 한다.** (2026-10-02)
+        SaveGuard.run("완료·잔금 받음", _toast) { container.workCompletionManager.setCompletedAndPaid(customerId) }
     }
 
     /**
@@ -1277,7 +1279,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   balanceAmount 비어 있으면 (총액-계약금)으로 채우고 balancePaidAt=now → 미수 0 → 카드 사라짐. (2026-06-23 사장님)
      */
     fun markBalanceReceived(customerId: Long, jobId: Long? = null) = viewModelScope.launch {
-        runCatching {
+        // 🤫 조용히 삼키면 **고객은 '받음', 정산은 '미수'** 가 되고 다음 날 잘못된 미수 알람이 뜬다.
+        //   (2026-09-17 과 같은 모양 — Fable 점검에서 1순위로 꼽힌 자리) (2026-10-02)
+        SaveGuard.run("잔금 받음", _toast) {
             val now = System.currentTimeMillis()
             if (jobId != null) {
                 // 🔴 **그 건에만** 찍는다 — 옆 건 돈을 건드리면 안 된다. (2026-09-18)
@@ -1285,9 +1289,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 if (container.jobRepository.representativeJobId(customerId, now) == jobId) {
                     container.customerRepository.updateBalancePaidAt(customerId, now)
                 }
-                return@runCatching
+                return@run
             }
-            val c = container.customerRepository.findById(customerId) ?: return@runCatching
+            val c = container.customerRepository.findById(customerId) ?: return@run
             val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
             if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)
             container.customerRepository.updateBalancePaidAt(customerId, now)

@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -109,6 +110,15 @@ fun StatsScreen(
 
     // 되돌릴 수 없는 일엔 **되돌릴 길**이 있어야 한다. (2026-09-25 기본 UX 점검)
     val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    // 🗣️ **저장이 실패하면 여기로 말한다.** (2026-10-02 Fable 점검)
+    //   전엔 완료 찍기가 실패해도 화면이 아무 말도 안 했다 — 통로를 만들었으니 **띄우는 것까지** 한다.
+    val saveFail by viewModel.toast.collectAsState()
+    LaunchedEffect(saveFail) {
+        saveFail?.let { msg ->
+            snackbar.showSnackbar(msg)
+            viewModel.clearToast()
+        }
+    }
     // 손가락으로 맞춘 확대 — **지도와 인증샷이 같이 쓴다**(보이던 그대로 담으려고).
     var mapZoom by remember(rec.dots) { mutableStateOf(1f) }
     var mapPanX by remember(rec.dots) { mutableStateOf(0f) }

@@ -12871,3 +12871,28 @@ Fable 5.1 로 `CLAUDE.md` 를 감수받고, 사실과 다른 곳을 고쳤다. +
 - 빌드: 통과 (dup 75 · style 2807 · rules 공용 24 · compose OK)
 - 폰 확인: 해당 없음 (문서·빌드 가드)
 - 진행 중: Fable 에게 **코드 지저분함 점검** 의뢰 (사장님 "코드가 지금은 지저분한 것 같다")
+
+## 2026-10-02 코드 점검 1·2번 · android
+Fable 코드 점검(🔥1·🔥2)을 고쳤다. 사장님 "ㄱㄱ 해줘"
+- **🔥2 CI 가 시험을 안 돌리던 것** — `.github/workflows/play-deploy.yml` 에 AAB 빌드 **앞**으로
+  `testReleaseUnitTest` 단계 추가(+실패해도 결과 올리는 artifact). 같은 파일에
+  「플레이에는 시험을 통과한 것만 올린다」 라고 적혀 있었는데 **정작 시험 단계가 없었다** —
+  경보기 760개를 달고 전원을 안 꽂은 상태였다
+- **🔥1 조용히 삼키던 저장 → 공용 SaveGuard 로 10곳** (실측: SaveGuard 쓰는 파일 4 → 5, 자리 19 → 29)
+  · HomeViewModel: markJobCompletedBalancePaid · markBalanceReceived · recordLaborPayment
+  · CustomerDetailViewModel: **setBalancePaid 의 건 전표 미러**(Fable 1순위) · 일정 미러 3곳
+    (분/기간/날짜 → 달력) · addJobWithAddress (실패 시 조용히 0 을 돌려주던 것 → 멈추고 말한다)
+  · StatsViewModel: completeRecordJob · undoRecordJob — **말하는 통로가 아예 없어서** `_toast` 를
+    새로 만들고 **StatsScreen 에 스낵바로 배선까지** 했다 (통로만 만들고 안 걸면 소용없음)
+- 조용히 **남긴 3곳** — 주석이 이미 왜 조용한지 적어둔 best-effort 라 그대로:
+  협업 현장 주소·일정 전파(서버 404여도 로컬은 바뀜) · 발행 이력 마커(발송엔 영향 없음)
+- 내가 직접 재서 Fable 보고를 검증/정정:
+  · 확인: 단위테스트 **760개 전부 통과**(88클래스, 실패 0) · 컴파일 경고 **175** ·
+    CI 에 시험 없음 · SaveGuard 4파일 · minify 꺼짐 · PhotoPickerSheet 참조 0
+  · **정정**: Fable 의 🔥5 "수신 MMS 가 메인에서 DB 대기 → ANR" 은 **아니다** —
+    `MmsDownloadedReceiver.kt:46 goAsync()` + `:321 Dispatchers.IO` 로 이미 뒤 스레드다
+    (Fable 도 "확인 못 함" 이라 표시했던 항목)
+- 빌드: 통과 (dup 75 · style 2807 · rules 공용 24 · compose OK) · 단위테스트 통과
+- 폰 확인: **못 봄** — 실패 토스트는 저장이 실패해야 보이는 것이라 폰에서 재현이 어렵다.
+  대신 세 ViewModel 모두 기존에 토스트가 보이던 통로를 쓰고, StatsScreen 은 배선을 눈으로 확인
+- 다음 액션: 🧹3 죽은 코드 2,300줄 치우기(따로 한 묶음) · 🧹4 monthStartOf 세 벌 합치기

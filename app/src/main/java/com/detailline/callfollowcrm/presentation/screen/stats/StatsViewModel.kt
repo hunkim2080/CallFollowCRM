@@ -8,6 +8,7 @@ import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.presentation.util.SaveGuard
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -79,8 +80,17 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
      * 「오늘 시공」 히어로는 그날 하루만 뜨고, [시공 대기] 칩은 앞으로 할 것만 담는다.
      * 그래서 그날 앱을 못 열면 영영 못 누르고 번호도 안 붙었다.
      */
+    /**
+     * 🗣️ 저장이 실패했을 때 **화면에 말하는 통로.** (2026-10-02 Fable 점검)
+     *   여기엔 통로가 아예 없어서 완료 찍기가 실패해도 화면이 아무 말도 안 했다.
+     */
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast: kotlinx.coroutines.flow.StateFlow<String?> = _toast
+    fun clearToast() { _toast.value = null }
+
     fun completeRecordJob(jobId: Long, customerId: Long) = viewModelScope.launch {
-        runCatching {
+        // 🤫 완료 찍기는 **번호·정산·미수**가 같이 움직이는 자리다. 조용히 실패하면 안 된다. (2026-10-02)
+        SaveGuard.run("완료 찍기", _toast) {
             val now = System.currentTimeMillis()
             container.jobRepository.setWorkCompleted(jobId, now, now)
             // 고객 카드에도 같이 찍는다(홈 [완료] 와 같은 규칙) — 한쪽만 찍히면 정산·미수가 어긋난다.
@@ -105,7 +115,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
      *   번호는 [JobRepository] 가 시공 날짜 순으로 다시 매기므로 빈 번호가 안 남는다.
      */
     fun undoRecordJob(jobId: Long, customerId: Long) = viewModelScope.launch {
-        runCatching {
+        SaveGuard.run("완료 되돌리기", _toast) {
             val now = System.currentTimeMillis()
             container.jobRepository.setWorkCompleted(jobId, null, now)
             if (!container.jobRepository.hasOtherDoneJob(customerId, jobId)) {

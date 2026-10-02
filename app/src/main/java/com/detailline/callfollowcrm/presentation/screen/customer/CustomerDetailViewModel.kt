@@ -206,9 +206,11 @@ class CustomerDetailViewModel(
 
     /** 문자에서 잡힌 주소로 **새 건**을 만든다(날짜 미정). (2026-09-18 프로토 ⑤) */
     fun addJobWithAddress(address: String, onDone: (Long) -> Unit = {}) = viewModelScope.launch {
+        // 🤫 전엔 실패하면 조용히 0 을 돌려줬다 — 화면은 '만들었다' 고 믿고 0번 건으로 넘어갔다. (2026-10-02)
         val id = withContext(NonCancellable) {
-            runCatching { container.jobRepository.addDraftJob(customerId, address) }.getOrDefault(0L)
+            SaveGuard.run("새 현장", _toast) { container.jobRepository.addDraftJob(customerId, address) } ?: 0L
         }
+        if (id <= 0L) return@launch
         onDone(id)
     }
 
@@ -561,7 +563,9 @@ class CustomerDetailViewModel(
             // 대표 **건 전표**에도 같은 처리 — 고객 카드만 찍히면 건 탭의 '완료' 표시가 틀린다.
             //   돈 미러는 mutate 가 맡지만 완료일은 미러 대상이 아니라서 여기서 직접. (2026-09-18)
             if (paid) {
-                runCatching {
+                // 🤫 **여기가 Fable 1순위였다.** 고객 카드엔 '받음'이 찍히는데 이 미러가 조용히
+                //   실패하면 건 전표는 '미수' 로 남아 다음 날 잘못된 미수 알람이 뜬다. (2026-10-02)
+                SaveGuard.run("잔금 받음(건 전표)", _toast) {
                     container.jobRepository.representativeJobId(customerId)?.let { jid ->
                         container.jobRepository.setBalancePaid(jid, at)
                     }
@@ -672,7 +676,8 @@ class CustomerDetailViewModel(
     fun updateScheduledWorkMinutes(minutes: Int?) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkMinutes(customerId, minutes)
-            runCatching { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }   // 일정 탭·달력은 jobs 를 본다 (2026-09-15 사장님)
+            // 일정 탭·달력은 jobs 를 본다 (2026-09-15 사장님). 조용히 실패하면 **달력만 옛 시간**이 된다. (2026-10-02)
+            SaveGuard.run("달력 일정", _toast) { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
         }
         // 방금 만든 일정 카드(날짜만)에 시간 채워넣기 — 날짜→시간 2단계라 시간은 여기서 옴. (2026-06-30 사장님)
         val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
@@ -692,7 +697,8 @@ class CustomerDetailViewModel(
     fun updateScheduledWorkTiming(minutes: Int?, days: Int) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkTiming(customerId, minutes, days)
-            runCatching { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }   // 시공 기간을 고쳐도 달력이 안 바뀌던 것 (2026-09-15 사장님)
+            // 시공 기간을 고쳐도 달력이 안 바뀌던 것 (2026-09-15 사장님) — 실패하면 말한다. (2026-10-02)
+            SaveGuard.run("달력 일정", _toast) { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
         }
         val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
         val date = customer.value?.scheduledWorkDate
@@ -786,7 +792,8 @@ class CustomerDetailViewModel(
                 container.customerRepository.updateScheduledWorkDate(customerId, normalized)
                 // jobs 까지 같이 옮긴다 — 일정 탭·달력의 출처가 jobs 라 이걸 안 하면 화면이 안 바뀐다.
                 //   (2026-09-15 사장님: "일정을 싹 바꿨는데 캘린더가 안 변해")
-                runCatching { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
+                // 🤫 날짜를 바꿨는데 이게 조용히 실패하면 **달력에 옛 날짜가 그대로** 남는다. (2026-10-02)
+                SaveGuard.run("달력 일정", _toast) { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
             }
             markTodayCallsAsHandled()
             // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
