@@ -241,7 +241,7 @@ grep -rnE "1_400_000|0xFF3182F6|\"오늘\"" --include=*.kt .
 find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 
 # ⑥ **시험도 두 벌이 된다** — 폴더가 달라도 같은 이름이면 같은 걸 또 본다
-#   (2026-10-03: `util/JobOrderTest.kt` 를 새로 만들었는데 뿌리에 이미 `JobOrderTest.kt` 가 있었다.
+#   (2026-10-03: util 폴더에 JobOrderTest 를 새로 만들었는데 뿌리에 이미 같은 이름이 있었다.
 #    `util/` 폴더만 봐서 못 찾았다. 네 번째 같은 실수)
 find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 ```
