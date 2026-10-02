@@ -1396,7 +1396,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         withContext(Dispatchers.IO) {
             val digits = phoneNumber.filter { it.isDigit() }
             if (digits.length < 7) return@withContext null
-            val suffix = digits.takeLast(8)
+            val suffix = PhoneKey.of(digits)
 
             val customer = runCatching {
                 container.customerRepository.findByPhone(phoneNumber)
@@ -1490,7 +1490,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private suspend fun buildCardSummaryContext(phoneNumber: String): SummaryContext? {
         val digits = phoneNumber.filter { it.isDigit() }
         if (digits.length < 7) return null
-        val suffix = digits.takeLast(8)
+        val suffix = PhoneKey.of(digits)
 
         val cached = runCatching { container.cachedMessageRepository.load(suffix, limit = 20) }
             .getOrDefault(emptyList())

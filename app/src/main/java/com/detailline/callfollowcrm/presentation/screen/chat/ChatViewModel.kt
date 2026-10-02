@@ -102,7 +102,7 @@ class ChatViewModel(
      *   true 면 AI 답변 추천·고객 정보 카드 등 상담 기능을 전부 끄고 순수 문자 송수신만.
      *   반응형 — 사장님이 ⋮로 상담함/문자함 이동하면 즉시 반영.
      */
-    private val mySuffix = phoneNumber.filter { it.isDigit() }.let { if (it.length >= 8) it.takeLast(8) else it }
+    private val mySuffix = phoneNumber.filter { it.isDigit() }.let { PhoneKey.of(it) }
     val isPlainThread: StateFlow<Boolean> = container.threadBucketRepository.observeBuckets()
         .map { it[mySuffix]?.bucket == com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -833,7 +833,7 @@ class ChatViewModel(
             _messages.value = emptyList()
             return
         }
-        val suffix = digits.takeLast(8)
+        val suffix = PhoneKey.of(digits)
 
         viewModelScope.launch(Dispatchers.IO) {
             // stage 1: 캐시 즉시 표시 (SMS + MMS 모두 포함)
@@ -1015,7 +1015,7 @@ class ChatViewModel(
                 withContext(Dispatchers.IO + NonCancellable) {
                     runCatching {
                         val digits = phoneNumber.filter { it.isDigit() }
-                        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+                        val suffix = PhoneKey.of(digits)
                         if (suffix.length >= 7) container.cachedMessageRepository.persistLocalSent(suffix, optimistic)
                     }
                 }
@@ -1038,7 +1038,7 @@ class ChatViewModel(
             // 5) 2026-05-28: sms_contacts_cache 즉시 upsert → HomeScreen 카드 lastBody/lastSent/hasOwnerReply 즉시 갱신.
             if (ok) {
                 val digits = phoneNumber.filter { it.isDigit() }
-                val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+                val suffix = PhoneKey.of(digits)
                 val nowMs = System.currentTimeMillis()
                 withContext(Dispatchers.IO + NonCancellable) {
                     runCatching {
@@ -1556,7 +1556,7 @@ class ChatViewModel(
         if (runCatching { container.threadBucketRepository.isGeneral(phoneNumber) }.getOrDefault(false)) return@launch
         val digits = phoneNumber.filter { it.isDigit() }
         if (digits.length < 7) return@launch
-        val suffix = digits.takeLast(8)
+        val suffix = PhoneKey.of(digits)
 
         val msgs = runCatching { container.cachedMessageRepository.load(suffix, limit = 20) }
             .getOrDefault(emptyList())

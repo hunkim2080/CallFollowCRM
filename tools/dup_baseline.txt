@@ -1,12 +1,8 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 58곳 / 32줄
-day-start|presentation/component/CustomerStatusTag.kt 1
-day-start|presentation/screen/customers/CustomersScreen.kt 1
-day-start|presentation/screen/report/ReportViewModel.kt 1
+# 총 12곳 / 8줄
 day-start|presentation/screen/stats/StatsViewModel.kt 1
-day-start|util/MessageEntities.kt 1
 dialog-white|presentation/screen/chat/ChatScreen.kt 2
 dialog-white|presentation/screen/customer/CustomerDetailScreen.kt 1
 dialog-white|presentation/screen/expo/ExpoScreen.kt 2
@@ -14,23 +10,3 @@ dialog-white|presentation/screen/followup/FollowUpScreen.kt 2
 dialog-white|presentation/screen/home/HomeScreen.kt 2
 dialog-white|presentation/screen/pricing/PricingItemsScreen.kt 1
 month-start|presentation/screen/stats/StatsViewModel.kt 1
-phone-key|ai/WebFeedSyncManager.kt 1
-phone-key|data/SmsCachePrefetcher.kt 1
-phone-key|data/local/entity/ThreadBucketEntity.kt 1
-phone-key|data/repository/CallRecordRepository.kt 1
-phone-key|data/repository/SmsRepository.kt 2
-phone-key|presentation/screen/chat/ChatViewModel.kt 5
-phone-key|presentation/screen/customer/CustomerDetailScreen.kt 1
-phone-key|presentation/screen/customer/CustomerDetailViewModel.kt 4
-phone-key|presentation/screen/home/HomeViewModel.kt 2
-phone-key|presentation/screen/newleads/NewLeadsViewModel.kt 1
-phone-key|presentation/screen/schedule/ScheduleViewModel.kt 10
-phone-key|presentation/screen/spam/SpamListScreen.kt 1
-phone-key|recording/AdotFolderScanner.kt 2
-phone-key|service/IncomingCallOverlay.kt 2
-phone-key|service/MmsDownloadedReceiver.kt 1
-phone-key|service/NotificationHelper.kt 1
-phone-key|service/SmsReceiver.kt 1
-phone-key|util/CallLogHelper.kt 3
-phone-key|util/PhoneMatch.kt 1
-phone-key|util/SmsSender.kt 1

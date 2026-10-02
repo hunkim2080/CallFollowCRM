@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.util
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
@@ -49,7 +50,7 @@ object CallLogHelper {
                     val num = cursor.getString(0).orEmpty()
                     if (num.isBlank()) continue
                     val digits = num.filter { it.isDigit() }
-                    val key = if (digits.length >= 8) digits.takeLast(8) else digits
+                    val key = PhoneKey.of(digits)
                     if (!seen.add(key)) continue
                     out.add(
                         RecentCall(
@@ -214,7 +215,7 @@ object CallLogHelper {
 
     private fun isSamePhone(a: String, b: String): Boolean = when {
         a.isEmpty() || b.isEmpty() -> false
-        a.length >= 8 && b.length >= 8 -> a.takeLast(8) == b.takeLast(8)
+        a.length >= 8 && b.length >= 8 -> PhoneKey.of(a) == PhoneKey.of(b)
         else -> a == b
     }
 

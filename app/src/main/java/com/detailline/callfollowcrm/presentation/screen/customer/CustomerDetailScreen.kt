@@ -832,7 +832,7 @@ fun CustomerDetailScreen(
                                         .filterNot { e ->
                                             val p = e.split("|")
                                             p.size >= 3 && p[0].toLongOrNull() == c.id &&
-                                                p[1].filter { it.isDigit() }.takeLast(8) == PhoneKey.of(partnerPhone)
+                                                PhoneKey.of(p[1]) == PhoneKey.of(partnerPhone)
                                         }.toSet()
                                     collabRefresh++
                                 }

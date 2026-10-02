@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.data.repository
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import android.content.Context
 import com.detailline.callfollowcrm.data.local.dao.CallRecordDao
 import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
@@ -33,7 +34,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
      */
     private fun dedupKey(phone: String): String {
         val d = normDigits(phone)
-        return if (d.length >= 8) d.takeLast(8) else d
+        return PhoneKey.of(d)
     }
 
     /**

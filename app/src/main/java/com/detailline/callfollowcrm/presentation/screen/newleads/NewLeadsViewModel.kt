@@ -94,7 +94,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     /** 줄을 꾹 눌렀을 때 — 그 번호의 문자 + 통화(+에이닷 요약)를 채팅과 똑같이 합쳐 모달로. 읽기 전용. */
     fun openPeek(lead: NewLeadUi) {
         val digits = lead.phone.filter { it.isDigit() }
-        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+        val suffix = PhoneKey.of(digits)
         _peek.value = PeekState(
             phone = lead.phone, customerId = lead.customerId, displayName = lead.displayName,
             loading = true, items = emptyList(), fallbackLine = lead.summaryLine

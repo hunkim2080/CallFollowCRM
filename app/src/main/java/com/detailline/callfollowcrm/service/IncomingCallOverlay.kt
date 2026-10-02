@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.service
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -176,7 +177,7 @@ object IncomingCallOverlay {
             // 지난 통화 요약 — 카드에서 "지난번에 뭐라 했더라"를 바로 풀어준다. (2026-09-17 사장님)
             val lastSum = runCatching {
                 container.callSummaryRepository
-                    .observeByPhoneSuffix(digits.takeLast(8)).first().firstOrNull()
+                    .observeByPhoneSuffix(PhoneKey.of(digits)).first().firstOrNull()
             }.getOrNull()
             // 전화가 울리는 3초 안에 보는 카드다. 전엔 통화 전문을 통째로 걸어
             //   "고객:/사장님 답:" 이 아홉 줄 깔렸다. (2026-09-23 사장님 사진)
@@ -216,7 +217,7 @@ object IncomingCallOverlay {
             // 🔁 **몇 번째 통화인가** — 계약 전인데 또 거는 사람을 가려내려고. (2026-09-19 사장님)
             //   지금 통화는 아직 기록에 없으니 **지난 기록 + 1** 이 이번 통화 번호다.
             val records = runCatching {
-                container.callRecordRepository.observeByPhoneSuffix(digits.takeLast(8)).first()
+                container.callRecordRepository.observeByPhoneSuffix(PhoneKey.of(digits)).first()
             }.getOrDefault(emptyList())
             val callNo = records.size + 1
             val firstAt = records.mapNotNull { it.startedAt ?: it.endedAt }.minOrNull()

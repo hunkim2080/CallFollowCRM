@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.util
 
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import java.util.Calendar
 
 /**
@@ -122,11 +123,6 @@ object MessageEntities {
     }
 
     private const val DAY_MS = 24L * 60 * 60 * 1000
-    private fun startOfDay(ms: Long): Long {
-        val c = Calendar.getInstance().apply {
-            timeInMillis = ms
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }
-        return c.timeInMillis
-    }
+    // 🕛 오늘 0시 셈은 **DateTimeUtils 한 곳**. (2026-10-03)
+    private fun startOfDay(ms: Long): Long = DateTimeUtils.startOfDay(ms)
 }

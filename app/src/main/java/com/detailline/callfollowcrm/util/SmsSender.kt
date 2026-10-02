@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.util
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import android.Manifest
 import android.app.PendingIntent
 import android.content.ContentValues
@@ -135,7 +136,7 @@ object SmsSender {
     private fun persistToLocalCache(context: Context, phoneNumber: String, body: String) {
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
         val digits = phoneNumber.filter { it.isDigit() }
-        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+        val suffix = PhoneKey.of(digits)
         if (suffix.length < 7) return
         val nowMs = System.currentTimeMillis()
         val msg = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage(

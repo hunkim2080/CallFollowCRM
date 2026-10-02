@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.data
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import com.detailline.callfollowcrm.data.repository.CachedMessageRepository
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -70,7 +71,7 @@ class SmsCachePrefetcher(
     private suspend fun prefetchOne(phoneNumber: String, forceRefresh: Boolean) {
         val digits = phoneNumber.filter { it.isDigit() }
         if (digits.length < 7) return
-        val suffix = digits.takeLast(8)
+        val suffix = PhoneKey.of(digits)
 
         if (!forceRefresh) {
             val last = lastPrefetchedAtMs[suffix] ?: 0L

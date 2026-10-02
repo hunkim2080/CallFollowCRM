@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.ai
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
@@ -153,7 +154,7 @@ class WebFeedSyncManager(
 
         for (c in completed) {
             val digits = c.phoneNumber.filter { it.isDigit() }
-            val suffix = digits.takeLast(8)
+            val suffix = PhoneKey.of(digits)
             val msgs = runCatching { cachedMessageRepository.load(suffix, 500) }.getOrNull().orEmpty()
             val text = msgs
                 .sortedBy { it.dateMs }

@@ -1304,7 +1304,7 @@ object NotificationHelper {
         val digits = phone.filter { it.isDigit() }
         // 숫자 4개 미만(영문 브랜드 발신자 등)이면 뒷8자리가 "" → "".hashCode()==0 로 전부 같은 id 가 되어
         //   서로 다른 발신자 알림이 덮어써졌음 → 발신자 원문 전체로 유니크화. (2026-08-08 stale 감사)
-        val base = if (digits.length >= 4) digits.takeLast(8).hashCode() else phone.trim().hashCode()
+        val base = if (digits.length >= 4) PhoneKey.of(digits).hashCode() else phone.trim().hashCode()
         return famId(FAM_SMS, base)
     }
 

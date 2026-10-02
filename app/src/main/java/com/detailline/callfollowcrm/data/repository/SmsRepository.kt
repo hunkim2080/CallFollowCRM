@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.data.repository
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
@@ -980,7 +981,7 @@ class SmsRepository(
                 val body = c.getString(bodyIdx).orEmpty().trim()
                 if (body.length < 5) continue
                 if (allowed.isNotEmpty() && addrIdx >= 0) {
-                    val suf = c.getString(addrIdx).orEmpty().filter { it.isDigit() }.takeLast(8)
+                    val suf = PhoneKey.of(c.getString(addrIdx).orEmpty())
                     if (suf.length < 7 || suf !in allowed) continue
                 }
                 out += body
@@ -1013,7 +1014,7 @@ class SmsRepository(
                 val body = c.getString(bodyIdx).orEmpty().trim()
                 if (body.length < 5 || body.length > 500) continue
                 if (allowed.isNotEmpty() && addrIdx >= 0) {
-                    val suf = c.getString(addrIdx).orEmpty().filter { it.isDigit() }.takeLast(8)
+                    val suf = PhoneKey.of(c.getString(addrIdx).orEmpty())
                     if (suf.length < 7 || suf !in allowed) continue
                 }
                 out += SentMessage(body = body, dateMs = c.getLong(dateIdx))

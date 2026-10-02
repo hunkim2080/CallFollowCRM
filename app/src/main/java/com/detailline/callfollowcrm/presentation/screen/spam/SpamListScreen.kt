@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.spam
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import android.widget.Toast
@@ -179,7 +180,7 @@ private fun SpamRow(entry: SpamPhoneEntity, onUnmark: () -> Unit) {
     val numberText = when {
         entry.phoneNumber.isNotBlank() -> PhoneNumberFormatter.format(entry.phoneNumber)
         entry.phoneSuffix.length >= 8 ->
-            entry.phoneSuffix.takeLast(8).let { "끝 ${it.substring(0, 4)}-${it.substring(4)}" }
+            PhoneKey.of(entry.phoneSuffix).let { "끝 ${it.substring(0, 4)}-${it.substring(4)}" }
         else -> "끝 ${entry.phoneSuffix}"
     }
     val name = entry.displayName?.takeIf { it.isNotBlank() }

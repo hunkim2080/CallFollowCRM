@@ -196,9 +196,8 @@ internal fun scenarioLabel(scenario: String): String = when (scenario) {
 
 /** 리포트 순수 계산 — Android 비의존, 단위테스트 대상. */
 object ReportCalc {
-    fun todayStart(): Long = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    // 🕛 오늘 0시 셈은 **DateTimeUtils 한 곳**. (DateTimeUtils 는 안드로이드에 안 기댄다 — 단위테스트 그대로)
+    fun todayStart(): Long = DateTimeUtils.startOfDay(System.currentTimeMillis())
 
     /** 미수(현재) 상위 목록 — 경과일 desc, 동률 금액 desc. */
     fun overdueRows(customers: List<CustomerEntity>, todayStart: Long): List<OverdueRow> =

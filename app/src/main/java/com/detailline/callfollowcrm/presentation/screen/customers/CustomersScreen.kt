@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.customers
 
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
@@ -316,11 +317,9 @@ private fun avatarInitial(name: String): String {
     val ch = cleaned.firstOrNull { it.isLetterOrDigit() }
     return ch?.toString() ?: ""
 }
+// 🕛 오늘 0시 셈은 **DateTimeUtils 한 곳**. (2026-10-03)
 private fun startOfToday(): Long {
-    val cal = Calendar.getInstance()
-    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
-    cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-    return cal.timeInMillis
+    return DateTimeUtils.startOfDay(System.currentTimeMillis())
 }
 
 /**

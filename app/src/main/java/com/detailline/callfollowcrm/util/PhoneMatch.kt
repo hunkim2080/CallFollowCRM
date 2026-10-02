@@ -18,7 +18,7 @@ object PhoneMatch {
     /** 비교에 쓸 열쇠 — 보통 번호는 끝 8자리(하이픈·국가번호 차이 흡수), 짧은 번호는 그대로. */
     fun keyOf(phone: String): String {
         val d = phone.filter { it.isDigit() }
-        return if (d.length >= MIN_SUFFIX_LEN) d.takeLast(8) else d
+        return if (d.length >= MIN_SUFFIX_LEN) PhoneKey.of(d) else d
     }
 
     /**

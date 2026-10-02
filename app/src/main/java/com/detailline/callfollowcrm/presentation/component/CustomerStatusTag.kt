@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
@@ -23,12 +24,9 @@ import java.util.Calendar
  *   여러 화면 공용(고객관리·상담함·고객상세)이라 '따라다니는 상태 딱지'가 일관됨. (2026-09-03 사장님)
  */
 
-/** 오늘 0시(ms) — 상태 계산 기준. */
+/** 오늘 0시(ms) — 상태 계산 기준. 셈은 **DateTimeUtils 한 곳**. (2026-10-03) */
 fun startOfTodayMs(): Long {
-    val cal = Calendar.getInstance()
-    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
-    cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-    return cal.timeInMillis
+    return DateTimeUtils.startOfDay(System.currentTimeMillis())
 }
 
 /**

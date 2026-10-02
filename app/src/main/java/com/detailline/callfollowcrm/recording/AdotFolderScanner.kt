@@ -457,7 +457,7 @@ object AdotFolderScanner {
                     val name = rf.name
                     if (!isAudioName(name)) continue
                     val parsed = AdotFilenameParser.parse(name) ?: continue
-                    if (parsed.phoneNumber.takeLast(8) != target) continue
+                    if (PhoneKey.of(parsed.phoneNumber) != target) continue
 
                     val uriStr = rf.uriStr
                     if (container.recordingRepository.existsByUri(uriStr)) continue
@@ -529,7 +529,7 @@ object AdotFolderScanner {
                 if (d < closestDelta) { closestDelta = d; closestAt = it.recordedAt }
             }
             val parsed = AdotFilenameParser.parse(rf.name) ?: continue
-            if (parsed.phoneNumber.takeLast(8) != target) continue
+            if (PhoneKey.of(parsed.phoneNumber) != target) continue
             val delta = kotlin.math.abs(parsed.recordedAt - callAtMs)
             if (delta <= win && delta < bestDelta) {
                 bestUri = rf.uriStr; bestName = rf.name; bestAt = parsed.recordedAt; bestDelta = delta

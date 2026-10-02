@@ -105,6 +105,10 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
 - **bash heredoc 안의 한글**도 cp949 로 망가진다 → 한글이 든 패치 스크립트는 **Write 도구로** 쓴다.
 - **Git Bash `/tmp` ≠ Windows python `/tmp`** — `curl -o /tmp/x` 는 Git Bash 의 /tmp 인데
   `python open('/tmp/x')` 는 `D:\tmp` 를 본다. **조용히 실패**하고 0건으로 보인다 → 절대경로를 쓴다.
+  ⚠️ **백그라운드 감시(Monitor)도 똑같다.** 2026-10-03 에 Play 업로드를 지켜보는 감시가
+  `curl -o /tmp/r.json` + `python open('/tmp/r.json')` 이라 **20분 내내 아무것도 못 읽고**
+  「안 끝났다」로 끝났다 — 실제로는 **진작 성공**해 있었다. 내가 적어둔 함정에 내가 빠졌다.
+  → 스크래치패드 절대경로를 쓴다.
 - 콘솔에 깨져 보여도 **파일 안은 멀쩡할 수 있다** — 판정은 파일을 utf-8 로 다시 읽어서 한다.
 
 ---

@@ -247,7 +247,7 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
 
         // 2) 홈 상담함 캐시 upsert.
         val digits = sender.filter { it.isDigit() }
-        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+        val suffix = PhoneKey.of(digits)
         val newContact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
             address = sender,
             normalizedSuffix = suffix,

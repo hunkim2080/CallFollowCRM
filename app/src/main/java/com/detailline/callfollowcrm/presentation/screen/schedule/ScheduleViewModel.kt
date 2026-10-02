@@ -224,7 +224,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             //      대표번호·ARS 가 줄줄이 올라왔다. (2026-09-26 테스트폰에서 확인)
             //      광고에 답장하는 사람은 없으니 이 한 줄이 곧 광고 거르개다.
             sms.filter { it.hasOwnerReply }.forEach { sc ->
-                val suf = sc.normalizedSuffix.takeLast(8)
+                val suf = PhoneKey.of(sc.normalizedSuffix)
                 if (suf.isBlank() || suf in already || suf in out) return@forEach
                 val cust = nameBySuffix[suf]
                 out[suf] = PickCandidate(
@@ -427,7 +427,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val days = parts.getOrNull(4)?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet().orEmpty()
             val list = map.getOrPut(id) { mutableListOf() }
             val dup = list.any {
-                if (phone.isNotBlank() && it.phone.isNotBlank()) it.phone.takeLast(8) == phone.takeLast(8)
+                if (phone.isNotBlank() && it.phone.isNotBlank()) PhoneKey.of(it.phone) == PhoneKey.of(phone)
                 else it.name == name
             }
             // 구버전 기록(shareId 없음)=기존 표시 유지(accepted=true, 회귀 방지). 그 외엔 pending 인 것만 미수락. (2026-07-09)
@@ -574,13 +574,13 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         if (partner.length < 9) { _toast.value = "협업 사장님 번호를 확인해주세요"; return }
         // 중복 요청 가드 — 이미 이 현장에 이 사장님께 요청했으면 막음(같은 사람 계속 신청·수락되던 버그).
         val already = _collabAssignByCustomer.value[customer.id].orEmpty()
-            .any { it.phone.isNotBlank() && it.phone.takeLast(8) == partner.takeLast(8) }
+            .any { it.phone.isNotBlank() && PhoneKey.of(it.phone) == PhoneKey.of(partner) }
         if (already && !force) { _toast.value = "이미 이 현장에 요청한 사장님이에요"; return }
         // 시트에서 주소를 받았으면 그걸로(고객에도 저장), 아니면 고객 주소 → 제목·addr 둘 다 주소 기반. (2026-06-20 사장님)
         val effectiveAddress = addressOverride?.trim()?.takeIf { it.isNotBlank() } ?: customer.address
         val title = collabTitleOf(effectiveAddress, customer.name)
         val partnerName = collabPartners.value
-            .firstOrNull { PhoneKey.of(it.phone) == partner.takeLast(8) }
+            .firstOrNull { PhoneKey.of(it.phone) == PhoneKey.of(partner) }
             ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(effectiveAddress).takeIf { it.isNotBlank() }
         // 출근시간 선택 시: 일정 날짜에 그 정시 박아 scheduled_at_ms + time_label 도 함께.
@@ -632,14 +632,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val shareId = container.preferences.collabAssignments.firstNotNullOfOrNull { e ->
             val p = e.split('|')
             if (p.getOrNull(0)?.toLongOrNull() == customerId &&
-                (p.getOrNull(1)?.filter { it.isDigit() }?.takeLast(8) ?: "") == ph.takeLast(8))
+                PhoneKey.of(p.getOrNull(1)) == PhoneKey.of(ph))
                 p.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } else null
         }
         container.preferences.collabAssignments = container.preferences.collabAssignments
             .filterNot { e ->
                 val p = e.split('|')
                 p.getOrNull(0)?.toLongOrNull() == customerId &&
-                    (p.getOrNull(1)?.filter { it.isDigit() }?.takeLast(8) ?: "") == ph.takeLast(8)
+                    PhoneKey.of(p.getOrNull(1)) == PhoneKey.of(ph)
             }.toSet()
         loadCollabAssignments()
         // 서버에도 — 수락 전이면 cancel(조용), 수락했으면(cancel 실패) end(B 에게 "해제" 알림). best-effort.

@@ -605,7 +605,7 @@ class CustomerDetailViewModel(
      *   phoneSuffix = ChatViewModel 매칭과 동일(끝 8자리). 고객 없으면(suffix < 7) 조용히 skip.
      */
     private fun recordTimelineEvent(type: String, oldValue: String?, newValue: String?, reason: String? = null) {
-        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8) ?: return
+        val suffix = PhoneKey.of(customer.value?.phoneNumber) ?: return
         if (suffix.length < 7) return
         viewModelScope.launch {
             withContext(NonCancellable) {
@@ -627,7 +627,7 @@ class CustomerDetailViewModel(
 
     /** 특정 타입 타임라인 카드 삭제 — 잔금 '받음 처리' 취소 시 그 카드 제거(잔상 방지). (2026-08-28 사장님) */
     private fun deleteTimelineEventsOfType(type: String) {
-        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8) ?: return
+        val suffix = PhoneKey.of(customer.value?.phoneNumber) ?: return
         if (suffix.length < 7) return
         viewModelScope.launch {
             withContext(NonCancellable) {
@@ -682,7 +682,7 @@ class CustomerDetailViewModel(
             SaveGuard.run("달력 일정", _toast) { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
         }
         // 방금 만든 일정 카드(날짜만)에 시간 채워넣기 — 날짜→시간 2단계라 시간은 여기서 옴. (2026-06-30 사장님)
-        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
+        val suffix = PhoneKey.of(customer.value?.phoneNumber)
         val date = customer.value?.scheduledWorkDate
         if (suffix != null && suffix.length >= 7 && date != null) {
             val full = scheduleLabel(date, minutes)
@@ -702,7 +702,7 @@ class CustomerDetailViewModel(
             // 시공 기간을 고쳐도 달력이 안 바뀌던 것 (2026-09-15 사장님) — 실패하면 말한다. (2026-10-02)
             SaveGuard.run("달력 일정", _toast) { container.jobRepository.syncRepresentativeFromCustomer(customerId, System.currentTimeMillis()) }
         }
-        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
+        val suffix = PhoneKey.of(customer.value?.phoneNumber)
         val date = customer.value?.scheduledWorkDate
         if (suffix != null && suffix.length >= 7 && date != null) {
             val full = scheduleLabel(date, minutes)

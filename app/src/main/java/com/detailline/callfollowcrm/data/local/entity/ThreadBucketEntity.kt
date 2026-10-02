@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.data.local.entity
 
+import com.detailline.callfollowcrm.util.PhoneKey
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -17,7 +18,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "thread_buckets")
 data class ThreadBucketEntity(
-    @PrimaryKey val suffix: String,          // 끝 8자리 (phoneSuffix 규칙과 동일: digits.takeLast(8), 8미만이면 전체)
+    @PrimaryKey val suffix: String,          // 끝 8자리 (phoneSuffix 규칙과 동일: PhoneKey.of(digits), 8미만이면 전체)
     val bucket: String,                      // "CONSULT" | "GENERAL"
     val source: String,                      // "LOCAL" | "HAIKU" | "OWNER"
     val reason: String? = null,              // "대표번호(1522)", "광고", "사장님 이동" — 복구 UI 문구·디버그용
