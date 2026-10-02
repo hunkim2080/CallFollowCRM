@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.detailline.callfollowcrm.presentation.theme.AppShape
-import com.detailline.callfollowcrm.presentation.util.navBarBottomDp
 import com.detailline.callfollowcrm.presentation.theme.AppType
 
 /**
@@ -221,11 +220,14 @@ private fun ViewerPage(
                 //   ① 34dp 로 박아뒀더니 S23U 에서 **버튼이 통째로 가려** 있었다 → 기능이 없는 줄 아셨다.
                 //   ② navBarBottomDp() + 20dp 로 고쳤더니 이번엔 **겹쳐 보였다**
                 //      (사장님 "겹쳐보여 아래 봐봐" — 알약 아래 끝 y2230 vs 내비바 y2190, 40px 겹침).
-                //   🔑 이 창은 **Dialog(별도 창)** 라 폰이 알려주는 내비바 높이를 **못 믿는다** —
-                //      0 을 주거나 실제보다 작게 준다. 그래서 **못 믿는 값에 기대지 않는다**:
-                //      어떤 폰이든 내비바는 48dp 를 안 넘으니, **48dp 를 바닥으로 깔고** 숨 쉴 틈을 더한다.
+                //   ③ `maxOf(navBarBottomDp(), 48.dp) + 24.dp` 로 고쳤는데도 **안 움직였다**
+                //      (2026-10-02 실측: 알약 위 테두리 y2094 — 고치기 전과 같은 자리).
+                //      이 창에선 그 값이 왜 안 먹는지 아직 모른다.
+                //   🔑 **그래서 폰에 아무것도 안 묻는다.** 숫자를 박는다 —
+                //      내비바는 어떤 폰도 48dp 를 안 넘으니 96dp 면 **두 배**로 안전하다.
+                //      사진 위 빈 검정 자리라 조금 높이 떠도 손해가 없다. 안 보이는 것보다 낫다.
                 modifier = Modifier.align(Alignment.BottomCenter)
-                    .padding(bottom = maxOf(navBarBottomDp(), 48.dp) + 24.dp),
+                    .padding(bottom = 96.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // 남의 사진은 돌려도 안 남는다 — **돌리고 나서** 조용히 알려준다.
