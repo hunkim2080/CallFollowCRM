@@ -540,7 +540,8 @@ object DataBackup {
         return sb.toString().toByteArray(Charsets.UTF_8)
     }
 
-    private fun csv(s: String): String = "\"" + s.replace("\"", "\"\"") + "\""
+    /** CSV 한 칸 — 따옴표는 두 번 적어 감싼다. 시험이 보도록 열어둔다. (2026-10-03) */
+    internal fun csv(s: String): String = "\"" + s.replace("\"", "\"\"") + "\""
 
     // ─────────────────────────── 설정칸(SharedPreferences) 백업/복원 ───────────────────────────
     // 협업 연결(collab_assignments)·스팸목록·자동문자 문구·업체정보·설정 토글은 DB 가 아니라 이 설정칸에 산다.
@@ -548,7 +549,12 @@ object DataBackup {
     //   ⚠️ 기기/인증/권한 종속 키(token·fcm·폴더 URI)는 제외 — 새 기기서 재발급·재선택 대상.
     private const val APP_PREFS = "call_follow_crm"
 
-    private fun skipPrefKey(k: String): Boolean {
+    /**
+     * 되돌리면 안 되는 설정칸인가. **시험이 보도록 열어둔다.** (2026-10-03)
+     *   여기서 틀리면 **새 폰에서 통화요약이 영영 안 쌓이거나**
+     *   캘린더가 거짓말로 「연결됨」을 표시한다 — 둘 다 실제로 난 사고다.
+     */
+    internal fun skipPrefKey(k: String): Boolean {
         val lk = k.lowercase(Locale.ROOT)
         // 🔴 '이 폰에서만 뜻이 있는' 설정은 되돌리면 안 된다. (2026-09-14 사장님)
         //   구글 캘린더 연결은 **폰+구글계정+앱서명**에 묶인 허가라 백업으로 못 옮긴다.
