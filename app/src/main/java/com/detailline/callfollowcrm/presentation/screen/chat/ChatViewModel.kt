@@ -1774,6 +1774,9 @@ class ChatViewModel(
      * 견적 작성/공유 시점 기록 (2026-06-01) — 견적 회신 리마인드의 기준 시각.
      *   Customer 보장 후 MessageHistory 에 ESTIMATE_SENT 마커. 발송 여부와 무관(준비=강한 의도).
      */
+    // 🤫 **조용해도 되는 이유**: 이건 사장님이 적은 게 아니라 **앱이 남기는 이력 표시**다.
+    //   실패해도 문자 발송·견적 자체엔 영향이 없고, 사장님이 다시 할 일도 없다.
+    //   (2026-10-02 조용한 저장 13곳을 하나씩 본 결과 — 그대로 둠)
     fun recordEstimateSent(body: String) = viewModelScope.launch {
         val cid = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
@@ -1857,6 +1860,8 @@ class ChatViewModel(
         onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } to it.reused })
     }
 
+    // 🤫 **조용해도 되는 이유**: 발행 '이력' 스냅샷이다. 실패해도 **보낸 견적서는 그대로**고,
+    //   다시 열람만 안 될 뿐이라 사장님이 손쓸 게 없다. (2026-10-02 하나씩 본 결과 — 그대로 둠)
     /** 발행 이력 — 견적서(직인 이미지) 보낼 때 스냅샷 저장. QuoteDocScreen 재열람용 docJson 포함. (2026-07-07 사장님) */
     fun recordIssuedQuote(data: QuoteDocData) = viewModelScope.launch {
         recordIssued(
@@ -1928,6 +1933,8 @@ class ChatViewModel(
      *   못 찾으면 null — 실패가 아니라 "지도가 모른다"일 뿐이다. 문자에 적힌 그대로 등록하면 된다.
      *   등록 확인창이 열릴 때 1회만 부른다(사장님이 탭했을 때만 = 비용·트래픽 최소).
      */
+    // 🤫 **조용해도 되는 이유**: 주소를 **찾아보는**(읽기) 일이다. 못 찾으면 화면이 그대로여서
+    //   사장님이 직접 적으면 된다 — 저장이 사라지는 게 아니다. (2026-10-02 하나씩 본 결과)
     suspend fun lookupAddress(
         detected: String, contextBody: String?
     ): com.detailline.callfollowcrm.ai.AddressResolveRepository.Resolved? {

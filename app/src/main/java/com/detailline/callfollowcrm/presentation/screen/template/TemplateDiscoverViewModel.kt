@@ -45,6 +45,8 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
         }
     }
 
+    // 🤫 **조용해도 되는 이유**: 문구는 **먼저 저장되고**(즉시·오프라인) 그 뒤에 AI 가 제목을
+    //   다듬는다. 덮인 건 **제목 다듬기**뿐 — 실패하면 앱이 지은 제목이 그대로 남는다. (2026-10-02)
     fun save(key: Long) {
         val row = _ui.value.rows.firstOrNull { it.key == key } ?: return
         if (row.saved) return

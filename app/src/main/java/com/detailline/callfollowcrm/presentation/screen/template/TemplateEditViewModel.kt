@@ -69,6 +69,8 @@ class TemplateEditViewModel(
      *     권한이 풀려 사진이 안 딸려오던 문제. 이제 **앱 내부에 복사**해 몇 주 뒤에도 확실히 읽히게 한다.
      *   FileProvider(${applicationId}.fileprovider) URI 로 보관 → 발송(SmsSender.decodeMmsBitmap)·미리보기 모두 앱이 읽음.
      */
+    // 🤫 **조용해도 되는 이유**: 사진 복사가 실패하면 **아래 목록에 썸네일이 안 생긴다** —
+    //   사장님이 화면에서 바로 본다. 말로 또 알릴 필요가 없다. (2026-10-02 하나씩 본 결과)
     fun addAttachment(context: Context, uri: Uri) {
         val appCtx = context.applicationContext
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -88,6 +90,8 @@ class TemplateEditViewModel(
         runCatching { com.detailline.callfollowcrm.util.TemplatePhotoStore.fileFor(container.appContext, uri)?.delete() }
     }
 
+    // 🤫 **조용해도 되는 이유**: 목록에서 빼는 일(`remove`)은 덮여 있지 않다 — 실패하면 드러난다.
+    //   덮인 건 **남은 파일 지우기·권한 해제**뿐이고, 그건 지워도 되는 것이다. (2026-10-02)
     fun removeSavedAttachment(context: Context, entity: TemplateAttachmentEntity) {
         viewModelScope.launch {
             container.templateAttachmentRepository.remove(entity.id)
@@ -101,6 +105,8 @@ class TemplateEditViewModel(
         }
     }
 
+    // 🤫 **조용해도 되는 이유**: 문구 저장 자체(`insert`/`update`)는 덮여 있지 않다.
+    //   덮인 건 **고른 사진의 파일 이름을 읽는 것**뿐이고, 못 읽으면 기본 이름을 쓴다. (2026-10-02)
     fun save(onDone: () -> Unit) {
         val s = _state.value
         if (s.title.isBlank() || s.body.isBlank()) return

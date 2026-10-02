@@ -245,6 +245,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      * **부르면 분류가 저절로 쌓인다.** 다음부터는 맨 위에 뜬다.
      * 카테고리가 아직 없으면 여기서 만든다(미리 만들어둘 필요 없게).
      */
+    // 🤫 **조용해도 되는 이유**: 수첩에 넣는 일(`notebookRepository.add`)은 덮여 있지 않다.
+    //   덮인 건 **「협업 사장」 분류를 자동으로 붙이는 곁가지**뿐 — 안 붙어도 일당은 들어간다. (2026-10-02)
     fun addPartnerFromPick(p: PickCandidate) {
         viewModelScope.launch {
             container.notebookRepository.add(

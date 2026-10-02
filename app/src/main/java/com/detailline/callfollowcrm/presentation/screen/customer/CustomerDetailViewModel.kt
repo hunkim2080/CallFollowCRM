@@ -477,13 +477,15 @@ class CustomerDetailViewModel(
     fun addCategoryAndAssign(name: String, emoji: String? = null) = viewModelScope.launch {
         if (name.isBlank()) return@launch
         withContext(NonCancellable) {
-            val entity = runCatching {
+            // 🤫 **사장님이 직접 적어 만드는 분류**다. 전엔 실패하면 조용히 돌아가서
+            //   창은 닫히는데 **분류가 안 생겼다** — 사장님은 생긴 줄 안다. (2026-10-02)
+            val entity = SaveGuard.run("분류 만들기", _toast) {
                 // 이모지는 만들 때 고른 것(없으면 이름 보고 앱이 붙인 것). (2026-09-19 사장님)
                 container.categoryRepository.upsert(
                     name.trim(),
                     emoji ?: com.detailline.callfollowcrm.util.CategoryEmoji.forName(name)
                 )
-            }.getOrNull() ?: return@withContext
+            } ?: return@withContext
             container.categoryRepository.assignCustomer(customerId, entity.id)
             markTodayCallsAsHandled()
         }
@@ -872,6 +874,8 @@ class CustomerDetailViewModel(
      *   사장님이 "📍 현장 주소" 카드 탭 → AddressEditDialog → 저장.
      *   null/빈 문자열 = 미등록 (자동 추출이 fallback). repository 에서 trim 처리.
      */
+    // 🤫 **조용해도 되는 이유**: 내 폰의 주소 저장(`updateAddress`)은 덮여 있지 않다.
+    //   덮인 건 **협업 상대에게 알리는 것**뿐이고, 서버가 아직 없어도 **내 주소는 이미 바뀌었다**. (2026-10-02)
     fun updateManualAddress(address: String?) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateAddress(customerId, address)

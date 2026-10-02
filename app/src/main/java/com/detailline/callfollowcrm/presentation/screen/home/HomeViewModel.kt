@@ -1390,6 +1390,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 현재는 좌표 없이 destinationName 만 반환 → NavApp 의 search 모드.
      * §13 (서버 아파트 주소 resolve) 끝나면 ResolvedDestination(name, lat?, lng?) 으로 확장 예정.
      */
+    // 🤫 **조용해도 되는 이유**: 번호로 주소를 **찾아보는**(읽기) 일. 못 찾으면 빈칸이고
+    //   사장님이 직접 적을 수 있다. (2026-10-02 하나씩 본 결과)
     suspend fun resolveAddressForPhone(phoneNumber: String): String? =
         withContext(Dispatchers.IO) {
             val digits = phoneNumber.filter { it.isDigit() }
@@ -1424,9 +1426,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun addCategory(name: String, emoji: String?) {
         if (name.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
-            val entity = runCatching {
+            // 🤫 사장님이 적어 만드는 분류 — 실패하면 **말한다.** 전엔 조용히 아무 일도 안 일어났다. (2026-10-02)
+            val entity = SaveGuard.run("분류 만들기", _toast) {
                 container.categoryRepository.upsert(name, emoji)
-            }.getOrNull() ?: return@launch
+            } ?: return@launch
             filter.value = HomeFilter.Category(entity.id, entity.name, entity.emoji)
         }
     }
@@ -1588,6 +1591,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun shouldShowUpdateSheet(latestCode: Int): Boolean =
         latestCode > 0 && container.preferences.updateSheetShownForCode != latestCode
     /** 시트를 띄웠음(또는 사용자가 닫음) 기록 — 같은 버전엔 다시 안 뜸. */
+    // 🤫 **조용해도 되는 이유**: 「업데이트 안내창을 봤다」는 **화면 상태 표시**뿐이다.
+    //   실패하면 다음에 한 번 더 뜨는 게 전부. (2026-10-02 하나씩 본 결과)
     fun markUpdateSheetShown(latestCode: Int) {
         if (latestCode > 0) container.preferences.updateSheetShownForCode = latestCode
     }
