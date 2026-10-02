@@ -143,7 +143,7 @@ class DocWebViewActivity : ComponentActivity() {
                 ) {
                     // 메인 프레임 로드 실패(서버 다운/오프라인)만 안내로 대체. 하위 리소스 실패는 무시.
                     if (request?.isForMainFrame == true) {
-                        view?.loadData(ERROR_HTML, "text/html; charset=utf-8", "utf-8")
+                        view?.showError()
                     }
                 }
             }
@@ -152,7 +152,7 @@ class DocWebViewActivity : ComponentActivity() {
             )
         }
         web = webView
-        if (url.isBlank()) webView.loadData(ERROR_HTML, "text/html; charset=utf-8", "utf-8")
+        if (url.isBlank()) webView.showError()
         else webView.loadUrl(url)
 
         root.addView(bar)
@@ -166,6 +166,18 @@ class DocWebViewActivity : ComponentActivity() {
                 if (w != null && w.canGoBack()) w.goBack() else finish()
             }
         })
+    }
+
+    /**
+     * 🌐 **못 불러왔을 때 안내를 띄운다.** (2026-10-03 폰에서 발견 — 전엔 **완전 백지**였다)
+     *
+     *   전엔 `loadData(ERROR_HTML, "text/html; charset=utf-8", "utf-8")` 였다.
+     *   `loadData` 는 **mimeType 에 charset 을 붙이면 안 그려진다** — 알려진 함정이고,
+     *   그래서 인터넷이 없을 때 제목줄만 있는 **백지**가 떴다. 지하 현장에서 딱 이 모양이다.
+     *   `loadDataWithBaseURL(null, …)` 은 한글도 그대로 그린다.
+     */
+    private fun WebView.showError() {
+        loadDataWithBaseURL(null, ERROR_HTML, "text/html", "utf-8", null)
     }
 
     private fun toast(msg: String) {
