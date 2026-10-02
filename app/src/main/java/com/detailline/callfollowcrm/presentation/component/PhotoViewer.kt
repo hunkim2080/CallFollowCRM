@@ -217,12 +217,15 @@ private fun ViewerPage(
         //   확대 중엔 숨긴다: 들여다보는 중엔 손가락이 아래쪽에 있어 잘못 눌린다.
         if (!isZoomed) {
             androidx.compose.foundation.layout.Column(
-                // 🖐️ **시스템 버튼(||| ○ ‹) 위로 띄운다.** (2026-10-02 사장님 "사진 회전은 어느곳에서해야해?")
-                //   34dp 로 박아뒀더니 S23U(내비바 45dp)에서 **버튼이 통째로 가려** 있었다.
-                //   사장님은 기능이 없는 줄 아셨다. 이 창은 Dialog(별도 창)라 내비바 인셋이
-                //   0 으로 오는 기기가 있어, 그걸 대신 재주는 [navBarBottomDp] 를 쓴다.
+                // 🖐️ **시스템 버튼(||| ○ ‹) 위로 띄운다.** (2026-10-02 사장님)
+                //   ① 34dp 로 박아뒀더니 S23U 에서 **버튼이 통째로 가려** 있었다 → 기능이 없는 줄 아셨다.
+                //   ② navBarBottomDp() + 20dp 로 고쳤더니 이번엔 **겹쳐 보였다**
+                //      (사장님 "겹쳐보여 아래 봐봐" — 알약 아래 끝 y2230 vs 내비바 y2190, 40px 겹침).
+                //   🔑 이 창은 **Dialog(별도 창)** 라 폰이 알려주는 내비바 높이를 **못 믿는다** —
+                //      0 을 주거나 실제보다 작게 준다. 그래서 **못 믿는 값에 기대지 않는다**:
+                //      어떤 폰이든 내비바는 48dp 를 안 넘으니, **48dp 를 바닥으로 깔고** 숨 쉴 틈을 더한다.
                 modifier = Modifier.align(Alignment.BottomCenter)
-                    .padding(bottom = navBarBottomDp() + 20.dp),
+                    .padding(bottom = maxOf(navBarBottomDp(), 48.dp) + 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // 남의 사진은 돌려도 안 남는다 — **돌리고 나서** 조용히 알려준다.
