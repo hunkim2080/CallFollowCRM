@@ -30,6 +30,16 @@ adb -s <일련번호> shell "dumpsys package com.detailline.callfollowcrm | grep
 
 **화면을 누를 땐 좌표 금지 — 글자로 찾는다.** `uiautomator dump` → 글자로 찾아 그 가운데를 누른다.
 ⚠️ 버튼 글자가 **본문 안에도** 들어 있으면(「'해제'하면…」) 본문을 누른다 → `--exact` 로 찾는다.
+⚠️ **글자 없는 아이콘 버튼**은 `text` 가 비어 있고 **`content-desc`** 에만 이름이 있다.
+   (2026-10-02: 고객 상세로 들어가는 길이 챗 오른쪽 위 **「고객 카드」 아이콘**인데
+   글자가 없어 못 찾고 한참 헤맸다 → `tap.py` 가 이제 `content-desc` 도 같이 본다)
+
+**화면으로 가는 길을 모르면** — 아이콘 이름부터 뒤진다:
+```bash
+adb -s <일련번호> exec-out uiautomator dump /sdcard/u.xml && adb -s <일련번호> pull /sdcard/u.xml
+grep -o 'content-desc="[^"]*"' u.xml | sort -u
+```
+알아둘 길: **고객 상세 = 대화(챗) → 오른쪽 위 「고객 카드」** · 대화 = 상담함·일정에서 손님 줄 탭
 
 ---
 
