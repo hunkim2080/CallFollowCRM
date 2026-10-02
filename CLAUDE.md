@@ -289,9 +289,31 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
    ),
    ```
    그리고 `gradlew dupBaselineUpdate` (**줄였을 때만**).
-5. **§12 표에 한 줄 적는다.** → 안 적으면 **빌드가 실패한다**(12-G).
+5. **§12 표에 한 줄 적는다.** → 안 적으면 **빌드가 실패한다**(12-H).
 
-### 12-F. 🧾 **끝낸 뒤 다시 세고, 센 결과를 보고한다**
+### 12-F. 🍃 **큰 화면을 안전하게 줄이는 법 — 잎부터 뗀다** (2026-10-02)
+
+2,000줄 넘는 화면이 8개다. **통째로 쪼개는 건 지금 더 위험하다**(Fable ✋ — 상태 100개·
+다이얼로그 48개가 얽혀 있고 30일에 80번 바뀐다). 그래서 **잎부터** 뗀다.
+
+**잎(leaf)** = 그 파일의 **다른 private 이름(함수·값·타입)을 하나도 안 쓰는** 최상위 private 선언.
+
+1. 잎을 고른다. **같은 패키지**의 새 파일로 **그대로 옮긴다.**
+2. `private` → `internal` **한 글자만** 바꾼다. 같은 패키지에선 `internal` 이 그냥 보이니
+   **부르는 곳은 하나도 안 바뀐다.** (= 사실상 순수 이동, 되돌리기도 쉽다)
+3. **같은 패키지 다른 파일과 이름이 겹치는지 먼저 확인**한다. 겹치면 올릴 수 없다.
+4. 새 파일은 **뜻이 통하는 묶음**으로 묶고 **1,200줄을 넘기지 않는다**(`size_guard` 와 같은 선).
+   줄 수로만 자르면 `...Parts2` 같은 이름이 나오고, 그건 `rules_guard` ④ 가 잡는다.
+5. **순서가 있다** — 작은 도우미를 먼저 빼면, 그걸 쓰던 카드가 **그다음에 잎이 된다.** 한 바퀴 더 돌린다.
+6. `assembleRelease` → 컴파일러가 최종 심판. 그다음 **폰에서 그 화면을 눈으로** 본다.
+7. `style_guard` 가 새 파일을 「새 화면」으로 잡는다 — **총합이 안 늘었는지 확인하고**
+   (늘지 않았다면 자리만 옮긴 것) `styleBaselineUpdate` · `sizeBaselineUpdate`.
+
+**실제(2026-10-02)**: `ChatScreen.kt` **6,893 → 5,519줄**. 잎 40개를 뜻대로 5파일에 나눠 옮김 —
+`ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts`.
+컴파일 0에러 · 테스트 779건 통과 · 폰에서 대화 화면(접수서·발행·통화 카드·검색줄) 확인 · 크래시 0.
+
+### 12-G. 🧾 **끝낸 뒤 다시 세고, 센 결과를 보고한다**
 
 사장님 자료(2026-10-02): *"작업 결과물 제출 전, 방금 만든 것이 기존 코드와 **의미적으로 중복되지 않는지 한 번 더 확인**하고 결과를 요약 보고한다."*
 
@@ -301,7 +323,7 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 - **숫자 없이 "고쳤습니다" 라고 하면 안 고친 것과 구별이 안 된다** — 세 번 다 그렇게 보고했다.
 - `gradlew assembleRelease` 를 돌려 **`BUILD=0` 과 `[dup]`·`[rules]` 줄을 눈으로 보고** 보고한다.
 
-### 12-G. 🤖 이제 **빌드가 대신 센다** (사람 기억에 안 맡긴다)
+### 12-H. 🤖 이제 **빌드가 대신 센다** (사람 기억에 안 맡긴다)
 
 > 가드 **7개**가 `assembleRelease`·`bundleRelease` 에 걸려 있다 —
 > `compose` · `brand` · `dup` · `style` · `rules` · `save` · `size`.
@@ -329,7 +351,7 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 - ⚠️ 가드는 **이미 아는 것만** 막는다. 그래서 12-B(세기)를 건너뛰면 소용없다.
 - ⚠️ 뒷문(`-PskipDupCheck` / `-PskipRulesCheck` 등)은 **사장님이 쓰라고 할 때만.**
 
-### 12-H. ✅ 두 벌이 **맞는** 경우 — 가르는 잣대는 하나
+### 12-I. ✅ 두 벌이 **맞는** 경우 — 가르는 잣대는 하나
 
 > **"저쪽이 바뀌면 이쪽도 반드시 같이 바뀌어야 하나?"**
 
@@ -340,7 +362,7 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 
 겉모양이 같은지로 보지 말고 **같이 고쳐야 하는지**로 본다.
 
-### 12-I. 🧪 실제 사례 — 키보드 여백 (세 번 터진 것)
+### 12-J. 🧪 실제 사례 — 키보드 여백 (세 번 터진 것)
 
 ```
 ❌ 터지던 모양 — 같은 셈이 세 가지 글자로
@@ -383,8 +405,9 @@ find . -iname "*keyboard*" -o -iname "*inset*" -o -iname "*bar*"
 | 끌어서 순서 바꾸기 | `util/DragReorder.kt` | 화면마다 복사 |
 | 완료 찍기 | `data/repository/WorkCompletionManager.kt` | 화면마다 따로 |
 | 로그에 번호 가리기 | `util/LogRedact.kt` | 번호를 그대로 로그 |
+| 대화 화면 조각 | `presentation/screen/chat/` 의 `ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts` | ChatScreen.kt 안에 또 쌓기 |
 
-> **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-E).
+> **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).
 > 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**
 
 ## 13. 🩺 AI 가 자주 치는 사고 — **우리 코드에서 센 것만** (2026-10-02 사장님 지시)
