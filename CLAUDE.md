@@ -3,6 +3,11 @@
 이 repo 는 RING-GO 앱(`app/`) + 서버(`server/`) 가 같이 있는 monorepo 입니다.
 어떤 종류의 Claude (Code / Cowork) 든 이 repo 에서 일할 때 반드시 이 룰을 따른다.
 
+> 📍 **이 파일 다음으로 `docs/GOTCHAS.md` 를 읽는다.**
+> 여기 적힌 건 「어떻게 일하나(룰)」이고, 거기 적힌 건 **「여기서 실제로 터진 자리」**다
+> (업무폰은 읽기 전용 · 빌드는 PowerShell · 라이브 서버는 git 아님 · 한글 cp949 착시).
+> 그 지식이 2026-10-02 까지 **데스크탑 한 대의 개인 메모에만** 있어서 다른 머신 Claude 가 같은 사고를 쳤다.
+
 ---
 
 ## 0. 최우선 룰 — 프로토타입 = 실전 스펙 (그대로 옮긴다, 멋대로 X)
@@ -12,7 +17,10 @@
 - **모든 글/카피** — 제목·버튼·안내문·placeholder·빈 화면 문구·토스트·에러까지 **글자 그대로(verbatim)**.
 - **모든 양식/폼** — 폼 필드 종류·순서·문구 그대로. 프로토에 없는 입력칸 추가 금지.
 - **모든 배치/레이아웃** — 화면 안 **섹션 순서·위치, 배너·카드·칩·버튼의 위치와 순서**까지 그대로. 빼거나 더하거나 자리 바꾸지 않는다.
-- **모든 디자인 값** — 색(hex)·간격(px→dp)·둥글기·그림자·폰트 굵기·자간 그대로.
+- **모든 디자인 값** — 색·간격(px→dp)·둥글기·그림자·폰트 굵기·자간 그대로.
+  ⚠️ 단 **색은 hex 를 그대로 박지 않는다** — `Color(0xFF…)` 는 새 파일에서 `style_guard` 가 **빌드로 막는다**.
+  프로토의 hex 에 해당하는 **`AppTheme.colors.*` 토큰**을 쓴다(없으면 토큰을 먼저 만든다).
+  "그대로"가 뜻하는 건 **눈에 보이는 결과가 같은 것**이고, 적는 방법은 토큰이다.
 - **모든 흐름** — 화면 전환·단계 순서 그대로.
 
 - ❌ **금지:** 프로토를 "추상적 설명/요약"만 보고 Claude 판단으로 내용·위치·구성을 새로 짜거나 바꾸거나 "개선"하기.
@@ -35,7 +43,16 @@
 | `docs/SYNC.md` | 양쪽이 공유 (작업 시작/종료 시 필수) | (git 으로 sync) |
 | `pricing.md`, `*.md` 사양서 | 사장님이 정함, 양쪽은 참고만 | (git 으로 sync) |
 
-**영역 침범 금지** — 안드로이드 Claude 는 `server/` 안 만짐. 서버 Claude 는 `app/` 안 만짐.
+**기본은 영역 침범 금지** — 안드로이드 Claude 는 `server/` 안 만짐. 서버 Claude 는 `app/` 안 만짐.
+
+### ⚠️ 예외 — 서버 담당이 없을 때 (2026-10-02 현실 반영)
+맥미니 Cowork 의 마지막 작업은 **2026-09-24** 이고, 그 뒤 서버 수정은 **전부 안드로이드 쪽이 했다(43건)**.
+그래서 「서버 안 만짐」만 적어두면 **§13②(막는 건 서버가 최종 결정권자)를 지킬 수가 없다.**
+
+- 서버 담당이 응답하지 않거나 2회 이상 실패하면 **안드로이드 Claude 가 직접 고친다.**
+- 단 **반드시 `docs/GOTCHAS.md` §3 의 절차**로 (라이브는 git 이 아니다 — 통짜 배포 금물).
+- 고친 사람이 **`smoke.sh` 10개 통과까지 본인이 확인**하고, 같은 변경을 **repo 쪽에도 push** 한다.
+- `docs/SYNC.md` 블록 머리에 `android (+ server)` 로 적어 **누가 만졌는지 남긴다.**
 
 ---
 
@@ -43,7 +60,8 @@
 
 ### 작업 시작 전 (예외 없음)
 ```bash
-cd ~/paperclip-company/workspaces/CallFollowCRM
+# 맥미니:  cd ~/paperclip-company/workspaces/CallFollowCRM
+# 데스크탑: cd /d/dev/CallFollowCRM        ← 안드로이드 담당은 여기다
 git pull --rebase
 tail -100 docs/SYNC.md   # 다른 쪽이 뭐 했나 확인
 ```
@@ -54,10 +72,15 @@ tail -100 docs/SYNC.md   # 다른 쪽이 뭐 했나 확인
    ## YYYY-MM-DD HH:MM · [server|android|cowork]
    <한 줄 요약>
    - 변경: <영향 받는 다른 쪽 인터페이스 / API / UI / 데이터 모델>
-   - commit: <hash>
+   - 폰 확인: <무엇을 어느 폰에서 눈으로 봤나 / 못 봤으면 "못 봄">
    - 다음 액션 (있으면): <상대편이 해야 할 일>
    ```
+   ⚠️ **`commit: <hash>` 는 적지 않는다** — SYNC 를 쓴 뒤에 커밋하니 **그 시점엔 해시를 모른다.**
+   (그래서 최근 40블록 중 4개만 해시가 있었다 = 지킬 수 없는 룰이었다. 2026-10-02 Fable 점검)
+   찾아야 할 땐 커밋 **제목**으로 찾는다 — 제목은 요약과 같게 쓴다.
 2. `git add . && git commit -m "<요약>" && git push`
+   ⚠️ **커밋·push 는 여기까지다.** 실제 **배포**(Play 정식 · 서버 라이브 · 사이트)는
+   **사장님이 시킬 때만** 한다 — 묻고 기다린다.
 
 ---
 
@@ -79,7 +102,8 @@ tail -100 docs/SYNC.md   # 다른 쪽이 뭐 했나 확인
 - DB: SQLite `cache.db` (suggestions_cache / api_usage / summary_cache / llm_usage_log)
 - 운영: launchd `com.detailline.ringgo-server`, port 8000, 0.0.0.0
 - 네트워크: Tailnet IP 100.86.114.49
-- 대시보드: `http://100.86.114.49:8000/admin` (HTML, 모바일 친화)
+- 대시보드: **`https://api.si0in.kr/admin`** (HTML, 모바일 친화)
+  — 사장님이 여는 주소. `100.86.114.49:8000` 은 **같은 서버의 다른 문**(Tailnet 전용)이다
 - 자동 보고: Gmail "RING-GO" 라벨 (Label_2) 자동 부착, Zapier MCP `gmail/message` 액션
 
 ---
@@ -106,9 +130,14 @@ RING-GO 관련 작업이 끝난 시점에 Cowork 는 자동으로 hugman2080@gma
 
 ## 7. 검증 / 배포
 
-- 배포 스크립트: `server/deploy_phase1.sh` (sync + launchctl unload/load + §8 + §12.5 자동 채점)
-- 검증 스크립트: `server/test_p0p1p2.sh`, `server/test_section12.sh`
-- 사장님이 보통 한 줄로: `bash server/deploy_phase1.sh`
+- 🚨 **`server/deploy_phase1.sh` 를 함부로 돌리지 않는다.**
+  이 스크립트는 repo 의 `main.py` 를 **통째로** 라이브에 복사한다. 그런데 라이브는 **git 이 아니고
+  origin 보다 ~193커밋 뒤**에 있다 → 돌리면 **미배포분이 한꺼번에 나간다.**
+  (예전엔 이 줄에 "사장님이 보통 한 줄로 `bash server/deploy_phase1.sh`" 라고 적혀 있었다 —
+   금지된 행동을 기본 행동으로 적어둔 셈이었다. 2026-10-02 Fable 점검에서 삭제)
+- ✅ **한 군데만 고치는 안전한 절차 → `docs/GOTCHAS.md` §3** (scp → 패치 → py_compile → 백업 → 교체 → kickstart → smoke)
+- 검증: **`bash server/smoke.sh` (10개)** — 배포 뒤 **반드시**. `/health` 는 무슨 일이 나도 200 이라 믿을 수 없다
+- `server/test_section12.sh` 도 있음 (`test_p0p1p2.sh` 는 **없어졌다**)
 
 ---
 
@@ -182,6 +211,10 @@ RING-GO 관련 작업이 끝난 시점에 Cowork 는 자동으로 hugman2080@gma
 사람 기억으로는 안 지켜진다(세 번 밟은 게 증거다).
 `tools/dup_guard.gradle.kts` 에 **규칙을 추가**해 옛 표기를 쓰면 **빌드가 실패**하게 만든다.
 ⚠️ 가드는 **이미 아는 것만** 막는다 — 그래서 12-1·12-4 를 건너뛰면 소용없다.
+⚠️ 가드는 **`assembleRelease`·`bundleRelease` 에만** 걸린다 (compose_guard 만 항상).
+   `assembleDebug` 는 **다 통과한다** → 폰에 넣을 땐 항상 `assembleRelease`.
+⚠️ 뒷문(`-PskipDupCheck` 등 4종)은 **사장님이 쓰라고 할 때만.** 급해서 끄면 룰이 조용히 꺼진 채 나간다.
+⚠️ 가드는 **주석도 센다.** 주석에 옛 표기를 적기만 해도 빌드가 깨진다 — 말을 바꿔 적는다.
 
 ### 📌 공용이 있는 자리 (여기 것을 쓴다 · 새로 짜지 않는다)
 | 무엇 | 공용 | 쓰지 말 것 |
@@ -197,8 +230,20 @@ RING-GO 관련 작업이 끝난 시점에 Cowork 는 자동으로 hugman2080@gma
 | 완료 찍기 | `WorkCompletionManager` | 화면마다 따로 |
 | 돈 계산 | `domain/settlement/SettlementCalc` | 화면에서 직접 합산 |
 | 끌어서 순서 바꾸기 | `util/DragReorder.kt` | 화면마다 복사 |
+| 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
+| 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest`·`rememberAsyncImagePainter` 직접 |
+| 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
 
 > 새 공용을 만들면 **이 표에 한 줄 추가**한다. 표에 없으면 다음 사람이 또 새로 만든다.
+> (⚠️ 이 세 줄은 **룰을 적은 당일 세 번 빠뜨린 것**이다 — 2026-10-02 Fable 점검에서 발견.
+>  표를 적는 것까지가 작업이다.)
+
+### 📌 이 중 **빌드가 실제로 막는 것** = `tools/dup_guard.gradle.kts` 8가지뿐
+`keyboard-pad` · `day-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` ·
+`drag-reorder` · `customer-insert-raw`
+**나머지 줄은 사람이 지켜야 한다** — "빌드가 막아줄 거야" 라고 믿지 말 것.
+그리고 가드는 **「쓰지 말 것」을 0 으로 만들라는 뜻이 아니다** — **지금보다 늘면** 실패한다(기준선 방식).
+지금 남아 있는 것: `takeLast(8)` 43곳 · `HOUR_OF_DAY, 0)` 20곳 — **줄이는 건 환영, 늘리는 건 실패.**
 
 ## 13. 🩺 AI 가 자주 치는 사고 — **우리 코드에서 센 것만** (2026-10-02 사장님 지시)
 
@@ -248,6 +293,12 @@ RING-GO 관련 작업이 끝난 시점에 Cowork 는 자동으로 hugman2080@gma
 세 가지 중 하나라도 답이 "모르겠다" 면 **아직 안 끝난 것**이다.
 
 ## 🔒 완료된 파일 (절대 수정 금지)
-- app/src/.../HomeFragment.kt
-- app/src/.../CustomerDetailActivity.kt
-- (완료된 파일들 계속 추가)
+
+**지금은 비어 있다.**
+
+> 2026-10-02 Fable 점검: 여기 `HomeFragment.kt`·`CustomerDetailActivity.kt` 두 줄이 적혀 있었는데
+> **이 repo 역사에 한 번도 없던 파일**이었다(`git log --all` 0건). 우리 앱은 Compose 라
+> 실제 파일은 `HomeScreen.kt`·`CustomerDetailScreen.kt` 이고, 둘은 **지금도 매일 고친다.**
+> 없는 방에 「들어가지 마시오」를 붙여둔 셈이라 지웠다.
+>
+> 여기에 적을 땐 **실제 경로를 `ls` 로 확인하고**, **왜 잠그는지** 한 줄을 같이 적는다.

@@ -69,19 +69,22 @@ val dupRules = listOf(
         instead = "ImageEncoder.CAP_CHARS",
         homes = listOf("/util/ImageEncoder.kt")
     ),
+    // ☎️ 전화 걸기 — **번호로 거는 길은 PhoneDialer 하나**여야 한다. (2026-10-02 Fable 점검)
+    //   번호 없이 다이얼러 앱만 여는 것(ACTION_DIAL 단독)은 **다른 일**이다 —
+    //   그래서 ACTION_DIAL 이 아니라 **번호가 붙는 `"tel:` 만** 본다.
+    //   지금 PhoneDialer 밖엔 0곳 — 새로 생기면 바로 막힌다.
+    DupRule(
+        id = "dial-tel",
+        regex = Regex(""""tel:"""),
+        instead = "PhoneDialer.open(context, 번호)  (util/PhoneDialer.kt)",
+        homes = listOf("/util/PhoneDialer.kt")
+    ),
     // ① 번호 맞추기 — 2026-09-27 상담함 사고의 정체.
     DupRule(
         id = "phone-key",
         regex = Regex("""takeLast\(\s*8\s*\)"""),
         instead = "PhoneKey.of(번호) / PhoneKey.same(a, b) / PhoneKey.mapBy(목록) { 번호 }",
         homes = listOf("/util/PhoneKey.kt")
-    ),
-    // ② 키보드 여백 — 2026-09-26 에 18곳 고치고 2026-09-27 에 12곳이 또 나왔다.
-    DupRule(
-        id = "keyboard-inset",
-        regex = Regex("""\.imePadding\(\)"""),
-        instead = "Modifier.keyboardPadding()  (util/SystemBars.kt)",
-        homes = listOf("/presentation/util/SystemBars.kt")
     ),
     // ④ 창 색 — 화면마다 각자 적어서 87곳 중 55곳이 회색이었다. (2026-09-28 사장님)
     //   "입력창 뜨면 흰색 도 있는데 회색도 적지않게나와"

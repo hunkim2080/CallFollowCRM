@@ -12783,3 +12783,25 @@ CLAUDE.md §13 — 받은 자료 10가지를 **우리 코드에 돌려 숫자 �
   → 더보기 「지인 번호」 목록에 뜨고 → 「해제」하니 상담함으로 돌아왔다 (한 바퀴 통과)
 - 고침: 「해제」가 표시만 지우고 바구니를 남기던 것 — 그러면 문자함 [광고] 로 엉뚱하게 떨어졌다
 - 다음 액션: 없음 (사장님 폰은 내부테스트 업데이트 필요)
+
+## 2026-10-02 룰 점검 · android
+Fable 5.1 로 `CLAUDE.md` 를 감수받고, 사실과 다른 곳을 고쳤다. + `docs/GOTCHAS.md` 신설.
+- 유령 룰 삭제: 「절대 수정 금지 HomeFragment.kt / CustomerDetailActivity.kt」 — `git log --all` 0건,
+  이 repo 에 **한 번도 없던 파일**이었다 (실제는 HomeScreen.kt / CustomerDetailScreen.kt, 매일 고침)
+- §1 에 예외 추가: 서버 담당 부재 시 android 가 직접 (실태 = SYNC 헤더 'android (+ server)' 43건,
+  cowork 마지막 2026-09-24). §13② 「서버가 최종 결정권자」와 정면 충돌하던 것
+- §7 의 `bash server/deploy_phase1.sh` 한 줄 삭제 — 라이브는 git 아니고 origin -193커밋,
+  돌리면 미배포분이 한꺼번에 나간다. 안전 절차는 GOTCHAS §3 으로
+- §2: SYNC 블록의 `commit: <hash>` 폐기(쓸 때는 해시를 모른다 — 최근 40블록 중 4개만 있었다)
+  → 「폰 확인」 줄로 교체. 경로 Win/Mac 둘 다 적음
+- §0: 「hex 그대로」 → **토큰으로** (새 파일 `Color(0x…)` 는 style_guard 가 막아 지킬 수 없었다)
+- §12 표에 빠진 공용 3개 추가: SaveGuard / PhotoModel / QuoteMoney (룰 적은 당일 세 번 빠뜨림)
+  + 「빌드가 실제로 막는 건 8가지뿐, 나머지는 사람이 지킨다」 명시
+- §12-5: 가드는 release 빌드에만 걸림 · 주석도 센다 · 뒷문 4종은 사장님 허락 시만
+- 변경: `tools/dup_guard.gradle.kts` — **keyboard-inset 규칙 삭제**(keyboard-pad 와 같은 정규식을
+  두 번 세고 있었다 = §12 를 지키는 도구가 §12 를 어김) + **dial-tel 규칙 추가**(`"tel:`,
+  PhoneDialer 밖 0곳). 기준선 76 → 75곳 / 39줄. 빌드 통과
+- 새 문서 `docs/GOTCHAS.md`: 업무폰 읽기전용·일련번호 확인 / PowerShell 빌드·파이프 금지 /
+  라이브 서버 핫픽스 7단계·smoke.sh / cp949 착시 / 정식출시는 사장님·versionCode=커밋수 /
+  Compose early return·Room NOT NULL / 조용한 실패. **개인 메모에만 있던 것을 repo 로 옮김**
+- 다음 액션: §3~§7(현황 메모)을 `docs/SERVER_STATUS.md` 로 분리하는 안 = 사장님 확인 대기
