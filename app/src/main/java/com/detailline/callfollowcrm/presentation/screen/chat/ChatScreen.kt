@@ -4797,13 +4797,33 @@ private fun EstimateBuilderDialog(
                     }
                 }
             }
-            LaunchedEffect(items, pendingNew.size) {
-                if (pendingNew.isEmpty()) return@LaunchedEffect
+            /**
+             * 🔴 **올라간 임시 줄은 반드시 지운다 — 안 지우면 같은 이름이 두 줄로 보인다.**
+             *   (2026-10-03 테스트폰에서 실제로 봤다: 「testitem 30만원」이 두 줄)
+             *
+             *   전엔 `pendingNew`(이 화면이 살아 있을 때만 사는 쪽지)에 적힌 것만 지웠다.
+             *   그런데 **시트가 닫히면서 초점이 빠지면** 등록은 되고(`onAddPricingItem`)
+             *   쪽지는 화면과 함께 사라진다 — `customItems` 는 `EstimateDraft` 에 있어 **살아남는다.**
+             *   다시 열면 **가격표 줄 + 안 지워진 임시 줄** 이 나란히 섰다.
+             *
+             *   그래서 쪽지를 보지 않고 **지금 있는 임시 줄을 가격표와 직접 맞춰본다.**
+             *   `editing == false`(다 적어서 굳힌 줄)만 본다 — 적는 중인 줄을 뺏으면 글자가 사라진다.
+             */
+            LaunchedEffect(items, customItems.size, pendingNew.size) {
+                if (customItems.isEmpty()) return@LaunchedEffect
                 val byTitle = items.associateBy { it.title.trim() }
-                pendingNew.toList().forEach { t ->
+                customItems.toList().forEach { c ->
+                    if (c.editing) return@forEach
+                    val t = c.name.trim()
+                    if (t.isBlank()) return@forEach
                     val hit = byTitle[t] ?: return@forEach
                     selectedQty[hit.id] = 1
-                    customItems.removeAll { c -> c.name.trim() == t }
+                    // 사장님이 적은 금액이 가격표와 다르면 **적은 금액을 쓴다** (가격표는 안 건드린다).
+                    //   `addPricingItem` 은 같은 이름이면 새로 안 만들어 옛 가격이 남는다 —
+                    //   그대로 두면 **적은 돈이 조용히 바뀐다.**
+                    val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+                    if (won > 0L && won != hit.price) draft.priceOverrides[hit.id] = won
+                    customItems.removeAll { it.name.trim() == t }
                     pendingNew.remove(t)
                 }
             }
