@@ -72,7 +72,21 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
 
 ## 3. 🛠️ 라이브 서버는 **git 이 아니다** — 통짜 배포 금물
 
-- 라이브: 맥미니 `~/ringgo-server/` — **git 저장소가 아니고**, origin 보다 **~193커밋 뒤**에 있다
+- 라이브: 맥미니 `~/ringgo-server/` — **git 저장소가 아니다.**
+- 🔴 **갈린 방향이 한쪽이 아니다** (2026-10-03 실측). 전엔 「라이브가 193커밋 뒤」라고만 적어뒀는데,
+  **라이브에만 있고 repo 엔 아예 없는 기능**이 있다:
+
+  | 라이브에만 있는 것 | 하는 일 | repo |
+  |---|---|---|
+  | `_auth_sms_watch` | 45초 뒤 **진짜 갔는지** 통신사에 물어봄 | 없음 |
+  | `_SMS_FAIL_REASON` | 못 간 이유를 사람 말로 | 없음 |
+  | `auth_dead_numbers` | **없는 번호는 3일간 발송 차단** | 없음 |
+  | `_solapi_headers` | SOLAPI 서명 헤더 | 없음 |
+
+  줄 수도 **라이브 34,063 > repo 33,506** 이다.
+  → **`deploy_phase1.sh`(repo → 라이브 통짜)를 돌리면 위 네 가지가 통째로 사라진다.**
+  → 반대로 라이브를 그대로 repo 에 덮으면 repo 쪽 미반영분이 날아간다.
+  **어느 쪽으로도 통짜는 금물이다.** 한 군데씩, 아래 절차로.
 - 접속: `ssh macmini` (사용자 hun, sudo 불가), LaunchAgent 라 `launchctl` 로 혼자 재시작 가능
 - **`server/deploy_phase1.sh` 를 그냥 돌리면** repo 의 main.py 가 통째로 올라가 **미배포분 193커밋이 한꺼번에 나간다**
 
