@@ -403,6 +403,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
 | 대표 건 고르기 | `domain/job/RepresentativeJob.kt` | `firstOrNull { … >= today } ?: last()` 를 직접 |
 | 그날 갈 곳 순서 | `domain/schedule/DayOrder.kt` | 화면에서 직접 시각 파싱 |
+| 홈 띠 쪽 넘기기·「(1/2)」 | `domain/schedule/TodayBandPages.kt` | 화면에서 `if (total > 1) "(${page+1}/$total)"` 를 직접 |
 | 협업 날짜 판단 | `domain/collab/CollabDayCheck.kt` | 화면에서 날짜 비교 |
 | 협업 요청 고르기·취소 판단 | `domain/collab/CollabRequestSelection.kt` | 시트에서 `reqKeys.any { it !in selected }` 를 직접 |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |

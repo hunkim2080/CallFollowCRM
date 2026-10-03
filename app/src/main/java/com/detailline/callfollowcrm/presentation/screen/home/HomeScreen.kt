@@ -2318,8 +2318,10 @@ private fun TodayBand(
     //   넘기면 오늘 2번째가 나올 줄 아셨다 — 실제로는 **내일**이 나왔다.
     //   한 몸짓에 두 가지 뜻이 섞여 있던 셈이다. 이제 (1/2) → (2/2) → 다음 시공.
     //   오늘 아무것도 없으면 그 자리는 안내 한 쪽(빈 날·끝난 날)으로 쓴다.
-    val todaySlots = maxOf(total, 1)
-    val pageCount = todaySlots + (if (hasNext) 1 else 0)
+    //   셈과 「(1/2)」 글자는 [TodayBandPages] 한 곳에 있다 — 전엔 글자가 두 군데였다.
+    val todaySlots = com.detailline.callfollowcrm.domain.schedule.TodayBandPages.todaySlots(total)
+    val pageCount = com.detailline.callfollowcrm.domain.schedule.TodayBandPages
+        .pageCount(total, hasNext)
     val pager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pageCount })
 
     Column(Modifier.fillMaxWidth()) {
@@ -2345,7 +2347,10 @@ private fun TodayBand(
                             if (passed) append(" (지났어요)")
                             append(" · "); append(who)
                             // 몇 번째인지 — 넘긴 쪽과 **같은 숫자**여야 한다. (2026-09-28 사장님)
-                            if (total > 1) append("  (").append(page + 1).append("/").append(total).append(")")
+                            append(
+                                com.detailline.callfollowcrm.domain.schedule.TodayBandPages
+                                    .label(page, total)
+                            )
                         },
                         line2 = addr ?: "주소 아직 없어요",
                         action = if (passed) "완료" else if (addr != null) "길찾기" else null,
@@ -2365,7 +2370,8 @@ private fun TodayBand(
                         line1 = "오늘 협업" +
                             (collabToday.timeLabel?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
                             (collabToday.ownerName.takeIf { it.isNotBlank() }?.let { " · ${it}님" } ?: "") +
-                            (if (total > 1) "  (${page + 1}/$total)" else ""),
+                            com.detailline.callfollowcrm.domain.schedule.TodayBandPages
+                                .label(page, total),
                         line2 = cAddr ?: collabToday.title,
                         action = if (cAddr != null) "길찾기" else null,
                         onAction = { onNavigateAddr(cAddr) },
