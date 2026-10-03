@@ -35,6 +35,35 @@ object SessionAuthInterceptor : Interceptor {
     const val HEADER_AUTH_REQUIRED = "X-Auth-Required"
 
     /**
+     * 🔑 **다시 로그인시켜야 하나** — 이 한 줄이 두 번의 사고를 가른다.
+     *
+     *   폰에서는 이걸 눈으로 보기가 어렵다. 서버 설정을 켜야 401 이 나오고,
+     *   켜는 동안 사장님 업무폰이 멈춘다. 그래서 **셈만 떼어 시험이 본다**(§12-E②).
+     *
+     *   @param host 요청이 간 곳. **우리 서버가 아니면 아무것도 안 한다**(Ollama·구글 등)
+     *   @param path 경로. `/api/web/` 은 **QR 웹 로그인의 제 인증 체계**라 여기 401 로
+     *          앱 세션을 끊으면 안 된다 — 2026-08-15 「QR 찍으면 로그인이 풀림」 사고
+     *   @param code 응답 코드. **403 은 끊지 않는다** — 「본인 것 아님」이지 「로그인하라」가 아니다
+     *   @param hadToken 우리가 이번 요청에 **토큰을 실제로 붙였나**
+     *   @param authRequired 서버가 [HEADER_AUTH_REQUIRED] 로 **로그인하라고 말했나**
+     *   @param smsSignupEnabled OTP 로그인이 켜져 있나. 꺼져 있으면 보낼 데가 없다
+     */
+    fun shouldReauth(
+        host: String,
+        path: String,
+        code: Int,
+        hadToken: Boolean,
+        authRequired: Boolean,
+        smsSignupEnabled: Boolean
+    ): Boolean {
+        if (host != API_HOST) return false
+        if (path.startsWith("/api/web/")) return false
+        if (code != 401) return false
+        if (!smsSignupEnabled) return false
+        return hadToken || authRequired
+    }
+
+    /**
      * 어디서 깔았나 — "play" / "sideload" / "" (모름). [CallFollowCrmApplication] 이 시작할 때 한 번 채운다.
      *
      * 여기에 Context 가 없어서 앱이 넣어준다. 값이 비면 헤더를 아예 안 붙인다 —
@@ -90,19 +119,19 @@ object SessionAuthInterceptor : Interceptor {
 
         val response = chain.proceed(request)
 
-        // 웹 뷰어(QR 로그인/스케줄 피드/로그아웃) 엔드포인트는 별도 인증 체계 → 여기서의 401 로 앱 세션을
-        // 무효화하면 안 된다.
-        val isWebViewerEndpoint = original.url.encodedPath.startsWith("/api/web/")
-
         // ⭐ 핵심 규칙: **우리가 토큰을 붙였는데도** 401 이면 = 진짜 만료/무효 → 폐기 + 재로그인.
         //   토큰이 아예 없던 기존 유저는 '잃을 세션'이 없으므로 어떤 401 도 로그아웃을 유발하면 안 된다.
         //   실제 사고(2026-08-15): 토큰 없는 사장님이 QR 로그인 → authorize OK(owner_phone 신뢰) →
         //   이어지는 사진 백필 POST /api/site-photo/owner-upload 가 401 → 예전엔 여기서 invalidate() →
         //   앱이 재로그인으로 튕김("QR 찍으면 시공막내 로그인이 풀림"). hadToken 가드로 차단.
-        if (isOurApi && !isWebViewerEndpoint &&
-            response.code == 401 &&
-            com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED &&
-            (hadToken || response.header(HEADER_AUTH_REQUIRED) != null)
+        if (shouldReauth(
+                host = original.url.host,
+                path = original.url.encodedPath,
+                code = response.code,
+                hadToken = hadToken,
+                authRequired = response.header(HEADER_AUTH_REQUIRED) != null,
+                smsSignupEnabled = com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED
+            )
         ) {
             SessionTokenStore.current?.invalidate()
         }
