@@ -148,6 +148,29 @@ val dupRules = listOf(
     //   (디테일라인은 22번 ↔ 1번). 사장님이 **일당을 정할 때 제일 큰 참고**인 숫자가
     //   화면마다 다르면 믿을 수가 없다. 서버 집계가 사장님이 확인한 자료다.
     //   ⚠️ `collabAssignments` 자체는 shareId 지도로도 쓰인다 — **세는 것만** 막는다.
+    // ⑬ 서버에 말 거는 길을 **손으로 새로 만들기**. (2026-10-03)
+    //   `Net.builder()` 로 만들면 [SessionAuthInterceptor] 가 물려 **로그인 토큰이 자동으로 붙는다.**
+    //   손으로 `OkHttpClient.Builder()` 를 만들면 **토큰이 안 붙는다** — 지금은 서버가
+    //   토큰을 안 보니까 아무 일 없지만, **`AUTH_ENFORCE=1` 을 켜는 날 그 길만 401** 이 된다.
+    //   그러면 그 화면만 조용히 빈 채로 뜬다. 켜기 전엔 아무도 못 알아챈다.
+    //   ⚠️ 면제(homes)는 **우리 서버의 보호 경로를 안 부르는 것들**이다 —
+    //     로그인 자체(/api/auth) · 진단(/api/diagnostics) · 박람회(/api/expo) ·
+    //     구글 캘린더 · Ollama(다른 호스트) · 버전 확인(si0in.kr).
+    //     여기 새로 추가하기 전에 **그 경로가 _AUTH_PROTECT_PREFIXES 에 없는지** 확인할 것.
+    DupRule(
+        id = "okhttp-raw",
+        regex = Regex("""(?:okhttp3\.)?OkHttpClient\.Builder\(\)"""),
+        instead = "Net.builder()  (ai/Net.kt) — 로그인 토큰이 자동으로 붙는다",
+        homes = listOf(
+            "/ai/Net.kt",
+            "/ai/AuthRepository.kt",
+            "/ai/ExpoRepository.kt",
+            "/ai/OllamaRefineRepository.kt",
+            "/data/AppContainer.kt",
+            "/util/DiagnosticsReporter.kt",
+            "/util/UpdateChecker.kt"
+        )
+    ),
     // ⑫ 문자앱을 **손으로 열기**. (2026-10-03)
     //   네 곳이 Intent 를 직접 만들었고, 그중 둘은 못 열려도 **아무 말도 안 했다** —
     //   사장님은 「링크 다시 보냈다」고 생각하는데 손님은 아무것도 못 받는다(§13①).
