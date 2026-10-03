@@ -22,9 +22,24 @@ object SmsIntentHelper {
         data class Failed(val reason: String) : Result
     }
 
-    fun openSmsCompose(context: Context, phoneNumber: String, body: String): Result {
+    /**
+     * 🗣 **못 열면 화면에 말한다.** (2026-10-03)
+     *
+     *   부르는 곳이 **열 군데**인데 돌려준 [Result] 를 보는 곳은 거의 없었다.
+     *   문자앱이 안 열리면 **아무 일도 안 일어난 것처럼** 보인다 —
+     *   사장님은 「링크 다시 보냈다」고 생각하는데 손님은 아무것도 못 받는다(§13①).
+     *   그래서 **여기 한 곳에서** 말한다. 부르는 곳이 따로 챙길 게 없다.
+     *
+     *   @param tellOnFail 실패를 스스로 다르게 알릴 때만 false (예: 내용을 복사해 주는 쪽)
+     */
+    fun openSmsCompose(
+        context: Context,
+        phoneNumber: String,
+        body: String,
+        tellOnFail: Boolean = true
+    ): Result {
         val number = phoneNumber.trim()
-        if (number.isBlank()) return Result.Failed("전화번호가 비어 있습니다.")
+        if (number.isBlank()) return failed(context, "전화번호가 비어 있습니다.", tellOnFail)
         val intent = Intent(Intent.ACTION_SENDTO).apply {
             data = Uri.parse("smsto:$number")
             putExtra("sms_body", body)
@@ -34,12 +49,26 @@ object SmsIntentHelper {
             context.startActivity(intent)
             Result.Opened
         } catch (e: ActivityNotFoundException) {
-            Result.Failed("기본 문자앱을 찾을 수 없습니다.")
+            failed(context, "기본 문자앱을 찾을 수 없습니다.", tellOnFail)
         } catch (e: SecurityException) {
-            Result.Failed("문자앱 실행 권한이 없습니다.")
+            failed(context, "문자앱 실행 권한이 없습니다.", tellOnFail)
         } catch (e: Exception) {
-            Result.Failed(e.message ?: "알 수 없는 오류")
+            failed(context, e.message ?: "알 수 없는 오류", tellOnFail)
         }
+    }
+
+    /** 실패를 만들고(필요하면) 화면에 말한다. 어느 실에서 불러도 안전하게 메인으로 띄운다. */
+    private fun failed(context: Context, reason: String, tell: Boolean): Result.Failed {
+        if (tell) {
+            runCatching {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(
+                        context, "문자앱을 못 열었어요 — $reason", android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+        return Result.Failed(reason)
     }
 
     /**
@@ -119,11 +148,11 @@ object SmsIntentHelper {
             context.startActivity(chooser)
             Result.Opened
         } catch (e: ActivityNotFoundException) {
-            Result.Failed("이미지를 받을 수 있는 앱을 찾을 수 없어요.")
+            failed(context, "이미지를 받을 수 있는 앱을 찾을 수 없어요.", tell = true)
         } catch (e: SecurityException) {
-            Result.Failed("앱 실행 권한이 없습니다.")
+            failed(context, "앱 실행 권한이 없습니다.", tell = true)
         } catch (e: Exception) {
-            Result.Failed(e.message ?: "알 수 없는 오류")
+            failed(context, e.message ?: "알 수 없는 오류", tell = true)
         }
     }
 }

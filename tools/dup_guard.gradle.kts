@@ -148,6 +148,17 @@ val dupRules = listOf(
     //   (디테일라인은 22번 ↔ 1번). 사장님이 **일당을 정할 때 제일 큰 참고**인 숫자가
     //   화면마다 다르면 믿을 수가 없다. 서버 집계가 사장님이 확인한 자료다.
     //   ⚠️ `collabAssignments` 자체는 shareId 지도로도 쓰인다 — **세는 것만** 막는다.
+    // ⑫ 문자앱을 **손으로 열기**. (2026-10-03)
+    //   네 곳이 Intent 를 직접 만들었고, 그중 둘은 못 열려도 **아무 말도 안 했다** —
+    //   사장님은 「링크 다시 보냈다」고 생각하는데 손님은 아무것도 못 받는다(§13①).
+    //   공용은 FLAG_ACTIVITY_NEW_TASK 를 붙이고 **실패를 화면에 말한다.**
+    //   ⚠️ MainActivity 의 `Intent.ACTION_SENDTO ->` 는 **받는 쪽**이라 안 걸린다(만들지 않으니까).
+    DupRule(
+        id = "sms-intent-raw",
+        regex = Regex("""Intent\(\s*(?:android\.content\.)?Intent\.ACTION_SENDTO"""),
+        instead = "SmsIntentHelper.openSmsCompose(context, 번호, 본문)  (util/SmsIntentHelper.kt)",
+        homes = listOf("/util/SmsIntentHelper.kt")
+    ),
     DupRule(
         id = "collab-freq-local",
         regex = Regex("""collabAssignments[\s\S]{0,400}?eachCount\(\)"""),

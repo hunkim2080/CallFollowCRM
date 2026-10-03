@@ -292,12 +292,9 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
             if (trade.isNotBlank()) append("\n업종: ").append(trade)
             if (memo.trim().isNotEmpty()) append("\n한마디: ").append(memo.trim())
         }
-        val intent = android.content.Intent(
-            android.content.Intent.ACTION_SENDTO,
-            android.net.Uri.parse("smsto:" + com.detailline.callfollowcrm.AppConfig.BETA_APPLY_PHONE)
-        ).apply { putExtra("sms_body", body) }
-        runCatching { ctx.startActivity(intent) }
-            .onFailure { android.widget.Toast.makeText(ctx, "문자 앱을 열 수 없어요", android.widget.Toast.LENGTH_SHORT).show() }
+        com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(
+            ctx, com.detailline.callfollowcrm.AppConfig.BETA_APPLY_PHONE, body
+        )
         onClose()
     }
 

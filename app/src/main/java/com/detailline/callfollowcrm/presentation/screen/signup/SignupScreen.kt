@@ -405,14 +405,10 @@ private fun SmsHelpDialog(myPhone: String, onClose: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 // 문자앱으로 — 받는 사람과 내용을 미리 채워 보낸다.
-                val ok = runCatching {
-                    ctx.startActivity(
-                        android.content.Intent(
-                            android.content.Intent.ACTION_SENDTO,
-                            android.net.Uri.parse("smsto:" + HELP_PHONE.filter { it.isDigit() })
-                        ).putExtra("sms_body", body)
-                    )
-                }.isSuccess
+                //   여기는 실패를 **스스로 다르게** 알린다(내용을 복사해 쥐여준다) → tellOnFail = false
+                val ok = com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(
+                    ctx, HELP_PHONE.filter { it.isDigit() }, body, tellOnFail = false
+                ) is com.detailline.callfollowcrm.util.SmsIntentHelper.Result.Opened
                 if (!ok) {
                     // 문자앱이 없으면 적어도 내용은 손에 쥐여준다.
                     clip.setText(AnnotatedString(HELP_PHONE + "\n" + body))

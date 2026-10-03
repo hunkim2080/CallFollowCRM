@@ -283,9 +283,9 @@ fun NotebookContent(
             target = target,
             phrases = phrases,
             onPick = { body ->
-                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${target.phone}"))
-                    .putExtra("sms_body", body)
-                runCatching { context.startActivity(intent) }
+                com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(
+                    context, target.phone, body
+                )
                 smsTarget = null
             },
             onAddPhrase = { viewModel.addPhrase(target.kind, it) },

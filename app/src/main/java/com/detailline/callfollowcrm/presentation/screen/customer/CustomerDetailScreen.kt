@@ -2398,14 +2398,11 @@ private fun IssuedDocRow(
                     if (url != null) {
                         Box(Modifier.weight(1f)) {
                             IssuedBtn("링크 다시 보내기", primary = true) {
-                                runCatching {
-                                    ctx.startActivity(
-                                        android.content.Intent(
-                                            android.content.Intent.ACTION_SENDTO,
-                                            android.net.Uri.parse("smsto:" + phone)
-                                        ).putExtra("sms_body", "시공접수서예요. 눌러서 작성해 주세요\n" + url)
-                                    )
-                                }
+                                // 🔴 전엔 손으로 Intent 를 만들고 **조용히 삼켰다** — 못 열려도
+                                //   사장님은 「다시 보냈다」고 생각하는데 손님은 아무것도 못 받는다.
+                                com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(
+                                    ctx, phone, "시공접수서예요. 눌러서 작성해 주세요\n" + url
+                                )
                             }
                         }
                     }
