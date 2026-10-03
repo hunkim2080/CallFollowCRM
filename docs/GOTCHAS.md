@@ -202,3 +202,25 @@ java.lang.NullPointerException: ... AccessibilityNodeInfo.getContentDescription(
 > adb -s <폰> logcat -d -b crash | grep -c "com.detailline.callfollowcrm"
 > ```
 > 아니면 `FATAL` 이 나오면 **스택을 눈으로 보고** 누가 죽었는지 확인한 뒤 보고한다.
+
+---
+
+### 폰이 빠져도 **옛 화면을 계속 보여준다** (2026-10-03 실제로 당함)
+
+폰 확인은 `uiautomator dump` → `adb pull` → 그 파일을 읽는 식이다.
+**케이블이 빠지면 두 명령이 조용히 실패하고, 읽는 파일은 그대로 남는다.**
+그래서 화면을 아무리 넘겨도 **같은 글자가 계속 나온다** — 그걸 보고
+「버튼이 안 눌린다」고 엉뚱한 디버깅을 시작하게 된다.
+
+단서: **dump 결과가 두 번 연속 똑같다.** 특히 누른 뒤에도 안 바뀌면 의심.
+
+> ✅ 세 가지를 같이 건다:
+> 1. `adb` 가 0 이 아닌 값을 내면 **바로 멈춘다**(`subprocess.run(...).returncode` 를 보고 예외)
+> 2. pull 뒤 **파일 수정시각이 안 바뀌었으면** 옛 파일이다 → 멈춘다
+> 3. 길게 도는 작업 전에 `adb devices` 로 그 일련번호가 **`device` 상태인지** 본다
+>
+> (scratchpad 의 `ph.py` 에 셋 다 들어 있다. `cd.png` · `kbB.png` 처럼 **0 바이트** 파일이
+>  쌓여 있는 것도 같은 사고의 흔적이다 — pull 이 실패했는데 아무도 안 봤다.)
+
+같은 뿌리: 「§4 cp949 착시」·「uiautomator 가 죽은 걸 앱이 죽었다고 읽는다」.
+**측정 도구가 조용히 실패하면, 측정값이 아니라 착각이 쌓인다.**
