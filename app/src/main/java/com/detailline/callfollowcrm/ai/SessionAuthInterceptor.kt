@@ -21,6 +21,20 @@ object SessionAuthInterceptor : Interceptor {
     private const val API_HOST = "api.si0in.kr"
 
     /**
+     * 🔐 **서버가 「로그인해야 한다」고 분명히 말하는 표식.** (2026-10-03)
+     *
+     *   `AUTH_ENFORCE=1` 을 켜면 보호 경로가 401 을 준다. 그런데 **토큰이 아예 없던 분**
+     *   (OTP 가 생기기 전 번호만으로 들어온 사장님 폰들)은 아래 `hadToken` 가드 때문에
+     *   **재로그인 안내가 안 뜨고 화면만 텅 빈다** — 막긴 했는데 **말을 안 하는** 꼴이다(§13①).
+     *
+     *   그래서 서버가 이 헤더로 말해 주면, **토큰이 없어도** 로그인으로 보낸다.
+     *   ⚠️ **글자(detail 메시지)를 비교하지 않는다** — 말을 바꾸면 조용히 안 걸리는 두 벌이 된다.
+     *   ⚠️ `AUTH_ENFORCE=0` 인 동안은 이 헤더가 **아예 안 온다** → 지금은 무해(inert).
+     *   ⚠️ 403(소유권 불일치)과 `/api/web/` 401 은 **지금 그대로** — 오탐 로그아웃을 막는 가드다.
+     */
+    const val HEADER_AUTH_REQUIRED = "X-Auth-Required"
+
+    /**
      * 어디서 깔았나 — "play" / "sideload" / "" (모름). [CallFollowCrmApplication] 이 시작할 때 한 번 채운다.
      *
      * 여기에 Context 가 없어서 앱이 넣어준다. 값이 비면 헤더를 아예 안 붙인다 —
@@ -88,7 +102,7 @@ object SessionAuthInterceptor : Interceptor {
         if (isOurApi && !isWebViewerEndpoint &&
             response.code == 401 &&
             com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED &&
-            hadToken
+            (hadToken || response.header(HEADER_AUTH_REQUIRED) != null)
         ) {
             SessionTokenStore.current?.invalidate()
         }

@@ -44,7 +44,13 @@ class SessionTokenStore private constructor(context: Context) {
         runCatching { prefs.edit().putString(KEY_TOKEN, token).putLong(KEY_EXP, expMs).apply() }
     }
 
-    /** 서버가 401 → 토큰 폐기 + 재로그인 신호. */
+    /**
+     * 서버가 401 → 토큰 폐기 + 재로그인 신호.
+     *
+     * ⚠️ **토큰이 없던 사람에게도 불린다** — 서버가 `X-Auth-Required` 로 「로그인해야 한다」고
+     *    말한 경우다. 지울 토큰은 없지만 **재로그인 신호는 켜야** 화면이 텅 비지 않는다.
+     *    (2026-10-03 · `AUTH_ENFORCE` 켜기 준비)
+     */
     fun invalidate() {
         token = null
         expMs = 0L

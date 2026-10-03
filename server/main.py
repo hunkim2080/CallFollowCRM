@@ -5991,7 +5991,14 @@ async def _auth_enforce_middleware(request: Request, call_next):
         if prot:
             tok_phone = _session_phone_from_header(request.headers.get("authorization"))
             if not tok_phone:
-                return JSONResponse({"detail": "로그인이 필요합니다"}, status_code=401)
+                # 🔐 앱이 **글자를 뒤지지 않고** 알아채도록 표식을 준다. (2026-10-03)
+                #   토큰이 아예 없던 분(OTP 생기기 전 번호만으로 들어온 사장님 폰들)은
+                #   앱의 `hadToken` 가드 때문에 재로그인 안내가 안 뜨고 **화면만 텅 빈다** —
+                #   막긴 했는데 **말을 안 하는** 꼴이다. 이 헤더가 그 말을 대신한다.
+                #   ⚠️ 403(본인 것 아님)에는 **안 붙인다** — 그쪽은 이미 로그인된 사람이다.
+                #   ⚠️ detail 문구를 앱이 비교하게 하면 말을 바꾸는 순간 조용히 안 걸린다(두 벌).
+                return JSONResponse({"detail": "로그인이 필요합니다"}, status_code=401,
+                                    headers={"X-Auth-Required": "1"})
             rp = _req_phone_for_auth(request)
             # GET 은 쿼리/경로 phone 이 토큰 phone 과 달라도 되면 IDOR → 차단.
             # POST 는 body phone 을 미들웨어에서 못 읽으므로 '유효 토큰 보유'까지만(익명 차단).
