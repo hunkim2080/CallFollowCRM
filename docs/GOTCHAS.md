@@ -179,3 +179,26 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
 1. **두 벌 grep** — 방금 만든 것과 같은 일을 하는 코드가 **다른 이름으로** 또 있나?
 2. **느린 네트워크 · 빈 값 · 연타** 가 오면 어떻게 되나? 하나라도 "모르겠다" 면 안 끝난 것
 3. **`assembleRelease` 로 빌드했고 `BUILD=0` 을 눈으로 봤나?** (가드는 release 에만 걸린다)
+
+---
+
+### uiautomator 가 죽은 걸 **앱이 죽었다**고 읽는다 (2026-10-03)
+
+폰 확인 끝에 `adb logcat -b crash` 에서 `FATAL EXCEPTION` 수를 세는데,
+**그 버퍼엔 내 측정 도구가 죽은 것도 같이 들어온다.**
+
+```
+FATAL EXCEPTION: main
+java.lang.NullPointerException: ... AccessibilityNodeInfo.getContentDescription()
+    at com.android.uiautomator.core.AccessibilityNodeInfoDumper.childNafCheck
+    at com.android.commands.uiautomator.DumpCommand.run
+```
+
+이건 **`uiautomator dump` 자신**이 죽은 것이다(화면에 글자 없는 칸이 있으면 터지는 알려진 버그).
+**앱은 멀쩡하다.** 그대로 「크래시 1건」이라고 보고하면 **없는 사고를 만든다.**
+
+> ✅ 셀 때 **우리 앱 것만** 센다:
+> ```bash
+> adb -s <폰> logcat -d -b crash | grep -c "com.detailline.callfollowcrm"
+> ```
+> 아니면 `FATAL` 이 나오면 **스택을 눈으로 보고** 누가 죽었는지 확인한 뒤 보고한다.
