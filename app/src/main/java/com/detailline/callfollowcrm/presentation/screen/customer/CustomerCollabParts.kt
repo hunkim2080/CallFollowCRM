@@ -482,11 +482,27 @@ internal fun CollabShareSheet(
     val requestedKeys = remember(requestedPhones) {
         requestedPhones.map { PhoneKey.of(it) }.filter { it.isNotEmpty() }.toSet()
     }
-    /** 몇 번 같이 갔나 — 많이 부른 사람이 위로. */
-    val freq = remember(workers) {
-        container.preferences.collabAssignments.mapNotNull {
-            it.split("|").getOrNull(1)?.let { ph -> PhoneKey.of(ph) }?.takeIf { k -> k.isNotBlank() }
-        }.groupingBy { it }.eachCount()
+    /**
+     * 몇 번 같이 갔나 — 많이 부른 사람이 위로.
+     *
+     * 🔴 **일정 쪽 시트와 같은 자료를 본다.** (2026-10-03 테스트폰에서 발견)
+     *   전엔 이쪽만 폰에 쌓인 옛 「내가 부른 일당」 기록(`collabAssignments`)을 셌다.
+     *   그래서 **같은 사장님이 일정 쪽에선 「함께 4번」, 여기선 「함께 2번」** 으로 나왔다
+     *   (디테일라인은 22번 ↔ 1번). 일당을 정할 때 제일 큰 참고가 이 숫자인데
+     *   **두 화면이 다른 답을 하면 숫자를 믿을 수가 없다.**
+     *
+     *   서버 집계(`SharedSiteRepository.partners`)가 **사장님이 확인한 자료**다 —
+     *   협업으로 부른 것만 기록에 남는다. 「내가 부른 일당」은 2026-07-17 에 없앴으므로
+     *   그 기록을 세는 건 이제 뜻이 없다.
+     */
+    var freq by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val me = container.preferences.bizPhone.filter { it.isDigit() }
+        if (me.isBlank()) return@LaunchedEffect
+        container.sharedSiteRepository.partners(me).onSuccess { list ->
+            freq = list.associate { PhoneKey.of(it.ownerPhone) to it.count }
+                .filterKeys { it.isNotEmpty() }
+        }
     }
     val people = remember(workers, freq) {
         workers.filter { it.phone.filter { c -> c.isDigit() }.length >= 9 }

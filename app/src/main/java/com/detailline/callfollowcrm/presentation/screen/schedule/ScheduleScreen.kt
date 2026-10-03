@@ -1515,12 +1515,13 @@ private fun AssignTeamSheet(
     //   그래서 이미 요청한 사장님이 안 골라진 채로 남고, 그대로 보내기를 누르면
     //   앱은 그걸 **「그 사람을 뺐다」**로 읽어 「보낸 협업을 취소할까요?」를 띄웠다.
     //   ⚠️ 한 번만 채운다 — 매번 채우면 사장님이 **일부러 뺀 사람이 도로 들어온다.**
+    //   셈은 [CollabRequestSelection.seed] 한 곳에 있다 — 폰에서 못 보는 규칙이라 시험이 본다.
     var reqSeeded by remember { mutableStateOf(reqKeys.isNotEmpty()) }
     androidx.compose.runtime.LaunchedEffect(reqKeys) {
-        if (!reqSeeded && reqKeys.isNotEmpty()) {
-            selectedPartners = selectedPartners + reqKeys
-            reqSeeded = true
-        }
+        val (next, seeded) = com.detailline.callfollowcrm.domain.collab.CollabRequestSelection
+            .seed(selectedPartners, reqKeys, reqSeeded)
+        selectedPartners = next
+        reqSeeded = seeded
     }
     // 일당사장별 일당(만원, 문자열) — 저장값 자동 채움, 사장님이 이 현장만 바꿀 수 있음.
     var partnerWages by remember {
@@ -2161,10 +2162,15 @@ private fun AssignTeamSheet(
             // 🔴 **목록에 줄이 있는 사람만 센다.** (2026-09-27 사장님)
             //   명부에 없는 번호로 보낸 요청이 하나라도 있으면 사장님은 그 줄을 **누를 수가 없다** —
             //   그런데도 「안 골랐다」로 세어져 **영영 빼는 중**이 되고, 보내면 조용히 취소까지 된다.
+            //   셈은 [CollabRequestSelection] 한 곳에 있다 (`domain/collab/`).
             val cancelableReqKeys = remember(reqKeys, collabPartners) {
-                reqKeys.filter { rk -> collabPartners.any { key(it.phone) == rk } }.toSet()
+                com.detailline.callfollowcrm.domain.collab.CollabRequestSelection.cancelable(
+                    requested = reqKeys,
+                    listed = collabPartners.map { key(it.phone) }.toSet()
+                )
             }
-            val cancelling = cancelableReqKeys.any { it !in selectedPartners }
+            val cancelling = com.detailline.callfollowcrm.domain.collab.CollabRequestSelection
+                .isCancelling(reqKeys, collabPartners.map { key(it.phone) }.toSet(), selectedPartners)
             var confirmCancel by remember { mutableStateOf(false) }
             val submit: () -> Unit = {
                 val addrToSend = siteAddrInput.trim().takeIf { it.isNotBlank() }

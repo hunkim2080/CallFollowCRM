@@ -142,6 +142,17 @@ val dupRules = listOf(
         regex = Regex("INSERT\\s+(?:OR\\s+REPLACE\\s+)?INTO\\s+`?customers`?"),
         instead = "CustomerRepository.upsertByPhone(...) — 번호를 PhoneKey.normalize 로 통일해 넣는다",
         homes = listOf("/util/DataBackup.kt", "/data/local/AppDatabase.kt")
+    ),
+    // ⑪ 「함께 N번」을 **폰에 쌓인 배정 기록으로** 세는 것. (2026-10-03 테스트폰에서 발견)
+    //   같은 사장님이 일정 쪽에선 「함께 4번」, 고객정보 쪽에선 「함께 2번」으로 나왔다
+    //   (디테일라인은 22번 ↔ 1번). 사장님이 **일당을 정할 때 제일 큰 참고**인 숫자가
+    //   화면마다 다르면 믿을 수가 없다. 서버 집계가 사장님이 확인한 자료다.
+    //   ⚠️ `collabAssignments` 자체는 shareId 지도로도 쓰인다 — **세는 것만** 막는다.
+    DupRule(
+        id = "collab-freq-local",
+        regex = Regex("""collabAssignments[\s\S]{0,400}?eachCount\(\)"""),
+        instead = "sharedSiteRepository.partners(bizPhone) 의 Partner.count — 일정·고객정보가 같은 자료를 본다",
+        homes = listOf()
     )
 )
 
