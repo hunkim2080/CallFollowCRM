@@ -32,11 +32,33 @@ OWNER="${SMOKE_OWNER:-01064610131}"
 TOKEN_FALLBACK="${SMOKE_TOKEN:-DjfcGMNv}"   # 목록에서 못 뽑았을 때만 쓰는 예비
 HDR="X-Ringgo-Smoke: 1"
 
+# 🔑 손목밴드(세션 토큰)를 **맥미니 DB 의 비밀키로 직접 만든다.** 키는 밖으로 안 나간다.
+#   문이 잠겨 있어도(AUTH_ENFORCE) 검표원을 통과해 **안쪽 창구까지 진짜로** 눌러보려고.
+#   DB 가 없는 데서 돌리면(내 PC 등) 빈 값 → SMOKE_JWT 환경변수로 넘겨도 된다.
+_SMOKE_DIR="$(cd "$(dirname "$0")" && pwd)"
+SMOKE_JWT="${SMOKE_JWT:-$(python3 - "$OWNER" "$_SMOKE_DIR/cache.db" <<'PYJWT'
+import sqlite3, hmac, hashlib, time, sys
+phone = "".join(c for c in sys.argv[1] if c.isdigit())
+try:
+    con = sqlite3.connect(sys.argv[2]); con.row_factory = None
+    row = con.execute("SELECT v FROM server_kv WHERE k='session_secret'").fetchone()
+    con.close()
+    secret = row[0] if row else ""
+except Exception:
+    secret = ""
+if secret:
+    exp = int(time.time() * 1000) + 90 * 86400000
+    sig = hmac.new(secret.encode(), ("%s.%d" % (phone, exp)).encode(), hashlib.sha256).hexdigest()[:32]
+    print("%s.%d.%s" % (phone, exp, sig))
+PYJWT
+)}"
+[ -n "$SMOKE_JWT" ] && echo "  (손목밴드로 들어갑니다 — 잠긴 문 안쪽 창구까지 봅니다)"
+
 # hit <이름> <기대코드> <URL> [반드시 들어있어야 할 글자]
 hit() {
   local name="$1" want="$2" url="$3" must="${4:-}"
   local body code
-  body=$(curl -s -m 20 -H "$HDR" -w $'\n%{http_code}' "$url" 2>/dev/null)
+  body=$(curl -s -m 20 -H "$HDR" -H "Authorization: Bearer $SMOKE_JWT" -w $'\n%{http_code}' "$url" 2>/dev/null)
   code=$(printf '%s' "$body" | tail -n1)
   body=$(printf '%s' "$body" | sed '$d')
   if [ "$code" != "$want" ]; then
@@ -58,7 +80,7 @@ hit "접수서 받아오기(앱)"    200 "$BASE/api/quote/submissions?devicePhon
 hit "접수서 목록(앱)"        200 "$BASE/api/intake-form/list?owner_phone=$OWNER&limit=5" '"token"'
 
 # 고객 화면용 토큰 — 방금 그 목록에서 **제출된 것** 우선으로 뽑는다 (미제출은 7일 지나면 410 이라 가짜 실패).
-TOKEN=$(curl -s -m 20 -H "$HDR" "$BASE/api/intake-form/list?owner_phone=$OWNER&limit=30" 2>/dev/null | python3 -c '
+TOKEN=$(curl -s -m 20 -H "$HDR" -H "Authorization: Bearer $SMOKE_JWT" "$BASE/api/intake-form/list?owner_phone=$OWNER&limit=30" 2>/dev/null | python3 -c '
 import json, sys
 try:
     items = json.load(sys.stdin).get("items") or []
@@ -76,7 +98,7 @@ hit "견적 보기(고객)"        200 "$BASE/q/$TOKEN"
 hit "견적 문서(고객)"        200 "$BASE/q/$TOKEN/doc"
 hit "개인정보 안내(고객)"    200 "$BASE/q/$TOKEN/privacy"
 hit "백업 칸(앱)"            200 "$BASE/api/app-backup/status?owner_phone=$OWNER"
-hit "답변 추천(앱)"          200 "$BASE/suggestions/01034045247"
+hit "답변 추천(앱)"          200 "$BASE/suggestions/01034045247?owner_phone=$OWNER"
 
 echo "──────────────────────────────────────────"
 if [ "$FAIL" -gt 0 ]; then
