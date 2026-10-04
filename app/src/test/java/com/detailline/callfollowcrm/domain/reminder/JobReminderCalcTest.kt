@@ -130,10 +130,17 @@ class JobReminderCalcTest {
     @Test
     fun `받을 잔금이 없으면 안 울린다`() {
         val jobs = listOf(
-            job(id = 1, day = 10 * DAY, balance = 0L),
-            job(id = 2, day = 10 * DAY, balance = null)
+            job(id = 1, day = 10 * DAY, total = 0L),                        // 무료(서비스) — 받을 게 없음
+            job(id = 2, day = 10 * DAY, total = 500_000L, balancePaidAt = 1L) // 완납
         )
         assertTrue(bal(jobs, now = 20 * DAY).isEmpty())
+    }
+
+    @Test
+    fun `총액만 있고 아직 안 받았으면 전액이 미수라 조른다`() {
+        // total 100만·계약금/잔금 받음 표시 없음 → 전액 미수(옛날엔 balanceAmount=null 이라 안 울렸다·Fable #6).
+        val jobs = listOf(job(id = 1, day = 10 * DAY, total = 1_000_000L))
+        assertEquals(listOf(1L), bal(jobs, now = 20 * DAY).map { it.job.id })
     }
 
     @Test

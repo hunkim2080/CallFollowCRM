@@ -62,6 +62,46 @@ data class CashDayAgg(
  */
 object CashFlowCalc {
 
+    /**
+     * 한 장부 줄(고객이든 건이든)의 현금 항목을 셈한다 — **한 곳**(§12).
+     *   계약금 받음 · 잔금 받음(+ 계약금 따로 안 찍었으면 완납이라 그날 같이) · 받을 예정(미수+예약일).
+     *   전엔 고객 루프에만 「받을 예정」·「자동 계약금」이 있고 건 루프엔 없어, v49 뒤 예약 손님의 예정수입이 통째로 안 떴다. (Fable #1·#2)
+     */
+    private fun emitCash(
+        out: MutableList<CashItem>,
+        row: SettleRow,
+        depositPaidAt: Long?, balancePaidAt: Long?, scheduledWorkDate: Long?,
+        title: String, hint: String?, refId: Long
+    ) {
+        if (depositPaidAt != null && row.depositAmount > 0L) out += CashItem(
+            dayStartMs = DateTimeUtils.startOfDay(depositPaidAt),
+            amount = row.depositAmount, isIncome = true, isDone = true,
+            title = title, tag = "계약금", subtitle = hint,
+            refType = CashRefType.CUSTOMER, refId = refId
+        )
+        if (balancePaidAt != null && row.balanceAmount > 0L) {
+            out += CashItem(
+                dayStartMs = DateTimeUtils.startOfDay(balancePaidAt),
+                amount = row.balanceAmount, isIncome = true, isDone = true,
+                title = title, tag = "잔금", subtitle = hint,
+                refType = CashRefType.CUSTOMER, refId = refId
+            )
+            // 잔금 받았으면 완납(received=total) — 계약금 '받음' 표시가 따로 없어도 그날 같이 센다(정산 receivedInRange 와 일치).
+            if (depositPaidAt == null && row.depositAmount > 0L) out += CashItem(
+                dayStartMs = DateTimeUtils.startOfDay(balancePaidAt),
+                amount = row.depositAmount, isIncome = true, isDone = true,
+                title = title, tag = "계약금", subtitle = hint,
+                refType = CashRefType.CUSTOMER, refId = refId
+            )
+        }
+        if (row.outstanding > 0L && scheduledWorkDate != null && scheduledWorkDate > 0L) out += CashItem(
+            dayStartMs = DateTimeUtils.startOfDay(scheduledWorkDate),
+            amount = row.outstanding, isIncome = true, isDone = false,
+            title = title, tag = "받을 예정", subtitle = hint,
+            refType = CashRefType.CUSTOMER, refId = refId
+        )
+    }
+
     fun buildItems(
         customers: List<CustomerEntity>,
         manual: List<ManualCashEntity>,
@@ -76,7 +116,8 @@ object CashFlowCalc {
         //   그런데 아래 두 반복문이 그냥 더해서, 계약금 20만원이 40만원으로 잡혔다.
         //   규칙: **건이 하나라도 있는 고객은 건 장부만 센다.** 건이 없는 고객만 고객 카드로 센다
         //         (돈은 넣었는데 시공일을 안 잡아 건 행이 없는 경우 — 그 돈이 사라지면 안 된다).
-        val customerIdsWithJobs = jobs.map { it.customerId }.toHashSet()
+        //   ⚠️ **돈을 담은 건만** "고객 카드 대신 건으로" 센다 — 취소·초안 건이 고객 돈을 가리던 것 방지. (Fable #4, 공용)
+        val customerIdsWithJobs = SettlementCalc.customerIdsWithMoneyJobs(jobs)
         for (c in customers) {
             if (c.id in customerIdsWithJobs) continue
             if (!SettlementCalc.hasMoney(c)) continue
@@ -91,42 +132,13 @@ object CashFlowCalc {
                 c.scheduledWorkDate
             )
 
-            val depositPaidAt = c.depositPaidAt
-            if (depositPaidAt != null && row.depositAmount > 0L) {
-                out += CashItem(
-                    dayStartMs = DateTimeUtils.startOfDay(depositPaidAt),
-                    amount = row.depositAmount, isIncome = true, isDone = true,
-                    title = title, tag = "계약금", subtitle = hint,
-                    refType = CashRefType.CUSTOMER, refId = c.id
-                )
-            }
-            val balancePaidAt = c.balancePaidAt
-            if (balancePaidAt != null && row.balanceAmount > 0L) {
-                out += CashItem(
-                    dayStartMs = DateTimeUtils.startOfDay(balancePaidAt),
-                    amount = row.balanceAmount, isIncome = true, isDone = true,
-                    title = title, tag = "잔금", subtitle = hint,
-                    refType = CashRefType.CUSTOMER, refId = c.id
-                )
-            }
-            val sched = c.scheduledWorkDate
-            if (row.outstanding > 0L && sched != null && sched > 0L) {
-                out += CashItem(
-                    dayStartMs = DateTimeUtils.startOfDay(sched),
-                    amount = row.outstanding, isIncome = true, isDone = false,
-                    title = title, tag = "받을 예정", subtitle = hint,
-                    refType = CashRefType.CUSTOMER, refId = c.id
-                )
-            }
+            emitCash(out, row, c.depositPaidAt, c.balancePaidAt, c.scheduledWorkDate, title, hint, c.id)
         }
         // 재방문 이력(jobs)의 입금도 확정 수입으로 — 재방문 시 완료 건이 jobs 로 옮겨지며 달력에서 그 매출이 증발하던 것 복원. (2026-08-11 돈감사 rank1)
         //   jobs 는 이름이 없어 현재 customers 에서 이름을 찾아 붙인다(고객 레코드는 archive 후에도 남음).
         val custById = customers.associateBy { it.id }
         for (j in jobs) {
-            val jDeposit = (j.depositAmount ?: 0L).coerceAtLeast(0L)
-            val jBalance = if (j.totalAmount != null) (j.totalAmount - jDeposit).coerceAtLeast(0L)
-                           else (j.balanceAmount?.coerceAtLeast(0L) ?: 0L)
-            // 지난 시공 줄은 **단서가 아예 없었다** — 번호만 덩그러니 뗠 있었다. (2026-09-23 사장님)
+            // 지난 시공 줄은 **단서가 아예 없었다** — 번호만 덩그러니 떠 있었다. (2026-09-23 사장님)
             //   주소는 그 시공 건의 주소를 먼저 쓴다 — 재방문이면 현장이 다를 수 있다.
             val jc = custById[j.customerId]
             val jAddr = j.address?.takeIf { it.isNotBlank() } ?: jc?.address
@@ -137,20 +149,8 @@ object CashFlowCalc {
                 if (jTitle == PhoneNumberFormatter.format(jc.phoneNumber)) jAddr else null,
                 j.scheduledWorkDate
             )
-            j.depositPaidAt?.let { pa ->
-                if (jDeposit > 0L) out += CashItem(
-                    dayStartMs = DateTimeUtils.startOfDay(pa), amount = jDeposit, isIncome = true, isDone = true,
-                    title = jTitle, tag = "계약금", subtitle = jHint,
-                    refType = CashRefType.CUSTOMER, refId = j.customerId
-                )
-            }
-            j.balancePaidAt?.let { pa ->
-                if (jBalance > 0L) out += CashItem(
-                    dayStartMs = DateTimeUtils.startOfDay(pa), amount = jBalance, isIncome = true, isDone = true,
-                    title = jTitle, tag = "잔금", subtitle = jHint,
-                    refType = CashRefType.CUSTOMER, refId = j.customerId
-                )
-            }
+            // 고객과 **똑같이** — 받은 돈 + 받을 예정(미수+예약일). 돈 셈은 SettlementCalc.rowOf(j) 로(손계산 제거·Fable #1·#2).
+            emitCash(out, SettlementCalc.rowOf(j), j.depositPaidAt, j.balancePaidAt, j.scheduledWorkDate, jTitle, jHint, j.customerId)
         }
         for (m in manual) {
             out += CashItem(

@@ -57,12 +57,21 @@ object SettlementCalc {
      * 왜 여기 있나: 전엔 정산 화면이 이 목록을 자기 안에서 만들고,
      *   홈 미수금 카드는 고객 표만 더했다. **같은 물음에 두 답**이 나왔다.
      */
+    /**
+     * 「건이 있으면 고객 카드 대신 건으로 센다」의 기준 = **돈을 담은 건**을 가진 고객 id. (2026-10-04 Fable #4)
+     *   ⚠️ 취소(돈 지움)·초안(돈 0) 건은 고객 카드를 **가리면 안 된다** — 그러면 그 손님 돈이 정산/미수/현금흐름에서 사라진다.
+     *   그래서 **돈(총액>0) 또는 받음 표시가 있는 건만** 센다. 돈 관련 화면은 전부 이 하나를 쓴다(§12 두 벌 금지).
+     */
+    fun customerIdsWithMoneyJobs(jobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>): Set<Long> =
+        jobs.filter { rowOf(it).total > 0L || it.depositPaidAt != null || it.balancePaidAt != null }
+            .map { it.customerId }.toHashSet()
+
     fun book(
         customers: List<CustomerEntity>,
         jobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
     ): List<SettleBookRow> {
         val byId = customers.associateBy { it.id }
-        val idsWithJobs = jobs.mapNotNull { byId[it.customerId]?.id }.toHashSet()
+        val idsWithJobs = customerIdsWithMoneyJobs(jobs)
         val fromJobs = jobs.mapNotNull { j ->
             byId[j.customerId] ?: return@mapNotNull null
             val calc = rowOf(j)

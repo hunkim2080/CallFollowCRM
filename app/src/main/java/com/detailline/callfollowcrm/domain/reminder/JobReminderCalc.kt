@@ -66,8 +66,9 @@ object JobReminderCalc {
         for (j in jobs) {
             val s = j.scheduledWorkDate ?: continue
             if (j.balancePaidAt != null) continue           // 이미 받음
-            val balance = j.balanceAmount ?: 0L
-            if (balance <= 0L) continue                     // 받을 게 없음
+            // ⚠️ 저장된 balanceAmount(stale 위험) 말고 **정산 규칙**으로 — 총액만 있고 계약금 미수면 전액이 미수다. (Fable #6)
+            val balance = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j).outstanding
+            if (balance <= 0L) continue                     // 받을 게 없음(완납/무료)
             val lastDay = startOfDay(s) + (j.scheduledWorkDays.coerceAtLeast(1) - 1) * dayMs
             if (now < lastDay + afterDays * dayMs) continue // 아직 이르다
             val key = balanceKey(j.id)

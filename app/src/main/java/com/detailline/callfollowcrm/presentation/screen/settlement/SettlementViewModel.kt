@@ -215,7 +215,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     ): Long {
         // 🔴 건이 있는 고객은 **건 장부만** 센다 — 안 그러면 같은 입금이 두 번 잡힌다. (2026-09-18)
         //   (v49 부터 고객 카드 돈이 건 장부에도 똑같이 들어간다. CashFlowCalc 와 같은 규칙.)
-        val idsWithJobs = jobs.map { it.customerId }.toHashSet()
+        val idsWithJobs = SettlementCalc.customerIdsWithMoneyJobs(jobs)   // 돈 담은 건만(취소/초안 제외·Fable #4)
         var sum = 0L
         customers.forEach { c -> if (c.id !in idsWithJobs) sum += SettlementCalc.receivedInRange(c, start, end) }
         jobs.forEach { j ->

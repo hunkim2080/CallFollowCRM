@@ -641,7 +641,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             //   고객 카드엔 2차 금액이 들어가 **1차 미수 카드가 아예 안 떴다.** 정산 목록과 같은 병.
             //   건이 하나도 없는 고객(돈만 있고 시공일 없음)은 지금처럼 고객 카드로.
             val byId = list.associateBy { it.id }
-            val idsWithJobs = jobs.map { it.customerId }.toHashSet()
+            val idsWithJobs = SettlementCalc.customerIdsWithMoneyJobs(jobs)   // 돈 담은 건만(취소/초안 제외·Fable #4)
 
             fun ui(c: CustomerEntity, jobId: Long?, days: Int, won: Long, addr: String?): HomeBalanceDueUi {
                 val realName = c.name?.takeIf { it.isNotBlank() }

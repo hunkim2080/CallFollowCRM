@@ -84,7 +84,7 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
         // 🔴 건이 있는 고객의 '번 돈' 은 아래 건 장부 루프에서 센다 — 여기서 또 더하면 두 번 잡힌다. (2026-09-18)
         //   v49 부터 고객 카드 돈이 건 장부에도 똑같이 들어간다. 정산·브리핑·달력과 같은 규칙.
         //   ※ 미수(outstandingNow)·고객 수는 고객 단위 집계라 그대로 둔다.
-        val idsWithJobs = jobHistory.map { it.customerId }.toHashSet()
+        val idsWithJobs = SettlementCalc.customerIdsWithMoneyJobs(jobHistory)   // 돈 담은 건만(취소/초안 제외·Fable #4)
         for (c in customers) {
             val row = SettlementCalc.rowOf(c)
             if (c.id !in idsWithJobs) {

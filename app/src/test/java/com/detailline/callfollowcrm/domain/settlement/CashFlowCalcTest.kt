@@ -192,4 +192,32 @@ class CashFlowCalcTest {
         val dep = items.first { it.tag == "계약금" }
         assertEquals(null, dep.subtitle)
     }
+
+    // ── 건(件) 단위(v49 이후) — Fable 로직감사 수정분 ──────────────────
+
+    @Test fun `건 있는 손님도 받을 예정이 뜬다`() {   // Fable #1
+        val c = customer(id = 1, total = 1_000_000, deposit = 300_000, depositPaidAt = day1, scheduled = day2)
+        val j = job(id = 10, customerId = 1, total = 1_000_000, deposit = 300_000, depositPaidAt = day1, scheduled = day2)
+        val items = CashFlowCalc.buildItems(listOf(c), emptyList(), emptyList(), day1, listOf(j))
+        assertEquals("계약금 30만은 확정", 300_000L, items.filter { it.isDone }.sumOf { it.amount })
+        val planned = items.filter { !it.isDone }
+        assertEquals("받을 예정 한 줄", 1, planned.size)
+        assertEquals(700_000L, planned.first().amount)   // 총 100만 − 계약금 30만
+        assertEquals(day2, planned.first().dayStartMs)
+    }
+
+    @Test fun `잔금만 받음 표시해도 계약금까지 그날 센다`() {   // Fable #2 (완납)
+        val c = customer(id = 1, total = 1_000_000, deposit = 300_000, balancePaidAt = day2)
+        val j = job(id = 10, customerId = 1, total = 1_000_000, deposit = 300_000, balancePaidAt = day2)
+        val items = CashFlowCalc.buildItems(listOf(c), emptyList(), emptyList(), day1, listOf(j))
+        assertEquals("완납 = 100만 (잔금70+계약금30)", 1_000_000L,
+            items.filter { it.isDone && it.dayStartMs == day2 }.sumOf { it.amount })
+    }
+
+    @Test fun `돈 없는 건(취소)이 있어도 고객 카드 돈은 센다`() {   // Fable #4
+        val c = customer(id = 1, total = 500_000, deposit = 200_000, depositPaidAt = day1)
+        val cancelled = job(id = 10, customerId = 1)   // 취소/초안 = 돈 없음
+        val items = CashFlowCalc.buildItems(listOf(c), emptyList(), emptyList(), day1, listOf(cancelled))
+        assertEquals("고객 계약금 20만이 살아있어야", 200_000L, items.filter { it.isDone }.sumOf { it.amount })
+    }
 }

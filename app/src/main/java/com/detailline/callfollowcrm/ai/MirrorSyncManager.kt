@@ -29,7 +29,8 @@ class MirrorSyncManager(
     private val prefs: AppPreferences,
     private val customerRepository: CustomerRepository,
     private val manualCashRepository: ManualCashRepository,
-    private val sharedSiteRepository: SharedSiteRepository
+    private val sharedSiteRepository: SharedSiteRepository,
+    private val jobRepository: com.detailline.callfollowcrm.data.repository.JobRepository   // 건 장부 — 미수/수입이 건 단위로 맞게 (Fable #5)
 ) {
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
 
@@ -94,30 +95,33 @@ class MirrorSyncManager(
             compareBy({ it.date }, { it.time ?: "" })
         )
 
-        // 돈 — 오늘 입금 / **지금까지 받은 돈 누적** / 미수금(합계+건수). 전부 정산과 동일 계산(숫자 어긋남 방지).
-        val cashItems = CashFlowCalc.buildItems(customers, manual, emptyList(), todayStart)
+        // 돈 — 오늘 입금 / **지금까지 받은 돈 누적** / 미수금(합계+건수). 전부 정산과 **동일 계산**(건 장부까지·Fable #5).
+        val jobs = runCatching { jobRepository.allOnce() }.getOrNull() ?: emptyList()
+        val cashItems = CashFlowCalc.buildItems(customers, manual, emptyList(), todayStart, jobs)
         val todayIn = cashItems
             .filter { it.isIncome && it.isDone && it.dayStartMs == todayStart }
             .sumOf { it.amount }
         // 사장님: "오늘 입금이 아니라 지금까지 입금된 금액이 나와야 할 듯" → 날짜 제한 없이 '실제로 받은 것'만 합산.
         //   isDone=false(받을 예정)는 아직 안 받은 돈이라 제외 — 미수금 칸이 그걸 보여준다.
         val totalIn = cashItems.filter { it.isIncome && it.isDone }.sumOf { it.amount }
-        val moneyRows = customers.filter { SettlementCalc.hasMoney(it) }.map { it to SettlementCalc.rowOf(it) }
-        val unpaid = moneyRows.sumOf { it.second.outstanding }
-        val unpaidCount = moneyRows.count { it.second.outstanding > 0L }
+        // 미수 = **건 단위**(book) — 2차가 대표일 때 1차 미수가 안 빠지게(옛 "홈엔 안 떴다" 버그가 미러엔 남아있었음).
+        val custById = customers.associateBy { it.id }
+        val bookRows = SettlementCalc.book(customers, jobs)
+        val unpaid = bookRows.sumOf { it.calc.outstanding }
+        val unpaidCount = bookRows.count { it.calc.outstanding > 0L }
         // 미수 현장 목록 — 큰 금액순. 뷰어 "미수금 N건" 탭 시 어디서 얼마 못 받았나.
-        val receivables = moneyRows
-            .filter { it.second.outstanding > 0L }
-            .map { (c, row) ->
+        val receivables = bookRows
+            .filter { it.calc.outstanding > 0L }
+            .mapNotNull { r ->
+                val c = custById[r.customerId] ?: return@mapNotNull null
                 MirrorRepository.Receivable(
                     name = c.name?.takeIf { it.isNotBlank() } ?: "현장",
-                    amount = row.outstanding,
+                    amount = r.calc.outstanding,
                     address = c.address?.takeIf { it.isNotBlank() },
                     phone = c.phoneNumber.takeIf { it.isNotBlank() }?.let { PhoneNumberFormatter.format(it) },
                     overdueDays = SettlementCalc.overdueDays(c, todayStart),
-                    // 미수가 걸린 날 = 완료일 우선, 없으면 시공 예약일 (overdueDays 와 같은 기준).
-                    //   뷰어가 달력에 연한 빨강으로 칠하는 데 씀.
-                    date = (c.workCompletedAt ?: c.scheduledWorkDate)
+                    // 미수가 걸린 날 = 그 건의 시공일(없으면 고객 완료일/예약일). 뷰어가 달력에 연한 빨강으로.
+                    date = (c.workCompletedAt ?: r.scheduledWorkDate ?: c.scheduledWorkDate)
                         ?.takeIf { it > 0L }
                         ?.let { dateFmt.format(Date(DateTimeUtils.startOfDay(it))) }
                 )

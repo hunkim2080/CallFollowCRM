@@ -79,7 +79,9 @@ object PaymentClaimDetector {
         AMOUNT_MANWON.find(body)?.let { m ->
             m.groupValues[1].replace(",", "").toLongOrNull()?.let { return it * 10_000L }
         }
-        for ((k, v) in KOR_MANWON) if (body.contains(k + "원") || body.contains(k + " 원")) return v
+        // ⚠️ **긴 말부터** 본다 — "이십만원" 안에 "십만원"이 들어 있어, 짧은 걸 먼저 보면 20만을 10만으로 읽는다. (Fable #3)
+        for ((k, v) in KOR_MANWON.entries.sortedByDescending { it.key.length })
+            if (body.contains(k + "원") || body.contains(k + " 원")) return v
         AMOUNT_WON.find(body)?.let { m ->
             m.groupValues[1].replace(",", "").toLongOrNull()?.let { if (it >= 1_000L) return it }
         }

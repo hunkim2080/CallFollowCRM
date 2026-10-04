@@ -58,7 +58,7 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
 
         // 🔴 건이 있는 고객은 **건 장부만** 센다 — 안 그러면 같은 입금이 두 번 잡힌다. (2026-09-18)
         //   v49 부터 고객 카드 돈이 건 장부에도 똑같이 들어간다. CashFlowCalc·정산과 같은 규칙.
-        val idsWithJobs = jobHistory.map { it.customerId }.toHashSet()
+        val idsWithJobs = SettlementCalc.customerIdsWithMoneyJobs(jobHistory)   // 돈 담은 건만(취소/초안 제외·Fable #4)
         val csNoJob = cs.filter { it.id !in idsWithJobs }
         val paidSum = csNoJob.sumOf { paidInRange(it, todayStart, todayEnd) } +
             jobHistory.sumOf { SettlementCalc.receivedInRange(it.totalAmount, it.depositAmount, it.depositPaidAt, it.balanceAmount, it.balancePaidAt, todayStart, todayEnd) }

@@ -142,4 +142,13 @@ class PaymentClaimDetectorTest {
         assertNotNull(hit("100만원 입금해드렸습니다. 확인부탁드립니다~!"))
         assertNotNull(hit("결재 했다고 하네요... 디자인 누 플러스로 입금됐을겁니다  확인 부탁드립니다"))
     }
+
+    @Test
+    fun `이십만부터 구십만까지 10만원으로 잘못 읽지 않는다`() {   // Fable #3
+        assertEquals(200_000L, PaymentClaimDetector.amountOf("이십만원 송금했습니다"))
+        assertEquals(500_000L, PaymentClaimDetector.amountOf("오십만원 보냈어요"))
+        assertEquals(900_000L, PaymentClaimDetector.amountOf("구십만원 입금 완료"))
+        assertEquals(100_000L, PaymentClaimDetector.amountOf("십만원 보냈습니다"))   // 진짜 10만은 그대로
+        assertEquals(1_000_000L, PaymentClaimDetector.amountOf("백만원 입금"))
+    }
 }
