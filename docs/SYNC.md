@@ -13402,3 +13402,18 @@ Fable 🧹3. 사장님 "고고"
   넷을 눈으로 본 **뒤에만** upload 태그. 그전엔 **절대 플레이로 안 올린다.**
 - 다음: 폰 꽂히면 위 4종 검증 → 통과하면 upload. 이어서 순차 — ②조용한 저장 11곳 ③repo↔라이브 합치기
   그리고 제미나이 5점 감사로 찾은 빈 곳: 오프라인 재시도 큐(글/돈) · 뒤로가기 스크롤 복원
+
+## 2026-10-04 17:00 · android
+✅ **R8 폰 검증 4개 전부 통과 — 이제 upload 해도 됨.** (앞 블록의 "upload 금지" 해제)
+
+테스트폰(23514638000c7ece, 0.2.2521)에서 눈으로:
+- ① 앱 켜짐 — FATAL 0, ClassNotFound/NoSuchMethod 0
+- ② enum — 가격표 분류(PricingCategory.valueOf)·통화 요약 카드(CallType.valueOf, 안 감싼 것)
+  둘 다 렌더, "No enum constant" 0
+- ③ 서버 JSON 왕복 — session/check 200, suggestions?owner_phone 200 (org.json 무사)
+- ④ 알림음 — 알림 소리 설정에서 **실제 재생됨**(재생 흔적 4), getIdentifier id=0 없음,
+  Resources NotFound 0. arsc 에 소리 이름 살아있음(shrinkResources=false 덕).
+- APK 27.2MB → 13.4MB. UI 완벽 렌더.
+
+테스트폰은 tphone.sh 로 **재움 + 배터리 보호(85%)** 걸어둠.
+→ upload 태그 올림(다음 줄). 폰들이 받으면 R8(작고 안전) 적용.
