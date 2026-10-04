@@ -484,6 +484,22 @@ def db_init() -> None:
             )
             """
         )
+        # ── 📮 멱등키 (op_keys) — 우체통 2단계(설계 §5-B). X-Op-Key 로 같은 요청 두 번 반영 방지. ──
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS op_keys (
+                op_key        TEXT PRIMARY KEY,
+                owner_phone   TEXT NOT NULL,
+                path          TEXT NOT NULL,
+                status_code   INTEGER NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute("CREATE INDEX IF NOT EXISTS idx_op_keys_created ON op_keys(created_at_ms)")
+        # 30일 지난 키 정리(비대 방지). 앱 재시도 창은 7일이라 30일이면 충분.
+        con.execute("DELETE FROM op_keys WHERE created_at_ms < ?", (int(time.time() * 1000) - 30 * 86400 * 1000,))
         # ── 웹 사진 캘린더 (읽기전용 뷰어) — SERVER_HANDOFF_web_photo_calendar.md (2026-08-13) ──
         # B안: 앱이 web_schedule_feed push → 서버가 캘린더/목록 렌더 (미러 무관).
         con.execute(
@@ -1677,6 +1693,40 @@ def db_init() -> None:
             "ON app_events(screen, created_at_ms DESC)"
         )
         con.commit()
+
+
+# ── 📮 멱등키 헬퍼 (op_keys) — 우체통 2단계, 설계 §5-B ──
+#   앱이 재시도(네트워크 끊김 등)로 같은 요청을 또 보내도, 처음 성공 응답을 그대로 돌려준다.
+#   헤더(X-Op-Key) 없는 옆 앱은 지금과 똑같이 처리된다(무해).
+def _idem_lookup(op_key: str) -> Optional[dict]:
+    if not op_key:
+        return None
+    try:
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT response_json FROM op_keys WHERE op_key = ?", (op_key,)
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+    except Exception:
+        return None
+
+
+def _idem_store(op_key: str, owner_phone: str, path: str, status_code: int, body: dict) -> None:
+    """성공(2xx) 응답만 저장. 실패는 저장 안 함(다시 시도해야 하니까)."""
+    if not op_key or not (200 <= status_code < 300):
+        return
+    try:
+        with db_conn() as con:
+            con.execute(
+                "INSERT OR IGNORE INTO op_keys "
+                "(op_key, owner_phone, path, status_code, response_json, created_at_ms) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (op_key, _norm_phone(owner_phone), path, int(status_code),
+                 json.dumps(body, ensure_ascii=False), int(time.time() * 1000)),
+            )
+            con.commit()
+    except Exception:
+        pass
 
 
 def _now_ms() -> int:
@@ -17573,12 +17623,17 @@ _VALID_PROGRESS_STEPS = {"departed", "arrived", "completed"}
 
 
 @app.post("/api/shared/progress")
-async def shared_progress(req: SharedProgressRequest) -> dict:
+async def shared_progress(req: SharedProgressRequest, request: Request) -> dict:
     """B 진행 업데이트. share_id + partner_phone 권한 필수.
 
     step=completed 시 payload.bank/account_no/holder 를 shared_sites 에 저장 (A 입금용).
     departed/arrived 는 payload 없음.
     """
+    _opk = (request.headers.get("X-Op-Key") or "").strip()
+    if _opk:
+        _cached = _idem_lookup(_opk)
+        if _cached is not None:
+            return _cached
     share_id = (req.share_id or "").strip()
     partner_phone = _norm_phone(req.partner_phone)
     step = (req.step or "").strip()
@@ -17746,7 +17801,10 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
             "share_id": share_id,
             "title": site_title or "협업 현장",
         })
-    return {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
+    _resp = {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
+    if _opk:
+        _idem_store(_opk, partner_phone, "/api/shared/progress", 200, _resp)
+    return _resp
 
 
 # ─── ⑥ POST /api/shared/paid ───
@@ -18421,11 +18479,16 @@ class SharedCommentPostRequest(BaseModel):
 
 
 @app.post("/api/shared/comment")
-async def shared_comment_post(req: SharedCommentPostRequest) -> dict:
+async def shared_comment_post(req: SharedCommentPostRequest, request: Request) -> dict:
     """댓글 작성. site_id 참여자 (owner or partner) 만 가능.
 
     추가74b (2026-06-29) — 저장 성공 후 상대 참여자에게 FCM data 푸시.
     """
+    _opk = (request.headers.get("X-Op-Key") or "").strip()
+    if _opk:
+        _cached = _idem_lookup(_opk)
+        if _cached is not None:
+            return _cached
     site_id = (req.site_id or "").strip()
     author_phone = _norm_phone(req.author_phone)
     author_name = (req.author_name or "").strip()[:60] or None
@@ -18481,7 +18544,10 @@ async def shared_comment_post(req: SharedCommentPostRequest) -> dict:
         except Exception as e:
             print(f"[shared/comment/post] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
 
-    return {"ok": True, "comment_id": comment_id, "created_at": now}
+    _resp = {"ok": True, "comment_id": comment_id, "created_at": now}
+    if _opk:
+        _idem_store(_opk, author_phone, "/api/shared/comment", 200, _resp)
+    return _resp
 
 
 @app.get("/api/shared/comments")
@@ -23451,12 +23517,17 @@ async def team_photo_delete(
 
 
 @app.post("/api/site-photo/owner-upload")
-async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
+async def owner_site_photo_upload(req: OwnerSitePhotoRequest, request: Request) -> dict:
     """§25 — 사장님 본인 현장사진 업로드. member_id='OWNER' / token=NULL.
 
     팀원 토큰 없이 owner_phone 검증으로 통과.
     응답: {ok, photo_id, label, customer_phone}
     """
+    _opk = (request.headers.get("X-Op-Key") or "").strip()
+    if _opk:
+        _cached = _idem_lookup(_opk)
+        if _cached is not None:
+            return _cached
     owner_phone = (req.owner_phone or "").strip()
     customer_phone = (req.customer_phone or "").strip()
     share_id = (req.share_id or "").strip()    # §F
@@ -23514,7 +23585,7 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
         f"customer={(customer_phone or '')[:13]} share={share_id or '-'} "
         f"photo_id={photo_id} label={label}"
     )
-    return {
+    _resp = {
         "ok": True,
         "photo_id": photo_id,
         "label": label,
@@ -23522,6 +23593,9 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
         "share_id": share_id or None,
         "uploaded_at_ms": now,
     }
+    if _opk:
+        _idem_store(_opk, owner_phone, "/api/site-photo/owner-upload", 200, _resp)
+    return _resp
 
 
 @app.get("/api/site-photos")

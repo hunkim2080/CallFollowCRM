@@ -13521,3 +13521,16 @@ Fable 🧹3. 사장님 "고고"
 - 폰(테스트폰): 새 배선으로 **켜짐·크래시 0**. ⚠️ 띠·목록 자체는 **못 띄워봄**(테스트폰에 말썽 난 항목 0 =
   띠가 정상적으로 숨겨짐; 띄우려면 24h 묵히거나 서버 거절 필요). 모양은 사장님 확정 프로토대로.
 - 남음: **2단계 (2)** 서버 op_keys 멱등(progress·comment·owner-upload)+client_key · 앱 kind progress(LATEST)·comment(APPEND). (서버는 「올려」 하실 때 배포)
+
+## 2026-10-04 20:40 · android (+ server)
+🔑 **오프라인 아웃박스 2단계 (2·서버) — op_keys 멱등. 같은 편지 두 번 받아도 한 번만 반영.** (사장님 「올려」 → 라이브 배포)
+
+- 뿌리: 협업 진행알림·댓글·사진을 우체통이 재시도하면, 서버가 그대로 또 INSERT → **완료 알림 두 번·댓글 두 줄·사진 두 장**(§41·§42).
+- 해결: `op_keys` 표 + `_idem_lookup`/`_idem_store`(설계 §5-B). 핸들러가 `X-Op-Key` 헤더를 보면 —
+  처음이면 처리 후 **성공(2xx) 응답만 저장**, 두 번째부터는 **그 응답을 그대로** 돌려준다(재INSERT 안 함).
+- 적용: `/api/shared/progress` · `/api/shared/comment` · `/api/site-photo/owner-upload` 세 INSERT 핸들러
+  (각 `request: Request` 추가). 30일 지난 키는 재시작 때 정리. **헤더 없는 옛 앱은 지금과 동일(무해).**
+- 🧪 라이브 검증: 같은 X-Op-Key 로 댓글 2번 → **댓글 1건**·두 응답 동일(cached) · 헤더 없이 2번 → 정상 생성 · 테스트행 정리.
+- 배포: GOTCHAS §3 (백업 main.py.bak-20261004-203539 → swap → kickstart → health 200 → smoke 10/10). repo == 라이브.
+- 변경(앱 쪽 해야 할 것): 앱이 재시도 요청에 **X-Op-Key = outbox opKey** 를 실어 보내면 즉시 효과.
+  → 다음: 앱 SitePhotoHandler 에 헤더 + kind progress(LATEST)·comment(APPEND) 추가(배포 무관, Play 는 수동).
