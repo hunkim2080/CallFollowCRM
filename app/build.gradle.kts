@@ -80,7 +80,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 🔒 R8 켬 (2026-10-03 사장님 "앱 뜯기 어렵게"). 위험 평가·keep 규칙은 proguard-rules.pro.
+            //   ⚠️ **자원 줄이기(shrinkResources)는 켜지 않는다** — 알림음을 getIdentifier 로 이름 조회라,
+            //      켜면 "안 쓰는 자원"으로 보고 지워져 소리가 안 난다. (옛 보류 사유가 이것)
+            isMinifyEnabled = true
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystorePropsFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
