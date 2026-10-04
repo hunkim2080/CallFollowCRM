@@ -100,7 +100,14 @@ class ServerSuggestionRepository(
         withContext(Dispatchers.IO) {
             runCatching {
                 val req = Request.Builder()
-                    .url("$baseUrl/suggestions/$phone")
+                    // 🔑 **누가 묻는지**를 같이 적는다 — 주소엔 손님 번호가 들어가서
+                    //   문지기가 「네 것 아니다」로 읽는다(403). 쿼리를 먼저 보므로 이 한 칸이면 통과.
+                    //   ⚠️ 서버는 모르는 쿼리를 무시한다 — 서버는 안 고쳐도 된다. (2026-10-03)
+                    .url(
+                        "$baseUrl/suggestions/$phone" +
+                            (ownerPhone().filter { it.isDigit() }
+                                .takeIf { it.isNotBlank() }?.let { "?owner_phone=$it" } ?: "")
+                    )
                     .get()
                     .build()
                 client.newCall(req).execute().use { resp ->

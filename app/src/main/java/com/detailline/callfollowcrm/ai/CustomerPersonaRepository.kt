@@ -22,7 +22,9 @@ import java.util.concurrent.TimeUnit
  *     cowork 가 향후 5 필드 분리 모드로 바꾸거나 두 모드 공존해도 깨지지 않게.
  */
 class CustomerPersonaRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
+    /** 🔑 **누가 묻는지.** 주소엔 손님 번호가 들어가서, 이게 없으면 문지기가 403 을 준다. */
+    private val ownerPhone: () -> String = { "" }
 ) {
 
     private val client: OkHttpClient = Net.builder()
@@ -37,7 +39,12 @@ class CustomerPersonaRepository(
     suspend fun fetch(phone: String): Result<CustomerPersona?> = withContext(Dispatchers.IO) {
         runCatching {
             val req = Request.Builder()
-                .url("$baseUrl/api/customer-persona/$phone")
+                // 🔑 위 [ServerSuggestionRepository] 와 같은 이유 — 주소엔 손님 번호가 들어간다.
+                .url(
+                    "$baseUrl/api/customer-persona/$phone" +
+                        (ownerPhone().filter { it.isDigit() }
+                            .takeIf { it.isNotBlank() }?.let { "?owner_phone=$it" } ?: "")
+                )
                 .get()
                 .build()
             client.newCall(req).execute().use { resp ->

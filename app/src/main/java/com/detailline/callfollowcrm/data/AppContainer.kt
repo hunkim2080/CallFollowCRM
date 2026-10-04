@@ -194,7 +194,8 @@ class AppContainer(context: Context) {
     val templateNameRepository = com.detailline.callfollowcrm.ai.TemplateNameRepository()
 
     // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (Haiku 자동 생성, cowork prepare-reply 가 책임).
-    val customerPersonaRepository = com.detailline.callfollowcrm.ai.CustomerPersonaRepository()
+    val customerPersonaRepository =
+        com.detailline.callfollowcrm.ai.CustomerPersonaRepository(ownerPhone = { preferences.bizPhone })
 
     // 2026-06-02 맥미니 §19 — 시공접수서 발급. 채팅 [접수서 링크] → URL 발급 → SMS 본문 prefill.
     val intakeFormRepository = com.detailline.callfollowcrm.ai.IntakeFormRepository()
