@@ -13447,3 +13447,23 @@ Fable 🧹3. 사장님 "고고"
 - GOTCHAS §3 갱신.
 - 폰 확인: 해당 없음(서버/배포 도구). 라이브는 **안 건드렸다**(이미 그 코드가 돌고 있다).
 - 남은 순차: 제미나이 감사 빈 곳 — 오프라인 재시도 큐(글·돈) · 뒤로가기 스크롤 복원.
+
+## 2026-10-04 18:25 · android (+ server)
+🏠 **협업 주소 변경 전파 — `/api/shared/update-address` 를 만들었다(두 달 된 진짜 버그 닫음).**
+
+- 뿌리: 앱(SharedSiteRepository.updateAddress)은 2026-08-02 부터 이 길로 POST 했는데
+  **서버엔 라우트가 0개**였다 → runCatching 에 삼켜져 조용히 404. "협업 주소 바꿔도 상대는 옛 주소"
+  는 오프라인이 아니라 **없는 엔드포인트** 버그였다(Fable 발견 → curl 로 확인).
+- 설계: `reschedule` 의 **형제** — 날짜 대신 주소를 전파. SharedUpdateAddressRequest
+  {share_id, owner_phone, addr, customer_label?} → shared_sites.addr(+customer_label) UPDATE +
+  updated_at_ms. accepted 협업이면 B 에게 FCM `type=collab_address_change`(지금 앱은 모르는 type 을
+  조용히 무시 → with-me 폴링으로 새 주소 받음. 무해·전방호환).
+- 🔒 **보안**: `/api/shared/update-address` 를 `_AUTH_PROTECT_PREFIXES` 에 넣었다 —
+  안 넣으면 startswith 매칭에 안 걸려 **번호만 대면 열리는** 상태였다(reschedule 과 동일 수준으로 잠금).
+  POST 는 body phone 을 미들웨어가 못 읽으므로 '유효 토큰 보유'까지 + 핸들러가 소유자 일치 확인(403).
+- 변경(상대편): 앱 측 추가 작업 없음(이미 배선됨). 나중에 B 앱에 collab_address_change 핸들러 넣으면 **즉시** 반영.
+- 배포: GOTCHAS §3 — scp→서버 py_compile→백업(main.py.bak-20261004-182332)→swap→kickstart→health 200→`smoke.sh` 10/10.
+- 🧪 live 검증(5경로): 무토큰 401+X-Auth-Required · addr 빈값 400 · 없는 share 404 ·
+  **남의 현장 403(addr 안 바뀜)** · 해피패스 200{ok,notified:0} (ended 테스트 share 왕복 후 '시험용'으로 복원).
+- repo == 라이브 확인(diff = 내 추가분만). py_compile OK. 라이브만 1줄 프리픽스 + 61줄 엔드포인트.
+- 폰 확인: 해당 없음(서버 엔드포인트). 다음: 오프라인 아웃박스(Fable 설계 Phase1) — op_keys + X-Op-Key 멱등.

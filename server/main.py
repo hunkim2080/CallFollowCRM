@@ -6017,7 +6017,7 @@ _AUTH_PROTECT_PREFIXES = (
     "/api/shared/with-me", "/api/shared/by-me", "/api/shared/owner-events",
     "/api/shared/partners", "/api/shared/history", "/api/shared/comments",
     "/api/shared/invite", "/api/shared/progress", "/api/shared/paid",
-    "/api/shared/reschedule", "/api/shared/photo",
+    "/api/shared/reschedule", "/api/shared/update-address", "/api/shared/photo",
     "/api/team/", "/api/quote/submissions", "/api/quote/issue",
     "/api/intake-form/status", "/api/intake-form/list", "/api/intake-form/issue",
     "/api/site-photos", "/api/labor/history",
@@ -17807,6 +17807,13 @@ class SharedRescheduleRequest(BaseModel):
     time_label: Optional[str] = None
 
 
+class SharedUpdateAddressRequest(BaseModel):
+    share_id: str = ""
+    owner_phone: str = ""
+    addr: str = ""
+    customer_label: Optional[str] = None
+
+
 @app.post("/api/shared/reschedule")
 async def shared_reschedule(req: SharedRescheduleRequest) -> dict:
     """A 가 시공일 변경 → shared_sites 갱신 + accepted 협업 B 에게 FCM(collab_reschedule)."""
@@ -17845,6 +17852,60 @@ async def shared_reschedule(req: SharedRescheduleRequest) -> dict:
             data["old_at_ms"] = str(int(req.old_scheduled_at_ms))
         if (req.time_label or "").strip():
             data["time_label"] = req.time_label.strip()[:20]
+        res = _send_fcm_data_to_phone(partner_phone, data)
+        if isinstance(res, dict) and res.get("sent", 0) > 0:
+            notified = 1
+    return {"ok": True, "share_id": share_id, "notified": notified}
+
+
+@app.post("/api/shared/update-address")
+async def shared_update_address(req: SharedUpdateAddressRequest) -> dict:
+    """A 가 현장 주소 변경 → shared_sites.addr 갱신 + accepted 협업 B 에게 FCM(collab_address_change).
+
+    reschedule 의 형제 — 날짜 대신 주소를 전파한다. (2026-08-02 핸드오프: 앱은 이미 배선 완료,
+    서버에 이 길이 없어 두 달째 404 였다 — 사장님 "주소 바꿔도 상대는 옆 주소" 버그의 진짜 원인.)
+    """
+    share_id = (req.share_id or "").strip()
+    owner_phone = _norm_phone(req.owner_phone)
+    addr = (req.addr or "").strip()
+    if not share_id or not owner_phone or not addr:
+        raise HTTPException(400, "share_id, owner_phone, addr 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, status, partner_phone, title, customer_label "
+            "FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        if row[0] != owner_phone:
+            raise HTTPException(403, "권한 없음")  # 남의 현장 못 바꿈
+        label = (req.customer_label or "").strip()
+        if label:
+            con.execute(
+                "UPDATE shared_sites SET addr = ?, customer_label = ?, updated_at_ms = ? WHERE share_id = ?",
+                (addr, label[:40], now, share_id),
+            )
+        else:
+            con.execute(
+                "UPDATE shared_sites SET addr = ?, updated_at_ms = ? WHERE share_id = ?",
+                (addr, now, share_id),
+            )
+        con.commit()
+    status, partner_phone, title, old_label = row[1], row[2], row[3], row[4]
+    print(f"[shared/update-address] share={share_id} {owner_phone} → addr 갱신 (status={status})")
+    # accepted 협업에만 push. 모르는 type 은 B 앱이 조용히 무시한다(when else 없음) —
+    #   지금은 B 가 with-me 폴링으로 새 주소를 받고, 나중에 앵 핸들러를 넣으면 즉시 반영.
+    notified = 0
+    if status == "accepted" and partner_phone:
+        data = {
+            "type": "collab_address_change",
+            "share_id": share_id,
+            "title": title or "협업 현장",
+            "addr": addr,
+            "label": (label or old_label or title or "협업 현장"),
+        }
         res = _send_fcm_data_to_phone(partner_phone, data)
         if isinstance(res, dict) and res.get("sent", 0) > 0:
             notified = 1
