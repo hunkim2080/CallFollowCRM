@@ -5987,8 +5987,62 @@ def _req_phone_for_auth(request: Request) -> Optional[str]:
     return None
 
 
+# ── 🕵️ 번호 긁기 발각 장치 (2026-10-03 사장님 "보완하자") ──
+# 한 IP 가 5분 안에 **서로 다른 사장님 번호**를 이만큼 넘게 조회하면 = 명단을 긁는 중.
+#   일반 사용자는 자기 번호 하나뿐 → 이 수에 절대 안 닿는다.
+_SCRAPE_DISTINCT_THRESHOLD = 20
+_SCRAPE_WINDOW_MS = 5 * 60 * 1000
+_SCRAPE_ALERT_COOLDOWN_MS = 60 * 60 * 1000   # 같은 IP 는 1시간에 한 번만 알린다(도배 방지)
+_SCRAPE_WATCH: dict = {}                     # ip -> {"since": ms, "phones": set, "alerted": ms}
+
+
+def _scrape_watch(request: Request) -> None:
+    """owner 번호가 쿼리에 박힌 보호 경로만 센다. 절대 예외를 내지 않는다(본 기능 보호)."""
+    try:
+        path = request.url.path
+        # owner 번호를 쿼리로 받는 길에서만 — 손님 번호가 경로에 박힌 길은 제외.
+        if not any(path.startswith(p) for p in _AUTH_PROTECT_PREFIXES):
+            return
+        owner = None
+        for k in _AUTH_PHONE_KEYS:
+            v = request.query_params.get(k)
+            if v:
+                owner = _norm_phone(v)
+                break
+        if not owner:
+            return
+        ip = (request.headers.get("cf-connecting-ip")
+              or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+              or (request.client.host if request.client else "?")) or "?"
+        now = _now_ms()
+        rec = _SCRAPE_WATCH.get(ip)
+        if not rec or now - rec["since"] > _SCRAPE_WINDOW_MS:
+            rec = {"since": now, "phones": set(), "alerted": rec.get("alerted", 0) if rec else 0}
+            _SCRAPE_WATCH[ip] = rec
+        rec["phones"].add(owner)
+        # 메모리 상한 — 오래된 IP 는 버린다(긁기는 짧고 굵게 온다).
+        if len(_SCRAPE_WATCH) > 3000:
+            cut = now - _SCRAPE_WINDOW_MS
+            for k2 in [k for k, v in _SCRAPE_WATCH.items() if v["since"] < cut]:
+                _SCRAPE_WATCH.pop(k2, None)
+        if (len(rec["phones"]) >= _SCRAPE_DISTINCT_THRESHOLD
+                and now - rec.get("alerted", 0) > _SCRAPE_ALERT_COOLDOWN_MS):
+            rec["alerted"] = now
+            n = len(rec["phones"])
+            locked = "🔒 지금은 로그인으로 막혀 있습니다." if AUTH_ENFORCE else "⚠️ 아직 로그인이 **꺼져 있어** 그냥 나갑니다."
+            _fire_bg(_slack_post(
+                "🕵️ *번호를 긁는 것 같아요*\n"
+                f"• 한 곳(IP `{ip[:18]}…`)에서 **5분 안에 사장님 번호 {n}개**를 조회했습니다.\n"
+                "• 보통 사용자는 **자기 번호 하나**만 씁니다 — 명단을 훑는 패턴이에요.\n"
+                f"• {locked}"
+            ))
+    except Exception as _e:  # noqa: BLE001
+        pass
+
+
 @app.middleware("http")
 async def _auth_enforce_middleware(request: Request, call_next):
+    _scrape_watch(request)
     if AUTH_ENFORCE:
         path = request.url.path
         prot = (any(path.startswith(p) for p in _AUTH_PROTECT_PREFIXES)
