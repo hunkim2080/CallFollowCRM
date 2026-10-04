@@ -449,7 +449,17 @@ fun HomeScreen(
     }
     // 칩을 바꾸면 **맨 위부터** 보여준다. (2026-09-20 실기)
     //   목록만 갈리고 스크롤 위치가 남아서, [새 번호] 를 누르면 첫 줄이 잘린 중간부터 보였다.
-    LaunchedEffect(inboxChip) { runCatching { listState.scrollToItem(0) } }
+    // 🔖 **칩을 바꿀 때만** 맨 위로 — 화면에 **다시 들어올 때**는 건드리지 않는다. (2026-10-04 사장님 완성도)
+    //   LaunchedEffect 는 재진입마다 한 번 돈다. 전엔 그래서 대화 갔다 뒤로 오면
+    //   훑던 자리가 **맨 위로 튕겼다**. (제미나이 완성도 ③: 뒤로가기 스크롤 복원)
+    //   lastChip 은 remember(비-Saveable)라 재진입 때 **복원된 칩으로 다시 맞춰져** → 그 순간엔 안 튄다.
+    var lastChipForScroll by remember { mutableStateOf(inboxChip) }
+    LaunchedEffect(inboxChip) {
+        if (inboxChip != lastChipForScroll) {
+            lastChipForScroll = inboxChip
+            runCatching { listState.scrollToItem(0) }
+        }
+    }
 
     // Scaffold 를 Box 로 감싸 그 위(홈 콘텐츠 전체를 덮는 z-레벨)에 업데이트 시트를 오버레이. (2026-07-18 사장님)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
