@@ -118,8 +118,10 @@ class SitePhotoServerRepository(
         label: String = "시공 사진",
         /** 그 건의 시공일 'YYYY-MM-DD'. 없으면 서버에서 '미분류'. (2026-09-18) */
         workDate: String? = null,
-        /** 📮 멱등키 — 우체통 재시도 때 같은 키면 서버가 한 번만 반영(사진 두 장 방지). (2단계) */
-        opKey: String? = null
+        /** 📮 멱등키(X-Op-Key) — 우체통 재시도 때 같은 키면 서버가 한 번만. (2단계) */
+        opKey: String? = null,
+        /** 📮 고정키(photo:<localId>) — 돌려서 재업로드해도 서버가 **덮어쓴다**(두 장 방지). (§5-D) */
+        clientKey: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val body = JSONObject().apply {
@@ -129,6 +131,7 @@ class SitePhotoServerRepository(
                 put("label", label)
                 // 이게 있어야 PC 에서 1차·2차 사진이 갈린다. 서버는 선택값으로 받는다(옛 앱 무해).
                 workDate?.takeIf { it.isNotBlank() }?.let { put("work_date", it) }
+                clientKey?.takeIf { it.isNotBlank() }?.let { put("client_key", it) }
             }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val reqB = Request.Builder().url("$baseUrl/api/site-photo/owner-upload").post(body)
             opKey?.takeIf { it.isNotBlank() }?.let { reqB.header("X-Op-Key", it) }

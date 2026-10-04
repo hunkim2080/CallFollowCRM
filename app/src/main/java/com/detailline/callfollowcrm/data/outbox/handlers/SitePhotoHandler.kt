@@ -48,7 +48,10 @@ class SitePhotoHandler(
 
         val label = o.optString("label").ifBlank { "시공 사진" }
         val workDate = o.optString("workDate").takeIf { it.isNotBlank() }
-        val res = serverRepo.uploadOwnerPhoto(owner, custPhone, dataUrl, label, workDate, opKey = opKey)
+        // opKey = 재시도 멱등(UUID) · clientKey = 사진 고정키(돌려서 재업로드해도 서버가 덮어씀). §5-D
+        val res = serverRepo.uploadOwnerPhoto(
+            owner, custPhone, dataUrl, label, workDate, opKey = opKey, clientKey = "photo:$photoId"
+        )
         if (res.isSuccess) sitePhotoDao.markUploaded(photoId, System.currentTimeMillis())
         return res.toVerdict(kind)                       // 403=티어→재시도 · 5xx/끊김→재시도 · 4xx→dead
     }

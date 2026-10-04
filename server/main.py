@@ -1273,6 +1273,15 @@ def db_init() -> None:
             con.execute("ALTER TABLE team_site_photos ADD COLUMN work_date TEXT")
         except sqlite3.OperationalError:
             pass  # already exists
+        # 📮 §5-D — 돌려서 재업로드 때 두 장 되던 것 fix. 같은 client_key 면 UPDATE(교체).
+        try:
+            con.execute("ALTER TABLE team_site_photos ADD COLUMN client_key TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_clientkey "
+            "ON team_site_photos(owner_phone, client_key)"
+        )
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_customer_date "
             "ON team_site_photos(owner_phone, customer_phone, work_date)"
@@ -22709,6 +22718,8 @@ class OwnerSitePhotoRequest(BaseModel):
     # 어느 시공일(건) 사진인지. 'YYYY-MM-DD'. 없으면 '미분류' — 옛 앱 호환. (2026-09-18)
     #   ⚠️ Python 3.9 — `str | None` 쓰면 502. Optional[str] 로.
     work_date: Optional[str] = None
+    # 📮 §5-D — 돌려서 재업로드 할 때 같은 사진인지 알려주는 고정키(photo:<localId>). 있으면 덮어쓴다. nullable(옆 앱 무해).
+    client_key: Optional[str] = None
 
 
 # ─── API 1: 팀원 초대 (이름 + 전화 + URL 발급) ───
@@ -23559,26 +23570,44 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest, request: Request) 
         raise HTTPException(413, "사진 용량 초과 (1MB 이하만)")
     label = (req.label or "").strip() or "추가 사진"
     now = _now_ms()
+    _note = (req.note or "").strip() or None
+    _wd = (req.work_date or "").strip() or None
+    client_key = (req.client_key or "").strip() or None
     with db_conn() as con:
-        cur = con.execute(
-            """
-            INSERT INTO team_site_photos
-                (token, member_id, owner_phone, label, image_data_url, image_path,
-                 note, uploaded_at_ms, customer_phone, share_id, work_date)
-            VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?, ?, ?)
-            """,
-            (
-                owner_phone,
-                label,
-                data_url,
-                (req.note or "").strip() or None,
-                now,
-                customer_phone or None,
-                share_id or None,
-                (req.work_date or "").strip() or None,
-            ),
-        )
-        photo_id = cur.lastrowid
+        # 📮 §5-D — 같은 사진(client_key)이 이미 있으면 덮어쓴다(돌려서 재업로드해도 두 장 안 됨).
+        _existing = None
+        if client_key:
+            _r = con.execute(
+                "SELECT photo_id FROM team_site_photos "
+                "WHERE member_id = 'OWNER' AND owner_phone = ? AND client_key = ?",
+                (owner_phone, client_key),
+            ).fetchone()
+            if _r:
+                _existing = _r[0]
+        if _existing is not None:
+            con.execute(
+                """
+                UPDATE team_site_photos SET
+                  label = ?, image_data_url = ?, note = ?, uploaded_at_ms = ?,
+                  customer_phone = ?, share_id = ?, work_date = ?
+                WHERE photo_id = ?
+                """,
+                (label, data_url, _note, now,
+                 customer_phone or None, share_id or None, _wd, _existing),
+            )
+            photo_id = _existing
+        else:
+            cur = con.execute(
+                """
+                INSERT INTO team_site_photos
+                    (token, member_id, owner_phone, label, image_data_url, image_path,
+                     note, uploaded_at_ms, customer_phone, share_id, work_date, client_key)
+                VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+                """,
+                (owner_phone, label, data_url, _note, now,
+                 customer_phone or None, share_id or None, _wd, client_key),
+            )
+            photo_id = cur.lastrowid
         con.commit()
     print(
         f"[owner_site_photo] owner={owner_phone} "

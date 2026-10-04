@@ -13555,3 +13555,15 @@ Fable 🧹3. 사장님 "고고"
 - 폰(테스트폰): 협업 현장·사이트 상세·진행 버튼·댓글칸 **렌더 확인·크래시 0**(댓글 로드=서버+우체통 합치기 경로 동작).
   ⚠️ 실제 댓글 전송·「보내는 중」 전환은 **못 재현**(실협업 상대에게 진짜 FCM·오프라인 토글) — 로직은 단위시험·서버 멱등은 어제 라이브 검증.
 - → 2단계 사실상 완료. (선택 남음: §5-D team_site_photos.client_key 사진 덮어쓰기)
+
+## 2026-10-04 21:25 · android (+ server)
+🐞 **§5-D 버그 fix — 사진 돌려서 재업로드할 때 PC 웹에 두 장 남던 것.** (사장님 「버그까지 잡자」)
+
+- 뾌리: `rotate` 가 serverUploadedAt 을 지워 재업로드하는데, 서버 owner-upload 가 무조건 INSERT → 옆 사진이 남아 두 장.
+- 서버: `team_site_photos.client_key`(ALTER, nullable) + owner-upload 가 **같은 (owner, client_key)** 이 있으면 INSERT 대신 **UPDATE(교체)**.
+  헤더 X-Op-Key(UUID)=재시도 멱등, body client_key(photo:<localId>)=돌리기 덮어쓰기 — 둘은 다른 역할, 상호보완.
+- 앱: SitePhotoServerRepository.uploadOwnerPhoto(clientKey=...) → SitePhotoHandler 가 "photo:<photoId>" 전달.
+- 🧪 라이브 검증: 같은 client_key 로 2번 업로드(label 다르게) → **행 1개**·label·이미지 교체 확인. smoke 10/10. repo == 라이브.
+- 배포: GOTCHAS §3(백업 main.py.bak-20261004-211908). 옆 앱(client_key 없음)은 지금과 동일(무해).
+- ⚠️ 폰: 마지막 APK 설치 직전 **테스트폰이 빠짐**(USB 끊김) → 이 빌드는 켜짐 미확인. 앱 변경은 body 칸 1개·빌드 통과·사진 경로 미변·서버는 라이브 검증.
+- → 🎉 오프라인 우체통 설계 **전부 구현 완료.**
