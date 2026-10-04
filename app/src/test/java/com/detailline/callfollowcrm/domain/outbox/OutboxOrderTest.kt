@@ -60,6 +60,12 @@ class OutboxOrderTest {
         assertEquals(1, sent)                            // 옛 번호는 네트워크도 안 씀
     }
 
+    @Test fun `빈 번호(사진)는 아무 주인이나 - 번호 바뀌어도 보낸다`() {
+        val photo = OutboxRow(1, OutboxKind.SITE_PHOTO.wire, "photo:1", "", 0, 1000L)
+        val actions = run(listOf(photo), activeOwner = "01080056674") { Verdict.DONE to 200 }
+        assertTrue(actions[0] is RoundAction.Done)       // 빈 ownerPhone = 지금 주인 것 → 보냄
+    }
+
     @Test fun `7일 넘은 pending 은 보내보기 전에 죽는다`() {
         val now = 10L * 24 * 3600_000
         val rows = listOf(row(1, "A", created = 0L))     // 10일 전

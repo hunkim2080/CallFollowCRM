@@ -254,11 +254,10 @@ class AppContainer(context: Context) {
             cachedMessageRepository, callSummaryRepository
         )
     }
-    /** 로컬 현장사진을 서버로 백필 업로드(웹 로그인 상태일 때만) → PC 웹에서 사장님 사진 보임. kick() 으로 1회 시도. */
+    /** 📮 로컬 현장사진을 **우체통에 먹여** 서버 백필 업로드 → PC 웹에서 사장님 사진 보임. 올리기는 SitePhotoHandler. */
     val ownerPhotoUploadManager by lazy {
         com.detailline.callfollowcrm.ai.OwnerPhotoUploadManager(
-            context.applicationContext, db.sitePhotoDao(), customerRepository, jobRepository,
-            sitePhotoServerRepository, preferences
+            db.sitePhotoDao(), customerRepository, jobRepository, preferences, outbox
         )
     }
 
@@ -365,7 +364,8 @@ class AppContainer(context: Context) {
         handlers = listOf(
             com.detailline.callfollowcrm.data.outbox.handlers.CollabRescheduleHandler(sharedSiteRepository),
             com.detailline.callfollowcrm.data.outbox.handlers.CollabAddressHandler(sharedSiteRepository),
-            com.detailline.callfollowcrm.data.outbox.handlers.CollabEndHandler(sharedSiteRepository)
+            com.detailline.callfollowcrm.data.outbox.handlers.CollabEndHandler(sharedSiteRepository),
+            com.detailline.callfollowcrm.data.outbox.handlers.SitePhotoHandler(db.sitePhotoDao(), sitePhotoServerRepository)
         ),
         scope = applicationScope
     )

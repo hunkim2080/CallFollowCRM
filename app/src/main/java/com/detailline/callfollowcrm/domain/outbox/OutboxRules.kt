@@ -13,7 +13,12 @@ package com.detailline.callfollowcrm.domain.outbox
 enum class Verdict { DONE, RETRY, DEAD }
 
 /** 같은 (kind,targetKey) 가 이미 pending 일 때 어떻게 합치나. */
-enum class Coalesce { LATEST_WINS, APPEND, TERMINAL }
+enum class Coalesce {
+    LATEST_WINS,     // payload 갈아끼움(알림 한 번) — 일정·주소
+    APPEND,          // 늘 새 행 — 댓글
+    TERMINAL,        // 같은 target 앞선 pending 전부 지움 — 해제
+    KEEP_EXISTING    // 이미 있으면 **아무것도 안 함**(백오프 유지) — 사진(payload 가 안 바뀜)
+}
 
 /**
  * 우체통에 들어가는 종류.
@@ -23,7 +28,7 @@ enum class OutboxKind(val wire: String, val coalesce: Coalesce) {
     COLLAB_RESCHEDULE("collab_reschedule", Coalesce.LATEST_WINS),
     COLLAB_ADDRESS("collab_address", Coalesce.LATEST_WINS),
     COLLAB_END("collab_end", Coalesce.TERMINAL),
-    SITE_PHOTO("site_photo", Coalesce.LATEST_WINS);   // 1-b 에서 실제 이동
+    SITE_PHOTO("site_photo", Coalesce.KEEP_EXISTING);  // payload({photoId})가 안 바뀜 → 이미 있으면 그대로 둔다
 
     companion object {
         fun fromWire(w: String): OutboxKind? = entries.firstOrNull { it.wire == w }
@@ -42,8 +47,9 @@ data class OutboxRow(
 
 /** enqueue 때 합치기 계획. Outbox.enqueue 가 이대로 DAO 를 고친다. */
 data class CoalescePlan(
-    val reuseId: Long?,          // 이 pending 행의 payload 만 갈아끼운다(LATEST_WINS). null=새 행
-    val deleteIds: List<Long>    // 지울 앞선 pending 행들(TERMINAL)
+    val reuseId: Long?,               // 이 pending 행의 payload 만 갈아끼운다(LATEST_WINS). null=새 행
+    val deleteIds: List<Long>,        // 지울 앞선 pending 행들(TERMINAL)
+    val skipInsert: Boolean = false   // true=아무것도 안 함(KEEP_EXISTING, 이미 있을 때)
 )
 
 /** 라운드 한 행의 결정. Outbox 가 이걸 보고 DAO 를 고친다. */
@@ -82,6 +88,10 @@ object OutboxRules {
                 CoalescePlan(same?.id, emptyList())
             }
             Coalesce.TERMINAL -> CoalescePlan(null, existingPendingSameTarget.map { it.id })
+            Coalesce.KEEP_EXISTING -> {
+                val exists = existingPendingSameTarget.any { it.kindWire == newKind.wire }
+                CoalescePlan(null, emptyList(), skipInsert = exists)   // 이미 있으면 그대로 둔다(백오프 안 깨짐)
+            }
         }
 
     /** 이미 실패한 횟수 → 다음까지 기다릴 기본 ms(지터 전). */
@@ -162,7 +172,8 @@ object OutboxRules {
         val out = ArrayList<RoundAction>(rows.size)
         var sent = 0
         for (r in rows.sortedBy { it.id }) {
-            if (r.ownerPhone != activeOwner) { out += RoundAction.Skipped(r.id); continue }
+            // 번호가 박힌 행(협업)은 지금 로그인과 같아야 보낸다. 빈 번호(사진)는 「아무 주인이나」 = 지금 주인 것.
+            if (r.ownerPhone.isNotBlank() && r.ownerPhone != activeOwner) { out += RoundAction.Skipped(r.id); continue }
             if (r.targetKey in blocked) { out += RoundAction.Skipped(r.id); continue }
             if (isExpired(r.createdAtMs, now)) {
                 out += RoundAction.Dead(r.id, deadReason(null)); continue

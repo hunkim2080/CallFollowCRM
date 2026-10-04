@@ -348,7 +348,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
 **`dup_guard` 가 지금 막는 14가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `collab-direct-send`
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -419,7 +419,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 완료 찍기 | `data/repository/WorkCompletionManager.kt` | 화면마다 따로 |
 | 로그에 번호 가리기 | `util/LogRedact.kt` | 번호를 그대로 로그 |
 | 대화 화면 조각 | `presentation/screen/chat/` 의 `ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts` | ChatScreen.kt 안에 또 쌓기 |
-| 서버로 보내는 협업 명령(오프라인 보관·재시도) | `data/outbox/Outbox.kt` (셈은 `domain/outbox/OutboxRules.kt`) | 화면·VM 에서 `runCatching { sharedSiteRepository.reschedule/updateAddress/endCollab/cancel }` 로 던지기 |
+| 서버로 보내는 명령(협업·사진, 오프라인 보관·재시도) | `data/outbox/Outbox.kt` (셈은 `domain/outbox/OutboxRules.kt`, 보내기는 `data/outbox/handlers/`) | 화면·매니저에서 `runCatching { sharedSiteRepository.reschedule/updateAddress/endCollab/cancel }` · `serverRepo.uploadOwnerPhoto` 직접 |
 | 인터넷 복구 듣기 | `util/NetworkWatch.kt` | 화면마다 `ConnectivityManager` 새로 |
 
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).

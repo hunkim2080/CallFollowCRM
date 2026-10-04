@@ -42,13 +42,16 @@ class Outbox(
         kind: OutboxKind,
         targetKey: String,
         payloadJson: String,
-        opKey: String = UUID.randomUUID().toString()
+        opKey: String = UUID.randomUUID().toString(),
+        /** 비워두면 지금 로그인 번호. 사진은 "" 로 — 기기 것이라 번호 바뀌어도 올려야 한다(§1-b). */
+        ownerPhone: String? = null
     ) {
         require(targetKey.isNotBlank()) { "targetKey 비어있음" }
-        val owner = ownerPhoneProvider().filter { it.isDigit() }
+        val owner = (ownerPhone ?: ownerPhoneProvider()).filter { it.isDigit() }
         val now = System.currentTimeMillis()
         val existing = dao.pendingForTarget(targetKey).map { it.toRow() }
         val plan = OutboxRules.coalescePlan(kind, existing)
+        if (plan.skipInsert) return                    // KEEP_EXISTING — 이미 있으면 그대로(백오프 유지)
         if (plan.deleteIds.isNotEmpty()) dao.deleteAll(plan.deleteIds)
         val reuse = plan.reuseId
         if (reuse != null) {
@@ -117,6 +120,9 @@ class Outbox(
     /** 진단 본문용(한 번 읽기) — 「미전송 N건·사유」. */
     suspend fun troubleNow(): List<OutboxEntity> =
         dao.troubleNow(System.currentTimeMillis() - OutboxRules.STALE_MS)
+
+    /** 이 종류로 이미 우체통에 든 targetKey 들(pending·dead). 사진 feeder 의 중복·되살아남 방지. */
+    suspend fun targetsForKind(wire: String): List<String> = dao.targetsForKind(wire)
 
     private fun OutboxEntity.toRow() =
         OutboxRow(id, kind, targetKey, ownerPhone, attempts, createdAtMs)

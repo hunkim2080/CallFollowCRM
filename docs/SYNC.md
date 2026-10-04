@@ -13487,3 +13487,21 @@ Fable 🧹3. 사장님 "고고"
   ⚠️ 오프라인→복구 왕복은 **단위시험이 대신 봄**(폰에서 비행기모드 토글+실협업은 비현실적).
 - 남음: **1-b** = site_photo 를 OwnerPhotoUploadManager 에서 우체통으로 옮김(serverUploadedAt 백필 INSERT…SELECT +
   MigrationTestHelper + dup 규칙 확장). **2단계** = op_keys 멱등·진행/댓글·홈 미전송 띠(프로토 먼저).
+
+## 2026-10-04 20:05 · android
+📮📸 **오프라인 아웃박스 1단계-b — 현장 사진도 우체통 하나로.** (두 번째 큐 제거)
+
+- 전엔 사진이 **별도 재시도 큐**(OwnerPhotoUploadManager + serverUploadedAt)로 따로 올라갔다(§13④ 두 벌).
+  이제 **우체통 하나**가 올리고 재시도한다. OwnerPhotoUploadManager 는 **먹여주는 쪽**만 — 안 올린 사진을
+  찾아 `outbox.enqueue(SITE_PHOTO, ...)`. 올리기·백오프·판정은 `data/outbox/handlers/SitePhotoHandler`(한 장 로직 verbatim).
+- ⚠️ **설계와 다르게 간 곳(의도는 같음)**: 설계는 「v62 SQL INSERT…SELECT 백필」을 적었는데, 그건
+  ① NOT NULL 칸 빼먹으면 앱이 안 켜지는 위험 ② ownerPhone 을 SQL 이 알 수 없음. 그래서 **백필을 안 한다** —
+  기존 안 올린 사진은 **첫 kick 때 feeder 스캔이 자연스럽게 우체통에 넣는다**(더 안전·같은 결과). v62 는 CREATE TABLE 그대로.
+- 합치기 `KEEP_EXISTING` 신설(사진 payload 는 안 바뀜 → 이미 있으면 그대로, 백오프 안 깨짐). 사진 행은
+  ownerPhone="" (기기 것 → 번호 바뀌어도 올림, drain 이 빈 번호=「아무 주인이나」로 봄). feeder 는 이미 우체통에 든(죽은 것 포함) 사진은 건너뜀(dead 되살아남 방지).
+- 변경(서버 영향): 없음. `/api/site-photo/owner-upload` 호출은 그대로(verbatim). op_keys 멱등은 2단계.
+- 가드 `collab-direct-send`→`outbox-direct-send` 로 넓힘(uploadOwnerPhoto 직접 호출도 막음, 14규칙·0곳).
+- 시험 +3(KEEP_EXISTING 2·빈번호 1) = outbox 32개 · 총 940. 빌드 7가드 통과.
+- 폰(테스트폰): 새 배선으로 **켜짐·크래시 0**(상담함 렌더). ⚠️ 라이브 사진 왕복은 **못 재현**(테스트폰 사진은
+  이미 다 올라가 pending 0 · 서버 OWNER 64장 2.3일전 = 파이프라인 과거 정상). 로직은 단위시험·업로드는 verbatim.
+- 남음: **2단계** op_keys 멱등(progress·comment·owner-upload)·client_key(사진 덮어쓰기 §5-D)·홈 미전송 띠(프로토 먼저).

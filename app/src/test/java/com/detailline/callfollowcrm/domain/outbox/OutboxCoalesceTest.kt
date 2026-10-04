@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.domain.outbox
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -44,5 +45,18 @@ class OutboxCoalesceTest {
         val plan = OutboxRules.coalescePlan(OutboxKind.COLLAB_END, existing)
         assertNull(plan.reuseId)                          // 해제는 늘 새 행
         assertEquals(listOf(5L, 6L), plan.deleteIds)      // 일정·주소 명령은 지운다
+    }
+
+    @Test fun `사진(KEEP_EXISTING) - 이미 있으면 아무것도 안 함(백오프 유지)`() {
+        val existing = listOf(row(9, OutboxKind.SITE_PHOTO, "photo:9"))
+        val plan = OutboxRules.coalescePlan(OutboxKind.SITE_PHOTO, existing)
+        assertTrue(plan.skipInsert)          // 새 행도 안 만들고 payload 도 안 바꾼다 → nextAttemptAtMs 안 깨짐
+        assertNull(plan.reuseId)
+    }
+
+    @Test fun `사진 - 처음이면 새 행(skipInsert 아님)`() {
+        val plan = OutboxRules.coalescePlan(OutboxKind.SITE_PHOTO, emptyList())
+        assertFalse(plan.skipInsert)
+        assertNull(plan.reuseId)
     }
 }

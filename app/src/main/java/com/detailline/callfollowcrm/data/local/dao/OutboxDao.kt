@@ -62,4 +62,8 @@ interface OutboxDao {
 
     @Query("SELECT COUNT(*) FROM outbox WHERE status = 'pending'")
     suspend fun pendingCount(): Int
+
+    /** 이 종류로 이미 우체통에 있는 targetKey 들(pending·dead 다). 사진 feeder 가 이미 넣은(또는 죽은) 걸 또 안 넣게. */
+    @Query("SELECT DISTINCT targetKey FROM outbox WHERE kind = :kind")
+    suspend fun targetsForKind(kind: String): List<String>
 }

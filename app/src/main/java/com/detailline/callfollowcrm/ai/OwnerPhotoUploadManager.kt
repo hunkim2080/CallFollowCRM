@@ -1,55 +1,52 @@
 package com.detailline.callfollowcrm.ai
 
-import android.content.Context
 import com.detailline.callfollowcrm.data.local.dao.SitePhotoDao
+import com.detailline.callfollowcrm.data.outbox.Outbox
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
 import com.detailline.callfollowcrm.data.repository.CustomerRepository
-import com.detailline.callfollowcrm.util.ImageEncoder
+import com.detailline.callfollowcrm.domain.outbox.OutboxKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.File
+import org.json.JSONObject
 
 /**
- * 시공막내 웹 뷰어 — 사장님이 폰에 찍어둔 현장사진(로컬 site_photos)을 서버(team_site_photos, member_id='OWNER')로
- *   백필 업로드. 그래야 PC 웹에서 사장님 사진을 날짜별로 보고 블로그용으로 내려받음. (2026-08-13 사장님)
+ * 시공막내 웹 뷰어 — 폰에 찍어둔 현장사진(로컬 site_photos)을 서버로 백필 업로드하게 **우체통에 넣는다.**
  *
- * 원칙:
- *   - **항상 올림** (2026-09-28 사장님). 전엔 웹 로그인 중에만 올렸는데, 그 탓에 직원 폰을
- *     재설치했을 때 사진이 사라졌다 — 웹을 쓴 기간 것만 서버에 남아 있었다.
- *   - 오래된 것부터(createdAt ASC) 올려 전/후 자동추정 순서 보존.
- *   - 1280px 압축([ImageEncoder]) → ≤1MB. 완료 표시(serverUploadedAt)로 중복 방지.
- *   - 서버 오류(예: 티어 게이트 403)면 그 라운드 중단 → 다음 기회(앱 재시작/재로그인)에 재시도.
+ *   📮 **1-b 로 바뀜(2026-10-04)**: 전엔 이 매니저가 직접 올리고 **따로 재시도**했다(두 번째 큐).
+ *     이제는 **우체통 하나**가 올리고 재시도한다(§13④). 이 매니저는 **먹여주는 쪽**만 한다 —
+ *     아직 안 올린 사진(serverUploadedAt IS NULL)을 찾아 `outbox.enqueue(SITE_PHOTO, ...)` 로 넣고 깨운다.
+ *     실제 올리기·백오프·판정은 `data/outbox/handlers/SitePhotoHandler`.
+ *     옛 사진들은 **마이그레이션 SQL 이 아니라** 첫 kick 때 이 스캔이 자연스럽게 넣는다
+ *     (NOT NULL 칸 빼먹어 앱이 안 켜지는 위험한 INSERT…SELECT 를 피했다 — 더 안전).
+ *
+ *   원칙(그대로): 항상 올린다(웹 안 써도) · 오래된 것부터(createdAt ASC, 전/후 순서 보존) ·
+ *     손님 전화 없는 사진은 이번엔 건너뜀(다음에 전화 생기면) · 완료 표시(serverUploadedAt)로 중복 방지.
  */
 class OwnerPhotoUploadManager(
-    private val context: Context,
     private val sitePhotoDao: SitePhotoDao,
     private val customerRepository: CustomerRepository,
     private val jobRepository: com.detailline.callfollowcrm.data.repository.JobRepository,
-    private val serverRepo: SitePhotoServerRepository,
-    private val prefs: AppPreferences
+    private val prefs: AppPreferences,
+    private val outbox: Outbox
 ) {
-    private val mutex = Mutex()   // start·로그인 트리거가 겹쳐도 1회만
+    private val mutex = Mutex()   // 겹친 트리거가 와도 한 번만 스캔
 
-    /** 백그라운드로 백필 1회 시도(겹치면 무시). */
+    /** 백그라운드로 1회 먹여주기(겹치면 무시). 기존 호출부(앱시작·웹로그인·설정 등) 그대로 쓴다(§12-D 입구 유지). */
     fun kick(scope: CoroutineScope) {
-        scope.launch { runCatching { uploadPending() } }
+        scope.launch { runCatching { enqueuePending() } }
     }
 
-    /** 미업로드 로컬 사진을 순서대로 서버에 올림. @return 이번에 올린 장수. */
-    suspend fun uploadPending(): Int = mutex.withLock {
-        // 📸 **웹을 안 써도 항상 올린다.** (2026-09-28 사장님 "사진은 항상 서버에 올려야지")
-        //   전엔 `webViewerActive`(PC 웹 쓰는 동안)에만 올렸다 — 서버 비용을 아끼려던 것이었는데,
-        //   그 바람에 **직원 폰 재설치 때 사진이 사라졌다.** 웹을 쓴 기간의 세 현장만 서버에 있었고
-        //   나머지는 폰에만 있다가 같이 지워졌다. 백업은 2MB 상한에 걸려 거의 안 담겼고.
-        //   사진은 다시 못 찍는다 — 아껴야 할 것은 서버 용량이 아니라 **사장님 일의 기록**이다.
-        //   (1280px·JPEG 로 줄여 올리므로 장당 ~200KB. [ImageEncoder])
+    /** 아직 안 올린 사진을 우체통에 넣고 깨운다. @return 이번에 넣은 장수. */
+    suspend fun enqueuePending(): Int = mutex.withLock {
         val ownerPhone = prefs.bizPhone.trim()
         if (ownerPhone.filter { it.isDigit() }.length < 9) return@withLock 0
 
         val pending = runCatching { sitePhotoDao.pendingUpload(300) }.getOrNull().orEmpty()
         if (pending.isEmpty()) return@withLock 0
+        // 이미 우체통에 있는 사진(보내는 중이거나 죽은 것)은 또 넣지 않는다 — dead 가 계속 되살아나지 않게.
+        val already = runCatching { outbox.targetsForKind(OutboxKind.SITE_PHOTO.wire) }.getOrNull()?.toHashSet().orEmpty()
 
         // 고객 id → 전화(숫자). 서버는 customer_phone 으로 사진↔고객을 이음(끝8 정규화).
         val phoneById = runCatching {
@@ -62,33 +59,26 @@ class OwnerPhotoUploadManager(
             }.toMap()
         }.getOrDefault(emptyMap())
 
-        var uploaded = 0
+        var queued = 0
         for (p in pending) {
+            if (p.id.toString() in already) continue   // 이미 우체통에 있음(보내는 중/죽음) → 또 안 넣음
             val custPhone = phoneById[p.customerId]?.filter { it.isDigit() }?.takeIf { it.length >= 9 }
-            if (custPhone == null) continue    // 전화 없는 고객 = 서버서 이을 수 없음 → 이번엔 건너뜀(다음에 전화 생기면)
-
-            val file = File(p.filePath)
-            if (!file.exists() || file.length() == 0L) {
-                sitePhotoDao.markUploaded(p.id, -1L)   // 파일 사라짐 → 재시도 제외
-                continue
+                ?: continue   // 전화 없는 고객 = 서버서 이을 수 없음 → 이번엔 건너뜀(다음에 전화 생기면)
+            val payload = JSONObject().apply {
+                put("photoId", p.id)
+                put("filePath", p.filePath)
+                put("custPhone", custPhone)
+                put("ownerPhone", ownerPhone.filter { it.isDigit() })
+                put("label", p.label ?: "시공 사진")
+                p.jobId?.let { workDateByJob[it] }?.let { put("workDate", it) }
             }
-            val b64 = ImageEncoder.fileToJpegBase64(file) ?: continue   // 디코드 실패 → 다음 기회
-            val dataUrl = "data:image/jpeg;base64,$b64"
-            // 🧬 서버가 받아주는 크기는 [ImageEncoder.CAP_CHARS] **한 곳**에 적는다.
-            //   여기 따로 적어두면 서버 한도가 바뀔 때 한쪽만 고치게 된다. (2026-09-30 사장님)
-            if (dataUrl.length > com.detailline.callfollowcrm.util.ImageEncoder.CAP_CHARS) continue
-
-            val res = serverRepo.uploadOwnerPhoto(
-                ownerPhone, custPhone, dataUrl, p.label ?: "시공 사진",
-                workDate = p.jobId?.let { workDateByJob[it] }
-            )
-            if (res.isSuccess) {
-                sitePhotoDao.markUploaded(p.id, System.currentTimeMillis())
-                uploaded++
-            } else {
-                break   // 서버 오류(403/5xx 등) → 라운드 중단, 다음 기회에 재시도
+            // targetKey=photoId, owner="" (사진은 기기 것 → 번호 바뀌어도 올림). KEEP_EXISTING 이라 이미 있으면 그대로.
+            runCatching {
+                outbox.enqueue(OutboxKind.SITE_PHOTO, p.id.toString(), payload.toString(), ownerPhone = "")
             }
+            queued++
         }
-        uploaded
+        outbox.tryNow()
+        queued
     }
 }
