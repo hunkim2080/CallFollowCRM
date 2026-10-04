@@ -13417,3 +13417,18 @@ Fable 🧹3. 사장님 "고고"
 
 테스트폰은 tphone.sh 로 **재움 + 배터리 보호(85%)** 걸어둠.
 → upload 태그 올림(다음 줄). 폰들이 받으면 R8(작고 안전) 적용.
+
+## 2026-10-04 18:30 · android
+🤫→🗣 **조용한 저장 11곳 → 0곳.** (CLAUDE.md §13① — 순차 작업 ②)
+
+11곳을 하나씩 보고 §13① 기준으로 갈랐다:
+- **사장님이 적은 것 → 말하게**(SaveGuard):
+  · updateManualAddress(친 주소) · addPartnerFromPick(고른 협업 사장)
+  · TemplateEdit.save · TemplateDiscover.save(쓴 문구) — 둘은 VM 에 _toast 통로 깔고 화면에 배선
+- **지워도 되는 것 → `save-silent-ok` + 이유**:
+  · lookupAddress·resolveAddressForPhone(주소 조회) · markUpdateSheetShown(UI 상태)
+  · recordEstimateSent·recordIssuedQuote(이력, 원본은 문자함·서버에) · add/removeAttachment(사진 복사·정리)
+- save_guard 가 `save-silent-ok` 를 '봤음'으로 인정하게 함 — **이유 없이 조용하면 여전히 빌드 실패.**
+- 기준선 11 → **0**. 빌드 가드 통과.
+- 🧪 폰 확인(테스트폰): 문구 편집 화면 열림(toast 배선 안 깨짐)·본문 수정·저장·목록 복귀·크래시 0.
+- 다음 순차: ③ repo↔라이브 합치기. 제미나이 감사 빈 곳: 오프라인 재시도 큐·뒤로가기 스크롤 복원.

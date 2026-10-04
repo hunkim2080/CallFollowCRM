@@ -343,7 +343,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
 | `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (13가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
-| `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 13곳) | 「조용히 실패하는 곳이 생겼습니다」 |
+| `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 

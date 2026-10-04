@@ -29,6 +29,11 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
+    // 🗣 사장님이 고른 문구 저장이 실패하면 말하는 통로.
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast = _toast.asStateFlow()
+    fun consumeToast() { _toast.value = null }
+
     init { load() }
 
     fun load() {
@@ -51,6 +56,8 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
         val row = _ui.value.rows.firstOrNull { it.key == key } ?: return
         if (row.saved) return
         viewModelScope.launch {
+          // 🗣 사장님이 **고른 문구를 템플릿으로** 저장 — 실패하면 말한다.
+          com.detailline.callfollowcrm.presentation.util.SaveGuard.run("문구", _toast) {
             val now = System.currentTimeMillis()
             val heuristic = autoTitle(row.body)
             // 1) 휴리스틱 제목으로 즉시 저장(오프라인·즉시). 버튼 바로 '저장됨' 표시.
@@ -74,6 +81,7 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
                 val saved = container.messageTemplateRepository.findById(id)
                 if (saved != null) container.messageTemplateRepository.update(saved.copy(title = nice))
             }
+          }
         }
     }
 

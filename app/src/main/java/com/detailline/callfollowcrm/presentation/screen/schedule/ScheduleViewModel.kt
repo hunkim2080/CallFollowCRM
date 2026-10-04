@@ -249,11 +249,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     //   덮인 건 **「협업 사장」 분류를 자동으로 붙이는 곁가지**뿐 — 안 붙어도 일당은 들어간다. (2026-10-02)
     fun addPartnerFromPick(p: PickCandidate) {
         viewModelScope.launch {
-            container.notebookRepository.add(
-                kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
-                name = p.name, phone = p.phone, tag = "", memo = ""
-            )
-            runCatching {
+            // 🗣 사장님이 **고른 협업 사장** — 명부·분류 저장이 실패하면 말한다.
+            com.detailline.callfollowcrm.presentation.util.SaveGuard.run("협업 사장", _toast) {
+                container.notebookRepository.add(
+                    kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
+                    name = p.name, phone = p.phone, tag = "", memo = ""
+                )
                 val cat = container.categoryRepository.upsert("협업 사장")
                 val cust = container.customerRepository.upsertByPhone(phoneNumber = p.phone)
                 container.categoryRepository.assignCustomer(cust.id, cat.id)

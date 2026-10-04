@@ -1395,6 +1395,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     suspend fun resolveAddressForPhone(phoneNumber: String): String? =
         withContext(Dispatchers.IO) {
             val digits = phoneNumber.filter { it.isDigit() }
+            // save-silent-ok: 번호로 **주소를 조회**만 한다(사장님 입력 아님). 실패=null.
             if (digits.length < 7) return@withContext null
             val suffix = PhoneKey.of(digits)
 
@@ -1594,6 +1595,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // 🤫 **조용해도 되는 이유**: 「업데이트 안내창을 봤다」는 **화면 상태 표시**뿐이다.
     //   실패하면 다음에 한 번 더 뜨는 게 전부. (2026-10-02 하나씩 본 결과)
     fun markUpdateSheetShown(latestCode: Int) {
+        // save-silent-ok: **업데이트 시트 봤음** UI 상태(prefs)뿐. 사장님 데이터 아님.
         if (latestCode > 0) container.preferences.updateSheetShownForCode = latestCode
     }
 

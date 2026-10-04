@@ -877,8 +877,11 @@ class CustomerDetailViewModel(
     // 🤫 **조용해도 되는 이유**: 내 폰의 주소 저장(`updateAddress`)은 덮여 있지 않다.
     //   덮인 건 **협업 상대에게 알리는 것**뿐이고, 서버가 아직 없어도 **내 주소는 이미 바뀌었다**. (2026-10-02)
     fun updateManualAddress(address: String?) = viewModelScope.launch {
+        // 🗣 사장님이 **직접 친 주소** — 조용히 사라지면 다음에 못 찾아간다. 실패하면 말한다.
         withContext(NonCancellable) {
-            container.customerRepository.updateAddress(customerId, address)
+            com.detailline.callfollowcrm.presentation.util.SaveGuard.run("주소", _toast) {
+                container.customerRepository.updateAddress(customerId, address)
+            }
         }
         // 이 현장이 협업 중이면 상대 사장(B)들에게 새 주소 전파(+알림). 안 하면 B는 옛 주소 그대로. (2026-08-02 사장님 버그신고)
         //   서버 미구현(update-address 404)이면 조용히 무시 — 로컬은 이미 바뀜. reschedule 와 같은 best-effort.

@@ -2,15 +2,4 @@
 # 「괜찮다」가 아니라 **「아직 안 봤다」**는 뜻이다 — 하나씩 보고 줄인다.
 # 고치는 법: presentation/util/SaveGuard.kt 를 쓴다 (CLAUDE.md §13①)
 # 다시 적기: gradlew saveBaselineUpdate   (줄였을 때만 하세요)
-# 총 11곳
-presentation/screen/chat/ChatViewModel.kt|lookupAddress
-presentation/screen/chat/ChatViewModel.kt|recordEstimateSent
-presentation/screen/chat/ChatViewModel.kt|recordIssuedQuote
-presentation/screen/customer/CustomerDetailViewModel.kt|updateManualAddress
-presentation/screen/home/HomeViewModel.kt|markUpdateSheetShown
-presentation/screen/home/HomeViewModel.kt|resolveAddressForPhone
-presentation/screen/schedule/ScheduleViewModel.kt|addPartnerFromPick
-presentation/screen/template/TemplateDiscoverViewModel.kt|save
-presentation/screen/template/TemplateEditViewModel.kt|addAttachment
-presentation/screen/template/TemplateEditViewModel.kt|removeSavedAttachment
-presentation/screen/template/TemplateEditViewModel.kt|save
+# 총 0곳

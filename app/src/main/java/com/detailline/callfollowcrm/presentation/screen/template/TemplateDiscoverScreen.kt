@@ -57,6 +57,15 @@ fun TemplateDiscoverScreen(
     onBack: () -> Unit
 ) {
     val ui by viewModel.ui.collectAsState()
+    // 🗣 문구 저장이 실패하면 사장님께 말한다.
+    val discToastCtx = androidx.compose.ui.platform.LocalContext.current
+    val discToast by viewModel.toast.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(discToast) {
+        discToast?.let {
+            android.widget.Toast.makeText(discToastCtx, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.consumeToast()
+        }
+    }
 
     Scaffold(
         containerColor = TossGrayBg,

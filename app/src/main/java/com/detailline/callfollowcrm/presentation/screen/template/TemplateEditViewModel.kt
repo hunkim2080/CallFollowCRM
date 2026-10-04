@@ -36,6 +36,11 @@ class TemplateEditViewModel(
     val state = _state.asStateFlow()
 
     /** 아직 DB 에 저장 안 된 첨부. 새 템플릿 작성 중 또는 기존 템플릿에 추가 중. */
+    // 🗣 사장님이 쓴 문구 저장이 실패하면 말하는 통로.
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast = _toast.asStateFlow()
+    fun consumeToast() { _toast.value = null }
+
     private val _pending = MutableStateFlow<List<PendingAttachment>>(emptyList())
 
     /** 이미 저장된 첨부(기존 템플릿 편집 시). 신규 작성이면 항상 빈 리스트. */
@@ -72,6 +77,7 @@ class TemplateEditViewModel(
     // 🤫 **조용해도 되는 이유**: 사진 복사가 실패하면 **아래 목록에 썸네일이 안 생긴다** —
     //   사장님이 화면에서 바로 본다. 말로 또 알릴 필요가 없다. (2026-10-02 하나씩 본 결과)
     fun addAttachment(context: Context, uri: Uri) {
+        // save-silent-ok: 사진을 앱 저장소로 **복사**. 실패하면 목록에 안 뜨니 사장님이 바로 안다(암묵 피드백).
         val appCtx = context.applicationContext
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val copied = runCatching {
@@ -94,6 +100,7 @@ class TemplateEditViewModel(
     //   덮인 건 **남은 파일 지우기·권한 해제**뿐이고, 그건 지워도 되는 것이다. (2026-10-02)
     fun removeSavedAttachment(context: Context, entity: TemplateAttachmentEntity) {
         viewModelScope.launch {
+            // save-silent-ok: 지운 사진의 **파일 정리**(best-effort). 지워도 되는 것.
             container.templateAttachmentRepository.remove(entity.id)
             // 앱 내부 복사본이면 파일 삭제. 옛 SAF URI 면 persistable 권한 해제(둘 다 best-effort).
             runCatching { com.detailline.callfollowcrm.util.TemplatePhotoStore.fileFor(context, entity.fileUri)?.delete() }
@@ -111,6 +118,8 @@ class TemplateEditViewModel(
         val s = _state.value
         if (s.title.isBlank() || s.body.isBlank()) return
         viewModelScope.launch {
+          // 🗣 사장님이 **쓴 문구(제목·본문)** — 조용히 사라지면 다시 써야 한다. 실패하면 말한다.
+          com.detailline.callfollowcrm.presentation.util.SaveGuard.run("문구", _toast) {
             val now = System.currentTimeMillis()
             val effectiveTemplateId: Long = if (templateId == null) {
                 container.messageTemplateRepository.insert(
@@ -140,6 +149,7 @@ class TemplateEditViewModel(
             }
             _pending.value = emptyList()
             onDone()
+          }
         }
     }
 

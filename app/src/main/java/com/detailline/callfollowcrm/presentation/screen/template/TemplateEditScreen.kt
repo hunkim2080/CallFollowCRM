@@ -75,6 +75,14 @@ fun TemplateEditScreen(
     val state by viewModel.state.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
     val context = LocalContext.current
+    // 🗣 문구 저장이 실패하면 사장님께 말한다.
+    val tmplToast by viewModel.toast.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(tmplToast) {
+        tmplToast?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.consumeToast()
+        }
+    }
     val canSave = state.title.isNotBlank() && state.body.isNotBlank()
 
     // 문구 이탈 확인 — 뒤로/저장없이 나가면 편집이 날아가던 것. 로드 후 첫 스냅샷과 비교. (2026-08-15 UX감사#2)

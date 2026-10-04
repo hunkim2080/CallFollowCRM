@@ -1778,6 +1778,7 @@ class ChatViewModel(
     //   실패해도 문자 발송·견적 자체엔 영향이 없고, 사장님이 다시 할 일도 없다.
     //   (2026-10-02 조용한 저장 13곳을 하나씩 본 결과 — 그대로 둠)
     fun recordEstimateSent(body: String) = viewModelScope.launch {
+        // save-silent-ok: **보냈다는 이력**만 남긴다. 원본 문자는 문자함에 이미 있고 발송엔 영향 없다.
         val cid = ensureCustomerId()
         withContext(Dispatchers.IO + NonCancellable) {
             runCatching { container.messageHistoryRepository.recordEstimateSent(phoneNumber, cid, body) }
@@ -1864,6 +1865,7 @@ class ChatViewModel(
     //   다시 열람만 안 될 뿐이라 사장님이 손쓸 게 없다. (2026-10-02 하나씩 본 결과 — 그대로 둠)
     /** 발행 이력 — 견적서(직인 이미지) 보낼 때 스냅샷 저장. QuoteDocScreen 재열람용 docJson 포함. (2026-07-07 사장님) */
     fun recordIssuedQuote(data: QuoteDocData) = viewModelScope.launch {
+        // save-silent-ok: **발행 스냅샷** 이력. 발행 문서는 서버에도 있고 발송엔 영향 없다(주석대로).
         recordIssued(
             kind = "quote", recipient = data.recipient, totalWon = data.totalWon,
             workDateMs = data.workDateMs,
@@ -1938,6 +1940,7 @@ class ChatViewModel(
     suspend fun lookupAddress(
         detected: String, contextBody: String?
     ): com.detailline.callfollowcrm.ai.AddressResolveRepository.Resolved? {
+        // save-silent-ok: 주소를 **지도에서 조회**만 한다(사장님 입력 아님). 실패=null → 조회 실패일 뿐.
         val parts = com.detailline.callfollowcrm.util.AddressExtractor.splitDongHo(detected)
         // 동·호수를 뗀 앞부분이 지도 검색에 더 잘 맞는다("래미안 101동 1502호" 보다 "천호동 래미안").
         val candidates = listOfNotNull(parts.base.takeIf { it.isNotBlank() }, detected)
