@@ -279,11 +279,7 @@ class SharedSiteRepository(
         }
     }, opKey)
 
-    /** A 입금완료 → B 알림. */
-    suspend fun markPaid(shareId: String, ownerPhone: String): Result<Unit> =
-        post("$baseUrl/api/shared/paid", JSONObject().apply {
-            put("share_id", shareId); put("owner_phone", phoneKey(ownerPhone))
-        })
+    // 🧹 markPaid(/api/shared/paid) 제거 — 앱에서 부르는 곳이 0곳이었다(Fable 감사). 서버 길은 남겨둠(무해).
 
     /**
      * A(현장 주인)가 시공일정을 바꾸면 → 그 현장 협업 사장(B)에게 "일정 변경: 옛날짜 → 새날짜" 알림. (2026-07-16 사장님)
@@ -558,20 +554,7 @@ class SharedSiteRepository(
     private fun decodeDataUrl(dataUrl: String?): android.graphics.Bitmap? =
         com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(dataUrl)
 
-    /** 상대 번호가 가입 사장인지(인앱 vs 링크 분기). 서버 없으면 false(=링크 경로). */
-    suspend fun ownerExists(phone: String): Result<Boolean> = withContext(Dispatchers.IO) {
-        runCatching {
-            val url = baseUrl.toHttpUrl().newBuilder()
-                .addPathSegments("api/owner/exists")
-                .addQueryParameter("phone", phoneKey(phone))
-                .build()
-            val req = Request.Builder().url(url).get().build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                JSONObject(resp.body?.string().orEmpty()).optBoolean("registered", false)
-            }
-        }
-    }
+    // 🧹 ownerExists(/api/owner/exists) 제거 — 부르는 곳이 0곳이었다. 서버 길은 남겨둠(무해).
 
     private suspend fun post(url: String, payload: JSONObject, opKey: String? = null): Result<Unit> =
         withContext(Dispatchers.IO) {
