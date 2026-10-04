@@ -70,4 +70,8 @@ interface OutboxDao {
     /** 사장님이 「다시 보내기」 — 죽었든 미뤘든 **지금 바로** 다시 시도하게 되돌린다. */
     @Query("UPDATE outbox SET status = 'pending', attempts = 0, nextAttemptAtMs = 0, lastError = NULL, deadReason = NULL WHERE id = :id")
     suspend fun resetForRetry(id: Long)
+
+    /** 이 (종류,대상)의 아직 안 보낸 행들(오래된 순). 댓글 「보내는 중」 표시에 쓴다. */
+    @Query("SELECT * FROM outbox WHERE kind = :kind AND targetKey = :target AND status = 'pending' ORDER BY createdAtMs ASC")
+    suspend fun pendingForKindTarget(kind: String, target: String): List<OutboxEntity>
 }

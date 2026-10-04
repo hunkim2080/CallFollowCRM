@@ -543,24 +543,32 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
             val myName = container.preferences.bizName.takeIf { it.isNotBlank() }
                 ?: container.preferences.bizOwner
-            container.sharedSiteRepository.progress(
-                shareId = site.shareId,
-                partnerPhone = myPhone,
-                step = com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED,
-                bank = container.preferences.bizBank.takeIf { it.isNotBlank() },
-                accountNo = accountNo.takeIf { it.isNotBlank() },
-                holder = (container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
-                    ?: container.preferences.bizOwner.takeIf { it.isNotBlank() }),
-                partnerName = myName
-            ).onSuccess {
-                container.collabEventCenter.updateLocalProgress(
-                    site.shareId,
-                    com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
-                )
-                _collabCompleteToast.tryEmit("완료 알렸어요 — 주인 사장님께 계좌가 전달돼요")
-            }.onFailure {
-                _collabCompleteToast.tryEmit("전송 실패 — 잠시 후 다시 시도해주세요")
+            // 📮 우체통으로 — 로컬은 바로 완료, 주인껜 연결되면 전달(옛날엔 실패 시 "전송 실패"로 끝났다). (설계 §1-A #6)
+            container.collabEventCenter.updateLocalProgress(
+                site.shareId,
+                com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
+            )
+            val payload = org.json.JSONObject().apply {
+                put("step", "completed")
+                put("partnerPhone", myPhone)
+                container.preferences.bizBank.takeIf { it.isNotBlank() }?.let { put("bank", it) }
+                put("accountNo", accountNo)
+                (container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
+                    ?: container.preferences.bizOwner.takeIf { it.isNotBlank() })?.let { put("holder", it) }
+                myName.takeIf { it.isNotBlank() }?.let { put("partnerName", it) }
             }
+            val queued = runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS,
+                    site.shareId, payload.toString()
+                )
+            }.isSuccess
+            container.outbox.tryNow()
+            // 🗣 enqueue(Room) 실패는 드물지만, 실패하면 **말한다**(_collabCompleteToast). 조용히 넘기지 않는다(§13①).
+            _collabCompleteToast.tryEmit(
+                if (queued) "완료했어요 — 주인 사장님께 전달해요"
+                else "완료 처리에 문제가 생겼어요 — 다시 눌러주세요"
+            )
         }
     }
 

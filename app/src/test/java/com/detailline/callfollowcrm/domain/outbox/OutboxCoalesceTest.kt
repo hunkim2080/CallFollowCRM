@@ -59,4 +59,19 @@ class OutboxCoalesceTest {
         assertFalse(plan.skipInsert)
         assertNull(plan.reuseId)
     }
+
+    @Test fun `진행(LATEST) - 같은 현장 pending 재사용(마지막 단계만)`() {
+        val existing = listOf(row(7, OutboxKind.COLLAB_PROGRESS))
+        val plan = OutboxRules.coalescePlan(OutboxKind.COLLAB_PROGRESS, existing)
+        assertEquals(7L, plan.reuseId)       // 출발→도착→완료 중 마지막만 보낸다
+        assertFalse(plan.skipInsert)
+    }
+
+    @Test fun `댓글(APPEND) - 늘 새 행(쌓인다)`() {
+        val existing = listOf(row(8, OutboxKind.COLLAB_COMMENT))
+        val plan = OutboxRules.coalescePlan(OutboxKind.COLLAB_COMMENT, existing)
+        assertNull(plan.reuseId)             // 댓글은 합쳐지지 않는다
+        assertFalse(plan.skipInsert)
+        assertTrue(plan.deleteIds.isEmpty())
+    }
 }

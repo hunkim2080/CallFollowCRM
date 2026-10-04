@@ -84,7 +84,9 @@ class SharedSiteRepository(
         val authorPhone: String,     // 작성자 사장 번호(숫자만) — 나/상대 구분용
         val authorName: String,
         val body: String,
-        val createdAtMs: Long        // epoch ms
+        val createdAtMs: Long,       // epoch ms
+        /** 📮 아직 서버로 못 보낸 것(우체통 대기) — 화면에 「보내는 중」. (2단계) */
+        val pending: Boolean = false
     )
 
     /** 업체별(나를 부른 사장님) 집계 — 서버 §B. 전체 이력 기준(with-me 윈도우 밖 과거 포함). */
@@ -260,7 +262,8 @@ class SharedSiteRepository(
         accountNo: String? = null,
         holder: String? = null,
         auto: Boolean = false,
-        partnerName: String? = null
+        partnerName: String? = null,
+        opKey: String? = null
     ): Result<Unit> = post("$baseUrl/api/shared/progress", JSONObject().apply {
         put("share_id", shareId)
         put("partner_phone", phoneKey(partnerPhone))
@@ -274,7 +277,7 @@ class SharedSiteRepository(
                 holder?.let { put("holder", it) }
             })
         }
-    })
+    }, opKey)
 
     /** A 입금완료 → B 알림. */
     suspend fun markPaid(shareId: String, ownerPhone: String): Result<Unit> =
@@ -543,13 +546,13 @@ class SharedSiteRepository(
         }
 
     /** 협업 현장에 한 줄 댓글 작성. author_name 없으면 서버가 번호로 표시. 실패 시 Result 실패(화면이 안내). */
-    suspend fun postComment(shareId: String, authorPhone: String, authorName: String?, body: String): Result<Unit> =
+    suspend fun postComment(shareId: String, authorPhone: String, authorName: String?, body: String, opKey: String? = null): Result<Unit> =
         post("$baseUrl/api/shared/comment", JSONObject().apply {
             put("site_id", shareId)
             put("author_phone", phoneKey(authorPhone))
             authorName?.takeIf { it.isNotBlank() }?.let { put("author_name", it) }
             put("body", body)
-        })
+        }, opKey)
 
     /** "data:image/jpeg;base64,XXXX" 또는 raw base64 → 축소 Bitmap. 원본 해상도 통째 디코딩 시 OOM(오프라인 감사 rank5) → 다운샘플. */
     private fun decodeDataUrl(dataUrl: String?): android.graphics.Bitmap? =
@@ -570,11 +573,14 @@ class SharedSiteRepository(
         }
     }
 
-    private suspend fun post(url: String, payload: JSONObject): Result<Unit> =
+    private suspend fun post(url: String, payload: JSONObject, opKey: String? = null): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val req = Request.Builder().url(url)
-                    .post(payload.toString().toRequestBody(jsonMedia)).build()
+                val b = Request.Builder().url(url)
+                    .post(payload.toString().toRequestBody(jsonMedia))
+                // 📮 멱등키 — 우체통 재시도 때 같은 키면 서버가 한 번만 반영(§5). 없으면 지금과 동일.
+                opKey?.takeIf { it.isNotBlank() }?.let { b.header("X-Op-Key", it) }
+                val req = b.build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                 }

@@ -40,13 +40,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         if (key in prefs.reminderNotifiedKeys) continue // 1회만
                         val myPhone = prefs.bizPhone.filter { it.isDigit() }
                         if (myPhone.length < 9) continue
-                        val ok = container.sharedSiteRepository
-                            .progress(shareId, myPhone, com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.ARRIVED, auto = true)
-                            .isSuccess
-                        if (ok) {
-                            prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
-                            GeofenceManager.removeCollabArrival(context, shareId) // 다 왔으니 펜스 정리
+                        // 📮 우체통으로 — 자동 도착도 오프라인에 안 사라지게(설계 §1-A #6). 넣었으면 1회표시+펜스정리(전송은 우체통이).
+                        val payload = org.json.JSONObject().apply {
+                            put("step", "arrived")
+                            put("partnerPhone", myPhone)
+                            put("auto", true)
                         }
+                        runCatching {
+                            container.outbox.enqueue(
+                                com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS, shareId, payload.toString()
+                            )
+                        }
+                        container.outbox.tryNow()
+                        prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
+                        GeofenceManager.removeCollabArrival(context, shareId) // 다 왔으니 펜스 정리
                         continue
                     }
                     // 본인 현장 5km 도착 안내 — 토글 ON 일 때만.

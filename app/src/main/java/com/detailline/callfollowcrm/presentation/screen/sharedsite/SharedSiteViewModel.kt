@@ -232,45 +232,50 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun updateProgress(site: SharedSiteRepository.SharedSite, step: SharedSiteRepository.Progress) {
+        val withAccount = step == SharedSiteRepository.Progress.COMPLETED
+        // 완료(COMPLETED) → 도착(ARRIVED) = 되돌리기. 서버도 is_revert 로 처리(재알림 X). (2026-06-21 cowork/사장님)
+        val reverting = site.progress == SharedSiteRepository.Progress.COMPLETED &&
+            step == SharedSiteRepository.Progress.ARRIVED
         viewModelScope.launch {
-            val withAccount = step == SharedSiteRepository.Progress.COMPLETED
-            val res = repo.progress(
-                shareId = site.shareId,
-                partnerPhone = myPhone,
-                step = step,
-                bank = if (withAccount) container.preferences.bizBank.takeIf { it.isNotBlank() } else null,
-                accountNo = if (withAccount) container.preferences.bizAccountNo.takeIf { it.isNotBlank() } else null,
-                holder = if (withAccount) {
-                    container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
-                        ?: container.preferences.bizOwner.takeIf { it.isNotBlank() }
-                } else null,
-                partnerName = myBizName()
-            )
-            res.onSuccess {
-                // 완료(COMPLETED) → 도착(ARRIVED) = 되돌리기. 서버도 is_revert 로 처리(재알림 X). (2026-06-21 cowork/사장님)
-                val reverting = site.progress == SharedSiteRepository.Progress.COMPLETED &&
-                    step == SharedSiteRepository.Progress.ARRIVED
-                _toast.value = when {
-                    reverting -> "완료를 해제했어요 — 다시 '도착' 상태로 돌렸어요"
-                    step == SharedSiteRepository.Progress.DEPARTED -> "출발 알렸어요"
-                    step == SharedSiteRepository.Progress.ARRIVED -> "도착 알렸어요"
-                    step == SharedSiteRepository.Progress.COMPLETED -> "완료 알렸어요 — 주인 사장님께 계좌가 전달돼요"
-                    else -> "알렸어요"
+            // 📮 우체통으로 + 낙관적 로컬 반영 — 오프라인에도 바로 보이고, 주인껜 연결되면 전달(옛날엔 실패 시 "보내지 못했어요"). (설계 §1-A #6)
+            container.collabEventCenter.updateLocalProgress(site.shareId, step)
+            val payload = org.json.JSONObject().apply {
+                put("step", step.name.lowercase())
+                put("partnerPhone", myPhone)
+                if (withAccount) {
+                    container.preferences.bizBank.takeIf { it.isNotBlank() }?.let { put("bank", it) }
+                    container.preferences.bizAccountNo.takeIf { it.isNotBlank() }?.let { put("accountNo", it) }
+                    (container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
+                        ?: container.preferences.bizOwner.takeIf { it.isNotBlank() })?.let { put("holder", it) }
                 }
-                // 완료를 누른 본인(B) 폰에서도 '됐다' 확인음. (2026-07-16 사장님) 되돌리기(reverting)엔 안 울림.
-                //   주인(A)은 서버 FCM 으로 완료 알림음이 따로 울림(별개 경로) — 여긴 B의 로컬 동작 피드백.
-                if (step == SharedSiteRepository.Progress.COMPLETED && !reverting) {
-                    com.detailline.callfollowcrm.util.LocalCue.play(
-                        container.appContext,
-                        com.detailline.callfollowcrm.R.raw.sound_collab_completed
-                    )
-                }
-                load()
-                // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영. (수락과 같은 이유)
-                if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {
-                    runCatching { container.mirrorSyncManager.pushNow(force = true) }
-                }
-            }.onFailure { _toast.value = "보내지 못했어요 — 잠시 후 다시 해주세요" }
+                myBizName().takeIf { it.isNotBlank() }?.let { put("partnerName", it) }
+            }
+            runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS,
+                    site.shareId, payload.toString()
+                )
+            }
+            container.outbox.tryNow()
+            _toast.value = when {
+                reverting -> "완료를 해제했어요 — 다시 '도착' 상태로 돌렸어요"
+                step == SharedSiteRepository.Progress.DEPARTED -> "출발 알렸어요"
+                step == SharedSiteRepository.Progress.ARRIVED -> "도착 알렸어요"
+                step == SharedSiteRepository.Progress.COMPLETED -> "완료했어요 — 주인 사장님께 전달해요"
+                else -> "알렸어요"
+            }
+            // 완료를 누른 본인(B) 폰에서도 '됐다' 확인음. (2026-07-16 사장님) 되돌리기(reverting)엔 안 울림.
+            if (step == SharedSiteRepository.Progress.COMPLETED && !reverting) {
+                com.detailline.callfollowcrm.util.LocalCue.play(
+                    container.appContext,
+                    com.detailline.callfollowcrm.R.raw.sound_collab_completed
+                )
+            }
+            load()
+            // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영. (수락과 같은 이유)
+            if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {
+                runCatching { container.mirrorSyncManager.pushNow(force = true) }
+            }
         }
     }
 
@@ -297,23 +302,39 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { _photos.value = repo.photos(shareId, myPhone).getOrDefault(emptyList()) }
     }
 
-    /** 상세 열 때 그 현장의 한 줄 댓글 로드. 다른 현장으로 바뀌면 비움. */
+    /** 상세 열 때 그 현장의 한 줄 댓글 로드 = 서버 댓글 + 우체통 대기(「보내는 중」). 다른 현장으로 바뀌면 비움. */
     fun loadComments(shareId: String) {
         if (shareId.isBlank() || noBizPhone) { _comments.value = emptyList(); return }
-        viewModelScope.launch { _comments.value = repo.comments(shareId, myPhone).getOrDefault(emptyList()) }
+        viewModelScope.launch {
+            _comments.value = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
+                repo, container.outbox, shareId, myPhone, _comments.value
+            )
+        }
     }
 
-    /** 한 줄 댓글 작성 → 목록 새로고침. 빈 글/미등록 번호면 무시. */
+    /** 📮 한 줄 댓글 → 우체통. 바로 「보내는 중」으로 보이고, 연결되면 간다. 사장님 「바로 보이고 보내는 중」(2026-10-04). */
     fun postComment(shareId: String, body: String, onResult: (Boolean) -> Unit = {}) {
         val text = body.trim()
         if (shareId.isBlank() || noBizPhone || text.isBlank()) { onResult(false); return }
         _commentBusy.value = true
         viewModelScope.launch {
-            val r = repo.postComment(shareId, myPhone, myBizName(), text)
-            r.onSuccess { _comments.value = repo.comments(shareId, myPhone).getOrDefault(_comments.value) }
-                .onFailure { _toast.value = "댓글을 못 보냈어요 — 잠시 후 다시" }
+            val payload = org.json.JSONObject().apply {
+                put("authorPhone", myPhone)
+                myBizName().takeIf { it.isNotBlank() }?.let { put("authorName", it) }
+                put("body", text)
+            }
+            runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_COMMENT, shareId, payload.toString()
+                )
+            }
+            container.outbox.tryNow()
             _commentBusy.value = false
-            onResult(r.isSuccess)   // 성공했을 때만 입력칸이 비워지도록 결과 전달. (2026-08-12 오프라인 감사)
+            onResult(true)              // 우체통에 들어갔다 = 입력칸 비우기(쓴 글 안 사라짐)
+            loadComments(shareId)       // 서버 + 우체통대기 = 「보내는 중」 바로 보임
+            // 온라인이면 곧 전송 → 잠시 뒤 새로고침으로 「보내는 중」이 보낸 걸로 바뀐다. 오프라인이면 그대로 대기(홈 띠가 챙김).
+            kotlinx.coroutines.delay(2500)
+            loadComments(shareId)
         }
     }
 

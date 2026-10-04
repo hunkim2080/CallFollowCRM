@@ -196,7 +196,7 @@ val dupRules = listOf(
     //      여전히 쓴다 — 그건 「보낼 목록」이 아니라 「아직 안 올린 것 찾기」다. 막는 건 **보내기**(uploadOwnerPhoto)다.
     DupRule(
         id = "outbox-direct-send",
-        regex = Regex("""\.(reschedule|updateAddress|endCollab|cancel)\(\s*(?:share|site|sid|shareId)|\.uploadOwnerPhoto\("""),
+        regex = Regex("""\.(reschedule|updateAddress|endCollab|cancel)\(\s*(?:share|site|sid|shareId)|\.uploadOwnerPhoto\(|(?:repo|sharedSiteRepository)\.(?:progress|postComment)\("""),
         instead = "container.outbox.enqueue(...) (data/outbox/) — 화면·매니저는 enqueue, 보내기는 handler",
         homes = listOf("/data/outbox/")
     )

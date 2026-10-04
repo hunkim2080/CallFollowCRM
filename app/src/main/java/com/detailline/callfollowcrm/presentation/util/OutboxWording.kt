@@ -21,6 +21,8 @@ object OutboxWording {
         OutboxKind.COLLAB_RESCHEDULE -> "협업 일정 변경"
         OutboxKind.COLLAB_ADDRESS -> "협업 주소 변경"
         OutboxKind.COLLAB_END -> "협업 해제"
+        OutboxKind.COLLAB_PROGRESS -> "협업 진행 알림"
+        OutboxKind.COLLAB_COMMENT -> "협업 댓글"
         OutboxKind.SITE_PHOTO -> "현장 사진"
     }
 

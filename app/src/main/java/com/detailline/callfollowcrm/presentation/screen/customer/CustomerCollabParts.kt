@@ -215,7 +215,9 @@ internal fun CollabAfterCard(
                 if (m != null) status = m.status
             }
             resolvedSid = sid
-            if (sid.isNotBlank()) container.sharedSiteRepository.comments(sid, owner).onSuccess { comments = it }
+            if (sid.isNotBlank()) comments = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
+                container.sharedSiteRepository, container.outbox, sid, owner, comments
+            )
         }
     }
     // 자동 새로고침(폴링) — 카톡처럼 상대 댓글이 저절로 올라오게. 화면 열려있는 동안 4초 간격. (2026-07-01 사장님)
@@ -225,7 +227,9 @@ internal fun CollabAfterCard(
         if (sid.isBlank() || ownerP.length < 9) return@LaunchedEffect
         while (true) {
             kotlinx.coroutines.delay(4000)
-            container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it }
+            comments = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
+                container.sharedSiteRepository, container.outbox, sid, ownerP, comments
+            )
         }
     }
     val curIdx = when (step?.lowercase()) {
@@ -382,14 +386,23 @@ internal fun CollabAfterCard(
                     val myName = container.preferences.bizName.takeIf { it.isNotBlank() } ?: container.preferences.bizOwner
                     commentBusy = true
                     commentScope.launch {
-                        val r = container.sharedSiteRepository.postComment(sid, ownerP, myName, body)
-                        r.onSuccess { container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it } }
-                            .onFailure {
-                                // 실패해도 조용히 넘어가 쓴 글이 사라지던 것 → 안내. (2026-07-30)
-                                android.widget.Toast.makeText(context, "한마디가 안 올라갔어요 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
-                            }
+                        // 📮 우체통으로 — 바로 「보내는 중」, 연결되면 간다(옛날엔 실패 시 쓴 글이 사라졌다). 4초 폴링이 전송 뒤 갱신.
+                        val payload = org.json.JSONObject().apply {
+                            put("authorPhone", ownerP)
+                            myName.takeIf { it.isNotBlank() }?.let { put("authorName", it) }
+                            put("body", body)
+                        }
+                        runCatching {
+                            container.outbox.enqueue(
+                                com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_COMMENT, sid, payload.toString()
+                            )
+                        }
+                        container.outbox.tryNow()
+                        comments = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
+                            container.sharedSiteRepository, container.outbox, sid, ownerP, comments
+                        )
                         commentBusy = false
-                        onResult(r.isSuccess)   // 성공했을 때만 입력칸 비우기. (2026-08-12 오프라인 감사)
+                        onResult(true)   // 우체통에 들어갔다 = 입력칸 비우기(쓴 글 안 사라짐)
                     }
                 } else onResult(false)   // 못 보냈으면 쓴 글 유지
             }

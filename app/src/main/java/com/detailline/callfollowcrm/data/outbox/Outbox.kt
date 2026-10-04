@@ -124,6 +124,10 @@ class Outbox(
     /** 이 종류로 이미 우체통에 든 targetKey 들(pending·dead). 사진 feeder 의 중복·되살아남 방지. */
     suspend fun targetsForKind(wire: String): List<String> = dao.targetsForKind(wire)
 
+    /** 이 (종류,대상)의 아직 안 보낸 행들. 댓글 「보내는 중」 합치기에 쓴다. */
+    suspend fun pendingFor(kind: OutboxKind, targetKey: String): List<OutboxEntity> =
+        dao.pendingForKindTarget(kind.wire, targetKey)
+
     /** 사장님 「다시 보내기」 — 그 행을 지금 바로 다시 시도하게 하고 깨운다. */
     suspend fun retry(id: Long) {
         dao.resetForRetry(id)

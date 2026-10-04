@@ -365,6 +365,8 @@ class AppContainer(context: Context) {
             com.detailline.callfollowcrm.data.outbox.handlers.CollabRescheduleHandler(sharedSiteRepository),
             com.detailline.callfollowcrm.data.outbox.handlers.CollabAddressHandler(sharedSiteRepository),
             com.detailline.callfollowcrm.data.outbox.handlers.CollabEndHandler(sharedSiteRepository),
+            com.detailline.callfollowcrm.data.outbox.handlers.CollabProgressHandler(sharedSiteRepository),
+            com.detailline.callfollowcrm.data.outbox.handlers.CollabCommentHandler(sharedSiteRepository),
             com.detailline.callfollowcrm.data.outbox.handlers.SitePhotoHandler(db.sitePhotoDao(), sitePhotoServerRepository)
         ),
         scope = applicationScope

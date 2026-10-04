@@ -73,10 +73,15 @@ fun CollabCommentSection(
                         Text(if (mine) "나" else c.authorName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
                             color = if (mine) CommentPurple else CTextSecondary)
                         Spacer(Modifier.weight(1f))
-                        Text(fmt.format(java.util.Date(c.createdAtMs)), fontSize = 10.5.sp, color = CTextTertiary)
+                        // 📮 아직 못 보낸 댓글은 시각 대신 「보내는 중」. 연결되면 자동으로 보내지고 시각으로 바뀐다. (2단계)
+                        if (c.pending) {
+                            Text("⏳ 보내는 중", fontSize = 10.5.sp, color = CTextSecondary, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text(fmt.format(java.util.Date(c.createdAtMs)), fontSize = 10.5.sp, color = CTextTertiary)
+                        }
                     }
                     Spacer(Modifier.height(3.dp))
-                    Text(c.body, fontSize = 13.5.sp, color = CTextPrimary, lineHeight = 19.sp)
+                    Text(c.body, fontSize = 13.5.sp, color = if (c.pending) CTextSecondary else CTextPrimary, lineHeight = 19.sp)
                 }
             }
             Spacer(Modifier.height(12.dp))

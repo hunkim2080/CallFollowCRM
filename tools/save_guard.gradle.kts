@@ -34,7 +34,7 @@ val saveNameHint = Regex(
 // 🔎 「말하는 통로」가 있거나, **봤고 조용해도 맞다고 적어둔 것**(save-silent-ok)이면 안 센다.
 //   save-silent-ok 는 게으름이 아니라 **판단을 코드에 남기는 것** — 캐시·조회·이력처럼
 //   지워도 되는 저장엔 **반드시 이유를 같이** 적는다. (CLAUDE.md §13①)
-val saveTell = Regex("(SaveGuard|_toast|toastMessage|snackbar|_message|_error|showError|_tell|save-silent-ok)",
+val saveTell = Regex("(SaveGuard|_toast|toastMessage|snackbar|_message|_error|showError|_tell|_collabCompleteToast|save-silent-ok)",
     RegexOption.IGNORE_CASE)
 val saveFunHead = Regex("""^[ \t]*(?:suspend\s+)?fun ([A-Za-z0-9_]+)\(""", RegexOption.MULTILINE)
 

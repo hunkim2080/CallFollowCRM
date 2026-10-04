@@ -28,6 +28,8 @@ enum class OutboxKind(val wire: String, val coalesce: Coalesce) {
     COLLAB_RESCHEDULE("collab_reschedule", Coalesce.LATEST_WINS),
     COLLAB_ADDRESS("collab_address", Coalesce.LATEST_WINS),
     COLLAB_END("collab_end", Coalesce.TERMINAL),
+    COLLAB_PROGRESS("collab_progress", Coalesce.LATEST_WINS),  // 같은 현장 마지막 단계만(출발→도착→완료)
+    COLLAB_COMMENT("collab_comment", Coalesce.APPEND),         // 댓글은 쌓인다
     SITE_PHOTO("site_photo", Coalesce.KEEP_EXISTING);  // payload({photoId})가 안 바뀜 → 이미 있으면 그대로 둔다
 
     companion object {
