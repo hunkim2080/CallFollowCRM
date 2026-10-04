@@ -35,6 +35,17 @@ object SessionAuthInterceptor : Interceptor {
     const val HEADER_AUTH_REQUIRED = "X-Auth-Required"
 
     /**
+     * 🔄 **서버가 새 표를 끼워 보낸다** — 조용히 갈아끼운다. (2026-10-03)
+     *
+     *   사장님: *"카톡이나 삼성메시지도 90일마다 로그인하라 안 하는데 우린 해야 하는 이유가 뭐야"*
+     *   맞는 말씀이다. 그 앱들도 기한은 있는데 **쓰는 동안 조용히 연장**해서 모를 뿐이다.
+     *   서버가 표의 절반이 닳으면 새것을 응답에 끼워 준다 → 여기서 받아 저장한다.
+     *   **쓰는 동안은 영영 안 물어보고, 오래 안 쓴 폰만 만료된다.**
+     */
+    const val HEADER_SESSION_RENEW = "X-Session-Renew"
+    const val HEADER_SESSION_RENEW_EXP = "X-Session-Renew-Exp"
+
+    /**
      * 🔑 **다시 로그인시켜야 하나** — 이 한 줄이 두 번의 사고를 가른다.
      *
      *   폰에서는 이걸 눈으로 보기가 어렵다. 서버 설정을 켜야 401 이 나오고,
@@ -124,6 +135,12 @@ object SessionAuthInterceptor : Interceptor {
         //   실제 사고(2026-08-15): 토큰 없는 사장님이 QR 로그인 → authorize OK(owner_phone 신뢰) →
         //   이어지는 사진 백필 POST /api/site-photo/owner-upload 가 401 → 예전엔 여기서 invalidate() →
         //   앱이 재로그인으로 튕김("QR 찍으면 시공막내 로그인이 풀림"). hadToken 가드로 차단.
+        // 🔄 새 표가 왔으면 갈아끼운다. 사장님 눈엔 아무것도 안 보인다 — 그게 맞다.
+        response.header(HEADER_SESSION_RENEW)?.takeIf { it.isNotBlank() }?.let { fresh ->
+            val exp = response.header(HEADER_SESSION_RENEW_EXP)?.toLongOrNull() ?: 0L
+            if (exp > System.currentTimeMillis()) SessionTokenStore.current?.save(fresh, exp)
+        }
+
         if (shouldReauth(
                 host = original.url.host,
                 path = original.url.encodedPath,

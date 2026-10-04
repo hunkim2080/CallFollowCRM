@@ -148,6 +148,13 @@ fun AppRoot(container: AppContainer) {
                 }
             }
 
+            // 🤝 **켤 때 서버에 한 번 인사** — 문이 잠겼으면 여기서 알아챈다. (2026-10-03 사장님)
+            //   상담함은 폰 안 자료라 서버를 안 불러서, 전엔 잠겨도 앱이 몰랐다.
+            //   실패해도 조용히 넘어간다(인터넷 없을 때 앱을 못 쓰게 하면 안 된다).
+            LaunchedEffect(Unit) {
+                com.detailline.callfollowcrm.ai.SessionCheck.ping()
+            }
+
             // 세션 토큰 만료·무효(서버 401) → 재로그인(OTP) 유도. (보안 §D-4)
             //   OTP 로그인이 켜진 뒤에만 활성 — 그전엔 토큰 자체가 없어 needsReauth 가 뜨지 않음(무영향).
             //   그래프 준비(첫 백스택 엔트리) 후 수집 → 콜드스타트 "graph not set" 크래시 방지.

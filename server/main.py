@@ -5961,6 +5961,11 @@ _AUTH_PROTECT_PREFIXES = (
     "/api/mirror/shares", "/api/mirror/snapshot", "/api/mirror/mycode",
     "/api/mirror/respond", "/api/mirror/disconnect",
     "/api/push/register", "/api/owner-tone/",
+    # 🤝 **앱이 켤 때 인사하는 자리.** 하는 일은 없고, **막히는지만** 본다.
+    #   (2026-10-03 사장님 "앱 키니까 인증번호 쓰라고 안 나오는데?")
+    #   상담함·일정은 **폰 안 자료**라 서버를 안 부른다 → 문을 잠가도 앱이 모른다.
+    #   그래서 **켤 때 일부러 한 번** 두드려 본다. 꺼져 있으면 200, 켜져 있고 표가 없으면 401.
+    "/api/session/check",
 )
 # phone 이 경로에 박힌 것 (/suggestions/{phone}, /api/customer-persona/{phone})
 _AUTH_PATH_PHONE_PREFIXES = ("/suggestions/", "/api/customer-persona/")
@@ -6004,7 +6009,9 @@ async def _auth_enforce_middleware(request: Request, call_next):
             # POST 는 body phone 을 미들웨어에서 못 읽으므로 '유효 토큰 보유'까지만(익명 차단).
             if rp and rp != tok_phone:
                 return JSONResponse({"detail": "본인 데이터만 접근할 수 있습니다"}, status_code=403)
-    return await call_next(request)
+    resp = await call_next(request)
+    _session_renew_header(request, resp)
+    return resp
 
 
 # HEAD 도 받는다 — 바깥 감시(업타임로봇 등)는 몸통이 필요 없어 HEAD 로 두드리는데,
@@ -24760,6 +24767,49 @@ def _verify_session_token(token: Optional[str]) -> Optional[str]:
         return None
     good = _hm.new(_session_secret().encode(), f"{phone}.{exp}".encode(), _hl.sha256).hexdigest()[:32]
     return phone if _hm.compare_digest(sig, good) else None
+
+
+# 🔄 **쓰는 동안은 기한을 밀어준다.** (2026-10-03 사장님)
+#   사장님: *"카톡이나 삼성메시지도 90일마다 로그인하라 안 하는데 우린 해야 하는 이유가 뭐야"*
+#   맞는 말씀이다. 그 앱들도 기한은 있는데 **쓰는 동안 조용히 연장**해서 사용자가 모를 뿐이다.
+#   우리는 그 연장을 안 만들어서 90일째에 딱 끊겼다.
+#   ⚠️ 그렇다고 **무한**으로 두면 잃어버린 폰의 표가 영원히 산다.
+#      그래서 **쓰면 연장 · 오래 안 쓰면 만료** 가 답이다.
+#   ⚠️ 매번 새로 발급하면 헤더가 쓸데없이 커진다 → **절반 이상 지났을 때만**.
+_SESSION_RENEW_WHEN_LEFT_MS = _SESSION_TTL_MS // 2
+
+
+def _session_renew_header(request: Request, response) -> None:
+    """표가 반 이상 닳았으면 **새 표를 응답에 끼워준다.** 앱이 조용히 갈아끼운다."""
+    try:
+        auth = request.headers.get("authorization")
+        if not auth or not auth.startswith("Bearer "):
+            return
+        tok = auth[7:].strip()
+        phone = _verify_session_token(tok)
+        if not phone:
+            return
+        exp = int(tok.split(".")[1])
+        if exp - _now_ms() > _SESSION_RENEW_WHEN_LEFT_MS:
+            return
+        new_tok, new_exp = _issue_session_token(phone)
+        response.headers["X-Session-Renew"] = new_tok
+        response.headers["X-Session-Renew-Exp"] = str(new_exp)
+    except Exception as e:  # noqa: BLE001 — 연장 실패가 본 기능을 막으면 안 된다
+        print(f"[auth/renew] 실패(무시): {type(e).__name__}: {e}")
+
+
+@app.get("/api/session/check")
+def session_check() -> dict:
+    """🤝 **앱이 켤 때 인사하는 자리.** 하는 일은 없다.
+
+    `AUTH_ENFORCE` 가 켜져 있고 표가 없으면 **미들웨어가 401** 로 막는다 →
+    앱은 그걸 보고 로그인 화면으로 간다. 꺼져 있으면 그냥 200 — **아무 일도 안 난다.**
+
+    전엔 이 자리가 없어서, 문을 잠가도 앱은 **상담함(폰 안 자료)만 보여주며 멀쩡한 척**했다.
+    서버에서 오는 것들(추천·접수서·협업)만 조용히 멈춰 있었다.
+    """
+    return {"ok": True}
 
 
 def _session_phone_from_header(authorization: Optional[str]) -> Optional[str]:
