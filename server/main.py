@@ -138,7 +138,13 @@ DASHBOARD_EXCLUDE_PHONES = set(
 )
 FREE_TRIAL_DAYS = int(os.environ.get("FREE_TRIAL_DAYS", "60"))    # 무료 체험 기간 (2개월)
 AUTH_CODE_TTL_SEC = 300           # 인증번호 유효 5분
-AUTH_CODE_MAX_PER_DAY = 5         # 번호당 하루 발송 한도 (문자폭탄 방지)
+# 번호당 하루 발송 한도 (문자폭탄 방지).
+#   🔧 **잠깐 늘려야 할 때가 있다** — 예: 로그인을 처음 켜는 날, 폰 여러 대가 각각 한 통씩 받아야 한다.
+#      그때만 plist 에 `AUTH_CODE_MAX_PER_DAY` 를 넣고, 끝나면 **그 줄만 지운다.**
+#      코드 기본값은 2 그대로라 **설정을 안 건드리면 아무 변화가 없다.** (2026-10-03)
+AUTH_CODE_MAX_PER_DAY = int(os.environ.get("AUTH_CODE_MAX_PER_DAY", "2") or 2)
+#   5 → 2 (2026-09-28 사장님). 남의 번호로 반복 시도하는 사람이 있었고,
+#   아무 상관 없는 분이 8월부터 문자를 받고 계셨다. 본인이면 두 번이면 충분하다.
 
 # ── 시험용 마스터 로그인 (2026-09-18 사장님) ────────────────────────────────
 #   테스트폰에 앱을 새로 깔 때마다 문자 인증을 기다려야 해서 개발이 막혔다.
@@ -292,6 +298,57 @@ def db_init() -> None:
                 last_sent_ms  INTEGER NOT NULL,
                 sent_today    INTEGER NOT NULL DEFAULT 0,
                 sent_day      TEXT
+            )
+            """
+        )
+        # 2026-09-26 — **폰 한 대 = 한 줄.** 번호 하나에 폰이 두 대인 경우가 있다
+        #   (업무폰 Play + 테스트폰 직접설치). 전엔 번호 단위라 나중에 온 쪽이 덮어썼다.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_devices (
+                phone          TEXT NOT NULL,
+                device_id      TEXT NOT NULL,
+                model          TEXT,
+                install_source TEXT,
+                app_version    TEXT,
+                first_ms       INTEGER,
+                last_ms        INTEGER,
+                opens          INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (phone, device_id)
+            )
+            """
+        )
+        con.execute("CREATE INDEX IF NOT EXISTS idx_app_devices_phone ON app_devices(phone)")
+        # 2026-09-27 — 누적 발송 수 + 인증 성공 시각. 「보내기만 하고 가입은 안 되는」 번호를 가른다.
+        for _col, _type in (("sent_total", "INTEGER NOT NULL DEFAULT 0"),
+                            ("verified_at_ms", "INTEGER")):
+            try:
+                con.execute(f"ALTER TABLE auth_codes ADD COLUMN {_col} {_type}")
+            except Exception:
+                pass   # 이미 있으면 그만
+        # 2026-09-27 — **없는 번호 기억.** 통신사가 못 갔다고 알려준 번호는 한동안 안 보낸다.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth_dead_numbers (
+                phone       TEXT PRIMARY KEY,
+                code        TEXT,
+                reason      TEXT,
+                first_ms    INTEGER,
+                last_ms     INTEGER,
+                hits        INTEGER NOT NULL DEFAULT 1,
+                alert_day   TEXT
+            )
+            """
+        )
+        # 2026-09-26 — 인증문자 IP 한도. 같은 곳에서 계속 두드리는 것을 막는다.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth_ip_quota (
+                ip       TEXT NOT NULL,
+                day      TEXT NOT NULL,
+                n        INTEGER NOT NULL DEFAULT 0,
+                alerted  INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (ip, day)
             )
             """
         )
@@ -2543,6 +2600,8 @@ class ConversationContext(BaseModel):
     owner_phone: Optional[str] = None
     # 추가50 (2026-06-21) — 앱 onboarding 업종
     owner_trade: Optional[str] = None
+    # 2026-09-26 — 사장님 **자기** 가격표. 요약이 전역 pricing.md 를 쓰지 않게.
+    price_list: Optional[str] = None
 
 
 # ─── 응답 enum (사양서 §3, §4) ───
@@ -2920,6 +2979,8 @@ async def call_claude_for_suggestions_with_meta(
     적극 활용. 같은 사장님이 5분 내 재호출 시 ~90% cache 적중 (입력 비용 1/10).
     """
     # §16 — Tone RAG 통합. block C 가 RAG retrieved 또는 ownerToneSamples fallback.
+    # 🧾 회원이 보낸 자기 가격표를 적어둔다 — 요약 쪽도 자기 것을 쓰게. (2026-09-26)
+    _owner_pricing_remember(req.owner_phone, req.priceList)
     system_blocks = await build_system_blocks_async(
         owner_tone_samples=req.ownerToneSamples or [],
         latest_msg=req.latestMessage or "",
@@ -3060,6 +3121,8 @@ async def call_gemini_for_suggestions_with_meta(
     """
     # Sonnet 과 동일한 시스템 블록 사용 (RAG·페르소나 inject 포함)
     # → 4 block 을 하나 string 으로 합쳐서 systemInstruction 으로 전달
+    # 🧾 회원이 보낸 자기 가격표를 적어둔다 — 요약 쪽도 자기 것을 쓰게. (2026-09-26)
+    _owner_pricing_remember(req.owner_phone, req.priceList)
     system_blocks = await build_system_blocks_async(
         owner_tone_samples=req.ownerToneSamples or [],
         latest_msg=req.latestMessage or "",
@@ -7130,6 +7193,13 @@ _req_app_version: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextV
 _req_install_source: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
     "_req_install_source", default=None
 )
+# 2026-09-26 — 폰 한 대를 가리키는 표식. 같은 번호로 폰 두 대를 쓰는 경우를 가르려고.
+_req_device_id: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
+    "_req_device_id", default=None
+)
+_req_device_model: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
+    "_req_device_model", default=None
+)
 
 
 @app.middleware("http")
@@ -7139,6 +7209,9 @@ async def _app_version_middleware(request: Request, call_next):
     # 어디서 깔았나 — 앱이 아는 경우에만 보낸다. 모르면 헤더 자체가 없다.
     i = (request.headers.get("X-App-Install") or "").strip()[:16].lower()
     _req_install_source.set(i if i in ("play", "sideload") else None)
+    # 어느 폰인가 — 옛 앱은 안 보낸다. 없으면 기기별 기록을 건너뛴다(번호 단위 기록은 그대로).
+    _req_device_id.set((request.headers.get("X-Device-Id") or "").strip()[:64] or None)
+    _req_device_model.set((request.headers.get("X-Device-Model") or "").strip()[:40] or None)
     return await call_next(request)
 
 
@@ -7514,8 +7587,7 @@ def _blog_db_init() -> None:
 
 
 def _kst_now() -> "_dt.datetime":
-    """지금 이 순간의 **서울 시간**. 규칙은 _kst 한 곳에. (2026-09-28)"""
-    return _kst(time.time() * 1000)
+    return _dt.datetime.utcnow() + _dt.timedelta(hours=9)
 
 
 # (2026-09-13) 썸네일이 전부 같은 파랑이라 목록이 파란 상자 벽처럼 보였다.
@@ -8961,6 +9033,18 @@ async def beta_check(req: BetaCheckRequest) -> dict:
                 """,
                 (phone_digits, _day, now, now),
             )
+            # 📱 어느 폰에서 켰는지도 같이. (2026-09-26)
+            _did2 = _req_device_id.get()
+            if _did2:
+                con.execute(
+                    """INSERT INTO app_devices
+                           (phone, device_id, model, first_ms, last_ms, opens)
+                       VALUES (?, ?, ?, ?, ?, 1)
+                       ON CONFLICT(phone, device_id) DO UPDATE SET
+                           opens   = opens + 1,
+                           last_ms = excluded.last_ms""",
+                    (phone_digits, _did2, _req_device_model.get(), now, now),
+                )
         except Exception:
             pass   # 출석 기록이 실패해도 앱은 돌아야 한다
         con.commit()
@@ -9693,6 +9777,7 @@ async def admin_beta_dashboard_data(
                 pass
         # 추가75 — 진짜 "앱 사용 일수" = app_events 유니크 날짜 (screen_view 등)
         per_user_app_days: dict = {}
+        per_user_last_open: dict = {}   # 2026-09-26 — 진짜 앱을 켠 마지막 시각
         if wl_phones:
             placeholders_ap = ",".join(["?"] * len(wl_phones))
             # 🔴 전엔 app_events(30초마다 모아 보냄, 앱이 먼저 닫히면 유실)로 셌다.
@@ -9706,6 +9791,15 @@ async def admin_beta_dashboard_data(
             ).fetchall()
             for ar_row in ap_rows:
                 per_user_app_days.setdefault(ar_row[0], set()).add(ar_row[1])
+            # 🔴 **「마지막 실행」은 서버를 부른 시각이었다.** 앱은 화면을 안 봐도 뒤에서
+            #   혼자 서버를 부른다 → 9/21 이후 안 켠 분이 「2시간 전」으로 보였다.
+            #   출석부(app_opens)의 마지막이 **진짜 앱을 켠 시각**이다. (2026-09-26 사장님)
+            for lo_row in con.execute(
+                f"""SELECT phone, MAX(last_ms) FROM app_opens
+                     WHERE phone IN ({placeholders_ap}) GROUP BY phone""",
+                wl_phones,
+            ).fetchall():
+                per_user_last_open[lo_row[0]] = lo_row[1]
 
         # 추가84 (2026-07-03) — 등급 4단계 (사장님 설계):
         #   applicant = 등업대기 (beta_signups 만) / tester = 베타 테스터 (whitelist, 무료)
@@ -9807,6 +9901,8 @@ async def admin_beta_dashboard_data(
                 "active_days": active_days,   # 옛 호환 (= ai_days)
                 "ai_days": ai_days,           # 추가75 — AI 사용 일수 (명확한 이름)
                 "app_days": app_days,         # 추가75 — 진짜 앱 사용 일수 (app_events 기준)
+                # 2026-09-26 — **앱을 켠** 마지막 시각. last_seen_ms(서버 연결)와 다르다.
+                "last_open_ms": per_user_last_open.get(phone),
                 "avg_per_day": avg_per_day,
                 "avg_per_active_day": avg_per_active_day,
                 "cost_usd": round(per_user_cost.get(phone, 0.0), 4),
@@ -10420,7 +10516,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>업종</th>
           <th>메모</th>
           <th class="sortable" data-sort="added_at_ms" onclick="setSort('added_at_ms')">등록일 ↕</th>
-          <th class="sortable" data-sort="last_seen_ms" onclick="setSort('last_seen_ms')">마지막 실행 ↕</th>
+          <th class="sortable" data-sort="last_open_ms" onclick="setSort('last_open_ms')" title="앱을 실제로 켠 마지막 시각. 뒤에서 혼자 서버를 부른 건 안 셉니다.">마지막 앱 켬 ↕</th>
           <th class="sortable right" data-sort="app_days" onclick="setSort('app_days')" title="앱을 실제로 켠 유니크 날짜 수">앱 사용일 ↕</th>
           <th class="sortable right" data-sort="use_count" onclick="setSort('use_count')">진입 ↕</th>
           <th class="sortable right" data-sort="calls" onclick="setSort('calls')" title="AI 기능 사용 총 회수">AI 사용 ↕</th>
@@ -10549,7 +10645,8 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     var dead = 0, watcher = 0, beginner = 0, sincere = 0;
     members.forEach(function(u){
       var calls = u.calls || 0;
-      var active = u.last_seen_ms && u.last_seen_ms >= sevenAgo;
+      // 🔴 「쓰고 있다」의 근거는 **앱을 켠 것**이다. 서버 연결은 앱이 혼자 한 것일 수 있다.
+      var active = u.last_open_ms && u.last_open_ms >= sevenAgo;
       if (!active) dead++;
       else if (calls >= 5) sincere++;
       else if (calls === 0) watcher++;
@@ -10557,10 +10654,10 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     });
     // ⚠️ 이탈 위험 명단 (클릭 → 모달)
     var atRiskList = members.filter(function(u){
-      return !(u.last_seen_ms && u.last_seen_ms >= sevenAgo);
+      return !(u.last_open_ms && u.last_open_ms >= sevenAgo);
     }).map(function(u){
       return { name: u.name || '-', phone: u.phone, phone_raw: u.phone_raw,
-               last: u.last_seen_ms ? timeAgo(nowMs - u.last_seen_ms) : '접속 기록 없음' };
+               last: u.last_open_ms ? timeAgo(nowMs - u.last_open_ms) : '앱을 켠 적 없음' };
     });
     var mix = members.length;
     function mixSeg(nv, color) {
@@ -10834,7 +10931,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
 
   // ─── 추가83/84: 전체 멤버 관리 (검색 + 등급 필터 + 정렬 + 추가/제거 + 등급 변경) ───
   var ALL_USERS = [];
-  var SORT_KEY = 'last_seen_ms';
+  var SORT_KEY = 'last_open_ms';
   var SORT_DESC = true;
   var GRADE_FILTER = '';
   var GRADE_META = {
@@ -10877,10 +10974,15 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     var now = Date.now();
     list.forEach(function(u){
       var added = u.added_at_ms ? new Date(u.added_at_ms).toLocaleDateString('ko') : '-';
-      var last = u.last_seen_ms ? timeAgo(now - u.last_seen_ms) : '<span style="color:#9AA3AF">미진입</span>';
+      // 🔴 앱을 켠 시각으로 센다. last_seen_ms 는 앱이 뒤에서 혼자 부른 것도 포함된다.
+      var lastOpen = u.last_open_ms || 0;
+      var last = lastOpen ? timeAgo(now - lastOpen) : '<span style="color:#9AA3AF">켠 적 없음</span>';
+      if (lastOpen && u.last_seen_ms && u.last_seen_ms - lastOpen > 3600000) {
+        last += '<div style="font-size:10.5px; color:#B8C2D0; font-weight:600">서버 연결 ' + timeAgo(now - u.last_seen_ms) + '</div>';
+      }
       var statusBadge;
-      if (!u.first_seen_ms) statusBadge = '<span class="badge off">미진입</span>';
-      else if (u.last_seen_ms && (now - u.last_seen_ms) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
+      if (!lastOpen) statusBadge = '<span class="badge off">미진입</span>';
+      else if ((now - lastOpen) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
       else statusBadge = '<span class="badge cool">휴면</span>';
       var industryHtml = u.industry
         ? '<span style="background:#EEF4FF; color:#1B64DA; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;">' + escape(u.industry) + '</span>'
@@ -10921,9 +11023,24 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           return '<span style="' + base + 'background:#FFF4E0;color:#B8780A" title="APK 직접 설치 — 내부 테스터·사장님 폰. 플레이 업데이트가 안 간다">직접 설치</span>';
         return '<span style="' + base + 'background:#F2F4F8;color:#A6AEBA" title="새 앱을 아직 안 깐 사람 — 앱이 알려주면 채워져요">아직 모름</span>';
       }
+      // 📱 딱지 밑에 **버전 · 언제 올렸나.** 「어디서 받았나」보다 이게 궁금하다. (2026-09-27 사장님)
+      //   버전을 모르면 옛 앱인지 새 앱인지 알 길이 없다 — 하루에 여러 번 올리는데.
+      function installWhen(u) {
+        var v = u.app_version || '';
+        var at = u.app_version_seen_ms || 0;
+        if (!v && !at) return '';
+        var bits = [];
+        if (v) {
+          // "0.2.2294 (2294)" → 뒤 괄호는 빼고 짧게.
+          bits.push('<b>' + escape(String(v).replace(/\s*\(.*\)\s*$/, '')) + '</b>');
+        }
+        if (at) bits.push(timeAgo(Date.now() - at));
+        return '<div style="font-size:10.5px;color:#8A93A2;margin-top:3px;white-space:nowrap">'
+             + bits.join(' · ') + '</div>';
+      }
       html2 += '<tr>'
             + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
-            + '<td>' + installPill(u.install_source) + '</td>'
+            + '<td>' + installPill(u.install_source) + installWhen(u) + '</td>'
             + '<td>' + gradeSel + billingHtml + '</td>'
             + '<td>' + industryHtml + '</td>'
             + '<td style="font-size:11px; color:#5A6472; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escape(u.memo || '') + '">' + escape(u.memo || '-') + '</td>'
@@ -11655,6 +11772,24 @@ async def admin_user_detail_data(
                 "last_seen_ms": None,
                 "use_count": 0,
             }
+        # 2026-09-26 — 진짜 앱을 켠 마지막 시각 + 이 번호로 쓰는 폰들
+        try:
+            _lo = con.execute(
+                "SELECT MAX(last_ms) FROM app_opens WHERE phone = ?", (target,)
+            ).fetchone()
+            profile["last_open_ms"] = _lo[0] if _lo else None
+            profile["devices"] = [
+                {"device_id": d[0], "model": d[1] or "", "install_source": d[2] or "",
+                 "app_version": d[3] or "", "last_ms": d[4], "opens": d[5] or 0}
+                for d in con.execute(
+                    """SELECT device_id, model, install_source, app_version, last_ms, opens
+                       FROM app_devices WHERE phone = ? ORDER BY last_ms DESC""",
+                    (target,),
+                ).fetchall()
+            ]
+        except Exception:
+            profile["last_open_ms"] = None
+            profile["devices"] = []
         profile["registered_name"] = _is_registered_owner(target) or ""
         # 추가49 (2026-06-21) — 업종 (beta_signups.industry). 사장님이 admin 에서 직접 추가한
         # 사용자는 beta_signups 에 없을 수 있음 → None.
@@ -12374,7 +12509,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   }
   // 등급 결정 — 마지막 활동 + 누적 사용
   function userGrade(lastMs, useCount) {
-    if (!lastMs) return ['cold', '⚫ 진입 안 함'];
+    if (!lastMs) return ['cold', '⚫ 앱을 켠 적 없음'];
     var d = (Date.now() - lastMs) / 86400000;
     if (d < 1 && (useCount || 0) >= 5) return ['real', '🟢 진성'];
     if (d < 1)  return ['peek', '🟡 사용중'];
@@ -12417,8 +12552,12 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         ? esc(p.industry)
         : '<span style="color:#B8C2D0">업종 미입력</span>';
       var industryEdit = ' <a href="javascript:editTrade()">[' + (p.industry?'수정':'설정') + ']</a>';
-      var grade = userGrade(p.last_seen_ms, p.use_count);
-      var lastTxt = p.last_seen_ms ? fmtShort(p.last_seen_ms) + ' 진입' : '진입 기록 없음';
+      // 🔴 「마지막 앱 켬」과 「서버 연결」은 다른 것이다. (2026-09-26 사장님)
+      var grade = userGrade(p.last_open_ms, p.use_count);
+      var lastTxt = p.last_open_ms ? fmtShort(p.last_open_ms) + ' 앱 켬' : '앱을 켠 적 없음';
+      if (p.last_seen_ms && (!p.last_open_ms || p.last_seen_ms - p.last_open_ms > 3600000)) {
+        lastTxt += ' (서버 연결은 ' + fmtShort(p.last_seen_ms) + ')';
+      }
 
       document.getElementById('heroName').innerHTML =
         esc(displayName) + (org ? ' <span class="org">' + org + '</span>' : '');
@@ -12455,6 +12594,21 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
             + (p.push_at_ms ? ' · ' + fmtDate(p.push_at_ms) : '');
         }
         add('앱 설치', pushTxt || '<span class="dim">푸시 등록 없음 — 앱을 안 깔았거나 알림을 껐어요</span>');
+
+        // 📱 같은 번호로 폰 두 대를 쓰는 경우가 있다(업무폰 + 테스트폰). 섞지 말고 나눠 보여준다.
+        var devs = p.devices || [];
+        if (devs.length) {
+          var srcName = { play: 'Play 스토어', sideload: '직접 설치' };
+          var dh = devs.map(function(dv){
+            var bits = [];
+            if (dv.model) bits.push(esc(dv.model));
+            if (dv.install_source) bits.push(srcName[dv.install_source] || esc(dv.install_source));
+            if (dv.app_version) bits.push(esc(dv.app_version));
+            if (dv.last_ms) bits.push(fmtShort(dv.last_ms));
+            return '<div>' + bits.join(' · ') + '</div>';
+          }).join('');
+          add('쓰는 폰 ' + devs.length + '대', dh);
+        }
 
         // 앱 버전 — 2026-09-23 부터 쌓인다. 그전 사람은 빈칸.
         var verTxt;
@@ -13423,18 +13577,15 @@ _INSTALL_HTML_PATH = BASE_DIR / "static" / "install.html"
 _PRIVACY_HTML_PATH = BASE_DIR / "static" / "privacy.html"
 
 
-PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.detailline.callfollowcrm"
-
-
 @app.get("/download/shigongmagne.apk", include_in_schema=False)
 async def download_apk(v: Optional[str] = None):
-    """🚫 **APK 직접 배포 중단.** (2026-09-26 사장님 "무조건 스토어에서 받게끔해")
+    """APK 직접 배포 중단 (2026-09-26 사장님: 무조건 스토어에서 받게끔).
 
-    이 주소는 예전 안내 문자·페이지에 실려 나갔으므로 **죽이지 않고 Play 로 넘긴다**.
-    (앱 자체 업데이트는 이미 Play 로 보내므로 영향 없음 — 버전 확인만 /api/download/version 사용)
+    이 주소는 예전 안내 문자·페이지에 실려 나갔으므로 죽이지 않고 Play 로 넘긴다.
+    (앱 자체 업데이트는 이미 Play 로 보내므로 영향 없음)
     """
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(PLAY_STORE_URL, status_code=302)
+    from fastapi.responses import RedirectResponse as _RR
+    return _RR("https://play.google.com/store/apps/details?id=com.detailline.callfollowcrm", status_code=302)
 
 
 async def _download_apk_legacy(v: Optional[str] = None):
@@ -13568,7 +13719,7 @@ async def internal_play_live(request: Request):
                 "이제 사용자들이 업데이트를 받을 수 있어요.")
     sent = False
     try:
-        await _send_sms_solapi(admin, text)
+        await _send_sms_solapi(admin, text, kind="정식배포 알림")
         sent = True
     except Exception as e:  # noqa: BLE001
         print(f"[play-live] SMS 실패(다음 폴링 때 재시도): {e}")
@@ -14525,16 +14676,67 @@ __OWNER_TONE_SAMPLES__
 """
 
 
+def _owner_pricing_key(owner_phone: Optional[str]) -> str:
+    digits = "".join(ch for ch in (owner_phone or "") if ch.isdigit())
+    return ("owner_pricing:" + digits[-11:]) if len(digits) >= 9 else ""
+
+
+def _owner_pricing_remember(owner_phone: Optional[str], price_list: Optional[str]) -> None:
+    """🧾 회원이 보낸 **자기 가격표**를 적어둔다. (2026-09-26)
+
+    답변추천은 앱이 priceList 를 같이 보내는데, 요약 쪽은 안 보낸다(구버전 앱).
+    한 번이라도 받은 걸 적어두면, 옛 앱을 쓰는 회원도 요약에서 **자기 가격표**를 쓴다.
+    """
+    k = _owner_pricing_key(owner_phone)
+    v = (price_list or "").strip()
+    if not k or not v:
+        return
+    try:
+        with db_conn() as con:
+            con.execute("INSERT OR REPLACE INTO server_kv (k, v) VALUES (?, ?)", (k, v[:8000]))
+            con.commit()
+    except Exception as e:  # noqa: BLE001 — 기억 실패로 요약을 망치면 안 된다
+        print("[owner-pricing] remember 실패: %s: %s" % (type(e).__name__, e))
+
+
+def _owner_pricing_recall(owner_phone: Optional[str]) -> str:
+    k = _owner_pricing_key(owner_phone)
+    if not k:
+        return ""
+    try:
+        with db_conn() as con:
+            row = con.execute("SELECT v FROM server_kv WHERE k = ?", (k,)).fetchone()
+        return (row[0] or "").strip() if row else ""
+    except Exception as e:  # noqa: BLE001
+        print("[owner-pricing] recall 실패: %s: %s" % (type(e).__name__, e))
+        return ""
+
+
 def _build_summary_system_prompt(
-    template: str, owner_tone_samples: list[str], biz_name: str = ""
+    template: str, owner_tone_samples: list[str], biz_name: str = "",
+    price_list: Optional[str] = None, owner_phone: Optional[str] = None,
 ) -> str:
     # 상호를 모르면 빈 칸이 아니라 **모른다고 적어준다** —
     #   빈 칸이면 모델이 그 자리를 메우려고 업종명을 지어낸다. (2026-09-24 실측)
     biz = (biz_name or "").strip() or "(모름 — 문자에 이름을 쓰지 말 것)"
+
+    # 🔴 가격표는 **회원마다 자기 것**이다. (2026-09-26 사장님: "이 앱은 나 혼자 쓰는 게 아니다")
+    #   전에는 여기에 전역 pricing.md(= 디테일라인 줄눈 가격표) 를 **전원에게** 넣었다.
+    #   필름·도배 사장님 요약에 남의 줄눈 금액이 들어가 있었다.
+    #   답변추천(build_system_blocks_async) 은 이미 회원 것을 쓴다 — 요약 4종만 빠져 있었다.
+    own = (price_list or "").strip() or _owner_pricing_recall(owner_phone)
+    if own:
+        pricing = "(이 사장님이 앱에 직접 적은 것)\n" + own[:8000]
+    else:
+        pricing = (
+            "(등록된 가격표가 없어요. 금액도 자재 이름도 **추측하지 마라** — "
+            "통화·문자에서 들린 것만 적어라.)"
+        )
+
     return (
         template
         .replace("__BIZ_NAME__", biz)
-        .replace("__PRICING__", load_pricing())
+        .replace("__PRICING__", pricing)
         .replace("__OWNER_TONE_SAMPLES__", format_owner_tone(owner_tone_samples))
     )
 
@@ -14635,7 +14837,11 @@ async def _handle_summary_endpoint(
         raise
 
     # 3) Claude 호출 (model 명시 — Haiku 등으로 비용 최적화 가능)
-    system_prompt = _build_summary_system_prompt(system_template, ctx.owner_tone_samples or [])
+    _owner_pricing_remember(ctx.owner_phone, ctx.price_list)
+    system_prompt = _build_summary_system_prompt(
+        system_template, ctx.owner_tone_samples or [],
+        price_list=ctx.price_list, owner_phone=ctx.owner_phone,
+    )
     user_msg = build_context_user_message(ctx)
     try:
         parsed, response = await call_claude_json(
@@ -15668,6 +15874,8 @@ class CallSummaryRequest(BaseModel):
     # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone (req.phone 은 customer 라 부적절).
     owner_phone: Optional[str] = None
     ownerTrade: Optional[str] = None   # 추가50 (2026-06-21) — 앱 onboarding 업종 (저장용)
+    # 2026-09-26 — 사장님 **자기** 가격표 (자재 이름 바로잡기 + 금액). 전역 pricing.md 대체.
+    price_list: Optional[str] = None
 
 
 CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
@@ -15699,8 +15907,15 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
     통화 내용이 업무(줄눈·시공) 와 상관없는 사적인 대화면, 억지로 업무로 만들지 말고
     들린 대로 적어라 (예: "지인 안부 통화", "개인 상담 통화").
 
-- one_line: 18~28자. 이 통화의 핵심 결과 1줄 (예: "24평 화장실 줄눈 견적 65만원 안내", "수원-인천 출장비 협의 필요").
-  단순 "견적 요청" 식 키워드 X — 결과까지 들어가야 한다.
+- one_line: 18~28자. **그래서 어떻게 됐는지(결과)** 한 줄.
+  · 「~하기로」·「~안 하기로」·「~로 정함」·「~ 안내」·「~ 필요」처럼 **끝을 맺어라.**
+    ⛔ 「~ 논의」·「~ 상담」·「~ 얘기」·「~ 확인」 으로 끝내지 마라 —
+      주제만 말하고 **결과를 안 말한 것**이다. 결과를 모르겠으면 통화에서 마지막에 정해진 것을 적어라.
+  · ⛔ **title 에 쓴 단어를 one_line 에 또 쓰지 마라.** 두 줄이 같은 말이면 한 줄을 버린 것이다.
+    나쁜 예: title "줄눈 자재 및 시공 상담" / one_line "자재 특성 및 시공 변수 논의"  ← 같은 말
+    좋은 예: title "줄눈 자재 문의" / one_line "케라폭시로 하기로 · 타일 단차는 미리 알리기로"
+  · 좋은 예: "24평 화장실 65만원 안내", "5/30 시공 확정 · 계약금 10만원",
+    "수원-인천 출장비 협의 필요", "다음주 사진 받고 다시 통화하기로"
 
 - bullets: **4~6줄**. 각 줄은 반드시 아래 **세 칸을 `|` 로 나눠** 써라.
     〈시작-끝〉|〈화자〉|〈한 문장〉
@@ -15712,6 +15927,9 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
     받아쓰기에 `[m:ss]` 가 **없으면 시간 칸을 비운다** (예: `|손님|…`). 짐작 금지.
   · 〈화자〉 = `손님` 또는 `나` 둘 중 하나. 받아쓰기에 적힌 화자를 따른다. 모르면 비운다.
   · 〈한 문장〉 = 40자 이내. **"고객:" "사장님 답:" 같은 머리말을 붙이지 마라** — 칸이 따로 있다.
+  · 말투는 **사장님이 자기한테 적는 메모**다. 「지적」·「조언」·「논의」·「언급」·「강조」 같은
+    보고서 말을 쓰지 마라. → 「~라고 알려줌」·「~물어봄」·「~라고 함」·「~안내」 로 끝낸다.
+    (나쁜 예: "단차 등 현장 변수를 지적" / 좋은 예: "단차에 따라 결과가 달라진다고 알려줌")
   좋은 예:
     "0:00-0:35|손님|욕조가 깨졌는데 고칠 수 있냐고 물어봄"
     "0:35-1:20|나|철거와 방수까지 하면 값이 올라간다고 설명"
@@ -15746,7 +15964,11 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
 ────── 상호 (비어 있으면 문자에 이름을 안 씁니다) ──────
 __BIZ_NAME__
 
-────── 가격표 (참고용) ──────
+────── 가격표 (참고용 · **이 사장님이 직접 적은 것**) ──────
+⚠️ 받아쓰기의 자재·시공 이름은 소리만 비슷하게 잘못 적히는 일이 많다
+   (실제: 「케라폭시」가 「캐럿」·「캐러」로 적힘).
+   가격표에 같은 걸 가리키는 이름이 있으면 **가격표에 적힌 이름으로 바로잡아** 써라.
+   단, 가격표에 없는 이름을 **새로 만들지는 마라.**
 __PRICING__
 
 ────── 사장님 톤 (어휘 참고) ──────
@@ -15929,9 +16151,11 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
     check_rate_limit(req.phone)
 
     # 시스템 프롬프트 빌드 (가격표 + 톤 샘플 inject)
+    _owner_pricing_remember(req.owner_phone, req.price_list)
     system_prompt = _build_summary_system_prompt(
         CALL_SUMMARY_SYSTEM, req.owner_tone_samples or [],
         biz_name=_web_owner_biz_suggested(_norm_phone(req.owner_phone or "")),
+        price_list=req.price_list, owner_phone=req.owner_phone,
     )
     user_msg = _build_call_summary_user_message(req)
 
@@ -16248,6 +16472,7 @@ async def call_audio_summary_endpoint(
     force_refresh: bool = Form(False),                # §26 (2026-06-10) — true 면 캐시 무시 + 새로 처리
     owner_phone: Optional[str] = Form(None),         # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone
     owner_trade: Optional[str] = Form(None),         # 추가50 (2026-06-21) — 앱 onboarding 업종
+    price_list: Optional[str] = Form(None),          # 2026-09-26 — 사장님 자기 가격표
 ) -> dict:
     """통화 녹음 → Whisper STT → Gemini/Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
 
@@ -16429,9 +16654,11 @@ async def call_audio_summary_endpoint(
         user_lines.append(raw)
         user_msg = "\n".join(user_lines)
 
+        _owner_pricing_remember(owner_phone, price_list)
         system_prompt = _build_summary_system_prompt(
             CALL_SUMMARY_SYSTEM, samples_list,
             biz_name=_web_owner_biz_suggested(_norm_phone(owner_phone or "")),
+            price_list=price_list, owner_phone=owner_phone,
         )
 
         # §26 (2026-06-10) — 사장님 결정: 1차 Gemini 2.5 Flash + 2차 Haiku fallback
@@ -16609,6 +16836,7 @@ async def call_audio_summary_start(
     force_refresh: bool = Form(False),
     owner_phone: Optional[str] = Form(None),
     owner_trade: Optional[str] = Form(None),
+    price_list: Optional[str] = Form(None),          # 2026-09-26 — 사장님 자기 가격표
 ) -> dict:
     """접수만 하고 바로 대답. 긴 통화가 게이트웨이 시간 제한에 걸려 죽는 걸 막는다."""
     if not phone:
@@ -16667,6 +16895,7 @@ async def call_audio_summary_start(
                 force_refresh=force_refresh,
                 owner_phone=owner_phone,
                 owner_trade=owner_trade,
+                price_list=price_list,
             )
             _CALL_SUMMARY_JOBS.pop(key, None)   # 결과는 캐시에 들어갔다
             print("[call-audio-summary/start] " + phone_digits + " -> done")
@@ -22079,6 +22308,24 @@ def _touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = Non
                     "UPDATE beta_whitelist SET install_source = ? WHERE phone = ?",
                     (_inst, phone_digits),
                 )
+            # 📱 **폰 한 대 = 한 줄.** 번호 단위로 덮어쓰면 업무폰/테스트폰이 섞인다.
+            try:
+                _did = _req_device_id.get()
+                _dmodel = _req_device_model.get()
+            except Exception:
+                _did, _dmodel = None, None
+            if _did:
+                con.execute(
+                    """INSERT INTO app_devices
+                           (phone, device_id, model, install_source, app_version, first_ms, last_ms, opens)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                       ON CONFLICT(phone, device_id) DO UPDATE SET
+                           model          = COALESCE(excluded.model, model),
+                           install_source = COALESCE(excluded.install_source, install_source),
+                           app_version    = COALESCE(excluded.app_version, app_version),
+                           last_ms        = excluded.last_ms""",
+                    (phone_digits, _did, _dmodel, _inst, _ver, now, now),
+                )
             if trade_clean:
                 # 추가50 — owner_trade 도 같이 (가장 최근 값으로 덮어쓰기)
                 con.execute(
@@ -24711,34 +24958,202 @@ import hmac as _hmac  # noqa: E402
 import secrets as _secrets_auth  # noqa: E402
 
 
-async def _send_sms_solapi(to_phone: str, text: str) -> None:
-    """SOLAPI 문자 발송. env (SOLAPI_API_KEY/SECRET/SENDER) 없으면 503."""
-    if not (SOLAPI_API_KEY and SOLAPI_API_SECRET and SOLAPI_SENDER):
-        raise HTTPException(
-            503,
-            "문자 발송 설정이 아직 안 됐습니다 (SOLAPI env 필요 — plist 에 "
-            "SOLAPI_API_KEY / SOLAPI_API_SECRET / SOLAPI_SENDER 추가)"
-        )
+def _solapi_headers() -> dict:
     date_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     salt = _secrets_auth.token_hex(16)
     signature = _hmac.new(
         SOLAPI_API_SECRET.encode(), (date_iso + salt).encode(), hashlib.sha256
     ).hexdigest()
-    headers = {
+    return {
         "Authorization": (
             f"HMAC-SHA256 apiKey={SOLAPI_API_KEY}, date={date_iso}, "
             f"salt={salt}, signature={signature}"
         ),
         "Content-Type": "application/json",
     }
+
+
+# 🚫 **번호 탓**인 실패 — 다시 보내봐야 또 실패한다. 한동안 막는다.
+_SMS_DEAD_CODES = {"3058", "3032"}
+# 없는 번호로 판명된 뒤 막아두는 기간. 통신사 일시 오류일 가능성을 남겨 영구는 아니다.
+AUTH_DEAD_BLOCK_DAYS = 3
+# 🛑 **한 번도 인증이 안 된 번호**에 이만큼 보냈으면 그만 보낸다.
+#   진짜 가입하려는 사람은 몇 번 안에 끝낸다. 10번을 보내도 한 번도 안 됐다면
+#   그건 그 번호 주인이 원한 문자가 아니다. (실제: 남의 번호로 98번 나갔다)
+AUTH_UNVERIFIED_TOTAL_CAP = 10
+
+# 이통사가 「못 갔다」고 알려주는 코드들. 접수(2000·3000·4000)와 구분한다.
+_SMS_FAIL_REASON = {
+    "3058": "없는 번호예요 (전송경로 없음)",
+    "3032": "없는 번호예요 (미가입자)",
+    "3050": "문자를 못 받는 단말기예요",
+    "3043": "폰이 꺼져 있었어요",
+    "3040": "시간 초과로 못 갔어요",
+    "3056": "통신망 문제로 못 갔어요",
+}
+
+
+# 📵 추가98 (2026-09-30) — **쓰는 분께 할 말.** 이유마다 **다음에 뭘 누를지가 다르다.**
+#   「안 갔어요」 한마디로는 뭘 해야 할지 모른다. (사장님 2026-09-30)
+#   act: rephone = 번호 다시 입력 / retry = 다시 받기 / report = 가입 오류 신고
+_SMS_FAIL_SAY = {
+    "3058": ("rephone", "이 번호로는 문자가 안 가요.\n번호를 한 번만 다시 봐주세요."),
+    "3032": ("rephone", "이 번호로는 문자가 안 가요.\n번호를 한 번만 다시 봐주세요."),
+    "3050": ("report", "이 폰이 지금 문자를 못 받는 상태예요.\n번호는 맞아요."),
+    "3043": ("retry", "폰이 꺼져 있어서 못 갔어요.\n켜고 다시 받아보세요."),
+    "3040": ("retry", "잠깐 통신망이 막혔어요.\n다시 받으면 올 거예요."),
+    "3056": ("retry", "잠깐 통신망이 막혔어요.\n다시 받으면 올 거예요."),
+}
+# 앱이 물어보러 오는 동안만 답한다. 오래된 건 「모름」 — 지난 통화 결과를 지금 것으로 착각하면 안 된다.
+AUTH_SMS_RESULT_TTL_MS = 10 * 60 * 1000
+
+
+def _auth_sms_result_table(con) -> None:
+    """📵 통신사 회신을 적어두는 칸. 없으면 만든다(라이브 DB 에 ALTER 안 친다)."""
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS auth_sms_result (
+               phone     TEXT PRIMARY KEY,
+               code      TEXT,
+               reason    TEXT,
+               at_ms     INTEGER,
+               day       TEXT,
+               day_hits  INTEGER DEFAULT 0,
+               alert_day TEXT
+           )"""
+    )
+
+
+async def _auth_sms_watch(phone: str, message_id: str) -> None:
+    """📣 **보냈다고 끝이 아니다.**
+
+    SOLAPI 는 접수되면 바로 200 을 준다. 진짜 성공/실패는 **이통사 리포트**로
+    몇 초~몇 분 뒤에 온다. 전엔 그 뒷얘기를 아무도 안 들어서, 앱은 "보냈어요"
+    라고 하고 사장님은 영영 몰랐다. → 45초 뒤 한 번 물어보고, 못 갔으면 알린다.
+    """
+    if not message_id:
+        return
+    try:
+        await asyncio.sleep(45)
+        url = "https://api.solapi.com/messages/v4/list?messageId=" + message_id
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            r = await client.get(url, headers=_solapi_headers())
+        if r.status_code >= 400:
+            return
+        m = (r.json().get("messageList") or {}).get(message_id) or {}
+        code = str(m.get("statusCode") or "")
+        if code in _SMS_FAIL_REASON:
+            why = _SMS_FAIL_REASON[code]
+            print(f"[auth/sms] 미도달 {phone} {code} {why}")
+            # 🚫 **없는 번호면 적어둔다** — 다음부터 문자를 안 보낸다.
+            #   전원 꺼짐·시간 초과·망 장애는 번호 탓이 아니라 기록하지 않는다.
+            dead = code in _SMS_DEAD_CODES
+            now = _now_ms()
+            today = _dt.datetime.fromtimestamp(now / 1000, tz=_KST).strftime("%Y-%m-%d")
+            # 📵 추가98 — **적어둔다.** 앱이 50초쯤에 물어보러 온다.
+            #   같이 「오늘 몇 번째인가」도 센다 — 슬랙에 한 줄로 합쳐 알리려고.
+            day_hits = 1
+            alerted_today = False
+            try:
+                with db_conn() as con:
+                    _auth_sms_result_table(con)
+                    prev = con.execute(
+                        "SELECT day, day_hits, alert_day FROM auth_sms_result WHERE phone = ?",
+                        (phone,),
+                    ).fetchone()
+                    if prev and prev[0] == today:
+                        day_hits = int(prev[1] or 0) + 1
+                        alerted_today = (prev[2] == today)
+                    con.execute(
+                        """INSERT INTO auth_sms_result (phone, code, reason, at_ms, day, day_hits, alert_day)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(phone) DO UPDATE SET
+                               code = excluded.code, reason = excluded.reason,
+                               at_ms = excluded.at_ms, day = excluded.day,
+                               day_hits = excluded.day_hits, alert_day = excluded.alert_day""",
+                        (phone, code, why, now, today, day_hits, today),
+                    )
+                    con.commit()
+            except Exception as _e:  # noqa: BLE001 — 기록이 본 기능을 막으면 안 된다
+                print(f"[auth/sms] 기록 실패(무시): {type(_e).__name__}: {_e}")
+            if dead:
+                with db_conn() as con:
+                    # (dedup 판단은 위 auth_sms_result 로 옮겼다 — 전엔 **「없는 번호」 코드에만**
+                    #  걸려 있어서 3050 같은 건 누를 때마다 슬랙에 떴다. 사장님 스샷의 중복이 이것.)
+                    con.execute(
+                        "SELECT alert_day FROM auth_dead_numbers WHERE phone = ?", (phone,)
+                    ).fetchone()
+                    con.execute(
+                        """INSERT INTO auth_dead_numbers
+                               (phone, code, reason, first_ms, last_ms, hits, alert_day)
+                           VALUES (?, ?, ?, ?, ?, 1, ?)
+                           ON CONFLICT(phone) DO UPDATE SET
+                               code = excluded.code, reason = excluded.reason,
+                               last_ms = excluded.last_ms, hits = hits + 1,
+                               alert_day = excluded.alert_day""",
+                        (phone, code, why, now, now, today),
+                    )
+                    con.commit()
+            # 같은 번호로 하루 종일 같은 알림이 오면 사장님 슬랙이 도배된다. 하루 한 번만.
+            if not alerted_today:
+                _told = "• 이 분 앱에도 **그 자리에서 알려줬습니다**.\n" if code in _SMS_FAIL_SAY else ""
+                _nth = f"• 오늘 **{day_hits}번째** 시도입니다.\n" if day_hits > 1 else ""
+                await _slack_post(
+                    "📵 *인증문자가 안 갔어요*\n"
+                    f"• 번호: `{_fmt_phone(phone)}`\n"
+                    f"• 이유: {why} (코드 {code})\n"
+                    + _nth
+                    + ("• 이 번호는 **3일간 발송을 막습니다**(같은 번호로 계속 새는 걸 끊으려고).\n"
+                       if dead else "")
+                    + _told
+                    + "• 이 분은 지금 가입을 못 하고 있습니다. 연락해 보세요."
+                )
+    except Exception as e:  # noqa: BLE001 — 알림이 본 기능을 막으면 안 된다
+        print(f"[auth/sms] 확인 실패(무시): {type(e).__name__}: {e}")
+
+
+async def _send_sms_solapi(to_phone: str, text: str, kind: str = "문자") -> str:
+    """SOLAPI 문자 발송. env 없으면 503. 반환 = messageId (없으면 "").
+
+    📨 **나가면 슬랙에 한 줄.** (2026-10-03 사장님 "솔라피가 문자가면 슬랙에도 알람이")
+      전엔 **실패(🔴)와 미도달(📵)만** 알렸다 — 잘 나간 건 아무 말이 없어서
+      「지금 문자가 나가고 있나」를 알 방법이 없었다.
+      ⚠️ `kind` 는 **무슨 문자였는지**만 적는다 — **본문은 절대 안 보낸다**(인증번호가 들어 있다).
+    """
+    if not (SOLAPI_API_KEY and SOLAPI_API_SECRET and SOLAPI_SENDER):
+        raise HTTPException(
+            503,
+            "문자 발송 설정이 아직 안 됐습니다 (SOLAPI env 필요 — plist 에 "
+            "SOLAPI_API_KEY / SOLAPI_API_SECRET / SOLAPI_SENDER 추가)"
+        )
     payload = {"message": {"to": to_phone, "from": SOLAPI_SENDER, "text": text}}
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(
-            "https://api.solapi.com/messages/v4/send", json=payload, headers=headers
+            "https://api.solapi.com/messages/v4/send", json=payload,
+            headers=_solapi_headers(),
         )
         if r.status_code >= 400:
             print(f"[auth/sms] SOLAPI 실패 {r.status_code}: {r.text[:200]}")
+            _fire_bg(_slack_post(
+                "🔴 *문자 발송 자체가 실패했어요*\n"
+                f"• 번호: `{_fmt_phone(to_phone)}`\n"
+                f"• SOLAPI 응답: `{r.status_code} {r.text[:120]}`\n"
+                "• 잔액·발신번호 등록 상태를 확인해 주세요."
+            ))
             raise HTTPException(502, "인증 문자 발송에 실패했습니다. 잠시 후 다시 시도해주세요.")
+        # 📨 **나갔다는 사실을 바로 알린다.**
+        #   ⚠️ 여기까지는 「SOLAPI 가 접수했다」다. **진짜 도착**은 45초 뒤
+        #      [_auth_sms_watch] 가 보고, 못 갔으면 📵 로 따로 알린다.
+        #      그래서 실패하면 슬랙에 📨 다음 📵 가 온다 — 둘째 줄이 진짜다.
+        _fire_bg(_slack_post(
+            f"📨 *문자 나갔어요* · {kind}\n"
+            f"• 번호: `{_fmt_phone(to_phone)}`"
+        ))
+        # 접수는 됐다. **진짜 갔는지는 뒤에서 따로 확인한다.**
+        try:
+            body = r.json()
+        except Exception:  # noqa: BLE001
+            return ""
+        return str(body.get("messageId") or "")
 
 
 class AuthCodeRequest(BaseModel):
@@ -24750,16 +25165,32 @@ class AuthVerifyRequest(BaseModel):
     code: str = ""
 
 
+# 같은 IP 하루 한도. 진짜 가입은 1~3번이면 끝난다.
+#   휴대폰 데이터는 여러 명이 같은 IP 로 보일 수 있어 3~4명분 여유를 뒀다.
+#   구글 검사 로봇은 하루 27번 두드렸으니 여기서 끊긴다. (2026-09-26 사장님 결정)
+AUTH_CODE_IP_PER_DAY = 10
+
+
+def _client_ip(request) -> str:
+    h = request.headers
+    return (h.get("cf-connecting-ip")
+            or h.get("x-forwarded-for", "").split(",")[0].strip()
+            or (request.client.host if request.client else "")) or "?"
+
+
 @app.post("/api/auth/request-code")
-async def auth_request_code(req: AuthCodeRequest) -> dict:
+async def auth_request_code(req: AuthCodeRequest, request: Request) -> dict:
     phone = _norm_phone(req.phone)
-    if not phone or len(phone) < 10:
-        raise HTTPException(400, "전화번호 형식 오류")
+    # 📵 **010 이 아니면 문자를 아예 안 쏜다.** (2026-09-26 사장님)
+    #   전엔 "10자리 넘나"만 봤다 → 010-1234-5678 로 561번이 나갔다.
+    #   ⚠️ 1234-1234 같은 **연속·반복 패턴은 막지 않는다** — 실제로 그런 번호를 쓰는 분이 있다.
+    if not (phone.startswith("010") and len(phone) == 11):
+        print(f"[auth/request] 거름(010 아님) {phone[:6]}…")
+        raise HTTPException(400, "휴대폰 번호(010으로 시작하는 11자리)만 가능해요.")
     # 🔑 **심사용 번호는 문자를 안 보낸다.** (2026-10-01)
-    #   구글 심사자는 우리 문자를 받을 수 없다. 그런데 앱은
-    #   **request-code 가 성공해야** 인증번호 칸으로 넘어간다 — 보내다 실패하면
-    #   마스터 코드를 써보지도 못하고 **거기서 막힌다.**
-    #   한도(하루 5회·전체 상한)도 안 썰는다 — 문자를 안 보냈으니 돈이 안 든다.
+    #   구글 심사자는 우리 문자를 받을 수 없다. 그런데 앱은 **request-code 가 성공해야**
+    #   인증번호 칸으로 넘어간다 — 보내다 실패하면 마스터 코드를 써보지도 못하고 막힌다.
+    #   한도(하루 5회·전체 상한)도 안 쓴다 — 문자를 안 보냈으니 돈이 안 든다.
     #   ⚠️ 코드는 여기서 안 준다. verify-code 가 AUTH_MASTER_CODE 로 따로 받는다.
     if AUTH_MASTER_CODE and phone in {
         _norm_phone(p) for p in AUTH_MASTER_PHONES_RAW.split(",") if p.strip()
@@ -24768,6 +25199,65 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
         return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
     now = _now_ms()
     today = _dt.datetime.fromtimestamp(now / 1000, tz=_KST).strftime("%Y-%m-%d")
+
+    # 🛑 **「그만 보내세요」 하신 분에게는 영영 안 보낸다.** (2026-09-28 사장님)
+    #   010-8374-9281 님이 8월부터 인증문자를 받고 계셨다 — 우리 앱과 아무 상관이 없는 분인데
+    #   사장님 번호로 문자가 가서 **사장님이 항의를 받으셨다.**
+    #   없는 번호(auth_dead_numbers)는 3일만 막지만, 이건 **기한이 없다** — 사람의 뜻이니까.
+    with db_conn() as con:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS auth_optout ("
+            " phone TEXT PRIMARY KEY, added_at_ms INTEGER NOT NULL, reason TEXT)"
+        )
+        opt = con.execute(
+            "SELECT added_at_ms FROM auth_optout WHERE phone = ?", (phone,)
+        ).fetchone()
+        con.commit()
+    if opt:
+        print(f"[auth/request] 막음(수신 거부) {phone}")
+        raise HTTPException(
+            400,
+            "이 번호로는 인증문자를 보내지 않기로 했어요. "
+            "본인 번호가 맞고 가입을 원하시면 010-3969-0479 로 문자 주세요."
+        )
+
+    # 🚫 **없는 번호로 판명된 번호는 문자를 안 보낸다.** (2026-09-27 사장님)
+    #   오늘 010-1234-5678 로 5번이 나갔다 — 첫 번째가 이미 「없는 번호」였는데도.
+    #   IP 로는 못 막는다(구글은 매번 다른 IP 다). 막을 자리는 번호다.
+    with db_conn() as con:
+        dead_row = con.execute(
+            "SELECT last_ms, reason FROM auth_dead_numbers WHERE phone = ?", (phone,)
+        ).fetchone()
+    if dead_row and (now - (dead_row[0] or 0)) < AUTH_DEAD_BLOCK_DAYS * 86_400_000:
+        print(f"[auth/request] 막음(없는 번호) {phone} — {dead_row[1]}")
+        raise HTTPException(
+            400,
+            "이 번호로는 문자가 가지 않아요. 번호를 다시 확인해 주세요. "
+            "번호가 맞는데 이 안내가 나오면 010-3969-0479 로 문자 주세요."
+        )
+
+    # 🚧 같은 곳에서 계속 두드리면 막는다. **막힌 것도 사장님께 알린다** —
+    #    진짜 사장님이 막힌 건지 로봇인지 알아야 풀어줄 수 있다.
+    ip = _client_ip(request)
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT n, alerted FROM auth_ip_quota WHERE ip = ? AND day = ?", (ip, today)
+        ).fetchone()
+        ip_n, ip_alerted = (row[0], row[1]) if row else (0, 0)
+        if ip_n >= AUTH_CODE_IP_PER_DAY:
+            if not ip_alerted:
+                con.execute(
+                    "UPDATE auth_ip_quota SET alerted = 1 WHERE ip = ? AND day = ?", (ip, today))
+                con.commit()
+                _fire_bg(_slack_post(
+                    "🚧 *한 곳에서 인증문자를 너무 많이 요청했어요*\n"
+                    f"• 어디서: `{ip}`  ·  오늘 {ip_n}번\n"
+                    f"• 마지막 번호: `{_fmt_phone(phone)}`\n"
+                    "• 로봇이면 그냥 두시면 되고, 진짜 사장님이면 연락 주세요 (오늘은 더 못 받습니다)."
+                ))
+            print(f"[auth/request] IP CAP {ip} {ip_n}")
+            raise HTTPException(429, "인증 요청이 너무 많아요. 잠시 후 다시 시도해주세요.")
+
     with db_conn() as con:
         # 전체 하루 발송 한도 (비용 방파제)
         total_today = con.execute(
@@ -24778,36 +25268,72 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
             print(f"[auth/request] GLOBAL CAP {total_today}")
             raise HTTPException(429, "오늘 인증 요청이 몰렸어요. 내일 다시 시도해주세요.")
         row = con.execute(
-            "SELECT last_sent_ms, sent_today, sent_day FROM auth_codes WHERE phone = ?",
+            "SELECT last_sent_ms, sent_today, sent_day, "
+            "COALESCE(sent_total, 0), verified_at_ms FROM auth_codes WHERE phone = ?",
             (phone,),
         ).fetchone()
         sent_today = 0
+        sent_total = 0
         if row:
-            last_sent, st, sd = row
+            last_sent, st, sd, sent_total, verified_at = row
             if now - last_sent < AUTH_CODE_MIN_INTERVAL_SEC * 1000:
                 raise HTTPException(429, "잠시 후 다시 요청해주세요 (1분 간격)")
             sent_today = st if sd == today else 0
             if sent_today >= AUTH_CODE_MAX_PER_DAY:
                 raise HTTPException(429, "오늘 이 번호의 인증 요청 한도를 넘었어요 (하루 5회)")
+            # 🛑 **보내기만 하고 가입은 한 번도 안 된 번호** — 남의 번호일 가능성이 크다.
+            #   (2026-09-27: 살아 있는 남의 번호로 98번이 나갔다. 그 사람이 다 받았다)
+            if not verified_at and sent_total >= AUTH_UNVERIFIED_TOTAL_CAP:
+                print(f"[auth/request] 막음(인증 없이 {sent_total}회) {phone}")
+                if sent_total == AUTH_UNVERIFIED_TOTAL_CAP:
+                    _fire_bg(_slack_post(
+                        "🛑 *이 번호로 그만 보냅니다*\n"
+                        f"• 번호: `{_fmt_phone(phone)}`\n"
+                        f"• 인증문자를 {sent_total}번 보냈는데 **한 번도 가입이 안 됐어요.**\n"
+                        "• 남의 번호로 계속 나가는 걸 막으려고 잠급니다. "
+                        "진짜 손님이면 연락해 주세요."
+                    ))
+                raise HTTPException(
+                    429,
+                    "이 번호로는 인증문자를 더 보낼 수 없어요. "
+                    "010-3969-0479 로 문자 주시면 도와드릴게요."
+                )
         code = f"{_secrets_auth.randbelow(1_000_000):06d}"
+        # ⚠️ INSERT OR REPLACE 라 **누적·인증시각을 같이 넣어야** 지워지지 않는다.
         con.execute(
             "INSERT OR REPLACE INTO auth_codes "
-            "(phone, code, expires_at_ms, attempts, last_sent_ms, sent_today, sent_day) "
-            "VALUES (?, ?, ?, 0, ?, ?, ?)",
-            (phone, code, now + AUTH_CODE_TTL_SEC * 1000, now, sent_today + 1, today),
+            "(phone, code, expires_at_ms, attempts, last_sent_ms, sent_today, sent_day, "
+            " sent_total, verified_at_ms) "
+            "VALUES (?, ?, ?, 0, ?, ?, ?, ?, "
+            "        (SELECT verified_at_ms FROM auth_codes WHERE phone = ?))",
+            (phone, code, now + AUTH_CODE_TTL_SEC * 1000, now, sent_today + 1, today,
+             sent_total + 1, phone),
         )
         con.commit()
     # 추가86c — 브랜딩 + 발신전용 안내(사장님 2026-07-31). 앱 자동읽기 호환:
     #   "인증번호" 키워드 유지 + 6자리 코드를 본문 맨 앞쪽(다른 6자리+숫자보다 앞)에 둠.
     #   발신전용 문구엔 6자리 숫자 넣지 않음(자동입력 오인 방지).
-    await _send_sms_solapi(
+    message_id = await _send_sms_solapi(
         phone,
         f"[시공막내] 신입 막내 인사드립니다.\n"
         f"저는 마케팅·상담·일정관리를 도와드릴 거예요.\n\n"
         f"인증번호 [{code}] 입력해주세요! (5분 이내)\n\n"
-        f"※ 발신전용 — 통화·회신 불가. 문의는 앱에서."
+        # 받은 분이 **멈출 수 있게.** (2026-09-28 사장님)
+        #   전엔 「문의는 앱에서」만 적혀 있었다 — 앱을 안 쓰는 분에겐 막다른 길이라,
+        #   8월부터 받아오신 분이 사장님께 항의하셨다.
+        f"※ 요청하신 게 아니면 무시하세요. 계속 오면 010-3969-0479 로 문자 주세요.",
+        kind="인증번호",
     )
-    print(f"[auth/request] {phone} 발송 ({sent_today + 1}/{AUTH_CODE_MAX_PER_DAY})")
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO auth_ip_quota (ip, day, n) VALUES (?, ?, 1) "
+            "ON CONFLICT(ip, day) DO UPDATE SET n = n + 1",
+            (ip, today),
+        )
+        con.commit()
+    # 📣 접수됐다고 끝이 아니다 — 45초 뒤 진짜 갔는지 보고, 못 갔으면 사장님께 알린다.
+    _fire_bg(_auth_sms_watch(phone, message_id))
+    print(f"[auth/request] {phone} 발송 ({sent_today + 1}/{AUTH_CODE_MAX_PER_DAY}) ip={ip}")
     return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
 
 
@@ -25014,6 +25540,41 @@ async def account_delete(req: AccountDeleteRequest) -> dict:
 
     print(f"[account/delete] {phone} → {sum(deleted.values())}행 삭제 {deleted}")
     return {"ok": True, "deleted": deleted}
+
+
+@app.get("/api/auth/sms-result")
+async def auth_sms_result(phone: str) -> dict:
+    """📵 **그 인증문자 갔나요?** — 앱이 코드 입력 화면에서 한 번 물어본다. (추가98 · 2026-09-30)
+
+    사장님: "사용자한테 너 단말기는 문자를 못받는 단말기다. 이렇게 안내 팝업 보여줬어?"
+    → 전엔 **아니었다.** 통신사 회신은 사장님 슬랙으로만 갔고, 쓰는 분 화면은 그대로였다.
+
+    답:
+      {"state":"failed", "code":"3050", "reason":"...", "say":"...", "act":"report"}
+      {"state":"unknown"}   # 아직 회신 전이거나, 잘 간 경우 (둘을 구분해 말하지 않는다)
+
+    ⚠️ 로그인 전에 부르는 자리라 토큰이 없다. 그래서 **못 간 기록이 있을 때만**,
+       그것도 **10분 안의 것만** 답한다. 남의 번호를 넣어봐야 「모름」밖에 안 나온다.
+    """
+    digits = _norm_phone(phone)
+    if not digits:
+        return {"state": "unknown"}
+    try:
+        with db_conn() as con:
+            _auth_sms_result_table(con)
+            row = con.execute(
+                "SELECT code, reason, at_ms FROM auth_sms_result WHERE phone = ?", (digits,)
+            ).fetchone()
+    except Exception as e:  # noqa: BLE001
+        print(f"[auth/sms-result] 조회 실패(무시): {type(e).__name__}: {e}")
+        return {"state": "unknown"}
+    if not row:
+        return {"state": "unknown"}
+    code, reason, at_ms = str(row[0] or ""), str(row[1] or ""), int(row[2] or 0)
+    if _now_ms() - at_ms > AUTH_SMS_RESULT_TTL_MS:
+        return {"state": "unknown"}
+    act, say = _SMS_FAIL_SAY.get(code, ("retry", "문자가 안 갔어요.\n다시 받아보세요."))
+    return {"state": "failed", "code": code, "reason": reason, "say": say, "act": act}
 
 
 @app.post("/api/auth/verify-code")

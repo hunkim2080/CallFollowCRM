@@ -134,6 +134,24 @@ if [ -f "$TARGET/main.py" ]; then
     cp "$TARGET/main.py" "$TARGET/main.py.prev"
     ok "지금 도는 main.py → main.py.prev (되돌리기용 사본)"
 fi
+# 🛡️ 통짜 덮어쓰기 안전장치 (2026-10-04) — 라이브에만 있는 기능이 새 코드에 없으면 거부한다.
+#   deploy 는 repo→live 통짜 복사라, repo 가 뒤처지면 **라이브 기능을 통째로 지운다.**
+#   (2026-10-03 발견: 라이브에만 _auth_sms_watch·auth_dead_numbers 등이 있었다.)
+if [ -f "$TARGET/main.py" ]; then
+    for marker in "_auth_sms_watch" "auth_dead_numbers" "_scrape_watch" "/api/session/check" "X-Session-Renew" "X-Auth-Required"; do
+        if grep -q "$marker" "$TARGET/main.py" && ! grep -q "$marker" "$SRC/main.py"; then
+            fail "배포 거부 — 지금 도는 코드엔 있는 '$marker' 가 새 코드엔 없습니다."
+            fail "  = repo 가 라이브보다 뒤처졌습니다. 먼저 라이브를 repo 에 반영하세요 (GOTCHAS §3)."
+            exit 1
+        fi
+    done
+    removed_lines=$(diff "$SRC/main.py" "$TARGET/main.py" 2>/dev/null | grep -c '^>')
+    if [ "${removed_lines:-0}" -gt 50 ] && [ "${DEPLOY_FORCE:-0}" != "1" ]; then
+        fail "배포 거부 — 이 배포가 라이브에서 ${removed_lines}줄을 지웁니다 (>50)."
+        fail "  의도한 거면 DEPLOY_FORCE=1 bash deploy_phase1.sh 로 다시."
+        exit 1
+    fi
+fi
 cp "$SRC/main.py"          "$TARGET/main.py"
 cp "$SRC/requirements.txt" "$TARGET/requirements.txt"
 # 서버가 켜질 때 슬랙에 "🟢 서버 켜짐 · <이 첫 줄>" 로 읽어주는 파일 — 그래서 재기동 **전에** 써 둔다.

@@ -87,6 +87,12 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat asse
   → **`deploy_phase1.sh`(repo → 라이브 통짜)를 돌리면 위 네 가지가 통째로 사라진다.**
   → 반대로 라이브를 그대로 repo 에 덮으면 repo 쪽 미반영분이 날아간다.
   **어느 쪽으로도 통짜는 금물이다.** 한 군데씩, 아래 절차로.
+
+  > ✅ **2026-10-04: repo/server/main.py 를 라이브와 똑같이 맞췄다**(라이브가 생산 진실).
+  >   repo 에만 있던 55줄은 전부 **낡은 것**(옛 대시보드 필드·옛 _send_sms_solapi)이라 잃을 게 없었다.
+  >   이제 repo == 라이브 → deploy 가 사실상 no-op. 그리고 `deploy_phase1.sh` 에
+  >   **안전장치**를 넣었다: 라이브에만 있는 기능(_auth_sms_watch·auth_dead_numbers·session/check 등)이
+  >   새 코드에 없거나 50줄 넘게 지우면 **배포를 거부**한다(DEPLOY_FORCE=1 로만 강행).
 - 접속: `ssh macmini` (사용자 hun, sudo 불가), LaunchAgent 라 `launchctl` 로 혼자 재시작 가능
 - **`server/deploy_phase1.sh` 를 그냥 돌리면** repo 의 main.py 가 통째로 올라가 **미배포분 193커밋이 한꺼번에 나간다**
 
