@@ -7292,6 +7292,14 @@ async def _admin_gate_middleware(request: Request, call_next):
         res.set_cookie(_ADMIN_COOKIE, _admin_cookie_value(), max_age=30 * 24 * 3600,
                        httponly=True, samesite="lax", secure=True, path="/admin")
         return res
+    # 3 Authorization: Bearer <ADMIN_TOKEN> - 표준 헤더로 오는 자동화 도구(아침 브리핑 봇 등).
+    #   쿠키도 ?token= 도 없지만 비번(ADMIN_TOKEN)은 맞으면 통과. 검증은 기존 헬퍼 한 곳에서
+    #   (두 벌 금지 - CLAUDE.md §12). 헬퍼는 틀리면 예외를 던지므로, 여기선 통과/리다이렉트로 바꿔 받는다.
+    try:
+        _admin_auth_bearer_from_header(request.headers.get("authorization"))
+        return await _admin_pass(call_next, request)
+    except HTTPException:
+        pass
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/admin/login", status_code=303)
 

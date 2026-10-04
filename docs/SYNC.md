@@ -13605,3 +13605,12 @@ Fable 🧹3. 사장님 "고고"
 - ⏭️ 미룰(🟢): #7 다일 시공 대표 건 넘어감(Dated 인터페이스 확장 필요) · #8 midnight 계약 · #9 PhoneKey 02 충돌·MoneyFormatter 19자리 — 엣지·기록만.
 - 시험 +5(CashFlow 3·Payment 1·Reminder 1 등) = 총 **950** · 빌드 7가드 통과 · 폰 켜짐·크래시 0.
 - 변경(서버): 없음. 앱만.
+
+## 2026-10-05 08:30 · android (+ server)
+🔑 아침 마감 브리핑 봇이 대시보드 인증에 막히던 것 수정 — admin 문이 Bearer 헤더도 받게.
+- 증상: 브리핑 봇이 `Authorization: Bearer <ADMIN_TOKEN>` 로 `/admin/beta/dashboard` 를 부르면 303 → /admin/login 리다이렉트. 비번은 맞는데 문이 쿠키·`?token=` 두 방식만 받았음(문지기는 2026-09-14 추가분, 이번 작업과 무관).
+- 고침: `_admin_gate_middleware` 에 ③ Bearer 분기 추가. 검증은 **기존 `_admin_auth_bearer_from_header` 한 곳 재사용**(두 벌 금지 §12). 틀린 토큰/무인증은 그대로 303.
+- 변경(server, 라이브+repo 동일): main.py `_admin_gate_middleware` +8줄. §3 절차(scp→py_compile→백업 bak-20261005-082419→교체→kickstart). 라이브 34,368줄.
+- 검증: smoke.sh **10/10**. 종단 — Bearer(맞음)200 · ?token(맞음)200 · Bearer(틀림)303 · 무인증303. 토큰은 출력 안 함.
+- 폰 확인: 서버 변경이라 해당 없음.
+- 다음 액션(cowork/브리핑 봇): 봇은 지금 설정 그대로 두면 됨 — 다음 아침 브리핑부터 통과.
