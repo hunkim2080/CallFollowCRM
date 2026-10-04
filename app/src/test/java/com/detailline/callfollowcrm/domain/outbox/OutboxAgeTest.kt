@@ -30,6 +30,15 @@ class OutboxAgeTest {
         assertTrue(OutboxRules.isExpired(created, created + 30 * day))
     }
 
+    @Test fun `띠에 보이나 - 내 것·하루넘김·dead 만`() {
+        val now = created + 2 * day
+        assertTrue(OutboxRules.showsInBand(true, "owner", created, "owner", created + 1000))   // dead=보임
+        assertTrue(OutboxRules.showsInBand(false, "owner", created, "owner", now))             // 하루넘김=보임
+        assertFalse(OutboxRules.showsInBand(false, "owner", created, "owner", created + 1000)) // 하루안쪽=안보임
+        assertFalse(OutboxRules.showsInBand(true, "other", created, "owner", now))             // 다른 번호=안보임
+        assertTrue(OutboxRules.showsInBand(true, "", created, "owner", now))                   // 빈번호(사진)=보임
+    }
+
     @Test fun `며칠째 셈`() {
         assertEquals(0, OutboxRules.daysStuck(created, created + 1000L))
         assertEquals(1, OutboxRules.daysStuck(created, created + day))

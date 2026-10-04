@@ -19,6 +19,7 @@ class NetworkWatch(context: Context) {
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
 
     @Volatile private var registered = false
+    @Volatile private var wasValidated = false   // false→true 로 바뀔 때만 깨운다(도배 방지)
 
     /** 지금 인터넷이 되나. 모르면 **된다고** 본다(지금 동작과 같게 — 괜히 막지 않는다). */
     fun isOnline(): Boolean {
@@ -41,9 +42,20 @@ class NetworkWatch(context: Context) {
         val c = cm ?: return
         runCatching {
             c.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    listeners.forEach { runCatching { it() } }
+                // ⚠️ onAvailable 은 **검증(VALIDATED) 전**에 온다 — 그때 isOnline() 은 아직 false 라 깨워도 헛발.
+                //   진짜 인터넷이 되는 순간(VALIDATED)은 onCapabilitiesChanged 로 온다. 거기서 깨운다. (Fable #6)
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    val ok = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    if (ok && !wasValidated) {
+                        wasValidated = true
+                        listeners.forEach { runCatching { it() } }
+                    } else if (!ok) {
+                        wasValidated = false
+                    }
                 }
+
+                override fun onLost(network: Network) { wasValidated = false }
             })
             registered = true
         }

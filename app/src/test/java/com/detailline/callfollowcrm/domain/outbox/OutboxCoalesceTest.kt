@@ -67,6 +67,16 @@ class OutboxCoalesceTest {
         assertFalse(plan.skipInsert)
     }
 
+    @Test fun `해제(TERMINAL)는 댓글은 남기고 명령만 지운다`() {
+        val existing = listOf(
+            row(5, OutboxKind.COLLAB_RESCHEDULE),
+            row(6, OutboxKind.COLLAB_COMMENT),      // 쓴 댓글 — 해제돼도 남긴다
+            row(7, OutboxKind.COLLAB_ADDRESS)
+        )
+        val plan = OutboxRules.coalescePlan(OutboxKind.COLLAB_END, existing)
+        assertEquals(listOf(5L, 7L), plan.deleteIds)   // 일정·주소만 지움, 댓글(6)은 보존 (Fable #4)
+    }
+
     @Test fun `댓글(APPEND) - 늘 새 행(쌓인다)`() {
         val existing = listOf(row(8, OutboxKind.COLLAB_COMMENT))
         val plan = OutboxRules.coalescePlan(OutboxKind.COLLAB_COMMENT, existing)

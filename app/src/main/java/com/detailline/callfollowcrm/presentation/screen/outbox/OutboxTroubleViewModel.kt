@@ -8,6 +8,7 @@ import com.detailline.callfollowcrm.domain.outbox.OutboxKind
 import com.detailline.callfollowcrm.domain.outbox.OutboxRules
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -18,7 +19,16 @@ import kotlinx.coroutines.launch
 class OutboxTroubleViewModel(private val container: AppContainer) : ViewModel() {
 
     val items: StateFlow<List<OutboxEntity>> =
-        container.outbox.observeTrouble()
+        container.outbox.observeTroubleRaw()
+            .map { rows ->
+                val owner = container.preferences.bizPhone.filter { it.isDigit() }
+                val now = System.currentTimeMillis()
+                rows.filter {
+                    OutboxRules.showsInBand(
+                        it.status == OutboxEntity.STATUS_DEAD, it.ownerPhone, it.createdAtMs, owner, now
+                    )
+                }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 죽었든 미뤘든 지금 바로 다시 시도. */

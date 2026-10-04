@@ -394,13 +394,6 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    // 협업 현장 홈 카드 완료 버튼 결과 토스트.
-    LaunchedEffect(Unit) {
-        viewModel.collabCompleteToast.collect { msg ->
-            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
     // 뒤로가기 UX (2026-05-25 사장님 결정):
     //   1) 필터 != 전체 → 전체로 복귀 (consume)
     //   2) 필터 == 전체 → "한 번 더 누르면 종료" Toast → 2초 안 두 번째 = 앱 종료

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -69,11 +70,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val categories = container.categoryRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 📮 아직 못 보낸 것(dead + 하루 넘긴 pending) 수 — 0 보다 크면 홈 맨 위 주황 띠. 설계 §7. */
+    /** 📮 아직 못 보낸 것 수 — 0 보다 크면 홈 맨 위 주황 띠. 설계 §7.
+     *   dead+pending 전부를 보고, **지금 시각·지금 주인**으로 「하루 넘김·보낼 수 있나」를 판단한다
+     *   (1분 tick 으로 시간이 흘러도 반영 · 옛 번호 행은 안 셈 — Fable #7). */
+    private val outboxTick = flow { while (true) { emit(Unit); kotlinx.coroutines.delay(60_000) } }
     val outboxTroubleCount: StateFlow<Int> =
-        container.outbox.observeTrouble()
-            .map { it.size }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+        combine(container.outbox.observeTroubleRaw(), outboxTick) { rows, _ ->
+            val owner = container.preferences.bizPhone.filter { it.isDigit() }
+            val now = System.currentTimeMillis()
+            rows.count {
+                com.detailline.callfollowcrm.domain.outbox.OutboxRules.showsInBand(
+                    it.status == com.detailline.callfollowcrm.data.local.entity.OutboxEntity.STATUS_DEAD,
+                    it.ownerPhone, it.createdAtMs, owner, now
+                )
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     private val customers = container.customerRepository.observeAll()
 
@@ -528,49 +539,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // 홈 협업 카드 완료 버튼 — 결과 토스트를 one-shot 으로 HomeScreen 에 전달.
-    private val _collabCompleteToast = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val collabCompleteToast: kotlinx.coroutines.flow.SharedFlow<String> = _collabCompleteToast
-
-    /** 홈 협업 현장 카드에서 바로 "완료" 누를 때 — 계좌 없으면 토스트만. 있으면 서버에 COMPLETED 전송. */
-    fun completeCollabSite(site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) {
-        val accountNo = container.preferences.bizAccountNo
-        if (accountNo.isBlank()) {
-            _collabCompleteToast.tryEmit("계좌를 먼저 등록해야 완료 알림을 보낼 수 있어요 → 더보기 > 견적서·사업자 정보")
-            return
-        }
-        viewModelScope.launch {
-            val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
-            val myName = container.preferences.bizName.takeIf { it.isNotBlank() }
-                ?: container.preferences.bizOwner
-            // 📮 우체통으로 — 로컬은 바로 완료, 주인껜 연결되면 전달(옛날엔 실패 시 "전송 실패"로 끝났다). (설계 §1-A #6)
-            container.collabEventCenter.updateLocalProgress(
-                site.shareId,
-                com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
-            )
-            val payload = org.json.JSONObject().apply {
-                put("step", "completed")
-                put("partnerPhone", myPhone)
-                container.preferences.bizBank.takeIf { it.isNotBlank() }?.let { put("bank", it) }
-                put("accountNo", accountNo)
-                (container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
-                    ?: container.preferences.bizOwner.takeIf { it.isNotBlank() })?.let { put("holder", it) }
-                myName.takeIf { it.isNotBlank() }?.let { put("partnerName", it) }
-            }
-            val queued = runCatching {
-                container.outbox.enqueue(
-                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS,
-                    site.shareId, payload.toString()
-                )
-            }.isSuccess
-            container.outbox.tryNow()
-            // 🗣 enqueue(Room) 실패는 드물지만, 실패하면 **말한다**(_collabCompleteToast). 조용히 넘기지 않는다(§13①).
-            _collabCompleteToast.tryEmit(
-                if (queued) "완료했어요 — 주인 사장님께 전달해요"
-                else "완료 처리에 문제가 생겼어요 — 다시 눌러주세요"
-            )
-        }
-    }
+    // 🧹 completeCollabSite + collabCompleteToast 제거(Fable #9) — 호출자 0곳. 홈 협업 카드는
+    //   **상대(B)의 진행을 보여주는** 알림 카드지 A 가 완료를 누르는 버튼이 아니다(완료는 SharedSiteScreen.updateProgress).
 
     /** 협업 진행 알림의 shareId → 내가 그 현장을 공유한 고객 id. A(주인)는 '현장 보기'를 그 고객 상세로 보냄. (2026-06-14) */
     fun customerIdForShareId(shareId: String): Long? {

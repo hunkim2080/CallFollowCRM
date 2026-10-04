@@ -89,7 +89,14 @@ object OutboxRules {
                 val same = existingPendingSameTarget.filter { it.kindWire == newKind.wire }.minByOrNull { it.id }
                 CoalescePlan(same?.id, emptyList())
             }
-            Coalesce.TERMINAL -> CoalescePlan(null, existingPendingSameTarget.map { it.id })
+            // TERMINAL(해제) — 끝낸 현장에 **명령**(일정·주소·진행)은 보낼 이유가 없어 지운다.
+            //   단 **댓글은 남긴다**: 쓴 글은 해제 뒤에도 서버가 받아준다(§13① — 지우면 쓴 말이 사라진다).
+            Coalesce.TERMINAL -> CoalescePlan(
+                null,
+                existingPendingSameTarget
+                    .filter { it.kindWire != OutboxKind.COLLAB_COMMENT.wire }
+                    .map { it.id }
+            )
             Coalesce.KEEP_EXISTING -> {
                 val exists = existingPendingSameTarget.any { it.kindWire == newKind.wire }
                 CoalescePlan(null, emptyList(), skipInsert = exists)   // 이미 있으면 그대로 둔다(백오프 안 깨짐)
@@ -155,6 +162,17 @@ object OutboxRules {
     fun isExpired(createdAtMs: Long, now: Long): Boolean = now - createdAtMs >= MAX_AGE_MS
 
     /**
+     * 홈 띠·목록에 **보일 행인가**. (Fable #7)
+     *   - 지금 로그인 주인이 **보낼 수 있는 것**만: 빈 번호(사진=기기 것)이거나 같은 번호.
+     *     다른 번호 행(옛 번호로 넣은 것)은 어차피 못 보내니 띠에 안 센다(영영 안 사라지는 숫자 방지).
+     *   - dead 이거나 하루 넘게 못 보낸 pending.
+     */
+    fun showsInBand(isDead: Boolean, ownerPhone: String, createdAtMs: Long, activeOwner: String, now: Long): Boolean {
+        if (ownerPhone.isNotBlank() && ownerPhone != activeOwner) return false
+        return isDead || isStale(createdAtMs, now)
+    }
+
+    /**
      * drain 한 라운드를 셈한다. **이 함수가 유일한 순서·블록 규칙이다.**
      *   - id(넣은 순서)대로 본다.
      *   - `activeOwner` 와 번호가 다른 행은 건너뛴다(다른 사업자번호로 로그인). §10
@@ -173,7 +191,10 @@ object OutboxRules {
         val blocked = HashSet<String>()    // 이번 라운드에 막힌 targetKey
         val out = ArrayList<RoundAction>(rows.size)
         var sent = 0
-        for (r in rows.sortedBy { it.id }) {
+        // 🏃 협업 명령(일정·주소·해제·진행·댓글)을 **사진보다 먼저** 보낸다 —
+        //   업데이트 첫날 사진 수백 장이 쌓여도, 그 뒤 누른 협업 명령이 몇 라운드씩 밀리지 않게. (Fable #10)
+        val photoWire = OutboxKind.SITE_PHOTO.wire
+        for (r in rows.sortedWith(compareBy({ if (it.kindWire == photoWire) 1 else 0 }, { it.id }))) {
             // 번호가 박힌 행(협업)은 지금 로그인과 같아야 보낸다. 빈 번호(사진)는 「아무 주인이나」 = 지금 주인 것.
             if (r.ownerPhone.isNotBlank() && r.ownerPhone != activeOwner) { out += RoundAction.Skipped(r.id); continue }
             if (r.targetKey in blocked) { out += RoundAction.Skipped(r.id); continue }

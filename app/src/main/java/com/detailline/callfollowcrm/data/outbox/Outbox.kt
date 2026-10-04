@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /**
@@ -28,6 +29,7 @@ class Outbox(
 ) {
     private val handlerByWire: Map<String, OutboxHandler> = handlers.associateBy { it.kind.wire }
     private val drainMutex = Mutex()
+    private val enqueueMutex = Mutex()   // 넣기는 '읽고-합치고-쓰기'라 연타 때 두 줄 생길 수 있다 → 직렬화(Fable #3·§13③)
 
     init {
         // 📡 인터넷 돌아오면 자동으로 비운다(§4-B 네트워크 복구).
@@ -49,20 +51,23 @@ class Outbox(
         require(targetKey.isNotBlank()) { "targetKey 비어있음" }
         val owner = (ownerPhone ?: ownerPhoneProvider()).filter { it.isDigit() }
         val now = System.currentTimeMillis()
-        val existing = dao.pendingForTarget(targetKey).map { it.toRow() }
-        val plan = OutboxRules.coalescePlan(kind, existing)
-        if (plan.skipInsert) return                    // KEEP_EXISTING — 이미 있으면 그대로(백오프 유지)
-        if (plan.deleteIds.isNotEmpty()) dao.deleteAll(plan.deleteIds)
-        val reuse = plan.reuseId
-        if (reuse != null) {
-            dao.swapPayload(reuse, payloadJson)
-        } else {
-            dao.insert(
-                OutboxEntity(
-                    kind = kind.wire, targetKey = targetKey, opKey = opKey,
-                    ownerPhone = owner, payloadJson = payloadJson, createdAtMs = now
+        enqueueMutex.withLock {   // 읽고-합치고-쓰기를 한 번에(연타 때 두 줄 방지)
+            val existing = dao.pendingForTarget(targetKey).map { it.toRow() }
+            val plan = OutboxRules.coalescePlan(kind, existing)
+            if (plan.skipInsert) return                // KEEP_EXISTING — 이미 있으면 그대로(백오프 유지)
+            if (plan.deleteIds.isNotEmpty()) dao.deleteAll(plan.deleteIds)
+            val reuse = plan.reuseId
+            if (reuse != null) {
+                // payload 갈 때 opKey 도 새로(Fable #1 — 같은 키면 서버가 옛 응답 캐시로 돌려줌).
+                dao.swapPayload(reuse, payloadJson, UUID.randomUUID().toString())
+            } else {
+                dao.insert(
+                    OutboxEntity(
+                        kind = kind.wire, targetKey = targetKey, opKey = opKey,
+                        ownerPhone = owner, payloadJson = payloadJson, createdAtMs = now
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -94,28 +99,34 @@ class Outbox(
                         val h = handlerByWire[e.kind]
                         if (h == null) Verdict.DEAD to 400
                         else runCatching { h.send(e.payloadJson, e.ownerPhone, e.targetKey, e.opKey) }
-                            .getOrElse { Verdict.RETRY to null }
+                            .getOrElse { err ->
+                                // 네트워크(IOException)만 재시도. 깨진 payload(JSONException 등)는 7일 끌지 말고 바로 죽인다.
+                                if (err is java.io.IOException) Verdict.RETRY to null else Verdict.DEAD to 400
+                            }
                     }
                 }
             }
-            applyActions(actions)
+            applyActions(actions, byId)
         } finally {
             drainMutex.unlock()
         }
     }
 
-    private suspend fun applyActions(actions: List<RoundAction>) {
-        for (a in actions) when (a) {
-            is RoundAction.Done -> dao.delete(a.id)
-            is RoundAction.Retry -> dao.markRetry(a.id, a.attempts, a.nextAttemptAtMs, a.error)
-            is RoundAction.Dead -> dao.markDead(a.id, a.reason, a.reason)
-            is RoundAction.Skipped -> Unit
+    // 쓸 때 **보낼 때 본 opKey 와 같을 때만** 고친다 — 보내는 사이에 payload 가 갈렸으면(새 opKey) 그 행은 안 건드린다.
+    private suspend fun applyActions(actions: List<RoundAction>, byId: Map<Long, OutboxEntity>) {
+        for (a in actions) {
+            val sentKey = byId[a.id]?.opKey ?: continue
+            when (a) {
+                is RoundAction.Done -> dao.deleteDone(a.id, sentKey)
+                is RoundAction.Retry -> dao.markRetryIf(a.id, sentKey, a.attempts, a.nextAttemptAtMs, a.error)
+                is RoundAction.Dead -> dao.markDeadIf(a.id, sentKey, a.reason, a.reason)
+                is RoundAction.Skipped -> Unit
+            }
         }
     }
 
-    /** 사장님께 보일 것(dead + 하루 넘긴 pending). 2단계 홈 띠·목록이 구독한다. */
-    fun observeTrouble(now: Long = System.currentTimeMillis()): Flow<List<OutboxEntity>> =
-        dao.observeTrouble(now - OutboxRules.STALE_MS)
+    /** 홈 띠·목록이 구독 — dead + pending **전부**. 「하루 넘김·주인 거르기」는 읽는 쪽이 지금 시각으로 판단(Fable #7). */
+    fun observeTroubleRaw(): Flow<List<OutboxEntity>> = dao.observeDeadAndPending()
 
     /** 진단 본문용(한 번 읽기) — 「미전송 N건·사유」. */
     suspend fun troubleNow(): List<OutboxEntity> =

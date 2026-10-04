@@ -142,17 +142,17 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         if (noBizPhone) return
         _loading.value = true
         viewModelScope.launch {
-            val list = repo.withMe(myPhone).getOrDefault(emptyList())
+            // ⚠️ 실패(오프라인)면 **지금 목록을 유지**한다 — 빈 목록으로 덮으면 서 있는 현장이 사라진다(Fable #2).
+            val list = repo.withMe(myPhone).getOrNull() ?: _sites.value
             _sites.value = list
             // 수락 유효시간(12h) 앵커: 화면을 직접 열어 본 시각도 기록(폴링 전이라도) — 서버 created_at_ms 폴백.
             container.preferences.syncCollabInviteFirstSeen(
                 list.filter { it.status == "pending" }.map { it.shareId }.toSet(),
                 System.currentTimeMillis()
             )
-            // 업체별 집계(§B) — 서버 없거나 실패하면 빈 목록 → 화면이 로컬 그룹핑으로 폴백.
-            _partners.value = repo.partners(myPhone).getOrDefault(emptyList())
-            // 내가 공유한 현장(by-me) — 거절/종료 제외는 화면에서. 서버 미구현이면 빈 목록(graceful).
-            _mySharedSites.value = repo.byMe(myPhone).getOrDefault(emptyList())
+            // 업체별 집계(§B)·내가 공유한 현장 — 실패하면 지금 값 유지(오프라인에 안 비운다).
+            _partners.value = repo.partners(myPhone).getOrNull() ?: _partners.value
+            _mySharedSites.value = repo.byMe(myPhone).getOrNull() ?: _mySharedSites.value
             _loading.value = false
         }
     }
@@ -237,8 +237,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         val reverting = site.progress == SharedSiteRepository.Progress.COMPLETED &&
             step == SharedSiteRepository.Progress.ARRIVED
         viewModelScope.launch {
-            // 📮 우체통으로 + 낙관적 로컬 반영 — 오프라인에도 바로 보이고, 주인껜 연결되면 전달(옛날엔 실패 시 "보내지 못했어요"). (설계 §1-A #6)
+            // 📮 우체통으로 + **낙관적 로컬 반영** — 오프라인에도 바로 보이게. (설계 §1-A #6)
+            //   ⚠️ 이 화면이 그리는 건 _sites 다(홈 띠용 updateLocalProgress 와 별개) → **둘 다** 바꾼다. (Fable #2)
             container.collabEventCenter.updateLocalProgress(site.shareId, step)
+            _sites.value = _sites.value.map { if (it.shareId == site.shareId) it.copy(progress = step) else it }
             val payload = org.json.JSONObject().apply {
                 put("step", step.name.lowercase())
                 put("partnerPhone", myPhone)
@@ -250,11 +252,16 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 myBizName().takeIf { it.isNotBlank() }?.let { put("partnerName", it) }
             }
-            runCatching {
+            val queued = runCatching {
                 container.outbox.enqueue(
                     com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS,
                     site.shareId, payload.toString()
                 )
+            }.isSuccess
+            if (!queued) {
+                // 🗣 넣기(Room) 실패는 드물지만, 실패하면 **말한다** — 조용히 넘기면 전달이 영영 안 된다(§13①·Fable #9).
+                _toast.value = "저장에 문제가 생겼어요 — 다시 눌러주세요"
+                return@launch
             }
             container.outbox.tryNow()
             _toast.value = when {
@@ -271,8 +278,9 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                     com.detailline.callfollowcrm.R.raw.sound_collab_completed
                 )
             }
-            load()
-            // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영. (수락과 같은 이유)
+            // ⚠️ load() 안 부른다 — 방금 enqueue 한 건 서버가 아직 처리 전이라, 지금 서버를 읽으면
+            //   낙관적 반영이 **옛 단계로 되돌아간다**. 다음 폴링/재진입이 서버와 맞춘다. (Fable #2)
+            // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영.
             if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {
                 runCatching { container.mirrorSyncManager.pushNow(force = true) }
             }
@@ -323,13 +331,17 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                 myBizName().takeIf { it.isNotBlank() }?.let { put("authorName", it) }
                 put("body", text)
             }
-            runCatching {
+            val queued = runCatching {
                 container.outbox.enqueue(
                     com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_COMMENT, shareId, payload.toString()
                 )
-            }
+            }.isSuccess
             container.outbox.tryNow()
             _commentBusy.value = false
+            if (!queued) {   // 넣기 실패면 입력칸 안 비운다(쓴 글 보존) + 말한다(§13①·Fable #9).
+                _toast.value = "댓글 저장에 문제가 생겼어요 — 다시 보내주세요"
+                onResult(false); return@launch
+            }
             onResult(true)              // 우체통에 들어갔다 = 입력칸 비우기(쓴 글 안 사라짐)
             loadComments(shareId)       // 서버 + 우체통대기 = 「보내는 중」 바로 보임
             // 온라인이면 곧 전송 → 잠시 뒤 새로고침으로 「보내는 중」이 보낸 걸로 바뀐다. 오프라인이면 그대로 대기(홈 띠가 챙김).

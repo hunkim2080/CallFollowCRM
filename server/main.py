@@ -17795,6 +17795,10 @@ async def shared_progress(req: SharedProgressRequest, request: Request) -> dict:
         fcm_data["bank"] = event_bank or ""
         fcm_data["account_no"] = event_account_no or ""
         fcm_data["holder"] = event_holder or ""
+    # 📮 FCM **전에** op_keys 저장(Fable #8) — FCM 이 늘어져도 재시도가 두 번 반영(완료 알림·카드) 안 하게.
+    _resp = {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
+    if _opk:
+        _idem_store(_opk, partner_phone, "/api/shared/progress", 200, _resp)
     # 추가44 (2026-06-21) — 되돌리기는 FCM 안 보냄 (사장님 요청: 불필요 재알림 X).
     # A 앱이 owner-events 폴링으로 알아챔 (가장 최근 step=arrived 이벤트).
     if is_revert:
@@ -17810,9 +17814,6 @@ async def shared_progress(req: SharedProgressRequest, request: Request) -> dict:
             "share_id": share_id,
             "title": site_title or "협업 현장",
         })
-    _resp = {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
-    if _opk:
-        _idem_store(_opk, partner_phone, "/api/shared/progress", 200, _resp)
     return _resp
 
 
@@ -18536,6 +18537,11 @@ async def shared_comment_post(req: SharedCommentPostRequest, request: Request) -
         con.commit()
     print(f"[shared/comment/post] site={site_id} author={author_phone} id={comment_id}")
 
+    # 📮 FCM **전에** op_keys 저장 — FCM 이 늘어져도 재시도가 두 번 INSERT 하지 않게(Fable #8).
+    _resp = {"ok": True, "comment_id": comment_id, "created_at": now}
+    if _opk:
+        _idem_store(_opk, author_phone, "/api/shared/comment", 200, _resp)
+
     # 추가74b (2026-06-29) — 상대 참여자에게 FCM data 푸시 (data-only, 문자열).
     # 작성자 = owner 면 target = partner, 반대도. 실패해도 응답 영향 X (폴링 안전망).
     target_phone = partner_p if author_phone == owner_p else owner_p
@@ -18553,9 +18559,6 @@ async def shared_comment_post(req: SharedCommentPostRequest, request: Request) -
         except Exception as e:
             print(f"[shared/comment/post] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
 
-    _resp = {"ok": True, "comment_id": comment_id, "created_at": now}
-    if _opk:
-        _idem_store(_opk, author_phone, "/api/shared/comment", 200, _resp)
     return _resp
 
 

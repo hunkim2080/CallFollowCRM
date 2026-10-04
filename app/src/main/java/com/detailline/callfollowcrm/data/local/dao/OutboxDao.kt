@@ -21,17 +21,30 @@ interface OutboxDao {
     @Query("SELECT * FROM outbox WHERE status = 'pending' AND nextAttemptAtMs <= :now ORDER BY id ASC")
     suspend fun dueNow(now: Long): List<OutboxEntity>
 
-    @Query("UPDATE outbox SET payloadJson = :payloadJson, nextAttemptAtMs = 0 WHERE id = :id")
-    suspend fun swapPayload(id: Long, payloadJson: String)
+    // 🔑 LATEST 합치기 — payload 를 갈면 **opKey 도 새로** 준다(Fable #1):
+    //   같은 opKey 로 새 payload 를 보내면 서버가 **옛 응답을 캐시로 돌려줘** 새 내용(완료·계좌)이 조용히 버려진다.
+    //   새 opKey = 서버가 새로 처리한다. attempts 도 새 시작(새 뜻엔 새 재시도 예산).
+    @Query("UPDATE outbox SET payloadJson = :payloadJson, opKey = :opKey, attempts = 0, nextAttemptAtMs = 0 WHERE id = :id")
+    suspend fun swapPayload(id: Long, payloadJson: String, opKey: String)
 
-    @Query("UPDATE outbox SET attempts = :attempts, nextAttemptAtMs = :nextAt, lastError = :error WHERE id = :id")
-    suspend fun markRetry(id: Long, attempts: Int, nextAt: Long, error: String?)
+    // 아래 셋은 **보낼 때 본 opKey 와 아직 같을 때만** 쓴다 — 보내는 사이에 payload 가 갈렸으면(새 opKey)
+    //   그 행은 **건드리지 않는다**(새 내용을 지우거나 백오프 걸지 않게). 반환값 0 = 그새 바뀜.
+    @Query("DELETE FROM outbox WHERE id = :id AND opKey = :opKey")
+    suspend fun deleteDone(id: Long, opKey: String): Int
 
-    @Query("UPDATE outbox SET status = 'dead', deadReason = :reason, lastError = :error WHERE id = :id")
-    suspend fun markDead(id: Long, reason: String, error: String?)
+    @Query("UPDATE outbox SET attempts = :attempts, nextAttemptAtMs = :nextAt, lastError = :error WHERE id = :id AND opKey = :opKey")
+    suspend fun markRetryIf(id: Long, opKey: String, attempts: Int, nextAt: Long, error: String?): Int
 
+    @Query("UPDATE outbox SET status = 'dead', deadReason = :reason, lastError = :error WHERE id = :id AND opKey = :opKey")
+    suspend fun markDeadIf(id: Long, opKey: String, reason: String, error: String?): Int
+
+    /** 사장님 「그만 보내기」(id 로 바로 삭제 — 조건 없음). */
     @Query("DELETE FROM outbox WHERE id = :id")
     suspend fun delete(id: Long)
+
+    /** 홈 띠·목록용 — dead + pending **전부**(시각·주인 거르기는 Kotlin 에서, 시간 흘러도 반영되게). (Fable #7) */
+    @Query("SELECT * FROM outbox WHERE status = 'dead' OR status = 'pending' ORDER BY createdAtMs ASC")
+    fun observeDeadAndPending(): Flow<List<OutboxEntity>>
 
     @Query("DELETE FROM outbox WHERE id IN (:ids)")
     suspend fun deleteAll(ids: List<Long>)

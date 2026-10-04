@@ -85,6 +85,15 @@ class OutboxOrderTest {
         assertEquals(10, actions.count { it is RoundAction.Skipped })
     }
 
+    @Test fun `사진은 협업 명령보다 뒤에 보낸다 - 첫날 사진 백필에 명령이 안 밀리게`() {
+        // 사진(id 1, 먼저 넣음)과 협업 명령(id 2, 나중). id 순이면 사진이 먼저지만, 협업이 먼저여야 한다.
+        val photo = OutboxRow(1, OutboxKind.SITE_PHOTO.wire, "p1", owner, 0, 1000L)
+        val collab = OutboxRow(2, OutboxKind.COLLAB_RESCHEDULE.wire, "A", owner, 0, 1000L)
+        val order = mutableListOf<Long>()
+        run(listOf(photo, collab)) { r -> order += r.id; Verdict.DONE to 200 }
+        assertEquals(listOf(2L, 1L), order)   // 협업(2) 먼저, 사진(1) 나중 (Fable #10)
+    }
+
     @Test fun `재시도 행의 다음 시각은 미래다`() {
         val rows = listOf(row(1, "A", attempts = 1))
         val actions = run(rows, now = 5000L) { Verdict.RETRY to 503 }

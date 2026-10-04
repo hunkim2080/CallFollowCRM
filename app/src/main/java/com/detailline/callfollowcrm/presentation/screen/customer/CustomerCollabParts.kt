@@ -392,17 +392,17 @@ internal fun CollabAfterCard(
                             myName.takeIf { it.isNotBlank() }?.let { put("authorName", it) }
                             put("body", body)
                         }
-                        runCatching {
+                        val ok = runCatching {
                             container.outbox.enqueue(
                                 com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_COMMENT, sid, payload.toString()
                             )
-                        }
+                        }.isSuccess
                         container.outbox.tryNow()
-                        comments = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
+                        if (ok) comments = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
                             container.sharedSiteRepository, container.outbox, sid, ownerP, comments
-                        )
+                        ) else android.widget.Toast.makeText(context, "댓글 저장에 문제가 생겼어요 — 다시 보내주세요", android.widget.Toast.LENGTH_SHORT).show()
                         commentBusy = false
-                        onResult(true)   // 우체통에 들어갔다 = 입력칸 비우기(쓴 글 안 사라짐)
+                        onResult(ok)   // 성공했을 때만 입력칸 비우기(쓴 글 보존) — Fable #9
                     }
                 } else onResult(false)   // 못 보냈으면 쓴 글 유지
             }

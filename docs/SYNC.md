@@ -13575,3 +13575,18 @@ Fable 🧹3. 사장님 "고고"
 - 🚀 **성능 측정**(제미나이 감사 「속도 재보기」 닫음): 콜드스타트 **~1.7초**(S9+) · 메모리 ~77MB · APK **13.4MB**(R8 27.2→반감). docs/PHONE_BASELINE.md 에 기록.
 - 🧹 **죽은 코드 2개 제거**(Fable 감사): `markPaid`(/api/shared/paid 호출 0곳) · `ownerExists`(/api/owner/exists 호출 0곳). 서버 길은 남김(무해).
 - 변경(서버): 없음. 빌드 7가드 통과.
+
+## 2026-10-04 22:55 · android (+ server)
+🐞 **페이블 코드 평가 → 찾은 버그 10개 + 소소 1개 전부 수정.** (우체통 품질 기움)
+
+페이블(fable)에게 이번 세션 코드를 적대적 리뷰 받음. 핵심 셀(OutboxRules)·마이그레이션은 OK, 붙이는 부분에 버그.
+- 🔴 #1 **계좌 사라짐**: LATEST swapPayload 가 opKey 를 유지해, 응답 끊긴 뒤 수정하면 서버 캨시가 옆 payload 를 DONE 처리 → 새 내용(완료·계좌) 유실.
+  fix: swapPayload 가 **새 opKey** 발급 + Done/Retry/Dead 를 **보낼 때 opKey 와 같을 때만**(deleteDone/markRetryIf/markDeadIf) → 보내는 사이 payload 갈려도 안 지움.
+- 🔴 #2 **B 협업화면 오프라인에 비움**: updateProgress 의 낙관적 반영이 화면이 그리는 _sites 가 아닌 곳으로 갔고, load() 가 실패 시 목록을 비움.
+  fix: _sites 에 직접 낙관적 반영 + load() 는 실패 시 지금 목록 유지(getOrNull ?: 현재) + enqueue 뒤 load() 안 부름(옆 단계로 되돌아감 방지).
+- 🟡 #3 enqueue 에 Mutex(연타 두 줄 방지) · #4 TERMINAL 은 댓글 보존(명령만 지움) · #5 댓글 합치기 pending 먼저+중복제거(깜빡 방지) ·
+  #6 NetworkWatch 는 onCapabilitiesChanged(VALIDATED)에서 깨움("길 뚫리면 바로" 진짜 작동) · #7 홈 띄는 1분 tick + 주인 필터(시간 흘러도 반영·옆번호 행 안 셉) ·
+  #8 서버 op_keys 를 **FCM 전에** 저장(이중반영 창 닫음, progress·comment) · #9 정직성(progress·댓글·지오펜스 enqueue 실패면 말하고 안 비움) + 죽은 completeCollabSite 삭제 ·
+  #10 사진을 협업 명령 뒤로(첨날 백필 뒤 안 밀림) · 🟢 깨진 payload(JSONException)는 7일 끌지 않고 바로 DEAD.
+- 시험 +3 = outbox 37 · 빌드 7가드 통과(크기 오히려 줄음) · 서버 smoke 10/10 + 댓글 멱등 재검증 · 폰 켜짐·크래시 0.
+- 배포: 서버 GOTCHAS §3(백업 main.py.bak-20261004-225201). repo == 라이브. 앱은 다음 내부테스트 업로드에.

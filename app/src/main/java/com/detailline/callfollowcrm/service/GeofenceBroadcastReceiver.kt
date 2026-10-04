@@ -46,14 +46,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                             put("partnerPhone", myPhone)
                             put("auto", true)
                         }
-                        runCatching {
+                        val ok = runCatching {
                             container.outbox.enqueue(
                                 com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS, shareId, payload.toString()
                             )
-                        }
+                        }.isSuccess
                         container.outbox.tryNow()
-                        prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
-                        GeofenceManager.removeCollabArrival(context, shareId) // 다 왔으니 펜스 정리
+                        // ⚠️ 우체통에 들어갔을 때만 '1회 완료'로 찍고 펜스 정리 — 실패하면 다음 진입에 다시 시도(안 잃게). Fable #9
+                        if (ok) {
+                            prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
+                            GeofenceManager.removeCollabArrival(context, shareId)
+                        }
                         continue
                     }
                     // 본인 현장 5km 도착 안내 — 토글 ON 일 때만.
