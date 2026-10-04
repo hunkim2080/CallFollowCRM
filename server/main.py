@@ -5993,7 +5993,19 @@ def _req_phone_for_auth(request: Request) -> Optional[str]:
 _SCRAPE_DISTINCT_THRESHOLD = 20
 _SCRAPE_WINDOW_MS = 5 * 60 * 1000
 _SCRAPE_ALERT_COOLDOWN_MS = 60 * 60 * 1000   # 같은 IP 는 1시간에 한 번만 알린다(도배 방지)
+_SCRAPE_BLOCK_MS = 60 * 60 * 1000            # 긁는다고 판단되면 그 IP 를 이만큼 막는다(1시간)
+_SCRAPE_BLOCKED: dict = {}                   # ip -> 막음 해제 시각(ms). owner 데이터 경로에서만 429.
 _SCRAPE_WATCH: dict = {}                     # ip -> {"since": ms, "phones": set, "alerted": ms}
+
+
+def _scrape_blocked_until(ip: str) -> int:
+    """이 IP 가 아직 막혀 있으면 해제 시각(ms), 아니면 0."""
+    u = _SCRAPE_BLOCKED.get(ip, 0)
+    if u and _now_ms() < u:
+        return u
+    if u:
+        _SCRAPE_BLOCKED.pop(ip, None)   # 시간 지났으면 치운다
+    return 0
 
 
 def _scrape_watch(request: Request) -> None:
@@ -6029,12 +6041,18 @@ def _scrape_watch(request: Request) -> None:
                 and now - rec.get("alerted", 0) > _SCRAPE_ALERT_COOLDOWN_MS):
             rec["alerted"] = now
             n = len(rec["phones"])
-            locked = "🔒 지금은 로그인으로 막혀 있습니다." if AUTH_ENFORCE else "⚠️ 아직 로그인이 **꺼져 있어** 그냥 나갑니다."
+            # 🛡️ **자동 막기** — 이 IP 를 owner 데이터 경로에서 1시간 막는다.
+            #   로그인한 진짜 사장님은 안 막힌다(아래 미들웨어에서 토큰 보유 시 건너뜀).
+            _SCRAPE_BLOCKED[ip] = now + _SCRAPE_BLOCK_MS
+            if len(_SCRAPE_BLOCKED) > 3000:
+                _SCRAPE_BLOCKED.clear()   # 비정상적으로 커지면 통째로 비운다(막음은 보조 방어)
             _fire_bg(_slack_post(
-                "🕵️ *번호를 긁는 것 같아요*\n"
+                "🕵️ *번호를 긁는 것 같아요 — 자동으로 막았어요*\n"
                 f"• 한 곳(IP `{ip[:18]}…`)에서 **5분 안에 사장님 번호 {n}개**를 조회했습니다.\n"
                 "• 보통 사용자는 **자기 번호 하나**만 씁니다 — 명단을 훑는 패턴이에요.\n"
-                f"• {locked}"
+                "• 🛡️ 그 IP 를 **1시간 막았습니다**(손님이 쓰는 길·로그인한 분은 그대로).\n"
+                + ("🔒 로그인도 켜져 있어 어차피 자료는 안 나갑니다." if AUTH_ENFORCE
+                   else "⚠️ 아직 로그인이 꺼져 있어, 이 막음이 지금의 1차 방어입니다.")
             ))
     except Exception as _e:  # noqa: BLE001
         pass
@@ -6043,6 +6061,18 @@ def _scrape_watch(request: Request) -> None:
 @app.middleware("http")
 async def _auth_enforce_middleware(request: Request, call_next):
     _scrape_watch(request)
+    # 🛡️ 긁는다고 찍힌 IP 는 owner 데이터 경로에서 막는다 — 단 **로그인한 분은 통과**.
+    _path = request.url.path
+    if (any(_path.startswith(p) for p in _AUTH_PROTECT_PREFIXES)
+            or any(_path.startswith(p) for p in _AUTH_PATH_PHONE_PREFIXES)):
+        _ip = (request.headers.get("cf-connecting-ip")
+               or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+               or (request.client.host if request.client else "?")) or "?"
+        if _scrape_blocked_until(_ip) and not _session_phone_from_header(
+                request.headers.get("authorization")):
+            return JSONResponse(
+                {"detail": "잠시 뒤 다시 시도해 주세요"}, status_code=429,
+                headers={"Retry-After": "600"})
     if AUTH_ENFORCE:
         path = request.url.path
         prot = (any(path.startswith(p) for p in _AUTH_PROTECT_PREFIXES)
