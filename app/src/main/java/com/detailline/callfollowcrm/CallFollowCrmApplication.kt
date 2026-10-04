@@ -546,6 +546,10 @@ class CallFollowCrmApplication : Application() {
         // 웹 로그인 상태면 폰에 쌓인 현장사진을 서버로 백필 업로드(전부 웹서 보이게). 안 켜졌으면 즉시 skip.
         container.ownerPhotoUploadManager.kick(appScope)
 
+        // 📮 우체통 비우기 — 오프라인에서 보내다 만 협업 명령을 길 뚫렸으면 마저 보낸다.
+        //   (넣은 직후·화면복귀·60초·네트워크복구·ReminderWorker 가 전부 outbox.kick() 하나를 부른다. §4-B)
+        container.outbox.kick()
+
         // 구글 캘린더 연동 (2026-08-31, 본폰 미러링 대체) — 연결돼 있으면 앱 켤 때 시공/AS 일정을
         //   구글 "시공막내" 캘린더에 1회 반영(이전 세션에 잡은 일정도 최신 유지). 미연결이면 조용히 skip.
         if (container.preferences.googleCalendarConnected) {
@@ -631,6 +635,7 @@ class CallFollowCrmApplication : Application() {
         runCatching { container.collabEventCenter.poll(this) }
         runCatching { container.collabEventCenter.pollInvites(this) }
         runCatching { container.mirrorSyncManager.pollShareRequests(this) }
+        runCatching { container.outbox.kick() }   // 📮 못 보낸 협업 명령 비우기(화면 보이는 동안 60초마다)
         runCatching { syncSmsContacts() }
         runCatching { syncMmsContacts() }
         } finally { syncMutex.unlock() }

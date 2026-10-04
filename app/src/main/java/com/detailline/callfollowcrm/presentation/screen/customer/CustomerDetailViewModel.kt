@@ -860,12 +860,22 @@ class CustomerDetailViewModel(
         val timeLabel = minutes?.let {
             com.detailline.callfollowcrm.util.DateTimeUtils.formatWorkMinutes(it)
         }
-        viewModelScope.launch {
+        // 📮 우체통으로 — 지하철에서 바꿔도 길 뚫리면 B 에게 간다(옛날엔 runCatching 에 삼켜져 사라졌다). (설계 §1-A #1)
+        container.applicationScope.launch {
             shareIds.forEach { sid ->
+                val payload = org.json.JSONObject().apply {
+                    put("newAtMs", newAtMs)
+                    put("oldAtMs", oldAtMs)
+                    timeLabel?.let { put("timeLabel", it) }
+                }
                 runCatching {
-                    container.sharedSiteRepository.reschedule(sid, owner, newAtMs, oldAtMs, timeLabel)
+                    container.outbox.enqueue(
+                        com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_RESCHEDULE,
+                        sid, payload.toString()
+                    )
                 }
             }
+            container.outbox.tryNow()
         }
     }
 
@@ -901,9 +911,20 @@ class CustomerDetailViewModel(
         if (shareIds.isEmpty()) return
         val label = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(addr)
             .takeIf { it.isNotBlank() }?.let { "$it 현장" }
+        // 📮 우체통으로 — 오늘 만든 /api/shared/update-address 로 가고, 못 가면 모아뒀다 보낸다. (설계 §1-A #2)
         for (sid in shareIds) {
-            runCatching { container.sharedSiteRepository.updateAddress(sid, owner, addr, label) }
+            val payload = org.json.JSONObject().apply {
+                put("addr", addr)
+                label?.let { put("label", it) }
+            }
+            runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_ADDRESS,
+                    sid, payload.toString()
+                )
+            }
         }
+        container.outbox.tryNow()
     }
 
     /**

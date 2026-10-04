@@ -13467,3 +13467,23 @@ Fable 🧹3. 사장님 "고고"
   **남의 현장 403(addr 안 바뀜)** · 해피패스 200{ok,notified:0} (ended 테스트 share 왕복 후 '시험용'으로 복원).
 - repo == 라이브 확인(diff = 내 추가분만). py_compile OK. 라이브만 1줄 프리픽스 + 61줄 엔드포인트.
 - 폰 확인: 해당 없음(서버 엔드포인트). 다음: 오프라인 아웃박스(Fable 설계 Phase1) — op_keys + X-Op-Key 멱등.
+
+## 2026-10-04 19:05 · android
+📮 **오프라인 아웃박스(우체통) 1단계-a — 협업 명령이 지하철에서도 안 사라진다.** (설계 docs/DESIGN_offline_outbox.md)
+
+- 뿌리: 협업 일정·주소·해제/취소를 화면이 `runCatching { repo.xxx() }` 로 **직접 쏘고 삼켰다** →
+  오프라인이면 조용히 증발(주소가 두 달째 404 였던 게 그 실물). 이제 **우체통**에 넣고 길 뚫리면 마저 보낸다.
+- 셈은 **한 곳** `domain/outbox/OutboxRules.kt`(백오프·판정·합치기·순서) — drain 이 simulateRound 를 그대로 쓴다
+  (테스트가 보는 로직 = 도는 로직). 표 `outbox` **DB v61→v62**(CREATE TABLE만, 기존 데이터 안 건드림).
+- kind 3개(협업): reschedule(LATEST)·address(LATEST)·end(TERMINAL, cancel→end 포함). 보내기는 handler 가
+  **기존 SharedSiteRepository 함수를 부르기만**(HTTP 는 repo 에). 판정은 코드로만(409=해제 완료·사진403=재시도).
+- 비우기 신호 5개 **전부 outbox.kick() 하나**: 넣은 직후·앱 시작·60초 루프·**네트워크 복구**(NetworkWatch 신설, 앱 최초)·ReminderWorker(~3h).
+- 서버가 최종 결정권자(§13②): 4xx=dead(사장님 말로 사유), 5xx·끊김=재시도(0→30초…3시간, 7일 뒤 dead).
+- 호출부 7곳(§1-A #1~5 + SharedSiteViewModel leave/cancel) → enqueue. 토스트는 OutboxWording 한 곳(거짓말 문구 교체).
+- **변경(서버 영향): 없음.** `/api/shared/update-address`(오늘 만든 것)로 가고, 못 가면 모아뒀다 보낼 뿐.
+- 가드: dup_guard `collab-direct-send` 신설(14규칙, 현재 0곳) · CLAUDE.md §12 표+숫자 갱신.
+- 시험: **+29**(OutboxBackoff/Verdict/Coalesce/Order/Age) 전부 통과 · DbUpgradeChain 6개 통과 · 총 937.
+- 폰 확인(테스트폰 23514638000c7ece): **v62 마이그레이션 실데이터 위에서 켜짐**(상담함·일정·협업 렌더, 크래시 0).
+  ⚠️ 오프라인→복구 왕복은 **단위시험이 대신 봄**(폰에서 비행기모드 토글+실협업은 비현실적).
+- 남음: **1-b** = site_photo 를 OwnerPhotoUploadManager 에서 우체통으로 옮김(serverUploadedAt 백필 INSERT…SELECT +
+  MigrationTestHelper + dup 규칙 확장). **2단계** = op_keys 멱등·진행/댓글·홈 미전송 띠(프로토 먼저).

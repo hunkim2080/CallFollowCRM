@@ -56,6 +56,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { app.container.mirrorSyncManager.pushNow(force = false) }
         // 본폰 미러 v2 — 새 공유 신청 폴 → 알림(앱 꺼져 있어도). (2026-07-14)
         runCatching { app.container.mirrorSyncManager.pollShareRequests(applicationContext) }
+        // 📮 우체통 비우기 — 앱 꺼진 동안 못 보낸 협업 명령을 주기(~3h)로 마저 보낸다. (설계 §4-B)
+        runCatching { app.container.outbox.drain() }
         return Result.success()
     }
 

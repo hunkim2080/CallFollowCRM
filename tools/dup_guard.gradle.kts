@@ -187,6 +187,17 @@ val dupRules = listOf(
         regex = Regex("""collabAssignments[\s\S]{0,400}?eachCount\(\)"""),
         instead = "sharedSiteRepository.partners(bizPhone) 의 Partner.count — 일정·고객정보가 같은 자료를 본다",
         homes = listOf()
+    ),
+    // ⑮ 📮 협업 명령을 **화면에서 서버로 직접 쏘기** 금지 — 우체통으로. (2026-10-04 오프라인 아웃박스 1단계)
+    //   reschedule·updateAddress·endCollab·cancel 은 오프라인에서 runCatching 에 삼켜져 **조용히 사라졌다**
+    //   (주소 변경이 두 달째 404 였던 게 그 실물 §1-D). 이제 Outbox.enqueue 로 넣고 길 뚫리면 마저 보낸다.
+    //   **집(handler)만** 이 함수들을 직접 부른다 — 화면·VM 은 enqueue 를 쓴다.
+    //   ⚠️ site_photo(OwnerPhotoUploadManager)는 1-b 에서 옮긴다 — 그때 serverUploadedAt·pendingUpload 도 이 규칙에 넣는다.
+    DupRule(
+        id = "collab-direct-send",
+        regex = Regex("""\.(reschedule|updateAddress|endCollab|cancel)\(\s*(?:share|site|sid|shareId)"""),
+        instead = "container.outbox.enqueue(OutboxKind.COLLAB_*, shareId, payload)  (data/outbox/)",
+        homes = listOf("/data/outbox/")
     )
 )
 

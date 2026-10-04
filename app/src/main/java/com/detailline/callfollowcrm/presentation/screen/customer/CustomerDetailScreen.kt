@@ -823,10 +823,18 @@ fun CustomerDetailScreen(
                                 siteTitle = siteTitle,
                                 shareId = shareId,
                                 onRelease = {
-                                    // 협업 해제(수락된 것도) — 서버 end → B 에게 알림 + 기록 보존 + 재요청 풀림. best-effort(서버 오면 동작).
+                                    // 📮 협업 해제 → 우체통. B 에게 알림은 연결되면 간다(옛날엔 runCatching 에 삼켜져 말도 없었다). (설계 §1-A #3·§7-B)
                                     if (shareId.isNotBlank()) {
-                                        val owner = container.preferences.bizPhone
-                                        scope.launch { runCatching { container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true) } }
+                                        container.applicationScope.launch {
+                                            runCatching {
+                                                container.outbox.enqueue(
+                                                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                                                    shareId,
+                                                    org.json.JSONObject().put("mode", "end_owner").toString()
+                                                )
+                                            }
+                                            container.outbox.tryNow()
+                                        }
                                     }
                                     container.preferences.collabAssignments = container.preferences.collabAssignments
                                         .filterNot { e ->

@@ -96,29 +96,39 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     /** B(협업자)가 협업 그만하기 — 서버 end(by partner) → A 에게 알림 + 기록 보존. 로컬에선 즉시 숨김(서버가 declined 처리). best-effort. */
     fun leaveCollab(site: SharedSiteRepository.SharedSite) {
         trash(site.shareId) // 즉시 목록에서 빠짐
-        viewModelScope.launch {
-            // 서버 결과 확인 후 토스트 — 실패해도 "알려드렸어요"라 하던 거짓 안심 제거. (2026-07-30)
-            val ok = repo.endCollab(site.shareId, myPhone, asOwner = false).isSuccess
-            _toast.value = if (ok) "협업을 그만뒀어요 — 사장님께 알려드렸어요"
-                else "지금 연결이 안 돼 사장님께 알림을 못 보냈어요 — 잠시 후 다시 시도해주세요"
+        // 📮 우체통으로 — 목록은 이미 뺐고, A 에게는 연결되면 알린다(옛날엔 실패 시 조용). (설계 §1-A #4·§7-B)
+        container.applicationScope.launch {
+            runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                    site.shareId,
+                    org.json.JSONObject().put("mode", "end_partner").toString()
+                )
+            }
+            container.outbox.tryNow()
             // 그만둔 현장은 내 일정이 아니다 → 본폰 미러에서도 즉시 내림(안 그러면 ~3h 동안 남아있음).
             runCatching { container.mirrorSyncManager.pushNow(force = true) }
         }
+        _toast.value = com.detailline.callfollowcrm.presentation.util.OutboxWording.leftCollab
     }
 
     /** A(주인)가 '내가 공유한 현장'을 내림/삭제 — 수락 전이면 조용히 취소, 수락 후면 상대에 '해제' 알림 + 기록 보존. (2026-06-23 사장님) */
     fun cancelMyShared(site: SharedSiteRepository.SharedSite) {
         _mySharedSites.value = _mySharedSites.value.filterNot { it.shareId == site.shareId }  // 즉시 목록에서 빠짐
-        viewModelScope.launch {
-            val ok = repo.endCollab(site.shareId, myPhone, asOwner = true).isSuccess
-            container.collabEventCenter.markTrashed(site.shareId)  // 일정/홈 협업 카드에서도 즉시 정리
-            _toast.value = when {
-                !ok -> "지금 연결이 안 돼 처리를 못 했어요 — 잠시 후 다시 시도해주세요"
-                site.status == "pending" -> "공유를 취소했어요"
-                else -> "${site.partnerName ?: "상대"} 사장님께 해제 알림을 보냈어요"
+        container.collabEventCenter.markTrashed(site.shareId)  // 일정/홈 협업 카드에서도 즉시 정리
+        // 📮 우체통으로 — 수락 전이면 취소, 수락 후면 해제(handler 가 cancel→409면 end). (설계 §1-A #5·§7-B)
+        container.applicationScope.launch {
+            runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                    site.shareId,
+                    org.json.JSONObject().put("mode", "cancel_then_end").toString()
+                )
             }
-            load()
+            container.outbox.tryNow()
         }
+        _toast.value = com.detailline.callfollowcrm.presentation.util.OutboxWording.cancelledCollab
+        load()
     }
 
     /** true = 사업자 전화 미등록 → 협업 받을 수 없음(안내). */

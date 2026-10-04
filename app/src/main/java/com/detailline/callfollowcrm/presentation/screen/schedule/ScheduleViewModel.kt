@@ -502,11 +502,18 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         hideCollab(site.shareId)  // 즉시 일정에서 사라짐(서버 반영 전에도)
         val owner = ownerPhone.filter { it.isDigit() }
         if (owner.length < 9 || site.shareId.isBlank()) return
-        viewModelScope.launch {
-            val ok = container.sharedSiteRepository.endCollab(site.shareId, owner, asOwner = false).isSuccess
-            _toast.value = if (ok) "협업을 그만뒀어요 — 사장님께 알려드렸어요"
-                else "지금 연결이 안 돼 사장님께 알림을 못 보냈어요 — 잠시 후 다시 시도해주세요"
+        // 📮 우체통으로 — 내 일정은 이미 뺐고, A 에게는 연결되면 알린다(옛날엔 실패 시 조용히 안 갔다). (설계 §1-A #4·§7-B)
+        container.applicationScope.launch {
+            runCatching {
+                container.outbox.enqueue(
+                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                    site.shareId,
+                    org.json.JSONObject().put("mode", "end_partner").toString()
+                )
+            }
+            container.outbox.tryNow()
         }
+        _toast.value = com.detailline.callfollowcrm.presentation.util.OutboxWording.leftCollab
     }
 
     /** 방금 일정에서 뺀 건 — "되돌리기"가 **그 건**을 되살리도록 기억. (Stage A) */
@@ -646,19 +653,20 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         // 서버에도 — 수락 전이면 cancel(조용), 수락했으면(cancel 실패) end(B 에게 "해제" 알림). best-effort.
         val owner = ownerPhone.filter { it.isDigit() }
         if (shareId != null && owner.length >= 9) {
-            viewModelScope.launch {
-                // 서버 결과 확인 후 토스트 — 실패해도 "취소했어요"라 하던 거짓 안심 제거 + 취소/해제 구분. (2026-07-30)
-                val cancelled = container.sharedSiteRepository.cancel(shareId, owner).isSuccess
-                val ended = if (!cancelled) container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true).isSuccess else false
-                _toast.value = when {
-                    cancelled -> "협업 요청을 취소했어요"
-                    ended -> "협업을 해제했어요 — 상대 사장님께 알림이 가요"
-                    else -> "지금 연결이 안 돼 처리를 못 했어요 — 잠시 후 다시 시도해주세요"
+            // 📮 우체통으로 — 내 목록은 이미 뺐고, 서버엔 연결되면 취소(안 되면 해제)를 보낸다. (설계 §1-A #5·§7-B)
+            //   취소↔해제 판단은 handler 가 한다(cancel 이 409 면 end 로). 지금 즉시 구분을 못 하니 문구는 하나.
+            container.applicationScope.launch {
+                runCatching {
+                    container.outbox.enqueue(
+                        com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                        shareId,
+                        org.json.JSONObject().put("mode", "cancel_then_end").toString()
+                    )
                 }
+                container.outbox.tryNow()
             }
-        } else {
-            _toast.value = "협업 요청을 취소했어요"
         }
+        _toast.value = com.detailline.callfollowcrm.presentation.util.OutboxWording.cancelledCollab
     }
 
     /** 전문가 배정 시트 안 "+추가" — 팀원 즉시 등록(서버 invite). 등록 후 칩에 바로 뜸. (2026-06-14) */

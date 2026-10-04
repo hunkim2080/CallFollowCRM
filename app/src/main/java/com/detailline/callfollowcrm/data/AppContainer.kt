@@ -351,6 +351,25 @@ class AppContainer(context: Context) {
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
 
+    /** 📡 인터넷 돌아왔다를 듣는 귀 — 공용(우체통·추후 미러/웹피드/캘린더). (설계 §1-D-5) */
+    val networkWatch = com.detailline.callfollowcrm.util.NetworkWatch(appContext)
+
+    /**
+     * 📮 **우체통** — 오프라인에서 보내다 만 협업 명령을 모아 길 뚫리면 마저 보낸다. (설계 docs/DESIGN_offline_outbox.md)
+     *   1단계 kind 4개 중 협업 3종을 여기로. (site_photo 는 1-b 에서 OwnerPhotoUploadManager 를 옮겨 붙인다)
+     */
+    val outbox = com.detailline.callfollowcrm.data.outbox.Outbox(
+        dao = db.outboxDao(),
+        network = networkWatch,
+        ownerPhoneProvider = { preferences.bizPhone },
+        handlers = listOf(
+            com.detailline.callfollowcrm.data.outbox.handlers.CollabRescheduleHandler(sharedSiteRepository),
+            com.detailline.callfollowcrm.data.outbox.handlers.CollabAddressHandler(sharedSiteRepository),
+            com.detailline.callfollowcrm.data.outbox.handlers.CollabEndHandler(sharedSiteRepository)
+        ),
+        scope = applicationScope
+    )
+
     init {
         // 고객 번호 끝8자리 캐시 유지 — 말투 학습이 "고객에게 보낸 문자"만 보도록.
         applicationScope.launch {
