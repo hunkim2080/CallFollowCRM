@@ -352,7 +352,18 @@ fun AppNavHost(
                             .setOrientationLocked(true)
                     )
                 },
-                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
+                onOpenOutboxTrouble = { navController.navigate(Destinations.OUTBOX_TROUBLE) }
+            )
+        }
+
+        // 📮 아직 못 보낸 것 — 홈 주황 띠 → 목록. 다시 보내기·그만 보내기. (우체통 2단계)
+        composable(Destinations.OUTBOX_TROUBLE) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.outbox.OutboxTroubleViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.outbox.OutboxTroubleViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.outbox.OutboxTroubleScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
             )
         }
 

@@ -219,6 +219,8 @@ fun HomeScreen(
     onOpenRoute: (String) -> Unit = {},
     /** 홈 상단 [QR] → PC 웹 로그인 QR 스캔(빠른 접근). (2026-08-31 사장님) */
     onScanWebQr: () -> Unit = {},
+    /** 📮 홈 맨 위 주황 띠 → 「아직 못 보낸 것」 목록. (2026-10-04 우체통 2단계) */
+    onOpenOutboxTrouble: () -> Unit = {},
     /** "{업종} AI" 뱃지 탭 → 업종 선택(대표업종 1개). 업종 데이터 수집 → 시공 시장 빅데이터. (2026-09-01 사장님) */
     onOpenTradeSelect: () -> Unit = {}
 ) {
@@ -357,6 +359,7 @@ fun HomeScreen(
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
     val updateDateLabel by viewModel.updateDateLabel.collectAsState()   // "8월 24일" — 배너 신뢰용. (2026-08-24 사장님)
+    val outboxTroubleCount by viewModel.outboxTroubleCount.collectAsState()   // 📮 아직 못 보낸 것 수(주황 띠)
     // '새로워졌어요' 시트 제거 (2026-07-29 사장님 — Play 배포로 이관, 앱 팝업 불필요). 배너([지금 받기])만 유지.
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -568,6 +571,9 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
+            // 📮 아직 못 보낸 것 띠 — 눌러서 목록. dead/하루넘김일 때만. 조각은 presentation/component/OutboxBand.kt (size_guard §12-F)
+            com.detailline.callfollowcrm.presentation.component.OutboxBand(outboxTroubleCount) { onOpenOutboxTrouble() }
+
             // 새 버전 배너 — 한 줄로 간결. [지금 받기] = 바로 다운로드. ('새로워졌어요' 시트는 2026-07-29 제거)
             if (updateAvailable) {
                 Row(

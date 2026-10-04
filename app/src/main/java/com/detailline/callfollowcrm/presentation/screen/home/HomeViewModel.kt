@@ -69,6 +69,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val categories = container.categoryRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 📮 아직 못 보낸 것(dead + 하루 넘긴 pending) 수 — 0 보다 크면 홈 맨 위 주황 띠. 설계 §7. */
+    val outboxTroubleCount: StateFlow<Int> =
+        container.outbox.observeTrouble()
+            .map { it.size }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     private val customers = container.customerRepository.observeAll()
 
     /**

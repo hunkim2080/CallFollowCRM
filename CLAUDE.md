@@ -421,6 +421,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 대화 화면 조각 | `presentation/screen/chat/` 의 `ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts` | ChatScreen.kt 안에 또 쌓기 |
 | 서버로 보내는 명령(협업·사진, 오프라인 보관·재시도) | `data/outbox/Outbox.kt` (셈은 `domain/outbox/OutboxRules.kt`, 보내기는 `data/outbox/handlers/`) | 화면·매니저에서 `runCatching { sharedSiteRepository.reschedule/updateAddress/endCollab/cancel }` · `serverRepo.uploadOwnerPhoto` 직접 |
 | 인터넷 복구 듣기 | `util/NetworkWatch.kt` | 화면마다 `ConnectivityManager` 새로 |
+| 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |
 
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).
 > 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**

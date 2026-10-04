@@ -34,4 +34,20 @@ object OutboxWording {
         val day = if (days <= 1) "하루째" else "${days}일째"
         return "${label(kind)}을 $day 못 보냈어요 — 눌러서 확인"
     }
+
+    /** 홈 주황 띠 — 사장님 확정 문구. (2026-10-04 「ㄱㄱ」) */
+    fun bandText(count: Int): String = "아직 못 보낸 게 ${count}건 있어요"
+
+    /** 목록 줄의 「언제」. 0=오늘 · 1=어제부터 · 그 이상=N일째 못 보냄. */
+    fun ageText(createdAtMs: Long, now: Long): String = when (val d = OutboxRules.daysStuck(createdAtMs, now)) {
+        0 -> "오늘"
+        1 -> "어제부터"
+        else -> "${d}일째 못 보냄"
+    }
+
+    /** 아직 보내는 중(죽지 않음)일 때 — 안심 문구. */
+    const val stillSending = "연결되면 자동으로 보내요"
+
+    /** 목록 맨 위 안심 줄. */
+    const val reassure = "내 폰엔 다 저장됐어요. 상대·서버로 보내는 것만 아직이에요 — 연결되면 알아서 가요."
 }

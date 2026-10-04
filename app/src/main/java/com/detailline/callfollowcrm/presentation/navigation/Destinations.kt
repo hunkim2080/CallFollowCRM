@@ -74,6 +74,7 @@ object Destinations {
     const val SEARCH = "search"
     const val CUSTOMERS = "customers"
     const val NEW_LEADS = "new_leads"
+    const val OUTBOX_TROUBLE = "outbox_trouble"   // 📮 아직 못 보낸 것 목록 (우체통 2단계)
     const val BUSINESS_INFO = "business_info"
     const val NOTEBOOK = "notebook"
     const val TEAM = "team"

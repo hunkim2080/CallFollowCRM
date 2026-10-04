@@ -20,6 +20,9 @@ class SitePhotoRepository(
 ) {
     fun observe(customerId: Long): Flow<List<SitePhotoEntity>> = dao.observeByCustomer(customerId)
 
+    /** 📮 사장님이 「그만 보내기」 한 사진 — 도장(-1)을 찍어 다음 스캔에 다시 안 뜨게. (우체통 2단계) */
+    suspend fun markGivenUp(photoId: Long) = dao.markUploaded(photoId, -1L)
+
     /** 전부, 올린 순서대로. 「내 기록」이 대표 사진을 고를 때 쓴다. */
     fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>> = dao.observeAllOldestFirst()
 

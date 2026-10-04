@@ -13505,3 +13505,19 @@ Fable 🧹3. 사장님 "고고"
 - 폰(테스트폰): 새 배선으로 **켜짐·크래시 0**(상담함 렌더). ⚠️ 라이브 사진 왕복은 **못 재현**(테스트폰 사진은
   이미 다 올라가 pending 0 · 서버 OWNER 64장 2.3일전 = 파이프라인 과거 정상). 로직은 단위시험·업로드는 verbatim.
 - 남음: **2단계** op_keys 멱등(progress·comment·owner-upload)·client_key(사진 덮어쓰기 §5-D)·홈 미전송 띠(프로토 먼저).
+
+## 2026-10-04 20:45 · android
+📮 **오프라인 아웃박스 2단계 (1) — 홈 「아직 못 보낸 것」 주황 띠 + 목록.** (프로토 사장님 「ㄱㄱ」 확정)
+
+- 지금까진 못 보낸 게 **진단 본문에만** 있었다(§7 1단계). 이제 **홈 맨 위 주황 띠**로 보인다 —
+  업데이트 배너와 **같은 자리·같은 모양**, 색만 주황(알림). dead(서버 거절) 또는 **하루 넘게** 못 간 게 있을 때만.
+- 띠 → 「아직 못 보낸 것」 목록: 무엇을·언제·(죽었으면)왜 + [다시 보내기]/[그만 보내기].
+  재시도 중(안 죽음)인 건 「연결되면 자동으로 보내요」(버튼 없음). 맨 위 안심 줄 = 「내 폰엔 다 저장됐어요」.
+- 새 파일: `presentation/component/OutboxBand.kt`(띠·size_guard §12-F 로 조각 분리) · `screen/outbox/OutboxTrouble{Screen,ViewModel}.kt`.
+  Outbox.retry/dismiss + DAO resetForRetry + SitePhotoRepository.markGivenUp(그만한 사진 도장). OutboxWording 에 문구.
+  Destinations.OUTBOX_TROUBLE 라우트. HomeViewModel.outboxTroubleCount.
+- 변경(서버 영향): 없음(UI·로컬만).
+- 가드: style 기준선 2632→2652(새 화면) · §12 표에 OutboxWording 한 줄 · 공용 28개. dup/size/rules/save/compose 통과.
+- 폰(테스트폰): 새 배선으로 **켜짐·크래시 0**. ⚠️ 띠·목록 자체는 **못 띄워봄**(테스트폰에 말썽 난 항목 0 =
+  띠가 정상적으로 숨겨짐; 띄우려면 24h 묵히거나 서버 거절 필요). 모양은 사장님 확정 프로토대로.
+- 남음: **2단계 (2)** 서버 op_keys 멱등(progress·comment·owner-upload)+client_key · 앱 kind progress(LATEST)·comment(APPEND). (서버는 「올려」 하실 때 배포)

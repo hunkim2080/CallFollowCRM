@@ -66,4 +66,8 @@ interface OutboxDao {
     /** 이 종류로 이미 우체통에 있는 targetKey 들(pending·dead 다). 사진 feeder 가 이미 넣은(또는 죽은) 걸 또 안 넣게. */
     @Query("SELECT DISTINCT targetKey FROM outbox WHERE kind = :kind")
     suspend fun targetsForKind(kind: String): List<String>
+
+    /** 사장님이 「다시 보내기」 — 죽었든 미뤘든 **지금 바로** 다시 시도하게 되돌린다. */
+    @Query("UPDATE outbox SET status = 'pending', attempts = 0, nextAttemptAtMs = 0, lastError = NULL, deadReason = NULL WHERE id = :id")
+    suspend fun resetForRetry(id: Long)
 }

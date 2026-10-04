@@ -124,6 +124,15 @@ class Outbox(
     /** 이 종류로 이미 우체통에 든 targetKey 들(pending·dead). 사진 feeder 의 중복·되살아남 방지. */
     suspend fun targetsForKind(wire: String): List<String> = dao.targetsForKind(wire)
 
+    /** 사장님 「다시 보내기」 — 그 행을 지금 바로 다시 시도하게 하고 깨운다. */
+    suspend fun retry(id: Long) {
+        dao.resetForRetry(id)
+        kick()
+    }
+
+    /** 사장님 「그만 보내기」 — 그 행을 우체통에서 뺀다(사진이면 다음 스캔에 또 뜨지 않게 도장도 찍는다는 건 호출부가). */
+    suspend fun dismiss(id: Long) = dao.delete(id)
+
     private fun OutboxEntity.toRow() =
         OutboxRow(id, kind, targetKey, ownerPhone, attempts, createdAtMs)
 }
