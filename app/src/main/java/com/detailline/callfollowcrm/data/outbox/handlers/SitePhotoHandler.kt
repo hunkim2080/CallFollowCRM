@@ -48,7 +48,7 @@ class SitePhotoHandler(
 
         val label = o.optString("label").ifBlank { "시공 사진" }
         val workDate = o.optString("workDate").takeIf { it.isNotBlank() }
-        val res = serverRepo.uploadOwnerPhoto(owner, custPhone, dataUrl, label, workDate)
+        val res = serverRepo.uploadOwnerPhoto(owner, custPhone, dataUrl, label, workDate, opKey = opKey)
         if (res.isSuccess) sitePhotoDao.markUploaded(photoId, System.currentTimeMillis())
         return res.toVerdict(kind)                       // 403=티어→재시도 · 5xx/끊김→재시도 · 4xx→dead
     }

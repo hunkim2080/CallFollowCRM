@@ -13534,3 +13534,11 @@ Fable 🧹3. 사장님 "고고"
 - 배포: GOTCHAS §3 (백업 main.py.bak-20261004-203539 → swap → kickstart → health 200 → smoke 10/10). repo == 라이브.
 - 변경(앱 쪽 해야 할 것): 앱이 재시도 요청에 **X-Op-Key = outbox opKey** 를 실어 보내면 즉시 효과.
   → 다음: 앱 SitePhotoHandler 에 헤더 + kind progress(LATEST)·comment(APPEND) 추가(배포 무관, Play 는 수동).
+
+## 2026-10-04 20:55 · android
+📮 **사진 업로드에 X-Op-Key 배선 — 오늘 올린 op_keys 멱등이 사진에 즉시 적용.**
+
+- SitePhotoServerRepository.uploadOwnerPhoto(opKey=...) → 헤더 X-Op-Key. SitePhotoHandler 가 outbox opKey 를 실어 보낸다.
+  → 사진 재시도 때 서버가 **한 번만** 반영(ACK 끊겨 재전송돼도 사진 두 장 안 됨).
+- 변경(서버 영향): 없음(헤더만, 서버는 이미 받음). 빌드 7가드 통과·폰 켜짐.
+- 남음(2단계 마무리): 앱 kind progress(LATEST)·comment(APPEND) — 호출부를 우체통으로. ⚠️낙관적 로컬표시·순서 고려 필요(별도).
