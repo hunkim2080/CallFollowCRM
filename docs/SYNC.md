@@ -13646,3 +13646,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경(server, 라이브+repo 동일, main.py +37): `_url_is_public` 헬퍼 + 가드 3곳. §3(백업 bak-20261005-104624·104913). smoke 10/10.
 - 검증(실세션): 127.0.0.1·169.254·Tailnet → **400** · 공개 naver → **200**.
 - 남음(2단계): #7 유료 LLM 무인증 · #9 ADMIN_TOKEN localStorage(결정 필요) · #12 expo secret. SoT=docs/DESIGN_auth_phase2.md.
+
+## 2026-10-05 10:55 · android (+ server)
+🔒 보안 2단계 #7 (일부) — 인증 없는 유료 LLM 비용 폭탄 차단(IP 일일 캡). refine(Gemini)·expo/ocr/terms(Gemini Vision) 가 owner_phone 비우면 화이트리스트 통과 + check_rate_limit 없음이었다.
+- fix: 기존 공용 _ip_day_quota 로 IP 일일 캡 — refine 300/day, expo/ocr/terms 100/day. 첫 호출 정상(refine 200). expo/ocr/bizreg 는 로컬 Ollama(무료)라 제외.
+- 변경(server, 라이브+repo 동일, +8): §3(백업 bak-20261005-105201). smoke 10/10.
+- 남음(2단계): #9 ADMIN_TOKEN localStorage(결정 필요) · #12 expo contract secret(앱 동작 확인 필요). classify-batch/address-resolve 는 소규모 잔여. SoT=docs/DESIGN_auth_phase2.md.

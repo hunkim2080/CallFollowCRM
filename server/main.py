@@ -15521,7 +15521,7 @@ async def _call_gemini_json_for_summary(
 
 
 @app.post("/api/refine")
-async def refine_endpoint(req: RefineRequest) -> dict:
+async def refine_endpoint(req: RefineRequest, request: Request = None) -> dict:
     """§14 — 사장님 원문을 Gemini 2.5 Flash 로 다듬어 polished 한 줄 반환.
 
     입력: { raw, recent_messages, owner_tone_samples, customer_name?, customer_memo? }
@@ -15534,6 +15534,9 @@ async def refine_endpoint(req: RefineRequest) -> dict:
     """
     # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone (없으면 legacy phone) 으로.
     _ensure_and_touch_beta_whitelist(req.owner_phone, owner_trade=req.ownerTrade)  # 추가37+50
+    # #7 (2026-10-05) — owner_phone 비우면 화이트리스트가 통과하므로 IP 일일 캡으로 비용 폭탄 차단(유료 Gemini).
+    if request is not None and not _ip_day_quota(_client_ip(request), "refine", 300):
+        raise HTTPException(429, "요청이 많아요. 잠시 뒤 다시 시도해 주세요")
     raw = (req.raw or "").strip()
     if not raw:
         raise HTTPException(400, "raw 가 비어있음")
@@ -30134,11 +30137,14 @@ class ExpoOcr(BaseModel):
 
 
 @app.post("/api/expo/ocr/terms")
-async def expo_ocr_terms(req: ExpoOcr) -> dict:
+async def expo_ocr_terms(req: ExpoOcr, request: Request = None) -> dict:
     """약관 종이 사진 → OCR → 전문 텍스트. (방장이 확인/수정 후 room/info 로 저장)"""
     mime, b64 = _expo_ocr_strip_dataurl(req.image)
     if not b64:
         raise HTTPException(400, "이미지 필요")
+    # #7 (2026-10-05) — 인증 없는 유료 Gemini Vision. IP 일일 캡으로 비용 폭탄 차단.
+    if request is not None and not _ip_day_quota(_client_ip(request), "ocr", 100):
+        raise HTTPException(429, "요청이 많아요. 잠시 뒤 다시 시도해 주세요")
     # 할루시네이션 방지 — "약관이다"라고 단정하지 말고 '보이는 글자만 전사'.
     prompt = ("이미지에 실제로 보이는 글자를 그대로 정확히 옮겨 적으세요(전사). "
               "줄바꿈·문단을 유지하고, 해설·요약·추측·보충은 하지 마세요. "
