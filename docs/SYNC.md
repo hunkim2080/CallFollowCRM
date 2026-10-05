@@ -13664,3 +13664,6 @@ Fable 🧹3. 사장님 "고고"
 🔒 보안 2단계 #9 (일부) — admin ?token= URL 유출 차단. ?token=<ADMIN_TOKEN> 로 들어오면 쿠키 심고 303 redirect 로 **주소에서 토큰 제거**(주소창·방문기록·스크린샷·referrer). gate 안에서만, SPA/API 무변경. 검증: ?token 맞음→303 Location 토큰없음→쿠키 재진입 200.
 - ⚠️ 남은 #9 핵심(구조): ADMIN_TOKEN 이 여전히 대시보드 localStorage/sessionStorage 에 심긴다(_admin_pass). SPA 20+곳이 Bearer/X-Admin-Token 으로 그걸 읽어 /api/admin/* 호출 → 그냥 빼면 대시보드 깨짐. 제대로=admin 별도 origin 또는 /api/admin/* 를 HttpOnly 쿠키 인증으로(2 헬퍼+쿠키 path+SPA). **사장님 결정/스케줄 대기.**
 - 변경(server, 라이브+repo 동일, +5). §3(백업 bak-20261005-110639). smoke 10/10. SoT=docs/DESIGN_auth_phase2.md.
+
+## 2026-10-05 11:18 · android (+ server)
+🔑 admin gate 쿠키 소금값 v1→v2 교체 — 검증 중 명령 출력에 찍혔던 sm_admin 쿠키값(해시, ADMIN_TOKEN 아님) 무효화. 기존 admin 브라우저 세션 전부 재로그인 필요(?token= 한 번). 검증: 옛 쿠키값 403/303·새 로그인 200. smoke 10/10. §3(백업 bak-20261005-111644).

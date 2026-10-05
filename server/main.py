@@ -7195,7 +7195,7 @@ _ADMIN_COOKIE = "sm_admin"
 def _admin_cookie_value() -> str:
     """쿠키에는 토큰 원문을 담지 않는다(브라우저에 비밀번호를 두지 않기 위해)."""
     import hashlib
-    return hashlib.sha256((ADMIN_TOKEN + "|si0in-admin-v1").encode("utf-8")).hexdigest()
+    return hashlib.sha256((ADMIN_TOKEN + "|si0in-admin-v2").encode("utf-8")).hexdigest()
 
 
 def _admin_login_html(msg: str = "") -> str:
