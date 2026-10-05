@@ -13726,3 +13726,11 @@ Fable 🧹3. 사장님 "고고"
 - 공용 AppSheet(스크림+카드+그랩+keyboardOrNavPadding+스크롤 내장) 신설 → ScheduleTimeSheet·ScheduledSmsSheet 이관(시트 네비바/키보드/스크롤 버그 재발 구조 차단). §12 표 등록.
 - 앞선 수정들: 보내기창 키패드(키보드 안 내려감)·시각 시트 프로토 1:1.
 - 폰 확인: 테스트폰 실기 전체 흐름(예약→대기말풍선→취소확인→취소됨) 눈으로 확인. 가드 통과(dup가 startOfDay 두벌 잡아 DateTimeUtils로 교체, style 기준선 +5 갱신).
+
+## 2026-10-05 22:30 · android
+🐛💰 재방문 2차가 1차 돈·완납을 물려받던 버그 — Step A (눈에 보이는 2곳, 데이터 무변경). Fable 감사 기반.
+- 근본: recomputeMirror 가 대표 건의 **일정만** 고객카드에 미러하고 돈·완료는 안 옮김 → 2차가 대표 되면 카드=「2차 날짜+1차 돈/완납」 짬뽕. 이 카드를 대표 건 얼굴로 그리던 2곳이 거짓 표시.
+- Step A: ① 공용 domain/job/JobCardRow.rowOf(c,j) 신설(돈·완료를 **건** 것으로, +단위테스트 4건) ② ScheduleViewModel(일정 탭)·CustomerDetailScreen [일정·정산] 카드가 이걸 씀(읽기+쓰기 editJobId=shownJobId → 건별 메서드). 건 없는 고객만 카드 폴백.
+- 돈 로직(JobRepository) 무변경 → 기존 Job/Settle/CashFlow 테스트 전부 통과. 가드 통과. 테스트폰 설치·크래시0.
+- 남음(Fable Step B/C, 다음): recomputeMirror 돈 미러 완성 + 치유 마이그레이션(홈 히어로·완료팝업·브리핑 등 카드 읽는 나머지 + 숨은 2-B 돈 2배 경로 차단). 2-C(archiveCompletedBeforeNewSchedule 중복 가드)도.
+- 결정(사장님): 이어서 공사=기간 한 건, 재방문=2차 따로.

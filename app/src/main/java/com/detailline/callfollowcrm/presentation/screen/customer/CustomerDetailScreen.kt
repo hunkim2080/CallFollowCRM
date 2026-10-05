@@ -1049,20 +1049,11 @@ fun CustomerDetailScreen(
                 // 어느 건을 골랐든 **그 건의 값**을 보여주고, 그 건에 쓴다. (2026-09-18 확정 프로토 ④)
                 //   전엔 지난 건을 고르면 이 카드를 숨기고 읽기 전용 패널만 보여줬다.
                 //   editJobId = null 이면 '지금 건'(고객 카드 경로), 아니면 그 건에 직접 쓴다.
-                val editJobId: Long? = selectedPastJob?.id
-                val cShown = selectedPastJob?.let { j ->
-                    c.copy(
-                        scheduledWorkDate = j.scheduledWorkDate,
-                        scheduledWorkMinutes = j.scheduledWorkMinutes,
-                        scheduledWorkDays = j.scheduledWorkDays.coerceAtLeast(1),
-                        totalAmount = j.totalAmount,
-                        depositAmount = j.depositAmount,
-                        depositPaidAt = j.depositPaidAt,
-                        balanceAmount = j.balanceAmount,
-                        balancePaidAt = j.balancePaidAt,
-                        workCompletedAt = j.workCompletedAt
-                    )
-                } ?: c
+                // 🔴 지난 건뿐 아니라 **지금 보는 건(대표 포함)**을 그 건의 값으로 — shownJob + 공용 JobCardRow.
+                //   전엔 대표 건을 고객 카드(c)로 그려, 2차가 대표가 되면 1차 돈·완납이 묻어났다. (2026-10-05 Fable 감사)
+                //   건이 하나도 없는 고객만 null → 고객 카드 경로(옛 데이터·날짜 미정).
+                val editJobId: Long? = shownJobId
+                val cShown = shownJob?.let { com.detailline.callfollowcrm.domain.job.JobCardRow.rowOf(c, it) } ?: c
                 val scheduled = cShown.scheduledWorkDate
                 val totalWon = cShown.totalAmount ?: 0L
                 val depositWon = cShown.depositAmount ?: 0L
@@ -1183,9 +1174,9 @@ fun CustomerDetailScreen(
                                 }
                             } else {
                                 Spacer(Modifier.height(12.dp))
-                                TossSecondaryButton(text = "총금액 입력", onClick = { amountEditField = "total" })
+                                TossSecondaryButton(text = "총금액 입력", onClick = { amountEditJobId = editJobId; amountEditField = "total" })
                                 Spacer(Modifier.height(8.dp))
-                                TossSecondaryButton(text = "계약금 입력", onClick = { amountEditField = "deposit" })
+                                TossSecondaryButton(text = "계약금 입력", onClick = { amountEditJobId = editJobId; amountEditField = "deposit" })
                             }
                             // 되돌리는 것 둘을 **맨 아래 한 줄**로. (2026-09-20 사장님)
                             //   전엔 [완납 취소] 가 가로로 꽉 찬 큰 버튼이라 이 카드에서 제일 누르기 쉬웠다.

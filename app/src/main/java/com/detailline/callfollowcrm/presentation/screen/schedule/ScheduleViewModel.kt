@@ -48,13 +48,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val byId = customers.associateBy { it.id }
         val rows = jobs.mapNotNull { j ->
             val c = byId[j.customerId] ?: return@mapNotNull null
-            val day = j.scheduledWorkDate ?: return@mapNotNull null
-            c.copy(
-                scheduledWorkDate = day,
-                scheduledWorkMinutes = j.scheduledWorkMinutes,
-                scheduledWorkDays = j.scheduledWorkDays.coerceAtLeast(1),
-                address = j.address?.takeIf { it.isNotBlank() } ?: c.address
-            )
+            j.scheduledWorkDate ?: return@mapNotNull null
+            // ⚠️ 돈·완료까지 **그 건** 것으로 — 공용 JobCardRow. 안 그러면 2차 날짜에 1차 돈/완납이 묻어난다. (2026-10-05)
+            com.detailline.callfollowcrm.domain.job.JobCardRow.rowOf(c, j)
         }
         buildState(rows)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScheduleUiState())
