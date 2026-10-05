@@ -47,6 +47,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.offset
@@ -694,3 +697,112 @@ internal fun collabMinutes(
     .collabMinutes(site.timeLabel, site.scheduledAtMs)
 
 internal val NEWLINE: String = String(charArrayOf(0x0A.toChar()))
+
+/**
+ * 「방금 · N건」을 누르면 뜨는 — 구글 캘린더에 올린 일정 목록. (2026-10-05 사장님
+ *   "몇 건이 어떤 건인지·제대로 올라간 건지 의심스럽다 — 그 자리 누르면 보이게")
+ *   어느 계정·어느 캘린더에 무엇이 올라갔는지 한눈에. 지금 다시 올리기로 수동 재동기화도.
+ */
+@androidx.compose.runtime.Composable
+internal fun CalendarSyncSheet(
+    accountEmail: String?,
+    syncedAtMs: Long,
+    syncedCount: Int,
+    syncing: Boolean,
+    work: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    asList: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    simples: List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity>,
+    onResync: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val noRipple = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    data class CalRow(val emoji: String, val day: Long, val title: String, val sub: String?)
+    val rows = androidx.compose.runtime.remember(work, asList, simples) {
+        val out = ArrayList<CalRow>()
+        fun who(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity): String =
+            c.name?.takeIf { it.isNotBlank() } ?: c.address?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+        for (c in work) { val d = c.scheduledWorkDate ?: continue; out.add(CalRow("🏗️", d, who(c), "시공")) }
+        for (c in asList) { val d = c.asScheduledDate ?: continue; out.add(CalRow("🔧", d, who(c), "A/S")) }
+        for (e in simples) out.add(CalRow("📌", e.dayStartMs, e.title, "간단 일정"))
+        out.sortedBy { it.day }
+    }
+    androidx.compose.foundation.layout.Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onClose() }
+    ) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(AppShape.xl)
+                .background(AppTheme.colors.surface)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                .heightIn(max = 620.dp)
+                .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 22.dp)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
+                    .width(38.dp).height(4.dp).clip(AppShape.pill).background(TossDivider)
+            )
+            Text("구글 캘린더에 올린 일정", style = AppType.title, color = TossTextPrimary)
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().clip(AppShape.lg).background(TossBlueSoft).padding(13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                    Text("시공막내 캘린더", style = AppType.body, color = TossTextPrimary)
+                    Text(accountEmail ?: "연결된 계정 — 설정에서 '다시 연결'하면 보여요",
+                        style = AppType.caption, color = TossTextSecondary, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Text("✓ 연결됨", style = AppType.label, color = TossBlue)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("마지막 올림 · " + lastSyncLabel(syncedAtMs, syncedCount) + " · 자동",
+                style = AppType.caption, color = TossTextTertiary)
+            Spacer(Modifier.height(10.dp))
+            androidx.compose.foundation.layout.Column(
+                Modifier.weight(1f, fill = false).verticalScroll(androidx.compose.foundation.rememberScrollState())
+            ) {
+                if (rows.isEmpty()) {
+                    Text("올라간 일정이 아직 없어요.", style = AppType.body, color = TossTextTertiary,
+                        modifier = Modifier.padding(vertical = 14.dp))
+                } else rows.forEach { r ->
+                    androidx.compose.foundation.layout.Row(
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(r.emoji, style = AppType.body)
+                        Spacer(Modifier.width(11.dp))
+                        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                            Text(r.title, style = AppType.body, color = TossTextPrimary, maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            Text(koreanMonthDay(r.day) + (r.sub?.let { " · " + it } ?: ""),
+                                style = AppType.caption, color = TossTextTertiary)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
+                    .clickable {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://calendar.google.com"))
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    }.padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("구글 캘린더 열기", style = AppType.headline, color = AppTheme.colors.textOnPrimary) }
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
+                    .clickable(enabled = !syncing) { onResync() }.padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) { Text(if (syncing) "올리는 중…" else "지금 다시 올리기", style = AppType.headline, color = TossTextSecondary) }
+        }
+    }
+}

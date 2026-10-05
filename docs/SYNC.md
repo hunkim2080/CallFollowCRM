@@ -13692,3 +13692,11 @@ Fable 🧹3. 사장님 "고고"
 - ⚠️ email 은 **민감 범위 아님**(calendar.app.created 처럼 기본). 심사·7일제한 무관. 단 기존 연결자는 **'다시 연결' 1회** 필요(토큰 scope 바뀜 → 그전까지 자동동기화 멈춤 → 설정의 '다시 연결' 버튼으로 복구).
 - 빌드 assembleRelease 7가드 통과·테스트폰 설치. OAuth 재동의는 실기에서 사장님 확인 필요(자동화 불가).
 - 남음: F 「방금·N건」 탭 → 올린 일정 목록 시트.
+
+## 2026-10-05 16:10 · android
+📋 F 「방금·N건」 탭 → 구글 캘린더 올린 일정 목록 시트 (사장님 "몇 건이 어떤 건인지·제대로 올라갔는지 보이게").
+- ScheduleParts.CalendarSyncSheet: 시공막내 캘린더 + 계정 이메일(G) + 마지막 올림 + 목록(시공🏗️/AS🔧/간단📌 · 지역·날짜) + [구글 캘린더 열기]·[지금 다시 올리기]. typography/토큰만(style_guard 유지).
+- ScheduleScreen: calendarAccountEmail 파라미터 + showCalSheet state + 헤더 '방금·N건' 탭 → Dialog 로 시트(수동 재동기화는 시트 안 버튼). AppNavHost 에서 이메일 전달.
+- 데이터는 VM 이 이미 가진 state.all(시공)·asScheduled·simpleEvents 재사용.
+- brand_guard: 📅 이모지 1개 걸려서 뺌(글자만). 빌드 assembleRelease 7가드 통과·테스트폰 설치.
+- ⚠️ 테스트폰은 구글 미연결이라 헤더('방금·N건')가 안 떠서 시트 실기확인은 사장님이 구글 재연결(G) 후 가능. 일정 화면 회귀 없음 확인.

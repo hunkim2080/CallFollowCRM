@@ -477,6 +477,7 @@ fun AppNavHost(
                 calendarSyncing = calSyncing.value,
                 calendarSyncedAtMs = calSyncedAt.value,
                 calendarSyncedCount = calSyncedN.value,
+                calendarAccountEmail = container.preferences.googleCalendarAccountEmail,
                 onCalendarSync = {
                     schedScope.launch {
                         // 고객이 많으면 수백 번 통신이라 몇 분 걸린다. 아무 말이 없으면 고장 난 줄 안다.

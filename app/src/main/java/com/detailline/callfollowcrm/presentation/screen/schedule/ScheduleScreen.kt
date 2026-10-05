@@ -155,6 +155,7 @@ fun ScheduleScreen(
     calendarSyncing: Boolean = false,
     calendarSyncedAtMs: Long = 0L,
     calendarSyncedCount: Int = 0,
+    calendarAccountEmail: String? = null,
     /** 진입 시 미리 선택할 날(ms). 홈 "다음 시공" 카드에서 그 시공일로. null/<=0 = 오늘. */
     initialSelectedDayMs: Long? = null
 ) {
@@ -167,6 +168,26 @@ fun ScheduleScreen(
     val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "이름"
+    // 「방금 · N건」 탭 → 올린 일정 목록 시트. (2026-10-05 사장님) 자동 동기화라 그 자리는 '확인용'.
+    var showCalSheet by remember { mutableStateOf(false) }
+    if (showCalSheet) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showCalSheet = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            CalendarSyncSheet(
+                accountEmail = calendarAccountEmail,
+                syncedAtMs = calendarSyncedAtMs,
+                syncedCount = calendarSyncedCount,
+                syncing = calendarSyncing,
+                work = state.all,
+                asList = asList,
+                simples = simpleEvents,
+                onResync = onCalendarSync,
+                onClose = { showCalSheet = false }
+            )
+        }
+    }
     val collabSites by viewModel.collabSites.collectAsState()
     // 협업 현장에도 **주소가 있다**. 달력 칸에 지역명을 적으려고 날짜→지역명으로 바꿔둔다.
     //   (2026-09-22 사장님 "협업도 주소지가 있는데 왜 이렇게 하니" — 내가 없다고 잘못 알았다.)
@@ -304,7 +325,7 @@ fun ScheduleScreen(
                             maxLines = 1,
                             modifier = Modifier
                                 .padding(end = 10.dp)
-                                .clickable(enabled = !calendarSyncing) { onCalendarSync() }
+                                .clickable { showCalSheet = true }
                         )
                     }
                     Box(
