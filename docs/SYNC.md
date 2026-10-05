@@ -13745,3 +13745,10 @@ Fable 🧹3. 사장님 "고고"
 - 효과: 카드=대표건이라 홈 히어로·완료팝업·오늘현장·캘린더설명·본폰미러 등 카드 읽는 곳 자동 교정.
 - 테스트: 미러 반전+케이스b, 2-C 가드 신규, JobCardRow(Step A). 전체 유닛+가드 통과. 시작 치유 크래시0·고객상세/홈 렌더.
 - 실기 full 재현(1차완납→2차)은 미실시 — 돈 로직은 유닛이 정확히 검증, 사장님 실데이터 눈확인 부탁.
+
+## 2026-10-05 23:55 · android
+3건 묶음 (사장님 신고): ①말풍선 쫀득 팝 애니 ②MMS 알림 '읽어도 안 지워지고 밤에 재알림' ③상담함 칩 뒤로가기 시 전체로 리셋.
+- ① ChatBubble 에 graphicsLayer+spring(DampingRatioMediumBouncy) 팝. 화면 연 뒤 dateMs 인 것만(내 발송·내가 보는 중 수신). reduceMotion(animator scale 0) 존중. 프로토 UmhZoAov. 커밋 8a58d1cc.
+- ② (a) 대화 열면 NotificationHelper.cancelIncomingSms(기본앱 아니라 '읽음' 못 찍어 직접 치움) (b) notifiedMmsIds 캡 80→500(삼성 2단계 날짜갱신+aging 으로 재알림되던 구멍).
+- ③ HomeScreen inboxResetFilter 를 LaunchedEffect(resetSignal) 로 들어 **재진입(챗 뒤로가기)마다 옛 신호로 또 리셋**되던 것 → lastResetSeen(rememberSaveable) 으로 신호 증가 시에만. 테스트폰 실기 검증(종료고객 칩 유지).
+- ④ (질문답) '시공한 고객' 보라 딱지 = 옛 자동분류("시공 완료", 2026-09-20 폐지)의 잔재. categoryId 로 렌더. 자동 아님.

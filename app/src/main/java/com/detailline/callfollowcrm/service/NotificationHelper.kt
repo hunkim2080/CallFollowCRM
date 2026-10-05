@@ -1309,6 +1309,15 @@ object NotificationHelper {
     }
 
     /**
+     * 대화를 열면(읽으면) 그 번호의 **수신 문자 알림을 지운다.** (2026-10-05 사장님)
+     *   우리는 기본 문자앱이 아니라 삼성 문자함에 '읽음' 도장을 못 찍는다 → 읽어도 알림이 안 사라지고,
+     *   밤에 문자함을 다시 훑을 때 "아직 안 읽음"으로 보여 재알림되던 것. 우리 쪽에서 직접 치운다.
+     */
+    fun cancelIncomingSms(context: Context, phone: String) {
+        runCatching { NotificationManagerCompat.from(context).cancel(smsNotificationId(phone)) }
+    }
+
+    /**
      * 갤메시지 대체 풍부한 SMS 수신 알림. Step 1 — 기본 표시.
      *   - 헤더: 이름(있으면) 또는 포맷팅된 번호 + 카테고리
      *   - 본문: BigText 확장형

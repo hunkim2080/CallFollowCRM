@@ -737,7 +737,9 @@ class CallFollowCrmApplication : Application() {
             freshIds.add(key)
         }
         prefs.lastNotifiedMmsMs = maxMs
-        if (freshIds.isNotEmpty()) prefs.notifiedMmsIds = (notifiedIds + freshIds).toList().takeLast(80).toSet()
+        // 80 → 500: 삼성 2단계(날짜 갱신)로 옛 MMS 가 다시 '새 것'처럼 보여도, _id 가 이 창에 남아 있으면 재알림 안 됨.
+        //   80 은 너무 작아 아이디가 밀려나 밤에 재알림되던 것. (2026-10-05 사장님 "읽은 문자가 밤에 또 뜸")
+        if (freshIds.isNotEmpty()) prefs.notifiedMmsIds = (notifiedIds + freshIds).toList().takeLast(500).toSet()
     }
 
     /** 시공 D-1 등 리마인더 — 주기 워커(~3시간) + 앱 켤 때 1회 즉시 점검. */

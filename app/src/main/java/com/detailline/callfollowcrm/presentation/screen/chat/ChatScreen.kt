@@ -275,6 +275,10 @@ fun ChatScreen(
             ) == 0f
         }.getOrDefault(false)
     }
+    // 🔔 대화를 열면(읽으면) 그 번호의 수신 알림을 지운다 — 기본 문자앱이 아니라 직접 치워야 한다. (2026-10-05 사장님)
+    LaunchedEffect(viewModel.phoneNumber) {
+        com.detailline.callfollowcrm.service.NotificationHelper.cancelIncomingSms(context, viewModel.phoneNumber)
+    }
     // 통화 구간 — 메시지와 시간순 병합해 타임라인에 통화 카드로 표시 (loadMessages 무손상, 렌더 레이어 병합).
     val callRecords by viewModel.callRecords.collectAsState()
     // 시공접수서 제출 이벤트 — 통화처럼 타임라인에 카드로 병합.

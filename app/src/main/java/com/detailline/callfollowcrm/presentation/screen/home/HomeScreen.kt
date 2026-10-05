@@ -278,8 +278,15 @@ fun HomeScreen(
     //   채팅 갔다 뒤로가기 같은 같은-화면 이동은 안 건드린다(훑던 칩이 풀리면 성가시다).
     val resetSignal by (LocalContext.current.applicationContext as CallFollowCrmApplication)
         .container.inboxResetFilter.collectAsState()
+    // ⚠️ 마지막 본 신호를 기억 — 안 그러면 **챗 갔다 뒤로가기(재진입)마다 옛 신호 값으로 또 발동**해 칩이 전체로 풀렸다.
+    //   (2026-10-05 사장님 "칩 안에서 문자 보고 뒤로가면 전체로 감". [[reference_appscoped_tick_launchedeffect_refires]] 패턴)
+    //   rememberSaveable 라 뒤로가기(재진입)에도 값이 남아, 탭을 **새로 누를 때만**(신호 증가) 리셋된다.
+    var lastResetSeen by rememberSaveable { mutableStateOf(0L) }
     LaunchedEffect(resetSignal) {
-        if (resetSignal > 0L) { inboxChip = "all"; inboxTab = 0; boxSub = "ad" }
+        if (resetSignal > lastResetSeen) {
+            lastResetSeen = resetSignal
+            inboxChip = "all"; inboxTab = 0; boxSub = "ad"
+        }
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
