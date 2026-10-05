@@ -170,6 +170,10 @@ class AppPreferences(context: Context) {
     var googleCalendarSyncedCount: Int
         get() = prefs.getInt("google_calendar_synced_count", 0)
         set(value) = prefs.edit().putInt("google_calendar_synced_count", value).apply()
+    /** 연결된 구글 계정 이메일 — "어느 계정에 올라갔나" 표시용. null = 아직 못 받음(옛 연결/이메일 권한 전). (2026-10-05 사장님) */
+    var googleCalendarAccountEmail: String?
+        get() = prefs.getString("google_calendar_account_email", null)
+        set(value) = prefs.edit().putString("google_calendar_account_email", value).apply()
     /** 구글 캘린더 연결 여부(사장님이 연결 완료). UI 표시 + 자동동기화 시도 게이트. */
     /**
      * 구글 캘린더에 **마지막으로 올린 내용의 지문**. 같으면 다시 안 올린다. (2026-09-16 사장님)

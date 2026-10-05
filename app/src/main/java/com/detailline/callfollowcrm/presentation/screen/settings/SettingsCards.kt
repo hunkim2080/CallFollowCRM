@@ -775,6 +775,7 @@ internal fun GoogleCalendarSection(container: AppContainer) {
     fun disconnect() {
         prefs.googleCalendarConnected = false; connected = false
         prefs.googleCalendarId = null
+        prefs.googleCalendarAccountEmail = null
         toast("연결을 껐어요 (이미 올라간 일정은 구글 캘린더에 그대로 남아요)")
     }
 
@@ -802,7 +803,21 @@ internal fun GoogleCalendarSection(container: AppContainer) {
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (busy) "연결 중…" else "구글 계정 연결하기") }
             } else {
-                Text("✓ 연결됨", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                // '어느 계정인지' 를 연결됨 옆에 같이 보여준다. (2026-10-05 사장님 "무슨 아이디로 로그인했나 볼 곳이 없었어")
+                val acctEmail = prefs.googleCalendarAccountEmail
+                Text(
+                    "✓ 연결됨" + (acctEmail?.let { " · $it" } ?: ""),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                )
+                if (acctEmail == null) {
+                    // 옛 연결(이메일 권한 전) — 한 번 다시 연결하면 계정이 나온다.
+                    Spacer(Modifier.height(6.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { if (!busy) connect() },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("어느 계정인지 보려면 · 다시 연결") }
+                }
                 Spacer(Modifier.height(8.dp))
                 Row {
                     androidx.compose.material3.OutlinedButton(

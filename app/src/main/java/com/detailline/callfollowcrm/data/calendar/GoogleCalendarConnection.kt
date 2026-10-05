@@ -36,6 +36,13 @@ class GoogleCalendarConnection(private val appContext: Context) {
      */
     private val calendarScope = Scope("https://www.googleapis.com/auth/calendar.app.created")
 
+    /**
+     * 연결된 **계정 이메일을 보여주려고** 추가한 기본 권한. (2026-10-05 사장님 "무슨 아이디로 로그인했나 볼 곳이 없었어")
+     *   ⚠️ `email` 은 **민감 범위가 아니다** — 위 calendar.app.created 가 '앱이 만든 캘린더만'인 것처럼
+     *   기본 권한이라 OAuth 심사·7일 제한과 무관하다. 유일한 영향: 기존 연결자는 '연결'을 한 번 다시 눌러야 적용.
+     */
+    private val emailScope = Scope("https://www.googleapis.com/auth/userinfo.email")
+
     sealed interface AuthResult {
         data class Success(val accessToken: String) : AuthResult
         /** 사용자 동의 UI 필요 — 이 IntentSender 를 띄우고 결과를 [tokenFromConsentResult] 로 넘긴다. */
@@ -44,7 +51,7 @@ class GoogleCalendarConnection(private val appContext: Context) {
 
     private fun request(): AuthorizationRequest =
         AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(calendarScope))
+            .setRequestedScopes(listOf(calendarScope, emailScope))
             .build()
 
     /**

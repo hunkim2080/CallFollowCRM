@@ -13684,3 +13684,11 @@ Fable 🧹3. 사장님 "고고"
 - I·I-2 「막내가 알아낸 원칙」 카드 2곳(내 말투 학습·설정 메뉴) 숨김 — 서버 /infer-principle 미연결(안 쓰기로 함). 기능 코드는 남겨둠.
 - 빌드: assembleRelease BUILD=0, 7가드 통과. 테스트폰(23514638000c7ece) 설치.
 - 안 건드림: 받은 문자 알림(살아있는 기능). 남음: F·G 캘린더 올린목록+계정이메일(묶음2, 구글 이메일 권한 추가라 따로).
+
+## 2026-10-05 15:45 · android
+🔑 G 구글 캘린더 '어느 계정으로 연결됐나' 표시 (사장님 "무슨 아이디로 로그인했나 볼 곳이 없었어").
+- 원인: 연결이 Authorization(권한만) 방식이라 계정 선택창은 떠도 앱이 이메일을 안 받아옴.
+- fix: GoogleCalendarConnection 에 email 기본권한(userinfo.email) 추가 → CalendarApi.fetchAccountEmail(userinfo) → syncAll 이 비어있으면 1회 받아 prefs.googleCalendarAccountEmail 저장. 설정 '구글 캘린더 연동' 에 "✓ 연결됨 · <이메일>" 표시 + 옛 연결이면 '다시 연결' 버튼. disconnect 시 이메일도 비움.
+- ⚠️ email 은 **민감 범위 아님**(calendar.app.created 처럼 기본). 심사·7일제한 무관. 단 기존 연결자는 **'다시 연결' 1회** 필요(토큰 scope 바뀜 → 그전까지 자동동기화 멈춤 → 설정의 '다시 연결' 버튼으로 복구).
+- 빌드 assembleRelease 7가드 통과·테스트폰 설치. OAuth 재동의는 실기에서 사장님 확인 필요(자동화 불가).
+- 남음: F 「방금·N건」 탭 → 올린 일정 목록 시트.

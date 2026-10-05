@@ -43,6 +43,8 @@ class DefaultCalendarSyncStore(
 
     override suspend fun getCalendarId(): String? = prefs.googleCalendarId
     override suspend fun setCalendarId(id: String?) { prefs.googleCalendarId = id }
+    override suspend fun getAccountEmail(): String? = prefs.googleCalendarAccountEmail
+    override suspend fun setAccountEmail(email: String?) { prefs.googleCalendarAccountEmail = email }
 
     /**
      * 일정 번호 읽기. **시공(WORK)은 건 전표에서** — 건마다 일정이 따로다. (2026-09-18)

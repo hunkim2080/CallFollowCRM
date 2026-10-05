@@ -20,6 +20,9 @@ enum class ScheduleType(val key: String) { WORK("work"), AS("as") }
 interface CalendarSyncStore {
     suspend fun getCalendarId(): String?
     suspend fun setCalendarId(id: String?)
+    /** 연결된 구글 계정 이메일 — '어느 계정' 표시용. 구현 안 하면 안 씀. (2026-10-05 사장님) */
+    suspend fun getAccountEmail(): String? = null
+    suspend fun setAccountEmail(email: String?) {}
     /** jobId 가 있으면 **그 건**의 일정 번호. 시공(WORK)은 건마다 따로다. (2026-09-18) */
     suspend fun eventId(customerId: Long, type: ScheduleType, jobId: Long? = null): String?
     suspend fun setEventId(customerId: Long, type: ScheduleType, eventId: String?, jobId: Long? = null)
@@ -163,6 +166,10 @@ class CalendarSyncManager(
      */
     suspend fun syncAll(retried: Boolean = false): Int {
         val token = connection.getTokenSilently() ?: return -1
+        // 연결된 계정 이메일을 아직 못 받았으면 한 번 받아 저장 — '어느 계정' 표시용. (2026-10-05 사장님)
+        if (store.getAccountEmail().isNullOrBlank()) {
+            runCatching { api.fetchAccountEmail(token) }.getOrNull()?.let { store.setAccountEmail(it) }
+        }
         val cal = ensureCalendar(token) ?: return -1
         val customers = store.scheduledCustomers()
         // 시공(WORK)은 **건마다** 한 일정. 전엔 고객마다 하나라 2차를 잡으면 1차 일정이 옮겨졌다. (2026-09-18)

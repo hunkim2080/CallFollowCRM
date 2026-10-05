@@ -40,6 +40,13 @@ class CalendarApi(private val client: OkHttpClient) {
     private fun authed(token: String, url: String): Request.Builder =
         Request.Builder().url(url).header("Authorization", "Bearer $token")
 
+    /** 연결된 구글 계정 이메일 — userinfo. email 권한 없으면(옛 연결) 실패 → null. (2026-10-05 사장님) */
+    suspend fun fetchAccountEmail(token: String): String? =
+        runCatching {
+            val body = exec(authed(token, "https://www.googleapis.com/oauth2/v3/userinfo").get().build())
+            org.json.JSONObject(body).optString("email").takeIf { it.isNotBlank() }
+        }.getOrNull()
+
     private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
     // ── 캘린더 목록 / 찾기 / 생성 ────────────────────────────
