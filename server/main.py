@@ -6077,6 +6077,8 @@ _AUTH_PROTECT_PREFIXES = (
     "/api/shared/partners", "/api/shared/history", "/api/shared/comments",
     "/api/shared/invite", "/api/shared/progress", "/api/shared/paid",
     "/api/shared/reschedule", "/api/shared/update-address", "/api/shared/photo",
+    # 🔒 보안 2단계 #6 (2026-10-05) — 익명이 share_id+상대번호만으로 수락/취소/해제/댓글 하던 것 차단.
+    "/api/shared/respond", "/api/shared/cancel", "/api/shared/end", "/api/shared/comment",
     "/api/team/", "/api/quote/submissions", "/api/quote/issue",
     "/api/intake-form/status", "/api/intake-form/list", "/api/intake-form/issue",
     "/api/site-photos", "/api/labor/history",
@@ -17261,7 +17263,7 @@ class SharedInviteRequest(BaseModel):
 
 
 @app.post("/api/shared/invite")
-async def shared_invite(req: SharedInviteRequest) -> dict:
+async def shared_invite(req: SharedInviteRequest, request: Request = None) -> dict:
     """A 가 B 에게 현장 공유 요청. 베타 기간 _check_team_tier 통과 (TEAM_TIER_BYPASS=1)."""
     owner_phone = _norm_phone(req.owner_phone)
     partner_phone = _norm_phone(req.partner_phone)
@@ -17271,6 +17273,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         raise HTTPException(400, "partner_phone 필수")
     if owner_phone == partner_phone:
         raise HTTPException(400, "본인에게 공유할 수 없습니다")
+    _require_caller(request, owner_phone)  # #6 — 초대는 A(owner) 본인만
     _ensure_and_touch_beta_whitelist(owner_phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트 (owner 만)
     _check_team_tier(owner_phone)
 
@@ -17466,7 +17469,7 @@ class SharedRespondRequest(BaseModel):
 
 
 @app.post("/api/shared/respond")
-async def shared_respond(req: SharedRespondRequest) -> dict:
+async def shared_respond(req: SharedRespondRequest, request: Request = None) -> dict:
     """B 가 수락 또는 거절. share_id + partner_phone 일치 필수 (벽).
 
     §H (2026-06-13): accept=true 시 A 에게 collab_event(step=accepted) FCM 발송.
@@ -17476,6 +17479,7 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
     partner_phone = _norm_phone(req.partner_phone)
     if not share_id or not partner_phone:
         raise HTTPException(400, "share_id, partner_phone 필수")
+    _require_caller(request, partner_phone)  # #6 — 수락/거절은 B(partner) 본인만
     now = _now_ms()
     new_status = "accepted" if req.accept else "declined"
     with db_conn() as con:
@@ -17663,6 +17667,7 @@ async def shared_progress(req: SharedProgressRequest, request: Request) -> dict:
     step = (req.step or "").strip()
     if not share_id or not partner_phone:
         raise HTTPException(400, "share_id, partner_phone 필수")
+    _require_caller(request, partner_phone)  # #6 — 진행 업데이트는 B(partner) 본인만
     if step not in _VALID_PROGRESS_STEPS:
         raise HTTPException(400, f"step must be one of {_VALID_PROGRESS_STEPS}")
     now = _now_ms()
@@ -17841,12 +17846,13 @@ class SharedPaidRequest(BaseModel):
 
 
 @app.post("/api/shared/paid")
-async def shared_paid(req: SharedPaidRequest) -> dict:
+async def shared_paid(req: SharedPaidRequest, request: Request = None) -> dict:
     """A 가 입금 완료 표시. share_id + owner_phone 권한 필수."""
     share_id = (req.share_id or "").strip()
     owner_phone = _norm_phone(req.owner_phone)
     if not share_id or not owner_phone:
         raise HTTPException(400, "share_id, owner_phone 필수")
+    _require_caller(request, owner_phone)  # #6 — 입금표시는 A(owner) 본인만
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
@@ -18389,12 +18395,13 @@ class SharedCancelRequest(BaseModel):
 
 
 @app.post("/api/shared/cancel")
-async def shared_cancel(req: SharedCancelRequest) -> dict:
+async def shared_cancel(req: SharedCancelRequest, request: Request = None) -> dict:
     """A 본인이 보낸 협업 요청 취소. pending 만 가능. 'declined' 로 변경 (보존, B 측 안 보이게)."""
     share_id = (req.share_id or "").strip()
     owner_phone = _norm_phone(req.owner_phone)
     if not share_id or not owner_phone:
         raise HTTPException(400, "share_id, owner_phone 필수")
+    _require_caller(request, owner_phone)  # #6 — 취소는 A(owner) 본인만
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
@@ -18430,13 +18437,14 @@ class SharedEndRequest(BaseModel):
 
 
 @app.post("/api/shared/end")
-async def shared_end(req: SharedEndRequest) -> dict:
+async def shared_end(req: SharedEndRequest, request: Request = None) -> dict:
     """협업 해제. owner 또는 partner 본인 권한. pending+accepted 모두 처리."""
     share_id = (req.share_id or "").strip()
     caller_phone = _norm_phone(req.phone)
     by = (req.by or "").strip().lower()
     if not share_id or not caller_phone:
         raise HTTPException(400, "share_id, phone 필수")
+    _require_caller(request, caller_phone)  # #6 — 해제는 호출자 본인(owner 또는 partner)만
     if by not in ("owner", "partner"):
         raise HTTPException(400, "by must be 'owner' or 'partner'")
     now = _now_ms()
@@ -18522,6 +18530,7 @@ async def shared_comment_post(req: SharedCommentPostRequest, request: Request) -
         raise HTTPException(400, "site_id 필수")
     if not author_phone:
         raise HTTPException(400, "author_phone 필수")
+    _require_caller(request, author_phone)  # #6 — 댓글은 작성자 본인만
     if not body:
         raise HTTPException(400, "body 는 공백 불가")
     if len(body) > 1000:
@@ -19788,7 +19797,7 @@ async def fcm_pubkey() -> dict:
 
 
 @app.post("/api/push/register")
-async def push_register(req: PushRegisterRequest) -> dict:
+async def push_register(req: PushRegisterRequest, request: Request = None) -> dict:
     """FCM 토큰 등록 (UPSERT). 같은 token 재호출 시 phone 갱신."""
     phone_digits = "".join(ch for ch in (req.phone or "") if ch.isdigit())
     token = (req.token or "").strip()
@@ -19796,6 +19805,7 @@ async def push_register(req: PushRegisterRequest) -> dict:
         raise HTTPException(400, "phone 필수")
     if not token:
         raise HTTPException(400, "token 필수")
+    _require_caller(request, phone_digits)  # #6 — 본인 번호의 토큰만 등록
     _touch_beta_whitelist(phone_digits)  # 추가47 (2026-06-21) — 옛 빌드 첫 진입에서도 잡힘
     platform = (req.platform or "android").strip()[:20]
     now = _now_ms()
@@ -22788,6 +22798,7 @@ async def team_member_invite(request: Request) -> dict:
         print(f"[team/invite] TeamInviteRequest 변환 실패: {type(e).__name__}: {e} / body_dict={body_dict}")
         raise HTTPException(400, f"필드 검증 실패: {type(e).__name__}: {e}")
     print(f"[team/invite] 파싱 OK owner={req.owner_phone} name={req.name} phone={req.phone} role={req.role}")
+    _require_caller(request, req.owner_phone)  # #6 — 팀초대는 A(owner) 본인만
     _check_team_tier(req.owner_phone)
     name = (req.name or "").strip()
     phone = (req.phone or "").strip()
@@ -25640,6 +25651,21 @@ def session_check() -> dict:
     return {"ok": True}
 
 
+def _require_caller(request: Request, *allowed: Optional[str]) -> str:
+    """#6 (2026-10-05) — 로그인 토큰의 phone 이 allowed 중 하나와 일치해야 통과.
+    allowed = 이 행동을 할 자격이 있는 번호(핸들러가 공유기록 대조로 확인했거나 본인 번호).
+    body 의 phone 을 믿는 게 아니라, 그 phone 의 **토큰을 쥔 사람**인지 본다(공격자는 남 토큰을 못 만든다).
+    토큰 없으면 401, 토큰 phone 이 자격 밖이면 403. AUTH_ENFORCE=1 미들웨어와 겹겹(익명은 거기서 이미 막힘)."""
+    tok = _session_phone_from_header(request.headers.get("authorization")) if request is not None else None
+    if not tok:
+        raise HTTPException(401, "로그인이 필요합니다")
+    tokn = _norm_phone(tok)
+    allow = {_norm_phone(a) for a in allowed if a}
+    if tokn not in allow:
+        raise HTTPException(403, "본인만 할 수 있어요")
+    return tokn
+
+
 def _session_phone_from_header(authorization: Optional[str]) -> Optional[str]:
     """Authorization: Bearer <sessionToken> → phone (또는 None). §B-2 인증에 재사용."""
     if not authorization or not authorization.startswith("Bearer "):
@@ -26600,7 +26626,7 @@ async def mirror_pair(req: MirrorPairRequest) -> dict:
 
 
 @app.post("/api/mirror/snapshot")
-async def mirror_snapshot(req: MirrorSnapshotRequest) -> dict:
+async def mirror_snapshot(req: MirrorSnapshotRequest, request: Request = None) -> dict:
     """업무폰 — 일정 items[] + 돈 요약 덮어쓰기 (팀원 schedule-snapshot 과 동일 컨셉).
 
     items: [{date:"2026-07-15", time:"09:00", days:1, name, address, phone, memo,
@@ -26614,6 +26640,7 @@ async def mirror_snapshot(req: MirrorSnapshotRequest) -> dict:
     ophone = _norm_phone(req.owner_phone)
     if not ophone:
         raise HTTPException(400, "owner_phone 필수")
+    _require_caller(request, ophone)  # #6 — 미러 스냅샷은 본인 것만 덮어쓰기
     now = _now_ms()
     items_str = json.dumps(req.items or [], ensure_ascii=False)
     money_str = json.dumps(req.money or {}, ensure_ascii=False)

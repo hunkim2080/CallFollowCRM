@@ -13625,3 +13625,15 @@ Fable 🧹3. 사장님 "고고"
 - 폰 확인: 서버 변경이라 해당 없음. 앱은 이미 Bearer 동봉(Net.builder) 이라 무변경.
 - ⚠️ **남은 숙제(2단계, 홍보 전 필수)**: #6 POST body 가 세션에 안 묶임(`_session_phone_from_header` 가 미들웨어에만) → 로그인한 사람이 남 이름으로 행동 가능(push/register·team/invite·shared/* POST). #3 team/invite 기존 토큰 반환. #4 push 가로채기. #7 유료 LLM 무인증(phone 비우면 화이트리스트 통과). #8 web studio SSRF. #9 ADMIN_TOKEN localStorage. #12 expo contract secret 선택적.
 - 다음 액션(cowork): 위 2단계는 앱이 모든 owner-scoped POST 에 세션 바인딩 배포 후 서버가 body phone==token 강제. 분담 필요.
+
+## 2026-10-05 10:35 · android (+ server)
+🔒 보안 2단계 #6 배포 — **POST 본인확인**(로그인해도 남 이름으로 행동하던 것 차단). 서버만, 앱 무변경(Bearer 이미 Net.builder 로 감).
+- 뿌리: 미들웨어가 GET 쿼리 phone 만 토큰과 대조하고 **POST body 는 못 읽어** '유효 토큰 보유'까지만 봤다. → 무료 가입 한 번이면 남 번호를 body 에 넣어 남 이름으로 POST 가능.
+- fix: 공용 `_require_caller(request, *allowed)` 1개(두 벌 금지) — 토큰 phone 이 '그 행동 할 자격 번호'와 일치해야 통과. 10개 핸들러에 적용:
+  shared/invite·paid·cancel(=A owner) · shared/respond·progress(=B partner) · shared/end·comment(=양쪽) · push/register·team/member/invite·mirror/snapshot(=본인).
+  ⭐ 협업은 A↔B 두 사장이라 **엔드포인트마다 당사자가 다르다** — respond/progress 는 partner_phone 에, invite/paid/cancel 은 owner_phone 에 묶음(블라인드로 밀면 B 수락이 깨진다).
+- 보호목록 추가: shared/respond·cancel·end·comment (익명이 share_id+상대번호만으로 하던 것 차단).
+- 변경(server, 라이브+repo 동일, main.py +34): `_require_caller` 헬퍼 + 10 바인딩 + 보호목록 4. §3 절차(백업 bak-20261005-102907). smoke **10/10**.
+- 검증(실토큰 3연): 토큰없음 **401** · 로그인+남번호 **403**(=#6 핵심) · 본인 **통과(404 가짜 share)**. 10개 전부.
+- 폰 확인: 서버 변경, 앱 무변경(Bearer 이미 감). 전제확인=progress 가 이미 토큰필수(401)라 B 는 토큰 보유 → respond/comment 추가해도 안 깨짐.
+- 남음(2단계 나머지): #7 유료 LLM 무인증 · #8 web SSRF · #9 ADMIN_TOKEN localStorage · #12 expo secret 선택적. SoT=docs/DESIGN_auth_phase2.md.
