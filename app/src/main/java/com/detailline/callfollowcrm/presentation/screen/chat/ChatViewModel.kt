@@ -1482,11 +1482,20 @@ class ChatViewModel(
                     container.smsRepository.querySentMessages(limit = 50)
                 }.getOrDefault(emptyList())
                 val c = customer.value
+                // 📞 **가장 최근 통화 요약**을 재료로 — 통화로 상담하고 문자는 손으로 치는 사장님이
+                //   다듬기를 누르면 통화 내용까지 반영되게. listByCustomer 는 최신순(DESC)이라 첫 번째가 최근. (2026-10-06 사장님)
+                val recentCall = c?.id?.let { cid ->
+                    runCatching {
+                        container.callSummaryRepository.listByCustomer(cid)
+                            .firstOrNull()?.summaryText?.takeIf { it.isNotBlank() }
+                    }.getOrNull()
+                }
                 val ctx = com.detailline.callfollowcrm.ai.RefineContext(
                     recentMessages = history,
                     ownerToneSamples = tone,
                     customerName = c?.name,
-                    customerMemo = c?.memo?.takeIf { it.isNotBlank() }
+                    customerMemo = c?.memo?.takeIf { it.isNotBlank() },
+                    callSummary = recentCall
                 )
                 val result = container.refineRepository.refine(rawBody, ctx)
                 result.fold(

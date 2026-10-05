@@ -15247,6 +15247,7 @@ class RefineRequest(BaseModel):
     phone: Optional[str] = None        # legacy — 무엇이 들어왔는지 모호. owner_phone 우선 사용.
     owner_phone: Optional[str] = None  # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone.
     ownerTrade: Optional[str] = None   # 추가50 (2026-06-21) — 앱 onboarding 업종 (저장용)
+    call_summary: Optional[str] = None  # 2026-10-06 사장님 — 이 고객 가장 최근 통화 요약. 통화 내용까지 반영해 다듬기.
 
 
 def _build_refine_system_prompt(owner_tone_samples: list[str]) -> str:
@@ -15344,11 +15345,20 @@ def _build_refine_user_message(req: RefineRequest) -> str:
                 lines.append(f"({role_ko}): {body}")
         lines.append("")
 
+    # 📞 가장 최근 통화 요약 (있으면) — 2026-10-06 사장님.
+    #   통화로 상담해 놓고 문자는 손으로 대충 치는 사장님이, 다듬기를 누르면
+    #   AI 가 통화 내용까지 이해하고 다듬게 하는 재료. 원문 바로 위에 둬서 가장 가깝게 참고하게.
+    call = (req.call_summary or "").strip()
+    if call:
+        lines.append("[방금/최근 통화 요약 (이 통화에서 나눈 내용이다 — 원문을 이 맥락에 맞게 다듬어라)]")
+        lines.append(call)
+        lines.append("")
+
     # 다듬을 원문
     lines.append("[다듬을 원문]")
     lines.append(req.raw)
     lines.append("")
-    lines.append("위 원문을 위 흐름과 사장님 톤에 맞게 자연스럽게 다듬어, 한 줄로만 답하라.")
+    lines.append("위 원문을 위 흐름·통화 내용·사장님 톤에 맞게 자연스럽게 다듬어, 한 줄로만 답하라.")
     return "\n".join(lines)
 
 

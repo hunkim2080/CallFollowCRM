@@ -45,5 +45,12 @@ data class RefineContext(
     val recentMessages: List<HistoryMessage> = emptyList(),
     val ownerToneSamples: List<String> = emptyList(),
     val customerName: String? = null,
-    val customerMemo: String? = null
+    val customerMemo: String? = null,
+    /**
+     * 이 고객의 **가장 최근 통화 요약** (summaryText). null/빈값이면 안 보냄.
+     *   통화로 상담해 놓고 문자는 손으로 대충 치는 사장님이, 다듬기를 누르면
+     *   AI 가 **통화 내용까지 이해하고** 다듬게 하려는 재료. (2026-10-06 사장님)
+     *   UI 변화 없음 — 다듬기 결과만 똑똑해진다.
+     */
+    val callSummary: String? = null
 )

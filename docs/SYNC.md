@@ -13759,3 +13759,12 @@ Fable 🧹3. 사장님 "고고"
 - 원인: 송도 사장님(01075560517) 옛 빌드 + 서버 AUTH_ENFORCE(10/3~) → 채팅의 병렬 401 들이 각각 재로그인 신호 → 15초에 signup 12번. 서버 실데이터(auth_codes 비어있음=OTP 0건)로 확정.
 - 폰 확인: 못 봄 (코드/빌드만 — assembleRelease BUILD=0, 가드 7종 통과). 실기는 다음 설치 때.
 - 다음 액션 (사장님): 송도 사장님 직접 도와 앱 업데이트 + 전화 인증 1회 = 영구 해결. '부드러운 로그인' 재설계는 출시 전 숙제.
+
+## 2026-10-06 02:10 · android (+ server)
+다듬기 ✨ 에 '가장 최근 통화 요약'을 재료로 추가 — 통화로 상담하고 문자는 손으로 치는 사장님이
+다듬기 누르면 통화 내용까지 반영해 다듬게. UI 변화 없음(결과만 똑똑).
+- 변경(앱): RefineContext.callSummary 칸 추가 · ChatViewModel 이 callSummaryRepository.listByCustomer(최신순).first().summaryText 를 넣음 · RemoteRefineRepository 가 call_summary 로 전송.
+- 변경(서버): RefineRequest.call_summary(Optional[str]) 추가 · _build_refine_user_message 가 원문 바로 위에 "[최근 통화 요약]" 섹션 주입.
+- ⚠️ **서버 배포 전엔 무효** — 라이브 서버가 call_summary 를 모르면 pydantic 이 조용히 버림(앱은 보내지만 효과 0). 사장님이 배포 시키면 GOTCHAS §3 로 /api/refine 만 올리고 smoke.sh.
+- 폰 확인: 못 봄 (assembleRelease BUILD=0 · 가드 7종 통과 · py_compile OK). 실기는 서버 배포 후.
+- 다음 액션 (사장님): 서버 배포 ㄱ 하면 올림 → 그 뒤 테스트폰에서 통화 있는 고객에 대충 써보고 다듬기 확인.

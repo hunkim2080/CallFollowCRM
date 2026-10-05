@@ -68,6 +68,8 @@ class RemoteRefineRepository(
                     })
                     if (context.customerName != null) put("customer_name", context.customerName)
                     if (context.customerMemo != null) put("customer_memo", context.customerMemo)
+                    // 📞 가장 최근 통화 요약 — 서버가 다듬기 프롬프트에 녹인다. 빈값이면 안 보냄. (2026-10-06 사장님)
+                    context.callSummary?.takeIf { it.isNotBlank() }?.let { put("call_summary", it) }
                 }
                 val req = Request.Builder()
                     .url("$baseUrl/api/refine")
