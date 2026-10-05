@@ -13614,3 +13614,14 @@ Fable 🧹3. 사장님 "고고"
 - 검증: smoke.sh **10/10**. 종단 — Bearer(맞음)200 · ?token(맞음)200 · Bearer(틀림)303 · 무인증303. 토큰은 출력 안 함.
 - 폰 확인: 서버 변경이라 해당 없음.
 - 다음 액션(cowork/브리핑 봇): 봇은 지금 설정 그대로 두면 됨 — 다음 아침 브리핑부터 통과.
+
+## 2026-10-05 10:15 · android (+ server)
+🔒 페이블 보안감사 → **값싼 것부터(옛 앱 안 깨짐) 라이브 배포**. SQL injection·CORS·파일서빙·XSS·비밀키노출 = 전부 clean 확인. 구멍은 전부 "인증 아직 안 건 경로" 한 뿌리.
+- 🔑 **중요: 라이브는 AUTH_ENFORCE=1 이 이미 켜져 있다**(plist). 즉 `_AUTH_PROTECT_PREFIXES` 에 든 길은 이미 토큰 없으면 401. 진짜 구멍은 **목록에서 빠진** 길들.
+- 🔴 #1 **app-backup = 번호만으로 앱 통째 다운로드**(고객·돈·주소·메모) — 보호목록에 없었다. → `/api/app-backup`·`/api/shared/monthly` 를 `_AUTH_PROTECT_PREFIXES` 에 추가. 앱은 둘 다 Net.builder 로 Bearer 동봉 → 안 깨짐. **검증: 익명 401 · 토큰 본인 200**.
+- 🟡 #2 **전 회원 접수서 덤프** — `quote/submissions`·`intake-form/list` 를 필터(devicePhone/owner_phone) 없이 부르면 WHERE 가 비어 모든 회원 것 반환. → `request is not None and not (필터)` 가드(외부 HTTP 만). **서버 자가점검(in-process, request=None)은 그대로 통과** → deep-health 안 깨짐.
+- 🟡 #10 `diagnostics/report`(인증X, 5MB 디스크쓰기+슬랙) · #11 `owner/exists`(번호 찍어 명단 긁기) → 공용 `_ip_day_quota(ip,bucket,limit)` 하나로 IP 일일 제한(diag 30·exists 300). owner/exists 는 앱 호출부 0곳.
+- 변경(server, 라이브+repo 동일, main.py +48/-2): `_ip_day_quota` 헬퍼 1개 + 가드 4곳 + 보호목록 2줄. §3 절차(scp→py_compile→백업 bak-20261005-101231 등→kickstart). smoke **10/10**.
+- 폰 확인: 서버 변경이라 해당 없음. 앱은 이미 Bearer 동봉(Net.builder) 이라 무변경.
+- ⚠️ **남은 숙제(2단계, 홍보 전 필수)**: #6 POST body 가 세션에 안 묶임(`_session_phone_from_header` 가 미들웨어에만) → 로그인한 사람이 남 이름으로 행동 가능(push/register·team/invite·shared/* POST). #3 team/invite 기존 토큰 반환. #4 push 가로채기. #7 유료 LLM 무인증(phone 비우면 화이트리스트 통과). #8 web studio SSRF. #9 ADMIN_TOKEN localStorage. #12 expo contract secret 선택적.
+- 다음 액션(cowork): 위 2단계는 앱이 모든 owner-scoped POST 에 세션 바인딩 배포 후 서버가 body phone==token 강제. 분담 필요.

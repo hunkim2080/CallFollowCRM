@@ -6080,6 +6080,10 @@ _AUTH_PROTECT_PREFIXES = (
     "/api/team/", "/api/quote/submissions", "/api/quote/issue",
     "/api/intake-form/status", "/api/intake-form/list", "/api/intake-form/issue",
     "/api/site-photos", "/api/labor/history",
+    # 🔒 보안감사 2026-10-05 (페이블) — 빠져 있던 민감 경로. AUTH_ENFORCE=1 이라 즉시 효력.
+    #   app-backup = 번호만으로 앱 통째 다운로드(크라운 주얼) · shared/monthly = 월 수입/지출 유출.
+    #   앱은 둘 다 Net.builder 로 Bearer 동봉 → 안 깨짐. 익명 401 · 교차소유 403.
+    "/api/app-backup", "/api/shared/monthly",
     "/api/mirror/shares", "/api/mirror/snapshot", "/api/mirror/mycode",
     "/api/mirror/respond", "/api/mirror/disconnect",
     "/api/push/register", "/api/owner-tone/",
@@ -17220,11 +17224,14 @@ _SHARED_SITES_COLS = (
 # 가입 사장 디렉터리 확인 (인앱/링크 분기용)
 
 @app.get("/api/owner/exists")
-async def shared_owner_exists(phone: str) -> dict:
+async def shared_owner_exists(phone: str, request: Request) -> dict:
     """phone 이 가입 사장이면 {registered: true, name}, 아니면 {registered: false}."""
     phone_digits = _norm_phone(phone)
     if not phone_digits:
         raise HTTPException(400, "phone 필수")
+    # 🔒 번호를 찍어 가입자 명단을 긁어모으는 것 둔화. 앱은 이 길을 더 안 부른다(호출부 0곳).
+    if not _ip_day_quota(_client_ip(request), "exists", 300):
+        raise HTTPException(429, "요청이 많아요. 잠시 뒤 다시 시도해 주세요")
     name = _is_registered_owner(phone_digits)
     if name:
         return {"registered": True, "name": name}
@@ -20321,8 +20328,12 @@ async def intake_form_list(
     device_id: Optional[str] = None,
     owner_phone: Optional[str] = None,
     limit: int = 30,
+    request: Request = None,
 ) -> dict:
     """사장님 발급한 전체 목록 (관리용). device_id 또는 owner_phone 으로 필터."""
+    # 🔒 외부 HTTP 가 필터 없이 부르면 거부 — 없으면 모든 회원 것까지 나간다(IDOR). 앱은 이 길을 안 부른다.
+    if request is not None and not (device_id or owner_phone):
+        raise HTTPException(400, "device_id 또는 owner_phone 이 필요해요")
     limit = max(1, min(limit, 200))
     where_parts: list[str] = []
     params: list = []
@@ -22093,6 +22104,7 @@ async def quote_submissions_list(
     deviceId: Optional[str] = None,
     sinceMs: int = 0,
     limit: int = 50,
+    request: Request = None,
 ) -> dict:
     """사장님 폴링 — 발급한 접수서들 최신순. 제출됨 + 미제출 모두 포함.
 
@@ -22100,6 +22112,10 @@ async def quote_submissions_list(
                     submittedAtMs|null, payload|null, total, workMonth, workDay, workDays,
                     biz, url}]}
     """
+    # 🔒 외부 HTTP 가 필터 없이 부르면 거부 — 없으면 WHERE 가 비어 모든 회원 접수서가 나간다(IDOR).
+    #    앱은 항상 devicePhone 동봉. 서버 자가점검(in-process)은 request=None → 통과.
+    if request is not None and not (devicePhone or deviceId):
+        raise HTTPException(400, "devicePhone 또는 deviceId 가 필요해요")
     # 추가47 (2026-06-21) — 옛 빌드도 last_seen 잡힘. devicePhone = 사장님 본인 phone.
     _touch_beta_whitelist(devicePhone)
     limit = max(1, min(limit, 200))
@@ -25351,6 +25367,33 @@ def _client_ip(request) -> str:
     return (h.get("cf-connecting-ip")
             or h.get("x-forwarded-for", "").split(",")[0].strip()
             or (request.client.host if request.client else "")) or "?"
+
+
+def _ip_day_quota(ip: str, bucket: str, limit: int) -> bool:
+    """IP+날짜+용도별 일일 횟수 제한. 한도 안이면 True(허용)에 +1, 넘으면 False.
+    실패하면 True — 제한이 본 기능을 죽이면 안 된다(best-effort). 익명 덧퍼·열거 둘림용."""
+    try:
+        today = _dt.datetime.fromtimestamp(_now_ms() / 1000, tz=_KST).strftime("%Y-%m-%d")
+        with db_conn() as con:
+            con.execute(
+                "CREATE TABLE IF NOT EXISTS ip_day_quota ("
+                " ip TEXT, day TEXT, bucket TEXT, n INTEGER NOT NULL DEFAULT 0,"
+                " PRIMARY KEY(ip, day, bucket))"
+            )
+            row = con.execute(
+                "SELECT n FROM ip_day_quota WHERE ip=? AND day=? AND bucket=?",
+                (ip, today, bucket)).fetchone()
+            if row and row[0] >= limit:
+                con.commit()
+                return False
+            con.execute(
+                "INSERT INTO ip_day_quota (ip, day, bucket, n) VALUES (?,?,?,1) "
+                "ON CONFLICT(ip, day, bucket) DO UPDATE SET n = n + 1",
+                (ip, today, bucket))
+            con.commit()
+        return True
+    except Exception:
+        return True
 
 
 @app.post("/api/auth/request-code")
@@ -30161,11 +30204,14 @@ class DiagnosticsReport(BaseModel):
 
 
 @app.post("/api/diagnostics/report")
-async def diagnostics_report(req: DiagnosticsReport) -> dict:
+async def diagnostics_report(req: DiagnosticsReport, request: Request) -> dict:
     """앱 [문제 신고 보내기] → 서버 직송 저장 + 슬랙 캐치 알림. 빈 report 400."""
     report = (req.report or "").strip()
     if not report:
         raise HTTPException(400, "report 필요")
+    # 🔒 인증 없는 길 — 한 IP 가 하루 30번까지만(5MB×N 디스크·슬랙 폭주 차단). 진짜 신고는 몇 번이면 끝.
+    if not _ip_day_quota(_client_ip(request), "diag", 30):
+        raise HTTPException(429, "신고가 많아 잠시 뒤 다시 시도해 주세요")
     now = _now_ms()
     image_path = None
     # 첨부 이미지(선택) → 디스크 저장 (base64 는 DB 에 안 넣음)
