@@ -28,6 +28,10 @@ interface ScheduledSmsDao {
     @Query("SELECT COUNT(*) FROM scheduled_sms WHERE status = 'pending'")
     fun observePendingCount(): Flow<Int>
 
+    /** 이 번호의 대기 예약 — 대화창에 '발송 대기' 말풍선으로 보여주려고. (이른 시각 먼저) */
+    @Query("SELECT * FROM scheduled_sms WHERE status = 'pending' AND phoneNumber = :phone ORDER BY sendAtMs ASC")
+    fun observePendingForPhone(phone: String): Flow<List<ScheduledSmsEntity>>
+
     /** 시각 수정(사장님이 예약함에서 시간 바꿈). pending 일 때만. */
     @Query("UPDATE scheduled_sms SET sendAtMs = :sendAtMs WHERE id = :id AND status = 'pending'")
     suspend fun updateSendAt(id: Long, sendAtMs: Long)

@@ -1391,6 +1391,17 @@ class ChatViewModel(
      * 🕐 예약 발송 — 지금 쓴 글·사진을 [sendAtMs] 에 자동으로 보낸다. (저장 실패는 조용히 안 넘기고 토스트, §13①)
      *   실제 발송은 ScheduledSmsSender, 알림은 ScheduledSmsScheduler 가 한다.
      */
+    /** 이 번호의 대기 예약 — 대화창에 '발송 대기' 회색 말풍선으로 보여준다. (2026-10-05 사장님) */
+    val scheduledPending: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.ScheduledSmsEntity>> =
+        container.scheduledSmsRepository.observePendingForPhone(phoneNumber)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 대화창에서 예약 취소. */
+    fun cancelScheduledSms(id: Long) = viewModelScope.launch {
+        container.scheduledSmsRepository.cancel(id)
+        _toast.value = "예약을 취소했어요"
+    }
+
     fun scheduleSms(body: String, photos: List<android.net.Uri>, sendAtMs: Long, onDone: (Boolean) -> Unit) {
         if (phoneNumber.isBlank()) { _toast.value = "고객 번호가 없어요"; onDone(false); return }
         if (body.isBlank() && photos.isEmpty()) { _toast.value = "보낼 내용이 없어요"; onDone(false); return }

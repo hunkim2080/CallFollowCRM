@@ -258,6 +258,9 @@ fun ChatScreen(
     val customer by viewModel.customer.collectAsState()
     val chatCategory by viewModel.category.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    // 🕐 이 번호의 예약 대기 문자 — 대화 맨 아래 회색 '발송 대기' 말풍선으로. (2026-10-05 사장님)
+    val scheduledPending by viewModel.scheduledPending.collectAsState()
+    var scheduledCancelId by remember { mutableStateOf<Long?>(null) }
     // 통화 구간 — 메시지와 시간순 병합해 타임라인에 통화 카드로 표시 (loadMessages 무손상, 렌더 레이어 병합).
     val callRecords by viewModel.callRecords.collectAsState()
     // 시공접수서 제출 이벤트 — 통화처럼 타임라인에 카드로 병합.
@@ -896,6 +899,16 @@ fun ChatScreen(
                 contentPadding = PaddingValues(top = 6.dp, bottom = 10.dp),
                 state = listState
             ) {
+                // 🕐 예약 대기 문자 — 맨 아래(입력칸 바로 위). reverseLayout 이라 먼저 선언 = 맨 아래.
+                //   시각이 되면 자동 발송 → 평범한 보낸(파랑) 말풍선으로 바뀐다(목록에서 빠지고 messages 에 들어옴).
+                items(scheduledPending, key = { "sched-${it.id}" }) { row ->
+                    ScheduledPendingBubble(
+                        sendAtMs = row.sendAtMs,
+                        body = row.body,
+                        photoCount = row.photoUriList().size,
+                        onCancel = { scheduledCancelId = row.id }
+                    )
+                }
                 if (timelineItems.isEmpty()) {
                     item {
                         Box(
@@ -1320,6 +1333,27 @@ fun ChatScreen(
                         val label = android.text.format.DateFormat.format("M월 d일 a h시 m분", cal).toString()
                         android.widget.Toast.makeText(context, "$label 에 보낼게요", android.widget.Toast.LENGTH_LONG).show()
                     }
+                }
+            }
+        )
+    }
+
+    // 🕐 예약 취소 확인 — 대기 말풍선의 [예약 취소]. 실수로 사라지지 않게 한 번 더 묻는다.
+    scheduledCancelId?.let { id ->
+        androidx.compose.material3.AlertDialog(
+            tonalElevation = 0.dp,
+            containerColor = Color.White,
+            onDismissRequest = { scheduledCancelId = null },
+            title = { Text("이 예약을 취소할까요?", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text("취소하면 이 문자는 보내지지 않아요.", color = TossTextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.cancelScheduledSms(id); scheduledCancelId = null }) {
+                    Text("예약 취소", color = TossError, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { scheduledCancelId = null }) {
+                    Text("그대로 두기", color = TossTextSecondary)
                 }
             }
         )

@@ -16,6 +16,8 @@ class ScheduledSmsRepository(
 ) {
     fun observePending(): Flow<List<ScheduledSmsEntity>> = dao.observePending()
     fun observePendingCount(): Flow<Int> = dao.observePendingCount()
+    /** 이 번호의 대기 예약 — 대화창 '발송 대기' 말풍선용. */
+    fun observePendingForPhone(phone: String): Flow<List<ScheduledSmsEntity>> = dao.observePendingForPhone(phone)
 
     suspend fun getById(id: Long): ScheduledSmsEntity? = dao.getById(id)
 

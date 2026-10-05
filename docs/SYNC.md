@@ -13719,3 +13719,10 @@ Fable 🧹3. 사장님 "고고"
 - 배포: GOTCHAS §3 (scp→패치스크립트 3곳만→py_compile→백업 main.py.bak-20261005-193253→swap→kickstart→smoke 10/10 ✅). 라이브==repo 유지.
 - 앱: 「보낼까요?」 시트 편집칸 중첩 verticalScroll 제거(바깥 Column 스크롤 하나로) → 커서 따라가기·스크롤 복구. 커밋 ec568bf9. 테스트폰 설치.
 - 폰 확인: 서버 smoke 10/10. 앱 UX는 S9 screencap 블랭크라 사장님 눈확인 필요.
+
+## 2026-10-05 21:40 · android
+🕐 예약 문자 챗 말풍선 + 공용 시트 틀(AppSheet). (사장님 "딱좋아" 프로토 승인 후)
+- 예약하면 대화 맨 아래 **회색 '발송 대기' 말풍선(주황 점선) + "N시 발송 예정" + [예약취소]**(ChatSmallParts.ScheduledPendingBubble). 시각되면 ScheduledSmsSender 가 보내 평범한 파랑으로. ChatViewModel.scheduledPending(번호별)/cancelScheduledSms. DAO observePendingForPhone(스키마 변경 X).
+- 공용 AppSheet(스크림+카드+그랩+keyboardOrNavPadding+스크롤 내장) 신설 → ScheduleTimeSheet·ScheduledSmsSheet 이관(시트 네비바/키보드/스크롤 버그 재발 구조 차단). §12 표 등록.
+- 앞선 수정들: 보내기창 키패드(키보드 안 내려감)·시각 시트 프로토 1:1.
+- 폰 확인: 테스트폰 실기 전체 흐름(예약→대기말풍선→취소확인→취소됨) 눈으로 확인. 가드 통과(dup가 startOfDay 두벌 잡아 DateTimeUtils로 교체, style 기준선 +5 갱신).

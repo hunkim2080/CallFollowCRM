@@ -165,6 +165,10 @@ import com.detailline.callfollowcrm.domain.model.TemplateCategory
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.shadow
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -629,3 +633,79 @@ internal fun SendPhotoThumbs(photos: List<android.net.Uri>, onPhotoTap: (Int) ->
     }
 }
 
+
+/** 예약 발송 예정 라벨 — "내일 오전 9시 발송 예정". (오늘/내일/모레 아니면 M/d) */
+private fun scheduledSendLabel(ms: Long): String {
+    // 오늘 0시는 공용 한 곳에서(두 벌 금지 §12).
+    val today0 = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+    val target0 = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(ms)
+    val t = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+    val days = ((target0 - today0) / com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS).toInt()
+    val dayStr = when (days) {
+        0 -> "오늘"; 1 -> "내일"; 2 -> "모레"
+        else -> "${t.get(java.util.Calendar.MONTH) + 1}/${t.get(java.util.Calendar.DAY_OF_MONTH)}"
+    }
+    val h = t.get(java.util.Calendar.HOUR_OF_DAY); val mi = t.get(java.util.Calendar.MINUTE)
+    val ampm = if (h < 12) "오전" else "오후"
+    val h12 = when { h == 0 -> 12; h > 12 -> h - 12; else -> h }
+    val timeStr = if (mi == 0) "$ampm ${h12}시" else "$ampm ${h12}시 ${mi}분"
+    return "$dayStr $timeStr 발송 예정"
+}
+
+/**
+ * 🕐 예약 '발송 대기' 말풍선 — 아직 안 보낸 **회색 말풍선(주황 점선)** + 발송 예정 시간 + [예약 취소].
+ *   보낸 문자처럼 **우측 정렬**, 보낸(파랑)·받은(흰색)과 색으로 구분. (2026-10-05 사장님, 프로토 33Vh3bnV)
+ *   시각이 되면 ScheduledSmsSender 가 보내고 평범한 파랑 말풍선으로 바뀐다.
+ */
+@Composable
+internal fun ScheduledPendingBubble(
+    sendAtMs: Long,
+    body: String,
+    photoCount: Int,
+    onCancel: () -> Unit
+) {
+    val amber = AppTheme.colors.caution
+    val shape = RoundedCornerShape(topStart = 19.dp, topEnd = 19.dp, bottomStart = 19.dp, bottomEnd = 6.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.End
+    ) {
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Schedule, contentDescription = null, tint = amber, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(3.dp))
+                Text(scheduledSendLabel(sendAtMs), color = AppTheme.colors.cautionText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            Box(
+                Modifier.clip(AppShape.sm).clickable { onCancel() }
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) { Text("예약 취소", color = AppTheme.colors.unpaid, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+        }
+        Spacer(Modifier.width(6.dp))
+        Box(
+            Modifier.widthIn(max = 280.dp)
+                .clip(shape).background(TossGrayBg)
+                .drawBehind {
+                    val outline = shape.createOutline(size, layoutDirection, this)
+                    val p = Path()
+                    when (outline) {
+                        is Outline.Rounded -> p.addRoundRect(outline.roundRect)
+                        is Outline.Rectangle -> p.addRect(outline.rect)
+                        is Outline.Generic -> p.addPath(outline.path)
+                    }
+                    drawPath(p, amber, style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 7f))))
+                }
+                .padding(horizontal = 14.dp, vertical = 11.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (photoCount > 0) {
+                    Text("[사진 ${photoCount}장]", color = AppTheme.colors.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                if (body.isNotBlank()) {
+                    Text(body, color = AppTheme.colors.text, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
