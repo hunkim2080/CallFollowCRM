@@ -124,13 +124,18 @@ class CalendarApi(private val client: OkHttpClient) {
         }
     }
 
+    /** 우리 앱이 만든 캘린더 이벤트 한 건의 식별 정보. 고아 청소가 '내 폰/내 고객 것만' 가리는 데 쓴다. */
+    data class AppCalEvent(val id: String, val deviceId: String, val customerId: String)
+
     /**
-     * 🧹 **이 앱(sigongmagne)이 만든 이벤트들의 id 전부.** 고아 청소용. (2026-10-06 사장님)
+     * 🧹 **이 앱(sigongmagne)이 만든 이벤트들 전부 (식별정보 포함).** 고아 청소용. (2026-10-06 사장님)
      *   `privateExtendedProperty=app=sigongmagne` 로 **우리가 만든 것만** 추려 받는다 —
      *   사장님이 손으로 만든 일정·다른 앱 일정은 애초에 목록에 안 들어온다.
+     *   각 건의 **deviceId(어느 폰이 만들었나)·customerId** 를 같이 돌려줘, 같은 계정을 쓰는
+     *   다른 폰의 일정을 실수로 안 지우게 한다.
      */
-    suspend fun listAppEventIds(token: String, calendarId: String): List<String> {
-        val out = mutableListOf<String>()
+    suspend fun listAppEvents(token: String, calendarId: String): List<AppCalEvent> {
+        val out = mutableListOf<AppCalEvent>()
         var pageToken: String? = null
         do {
             val url = "$base/calendars/${enc(calendarId)}/events" +
@@ -140,7 +145,17 @@ class CalendarApi(private val client: OkHttpClient) {
             val json = JSONObject(exec(authed(token, url).get().build()))
             val items = json.optJSONArray("items") ?: JSONArray()
             for (i in 0 until items.length()) {
-                items.getJSONObject(i).optString("id", "").takeIf { it.isNotEmpty() }?.let { out.add(it) }
+                val it = items.getJSONObject(i)
+                val id = it.optString("id", "")
+                if (id.isEmpty()) continue
+                val priv = it.optJSONObject("extendedProperties")?.optJSONObject("private")
+                out.add(
+                    AppCalEvent(
+                        id = id,
+                        deviceId = priv?.optString("deviceId", "").orEmpty(),
+                        customerId = priv?.optString("customerId", "").orEmpty()
+                    )
+                )
             }
             pageToken = json.optString("nextPageToken", "").ifEmpty { null }
         } while (pageToken != null)

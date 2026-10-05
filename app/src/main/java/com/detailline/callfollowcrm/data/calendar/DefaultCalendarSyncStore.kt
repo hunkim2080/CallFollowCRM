@@ -164,6 +164,13 @@ class DefaultCalendarSyncStore(
         return ids
     }
 
+    /** 이 폰의 도장. (2026-10-06 사장님 — 같은 계정 폰 둘이 한 달력 쓸 때 서로 안 지우게) */
+    override suspend fun thisDeviceId(): String = runCatching { prefs.deviceId }.getOrDefault("")
+
+    /** 이 앱이 가진 고객 id 전부. 보기 전용 폰은 비어 옛 일정도 안 건드린다. */
+    override suspend fun ownedCustomerIds(): Set<String> =
+        runCatching { customerDao.allOnce().mapTo(mutableSetOf()) { it.id.toString() } }.getOrDefault(emptySet())
+
     override suspend fun scheduledCustomers(): List<CustomerEntity> =
         customerDao.allOnce().filter {
             it.scheduledWorkDate != null || it.asScheduledDate != null ||

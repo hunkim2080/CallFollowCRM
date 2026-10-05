@@ -54,6 +54,19 @@ interface CalendarSyncStore {
     suspend fun allTrackedEventIds(): Set<String> = emptySet()
 
     /**
+     * 📱 **이 폰의 도장(deviceId).** 고아 청소가 '내 폰이 만든 것'만 지우게 하는 열쇠. (2026-10-06 사장님)
+     *   ⚠️ 같은 구글 계정을 폰 둘이 쓰면(일상폰+업무폰) **달력이 한 개**다. 도장이 없으면
+     *      한 폰에서 청소를 누를 때 **다른 폰이 올린 일정을 전부 고아로 보고 지운다**(실제 위험).
+     */
+    suspend fun thisDeviceId(): String = ""
+
+    /**
+     * 이 앱이 가진 고객 id 전부(문자열). 도장 없는 **옛 일정**은 "내가 이 고객을 갖고 있나"로만 청소 판단.
+     *   보기 전용 폰(고객이 없음)은 이게 비어 옛 일정도 안 건드린다.
+     */
+    suspend fun ownedCustomerIds(): Set<String> = emptySet()
+
+    /**
      * 마지막으로 구글에 올린 **내용의 지문**. 같으면 다시 안 올린다.
      *
      * 🔴 왜 (2026-09-16 사장님 "구글캘린더 연결이 왜 자꾸 실패하지?"):
@@ -112,11 +125,30 @@ class CalendarSyncManager(
 
         /**
          * 🧹 **지울 고아 id 를 고른다.** 우리 앱 이벤트 중 앱이 더는 가리키지 않는 것. (2026-10-06 사장님)
+         *
+         *   ⚠️ **같은 구글 계정을 폰 둘이 쓰면 달력이 한 개**다(사장님 일상폰 2080 + 업무폰 0131).
+         *      그래서 "내가 안 가리킨다"만으로 지우면, 보기 전용 폰에서 청소를 누를 때
+         *      **다른 폰이 올린 일정을 전부 지운다.** 그걸 막으려고 두 겹으로 가린다:
+         *      · 도장(deviceId)이 있는 일정 → **내 폰 도장일 때만** 지운다(다른 폰 것 절대 안 건드림).
+         *      · 도장이 없는 **옛 일정** → **내가 그 고객을 갖고 있을 때만** 지운다(보기 전용 폰은 고객이 없어 안 지움).
          *   🛡️ **tracked 가 비면 빈 목록** — DB 를 못 읽었을 때 전체삭제를 막는 안전핀.
          *   순수 함수라 [CalendarOrphanSweepTest] 로 고정한다(실제 달력을 지우는 판단이라 특히).
          */
-        internal fun orphanEventIds(appEventIds: List<String>, tracked: Set<String>): List<String> =
-            if (tracked.isEmpty()) emptyList() else appEventIds.filter { it !in tracked }
+        internal fun orphanEventIds(
+            events: List<CalendarApi.AppCalEvent>,
+            myDeviceId: String,
+            tracked: Set<String>,
+            ownedCustomerIds: Set<String>
+        ): List<String> {
+            if (tracked.isEmpty()) return emptyList()
+            return events.filter { e ->
+                when {
+                    e.id in tracked -> false                               // 내가 지금 가리키는 = 산 것
+                    e.deviceId.isNotBlank() -> e.deviceId == myDeviceId     // 도장: 내 폰 고아만
+                    else -> e.customerId.isNotBlank() && e.customerId in ownedCustomerIds  // 옛것: 내 고객만
+                }
+            }.map { it.id }
+        }
     }
 
     private val calMutex = Mutex()
@@ -233,10 +265,12 @@ class CalendarSyncManager(
     private suspend fun sweepOrphans(token: String, cal: String): Int {
         val tracked = runCatching { store.allTrackedEventIds() }.getOrDefault(emptySet())
         if (tracked.isEmpty()) return 0   // 🛡️ 전체삭제 방지 (순수판단은 orphanEventIds 가 또 한 번 막는다)
-        val appEvents = runCatching { api.listAppEventIds(token, cal) }.getOrDefault(emptyList())
+        val myDevice = runCatching { store.thisDeviceId() }.getOrDefault("")
+        val owned = runCatching { store.ownedCustomerIds() }.getOrDefault(emptySet())
+        val events = runCatching { api.listAppEvents(token, cal) }.getOrDefault(emptyList())
         var n = 0
-        for (ev in orphanEventIds(appEvents, tracked)) {
-            runCatching { api.deleteEvent(token, cal, ev) }.onSuccess { n++ }
+        for (id in orphanEventIds(events, myDevice, tracked, owned)) {
+            runCatching { api.deleteEvent(token, cal, id) }.onSuccess { n++ }
         }
         return n
     }
@@ -265,6 +299,11 @@ class CalendarSyncManager(
                 JSONObject().put(
                     "private",
                     JSONObject().put("app", "sigongmagne").put("simpleId", e.id.toString()).put("type", "simple")
+                        // 📱 어느 폰이 만들었나 — 고아 청소 안전용. (2026-10-06 사장님)
+                        .apply {
+                            val dev = runCatching { store.thisDeviceId() }.getOrDefault("")
+                            if (dev.isNotBlank()) put("deviceId", dev)
+                        }
                 )
             )
         }
@@ -321,7 +360,7 @@ class CalendarSyncManager(
         val existing = store.eventId(c.id, type, jobId)
         // 접수서/견적에 있는 시공 내용·주소·고객 메모까지 본문에 채운다. 못 가져와도 그냥 진행.
         val detail = runCatching { store.workDetail(c) }.getOrNull()
-        val event = buildEvent(c, type, detail)
+        val event = buildEvent(c, type, detail, runCatching { store.thisDeviceId() }.getOrDefault(""))
 
         if (event == null) {
             // 일정이 사라짐 → 있던 이벤트 삭제
@@ -374,7 +413,7 @@ class CalendarSyncManager(
 
     // ── 고객 → 이벤트 JSON ───────────────────────────────────
     /** 해당 종류의 일정이 없으면 null. */
-    private fun buildEvent(c: CustomerEntity, type: ScheduleType, detail: WorkDetail? = null): JSONObject? {
+    private fun buildEvent(c: CustomerEntity, type: ScheduleType, detail: WorkDetail? = null, deviceId: String = ""): JSONObject? {
         val date = if (type == ScheduleType.WORK) c.scheduledWorkDate else c.asScheduledDate
         date ?: return null
         val days = (if (type == ScheduleType.WORK) c.scheduledWorkDays else c.asScheduledDays).coerceAtLeast(1)
@@ -447,6 +486,8 @@ class CalendarSyncManager(
                         .put("app", "sigongmagne")
                         .put("customerId", c.id.toString())
                         .put("type", type.key)
+                        // 📱 어느 폰이 만들었나 — 고아 청소가 '내 폰 것만' 지우게. (2026-10-06 사장님)
+                        .apply { if (deviceId.isNotBlank()) put("deviceId", deviceId) }
                 )
             )
         }

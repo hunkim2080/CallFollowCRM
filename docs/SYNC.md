@@ -13787,3 +13787,12 @@ Fable 🧹3. 사장님 "고고"
 - 테스트: CalendarOrphanSweepTest 5개(안전핀 포함) 통과. assembleRelease BUILD=0 가드 7종.
 - 폰 확인: 못 봄(업무폰=읽기전용, 테스트폰엔 그의 캘린더 없음). 다음 설치+동기화 때 적용.
 - 수동 청소: 2080 달력 간단일정 테스트 5개 MCP로 삭제. 6674(읽기권한만)·중복은 그 폰 앱 sweep 이 정리.
+
+## 2026-10-06 03:40 · android
+🚨 캘린더 고아청소 '같은 계정 폰 둘' 위험 수정 (사장님이 잡음: "2080에서 동기화 누르면 다 날아가나?").
+- 위험: 2080 일상폰 + 0131 업무폰이 같은 구글계정(hugman2080) = 달력 한 개. 직전 sweep 은
+  내가 안 가리키는 것=고아 라, 2080 에서 청소하면 0131 이 올린 일정을 전부 지웠을 것(안전핀은 tracked 빌 때만 막음).
+- 수정: 이벤트에 deviceId 도장. sweep 은 (도장 있으면) 내 폰 것만, (도장 없는 옛것) 내 고객 것만 지움.
+  buildEvent/syncSimple 가 도장 찍음. store.thisDeviceId()/ownedCustomerIds() 추가. listAppEvents 가 deviceId/customerId 반환.
+- 테스트: CalendarOrphanSweepTest 6개(다른폰/보기전용폰 보호 포함) 통과. assembleRelease BUILD=0 가드 7종.
+- 폰 확인: 못 봄. ⚠️ 직전 업로드(upload-20261006-0628)엔 위험버전 포함 — 이 빌드로 덮어 올림. 그 전엔 2080서 동기화 금지.
