@@ -13667,3 +13667,10 @@ Fable 🧹3. 사장님 "고고"
 
 ## 2026-10-05 11:18 · android (+ server)
 🔑 admin gate 쿠키 소금값 v1→v2 교체 — 검증 중 명령 출력에 찍혔던 sm_admin 쿠키값(해시, ADMIN_TOKEN 아님) 무효화. 기존 admin 브라우저 세션 전부 재로그인 필요(?token= 한 번). 검증: 옛 쿠키값 403/303·새 로그인 200. smoke 10/10. §3(백업 bak-20261005-111644).
+
+## 2026-10-05 13:15 · android
+🖼️ 발송 확인 시트에 첨부 사진 썸네일 + 📅 일정 캘린더 날짜 가운데 정렬 (사장님 지적 2건).
+- 시트: "사진 N장 첨부" 글자만 보이던 것 → 썸네일 줄 추가(탭하면 큰사진 뷰어). SendConfirmDialog photoCount:Int → photos:List<Uri> + onPhotoTap. 썸네일 조각=ChatSmallParts.SendPhotoThumbs(§12-F 분리, 모서리=AppShape.sm 토큰). 작성칸 첨부 미리보기와 같은 AsyncImage 패턴 재사용.
+- 캘린더: CalendarDay 날짜 숫자가 왼쪽(start=3dp)이라 가운데 요일머리글과 어긋남 → align(CenterHorizontally). 띠·높이·색 그대로.
+- 빌드: assembleRelease BUILD=0, 7가드 통과. 테스트폰(23514638000c7ece) 설치·캘린더 눈으로 확인(가운데 정렬 OK). 시트 썸네일=코드/빌드 확인(폰 탭확인은 사장님).
+- 변경: 앱만. 서버 무관. 프로토 없는 안전장치 시트라 요청=스펙(전후 목업 확인받음).

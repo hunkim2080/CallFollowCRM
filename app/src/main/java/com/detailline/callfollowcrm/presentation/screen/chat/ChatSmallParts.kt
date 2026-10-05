@@ -604,3 +604,27 @@ internal fun BubbleActionRow(
         }
     }
 }
+
+/**
+ * 발송 확인 시트의 첨부 사진 썸네일 줄 — 보내기 전에 '무엇을 보내는지' 눈으로. (2026-10-05 사장님)
+ *   작성칸 첨부 미리보기와 같은 AsyncImage 패턴. 탭 → onPhotoTap(index) 로 큰사진 뷰어. 여러 장은 옆으로 스크롤.
+ */
+@androidx.compose.runtime.Composable
+internal fun SendPhotoThumbs(photos: List<android.net.Uri>, onPhotoTap: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        photos.forEachIndexed { idx, uri ->
+            AsyncImage(
+                model = uri,
+                contentDescription = "보낼 사진 ${idx + 1} — 누르면 크게",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(68.dp)
+                    .clip(AppShape.sm)
+                    .background(TossGrayBg)
+                    .clickable { onPhotoTap(idx) }
+            )
+        }
+    }
+}

@@ -996,9 +996,10 @@ private fun CalendarDay(
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
         Column(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-            // 날짜 — 작게, 왼쪽 위. 오늘만 동그라미.
+            // 날짜 — 작게 **가운데 위**(요일 머리글도 가운데라 세로로 딱 맞게). 오늘만 동그라미.
+            //   (2026-10-05 사장님: "가운데 정렬 아니였네? 어색하다" — 머리글 가운데 vs 숫자 왼쪽 불일치 해소)
             Box(
-                Modifier.padding(start = 3.dp).size(15.dp).clip(CircleShape)
+                Modifier.align(Alignment.CenterHorizontally).size(15.dp).clip(CircleShape)
                     .background(if (cell.isToday) TossBlue else Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {

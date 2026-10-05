@@ -1296,7 +1296,9 @@ fun ChatScreen(
         SendConfirmDialog(
             recipient = displayName,
             body = body,
-            photoCount = photos.size,
+            photos = photos,
+            // 썸네일 탭 → 앱에 이미 있는 큰사진 뷰어로 전체화면(작성칸 첨부와 동일). (2026-10-05 사장님)
+            onPhotoTap = { idx -> fullscreenImages = photos; fullscreenStart = idx },
             // 취소/뒤로가기해도 확인창에서 고친 본문은 입력칸에 반영 — 고친 게 날아가지 않게. (2026-09-03 사장님)
             onCancel = { edited ->
                 sendConfirm = null
@@ -4329,9 +4331,10 @@ private fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
 private fun SendConfirmDialog(
     recipient: String,
     body: String,
-    photoCount: Int,
+    photos: List<android.net.Uri>,
     onCancel: (editedBody: String) -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String) -> Unit,
+    onPhotoTap: (Int) -> Unit
 ) {
     // 확인창에서 바로 본문 수정 — 취소하고 작은 입력칸으로 안 돌아가도 됨. (2026-08-29 사장님)
     //   취소/뒤로가기 시에도 고친 본문(editBody)을 onCancel 로 돌려줘 입력칸에 반영. (2026-09-03 사장님)
@@ -4385,13 +4388,16 @@ private fun SendConfirmDialog(
                     )
                 }
             }
-            if (photoCount > 0) {
-                if (body.isNotBlank()) Spacer(Modifier.height(8.dp))
-                Text("사진 ${photoCount}장 첨부", color = TossTextSecondary, fontSize = 13.sp)
+            if (photos.isNotEmpty()) {
+                if (body.isNotBlank()) Spacer(Modifier.height(12.dp))
+                Text("사진 ${photos.size}장 첨부", color = TossTextSecondary, fontSize = 13.sp)
+                Spacer(Modifier.height(7.dp))
+                // 보내기 전에 '무엇을 보내는지' 눈으로 — 썸네일 줄은 ChatSmallParts.SendPhotoThumbs. (2026-10-05 사장님)
+                SendPhotoThumbs(photos, onPhotoTap)
             }
             Spacer(Modifier.height(18.dp))
             // sheet-cta 보내기 — 수정된 본문(editBody)으로 발송. (2026-08-29 사장님)
-            val canSend = editBody.isNotBlank() || photoCount > 0
+            val canSend = editBody.isNotBlank() || photos.isNotEmpty()
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (canSend) TossBlue else TossGrayBg)
                     .clickable(enabled = canSend) { onConfirm(editBody.trim()) }.padding(vertical = 15.dp),
