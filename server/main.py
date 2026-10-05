@@ -24980,7 +24980,7 @@ async def _tone_mine_answer(question: str, samples: list[str]) -> Optional[str]:
     )
     try:
         response = await claude_client.messages.create(
-            model=CLAUDE_MODEL,
+            model=HAIKU_MODEL,   # 톤 미리보기 예시(고객에 안 나감) → Haiku 충분. (2026-10-05)
             max_tokens=300,
             timeout=CLAUDE_TIMEOUT,
             system=[{"type": "text", "text": _TONE_MINE_SYSTEM,
@@ -26103,7 +26103,7 @@ async def extract_pricing(req: ExtractPricingRequest) -> dict:
             system_prompt=_EXTRACT_PRICING_SYSTEM,
             user_msg=user_msg,
             max_tokens=2000,
-            model=CLAUDE_MODEL,
+            model=HAIKU_MODEL,   # 가격표 추출=구조화 뽑기 → Haiku 충분(⅓값). 사장님이 결과 편집함. (2026-10-05)
         )
     except Exception as e:
         print(f"[extract-pricing] LLM 실패 device={device_id[:12]}… "
@@ -26270,7 +26270,7 @@ async def pricing_starter(req: PricingStarterRequest) -> dict:
                 system_prompt=_PRICING_STARTER_SYSTEM,
                 user_msg=user_msg,
                 max_tokens=1500,
-                model=CLAUDE_MODEL,
+                model=HAIKU_MODEL,   # 업종 스타터 가격표=일회성 뼈대(편집함) → Haiku 충분. (2026-10-05)
             )
         except Exception as e:
             print(f"[pricing/starter] LLM 실패 trade={trade} {type(e).__name__}: {e}")

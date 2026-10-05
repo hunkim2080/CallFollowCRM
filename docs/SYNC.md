@@ -13712,3 +13712,10 @@ Fable 🧹3. 사장님 "고고"
 - 빌드: assembleRelease 7가드 통과(size 기준선 갱신: AppDatabase 마이그레이션+ChatScreen SendConfirmDialog 불가피 증가). health 950시험.
 - 폰 확인: 테스트폰(23514638000c7ece) 설치·실행 → logcat "DB version upgrading 62→63" 정상·크래시0·앱 살아있음. ⚠️ S9 screencap 이 블랭크(FLAG_SECURE 아님·기기 특성)라 🕐/예약함 **실물 눈확인은 사장님이** 대화창 보내기 눌러서.
 - 알아둘 것: 사진 예약은 '시공막내'가 **기본 문자앱일 때만** 자동 발송. 아니면 글만 가고 '사진 못 갔어요' 알림.
+
+## 2026-10-05 19:35 · android (+ server)
+💸 Sonnet 과잉 3곳 → Haiku 내림 (사장님 "블로그만 유지, 나머지 다 내려"). + 보내기창 커서/스크롤 버그.
+- 서버: /extract-pricing(가격표 추출)·/pricing/starter(업종 스타터)·_tone_mine_answer(톤 미리보기) = CLAUDE_MODEL→HAIKU_MODEL. 추천답변(3059)·블로그 자동발행(default)은 Sonnet 유지. 뿌리: call_claude_json 기본값이 Sonnet이라 model 안 적으면 자동 Sonnet 되는 함정(블로그가 그 default 사용).
+- 배포: GOTCHAS §3 (scp→패치스크립트 3곳만→py_compile→백업 main.py.bak-20261005-193253→swap→kickstart→smoke 10/10 ✅). 라이브==repo 유지.
+- 앱: 「보낼까요?」 시트 편집칸 중첩 verticalScroll 제거(바깥 Column 스크롤 하나로) → 커서 따라가기·스크롤 복구. 커밋 ec568bf9. 테스트폰 설치.
+- 폰 확인: 서버 smoke 10/10. 앱 UX는 S9 screencap 블랭크라 사장님 눈확인 필요.
