@@ -154,6 +154,16 @@ class DefaultCalendarSyncStore(
         dao.update(e.copy(calendarEventId = eventId))
     }
 
+    /** 앱이 지금 가리키는 이벤트 id 전부. ⚠️ 옛 customers.workCalendarEventId 는 뺀다(§주석). (2026-10-06 사장님) */
+    override suspend fun allTrackedEventIds(): Set<String> {
+        val ids = mutableSetOf<String>()
+        fun add(s: String?) { s?.takeIf { it.isNotBlank() }?.let { ids.add(it) } }
+        runCatching { jobDao?.allOnce() }.getOrNull()?.forEach { add(it.calendarEventId) }
+        runCatching { customerDao.allOnce() }.getOrNull()?.forEach { add(it.asCalendarEventId) }
+        runCatching { simpleEventDao?.allOnce() }.getOrNull()?.forEach { add(it.calendarEventId) }
+        return ids
+    }
+
     override suspend fun scheduledCustomers(): List<CustomerEntity> =
         customerDao.allOnce().filter {
             it.scheduledWorkDate != null || it.asScheduledDate != null ||

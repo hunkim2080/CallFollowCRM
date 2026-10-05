@@ -13774,3 +13774,16 @@ Fable 🧹3. 사장님 "고고"
 - 검증: 서버 py_compile OK · smoke.sh 10/10 · POST /api/refine 200 + call_summary 반영 눈으로 확인("토욜 오전 견적 보고드림" → 통화의 화장실2곳·곰팡이·재시공·견적 녹아듦).
 - 첫 502는 Gemini 503 일시 다운(재시도 복구) — 기존 함정, 변경 무관.
 - repo == 라이브 (이 변경 한정). 폰 확인: 테스트폰 실기는 다음 설치 때(코드는 6edc1a43).
+
+## 2026-10-06 03:10 · android
+구글 캘린더 삭제 반쪽 문제 수리 (사장님 "한번 생성되면 제거가 안되고 구글에 계속 남음").
+- 원인: ① 간단일정 삭제가 로컬만 지우고 구글 이벤트는 안 지움 ② 2026-09-18 건 전환 때
+  열쇠가 고객→건으로 바뀌며 시공이 쌍둥이로 중복(옛 이벤트 고아화).
+- 변경(앱, data/calendar + ScheduleViewModel):
+  CalendarApi.listAppEventIds(app=sigongmagne 만) · DefaultCalendarSyncStore.allTrackedEventIds
+  (jobs + customers.as + simple, 옛 customers.work 제외) · CalendarSyncManager.sweepOrphans +
+  순수 orphanEventIds(companion), syncAll 끝에서 호출(tracked 비면 삭제0 안전핀) ·
+  ScheduleViewModel.deleteSimpleEvent 지우기 전 구글 이벤트도 deleteOrphanedEvents 로 제거.
+- 테스트: CalendarOrphanSweepTest 5개(안전핀 포함) 통과. assembleRelease BUILD=0 가드 7종.
+- 폰 확인: 못 봄(업무폰=읽기전용, 테스트폰엔 그의 캘린더 없음). 다음 설치+동기화 때 적용.
+- 수동 청소: 2080 달력 간단일정 테스트 5개 MCP로 삭제. 6674(읽기권한만)·중복은 그 폰 앱 sweep 이 정리.

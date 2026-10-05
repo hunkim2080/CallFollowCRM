@@ -86,6 +86,13 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     fun deleteSimpleEvent(id: Long) = viewModelScope.launch {
+        // 📅 구글 캘린더에 올렸던 이벤트도 같이 지운다 — 전엔 로컬만 지워 구글엔 유령으로 남았다. (2026-10-06 사장님)
+        //   이벤트 id 를 먼저 챙긴 뒤(로컬을 지우면 못 꺼낸다) 공용 삭제(deleteOrphanedEvents)로 구글서 제거.
+        runCatching {
+            container.simpleEventRepository.findById(id)?.calendarEventId?.takeIf { it.isNotBlank() }?.let {
+                container.calendarSyncManager.deleteOrphanedEvents(listOf(it))
+            }
+        }
         container.simpleEventRepository.delete(id)
     }
 

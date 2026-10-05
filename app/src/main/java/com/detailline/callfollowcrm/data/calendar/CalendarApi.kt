@@ -123,4 +123,27 @@ class CalendarApi(private val client: OkHttpClient) {
             if (e.code != 404 && e.code != 410) throw e
         }
     }
+
+    /**
+     * 🧹 **이 앱(sigongmagne)이 만든 이벤트들의 id 전부.** 고아 청소용. (2026-10-06 사장님)
+     *   `privateExtendedProperty=app=sigongmagne` 로 **우리가 만든 것만** 추려 받는다 —
+     *   사장님이 손으로 만든 일정·다른 앱 일정은 애초에 목록에 안 들어온다.
+     */
+    suspend fun listAppEventIds(token: String, calendarId: String): List<String> {
+        val out = mutableListOf<String>()
+        var pageToken: String? = null
+        do {
+            val url = "$base/calendars/${enc(calendarId)}/events" +
+                "?privateExtendedProperty=${enc("app=sigongmagne")}" +
+                "&showDeleted=false&maxResults=2500" +
+                (pageToken?.let { "&pageToken=${enc(it)}" } ?: "")
+            val json = JSONObject(exec(authed(token, url).get().build()))
+            val items = json.optJSONArray("items") ?: JSONArray()
+            for (i in 0 until items.length()) {
+                items.getJSONObject(i).optString("id", "").takeIf { it.isNotEmpty() }?.let { out.add(it) }
+            }
+            pageToken = json.optString("nextPageToken", "").ifEmpty { null }
+        } while (pageToken != null)
+        return out
+    }
 }

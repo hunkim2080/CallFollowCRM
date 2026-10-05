@@ -44,6 +44,16 @@ interface CalendarSyncStore {
     suspend fun setSimpleEventId(id: Long, eventId: String?)
 
     /**
+     * 🧹 **앱이 지금 가리키고 있는 구글 이벤트 id 전부.** 고아 청소(sweepOrphans)가 쓴다. (2026-10-06 사장님)
+     *   = jobs.calendarEventId + customers.asCalendarEventId + simple_events.calendarEventId.
+     *   ⚠️ **옛 customers.workCalendarEventId 는 넣지 않는다** — 시공은 2026-09-18 에 '건' 으로 옮겼고
+     *      이 칸은 그때 값이 그대로 얼어붙은 **이식 전 잔재(=중복 쌍둥이의 옛쪽)** 라서,
+     *      넣으면 정작 지워야 할 고아를 '추적 중'으로 착각해 안 지운다.
+     *   구현 안 한 곳(테스트)은 빈 집합 → sweepOrphans 가 안전상 아무것도 안 지운다.
+     */
+    suspend fun allTrackedEventIds(): Set<String> = emptySet()
+
+    /**
      * 마지막으로 구글에 올린 **내용의 지문**. 같으면 다시 안 올린다.
      *
      * 🔴 왜 (2026-09-16 사장님 "구글캘린더 연결이 왜 자꾸 실패하지?"):
@@ -99,6 +109,14 @@ class CalendarSyncManager(
          */
         internal fun canSkipUpload(existingEventId: String?, lastHash: String?, newHash: String): Boolean =
             existingEventId != null && lastHash != null && lastHash == newHash
+
+        /**
+         * 🧹 **지울 고아 id 를 고른다.** 우리 앱 이벤트 중 앱이 더는 가리키지 않는 것. (2026-10-06 사장님)
+         *   🛡️ **tracked 가 비면 빈 목록** — DB 를 못 읽었을 때 전체삭제를 막는 안전핀.
+         *   순수 함수라 [CalendarOrphanSweepTest] 로 고정한다(실제 달력을 지우는 판단이라 특히).
+         */
+        internal fun orphanEventIds(appEventIds: List<String>, tracked: Set<String>): List<String> =
+            if (tracked.isEmpty()) emptyList() else appEventIds.filter { it !in tracked }
     }
 
     private val calMutex = Mutex()
@@ -197,7 +215,30 @@ class CalendarSyncManager(
         //   앱 안에만 있으면 반쪽이라서. 제목 앞 📌 로 시공(🏗️)·A/S(🔧) 와 한눈에 구분된다. (2026-09-16)
         val simples = store.simpleEvents()
         for (e in simples) syncSimple(token, cal, e)
+        // 🧹 고아 청소 — 추적 안 하는 우리 앱 이벤트(중복 쌍둥이·지운 간단일정 잔재) 제거. (2026-10-06 사장님)
+        //   실패해도 동기화 결과엔 영향 없게 runCatching.
+        runCatching { sweepOrphans(token, cal) }
         return customers.size + simples.size
+    }
+
+    /**
+     * 🧹 **고아 이벤트 청소.** 구글에 있는 우리 앱 이벤트 중, 앱이 **더는 가리키지 않는** 것을 지운다.
+     *   - 2026-09-18 '건(件)' 전환 때 열쇠가 고객→건으로 바뀌며 생긴 **중복 쌍둥이의 옛쪽**
+     *   - 앱에서 지웠지만 구글엔 남은 **간단 일정 잔재**
+     *   (2026-10-06 사장님 "한번 생성되면 제거가 안되고 계속 구글에 남아있는 느낌")
+     *   🛡️ **추적 id 가 하나도 없으면 아무것도 안 지운다** — DB 를 못 읽었을 때 전체삭제를 막는 안전핀.
+     *   우리가 만든 것(`app=sigongmagne`)만 목록에 올라오므로 사장님이 손으로 만든 일정은 건드리지 않는다.
+     *   @return 지운 개수
+     */
+    private suspend fun sweepOrphans(token: String, cal: String): Int {
+        val tracked = runCatching { store.allTrackedEventIds() }.getOrDefault(emptySet())
+        if (tracked.isEmpty()) return 0   // 🛡️ 전체삭제 방지 (순수판단은 orphanEventIds 가 또 한 번 막는다)
+        val appEvents = runCatching { api.listAppEventIds(token, cal) }.getOrDefault(emptyList())
+        var n = 0
+        for (ev in orphanEventIds(appEvents, tracked)) {
+            runCatching { api.deleteEvent(token, cal, ev) }.onSuccess { n++ }
+        }
+        return n
     }
 
     /** 간단 일정 한 건 반영. 실패해도 조용히 넘어간다(다음 동기화에서 다시 시도). */
