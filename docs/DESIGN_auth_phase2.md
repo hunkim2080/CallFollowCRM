@@ -82,6 +82,9 @@ def _require_caller(request: Request, *allowed: Optional[str]) -> str:
 
 ## 3. 나머지 (#6 다음, 독립적)
 
+> **진행 상황 (2026-10-05):** #6 ✅ · #7 ✅일부(refine·expo/ocr/terms 비용캡) · #8 ✅ · #12 ✅ 배포·검증 완료.
+> **#9 만 남음 — 구조 결정 필요(아래).**
+
 - **#7 유료 LLM 무인증** — `_ensure_beta_whitelist(phone)` 가 phone 비면 통과. `/api/expo/ocr/*` 는 gate 아예 없음.
   fix: LLM/STT 엔드포인트에 세션 토큰 필수 + 레이트리밋을 **인증된 owner** 기준으로. (비용/문자폭탄과 같은 결)
 - **#8 web studio SSRF** — `/api/web/tone-url`·`tone-analyze` 가 임의 URL fetch(127.0.0.1·Tailnet 도달).
