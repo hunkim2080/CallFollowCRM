@@ -4392,16 +4392,16 @@ private fun SendConfirmDialog(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
                         .background(TossBlueSoft).padding(14.dp)
                 ) {
-                    // 긴 문구도 키보드에 안 가리게 — 편집칸 높이 제한 + 내부 스크롤(커서 따라 자동 스크롤).
-                    //   전엔 본문을 통째로 펼쳐 아래 줄이 키보드 뒤로 넘어가 못 만졌음. (2026-08-31 사장님 '키보드가 가림')
+                    // 편집칸은 **자체 스크롤을 두지 않는다** — 바깥 시트 Column 이 이미 verticalScroll 이라
+                    //   여기 또 verticalScroll(+heightIn)을 겹치면 **중첩 스크롤 충돌**로 ①드래그 스크롤이 안 먹고
+                    //   ②타자 칠 때 커서로 화면이 안 따라갔다(커서 bringIntoView 가 안·바깥 사이에서 꼬임).
+                    //   (2026-10-05 사장님 '커서 안 따라감·스크롤 없음'). 바깥 스크롤 하나로 통일 → 커서 따라가기 복구.
                     BasicTextField(
                         value = editBody,
                         onValueChange = { editBody = it },
                         textStyle = androidx.compose.ui.text.TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                         modifier = Modifier.fillMaxWidth()
-                            .heightIn(max = 180.dp)
-                            .verticalScroll(rememberScrollState())
                     )
                 }
             }
