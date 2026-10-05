@@ -28767,7 +28767,7 @@ async def expo_contract_submit(req: ExpoContractSubmit) -> dict:
             raise HTTPException(404, "세션 없음")
         if sess[5]:
             raise HTTPException(409, "이미 제출된 계약서입니다")
-        if req.secret and not _hmac.compare_digest(req.secret, sess[1]):
+        if not req.secret or not _hmac.compare_digest(req.secret, sess[1]):  # #12 — secret 필수
             raise HTTPException(403, "세션 검증 실패")
         if now > sess[4]:
             raise HTTPException(410, "세션이 만료되었습니다")
@@ -28982,7 +28982,7 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
     if not sess:
         return HTMLResponse(_expo_page_shell("계약서",
             "<div class=empty>계약서를 찾을 수 없습니다.<br>QR을 다시 받아주세요.</div>"), status_code=404)
-    if k and not _hmac.compare_digest(k, sess[0]):
+    if not k or not _hmac.compare_digest(k, sess[0]):  # #12 — k 필수(링크에 항상 ?k=)
         return HTMLResponse(_expo_page_shell("계약서",
             "<div class=empty>잘못된 접근입니다.</div>"), status_code=403)
     base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
@@ -29740,7 +29740,7 @@ async def expo_live_customer(req: ExpoLiveCustomer) -> dict:
     row = _expo_session_row(req.session_id)
     if not row:
         raise HTTPException(404, "세션 없음")
-    if req.k and not _hmac.compare_digest(req.k, row[1]):
+    if not req.k or not _hmac.compare_digest(req.k, row[1]):  # #12 — k 필수
         raise HTTPException(403, "세션 검증 실패")
     if row[5]:
         raise HTTPException(409, "이미 완료된 계약서입니다")
@@ -29788,7 +29788,7 @@ async def expo_live_confirm(req: ExpoLiveConfirm) -> dict:
     row = _expo_session_row(req.session_id)
     if not row:
         raise HTTPException(404, "세션 없음")
-    if req.k and not _hmac.compare_digest(req.k, row[1]):
+    if not req.k or not _hmac.compare_digest(req.k, row[1]):  # #12 — k 필수
         raise HTTPException(403, "세션 검증 실패")
     if row[5]:
         raise HTTPException(409, "이미 완료된 계약서입니다")
@@ -29862,7 +29862,7 @@ async def expo_live_get(session_id: str, k: Optional[str] = None) -> dict:
     row = _expo_session_row(session_id)
     if not row:
         raise HTTPException(404, "세션 없음")
-    if k and not _hmac.compare_digest(k, row[1]):
+    if not k or not _hmac.compare_digest(k, row[1]):  # #12 — k 필수
         raise HTTPException(403, "세션 검증 실패")
     return {"ok": True, **_expo_live_state(row)}
 

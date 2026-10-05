@@ -13652,3 +13652,10 @@ Fable 🧹3. 사장님 "고고"
 - fix: 기존 공용 _ip_day_quota 로 IP 일일 캡 — refine 300/day, expo/ocr/terms 100/day. 첫 호출 정상(refine 200). expo/ocr/bizreg 는 로컬 Ollama(무료)라 제외.
 - 변경(server, 라이브+repo 동일, +8): §3(백업 bak-20261005-105201). smoke 10/10.
 - 남음(2단계): #9 ADMIN_TOKEN localStorage(결정 필요) · #12 expo contract secret(앱 동작 확인 필요). classify-batch/address-resolve 는 소규모 잔여. SoT=docs/DESIGN_auth_phase2.md.
+
+## 2026-10-05 11:00 · android (+ server)
+🔒 보안 2단계 #12 — expo 계약 secret 필수화. session_id(48bit)만 알면 secret 생략해 남 계약서 열람/제출하던 것 차단.
+- fix: 5곳의 'secret/k 있을 때만 검증' → 'if not k/secret or not compare_digest'(필수). submit·/expo/c 페이지·live/customer·live/confirm·GET live. (live/agent·finalize 는 이미 필수였음)
+- 안 깨짐 근거: 링크는 항상 ?k= 로 생성(expo_contract_session), 앱 ExpoRepository·고객페이지 JS 모두 k/secret 전송. 검증: k없음 403·맞음 200·틀림 403.
+- 변경(server, 라이브+repo 동일, +0줄 수정 5줄). §3(백업 bak-20261005-105910). smoke 10/10.
+- 남음(2단계): #9 ADMIN_TOKEN localStorage(구조 결정 필요 — admin 별도 origin). 그 외 소규모(classify-batch/address-resolve 비용캡·push/unregister). SoT=docs/DESIGN_auth_phase2.md.
