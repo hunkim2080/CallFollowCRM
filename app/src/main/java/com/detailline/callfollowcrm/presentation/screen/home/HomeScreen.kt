@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
@@ -355,6 +356,9 @@ fun HomeScreen(
     }
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
     val estimateFollowupDismissed by viewModel.estimateFollowupDismissed.collectAsState()
+    // 🕐 예약한 문자 — 상담함 위 카드·예약함 시트. (2026-10-05 사장님)
+    val scheduledPending by viewModel.scheduledPending.collectAsState()
+    var showScheduledSheet by remember { mutableStateOf(false) }
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
@@ -1009,6 +1013,28 @@ fun HomeScreen(
                 // 프로토 상담함 조건부 알림 카드 — 전부 'team-alert' 카드 언어(좌측 강조선 + 아이콘 + 제목/태그 + 부제 + go).
                 //   순서 = 프로토 슬롯 순서: (pending) 견적회신 → (missed) 자동답장 → (recur) 정기문자 → (d1) 시공안내.
                 //   quote/pending(접수서)·call(통화내용)·team-photo(팀)는 서버/팀 의존 → 데이터 생기면 노출(지금 숨김).
+
+                // 🕐 예약한 문자 — 상담함 맨 위. 대기 중인 예약이 있을 때만 보인다(없으면 조용히 숨김). (2026-10-05 사장님)
+                if (scheduledPending.isNotEmpty()) {
+                    item(key = "scheduled-sms-card") {
+                        val next = scheduledPending.minByOrNull { it.sendAtMs }
+                        val whenLabel = next?.let {
+                            android.text.format.DateFormat.format(
+                                "M월 d일 a h시",
+                                java.util.Calendar.getInstance().apply { timeInMillis = it.sendAtMs }
+                            ).toString()
+                        } ?: ""
+                        InboxAlert(
+                            accent = TossBlue, accentTint = TossBlueSoft,
+                            icon = Icons.Default.Schedule,
+                            title = "예약한 문자",
+                            tagText = "${scheduledPending.size}건", tagBg = AppTheme.colors.primaryBg, tagFg = TossBlue,
+                            sub = if (whenLabel.isNotBlank()) "가장 빠른 건 $whenLabel" else "예약 시각에 자동으로 보내요",
+                            goLabel = "보기",
+                            onClick = { showScheduledSheet = true }
+                        )
+                    }
+                }
 
                 // 견적 회신 챙기기 — 견적 보낸 지 N일 답 없는 고객 (프로토 pending 위치). 밀어서 정리=오늘 숨김.
                 if (estimateFollowupCount > 0 && !estimateFollowupDismissed) {
@@ -1976,6 +2002,16 @@ fun HomeScreen(
     }
 
         // '새로워졌어요' 시트 제거됨 (2026-07-29 사장님 — Play 배포로 이관).
+
+        // 🕐 예약함 — 상담함 위 카드 탭 시 전체화면 오버레이로. (2026-10-05 사장님)
+        if (showScheduledSheet) {
+            com.detailline.callfollowcrm.presentation.component.ScheduledSmsSheet(
+                items = scheduledPending,
+                onDismiss = { showScheduledSheet = false },
+                onCancel = { id -> viewModel.cancelScheduled(id) },
+                onReschedule = { id, ms -> viewModel.rescheduleScheduled(id, ms) }
+            )
+        }
     }
 }
 

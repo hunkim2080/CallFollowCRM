@@ -13700,3 +13700,15 @@ Fable 🧹3. 사장님 "고고"
 - 데이터는 VM 이 이미 가진 state.all(시공)·asScheduled·simpleEvents 재사용.
 - brand_guard: 📅 이모지 1개 걸려서 뺌(글자만). 빌드 assembleRelease 7가드 통과·테스트폰 설치.
 - ⚠️ 테스트폰은 구글 미연결이라 헤더('방금·N건')가 안 떠서 시트 실기확인은 사장님이 구글 재연결(G) 후 가능. 일정 화면 회귀 없음 확인.
+
+## 2026-10-05 18:50 · android
+🕐 문자 예약 발송 구현 (사장님 "만들어야지"). 보내기 창 작은 🕐 → 시각 고르기 → 예약 시각에 자동 발송.
+- 데이터: ScheduledSmsEntity/Dao + ScheduledSmsRepository, DB v62→v63(새 테이블 scheduled_sms, CREATE TABLE·NOT NULL-INSERT 지뢰 없음).
+- 스케줄: ScheduledSmsScheduler(AlarmManager setAndAllowWhileIdle·특별권한 불필요) → ScheduledSmsReceiver → ScheduledSmsSender. 재부팅=ScheduledSmsBootReceiver + 앱 켤 때 rearmAll(지난 건 즉시 발송). 매니페스트 RECEIVE_BOOT_COMPLETED + 리시버 2개.
+- 발송: 글=SmsSender.sendDirect(기본앱 아니어도 감). 사진=기본앱일 때만 sendMms, 아니면 글만 가고 "사진 못 갔어요" 알림(§13① 조용히 안 삼킴). 이력은 recordAutoSend 로 남김.
+- UI: 보내기 창(ChatScreen SendConfirmDialog)에 🕐(Icons.Schedule, 메인버튼 아닌 조용한 보조) → 공용 ScheduleTimeSheet(component, 빠른칩4+직접). 예약함=상담함 위 InboxAlert 카드(대기>0일 때만) → ScheduledSmsSheet(목록·시간수정=같은 ScheduleTimeSheet·취소 확인).
+- 공용: presentation/component/ScheduleTimeSheet.kt(보내기창·예약함 둘 다 씀, §12 두 벌 금지).
+- 변경 인터페이스: HomeViewModel.scheduledPending/cancelScheduled/rescheduleScheduled, ChatViewModel.scheduleSms, AppContainer.scheduledSmsRepository.
+- 빌드: assembleRelease 7가드 통과(size 기준선 갱신: AppDatabase 마이그레이션+ChatScreen SendConfirmDialog 불가피 증가). health 950시험.
+- 폰 확인: 테스트폰(23514638000c7ece) 설치·실행 → logcat "DB version upgrading 62→63" 정상·크래시0·앱 살아있음. ⚠️ S9 screencap 이 블랭크(FLAG_SECURE 아님·기기 특성)라 🕐/예약함 **실물 눈확인은 사장님이** 대화창 보내기 눌러서.
+- 알아둘 것: 사진 예약은 '시공막내'가 **기본 문자앱일 때만** 자동 발송. 아니면 글만 가고 '사진 못 갔어요' 알림.

@@ -628,3 +628,4 @@ internal fun SendPhotoThumbs(photos: List<android.net.Uri>, onPhotoTap: (Int) ->
         }
     }
 }
+

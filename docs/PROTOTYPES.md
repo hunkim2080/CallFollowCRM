@@ -30,6 +30,7 @@ CLAUDE.md §0 이 가리키는 문서. **화면을 만들기 전 여기서 그 �
 | 통화 요약 = 시간 구간 | `artifact/C9u4cizR` | 2026-09-25 | 그리는 곳은 `CallSummaryBody` 한 군데 |
 | 「내 기록」 (통계 탭) | `artifact/EDcGwV4F` · `artifact/WuAifNxe` | 1단계 배포됨 | 진짜 데이터 버전이 앞것 |
 | 챗 입력줄 — ⊕ 풍선 메뉴 | `artifact/9bb5e35a` | 구현 중 | 상시 3칩 제거 |
+| 문자 예약 발송 (보내기 창 작은 🕐 → 시각 → 자동) | `artifact/56gF4zzgC9UYVBihJcsN9Z` | 2026-10-05 구현됨 | 메인버튼 X·조용한 보조. 글 자동·사진은 기본앱일 때만(아니면 '사진 못 갔어요'). 예약함=상담함 위 |
 | 설정 없이 문자하다 되는 앱 | `artifact/FCngD4Yn` | 사장님 디벨롭 예정 | 시작체크 5 → 2 |
 | 건(件) 단위 전환 | `artifact/4ZvDfUfx` | 단계별 진행 | 계획서 `docs/PLAN_job_centric_migration.md` |
 | 카드에 다 얹지 않기 (조용한 자신감) | `artifact/22a5fa6a` | 2026-08-14 | 리스트는 한 줄, 풍부한 건 한 탭 안 |

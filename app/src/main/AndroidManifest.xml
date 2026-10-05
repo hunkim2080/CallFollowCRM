@@ -80,6 +80,8 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 🕐 예약 문자: 재부팅 뒤 예약 알람 다시 걸기. (2026-10-05) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <!-- ACTION_SENDTO smsto: 기본 문자앱 탐색용 -->
@@ -304,6 +306,19 @@
         <receiver
             android:name=".service.SmsSentReceiver"
             android:exported="false" />
+
+        <!-- 🕐 예약 문자 발사 (내부 알람 전용) + 재부팅 뒤 다시 걸기. (2026-10-05) -->
+        <receiver
+            android:name=".service.ScheduledSmsReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".service.ScheduledSmsBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!--
             2026-05-29 Default SMS 앱 자격 컴포넌트 (3/4) — RESPOND_VIA_MESSAGE service.

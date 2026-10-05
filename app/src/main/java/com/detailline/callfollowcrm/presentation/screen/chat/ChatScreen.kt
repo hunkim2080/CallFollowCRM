@@ -130,6 +130,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.component.pressScale
+import com.detailline.callfollowcrm.presentation.component.ScheduleTimeSheet
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1307,6 +1308,19 @@ fun ChatScreen(
             onConfirm = { edited ->
                 sendConfirm = null
                 performSend(edited, photos)
+            },
+            // 🕐 예약 발송 — 지금 안 보내고 고른 시각에 자동으로. 저장되면 입력칸·첨부 비우고 확인. (2026-10-05 사장님)
+            onSchedule = { edited, sendAtMs ->
+                sendConfirm = null
+                viewModel.scheduleSms(edited, photos, sendAtMs) { ok ->
+                    if (ok) {
+                        setInput("")
+                        attachedPhotos = emptyList()
+                        val cal = java.util.Calendar.getInstance().apply { timeInMillis = sendAtMs }
+                        val label = android.text.format.DateFormat.format("M월 d일 a h시 m분", cal).toString()
+                        android.widget.Toast.makeText(context, "$label 에 보낼게요", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         )
     }
@@ -4334,11 +4348,14 @@ private fun SendConfirmDialog(
     photos: List<android.net.Uri>,
     onCancel: (editedBody: String) -> Unit,
     onConfirm: (String) -> Unit,
-    onPhotoTap: (Int) -> Unit
+    onPhotoTap: (Int) -> Unit,
+    // 🕐 예약 발송 — 작은 시계 누르면 시각 고르고, 그 시각에 자동으로 보냄. (2026-10-05 사장님)
+    onSchedule: (editedBody: String, sendAtMs: Long) -> Unit = { _, _ -> }
 ) {
     // 확인창에서 바로 본문 수정 — 취소하고 작은 입력칸으로 안 돌아가도 됨. (2026-08-29 사장님)
     //   취소/뒤로가기 시에도 고친 본문(editBody)을 onCancel 로 돌려줘 입력칸에 반영. (2026-09-03 사장님)
     var editBody by remember(body) { mutableStateOf(body) }
+    var showTimePicker by remember { mutableStateOf(false) }
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     // 프로토엔 발송 확인이 없지만(바로 전송), 실제 문자라 안전 확인은 유지.
     //   2026-06-03: 가운데 AlertDialog(진한 막) → 프로토식 바텀시트(그립+미리보기+보내기/취소)로 교체.
@@ -4397,19 +4414,45 @@ private fun SendConfirmDialog(
             }
             Spacer(Modifier.height(18.dp))
             // sheet-cta 보내기 — 수정된 본문(editBody)으로 발송. (2026-08-29 사장님)
+            //   왼쪽 작은 🕐 = 예약 발송. 어쩌다 쓰는 거라 메인버튼 아닌 조용한 보조 버튼. (2026-10-05 사장님)
             val canSend = editBody.isNotBlank() || photos.isNotEmpty()
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (canSend) TossBlue else TossGrayBg)
-                    .clickable(enabled = canSend) { onConfirm(editBody.trim()) }.padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("보내기", color = if (canSend) Color.White else TossTextTertiary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            val ctaShape = RoundedCornerShape(14.dp)   // 보내기·취소·예약 버튼 공통 둥글기(한 곳).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(52.dp).clip(ctaShape).background(TossGrayBg)
+                        .clickable(enabled = canSend) { showTimePicker = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Schedule, contentDescription = "예약 발송",
+                        tint = if (canSend) TossTextSecondary else TossTextTertiary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(Modifier.width(9.dp))
+                Box(
+                    Modifier.weight(1f).clip(ctaShape).background(if (canSend) TossBlue else TossGrayBg)
+                        .clickable(enabled = canSend) { onConfirm(editBody.trim()) }.padding(vertical = 15.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("보내기", color = if (canSend) Color.White else TossTextTertiary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            }
             Spacer(Modifier.height(9.dp))
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossGrayBg)
+                Modifier.fillMaxWidth().clip(ctaShape).background(TossGrayBg)
                     .clickable { onCancel(editBody) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) { Text("취소", color = TossTextSecondary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
         }
+    }
+    // 🕐 시각 고르기 — 🕐 누르면 뜨는 오버레이(다이얼로그 위). 고르면 예약. (2026-10-05 사장님)
+    if (showTimePicker) {
+        ScheduleTimeSheet(
+            onDismiss = { showTimePicker = false },
+            onPick = { ms ->
+                showTimePicker = false
+                onSchedule(editBody.trim(), ms)
+            }
+        )
     }
 }
 

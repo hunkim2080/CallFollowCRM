@@ -67,9 +67,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity::class,
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.OutboxEntity::class
+        com.detailline.callfollowcrm.data.local.entity.OutboxEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.ScheduledSmsEntity::class
     ],
-    version = 62,
+    version = 63,
     // 🗄️ **DB 모양을 파일로 내보낸다.** (2026-10-02 Fable 점검 🔥2)
     //   전엔 false 였다 — 그래서 **지금 DB 가 어떤 모양인지 git 에 아무 기록이 없었다.**
     //   2026-09-17 에 마이그레이션 INSERT 가 NOT NULL 칸을 빼먹어 **새로 깐 폰에서 앱이
@@ -110,6 +111,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customerMergeDao(): com.detailline.callfollowcrm.data.local.dao.CustomerMergeDao
     abstract fun customerNoteDao(): com.detailline.callfollowcrm.data.local.dao.CustomerNoteDao
     abstract fun outboxDao(): com.detailline.callfollowcrm.data.local.dao.OutboxDao
+    abstract fun scheduledSmsDao(): com.detailline.callfollowcrm.data.local.dao.ScheduledSmsDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -1160,6 +1162,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // 🕐 예약 문자 — 새 테이블 scheduled_sms. (2026-10-05)
+        private val MIGRATION_62_63 = object : Migration(62, 63) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `scheduled_sms` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`phoneNumber` TEXT NOT NULL, " +
+                        "`recipientName` TEXT NOT NULL, " +
+                        "`body` TEXT NOT NULL, " +
+                        "`photoUris` TEXT NOT NULL, " +
+                        "`sendAtMs` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, " +
+                        "`createdAtMs` INTEGER NOT NULL, " +
+                        "`resultNote` TEXT)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_scheduled_sms_status_at` ON `scheduled_sms` (`status`, `sendAtMs`)")
+            }
+        }
+
         private val MIGRATION_59_60 = object : Migration(59, 60) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 runCatching {
@@ -1302,7 +1323,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50,
                     MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54,
                     MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58,
-                    MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62
+                    MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62,
+                    MIGRATION_62_63
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

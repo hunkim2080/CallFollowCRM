@@ -1387,6 +1387,28 @@ class ChatViewModel(
      * 메시지 ⭐ 토글. 채팅 말풍선 길게 누름 시 호출.
      * 같은 (dateMs, sent) 가 있으면 해제, 없으면 등록.
      */
+    /**
+     * 🕐 예약 발송 — 지금 쓴 글·사진을 [sendAtMs] 에 자동으로 보낸다. (저장 실패는 조용히 안 넘기고 토스트, §13①)
+     *   실제 발송은 ScheduledSmsSender, 알림은 ScheduledSmsScheduler 가 한다.
+     */
+    fun scheduleSms(body: String, photos: List<android.net.Uri>, sendAtMs: Long, onDone: (Boolean) -> Unit) {
+        if (phoneNumber.isBlank()) { _toast.value = "고객 번호가 없어요"; onDone(false); return }
+        if (body.isBlank() && photos.isEmpty()) { _toast.value = "보낼 내용이 없어요"; onDone(false); return }
+        viewModelScope.launch {
+            runCatching {
+                val name = customer.value?.name?.takeIf { it.isNotBlank() } ?: phoneNumber
+                container.scheduledSmsRepository.schedule(
+                    phoneNumber = phoneNumber,
+                    recipientName = name,
+                    body = body,
+                    photoUris = photos.map { it.toString() },
+                    sendAtMs = sendAtMs
+                )
+            }.onSuccess { onDone(true) }
+                .onFailure { _toast.value = "예약 저장에 실패했어요 — 다시 해주세요"; onDone(false) }
+        }
+    }
+
     fun toggleStar(messageBody: String, messageDateMs: Long, sent: Boolean) = viewModelScope.launch {
         withContext(Dispatchers.IO + NonCancellable) {
             container.importantMessageRepository.toggle(

@@ -86,6 +86,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    // 🕐 예약 문자 — 상담함 위 「예약함」 카드·시트에 보여줄 대기 목록. (2026-10-05 사장님)
+    val scheduledPending: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.ScheduledSmsEntity>> =
+        container.scheduledSmsRepository.observePending()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun cancelScheduled(id: Long) = viewModelScope.launch { container.scheduledSmsRepository.cancel(id) }
+    fun rescheduleScheduled(id: Long, sendAtMs: Long) = viewModelScope.launch { container.scheduledSmsRepository.reschedule(id, sendAtMs) }
+
     private val customers = container.customerRepository.observeAll()
 
     /**

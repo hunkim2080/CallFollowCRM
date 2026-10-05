@@ -46,6 +46,10 @@ class AppContainer(context: Context) {
         jobDao = db.jobDao()
     )
     val callRecordRepository = CallRecordRepository(db.callRecordDao())
+    // 🕐 예약 문자 — 지금 쓰고 예약 시각에 자동 발송. (2026-10-05)
+    val scheduledSmsRepository = com.detailline.callfollowcrm.data.repository.ScheduledSmsRepository(
+        appContext, db.scheduledSmsDao()
+    )
     val messageTemplateRepository = MessageTemplateRepository(db.messageTemplateDao())
     val messageHistoryRepository = MessageHistoryRepository(db.messageHistoryDao())
     val recordingRepository = RecordingRepository(db.recordingAttachmentDao())

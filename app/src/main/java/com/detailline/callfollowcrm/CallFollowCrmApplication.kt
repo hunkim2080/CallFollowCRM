@@ -535,6 +535,12 @@ class CallFollowCrmApplication : Application() {
         // 시간 기반 알림(시공 D-1 등) — WorkManager 주기 실행(앱 종료 상태에서도).
         scheduleReminders()
 
+        // 🕐 예약 문자 — 알람은 재부팅·업데이트 때 사라지니 켤 때마다 다시 건다. 지나버린 건 즉시 보냄.
+        appScope.launch {
+            runCatching { com.detailline.callfollowcrm.service.ScheduledSmsScheduler.rearmAll(this@CallFollowCrmApplication) }
+            runCatching { container.scheduledSmsRepository.pruneOld() }
+        }
+
         // 본폰 미러 링크 (2026-07-13) — 일정/직접현금 변경을 30초 디바운스로 서버 스냅샷 전송(옵트인일 때만).
         //   ReminderWorker(~3h) 가 앱 종료 상태 백업. 꺼져 있으면 조용히 skip.
         container.mirrorSyncManager.start(appScope)
