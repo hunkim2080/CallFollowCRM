@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -115,30 +117,43 @@ fun TradeSelectScreen(
                 style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary)
             Spacer(Modifier.height(14.dp))
 
-            // 4대 그룹 잎사귀 — 전부 활성(테스터 게이트 제거). 대표 1개 라디오. (2026-09-01 사장님)
+            // 4대 그룹 — **그룹마다 하얀 카드로 묶어** 어수선함을 줄인다. 칩은 연회색 통일(흰배경에 안 묻힘),
+            //   고른 건 파란 칩 + ✓. (2026-10-05 사장님 "디자인이 어수선해" · 4원칙 '어수선함 없이')
             val allListed = remember { TRADE_GROUPS.flatMap { it.second } }
+            val groupIcon = mapOf("인테리어" to "🎨", "설치·수리" to "🔧", "이사·청소" to "🧹", "자동차" to "🚗")
             TRADE_GROUPS.forEach { (group, trades) ->
-                Text(group, style = MaterialTheme.typography.labelLarge, color = TossTextTertiary, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(7.dp))
-                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                    trades.forEach { t ->
-                        val isSel = selected.contains(t)
-                        Box(
-                            Modifier.padding(bottom = 8.dp).clip(RoundedCornerShape(999.dp))
-                                .background(if (isSel) TossBlueSoft else Color.White)
-                                .clickable { toggle(t) }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                (if (isSel) "★ " else "") + t,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isSel) TossBlue else TossTextSecondary,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
-                            )
+                Column(
+                    Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surface).padding(14.dp)
+                ) {
+                    Text(
+                        (groupIcon[group]?.let { "$it  " } ?: "") + group,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold, color = TossTextPrimary
+                    )
+                    Spacer(Modifier.height(11.dp))
+                    FlowRow(
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                    ) {
+                        trades.forEach { t ->
+                            val isSel = selected.contains(t)
+                            Box(
+                                Modifier.clip(AppShape.sm)
+                                    .background(if (isSel) TossBlue else TossGrayBg)
+                                    .clickable { toggle(t) }
+                                    .padding(horizontal = 13.dp, vertical = 9.dp)
+                            ) {
+                                Text(
+                                    (if (isSel) "✓ " else "") + t,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isSel) AppTheme.colors.textOnPrimary else TossTextSecondary,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(11.dp))
             }
 
             // ➕ 기타 직접입력 + 자동완성 — "cctv 수리" vs "cctv 고장수리" 처럼 같은 업종이 다른 통계로 쪼개지지 않게,

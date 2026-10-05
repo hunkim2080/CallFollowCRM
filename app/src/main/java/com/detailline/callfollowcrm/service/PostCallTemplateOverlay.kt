@@ -325,6 +325,24 @@ private fun PostCallCard(
                             unfocusedBorderColor = PBlue
                         )
                     )
+                    // 편집 중에도 붙은 사진을 보여준다 — '무엇을 보내는지' 눈으로. (2026-10-05 사장님)
+                    val editPhotos = state.templates.getOrNull(editIndex)?.photos.orEmpty()
+                    if (editPhotos.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            editPhotos.forEach { uri ->
+                                coil.compose.AsyncImage(
+                                    model = android.net.Uri.parse(uri),
+                                    contentDescription = "붙은 사진",
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.size(58.dp).clip(AppShape.sm).background(AppTheme.colors.surface)
+                                )
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(14.dp))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Box(

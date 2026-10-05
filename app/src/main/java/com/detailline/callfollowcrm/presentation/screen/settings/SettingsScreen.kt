@@ -766,14 +766,8 @@ fun SettingsScreen(
                         onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
                         onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
                     )
-                    Spacer(Modifier.height(14.dp))
-                    // 막내가 알아낸 원칙 (판단 기준 = 3번째 학습 층). (2026-06-17)
-                    LockRow(
-                        Icons.Filled.AutoAwesome, AppTheme.colors.categoryBg, AppTheme.colors.category,
-                        "막내가 알아낸 원칙",
-                        "막내가 사장님 답변에서 찾은 판단 기준 · 수정/삭제",
-                        onClick = onOpenPrinciples
-                    )
+                    // 「막내가 알아낸 원칙」 카드 — 서버(/infer-principle) 미연결이라 숨김. (2026-10-05 사장님 "안 쓰기로 한 기능")
+                    //   기능 코드(onOpenPrinciples·PrincipleManageScreen)는 남겨둠 — 서버 붙으면 LockRow 만 되살리면 됨.
                     Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ 자동 문자 (부재중·D-1·도착·정기) ══════════════
@@ -1154,7 +1148,10 @@ private fun AutoSmsSection(
             d1On, { d1On = it; prefs.d1AutoEnabled = it }) {
             Text("전날 몇 시에 물어볼까요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                 modifier = Modifier.padding(bottom = 6.dp))
-            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)   // 두 줄로 넘칠 때 윗줄·아랫줄이 붙어 겹쳐 보이던 것 (2026-10-05 사장님)
+            ) {
                 listOf(8, 9, 10, 11, 18, 19).forEach { h ->
                     AutoChip(hourLabel(h), d1Hour == h) { d1Hour = h; prefs.d1SendHour = h }
                 }

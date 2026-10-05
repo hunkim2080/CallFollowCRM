@@ -1105,6 +1105,9 @@ private class CallerCardView(
     fun setCollapsed(on: Boolean) {
         collapsed = on
         foldable.visibility = if (on) View.GONE else View.VISIBLE
+        // 접으면 아래에 내용이 없다 — 위아래 여백을 맞춰 **띠 하나가 진짜 중앙**에 오게. (2026-10-05 사장님)
+        //   펼친 상태는 아래 foldable 과 붙어야 해서 원래대로 아래 2dp 유지.
+        previewBar.setPadding(dp(13f), dp(10f), dp(10f), if (on) dp(10f) else dp(2f))
         foldTv.text = if (on) "펴기" else "접기"
         foldNameTv.visibility = if (on) View.VISIBLE else View.GONE
         if (on) {
