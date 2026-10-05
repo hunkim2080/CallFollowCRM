@@ -162,11 +162,19 @@ fun AppRoot(container: AppContainer) {
                 navController.currentBackStackEntryFlow.first()
                 container.sessionTokenStore.needsReauth.collect { needs ->
                     if (needs && com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED) {
-                        navController.navigate(Destinations.SIGNUP) {
-                            popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
-                            launchSingleTop = true
-                        }
+                        // 신호는 바로 내린다 — 안 내리면 다음 401 이 또 켜서 같은 자리로 다시 보낸다.
                         container.sessionTokenStore.clearReauthFlag()
+                        // 🔁 **이미 로그인 화면이면 다시 안 보낸다.** (2026-10-06 송도 사장님 건)
+                        //   채팅처럼 한 화면이 서버를 여러 번 부르면 그 401 들이 다 여기로 와서
+                        //   15초에 로그인 화면으로 12번 튕겼다 — 화면이 계속 리셋돼 「인증번호 받기」를 누를 틈이 없었다.
+                        //   지금 목적지가 signup 이면 건너뛴다. launchSingleTop 만으로는 재진입이 계속 찍혔다
+                        //   (popUpTo 로 매번 start 까지 비우고 새로 깔아서).
+                        if (navController.currentDestination?.route != Destinations.SIGNUP) {
+                            navController.navigate(Destinations.SIGNUP) {
+                                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     }
                 }
             }

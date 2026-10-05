@@ -13752,3 +13752,10 @@ Fable 🧹3. 사장님 "고고"
 - ② (a) 대화 열면 NotificationHelper.cancelIncomingSms(기본앱 아니라 '읽음' 못 찍어 직접 치움) (b) notifiedMmsIds 캡 80→500(삼성 2단계 날짜갱신+aging 으로 재알림되던 구멍).
 - ③ HomeScreen inboxResetFilter 를 LaunchedEffect(resetSignal) 로 들어 **재진입(챗 뒤로가기)마다 옛 신호로 또 리셋**되던 것 → lastResetSeen(rememberSaveable) 으로 신호 증가 시에만. 테스트폰 실기 검증(종료고객 칩 유지).
 - ④ (질문답) '시공한 고객' 보라 딱지 = 옛 자동분류("시공 완료", 2026-09-20 폐지)의 잔재. categoryId 로 렌더. 자동 아님.
+
+## 2026-10-06 01:30 · android
+로그인 재인증 튕김 디바운스 — 통화 끝난 대화 등에서 로그인 화면 12번 깜빡이던 것 수정.
+- 변경: AppRoot.kt needsReauth 수집부 — 이미 signup 화면이면 navigate 생략(현재 route 체크). 신호(clearReauthFlag)는 먼저 내림. 1곳만 고침.
+- 원인: 송도 사장님(01075560517) 옛 빌드 + 서버 AUTH_ENFORCE(10/3~) → 채팅의 병렬 401 들이 각각 재로그인 신호 → 15초에 signup 12번. 서버 실데이터(auth_codes 비어있음=OTP 0건)로 확정.
+- 폰 확인: 못 봄 (코드/빌드만 — assembleRelease BUILD=0, 가드 7종 통과). 실기는 다음 설치 때.
+- 다음 액션 (사장님): 송도 사장님 직접 도와 앱 업데이트 + 전화 인증 1회 = 영구 해결. '부드러운 로그인' 재설계는 출시 전 숙제.
