@@ -13796,3 +13796,9 @@ Fable 🧹3. 사장님 "고고"
   buildEvent/syncSimple 가 도장 찍음. store.thisDeviceId()/ownedCustomerIds() 추가. listAppEvents 가 deviceId/customerId 반환.
 - 테스트: CalendarOrphanSweepTest 6개(다른폰/보기전용폰 보호 포함) 통과. assembleRelease BUILD=0 가드 7종.
 - 폰 확인: 못 봄. ⚠️ 직전 업로드(upload-20261006-0628)엔 위험버전 포함 — 이 빌드로 덮어 올림. 그 전엔 2080서 동기화 금지.
+
+## 2026-10-06 04:30 · android
+①완료된 접수서 비고 수정버튼 숨김 ②취소/빈 지난 건 삭제 (사장님 지적 2건).
+- 비고: DocWebViewActivity 가 memoToken 제출여부(IntakeEventRepository.isSubmitted = intake_events 에 그 토큰 제출기록) 보고, 제출된 접수서면 비고 고치기 버튼 안 붙임. IntakeEventDao.submittedCountByToken 추가.
+- 지난 건 삭제: JobRepository.deleteJob(돈/날짜 없는 건만, 안전핀) + CustomerDetailViewModel.deletePastJob + CustomerDetailScreen '마무리/취소한 건' 목록의 취소/빈 건에 삭제 버튼 + 확인 다이얼로그. 캘린더 잔재는 다음 동기화 고아청소가 치움. JobDao.deleteById 는 기존 것 재사용.
+- 빌드: assembleRelease BUILD=0 가드 7종. style/size 기준선 1줄 갱신. 폰 확인: 못 봄. DB 스키마 변화 없음(쿼리만 추가).

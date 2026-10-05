@@ -28,6 +28,10 @@ interface IntakeEventDao {
     @Query("SELECT token FROM intake_events")
     suspend fun allTokens(): List<String>
 
+    /** 이 토큰으로 **고객이 제출**했나 — 완료된 접수서면 비고 수정 버튼을 숨긴다. (2026-10-06 사장님) */
+    @Query("SELECT COUNT(*) FROM intake_events WHERE token = :token AND submittedAtMs IS NOT NULL")
+    suspend fun submittedCountByToken(token: String): Int
+
     /** 방금 되찾은 것을 **눈으로 확인**하게 보여주려고. (2026-09-23 사장님) */
     @Query("SELECT * FROM intake_events WHERE token IN (:tokens) ORDER BY submittedAtMs DESC")
     suspend fun byTokens(tokens: List<String>): List<IntakeEventEntity>

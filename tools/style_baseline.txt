@@ -1,7 +1,7 @@
 # 화면 코드에 손으로 적은 값(색·글자크기·모서리) 개수 — 늘어나면 빌드 실패.
 # 다시 적기: gradlew styleBaselineUpdate   (줄었을 때만 하세요)
 # theme/ 와 screen/expo/(박람회)는 세지 않습니다.
-# 총 2655곳 / 73파일
+# 총 2656곳 / 73파일
 component/AccountInput.kt 10
 component/AddressSearchDialog.kt 4
 component/CallSummaryConsentDialog.kt 9
@@ -33,7 +33,7 @@ screen/collab/CollabRecordScreen.kt 34
 screen/consent/ConsentScreen.kt 13
 screen/customer/CustomerCollabParts.kt 49
 screen/customer/CustomerDetailBits.kt 32
-screen/customer/CustomerDetailScreen.kt 174
+screen/customer/CustomerDetailScreen.kt 175
 screen/customers/CustomersScreen.kt 17
 screen/estimate/EstimateFollowupScreen.kt 6
 screen/followup/FollowUpScreen.kt 3

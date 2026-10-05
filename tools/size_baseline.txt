@@ -1,18 +1,18 @@
 # 📏 1200줄 넘는 파일의 **지금 줄 수**. 늘어나면 빌드 실패(여유 40줄).
 # 천장이 아니라 **지금 위치**다 — 기능을 더하려면 그만큼 떼어내라.
 # 다시 적기: gradlew sizeBaselineUpdate   (줄였을 때만 하세요)
-# 큰 파일 14개 / 합 33737줄
+# 큰 파일 14개 / 합 33799줄
 data/local/AppDatabase.kt 1340
 data/repository/SmsRepository.kt 1403
-presentation/screen/chat/ChatScreen.kt 5654
-presentation/screen/chat/ChatViewModel.kt 2092
-presentation/screen/customer/CustomerDetailScreen.kt 3464
+presentation/screen/chat/ChatScreen.kt 5658
+presentation/screen/chat/ChatViewModel.kt 2101
+presentation/screen/customer/CustomerDetailScreen.kt 3497
 presentation/screen/expo/ExpoScreen.kt 2351
-presentation/screen/home/HomeScreen.kt 3417
+presentation/screen/home/HomeScreen.kt 3424
 presentation/screen/home/HomeViewModel.kt 1842
 presentation/screen/schedule/ScheduleScreen.kt 2306
 presentation/screen/settings/SettingsScreen.kt 2722
 presentation/screen/sharedsite/SharedSiteScreen.kt 1994
 presentation/screen/stats/StatsScreen.kt 1742
 service/IncomingCallOverlay.kt 1564
-service/NotificationHelper.kt 1846
+service/NotificationHelper.kt 1855

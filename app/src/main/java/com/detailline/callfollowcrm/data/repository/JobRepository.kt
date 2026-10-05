@@ -308,6 +308,21 @@ class JobRepository(
     }
 
     /**
+     * 🗑 **건 완전 삭제.** 취소했거나 비어버린 '지난 건'을 목록에서 아주 지운다. (2026-10-06 사장님 "지난 건이 왜 안 지워지지")
+     *   🛡️ **돈도 날짜도 없는 건만** 지운다 — 살아있는 건(금액·일정 있는)은 실수로라도 안 지운다.
+     *   캘린더에 남은 이벤트는 다음 동기화의 고아 청소가 치운다(이 고객을 가진 폰에서).
+     *   @return 지웠으면 true, 안전 때문에 안 지웠으면 false
+     */
+    suspend fun deleteJob(jobId: Long, now: Long): Boolean {
+        val j = jobDao.findById(jobId) ?: return false
+        val hasMoney = (j.totalAmount ?: 0L) > 0L || (j.depositAmount ?: 0L) > 0L || (j.balanceAmount ?: 0L) > 0L
+        if (hasMoney || j.scheduledWorkDate != null) return false   // 🛡️ 살아있는 건은 안 지운다
+        jobDao.deleteById(jobId)
+        recomputeMirror(j.customerId, now)
+        return true
+    }
+
+    /**
      * 고객 카드의 돈을 **남은 대표 건**의 돈으로 맞춘다. 지금은 '건 취소' 직후에만 쓴다.
      *
      * 왜 recomputeMirror 안에 안 넣었나: 정산 **목록**이 아직 고객 카드(customers)를 읽는다.

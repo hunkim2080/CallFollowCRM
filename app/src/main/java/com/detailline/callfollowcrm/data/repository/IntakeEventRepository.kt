@@ -21,6 +21,10 @@ class IntakeEventRepository(private val dao: IntakeEventDao) {
     /** 이미 받아둔 접수서 token 전부. (2026-09-23 — 복원 뒤 빠진 건 찾기) */
     suspend fun allTokens(): Set<String> = dao.allTokens().toSet()
 
+    /** 이 토큰으로 고객이 **제출 완료**했나. 완료된 접수서는 비고 수정 버튼을 숨긴다. (2026-10-06 사장님) */
+    suspend fun isSubmitted(token: String): Boolean =
+        token.isNotBlank() && dao.submittedCountByToken(token) > 0
+
     /** 되찾은 것들을 그대로 읽어온다 — 숫자만 말하면 사장님이 확인할 수 없다. (2026-09-23) */
     suspend fun byTokens(tokens: List<String>): List<IntakeEventEntity> =
         if (tokens.isEmpty()) emptyList() else dao.byTokens(tokens)

@@ -193,6 +193,8 @@ fun CustomerDetailScreen(
     var pastOpen by remember { mutableStateOf(false) }
     // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
     var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
+    // 🗑 취소/빈 '지난 건' 삭제 확인 대상. (2026-10-06 사장님)
+    var deletePastJobConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.JobEntity?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
     var collabRefresh by remember(customer?.id) { mutableStateOf(0) }
     var callsExpanded by remember(customer?.id) { mutableStateOf(false) }
@@ -1029,7 +1031,18 @@ fun CustomerDetailScreen(
                                             fontSize = 11.5.sp, color = TossTextTertiary, maxLines = 1
                                         )
                                     }
-                                    Text("›", fontSize = 18.sp, color = TossTextTertiary)
+                                    // 취소/빈 건만 삭제 — 살아있는 건(금액·일정 있는)은 실수 삭제 방지. (2026-10-06 사장님)
+                                    if (jobCancelled(j) || jobBlank(j)) {
+                                        Text(
+                                            "삭제", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                            color = AppTheme.colors.unpaid,
+                                            modifier = Modifier.clip(AppShape.sm)
+                                                .clickable { deletePastJobConfirm = j }
+                                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    } else {
+                                        Text("›", fontSize = 18.sp, color = TossTextTertiary)
+                                    }
                                 }
                             }
                         }
@@ -2268,6 +2281,26 @@ fun CustomerDetailScreen(
                 intakeReviewDoc = null
             },
             onDismiss = { intakeReviewDoc = null }
+        )
+    }
+
+    // 🗑 취소/빈 '지난 건' 삭제 확인. (2026-10-06 사장님 "지난 건이 왜 안 지워지지")
+    deletePastJobConfirm?.let { j ->
+        AlertDialog(
+            onDismissRequest = { deletePastJobConfirm = null },
+            containerColor = Color.White,
+            title = { Text("이 건을 지울까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = { Text("취소했거나 비어 있는 지난 건이에요. 완전히 지워집니다.", color = TossTextSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deletePastJob(j.id)
+                    if (selectedPastJobId == j.id) selectedPastJobId = null
+                    deletePastJobConfirm = null
+                }) { Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletePastJobConfirm = null }) { Text("닫기", color = TossTextSecondary) }
+            }
         )
     }
 

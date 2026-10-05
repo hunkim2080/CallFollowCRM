@@ -114,7 +114,19 @@ class DocWebViewActivity : ComponentActivity() {
                         .show()
                 }
             }
-            bar.addView(edit)
+            // 📌 **완료된(고객이 제출한) 접수서면 비고 수정 버튼을 안 보인다.** (2026-10-06 사장님)
+            //   제출 뒤엔 고객이 이미 다 봤으니 고칠 의미가 없다. 제출 여부는 token 으로 확인.
+            val container = (application as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.container
+            if (container == null) {
+                bar.addView(edit)   // 컨테이너를 못 얻으면 전처럼 보인다(안전)
+            } else {
+                lifecycleScope.launch {
+                    val submitted = runCatching {
+                        container.intakeEventRepository.isSubmitted(memoToken)
+                    }.getOrDefault(false)
+                    if (!submitted) bar.addView(edit)
+                }
+            }
         }
 
         val divider = android.view.View(this).apply {
