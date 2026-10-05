@@ -32938,6 +32938,8 @@ async def web_tone_url_add(request: Request, req: WebToneUrl):
             url = "https://" + url
         else:
             raise HTTPException(400, "글 주소(URL)를 확인해주세요")
+    if not _url_is_public(url):  # #8 SSRF — 사설/루프백 주소 차단
+        raise HTTPException(400, "그 주소는 불러올 수 없어요 (공개 글 주소만 가능)")
     # 도달 확인(best-effort) — 톤 실제 학습은 글생성 단계(owner Gemini)에서.
     learned = {"fetched": False}
     try:
@@ -32982,6 +32984,37 @@ def _tone_strip_html(html: str) -> str:
     return s
 
 
+_SSRF_ALLOW_HOSTS = (
+    "blog.naver.com", "m.blog.naver.com", "post.naver.com", "naver.me",
+    "instagram.com", "threads.net", "tistory.com", "brunch.co.kr",
+)
+
+def _url_is_public(url: str) -> bool:
+    """#8 SSRF 방어 (2026-10-05) — URL 호스트가 공개 인터넷 주소인지. 사설/루프백/링크로컬/예약이면 False.
+    허용 호스트(naver/instagram/threads/tistory/brunch, 서브도메인 포함)는 통과. 해석 실패는 막는 쪽(False).
+    목적: 로그인한 웹 사용자가 127.0.0.1/Tailnet/사내망을 서버로 대신 때리는 것 차단."""
+    try:
+        import ipaddress as _ipa, socket as _sock
+        from urllib.parse import urlparse as _up
+        host = (_up(url).hostname or "").lower()
+        if not host:
+            return False
+        if any(host == h or host.endswith("." + h) for h in _SSRF_ALLOW_HOSTS):
+            return True
+        # ⚠️ Tailscale/CGNAT(100.64.0.0/10)은 Python 3.9 is_private 가 안 잡는다 — 명시 차단(서버 자신 Tailnet IP).
+        _CGNAT4 = _ipa.ip_network("100.64.0.0/10")
+        _TS6 = _ipa.ip_network("fd7a:115c:a1e0::/48")
+        for info in _sock.getaddrinfo(host, None):
+            ip = _ipa.ip_address(info[4][0])
+            if (ip.is_private or ip.is_loopback or ip.is_link_local
+                    or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+                    or ip in _CGNAT4 or ip in _TS6):
+                return False
+        return True
+    except Exception:
+        return False
+
+
 async def _web_fetch_article_text(url: str) -> str:
     """따라할 글 주소 → 본문 텍스트. 네이버 PC/모바일/PostView/naver.me 단축 다 모바일 본문으로 정규화.
     실패해도 예외 대신 '' 반환(호출측이 친절 안내) — 502 로 안 터진다.
@@ -32991,6 +33024,8 @@ async def _web_fetch_article_text(url: str) -> str:
         return ""
     if not url.startswith("http"):
         url = "https://" + url
+    if not _url_is_public(url):  # #8 SSRF — 사설/루프백 주소 차단
+        return ""
     MUA = ("Mozilla/5.0 (Linux; Android 14; SM-S928N) AppleWebKit/537.36 "
            "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
 
@@ -33020,6 +33055,8 @@ async def _web_fetch_article_text(url: str) -> str:
                     pass
             ids = _ids(url)
             fetch_url = ("https://m.blog.naver.com/%s/%s" % ids) if ids else url
+            if not _url_is_public(fetch_url):  # #8 SSRF — 단축/리다이렉트 후 재검사
+                return ""
             r = await client.get(fetch_url)
             body = _tone_strip_html(r.text)
             if len(body) < 200 and ids:                  # 껍데기/로그인벽 → PC PostView 본문 재시도

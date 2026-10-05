@@ -13637,3 +13637,12 @@ Fable 🧹3. 사장님 "고고"
 - 검증(실토큰 3연): 토큰없음 **401** · 로그인+남번호 **403**(=#6 핵심) · 본인 **통과(404 가짜 share)**. 10개 전부.
 - 폰 확인: 서버 변경, 앱 무변경(Bearer 이미 감). 전제확인=progress 가 이미 토큰필수(401)라 B 는 토큰 보유 → respond/comment 추가해도 안 깨짐.
 - 남음(2단계 나머지): #7 유료 LLM 무인증 · #8 web SSRF · #9 ADMIN_TOKEN localStorage · #12 expo secret 선택적. SoT=docs/DESIGN_auth_phase2.md.
+
+## 2026-10-05 10:50 · android (+ server)
+🔒 보안 2단계 #8 배포 — web studio **SSRF 차단**. 로그인한 웹 사용자가 임의 URL 을 서버로 대신 때려 127.0.0.1/Tailnet/사내망에 도달하던 것 봉쇄.
+- 지점: `/api/web/tone-url`(web_tone_url_add) · `_web_fetch_article_text`(tone-analyze) — httpx 로 임의 URL fetch.
+- fix: 공용 `_url_is_public(url)` — 허용 호스트(naver/instagram/threads/tistory/brunch, 서브도메인 포함)는 통과, 그 외는 해석해 **사설/루프백/링크로컬/예약 + CGNAT(100.64/10)·Tailscale IPv6** 면 거부. tone-url·fetch 진입·단축/리다이렉트 후 fetch_url 재검사 3곳.
+- ⚠️ **CGNAT 함정**: Python 3.9 `is_private` 는 100.64.0.0/10(Tailscale)을 안 잡는다 → 서버 자신 Tailnet IP(100.86.114.49)가 처음엔 통과했다. 명시 차단으로 수정.
+- 변경(server, 라이브+repo 동일, main.py +37): `_url_is_public` 헬퍼 + 가드 3곳. §3(백업 bak-20261005-104624·104913). smoke 10/10.
+- 검증(실세션): 127.0.0.1·169.254·Tailnet → **400** · 공개 naver → **200**.
+- 남음(2단계): #7 유료 LLM 무인증 · #9 ADMIN_TOKEN localStorage(결정 필요) · #12 expo secret. SoT=docs/DESIGN_auth_phase2.md.
