@@ -4,14 +4,11 @@ package com.detailline.callfollowcrm.presentation.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -36,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
-import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 private val WEEKDAYS = listOf("일", "월", "화", "수", "목", "금", "토")
 
@@ -65,7 +61,8 @@ private fun hmLabel(h: Int, mi: Int): String {
  * 🕐 예약 시각 고르기 — 프로토 56gF4zzgC9UYVBihJcsN9Z STEP 2 를 1:1 로. (2026-10-05 사장님)
  *   빠른 칩(가로 흐름, 하나 선택) + 「직접 고르기」(날짜 칩·시간 칩) → [이 시간에 예약].
  *   **공용** — 보내기 창의 🕐 와 예약함 「시간 수정」이 같은 이것을 쓴다(§12 두 벌 금지).
- *   이모지(📅·🕐)는 brand_guard 때문에 Icon 으로 대체(프로토의 "아이콘 자리" 그대로).
+ *   시트 틀은 공용 [AppSheet] — 키보드·네비바 여백·스크롤 내장(빠뜨릴 수 없음).
+ *   이모지(📅·🕐)는 brand_guard 때문에 Icon 으로(프로토의 "아이콘 자리" 그대로).
  */
 @Composable
 fun ScheduleTimeSheet(
@@ -79,8 +76,8 @@ fun ScheduleTimeSheet(
     val quickTimes = listOf(cal(0, 18, 0), cal(1, 9, 0), cal(1, 13, 0), cal(2, 9, 0))
 
     var selectedChip by remember { mutableStateOf(-1) }
-    var manualYmd by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }   // (year, month0, day)
-    var manualHm by remember { mutableStateOf<Pair<Int, Int>?>(null) }           // (hour, minute)
+    var manualYmd by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    var manualHm by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     fun manualMs(): Long? {
         val d = manualYmd ?: return null
@@ -111,104 +108,85 @@ fun ScheduleTimeSheet(
         ).show()
     }
 
-    Box(
-        Modifier.fillMaxSize().background(AppTheme.colors.scrim).clickable { onDismiss() },
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Column(
-            Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surface)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                // 시스템 네비바(|||)에 하단 버튼이 가리지 않게 — 공용 '표준' 여백(폰이 주는 ime∪navbar). (2026-10-05 사장님)
-                .keyboardOrNavPadding()
-                .padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 18.dp)
-        ) {
-            // 그랩 바
-            Box(
-                Modifier.align(Alignment.CenterHorizontally).width(36.dp).height(4.dp)
-                    .clip(AppShape.pill).background(AppTheme.colors.line)
-            )
-            Spacer(Modifier.height(13.dp))
-            Text("언제 보낼까요?", style = AppType.title, color = AppTheme.colors.text, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(11.dp))
+    AppSheet(onDismiss = onDismiss) {
+        Text("언제 보낼까요?", style = AppType.title, color = AppTheme.colors.text, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(11.dp))
 
-            // 빠른 칩 — 가로로 흐르고, 하나만 선택(파랑).
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                quickLabels.forEachIndexed { i, label ->
-                    val enabled = quickTimes[i] > now
-                    val on = selectedChip == i
-                    Box(
-                        Modifier.clip(AppShape.sm)
-                            .background(if (on) AppTheme.colors.primary else AppTheme.colors.surfaceMuted)
-                            .clickable(enabled = enabled) { selectedChip = i; manualYmd = null; manualHm = null }
-                            .padding(horizontal = 13.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            label,
-                            style = AppType.body,
-                            color = when { on -> AppTheme.colors.textOnPrimary; enabled -> AppTheme.colors.textSub; else -> AppTheme.colors.textHint },
-                            fontWeight = if (on) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
+        // 빠른 칩 — 가로로 흐르고, 하나만 선택(파랑).
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            quickLabels.forEachIndexed { i, label ->
+                val enabled = quickTimes[i] > now
+                val on = selectedChip == i
+                Box(
+                    Modifier.clip(AppShape.sm)
+                        .background(if (on) AppTheme.colors.primary else AppTheme.colors.surfaceMuted)
+                        .clickable(enabled = enabled) { selectedChip = i; manualYmd = null; manualHm = null }
+                        .padding(horizontal = 13.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        label,
+                        style = AppType.body,
+                        color = when { on -> AppTheme.colors.textOnPrimary; enabled -> AppTheme.colors.textSub; else -> AppTheme.colors.textHint },
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium
+                    )
                 }
             }
+        }
 
-            Spacer(Modifier.height(14.dp))
-            Text("직접 고르기", style = AppType.caption, color = AppTheme.colors.textHint, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(7.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 날짜 칩
-                val dateOn = manualYmd != null
-                Box(
-                    Modifier.weight(1f).clip(AppShape.sm)
-                        .background(if (dateOn) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
-                        .clickable { pickDate() }.padding(horizontal = 13.dp, vertical = 11.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = if (dateOn) AppTheme.colors.primary else AppTheme.colors.textSub, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            manualYmd?.let { mdLabel(it.first, it.second, it.third) } ?: "날짜",
-                            style = AppType.body, color = if (dateOn) AppTheme.colors.primary else AppTheme.colors.textSub,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-                // 시간 칩
-                val timeOn = manualHm != null
-                Box(
-                    Modifier.weight(1f).clip(AppShape.sm)
-                        .background(if (timeOn) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
-                        .clickable { pickTime() }.padding(horizontal = 13.dp, vertical = 11.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, contentDescription = null, tint = if (timeOn) AppTheme.colors.primary else AppTheme.colors.textSub, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            manualHm?.let { hmLabel(it.first, it.second) } ?: "시간",
-                            style = AppType.body, color = if (timeOn) AppTheme.colors.primary else AppTheme.colors.textSub,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
+        Text("직접 고르기", style = AppType.caption, color = AppTheme.colors.textHint, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(7.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val dateOn = manualYmd != null
             Box(
-                Modifier.fillMaxWidth().clip(AppShape.md)
-                    .background(if (canReserve) AppTheme.colors.primary else AppTheme.colors.surfaceMuted)
-                    .clickable(enabled = canReserve) { selectedMs?.let { onPick(it) } }
-                    .padding(vertical = 14.dp),
+                Modifier.weight(1f).clip(AppShape.sm)
+                    .background(if (dateOn) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
+                    .clickable { pickDate() }.padding(horizontal = 13.dp, vertical = 11.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "이 시간에 예약",
-                    style = AppType.body,
-                    color = if (canReserve) AppTheme.colors.textOnPrimary else AppTheme.colors.textHint,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = if (dateOn) AppTheme.colors.primary else AppTheme.colors.textSub, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        manualYmd?.let { mdLabel(it.first, it.second, it.third) } ?: "날짜",
+                        style = AppType.body, color = if (dateOn) AppTheme.colors.primary else AppTheme.colors.textSub,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
+            val timeOn = manualHm != null
+            Box(
+                Modifier.weight(1f).clip(AppShape.sm)
+                    .background(if (timeOn) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
+                    .clickable { pickTime() }.padding(horizontal = 13.dp, vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = if (timeOn) AppTheme.colors.primary else AppTheme.colors.textSub, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        manualHm?.let { hmLabel(it.first, it.second) } ?: "시간",
+                        style = AppType.body, color = if (timeOn) AppTheme.colors.primary else AppTheme.colors.textSub,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Box(
+            Modifier.fillMaxWidth().clip(AppShape.md)
+                .background(if (canReserve) AppTheme.colors.primary else AppTheme.colors.surfaceMuted)
+                .clickable(enabled = canReserve) { selectedMs?.let { onPick(it) } }
+                .padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "이 시간에 예약",
+                style = AppType.body,
+                color = if (canReserve) AppTheme.colors.textOnPrimary else AppTheme.colors.textHint,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
