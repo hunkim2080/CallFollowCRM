@@ -13768,3 +13768,9 @@ Fable 🧹3. 사장님 "고고"
 - ⚠️ **서버 배포 전엔 무효** — 라이브 서버가 call_summary 를 모르면 pydantic 이 조용히 버림(앱은 보내지만 효과 0). 사장님이 배포 시키면 GOTCHAS §3 로 /api/refine 만 올리고 smoke.sh.
 - 폰 확인: 못 봄 (assembleRelease BUILD=0 · 가드 7종 통과 · py_compile OK). 실기는 서버 배포 후.
 - 다음 액션 (사장님): 서버 배포 ㄱ 하면 올림 → 그 뒤 테스트폰에서 통화 있는 고객에 대충 써보고 다듬기 확인.
+
+## 2026-10-06 02:35 · android (+ server 배포됨)
+위 다듬기 통화요약 = **라이브 배포 완료**. GOTCHAS §3 로 /api/refine 두 곳만 패치(백업 main.py.bak-20261006-005837).
+- 검증: 서버 py_compile OK · smoke.sh 10/10 · POST /api/refine 200 + call_summary 반영 눈으로 확인("토욜 오전 견적 보고드림" → 통화의 화장실2곳·곰팡이·재시공·견적 녹아듦).
+- 첫 502는 Gemini 503 일시 다운(재시도 복구) — 기존 함정, 변경 무관.
+- repo == 라이브 (이 변경 한정). 폰 확인: 테스트폰 실기는 다음 설치 때(코드는 6edc1a43).
