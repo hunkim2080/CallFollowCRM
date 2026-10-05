@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 private val WEEKDAYS = listOf("일", "월", "화", "수", "목", "금", "토")
 
@@ -117,6 +118,8 @@ fun ScheduleTimeSheet(
         Column(
             Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surface)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                // 시스템 네비바(|||)에 하단 버튼이 가리지 않게 — 공용 '표준' 여백(폰이 주는 ime∪navbar). (2026-10-05 사장님)
+                .keyboardOrNavPadding()
                 .padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 18.dp)
         ) {
             // 그랩 바

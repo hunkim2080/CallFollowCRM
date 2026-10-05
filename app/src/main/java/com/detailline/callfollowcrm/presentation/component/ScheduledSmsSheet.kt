@@ -34,6 +34,7 @@ import com.detailline.callfollowcrm.data.local.entity.ScheduledSmsEntity
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 /** 예약 시각을 사람 말로 — "10월 6일 오전 9시 30분". */
 private fun scheduledWhen(ms: Long): String {
@@ -62,6 +63,8 @@ fun ScheduledSmsSheet(
         Column(
             Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surface)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                // 시스템 네비바에 하단이 가리지 않게 — 공용 '표준' 여백. (2026-10-05 사장님)
+                .keyboardOrNavPadding()
                 .padding(20.dp)
         ) {
             Text("예약한 문자", style = AppType.headline, color = AppTheme.colors.text)
