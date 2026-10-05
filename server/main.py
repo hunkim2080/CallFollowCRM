@@ -7292,9 +7292,14 @@ async def _admin_gate_middleware(request: Request, call_next):
     # ① 이미 로그인한 브라우저
     if request.cookies.get(_ADMIN_COOKIE) == _admin_cookie_value():
         return await _admin_pass(call_next, request)
-    # ② 주소에 ?token= 을 붙여 온 경우 — 통과시키고 쿠키도 심어준다(다음부터 안 붙여도 됨)
+    # ② 주소에 ?token= 을 붙여 온 경우 — 쿠키를 심고 **주소에서 토큰을 떼어** 깨끗한 주소로 돌려보낸다.
+    #    (#9, 2026-10-05) 토큰이 주소창·방문기록·스크린샷·referrer 에 남지 않게 303 redirect → 쿠키로 바로 재진입.
     if request.query_params.get("token") == ADMIN_TOKEN:
-        res = await _admin_pass(call_next, request)
+        from fastapi.responses import RedirectResponse
+        from urllib.parse import urlencode
+        _q = urlencode([(k, v) for k, v in request.query_params.multi_items() if k != "token"])
+        _clean = path + (("?" + _q) if _q else "")
+        res = RedirectResponse(url=_clean, status_code=303)
         res.set_cookie(_ADMIN_COOKIE, _admin_cookie_value(), max_age=30 * 24 * 3600,
                        httponly=True, samesite="lax", secure=True, path="/admin")
         return res
