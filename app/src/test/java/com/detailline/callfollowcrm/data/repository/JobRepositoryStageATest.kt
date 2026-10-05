@@ -168,9 +168,11 @@ class JobRepositoryStageATest {
     }
 
     @Test
-    fun `미러는 돈을 건드리지 않는다 - 정산 보호`() = runTest {
+    fun `미러는 대표 건의 돈을 고객 카드로 옮긴다`() = runTest {
+        // 2026-10-05: 「미러는 돈을 안 옮긴다(정산 보호)」를 **반전**했다.
+        //   정산·미수가 customers 를 읽던 시절의 보호였는데, 지금은 전부 SettlementCalc.book(jobs) 를 읽는다.
+        //   그 규칙만 남아 카드를 거짓말하게(2차에 1차 돈) 만들어서, 이제 카드 = 대표 건(한 방향)으로 맞춘다.
         val jobDao = mock<JobDao> {
-            // 건에 엉뚱한 금액이 있어도 고객의 돈은 그대로여야 한다 (건별 정산은 Stage B)
             onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(job(10L, day1, total = 999_000L))
         }
         val customerDao = mock<CustomerDao> {
@@ -182,9 +184,42 @@ class JobRepositoryStageATest {
 
         argumentCaptor<CustomerEntity>().apply {
             verifyBlocking(customerDao) { update(capture()) }
-            assertEquals(400_000L, firstValue.totalAmount)
-            assertEquals(100_000L, firstValue.depositAmount)
-            assertEquals(300_000L, firstValue.balanceAmount)
+            assertEquals(999_000L, firstValue.totalAmount)   // 카드가 건 돈으로
+            assertNull(firstValue.depositAmount)             // 건엔 계약금 없음 → 카드도 비움
+            assertNull(firstValue.balanceAmount)
+        }
+    }
+
+    @Test
+    fun `1차 완납·완료(지남) + 2차 블랭크(미래)가 대표면 - 카드 돈·완료가 비워진다`() = runTest {
+        // 사장님 신고(2026-10-05): 1차 끝내고 잔금받은 뒤 2차 잡으면 2차에 1차 돈·완납이 묻어나던 것.
+        val past = today - DateTimeUtils.DAY_MS
+        val firstPaid = JobEntity(
+            id = 10L, customerId = 1L, scheduledWorkDate = past, scheduledWorkDays = 1,
+            totalAmount = 1_000_000L, depositAmount = 300_000L, depositPaidAt = now,
+            balanceAmount = 700_000L, balancePaidAt = now, workCompletedAt = now,
+            createdAt = 0L, updatedAt = 0L
+        )
+        val secondBlank = job(20L, day7)   // 미래, 돈 없음
+        val jobDao = mock<JobDao> {
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(firstPaid, secondBlank)
+        }
+        val customerDao = mock<CustomerDao> {
+            // 카드엔 아직 1차 돈·완납·완료가 남아 있다(미러가 돈을 안 옮기던 시절)
+            onBlocking { findById(1L) } doReturn customer(totalAmount = 1_000_000L).copy(
+                balancePaidAt = now, workCompletedAt = now
+            )
+        }
+        val repo = JobRepository(jobDao, customerDao)
+
+        repo.recomputeMirror(1L, now)
+
+        argumentCaptor<CustomerEntity>().apply {
+            verifyBlocking(customerDao) { update(capture()) }
+            assertEquals(day7, firstValue.scheduledWorkDate)
+            assertNull("2차가 대표 → 카드 총금액 비움", firstValue.totalAmount)
+            assertNull("완납 비움", firstValue.balancePaidAt)
+            assertNull("완료 비움", firstValue.workCompletedAt)
         }
     }
 

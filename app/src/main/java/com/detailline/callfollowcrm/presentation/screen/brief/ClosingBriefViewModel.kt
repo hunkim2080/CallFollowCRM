@@ -99,12 +99,19 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
                 )
             }
 
-        // 못 받은 돈 — 시공 완료했는데 아직 안 들어온 잔금.
-        val outstandingList = cs.filter { it.workCompletedAt != null && (owedOf(it) - paidOf(it)) > 0L }
-        val outstandingSum = outstandingList.sumOf { (owedOf(it) - paidOf(it)).coerceAtLeast(0L) }
-        val outstandingExample = outstandingList.maxByOrNull { it.workCompletedAt ?: 0L }?.let { c ->
-            val nm = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
-            "$nm ${formatMoney((owedOf(c) - paidOf(c)).coerceAtLeast(0L))}원"
+        // 못 받은 돈 — 시공 완료했는데 아직 안 들어온 잔금. **건별 장부(book)** 로 — 1차 미수와 2차 완납이 각각.
+        //   (전엔 고객 카드로 봐서, 2차가 대표가 되면 1차 미수가 브리핑에서 사라졌다. 2026-10-05 Fable)
+        val bookRows = SettlementCalc.book(cs, jobHistory)
+        val jobById = jobHistory.associateBy { it.id }
+        val custById = cs.associateBy { it.id }
+        fun doneAtOf(r: com.detailline.callfollowcrm.domain.settlement.SettleBookRow): Long? =
+            if (r.jobId != null) jobById[r.jobId]?.workCompletedAt else custById[r.customerId]?.workCompletedAt
+        val outstandingRows = bookRows.filter { doneAtOf(it) != null && it.calc.outstanding > 0L }
+        val outstandingSum = outstandingRows.sumOf { it.calc.outstanding }
+        val outstandingExample = outstandingRows.maxByOrNull { doneAtOf(it) ?: 0L }?.let { r ->
+            val c = custById[r.customerId]
+            val nm = c?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c?.phoneNumber.orEmpty())
+            "$nm ${formatMoney(r.calc.outstanding)}원"
         }
 
         return ClosingBriefState(
@@ -121,7 +128,7 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
             progressLabel = progressLabel,
             todayContribLabel = if (paidSum > 0L) "오늘 +${formatMoney(paidSum)}원" else null,
             jobs = jobs,
-            outstandingCount = outstandingList.size,
+            outstandingCount = outstandingRows.size,
             outstandingSumLabel = if (outstandingSum > 0L) "${formatMoney(outstandingSum)}원" else null,
             outstandingExample = outstandingExample,
             loaded = true

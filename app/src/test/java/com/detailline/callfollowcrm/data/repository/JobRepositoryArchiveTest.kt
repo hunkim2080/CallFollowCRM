@@ -46,7 +46,9 @@ class JobRepositoryArchiveTest {
 
     @Test
     fun `완료된 시공이면 이력 보관하고 고객 필드를 리셋한다`() = runTest {
-        val jobDao = mock<JobDao>()
+        val jobDao = mock<JobDao> {
+            onBlocking { countByCustomerAndDate(any(), any()) } doReturn 0   // 그 날짜에 건 없음 → 사본 보관 진행 (2026-10-05 2-C 가드)
+        }
         val customerDao = mock<CustomerDao> {
             // 완료 + **완납**(미수 0) 이어야 보관 진행 — 미수가 남으면 보류(2026-07-30 돈 가드).
             onBlocking { findById(1L) } doReturn customer(workCompletedAt = 5_000L, balancePaidAt = 6_000L)
@@ -73,6 +75,24 @@ class JobRepositoryArchiveTest {
             assertNull(firstValue.totalAmount)
             assertNull(firstValue.balanceAmount)
         }
+    }
+
+    @Test
+    fun `그 날짜에 건이 이미 있으면 사본을 또 만들지 않는다 - 중복 완납 방지`() = runTest {
+        // v49+ 에선 1차가 이미 jobs 에 있다 → 카드 데이터로 사본을 또 만들면 완납 2행·매출 2배. (2026-10-05 Fable 2-C)
+        val jobDao = mock<JobDao> {
+            onBlocking { countByCustomerAndDate(1L, 1_000L) } doReturn 1   // 그 날짜 건 이미 있음
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn emptyList() // recomputeMirror 용
+        }
+        val customerDao = mock<CustomerDao> {
+            onBlocking { findById(1L) } doReturn customer(workCompletedAt = 5_000L, balancePaidAt = 6_000L)
+        }
+        val repo = JobRepository(jobDao, customerDao)
+
+        val archived = repo.archiveCompletedBeforeNewSchedule(1L, now = 9_000L)
+
+        assertTrue(archived)                                    // 카드는 리셋됨(새 일정 폼이 새 2차를 만든다)
+        verifyBlocking(jobDao, never()) { insert(any()) }       // 사본 insert 는 **안** 함
     }
 
     @Test

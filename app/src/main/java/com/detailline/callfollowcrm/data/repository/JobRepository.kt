@@ -49,6 +49,20 @@ class JobRepository(
         //   (2026-07-30 버그감사 — 재방문 Phase2 전 최소 가드. SoT=docs/PLAN_repeat_jobs.md)
         if (com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding > 0L) return false
 
+        // 🔒 이미 그 날짜에 건이 있으면(= 1차가 이미 jobs 에 있음, v49+) **사본을 또 만들지 않는다** — 중복 완납·매출 2배 방지.
+        //   (2026-10-05 Fable 2-C) 카드만 리셋하면 새 일정 폼이 새 2차를 만든다. recomputeMirror 가 카드를 남은 대표로 되돌림.
+        if (jobDao.countByCustomerAndDate(c.id, c.scheduledWorkDate) > 0) {
+            customerDao.update(
+                c.copy(
+                    scheduledWorkDate = null, scheduledWorkMinutes = null, scheduledWorkDays = 1, address = null,
+                    totalAmount = null, depositAmount = null, depositPaidAt = null,
+                    balanceAmount = null, balancePaidAt = null, workCompletedAt = null, updatedAt = now
+                )
+            )
+            recomputeMirror(c.id, now)
+            return true
+        }
+
         jobDao.insert(
             JobEntity(
                 customerId = c.id,
@@ -237,11 +251,28 @@ class JobRepository(
         // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03 — 같은 규칙이 세 곳에 조금씩 다르게 있었다)
         val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)
         customerDao.update(
-            c.copy(
-                scheduledWorkDate = rep?.scheduledWorkDate,
-                scheduledWorkMinutes = rep?.scheduledWorkMinutes,
-                scheduledWorkDays = (rep?.scheduledWorkDays ?: 1).coerceAtLeast(1),
-                address = rep?.address?.takeIf { it.isNotBlank() } ?: c.address,
+            if (rep != null) c.copy(
+                // 일정
+                scheduledWorkDate = rep.scheduledWorkDate,
+                scheduledWorkMinutes = rep.scheduledWorkMinutes,
+                scheduledWorkDays = rep.scheduledWorkDays.coerceAtLeast(1),
+                address = rep.address?.takeIf { it.isNotBlank() } ?: c.address,
+                // 💰 돈·완료도 **대표 건 것으로** — 한 방향(jobs → customers). (2026-10-05 사장님·Fable)
+                //   전엔 일정만 옮겨, 2차가 대표가 되면 카드에 1차 돈·완납이 남아 묻어났다.
+                //   「정산은 customers 를 읽어서 돈을 안 옮긴다」던 옛 보호는 이미 해소됨(정산·미수는 SettlementCalc.book = jobs).
+                //   건별 미수 보존은 book 이, 옛 카드-전용 돈은 repairMoneyMirror(시작 시)가 건으로 끌어올려 보호한다.
+                totalAmount = rep.totalAmount,
+                depositAmount = rep.depositAmount,
+                depositPaidAt = rep.depositPaidAt,
+                balanceAmount = rep.balanceAmount,
+                balancePaidAt = rep.balancePaidAt,
+                workCompletedAt = rep.workCompletedAt,
+                updatedAt = now
+            ) else c.copy(
+                // 예정 건이 하나도 없음 — 일정만 비운다. 돈·완료는 **안 건드린다**(건 없는 고객은 카드가 SoT).
+                scheduledWorkDate = null,
+                scheduledWorkMinutes = null,
+                scheduledWorkDays = 1,
                 updatedAt = now
             )
         )
@@ -273,8 +304,7 @@ class JobRepository(
                 updatedAt = now
             )
         )
-        recomputeMirror(j.customerId, now)
-        syncMoneyFromRepresentative(j.customerId, now)
+        recomputeMirror(j.customerId, now)   // 이제 돈·완료까지 미러 → 대표가 1차로 돌아오면 카드도 1차로. (중복 sync 호출 제거)
     }
 
     /**
@@ -296,23 +326,42 @@ class JobRepository(
      *   고객 카드에 90만이 써졌고, 그게 대표 건인 **1차(10/20)** 전표로 미러링돼
      *   1차 금액 50만이 90만으로 바뀌었다.
      */
-    suspend fun syncMoneyFromRepresentative(customerId: Long, now: Long) {
-        val c = customerDao.findById(customerId) ?: return
-        val jobs = jobDao.scheduledByCustomerOnce(customerId)
-        if (jobs.isEmpty()) return
+    /** 옛 이름 유지 — 이제 [recomputeMirror] 가 돈·완료까지 한 방향으로 미러한다. 호출부 안 바꾸려고 남겨둠. (2026-10-05) */
+    suspend fun syncMoneyFromRepresentative(customerId: Long, now: Long) = recomputeMirror(customerId, now)
+
+    /**
+     * 🩹 **시작 시 한 번** — 돈이 **카드에만 있고 건엔 없는** 옛 고객의 돈을 대표 건으로 끌어올린다.
+     *   [recomputeMirror] 가 돈까지 미러하게 바뀌기(2026-10-05) 전 데이터 보호. 마이그레이션(벽돌 위험) 대신
+     *   [CustomerRepository.repairAddressMirror] 와 같은 시작-시 Kotlin 치유. **건에 돈이 있으면 안 건드린다(멱등).**
+     *   @return 끌어올린 고객 수.
+     */
+    suspend fun repairMoneyMirror(now: Long = System.currentTimeMillis()): Int {
+        val customers = runCatching { customerDao.allOnce() }.getOrDefault(emptyList())
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
-        // 🏷️ 대표 건 고르기는 **RepresentativeJob 한 곳**. (2026-10-03)
-        val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: return
-        customerDao.update(
-            c.copy(
-                totalAmount = rep.totalAmount,
-                depositAmount = rep.depositAmount,
-                depositPaidAt = rep.depositPaidAt,
-                balanceAmount = rep.balanceAmount,
-                balancePaidAt = rep.balancePaidAt,
-                updatedAt = now
-            )
-        )
+        var fixed = 0
+        for (c in customers) {
+            val cardHasMoney = c.totalAmount != null || c.depositAmount != null || c.balanceAmount != null ||
+                c.depositPaidAt != null || c.balancePaidAt != null || c.workCompletedAt != null
+            if (!cardHasMoney) continue
+            val jobs = jobDao.scheduledByCustomerOnce(c.id)
+            if (jobs.isEmpty()) continue   // 건 없는 고객 = 카드가 SoT, 안 건드림
+            val anyJobHasMoney = jobs.any {
+                it.totalAmount != null || it.depositAmount != null || it.balanceAmount != null ||
+                    it.depositPaidAt != null || it.balancePaidAt != null || it.workCompletedAt != null
+            }
+            if (anyJobHasMoney) continue   // 이미 건에 돈이 있음 → 안 건드림(멱등)
+            val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: continue
+            runCatching {
+                jobDao.update(
+                    rep.copy(
+                        totalAmount = c.totalAmount, depositAmount = c.depositAmount, depositPaidAt = c.depositPaidAt,
+                        balanceAmount = c.balanceAmount, balancePaidAt = c.balancePaidAt, workCompletedAt = c.workCompletedAt,
+                        updatedAt = now
+                    )
+                )
+            }.onSuccess { fixed++ }
+        }
+        return fixed
     }
 
     /**

@@ -13734,3 +13734,14 @@ Fable 🧹3. 사장님 "고고"
 - 돈 로직(JobRepository) 무변경 → 기존 Job/Settle/CashFlow 테스트 전부 통과. 가드 통과. 테스트폰 설치·크래시0.
 - 남음(Fable Step B/C, 다음): recomputeMirror 돈 미러 완성 + 치유 마이그레이션(홈 히어로·완료팝업·브리핑 등 카드 읽는 나머지 + 숨은 2-B 돈 2배 경로 차단). 2-C(archiveCompletedBeforeNewSchedule 중복 가드)도.
 - 결정(사장님): 이어서 공사=기간 한 건, 재방문=2차 따로.
+
+## 2026-10-05 23:05 · android
+재방문 2차 돈 버그 Step B/C (돈 뿌리 완성). Fable 감사 기반. DB 마이그레이션 없이 시작-시 Kotlin 치유로(벽돌 위험0).
+- B-1: recomputeMirror 가 대표 건의 돈 5칸+workCompletedAt 까지 고객카드에 미러(한 방향 jobs→customers). rep 없으면 일정만 비우고 돈은 안 건드림.
+- B-2: syncMoneyFromRepresentative→recomputeMirror 별칭. cancelJob 중복 제거.
+- 치유: JobRepository.repairMoneyMirror() — 돈이 카드에만 있고 건엔 없던 옛 고객을 건으로 끌어올림(멱등). Application 시작 시.
+- C-1: ClosingBriefViewModel 못받은돈을 SettlementCalc.book(건별)으로 → 1차 미수가 2차 잡아도 브리핑에 남음.
+- 2-C: archiveCompletedBeforeNewSchedule 에 "그 날짜 건 이미 있으면 사본 안 만듦" 가드(완납2행/매출2배 방지).
+- 효과: 카드=대표건이라 홈 히어로·완료팝업·오늘현장·캘린더설명·본폰미러 등 카드 읽는 곳 자동 교정.
+- 테스트: 미러 반전+케이스b, 2-C 가드 신규, JobCardRow(Step A). 전체 유닛+가드 통과. 시작 치유 크래시0·고객상세/홈 렌더.
+- 실기 full 재현(1차완납→2차)은 미실시 — 돈 로직은 유닛이 정확히 검증, 사장님 실데이터 눈확인 부탁.

@@ -295,6 +295,11 @@ class CallFollowCrmApplication : Application() {
             runCatching { container.customerRepository.repairAddressMirror() }
                 .onSuccess { n -> android.util.Log.i("AddrRepair", "주소 어긋난 건 ${n}개 맞춤") }
                 .onFailure { android.util.Log.w("AddrRepair", "주소 보정 실패", it) }
+            // 🩹 돈이 카드에만 있고 건엔 없던 옛 고객을 건으로 끌어올린다 — recomputeMirror 가 돈까지 미러하기 전 보호. (2026-10-05)
+            //   같은 코루틴에서 주소 보정 **다음에** 돌려, 돈 미러보다 먼저 치유되게. 멱등이라 매번 켜도 안전.
+            runCatching { container.jobRepository.repairMoneyMirror() }
+                .onSuccess { n -> if (n > 0) android.util.Log.i("MoneyRepair", "카드-전용 돈 ${n}개 건으로 끌어올림") }
+                .onFailure { android.util.Log.w("MoneyRepair", "돈 보정 실패", it) }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
