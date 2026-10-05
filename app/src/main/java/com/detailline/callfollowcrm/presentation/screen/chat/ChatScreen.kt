@@ -4357,6 +4357,10 @@ private fun SendConfirmDialog(
     var editBody by remember(body) { mutableStateOf(body) }
     var showTimePicker by remember { mutableStateOf(false) }
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    // 보내기 창이 뜨면 **키보드를 내린다** — 입력창에서 올라온 키보드가 그대로 남아 확인 창을 가리던 '키패드 버그'.
+    //   프로토도 이 창엔 키보드 없음(확인만). 고치려 편집칸을 탭하면 그때 다시 올라온다. (2026-10-05 사장님)
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(Unit) { focusManager.clearFocus(force = true) }
     // 프로토엔 발송 확인이 없지만(바로 전송), 실제 문자라 안전 확인은 유지.
     //   2026-06-03: 가운데 AlertDialog(진한 막) → 프로토식 바텀시트(그립+미리보기+보내기/취소)로 교체.
     //   2026-09-14 사장님 신고: 본문을 고치려고 탭하면 키보드가 미리보기·[보내기]를 통째로 가렸다.
