@@ -30,6 +30,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -261,6 +265,16 @@ fun ChatScreen(
     // 🕐 이 번호의 예약 대기 문자 — 대화 맨 아래 회색 '발송 대기' 말풍선으로. (2026-10-05 사장님)
     val scheduledPending by viewModel.scheduledPending.collectAsState()
     var scheduledCancelId by remember { mutableStateOf<Long?>(null) }
+    // 🫧 쫀득 팝 — 화면 연 뒤에 '새로' 온 말풍선만 튄다(들어올 때 기존 건 안 튀게). 내 발송 + 내가 챗에 있을 때 온 수신. (2026-10-05 사장님)
+    val screenOpenedAtMs = remember { System.currentTimeMillis() }
+    // 폰 '애니메이션 줄이기/끄기'(개발자옵션·접근성)면 안 튄다.
+    val reduceMotion = remember {
+        runCatching {
+            android.provider.Settings.Global.getFloat(
+                context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+            ) == 0f
+        }.getOrDefault(false)
+    }
     // 통화 구간 — 메시지와 시간순 병합해 타임라인에 통화 카드로 표시 (loadMessages 무손상, 렌더 레이어 병합).
     val callRecords by viewModel.callRecords.collectAsState()
     // 시공접수서 제출 이벤트 — 통화처럼 타임라인에 카드로 병합.
@@ -940,6 +954,8 @@ fun ChatScreen(
                                     body = msg.body,
                                     timeMs = msg.dateMs,
                                     sent = msg.sent,
+                                    // 🫧 화면 연 뒤 새로 온 것만 쫀득 팝(내 발송·내가 보는 중 온 수신). 기존 건·스크롤엔 안 튐.
+                                    animateIn = !reduceMotion && msg.dateMs > screenOpenedAtMs,
                                     highlight = hlQuery,
                                     isCurrentMatch = isCurrentMatch,
                                     imageUris = msg.imageUris,
@@ -2834,7 +2850,9 @@ private fun ChatBubble(
     /** 대화 검색 중이면 이 글자에 형광펜. 빈 글자면 아무것도 안 칠한다. */
     highlight: String = "",
     /** 지금 ▲▼ 로 보고 있는 그 건인지 — 진한 형광펜. */
-    isCurrentMatch: Boolean = false
+    isCurrentMatch: Boolean = false,
+    /** 🫧 화면 연 뒤 '새로' 온 말풍선이면 쫀득 팝 애니. (기존 건·스크롤 재진입엔 false) */
+    animateIn: Boolean = false
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // 프로토 .brow/.bubble — 시각(btime)은 말풍선 밖(옆 아래), 별표는 바깥쪽.
@@ -2878,11 +2896,22 @@ private fun ChatBubble(
             timeText(); Spacer(Modifier.width(6.dp))
         }
         val bubbleInteraction = remember { MutableInteractionSource() }
+        // 🫧 쫀득 팝 — 꼬리 모서리에서 통통 튀며 커진다. animateIn 아니면 즉시 1(안 튐). (2026-10-05 사장님)
+        val pop = remember { Animatable(if (animateIn) 0f else 1f) }
+        LaunchedEffect(Unit) {
+            if (animateIn) pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
+        }
         Surface(
             shape = bubbleShape,
             color = if (sent) TossBlue else Color.White,
             shadowElevation = 0.dp,   // 그림자는 아래 tossCardShadow(받은 버블)로 — M3 회색 1dp 대신 프로토 부드러운 그림자.
             modifier = Modifier
+                .graphicsLayer {
+                    val p = pop.value
+                    scaleX = p; scaleY = p
+                    alpha = (p / 0.5f).coerceIn(0f, 1f)
+                    transformOrigin = TransformOrigin(if (sent) 1f else 0f, 1f)
+                }
                 .widthIn(max = 280.dp)
                 .pressScale(bubbleInteraction)                                   // 눌림 '쏙' (다른 화면과 통일)
                 .then(if (sent) Modifier else Modifier.tossCardShadow(bubbleShape))  // 받은 버블 = 프로토 var(--shadow)
