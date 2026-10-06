@@ -13830,3 +13830,8 @@ Fable 🧹3. 사장님 "고고"
 - Column horizontalAlignment=Center, 날짜 Box·CashAmt 의 start 패딩 제거, 금액 textAlign=Center.
 - ⚠️ 일정 탭 달력(ScheduleScreen CalendarDay)은 아직 왼쪽 위 — 두 달력이 달라짐. 사장님께 물어봄.
 - 폰 확인: 못 봄. assembleRelease BUILD=0.
+
+## 2026-10-06 18:40 · android
+현금 흐름 달력 정렬 정정 — 날짜만 가운데, 금액은 왼쪽 (사장님: 일정 탭이 날짜 가운데·주소 왼쪽).
+- 직전(c148a890)은 금액까지 가운데로 했던 것 → 금액 왼쪽 복귀(start=3dp), 날짜는 Box.align(Center) 유지. 일정 탭 CalendarDay 와 동일.
+- 폰 확인: 못 봄. assembleRelease BUILD=0.
