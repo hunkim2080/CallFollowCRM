@@ -1949,17 +1949,20 @@ fun HomeScreen(
                 // 👥 **지인이 맨 먼저다.** 사장님이 **직접 찍은** 것이라 글자로 때려맞힌 것보다 세다.
                 //   (2026-10-02 사장님 "광고 택배 옆에 지인 목록을 하나 만들어서")
                 val friends = generalThreads.filter { it.isFriend }
+                // 🚫 스팸(02·070 등 지역번호·인터넷전화) — 전엔 통째로 숨겼는데, OTP도 숨어서 여기 모아 보인다. (2026-10-06 사장님)
+                val spam = generalThreads.filter { it.isSpam }
                 val parcels = generalThreads.filter {
-                    !it.isFriend &&
+                    !it.isFriend && !it.isSpam &&
                         com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
                 }
                 val ads = generalThreads.filter {
-                    !it.isFriend &&
+                    !it.isFriend && !it.isSpam &&
                         !com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
                 }
                 val boxThreads = when (boxSub) {
                     "parcel" -> parcels
                     "friend" -> friends
+                    "spam" -> spam
                     else -> ads
                 }
                 // 📨 가르기는 **문자함 안에서**. 둘이 합치면 문자함 전부라 빠지는 게 없다.
@@ -1972,20 +1975,33 @@ fun HomeScreen(
                     BoxSubChip("택배", parcels.size, boxSub == "parcel") { boxSub = "parcel" }
                     // 👥 「사생활」은 숨기는 느낌이라 안 쓴다 — **지인**. (2026-10-02 사장님과 정함)
                     BoxSubChip("지인", friends.size, boxSub == "friend") { boxSub = "friend" }
+                    // 🚫 스팸 — 전엔 완전히 숨겼던 지역번호·인터넷전화 문자. OTP 찾는 자리. (2026-10-06 사장님)
+                    BoxSubChip("스팸", spam.size, boxSub == "spam") { boxSub = "spam" }
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                if (boxSub == "spam") {
+                    // 인증번호(OTP)도 여기 있을 수 있다고 알려준다. (2026-10-06 사장님)
+                    Text(
+                        "지역번호·인터넷전화로 자동 분류돼요. 은행·관공서·인증번호(OTP)도 여기 있을 수 있어요",
+                        style = AppType.caption, color = AppTheme.colors.cautionText,
+                        modifier = Modifier.fillMaxWidth().background(AppTheme.colors.cautionBg)
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
                 MessageBoxSection(
                     threads = boxThreads,
                     // 빈 화면은 **누른 칩 얘기**여야 한다. (2026-09-20 실기)
                     emptySpeech = when (boxSub) {
                         "parcel" -> "온 택배 문자가 없어요"
                         "friend" -> "지인으로 옮긴 사람이 없어요"
+                        "spam" -> "스팸으로 분류된 문자가 없어요"
                         else -> "광고·인증 문자가 없어요"
                     },
                     emptySub = when (boxSub) {
                         "parcel" -> "운송장·배송 문자는 여기로 모여요"
                         // 👥 **어떻게 넣는지**를 빈 화면이 알려준다 — 안 그러면 쓸 줄을 모른다.
                         "friend" -> "상담함에서 카드를 밀어 [지인] 을 눌러요"
+                        "spam" -> "지역번호·인터넷전화(02·070 등) 문자가 여기로 모여요"
                         else -> "인증번호·광고 문자는 여기로 모여요"
                     },
                     pinnedSuffixes = pinnedSuffixes,

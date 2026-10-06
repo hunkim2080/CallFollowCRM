@@ -1105,7 +1105,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val readStates: StateFlow<Map<String, Long>> = container.readStateStore.readStates
 
     // ── 문자함(고객 아님) 목록 + 배지 (2026-07-11 사장님) ─────────────────────────
-    /** 문자함 스레드 — GENERAL 분류된 SMS 연락처. 삼성 기본 메시지처럼 단순 목록. 스팸은 여기서도 숨김. */
+    /** 문자함 스레드 — GENERAL 분류된 SMS 연락처. 삼성 기본 메시지처럼 단순 목록. 스팸은 숨기지 않고 isSpam 으로 태그만(칩에서 본다). */
     val generalThreads: StateFlow<List<GeneralThread>> = combine(
         smsContactsState, bucketMap, customers, readStates, generalGate
     ) { contacts, buckets, custs, reads, gate ->
@@ -1120,10 +1120,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (!isFriendNo) {
                 if (b == null) return@mapNotNull null
                 if (b.bucket != com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL) return@mapNotNull null
-                if (spam.isSpam(c.address, c.normalizedSuffix)) return@mapNotNull null   // 진짜 스팸만 숨김
+                // 🚫 스팸은 **숨기지 않고 태그만** — 문자함 [스팸] 칩에서 본다(인증번호도 여기). (2026-10-06 사장님)
             }
+            val isSpamNo = !isFriendNo && spam.isSpam(c.address, c.normalizedSuffix)
             val readMs = reads[c.normalizedSuffix] ?: 0L
             GeneralThread(
+                isSpam = isSpamNo,
                 phone = c.address,
                 suffix = c.normalizedSuffix,
                 displayName = custBySuffix[c.normalizedSuffix]?.name?.takeIf { it.isNotBlank() },
@@ -1141,7 +1143,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 문자함에서 안 읽은 **번호들**. 숫자도 「전부 읽음으로」도 여기서 나온다. */
     private val generalUnreadPhones: StateFlow<List<String>> =
-        generalThreads.map { list -> list.filter { it.unread }.map { it.phone } }
+        generalThreads.map { list -> list.filter { it.unread && !it.isSpam }.map { it.phone } }   // 스팸 안읽음은 문자함 배지에 안 센다
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 문자함 배지 = 안 읽은 문자함 스레드 수(크롬 탭 옆 숫자). */
@@ -1746,6 +1748,8 @@ data class GeneralThread(
     val isAd: Boolean,        // 광고로 걸러진 것 → '광고' 딱지
     /** 👥 사장님이 「지인으로」 찍은 것 — 문자함 [지인] 칸에 모인다. (2026-10-02) */
     val isFriend: Boolean = false,
+    /** 🚫 스팸 앞자리(02·070 등)·스팸 마킹 — 문자함 [스팸] 칸에 모인다(OTP도 여기). (2026-10-06 사장님) */
+    val isSpam: Boolean = false,
     val unread: Boolean
 )
 
