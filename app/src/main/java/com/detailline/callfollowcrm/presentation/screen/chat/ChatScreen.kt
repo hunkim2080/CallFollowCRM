@@ -4669,6 +4669,13 @@ private fun EstimateBuilderDialog(
     var memo by draft.memo   // 특이사항 (견적서 비고 + 접수서 ownerMemo)
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = draft.selectedQty
+    // 🤝 만나서 정하기 — 항목 없이 주소만 받는 접수서(시공접수서 탭). (2026-10-06 사장님 · 페이블 B안)
+    //   고른 항목은 지우지 않고 '목록만 접는다' → 다시 고르기로 복원. 시트 닫으면 풀림(remember).
+    var meetMode by remember(mode) { mutableStateOf(false) }
+    //   금액이 없으니 '비율' 계약금은 못 쓴다 → 켤 때 정액 10만원으로 바꾼다.
+    androidx.compose.runtime.LaunchedEffect(meetMode) {
+        if (meetMode && depMode == "ratio") { depVal = "10"; depMode = "fixed" }
+    }
     // 가격표에 없는 즉석 항목(예: 실리콘) — 견적 만들기에서 바로 직접 추가. (2026-06-07 사장님 요청)
     val customItems = draft.customItems
     // 프로토: 카테고리 없는 평탄 리스트.
@@ -4832,9 +4839,42 @@ private fun EstimateBuilderDialog(
             // 이 구역이 뭔지 + 지금 몇 개 골랐는지. 다른 구역과 같은 라벨 줄. (2026-09-24 사장님)
             val pickedCount = selectedQty.values.count { it > 0 } +
                 customItems.count { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
-            EstLabelRow("시공 항목", if (pickedCount > 0) "${pickedCount}개 골랐어요" else "고르지 않음",
-                dim = pickedCount == 0)
+            EstLabelRow("시공 항목",
+                if (meetMode) "현장에서 정해요"
+                else if (pickedCount > 0) "${pickedCount}개 골랐어요" else "고르지 않음",
+                dim = pickedCount == 0 && !meetMode)
             Spacer(Modifier.height(AppSpace.s12))
+            // ➕ 다 적은 직접 항목을 가격표에 올린다. CTA·목록 둘 다 쓰므로 if 밖에 둔다. (2026-10-06 옮김)
+            val pendingNew = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+            fun commitCustomLines() {
+                customItems.forEach { c ->
+                    val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+                    if (c.name.isNotBlank() && won > 0L) {
+                        c.editing = false
+                        val t = c.name.trim()
+                        onAddPricingItem(t, won)
+                        if (pendingNew.none { it == t }) pendingNew.add(t)
+                    }
+                }
+            }
+            // 🤝 시공접수서 탭에서만 — 가격표 줄(체크)과 모양이 달라 안 헷갈리게 라디오 박스.
+            if (mode == "accept") {
+                EstMeetToggle(on = meetMode) { meetMode = !meetMode }
+                Spacer(Modifier.height(AppSpace.s12))
+            }
+            if (meetMode) {
+                // 목록만 접는다 — 고른 건 그대로 기억(지우지 않음). '다시 고르기'로 복원.
+                Row(
+                    Modifier.fillMaxWidth().clip(AppShape.sm)
+                        .clickable { meetMode = false }
+                        .padding(vertical = AppSpace.s12, horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("가격표 항목은 접어뒀어요", style = AppType.caption,
+                        color = TossTextTertiary, modifier = Modifier.weight(1f))
+                    Text("다시 고르기", style = AppType.label, color = TossBlue)
+                }
+            } else {
             // ↕️ **손잡이는 필요할 때만.** (2026-09-27 사장님 "다른 방법으로 '나'가 되게 할 순 없어?")
             //   줄마다 ≡ 를 상시로 달면 매일 보는 시트가 빽빽해진다. 순서는 어쩌다 한 번 바꾸는 일이라
             //   **누른 그때만** 손잡이 달린 목록으로 바뀐다.
@@ -4901,22 +4941,7 @@ private fun EstimateBuilderDialog(
             // ➕ **다 적은 줄은 가격표로 올라간다.** (2026-09-27 사장님 "저장안되고 지워짐")
             //   올리고 나서 목록에 들어오는 걸 보고서야 체크하고 임시 줄을 뺀다 —
             //   먼저 빼면 방 안에서 사라졌다가 잠시 뒤 나타나 깜빡인다.
-            val pendingNew = remember { androidx.compose.runtime.mutableStateListOf<String>() }
-            /**
-             * 다 적은 직접 항목을 **가격표에 올린다.** 초점이 빠질 때만 하면
-             * 키보드만 내리고 바로 보낼 때 등록이 빠진다. (2026-09-28 테스트폰에서 확인)
-             */
-            fun commitCustomLines() {
-                customItems.forEach { c ->
-                    val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
-                    if (c.name.isNotBlank() && won > 0L) {
-                        c.editing = false
-                        val t = c.name.trim()
-                        onAddPricingItem(t, won)
-                        if (pendingNew.none { it == t }) pendingNew.add(t)
-                    }
-                }
-            }
+            // pendingNew·commitCustomLines 정의는 if(meetMode) 밖(위)으로 옮겼다 — CTA 에서도 쓰므로. (2026-10-06)
             /**
              * 🔴 **올라간 임시 줄은 반드시 지운다 — 안 지우면 같은 이름이 두 줄로 보인다.**
              *   (2026-10-03 테스트폰에서 실제로 봤다: 「testitem 30만원」이 두 줄)
@@ -5028,6 +5053,7 @@ private fun EstimateBuilderDialog(
                 showVat = mode != "text",
                 onVat = { vatIncluded = it }
             )
+            }   // ← 🤝 meetMode 가 아닐 때만 보이는 항목/합계 블록 끝
             // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
             if (mode != "text") {
                 Spacer(Modifier.height(AppSpace.s24))
@@ -5046,7 +5072,9 @@ private fun EstimateBuilderDialog(
                     // 정액 진입 시 10만원 프리필 — depVal 은 비율(%)과 공유되므로, 비율값(예 30)이 그대로
                     //   넘어와 "30만원"으로 뜨던 혼란 방지. 이미 정액이면(재탭) 사용자가 고친 값 보존. (2026-07-03 사장님)
                     EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { if (depMode != "fixed") depVal = "10"; depMode = "fixed" }
-                    EstSegTab("비율", depMode == "ratio", Modifier.weight(1f)) { depMode = "ratio" }
+                    EstSegTab("비율", depMode == "ratio", Modifier.weight(1f)) {
+                        if (meetMode) toast("금액이 없어 비율은 못 써요") else depMode = "ratio"
+                    }
                     EstSegTab("없음", depMode == "none", Modifier.weight(1f)) { depMode = "none" }
                 }
                 if (depMode == "ratio") {
@@ -5122,12 +5150,12 @@ private fun EstimateBuilderDialog(
             Spacer(Modifier.height(AppSpace.s24))
             // 프로토 .sheet-cta — 탭별 라벨/동작
             val ctaText = when (mode) {
-                "accept" -> "시공접수서 링크 보내기"
+                "accept" -> if (meetMode) "주소만 받는 접수서 보내기" else "시공접수서 링크 보내기"
                 "quote" -> "견적서(직인) 보내기"
                 else -> "문자에 견적 넣기"
             }
-            EstSheetCta(ctaText, enabled = anySelected, filled = true) {
-                if (!anySelected) { toast("항목을 한 개 이상 골라주세요"); return@EstSheetCta }
+            EstSheetCta(ctaText, enabled = anySelected || meetMode, filled = true) {
+                if (!anySelected && !meetMode) { toast("항목을 고르거나, 만나서 정하기를 눌러주세요"); return@EstSheetCta }
                 when (mode) {
                     "text" -> onConfirm(composeBody())
                     "quote" -> {
@@ -5160,7 +5188,9 @@ private fun EstimateBuilderDialog(
                             )
                         }
                         onIssueIntake(
-                            issItems + customIss, (totalSum / 10_000L).toInt(),
+                            // 🤝 만나서 정하기면 항목·합계를 비워 보낸다 — 고객 폼에 견적이 안 뜨고 주소만. (2026-10-06 사장님)
+                            if (meetMode) emptyList() else issItems + customIss,
+                            if (meetMode) 0 else (totalSum / 10_000L).toInt(),
                             cal?.get(java.util.Calendar.YEAR) ?: 0,
                             cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
                             cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
@@ -5183,6 +5213,37 @@ private fun EstimateBuilderDialog(
     }
 }
 
+
+/**
+ * 🤝 「만나서 정하기」 — 항목 없이 주소만 받는 접수서 선택. (2026-10-06 사장님 · 페이블 B안)
+ *   가격표 줄은 네모 체크(☐)인데 이건 **동그라미 라디오(◯)+테두리 박스**라 눈에 안 섞인다.
+ */
+@Composable
+private fun EstMeetToggle(on: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(AppShape.md)
+            .border(1.5.dp, if (on) TossBlue else TossDivider, AppShape.md)
+            .background(if (on) TossBlue.copy(alpha = 0.06f) else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable { onToggle() }
+            .padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(20.dp).clip(CircleShape)
+                .border(2.dp, if (on) TossBlue else TossTextTertiary, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (on) Box(Modifier.size(10.dp).clip(CircleShape).background(TossBlue))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text("만나서 정하기", style = AppType.body, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text("항목 없이 주소·연락처만 먼저 받아요", style = AppType.caption, color = TossTextTertiary)
+        }
+        if (on) Text("✓", style = AppType.body, fontWeight = FontWeight.Black, color = TossBlue)
+    }
+}
 
 @Composable
 private fun EstSegTab(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {

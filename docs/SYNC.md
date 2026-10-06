@@ -13802,3 +13802,10 @@ Fable 🧹3. 사장님 "고고"
 - 비고: DocWebViewActivity 가 memoToken 제출여부(IntakeEventRepository.isSubmitted = intake_events 에 그 토큰 제출기록) 보고, 제출된 접수서면 비고 고치기 버튼 안 붙임. IntakeEventDao.submittedCountByToken 추가.
 - 지난 건 삭제: JobRepository.deleteJob(돈/날짜 없는 건만, 안전핀) + CustomerDetailViewModel.deletePastJob + CustomerDetailScreen '마무리/취소한 건' 목록의 취소/빈 건에 삭제 버튼 + 확인 다이얼로그. 캘린더 잔재는 다음 동기화 고아청소가 치움. JobDao.deleteById 는 기존 것 재사용.
 - 빌드: assembleRelease BUILD=0 가드 7종. style/size 기준선 1줄 갱신. 폰 확인: 못 봄. DB 스키마 변화 없음(쿼리만 추가).
+
+## 2026-10-06 17:30 · android (+ server)
+접수서 「만나서 정하기」 — 항목 없이 주소만 받는 접수서. (사장님 + 페이블 B안)
+- 앱(ChatScreen EstimateSheet accept): 시공 항목 목록 맨 위 EstMeetToggle(라디오). 켜면 목록/합계 접힘(고른 건 기억), 계약금 비율 비활성(정액 전환), CTA "주소만 받는 접수서 보내기", 발급=빈 항목/합계0. pendingNew/commitCustomLines 를 if 밖으로 옮김.
+- 서버(intake_form_page): 항목 없으면 견적 표/합계/부가세를 "시공 내용은 현장에서 상담 후 정해요" 한 줄(quote_block_html). 영수증도 _build_items_html 빈 메시지 동일.
+- ⚠️ 서버 배포 전엔 고객 폼에 옛 문구. 앱은 올려도 됨. 배포는 사장님 지시 시 GOTCHAS §3 로 intake_form_page 만.
+- 빌드: assembleRelease BUILD=0 가드 7종, py_compile OK. size 기준선 갱신(EstMeetToggle). 폰 확인: 못 봄.

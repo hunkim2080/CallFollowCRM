@@ -20611,10 +20611,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         <span class="q-dday-b">확정</span>
       </div>
 
-      <div class="q-th"><span class="q-c1">시공 항목</span><span class="q-c2">금액</span></div>
-      {items_html}
-      <div class="q-gt"><span>합계</span><b>{total_won_html}원</b></div>
-      <div class="q-gvat">{vat_label_html}</div>
+      {quote_block_html}
       {deposit_html}
       {remark_html}
       {signature_html}
@@ -21067,7 +21064,7 @@ def _build_items_html(items: list[dict]) -> str:
     """
     import html as _html
     if not items:
-        return '<div class="q-empty">견적 항목이 등록되지 않았어요.</div>'
+        return '<div class="q-empty">🤝 시공 내용은 현장에서 상담 후 정해요.</div>'
     rows = []
     for it in items:
         name = _html.escape(str(it.get("name") or ""))
@@ -21210,12 +21207,25 @@ async def intake_form_page(token: str, request: Request) -> HTMLResponse:
     biz = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
     schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
     items_html = _build_items_html(data["estimate_items"])
+    # 🤝 만나서 정하기(항목 없음)면 견적 표·합계·부가세를 통째로 한 줄로. (2026-10-06 사장님)
+    if not data["estimate_items"]:
+        quote_block_html = '<div class="q-empty">🤝 시공 내용은 현장에서 상담 후 정해요.</div>'
+    else:
+        _total_won = _html.escape(_format_won(int(data.get("total_man") or 0) * 10000))
+        _vat = _vat_label(data.get("vat_included"))
+        quote_block_html = (
+            '<div class="q-th"><span class="q-c1">시공 항목</span><span class="q-c2">금액</span></div>'
+            + items_html
+            + '<div class="q-gt"><span>합계</span><b>' + _total_won + '원</b></div>'
+            + '<div class="q-gvat">' + _vat + '</div>'
+        )
     deposit_html = _build_deposit_html(
         data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"],
         int(data.get("total_man") or 0) * 10000,  # 추가115 — 잔금 동적
     )
 
     page = INTAKE_FORM_HTML_TEMPLATE.format(
+        quote_block_html=quote_block_html,
         biz_html=_html.escape(biz),
         biz_js=json.dumps(biz, ensure_ascii=False),
         schedule_label_html=_html.escape(schedule_label),
