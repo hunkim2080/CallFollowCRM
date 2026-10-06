@@ -40,10 +40,17 @@ fun customerStatusOf(
 ): String {
     val wd = c.scheduledWorkDate
     if (wd != null && wd >= today0) return "예약"
-    val worked = (wd != null && wd < today0) || c.workCompletedAt != null || c.balancePaidAt != null
-    if (worked) {
-        val bal = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).balanceAmount
+    // 🔴 **시공완료가 찍혀야 미수다.** (2026-09-20 사장님 · SettlementCalc.overdueDays 와 같은 규칙)
+    //   전엔 예약일만 지나도(wd<today0) 「잔금미수」로 띄웠다 → 잔금 대기 칩(완료 필요)과 엇갈렸다(두 벌).
+    //   예약일만 지났고 완료 표시가 없는 건은 미수가 아니라 「시공확인」 — 끝났는지부터 확인(돈 독촉 금지).
+    val reallyDone = c.workCompletedAt != null || c.balancePaidAt != null
+    val bal = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).balanceAmount
+    if (reallyDone) {
         return if (c.balancePaidAt == null && bal > 0L) "잔금미수" else "완료"
+    }
+    if (wd != null && wd < today0) {
+        // 완료 찍으면(카드 '아직 못 받았어요') 잔금미수로 바뀌어 잔금 대기 칩에 뜬다.
+        return if (bal > 0L) "시공확인" else "완료"
     }
     // 🆕 **신규는 오늘뿐이다.** (2026-09-27 사장님)
     //   사장님: "왜 신규가 아닌데 자꾸 신규칩이 붙어다니는 거지. **하루만 지나도** 신규 태그는 없어지게"
@@ -59,7 +66,7 @@ fun customerStatusOf(
 /** 상태별 딱지 색 (fg, bg). CustomersScreen custTag 와 동일 팔레트. */
 private fun statusColors(s: String): Pair<Color, Color> = when (s) {
     "완료" -> Color(0xFF0E9F56) to LightColors.doneBg   // green
-    "신규" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber
+    "신규", "시공확인" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber (봐야 할 것 — 오늘 온 손님 / 완료 확인)
     "미전환" -> LightColors.textHint to LightColors.bg // gray
     "잔금미수" -> Color(0xFFE0620D) to LightColors.cautionBg // orange (돈 받을 것)
     else -> LightColors.primary to LightColors.primaryBg     // blue (예약)

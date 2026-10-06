@@ -32,6 +32,7 @@ class TagRuleTest {
         total: Long? = null,
         deposit: Long? = null,
         balancePaidAt: Long? = null,
+        completedAt: Long? = null,
         createdAt: Long = now
     ) = CustomerEntity(
         phoneNumber = "01011112222",
@@ -39,6 +40,7 @@ class TagRuleTest {
         totalAmount = total,
         depositAmount = deposit,
         balancePaidAt = balancePaidAt,
+        workCompletedAt = completedAt,
         createdAt = createdAt,
         updatedAt = createdAt
     )
@@ -62,8 +64,18 @@ class TagRuleTest {
     @Test
     fun `잔금미수면 자동 분류를 숨기지 않는다`() {
         // 날짜 태그가 '잔금미수' 라 겹치지 않는다 → 분류는 그대로 보여준다
-        val c = customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L)
+        // 🔴 완료(workCompletedAt)가 찍혀야 잔금미수다. (2026-10-07 — SettlementCalc 와 통일)
+        val c = customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, completedAt = now)
         assertEquals("잔금미수", label(c))
+        assertFalse("겹치지 않는데 숨기면 안 된다", showsDday(c))
+    }
+
+    @Test
+    fun `예약일 지났는데 완료 안 찍혔으면 시공확인이다`() {
+        // 예약일만 지나고 완료 표시 없는 미수는 '잔금미수'가 아니라 '시공확인' — 돈 독촉 금지. (2026-10-07 사장님)
+        //   완료(카드 '아직 못 받았어요')를 찍으면 그때 잔금미수로 바뀌어 잔금 대기 칩에 뜬다.
+        val c = customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L)
+        assertEquals("시공확인", label(c))
         assertFalse("겹치지 않는데 숨기면 안 된다", showsDday(c))
     }
 
@@ -102,8 +114,10 @@ class TagRuleTest {
     @Test
     fun `진짜 쓸모 있는 태그는 목록에 남는다`() {
         assertFalse(hiddenInList(customer(workDate = today0 + 2 * DAY)))          // 시공 D-2
-        assertFalse(hiddenInList(customer(                                       // 잔금미수
+        assertFalse(hiddenInList(customer(                                       // 시공확인(완료 전)
             workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L)))
+        assertFalse(hiddenInList(customer(                                       // 잔금미수(완료 찍힘)
+            workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, completedAt = now)))
         assertFalse(hiddenInList(customer(                                       // 완료
             workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now)))
     }
@@ -113,6 +127,12 @@ class TagRuleTest {
         // 목록에서 숨기는 건 **표시**뿐 — 상태 계산은 그대로여야 필터가 안 깨진다
         assertEquals("신규", customerStatusOf(customer(createdAt = now), today0, now))
         assertEquals("예약", customerStatusOf(customer(workDate = today0 + DAY), today0, now))
+        assertEquals("시공확인", customerStatusOf(customer(
+            workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L
+        ), today0, now))
+        assertEquals("잔금미수", customerStatusOf(customer(
+            workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, completedAt = now
+        ), today0, now))
         assertEquals("완료", customerStatusOf(customer(
             workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now
         ), today0, now))
@@ -120,15 +140,16 @@ class TagRuleTest {
 
     @Test
     fun `고객관리 칩에 없는 상태를 만들지 않는다`() {
-        // 칩 목록: 전체·신규·예약·잔금미수·완료. 계산이 그 밖의 말을 내놓으면
+        // 칩 목록: 전체·신규·예약·시공확인·잔금미수·완료. 계산이 그 밖의 말을 내놓으면
         //   어느 칩에도 안 잡히는 **유령 고객**이 생긴다. 빈 글자만 예외(딱지 없음).
-        val chips = setOf("신규", "예약", "잔금미수", "완료", "")
+        val chips = setOf("신규", "예약", "시공확인", "잔금미수", "완료", "")
         val cases = listOf(
             customer(createdAt = now),
             customer(createdAt = now - 30 * DAY),
             customer(workDate = today0 + DAY),
             customer(workDate = today0),
-            customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L),
+            customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L),                    // 시공확인
+            customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, completedAt = now), // 잔금미수
             customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now)
         )
         cases.forEach { c ->

@@ -58,9 +58,16 @@ class ScheduleTagLabelTest {
     }
 
     @Test
-    fun `시공 지났는데 잔금이 남았으면 잔금미수`() {
-        // 돈 받을 게 남은 건 절대 조용히 사라지면 안 된다
-        assertEquals("잔금미수", label(customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L)))
+    fun `완료 찍고 잔금이 남았으면 잔금미수`() {
+        // 돈 받을 게 남은 건 절대 조용히 사라지면 안 된다 — 단 **완료가 찍혀야** 미수다. (2026-10-07)
+        assertEquals("잔금미수", label(customer(
+            workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, completedAt = now)))
+    }
+
+    @Test
+    fun `예약일만 지나고 완료 안 찍혔으면 시공확인`() {
+        // 예약일만 지난 미수는 돈 독촉 대상이 아니라 '끝났는지 확인'. (2026-10-07 사장님 · 2026-09-20 규칙과 통일)
+        assertEquals("시공확인", label(customer(workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L)))
     }
 
     @Test

@@ -93,6 +93,7 @@ fun CustomersScreen(
     val note = when (filter) {
         "거래처" -> "숫자 = 이 거래처가 준 일감 누적 건수예요."
         "신규" -> "오늘 처음 연락한 고객이에요. 내일이면 딱지가 없어져요."
+        "시공확인" -> "시공일은 지났는데 완료 표시가 없어요. 끝났으면 완료를 찍어 주세요 — 그럼 잔금 대기로 넘어가요."
         else -> null
     }
 
@@ -292,7 +293,7 @@ private fun CategoryTagChip(cat: com.detailline.callfollowcrm.data.local.entity.
 
 // 단골·거래처·AS 제거 — customerStatus()가 절대 안 주는 상태라 칩이 항상 0건이었음(죽은 칩). (2026-08-15 UX감사#4)
 // 🚫 「미전환」 뺀다. 딱지를 안 붙이니 걸러볼 것도 없다. (2026-09-27 사장님 "없어도 될 태그인듯")
-private val CUST_STATUSES = listOf("전체", "신규", "예약", "잔금미수", "완료")
+private val CUST_STATUSES = listOf("전체", "신규", "예약", "시공확인", "잔금미수", "완료")
 
 /**
  * 아바타는 **한 색.** (2026-09-21 사장님)
