@@ -20724,6 +20724,9 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     new daum.Postcode({{
       oncomplete: function(data) {{
         quoteAddr = data.roadAddress || data.jibunAddress || data.address || '';
+        // 🏢 건물명(아파트명)도 붙인다 — 앱 AddressSearchDialog 와 같은 규칙. (2026-10-06 사장님)
+        //   전엔 접수서 주소찾기만 안 붙여 "휘경로 60"처럼 아파트명이 빠졌다.
+        if (data.buildingName) {{ quoteAddr += ' (' + data.buildingName + ')'; }}
         var el = document.getElementById('q-addr-field');
         var t = document.getElementById('q-addr-text');
         if (t) t.textContent = quoteAddr;

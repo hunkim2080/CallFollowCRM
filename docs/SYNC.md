@@ -13809,3 +13809,8 @@ Fable 🧹3. 사장님 "고고"
 - 서버(intake_form_page): 항목 없으면 견적 표/합계/부가세를 "시공 내용은 현장에서 상담 후 정해요" 한 줄(quote_block_html). 영수증도 _build_items_html 빈 메시지 동일.
 - ⚠️ 서버 배포 전엔 고객 폼에 옛 문구. 앱은 올려도 됨. 배포는 사장님 지시 시 GOTCHAS §3 로 intake_form_page 만.
 - 빌드: assembleRelease BUILD=0 가드 7종, py_compile OK. size 기준선 갱신(EstMeetToggle). 폰 확인: 못 봄.
+
+## 2026-10-06 17:55 · android (server only)
+접수서 주소찾기도 건물명(아파트명) 붙이기 — 앱 AddressSearchDialog 와 같은 규칙.
+- 전엔 접수서(서버 openAddr)만 data.buildingName 을 안 붙여, 고객이 접수서로 넣은 주소는 아파트명이 빠졌다(앱에서 넣은 건 나옴). 한 줄 추가로 통일.
+- ⚠️ 서버 배포해야 적용(GOTCHAS §3). py_compile OK.
