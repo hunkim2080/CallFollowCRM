@@ -13814,3 +13814,8 @@ Fable 🧹3. 사장님 "고고"
 접수서 주소찾기도 건물명(아파트명) 붙이기 — 앱 AddressSearchDialog 와 같은 규칙.
 - 전엔 접수서(서버 openAddr)만 data.buildingName 을 안 붙여, 고객이 접수서로 넣은 주소는 아파트명이 빠졌다(앱에서 넣은 건 나옴). 한 줄 추가로 통일.
 - ⚠️ 서버 배포해야 적용(GOTCHAS §3). py_compile OK.
+
+## 2026-10-06 18:10 · android
+구글 캘린더 시트(CalendarSyncSheet) 바닥 버튼 네비바 짤림 수정.
+- 고정 bottom=22dp → 공용 keyboardOrNavPadding() (네비바/키보드 자동 여백). 이 파일 내 바닥 시트는 이거 하나.
+- 폰 확인: 못 봄(빌드만). assembleRelease BUILD=0.

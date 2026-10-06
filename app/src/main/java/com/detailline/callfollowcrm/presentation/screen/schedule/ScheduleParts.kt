@@ -738,7 +738,9 @@ internal fun CalendarSyncSheet(
                 .background(AppTheme.colors.surface)
                 .clickable(interactionSource = noRipple, indication = null) { }
                 .heightIn(max = 620.dp)
-                .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 22.dp)
+                // 🧷 바닥 버튼이 네비바에 짤리던 것 — 고정 22dp 대신 공용 여백으로. (2026-10-06 사장님 "또 짤림")
+                .padding(horizontal = 20.dp).padding(top = 12.dp)
+                .keyboardOrNavPadding()
         ) {
             androidx.compose.foundation.layout.Box(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
