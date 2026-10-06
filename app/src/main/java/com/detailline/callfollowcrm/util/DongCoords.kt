@@ -78,7 +78,11 @@ object DongCoords {
         if (cand.isEmpty()) return null
         // 같은 이름이 여러 시군구에 있으면(236개) **주소에 적힌 시·군·구**로 가른다.
         val narrowed = if (cand.size == 1) cand
-            else cand.filter { sggMatches(a, it.sgg) }.ifEmpty { cand }
+            else cand.filter { sggMatches(a, it.sgg) }
+        // 🛑 **주소의 구와 하나도 안 맞으면 물러난다.** (2026-10-06 사장님 "출발지랑 다르게 스타트")
+        //   전엔 `.ifEmpty { cand }` 라, 서초 신원동(표엔 없음)이 **관악 신원동**으로 엉뚱하게 찍혔다.
+        //   엉뚱한 구를 쓰느니 null → 부르는 쪽이 '구 중심'으로 받는다(적어도 맞는 구).
+        if (narrowed.isEmpty()) return null
         // 번호로 갈린 동(조원1동·조원2동)은 **제일 앞 것**을 쓴다 — 어차피 같은 동네다.
         val best = narrowed.minByOrNull { it.dong } ?: return null
         return RegionCoords.Spot(name = displayOf(best.dong), sido = best.sido, lat = best.lat, lon = best.lon)
