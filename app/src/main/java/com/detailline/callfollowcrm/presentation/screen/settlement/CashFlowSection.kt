@@ -338,10 +338,10 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
             .heightIn(min = 44.dp)
             .padding(top = 2.dp, bottom = 3.dp)
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            // 날짜 — 작게 왼쪽 위. 오늘만 동그라미. (일정 탭과 같음)
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // 날짜 — 가운데. 오늘만 동그라미. (2026-10-06 사장님 "여기도 가운데 정렬")
             Box(
-                Modifier.padding(start = 3.dp).size(15.dp).clip(CircleShape)
+                Modifier.size(15.dp).clip(CircleShape)
                     .background(if (cell.isToday) TossBlue else Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
@@ -352,7 +352,7 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
                     fontWeight = FontWeight.Bold
                 )
             }
-            // 프로토 cc-in/inp/out/outp — 만원 금액 (확정/예정, 색). 날짜가 왼쪽이니 돈도 왼쪽으로.
+            // 프로토 cc-in/inp/out/outp — 만원 금액 (확정/예정, 색). 날짜가 가운데라 돈도 가운데. (2026-10-06)
             val a = cell.agg
             if (a.inDone > 0) CashAmt("+${man(a.inDone)}", CashIn)
             if (a.inPlan > 0) CashAmt("+${man(a.inPlan)}", CashInPlan)
@@ -366,7 +366,8 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
 private fun CashAmt(text: String, color: Color) {
     Text(text, color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold,
         maxLines = 1, overflow = TextOverflow.Ellipsis,  // 큰글씨서 달력 돈 하드클립(잘려서 안 보임) 방지. (2026-08-11 접근성 감사)
-        modifier = Modifier.padding(top = 1.dp, start = 3.dp))
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 1.dp))
 }
 
 /** 원 → 만원(반올림) 문자열 (달력 셀·순이익 단위 표시용). */

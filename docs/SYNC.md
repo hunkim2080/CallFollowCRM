@@ -13824,3 +13824,9 @@ Fable 🧹3. 사장님 "고고"
 접수서 2건 라이브 배포 (GOTCHAS §3, 백업 main.py.bak-20261006-180517).
 - 만나서 정하기(빈 항목→"현장에서 상담 후 정해요" quote_block_html) + 주소찾기 아파트명(buildingName).
 - 검증: 서버 py_compile OK · smoke 10/10(접수서 화면 고객 200 포함). repo==라이브(이 변경 한정).
+
+## 2026-10-06 18:30 · android
+현금 흐름 달력(CashDayCell) 가운데 정렬 — 날짜 동그라미 + 금액을 셀 가운데로. (사장님 "여기도 가운데")
+- Column horizontalAlignment=Center, 날짜 Box·CashAmt 의 start 패딩 제거, 금액 textAlign=Center.
+- ⚠️ 일정 탭 달력(ScheduleScreen CalendarDay)은 아직 왼쪽 위 — 두 달력이 달라짐. 사장님께 물어봄.
+- 폰 확인: 못 봄. assembleRelease BUILD=0.
