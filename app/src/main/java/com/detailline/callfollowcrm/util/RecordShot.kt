@@ -550,24 +550,51 @@ object RecordShot {
             c.drawRoundRect(pad / 2, pad / 2, S - pad / 2, h - pad / 2, 44f, 44f, card)
         }
 
+        // 스티커는 높이가 낮아(560) 내용이 길면 글자가 간판을 파고든다.
+        //   줄을 나누지 말고 글자 크기를 줄여 높이에 맞춘다. (2026-10-06 사장님
+        //   "나눠서 그리게 하지마, 글씨 크기를 작게해서 사이즈를 맞출수있도록")
+        //   내용이 짧으면 sc=1 그대로 — 한 장(카드)은 넉넉하니 늘 1.
+        fun stickerBottom(k: Float): Float {
+            var yy = pad + 54f
+            val mp = paint(bold, 32f * k, hint)
+            val bp = fit(paint(xbold, 112f * k, blue), d.bigValue, S - pad * 2 - 160f, 112f * k, 64f * k)
+            if (d.headline.isNotBlank()) {
+                val hp = fit(paint(xbold, 40f * k, ink), d.headline, S - pad * 2, 40f * k, 30f * k)
+                yy += bigTop(mp, hp, 10f * k) + bigTop(hp, bp, 12f * k)
+            } else {
+                yy += bigTop(mp, bp, 12f * k)
+            }
+            yy += 48f * k
+            if (d.bigNote.isNotBlank()) yy += 34f * k
+            if (d.towns.isNotEmpty()) yy += 62f * k
+            return yy + paint(bold, 34f * k, ink).descent()
+        }
+        // 동네 글자 바닥이 간판(상호) 위를 넘지 않을 때까지 줄인다. 최소 0.62(숫자 112→69, 읽힘).
+        val sc: Float = if (transparent) {
+            val limit = if (sign) (h - pad - 70f) - 52f * 0.81f - 12f else (h - pad - 8f)
+            var k = 1f
+            while (k > 0.62f && stickerBottom(k) > limit) k -= 0.03f
+            k
+        } else 1f
+
         var y = pad + 54f
         // 맨 위 = 언제 것인지. 그 밑이 **고른 큰 숫자**.
-        val monP3 = paint(bold, 32f, hint)
+        val monP3 = paint(bold, 32f * sc, hint)
         c.drawText(d.monthLabel, pad, y, monP3)
-        val bigP = fit(paint(xbold, 112f, blue), d.bigValue, S - pad * 2 - 160f, 112f, 64f)
+        val bigP = fit(paint(xbold, 112f * sc, blue), d.bigValue, S - pad * 2 - 160f, 112f * sc, 64f * sc)
         if (d.headline.isNotBlank()) {
-            val hp = fit(paint(xbold, 40f, ink), d.headline, S - pad * 2, 40f, 30f)
-            y += bigTop(monP3, hp, 10f)
+            val hp = fit(paint(xbold, 40f * sc, ink), d.headline, S - pad * 2, 40f * sc, 30f * sc)
+            y += bigTop(monP3, hp, 10f * sc)
             c.drawText(d.headline, pad, y, hp)
-            y += bigTop(hp, bigP, 12f)
+            y += bigTop(hp, bigP, 12f * sc)
         } else {
-            y += bigTop(monP3, bigP, 12f)
+            y += bigTop(monP3, bigP, 12f * sc)
         }
         // 단위는 숫자 옆에 작게.
-        val bigW = drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 44f, blue))
-        y += 48f
-        c.drawText(d.bigCaption, pad, y, paint(bold, 34f, sub))
-        if (d.bigNote.isNotBlank()) { y += 34f; c.drawText(d.bigNote, pad, y, paint(med, 26f, hint)) }
+        drawBigNumber(c, pad, y, d.bigValue, d.bigUnit, bigP, paint(bold, 44f * sc, blue))
+        y += 48f * sc
+        c.drawText(d.bigCaption, pad, y, paint(bold, 34f * sc, sub))
+        if (d.bigNote.isNotBlank()) { y += 34f * sc; c.drawText(d.bigNote, pad, y, paint(med, 26f * sc, hint)) }
 
         // ── 지도 ── 한 장일 때만. 스티커는 낮아서 지도까지 넣으면 답답하다.
         if (!transparent && d.dots.isNotEmpty()) {
@@ -599,10 +626,10 @@ object RecordShot {
         }
 
         // ── 동네 이름 ── (스티커는 바로 밑, 한 장은 아래쪽)
-        val townY = if (transparent) y + 62f else h - (if (sign) 252f else 110f)
+        val townY = if (transparent) y + 62f * sc else h - (if (sign) 252f else 110f)
         if (d.towns.isNotEmpty()) {
             val line = townLine(d.towns)
-            c.drawText(line, pad, townY, fit(paint(bold, 34f, ink), line, S - pad * 2, 34f, 24f))
+            c.drawText(line, pad, townY, fit(paint(bold, 34f * sc, ink), line, S - pad * 2, 34f * sc, 24f * sc))
         }
 
         // ── 맨 아래 = **간판.** (2026-09-24 사장님 "광고야 광고")
