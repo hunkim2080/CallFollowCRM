@@ -13819,3 +13819,8 @@ Fable 🧹3. 사장님 "고고"
 구글 캘린더 시트(CalendarSyncSheet) 바닥 버튼 네비바 짤림 수정.
 - 고정 bottom=22dp → 공용 keyboardOrNavPadding() (네비바/키보드 자동 여백). 이 파일 내 바닥 시트는 이거 하나.
 - 폰 확인: 못 봄(빌드만). assembleRelease BUILD=0.
+
+## 2026-10-06 18:15 · server 배포됨
+접수서 2건 라이브 배포 (GOTCHAS §3, 백업 main.py.bak-20261006-180517).
+- 만나서 정하기(빈 항목→"현장에서 상담 후 정해요" quote_block_html) + 주소찾기 아파트명(buildingName).
+- 검증: 서버 py_compile OK · smoke 10/10(접수서 화면 고객 200 포함). repo==라이브(이 변경 한정).
