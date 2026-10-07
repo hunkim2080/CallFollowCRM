@@ -397,6 +397,12 @@ class AppPreferences(context: Context) {
         }
     }
 
+    /** '고객?' 질문에 **답했나**(고객/아님 확정). 헤더에서 확정 고객이면 큰 토글을 작게 접는다. (2026-10-07 사장님) */
+    fun isCustomerAsked(phone: String): Boolean {
+        val s = suffixOf(phone)
+        return s.length >= 7 && s in customerAskedSuffixes
+    }
+
     /** '고객?' 질문에 답한(고객/아님) 번호 — 다시 안 물음. */
     var customerAskedSuffixes: Set<String>
         get() = prefs.getStringSet(KEY_CUSTOMER_ASKED, emptySet()) ?: emptySet()

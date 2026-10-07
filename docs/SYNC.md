@@ -13871,3 +13871,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱 CustomerDetailScreen(shownJob 상향·주소 격리)·CustomerRepository(repairAddressMirror 멱등). 서버·DB 무관.
 - 폰 확인: ✅ 테스트폰(S9+)서 job2=목동 재시작 유지·달력 2차=양천/1차=강남 구분 확인.
 - 다음 액션: 없음. (홈 '다음시공' 배너는 아직 고객주소 표시 — 추후)
+
+## 2026-10-07 · android
+헤더 토글 정리 — 이미 '고객' 확정된 사람은 「이 사람은 … 고객아님/고객」 큰 줄 → 이름 옆 작은 초록 「고객」 배지 + 우측 작은 링크("고객이 아니면 여기를 눌러 바꿔요"). 미확정 새 번호는 큰 토글 그대로.
+- 변경: 앱만. AppPreferences.isCustomerAsked(공개) · CustomerDetailBits(ConfirmedCustomerBadge·CustomerKindSection 공용 분리) · CustomerDetailScreen(prefs 상향·kindAnswered state). 서버·DB 무관.
+- 폰 확인: ✅ 테스트폰(S9+ 23514638…) — 확정 고객=작은 배지, 링크→큰 토글 복귀, 「고객」 탭 즉시 접힘, 재진입 유지 확인.
+- 다음 액션: 없음.

@@ -371,6 +371,18 @@ fun CustomerDetailScreen(
             val hasName = !c.name.isNullOrBlank()
             val headerName = if (hasName) c.name!! else PhoneNumberFormatter.format(c.phoneNumber)
             val headerCtx = androidx.compose.ui.platform.LocalContext.current
+            // ── 이 사람은 고객인가 — 채팅에서 물어본 그 답을 **여기서 바꾼다**. (2026-09-17 사장님 C안)
+            //   prefs·상태를 이름줄보다 먼저 계산해 둔다 — 이미 '고객'으로 확정된 사람이면
+            //   이름 옆 작은 초록 배지로 접기 때문(큰 토글 줄을 안 그린다). (2026-10-07 사장님)
+            val headerPrefs = remember(headerCtx) {
+                (headerCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
+                    .container.preferences
+            }
+            var nonCustomer by remember(c.id) { mutableStateOf(headerPrefs.isNonCustomer(c.phoneNumber)) }
+            // '고객?'에 답했나 — prefs 는 반응형이 아니라 **눌러도 바로 안 접혔다**. state 로 들고 와 즉시 반영. (2026-10-07)
+            var kindAnswered by remember(c.id) { mutableStateOf(headerPrefs.isCustomerAsked(c.phoneNumber)) }
+            // '고객?'에 이미 답해 **고객으로 확정**된 사람이면 큰 토글 줄 → 작은 배지로.
+            val answeredCustomer = kindAnswered && !nonCustomer
             Column(
                 Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
             ) {
@@ -381,11 +393,16 @@ fun CustomerDetailScreen(
                         fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                         letterSpacing = (-0.6).sp, maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        // 남는 자리를 **이름 칸이 다 먹는다**. 전엔 뒤쪽 Spacer 와 자리를 나눠 갖느라
-                        //   번호가 "010-484…" 로 잘렸다. (2026-09-20 사장님)
-                        modifier = Modifier.weight(1f)
+                        // 이름이 길면 줄여서(…) 보이되, 옆 배지·딱지를 밀어내지 않게 fill=false + 뒤에 Spacer(weight).
+                        //   (2026-09-20 사장님 / 2026-10-07 이름 옆 「고객」 배지 추가)
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    Spacer(Modifier.width(8.dp))
+                    // 이미 '고객'으로 확정된 사람 — 이름 바로 옆 작은 초록 배지(큰 토글 줄 대신). (2026-10-07 사장님)
+                    if (answeredCustomer) {
+                        Spacer(Modifier.width(6.dp))
+                        com.detailline.callfollowcrm.presentation.screen.customer.ConfirmedCustomerBadge()
+                    }
+                    Spacer(Modifier.weight(1f))
                     // 상태 딱지(예약/잔금미수/완료 등) — 고객관리와 같은 계산, 어디서나 따라다니게. (2026-09-03 사장님)
                     com.detailline.callfollowcrm.presentation.component.CustomerStatusTag(
                         com.detailline.callfollowcrm.presentation.component.customerStatusOf(c)
@@ -435,33 +452,11 @@ fun CustomerDetailScreen(
                 //   ("계속 고객아님으로 해두셨어요가 나오면 사용성과 ui를 헤치는거아닌가").
                 //   분류·주소·금액이 다 모인 이 카드가 '이 사람 설정' 자리다.
                 //   전엔 한 번 [고객 아님] 을 누르면 질문이 다시 안 떠서 **바꿀 방법이 아예 없었다.**
-                val headerPrefs = remember(headerCtx) {
-                    (headerCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication)
-                        .container.preferences
-                }
-                var nonCustomer by remember(c.id) { mutableStateOf(headerPrefs.isNonCustomer(c.phoneNumber)) }
-                Spacer(Modifier.height(12.dp))
-                androidx.compose.foundation.layout.Row(
-                    Modifier.fillMaxWidth().padding(top = 11.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    Text("이 사람은", fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
-                    CustomerKindPill("고객 아님", on = nonCustomer) {
-                        nonCustomer = true
-                        headerPrefs.answerCustomerAsk(c.phoneNumber, true)
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    CustomerKindPill("고객", on = !nonCustomer) {
-                        nonCustomer = false
-                        headerPrefs.answerCustomerAsk(c.phoneNumber, false)
-                    }
-                }
-                if (nonCustomer) {
-                    Text(
-                        "추천 답변·고객 분석·주소 물어보기를 안 해요 (통화 요약은 그대로)",
-                        fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                //   (prefs·nonCustomer 는 이름줄 위에서 미리 계산 — 2026-10-07. UI 는 CustomerKindSection 한 곳)
+                CustomerKindSection(answeredCustomer = answeredCustomer, nonCustomer = nonCustomer) { isNon ->
+                    nonCustomer = isNon
+                    kindAnswered = true   // 눌렀으니 '답함' — 다음 리컴포지션에서 바로 작은 배지로 접힌다.
+                    headerPrefs.answerCustomerAsk(c.phoneNumber, isNon)
                 }
             }
 

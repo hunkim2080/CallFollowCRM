@@ -605,6 +605,21 @@ internal fun AddressEditDialog(
 internal fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
     j.balancePaidAt != null || (j.workCompletedAt != null && (j.balanceAmount ?: 0L) <= 0L)
 
+/**
+ * 이미 '고객'으로 확정된 사람 — 이름 옆 작은 초록 배지. (2026-10-07 사장님 "헤더토글도 정리")
+ *   「이 사람은 … 고객아님/고객」 큰 줄이 이미 고객인데도 자리를 통째로 먹어서, 확정된 사람은
+ *   이 배지로 줄이고 바꾸는 건 아래 작은 링크로 뺀다(자주 안 쓰니까).
+ */
+@Composable
+internal fun ConfirmedCustomerBadge() {
+    androidx.compose.foundation.layout.Box(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.doneBg)
+            .padding(horizontal = 9.dp, vertical = 3.dp)
+    ) {
+        Text("고객", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.doneText)
+    }
+}
+
 /** '이 사람은 [고객 아님][고객]' 알약 하나. 고른 쪽만 파랗게. (2026-09-17) */
 @Composable
 internal fun CustomerKindPill(text: String, on: Boolean, onClick: () -> Unit) {
@@ -618,6 +633,49 @@ internal fun CustomerKindPill(text: String, on: Boolean, onClick: () -> Unit) {
             text, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
             color = if (on) Color.White else TossTextSecondary
         )
+    }
+}
+
+/**
+ * 헤더 '이 사람은 고객?' 섹션. (2026-10-07 사장님 "헤더토글도 정리")
+ *   이미 고객으로 확정된 사람 → 큰 토글 줄 대신 **작은 링크 한 줄**(바꾸는 건 자주 안 하니까).
+ *   아직 안 정한 새 번호 → 지금처럼 **큰 토글** 그대로(처음엔 골라야 하니까).
+ * @param onAnswer true=고객 아님, false=고객
+ */
+@Composable
+internal fun CustomerKindSection(
+    answeredCustomer: Boolean,
+    nonCustomer: Boolean,
+    onAnswer: (Boolean) -> Unit
+) {
+    if (answeredCustomer) {
+        Text(
+            "고객이 아니면 여기를 눌러 바꿔요",
+            fontSize = 11.5.sp, color = TossTextTertiary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onAnswer(true) }
+                .padding(vertical = 3.dp)
+        )
+    } else {
+        Spacer(Modifier.height(12.dp))
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().padding(top = 11.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text("이 사람은", fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
+            CustomerKindPill("고객 아님", on = nonCustomer) { onAnswer(true) }
+            Spacer(Modifier.width(6.dp))
+            CustomerKindPill("고객", on = !nonCustomer) { onAnswer(false) }
+        }
+        if (nonCustomer) {
+            Text(
+                "추천 답변·고객 분석·주소 물어보기를 안 해요 (통화 요약은 그대로)",
+                fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
     }
 }
 
