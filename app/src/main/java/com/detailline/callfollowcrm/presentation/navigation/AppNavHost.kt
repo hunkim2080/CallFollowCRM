@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -445,10 +446,10 @@ fun AppNavHost(
             val schedCtx = LocalContext.current
             val schedScope = rememberCoroutineScope()
             fun schedToast(m: String) = android.widget.Toast.makeText(schedCtx, m, android.widget.Toast.LENGTH_SHORT).show()
-            /** 동기화 도는 중 — 연타 방지용. (2026-09-14 사장님: 눌러도 반응이 없어 보임) */
-            val calSyncing = androidx.compose.runtime.remember {
-                androidx.compose.runtime.mutableStateOf(false)
-            }
+            // 올리는 중 / 진행률 — 매니저가 **백그라운드**로 돌리므로(뒤로 가도 계속) 매니저 flow 를 관찰한다.
+            //   화면을 나가도 동기화·고아청소(맨 끝 단계)가 끝까지 돈다. (2026-10-08 사장님 "뒤로 가도 진행되게")
+            val calSyncing = container.calendarSyncManager.syncing.collectAsState().value
+            val calProgress = container.calendarSyncManager.progress.collectAsState().value
             // 마지막으로 올린 시각·건수 — 버튼 밑에 보여줘서 "됐나?" 하고 또 누르지 않게. (2026-09-15 사장님)
             val calSyncedAt = androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(container.preferences.googleCalendarSyncedAt)
@@ -456,13 +457,27 @@ fun AppNavHost(
             val calSyncedN = androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(container.preferences.googleCalendarSyncedCount)
             }
+            // 올리기 끝났을 때 — 건수 저장·표시(미연결 -1 이면 연결 풀림 안내). 매니저가 메인에서 부른다.
+            fun onCalSynced(n: Int) {
+                if (n >= 0) {
+                    container.preferences.googleCalendarSyncedAt = System.currentTimeMillis()
+                    container.preferences.googleCalendarSyncedCount = n
+                    calSyncedAt.value = container.preferences.googleCalendarSyncedAt
+                    calSyncedN.value = n
+                    schedToast("구글 캘린더에 ${n}건 올렸어요")
+                } else {
+                    container.preferences.googleCalendarConnected = false
+                    schedToast("구글 연결이 풀렸어요 — 한 번 더 눌러 다시 연결해주세요")
+                }
+            }
             val calConnectLauncher = rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
             ) { result ->
                 val token = container.googleCalendarConnection.tokenFromConsentResult(result.data)
                 if (token != null) {
                     container.preferences.googleCalendarConnected = true
-                    schedScope.launch { runCatching { container.calendarSyncManager.syncAll() }; schedToast("구글 캘린더 연결·동기화 완료") }
+                    schedToast("연결됐어요 — 이제 캘린더에 올리는 중…")
+                    container.calendarSyncManager.startSyncAll(container.applicationScope) { n -> onCalSynced(n) }
                 } else schedToast("연결이 취소됐어요")
             }
             ScheduleScreen(
@@ -474,53 +489,26 @@ fun AppNavHost(
                 onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenCollabSites = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
                 calendarConnected = container.preferences.googleCalendarConnected,
-                calendarSyncing = calSyncing.value,
+                calendarSyncing = calSyncing,
+                calendarSyncDone = calProgress?.done ?: 0,
+                calendarSyncTotal = calProgress?.total ?: 0,
                 calendarSyncedAtMs = calSyncedAt.value,
                 calendarSyncedCount = calSyncedN.value,
                 calendarAccountEmail = container.preferences.googleCalendarAccountEmail,
                 onCalendarSync = {
-                    schedScope.launch {
-                        // 고객이 많으면 수백 번 통신이라 몇 분 걸린다. 아무 말이 없으면 고장 난 줄 안다.
-                        //   (2026-09-14 사장님: "눌렀는데 반응이 없네? 무슨 안내가 있어야 하지 않나")
-                        //   → 누르는 즉시 알리고, 도는 동안 또 누르면 연타 방지, 끝나면 건수까지 말해준다.
-                        if (calSyncing.value) {
-                            schedToast("이미 동기화 중이에요 — 잠시만 기다려주세요")
-                            return@launch
-                        }
-                        calSyncing.value = true
-                        try {
-                        if (container.preferences.googleCalendarConnected) {
-                            schedToast("구글 캘린더에 올리는 중… 건수가 많으면 몇 분 걸려요")
-                            val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-                            if (n >= 0) {
-                                container.preferences.googleCalendarSyncedAt = System.currentTimeMillis()
-                                container.preferences.googleCalendarSyncedCount = n
-                                calSyncedAt.value = container.preferences.googleCalendarSyncedAt
-                                calSyncedN.value = n
-                                schedToast("구글 캘린더에 ${n}건 동기화했어요")
-                            }
-                            else {
-                                // 인증이 풀렸는데 "연결됨" 표시만 남아 있으면 사장님이 원인을 못 찾는다.
-                                //   (재설치/복원 후 실제로 겪음 — 표시는 연결됨인데 계속 실패) 2026-09-14
-                                //   → 표시를 내려서 다음 탭이 '연결'로 동작하게 하고, 뭘 해야 하는지 말해준다.
-                                container.preferences.googleCalendarConnected = false
-                                schedToast("구글 연결이 풀렸어요 — 한 번 더 눌러 다시 연결해주세요")
-                            }
-                        } else when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
+                    // 백그라운드로 올린다 — 화면을 나가도 끝까지(고아청소까지) 돈다. (2026-10-08 사장님)
+                    if (calSyncing) {
+                        schedToast("이미 올리는 중이에요 — 뒤로 가도 계속 올라가요")
+                    } else if (container.preferences.googleCalendarConnected) {
+                        schedToast("구글 캘린더에 올리는 중…")
+                        container.calendarSyncManager.startSyncAll(container.applicationScope) { n -> onCalSynced(n) }
+                    } else schedScope.launch {
+                        // 연결(인증)은 화면 scope — 계정 고르기 런처가 필요. 연결되면 올리기는 백그라운드로.
+                        when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
                             is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.Success -> {
                                 container.preferences.googleCalendarConnected = true
                                 schedToast("연결됐어요 — 이제 캘린더에 올리는 중…")
-                                val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-                                if (n >= 0) {
-                                    container.preferences.googleCalendarSyncedAt = System.currentTimeMillis()
-                                    container.preferences.googleCalendarSyncedCount = n
-                                    calSyncedAt.value = container.preferences.googleCalendarSyncedAt
-                                    calSyncedN.value = n
-                                }
-                                schedToast(
-                                    if (n >= 0) "구글 캘린더 연결·${n}건 동기화 완료"
-                                    else "연결은 됐는데 올리기에 실패했어요 — 잠시 후 다시"
-                                )
+                                container.calendarSyncManager.startSyncAll(container.applicationScope) { n -> onCalSynced(n) }
                             }
                             is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.NeedsConsent -> {
                                 schedToast("구글 계정을 골라주세요")
@@ -528,7 +516,6 @@ fun AppNavHost(
                             }
                             else -> schedToast("구글 로그인을 시작할 수 없어요 — 잠시 후 다시")
                         }
-                        } finally { calSyncing.value = false }
                     }
                 },
                 initialSelectedDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L }

@@ -1,8 +1,16 @@
 package com.detailline.callfollowcrm.data.calendar
 
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -154,6 +162,34 @@ class CalendarSyncManager(
     private val calMutex = Mutex()
 
     /**
+     * 📊 올리는 중 진행률 — `done<total` 이면 올리는 중, `null` 이면 안 하는 중. 화면이 진행바로 그린다.
+     *   (2026-10-08 사장님 "올리는 거 바가 채워지는 느낌으로 — 멈춘 줄 안다")
+     */
+    data class Progress(val done: Int, val total: Int)
+    private val _progress = MutableStateFlow<Progress?>(null)
+    val progress: StateFlow<Progress?> = _progress.asStateFlow()
+    private val _syncing = MutableStateFlow(false)
+    val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
+    private var bgJob: Job? = null
+
+    /**
+     * 전체 동기화를 **백그라운드로** 시작 — 화면을 나가도(뒤로 가도) 계속 돈다(앱 scope).
+     *   이미 도는 중이면 무시(연타·중복 방지). 진행률은 [progress], 도는지는 [syncing] 으로 관찰.
+     *   끝나면 [onDone] 에 올린 건수(미연결 -1). (2026-10-08 사장님 "뒤로 가도 진행되게")
+     */
+    fun startSyncAll(scope: CoroutineScope, onDone: (Int) -> Unit = {}) {
+        if (_syncing.value) return
+        bgJob = scope.launch {
+            _syncing.value = true
+            val n = runCatching { syncAll() }.getOrDefault(-1)
+            _syncing.value = false
+            _progress.value = null
+            // onDone 은 토스트·화면 상태를 건드리므로 메인에서. (scope 는 보통 IO)
+            withContext(Dispatchers.Main) { onDone(n) }
+        }
+    }
+
+    /**
      * "시공막내" 캘린더 id — 없으면 찾거나(이름) 만든다. 동시 호출에도 한 번만 생성.
      *
      * 권한을 `calendar.app.created`(앱이 만든 캘린더만)로 좁히면서 목록 조회가 막힐 수 있다.
@@ -225,13 +261,20 @@ class CalendarSyncManager(
             runCatching { api.fetchAccountEmail(token) }.getOrNull()?.let { store.setAccountEmail(it) }
         }
         val cal = ensureCalendar(token) ?: return -1
+        val workJobs = store.scheduledWorkJobs()
         val customers = store.scheduledCustomers()
+        val simples = store.simpleEvents()
+        // 📊 진행률 — 올릴 전체(시공 건 + A/S 고객 + 간단일정). 한 건 끝낼 때마다 올린다. (2026-10-08 사장님 진행바)
+        val total = workJobs.size + customers.size + simples.size
+        var done = 0
+        _progress.value = Progress(0, total)
         // 시공(WORK)은 **건마다** 한 일정. 전엔 고객마다 하나라 2차를 잡으면 1차 일정이 옮겨졌다. (2026-09-18)
-        for ((jid, jc) in store.scheduledWorkJobs()) {
+        for ((jid, jc) in workJobs) {
             if (syncOne(token, cal, jc, ScheduleType.WORK, jid) && !retried) {
                 resetCalendar()
                 return syncAll(retried = true)
             }
+            done++; _progress.value = Progress(done, total)
         }
         // 취소된 건의 일정은 여기서 지운다 — 위 줄은 '날짜 있는 건'만 보기 때문에
         //   취소한 건은 영영 안 들러 구글에 그대로 남아 있었다. (2026-09-18)
@@ -246,11 +289,11 @@ class CalendarSyncManager(
                 resetCalendar()
                 return syncAll(retried = true)
             }
+            done++; _progress.value = Progress(done, total)
         }
         // 간단 일정도 같이 올린다 — 사장님이 "이 캘린더가 편해서 다른 일정도 넣게 될 것 같다"고 한 게
         //   앱 안에만 있으면 반쪽이라서. 제목 앞 📌 로 시공(🏗️)·A/S(🔧) 와 한눈에 구분된다. (2026-09-16)
-        val simples = store.simpleEvents()
-        for (e in simples) syncSimple(token, cal, e)
+        for (e in simples) { syncSimple(token, cal, e); done++; _progress.value = Progress(done, total) }
         // 🧹 고아 청소 — 추적 안 하는 우리 앱 이벤트(중복 쌍둥이·지운 간단일정 잔재) 제거. (2026-10-06 사장님)
         //   실패해도 동기화 결과엔 영향 없게 runCatching.
         runCatching { sweepOrphans(token, cal) }

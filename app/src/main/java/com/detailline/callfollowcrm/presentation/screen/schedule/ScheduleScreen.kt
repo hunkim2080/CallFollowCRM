@@ -153,6 +153,9 @@ fun ScheduleScreen(
     onCalendarSync: () -> Unit = {},
     /** 동기화 도는 중 · 마지막으로 올린 시각(ms, 0=아직)·건수. 버튼 밑에 표시 — 계속 누르게 되지 않도록. (2026-09-15 사장님) */
     calendarSyncing: Boolean = false,
+    /** 올리는 중 진행률 — done/total (total 0 = 아직 셈 전). 진행바로 그린다. (2026-10-08 사장님) */
+    calendarSyncDone: Int = 0,
+    calendarSyncTotal: Int = 0,
     calendarSyncedAtMs: Long = 0L,
     calendarSyncedCount: Int = 0,
     calendarAccountEmail: String? = null,
@@ -180,6 +183,8 @@ fun ScheduleScreen(
                 syncedAtMs = calendarSyncedAtMs,
                 syncedCount = calendarSyncedCount,
                 syncing = calendarSyncing,
+                syncDone = calendarSyncDone,
+                syncTotal = calendarSyncTotal,
                 work = state.all,
                 asList = asList,
                 simples = simpleEvents,

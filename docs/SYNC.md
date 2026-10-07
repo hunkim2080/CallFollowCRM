@@ -13896,3 +13896,10 @@ Fable 🧹3. 사장님 "고고"
 - 진단: 2080 캘린더 MCP 로 확인 — 중복은 6674 '시공막내' 달력에만(2080 본인 달력 깨끗). 복사본 생성시각 9/14원본 vs 9/23 일괄. 협업 무관(협업은 구글달력 안 씀).
 - 폰 확인: 못 봄(6674 계정 폰 필요). 기존 중복 치우기 = 6674 앱 최신 업데이트+동기화 시 고아청소가 자동 제거(customerId 도장 있음). 2080 MCP 로 사후 재확인 예정.
 - 다음 액션: 사장님 6674 폰 앱 업데이트+동기화 → 중복 자동 삭제 확인.
+
+## 2026-10-08 · android
+업로드 진행바 + 백그라운드 — 캘린더 '올리는 중'이 멈춘 듯 보이고, 화면 나가면 끊겨 고아청소(맨 끝 단계)가 안 돌아 중복이 남던 문제. CalendarSyncManager 에 progress/syncing StateFlow + startSyncAll(앱 scope, 뒤로 가도 계속), syncAll 이 done/total 방출. 공용 UploadProgressBar 컴포넌트. 캘린더 시트·설정카드·AppNavHost 배선.
+- 변경: 앱만. CalendarSyncManager·새 UploadProgressBar.kt·ScheduleParts·ScheduleScreen·AppNavHost·SettingsCards.
+- 업로드 자리 감사: 대량+멈춘듯+이탈시끊김 = 캘린더 + 박람회 팀배정(틈새)뿐. 나머지는 우체통(백그라운드)이거나 단건.
+- 폰 확인: 테스트폰 일정 탭 렌더·무크래시. 진행바 실동작은 구글 연결 폰(6674)서.
+- 다음 액션: 6674 폰 새 빌드 동기화로 부평 등 잔여 중복 자동정리 확인. 박람회도 적용할지 사장님 결정.

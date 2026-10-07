@@ -738,15 +738,17 @@ internal fun GoogleCalendarSection(container: AppContainer) {
 
     var connected by remember { mutableStateOf(prefs.googleCalendarConnected) }
     var busy by remember { mutableStateOf(false) }
+    // 올리는 중 — 매니저가 백그라운드로 돌리므로(화면 나가도 계속) 매니저 flow 를 관찰. (2026-10-08 사장님)
+    val mgrSyncing = container.calendarSyncManager.syncing.collectAsState().value
     fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 
-    // 토큰 확보 후: 연결 플래그 ON + '시공막내' 캘린더 준비 + 기존 일정 전부 올리기
+    // 토큰 확보 후: 연결 플래그 ON + '시공막내' 캘린더 준비 + 기존 일정 전부 올리기(백그라운드)
     fun finishConnect(token: String?) {
         if (token == null) { busy = false; toast("연결이 취소됐거나 실패했어요"); return }
         prefs.googleCalendarConnected = true; connected = true
-        scope.launch {
-            val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-            busy = false
+        busy = false
+        // 올리기는 백그라운드로 — 이 화면을 나가도 끝까지(고아청소까지) 돈다. (2026-10-08 사장님)
+        container.calendarSyncManager.startSyncAll(container.applicationScope) { n ->
             toast(if (n >= 0) "구글 캘린더에 연결됐어요 — 일정 ${n}건 올렸어요" else "연결됐어요 (동기화는 잠시 후 자동 재시도)")
         }
     }
@@ -780,10 +782,8 @@ internal fun GoogleCalendarSection(container: AppContainer) {
     }
 
     fun syncNow() {
-        busy = true
-        scope.launch {
-            val n = runCatching { container.calendarSyncManager.syncAll() }.getOrDefault(-1)
-            busy = false
+        // 백그라운드로 — 설정 화면을 나가도 끝까지 올라간다(고아청소까지). (2026-10-08 사장님)
+        container.calendarSyncManager.startSyncAll(container.applicationScope) { n ->
             toast(if (n >= 0) "동기화했어요 (일정 ${n}건)" else "먼저 연결이 필요해요")
         }
     }
@@ -821,14 +821,14 @@ internal fun GoogleCalendarSection(container: AppContainer) {
                 Spacer(Modifier.height(8.dp))
                 Row {
                     androidx.compose.material3.OutlinedButton(
-                        onClick = { if (!busy) syncNow() },
-                        enabled = !busy,
+                        onClick = { if (!busy && !mgrSyncing) syncNow() },
+                        enabled = !busy && !mgrSyncing,
                         modifier = Modifier.weight(1f)
-                    ) { Text(if (busy) "동기화 중…" else "지금 동기화") }
+                    ) { Text(if (mgrSyncing) "올리는 중…" else "지금 동기화") }
                     Spacer(Modifier.width(8.dp))
                     androidx.compose.material3.OutlinedButton(
-                        onClick = { if (!busy) disconnect() },
-                        enabled = !busy,
+                        onClick = { if (!busy && !mgrSyncing) disconnect() },
+                        enabled = !busy && !mgrSyncing,
                         modifier = Modifier.weight(1f)
                     ) { Text("연결 끄기") }
                 }

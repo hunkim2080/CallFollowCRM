@@ -709,6 +709,8 @@ internal fun CalendarSyncSheet(
     syncedAtMs: Long,
     syncedCount: Int,
     syncing: Boolean,
+    syncDone: Int = 0,
+    syncTotal: Int = 0,
     work: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     asList: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     simples: List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity>,
@@ -800,11 +802,20 @@ internal fun CalendarSyncSheet(
                 contentAlignment = Alignment.Center
             ) { Text("구글 캘린더 열기", style = AppType.headline, color = AppTheme.colors.textOnPrimary) }
             Spacer(Modifier.height(8.dp))
-            androidx.compose.foundation.layout.Box(
-                Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
-                    .clickable(enabled = !syncing) { onResync() }.padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) { Text(if (syncing) "올리는 중…" else "지금 다시 올리기", style = AppType.headline, color = TossTextSecondary) }
+            // 올리는 중이면 '지금 다시 올리기' 버튼 자리에 **진행바**(채워지는 느낌 + 몇/몇). (2026-10-08 사장님)
+            //   백그라운드라 이 시트를 닫거나 뒤로 가도 계속 올라간다 — sub 안내로 안심시킨다.
+            if (syncing) {
+                com.detailline.callfollowcrm.presentation.component.UploadProgressBar(
+                    done = syncDone, total = syncTotal,
+                    sub = "뒤로 가도 계속 올라가요 · 끝나면 정리까지 자동"
+                )
+            } else {
+                androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
+                        .clickable { onResync() }.padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("지금 다시 올리기", style = AppType.headline, color = TossTextSecondary) }
+            }
         }
     }
 }
