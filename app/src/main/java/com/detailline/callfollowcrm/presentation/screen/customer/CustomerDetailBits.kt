@@ -629,6 +629,8 @@ internal fun JobTab(
     dashed: Boolean = false,
     /** '지난 건' 묶음 — 진행 중인 건과 구분되게 회색으로. (2026-09-18 프로토 `.chip.past`) */
     muted: Boolean = false,
+    /** 건 종류 색 점 — 완료=회색·예정 시공=초록(달력 범례와 같은 색). null = 안 그림(＋·지난건). (2026-10-07) */
+    accent: Color? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
@@ -650,16 +652,24 @@ internal fun JobTab(
             .clickable(onClick = onClick)
             .padding(horizontal = 13.dp, vertical = 9.dp)
     ) {
-        Text(
-            nth,
-            fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-            color = when {
-                muted && on -> Color.White
-                dashed -> TossBlue
-                on -> TossTextPrimary
-                else -> TossTextTertiary
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            if (accent != null) {
+                Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(accent))
+                Spacer(Modifier.width(5.dp))
             }
-        )
+            Text(
+                nth,
+                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                color = when {
+                    muted && on -> Color.White
+                    dashed -> TossBlue
+                    on -> TossTextPrimary
+                    else -> TossTextTertiary
+                }
+            )
+        }
         Spacer(Modifier.height(2.dp))
         Text(
             sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
