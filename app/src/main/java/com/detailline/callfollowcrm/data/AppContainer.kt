@@ -124,7 +124,13 @@ class AppContainer(context: Context) {
      */
     val workCompletionManager =
         com.detailline.callfollowcrm.data.repository.WorkCompletionManager(
-            customerRepository, jobRepository
+            customerRepository, jobRepository,
+            // 완료/되돌리기 직후 '오늘의 현장' 알림 즉시 갱신(완료된 현장은 내림). 알림 실패가 완료 저장을 막지 않게 감싼다.
+            onChanged = {
+                runCatching {
+                    com.detailline.callfollowcrm.service.ReminderWorker.refreshTodaySites(appContext, this@AppContainer)
+                }
+            }
         )
 
     /** 번호 모양 때문에 둘로 갈라진 손님 합치기. (2026-09-23) 되돌릴 수 없어서 부르는 쪽이 백업을 먼저 뜬다. */

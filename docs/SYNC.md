@@ -13883,3 +13883,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 라이브 서버 main.py(GOTCHAS §3: 백업 20261007-224850→swap→kickstart→smoke 10 OK). repo server/main.py 동일 반영. 앱 무관.
 - 폰 확인: ✅ /q/nV8B93nY 로컬·공개(api.si0in.kr) 둘 다 200 복구(전 500). smoke 10곳 정상.
 - 다음 액션: 없음. (cowork: 라이브=origin 과 이 구간은 일치했음)
+
+## 2026-10-08 · android
+'오늘의 현장' 상시 알림: 완료 누르면 바로 사라지게. 전엔 잔금 완납(isPaidOff)만 봐서 완료만 누른 현장이 알림에 계속 남았다 → 앱 공용 isWorkDone('완료 OR 잔금')으로 통일. 완료 길목(WorkCompletionManager)에 onChanged 콜백 달아 완료/되돌리기 즉시 알림 갱신(홈·채팅 어디서 눌러도 한 곳). 본문 "잔금까지 받으면"→"완료하면 자동으로 사라져요".
+- 변경: 앱만. ReminderWorker(필터)·NotificationHelper(문구)·WorkCompletionManager(onChanged)·AppContainer(배선). 서버·DB 무관.
+- 폰 확인: ✅ 테스트폰(S9+) — 완료 고객 DB 주입→재시작 시 로그로 today=0·clear ok=true 확인, 알림창에서 '오늘의 현장' 사라짐 스크린샷 확인.
+- 다음 액션: 없음.

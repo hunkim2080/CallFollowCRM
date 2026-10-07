@@ -211,9 +211,9 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             val today = customers.filter { c ->
                 val s = c.scheduledWorkDate ?: return@filter false
                 if (DateTimeUtils.startOfDay(s) !in todayStart until todayEnd || c.address.isNullOrBlank()) return@filter false
-                // 잔금까지 다 받은(완납) 현장은 제외 — 마무리된 곳은 오늘의 현장에서 내림. (2026-07-15 사장님)
-                !(com.detailline.callfollowcrm.domain.settlement.SettlementCalc.hasMoney(c) &&
-                    com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).isPaidOff)
+                // 완료된 현장은 제외 — '완료 누름 OR 잔금 받음'(앱 공용 isWorkDone)이면 오늘의 현장에서 내림.
+                //   전엔 잔금 완납(isPaidOff)만 봤다 → 완료만 누른 현장이 알림에 계속 남았다. (2026-10-07 사장님)
+                !c.isWorkDone
             }.sortedBy { it.scheduledWorkMinutes ?: 0 }
             if (today.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
             val lines = today.map { c ->

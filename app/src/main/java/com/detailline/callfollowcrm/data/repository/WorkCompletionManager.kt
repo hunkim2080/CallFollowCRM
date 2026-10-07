@@ -16,7 +16,14 @@ package com.detailline.callfollowcrm.data.repository
  */
 class WorkCompletionManager(
     private val customerRepository: CustomerRepository,
-    private val jobRepository: JobRepository
+    private val jobRepository: JobRepository,
+    /**
+     * 완료/되돌리기 직후 불린다 — '오늘의 현장' 상시 알림을 바로 다시 그려(완료된 현장은 내림).
+     *   왜 여기냐: 완료를 찍는 유일한 길목이라, 홈·채팅 어느 화면에서 눌러도 한 번에 반영된다
+     *   (화면마다 또 적으면 두 벌). 알림 실패가 완료 저장을 막지 않게 부르는 쪽이 runCatching 으로 감싼다.
+     *   (2026-10-07 사장님 "완료 누르면 바로 사라져야")
+     */
+    private val onChanged: suspend () -> Unit = {}
 ) {
 
     /**
@@ -28,6 +35,7 @@ class WorkCompletionManager(
         // 건에도 같이 찍는다 — 고객 카드에만 찍으면 건 탭이 거짓말을 한다.
         jobRepository.representativeJobId(customerId, now)
             ?.let { jobRepository.setWorkCompleted(it, at, now) }
+        onChanged()
     }
 
     /**
