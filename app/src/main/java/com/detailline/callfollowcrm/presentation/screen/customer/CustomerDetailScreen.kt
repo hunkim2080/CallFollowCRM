@@ -651,7 +651,11 @@ fun CustomerDetailScreen(
             }
 
 
-            if (displayAddr != null) {
+            // ②안: '일정·정산' 탭에서 건이 있으면 주소는 아래 **그 건 카드 안**으로 들어간다. (2026-10-07 사장님 "한 건=한 카드")
+            val addrInJobCard = detailTab == 0 && shownJob != null
+            if (addrInJobCard) {
+                // 주소는 '일정·정산' 그 건 카드 안에 그린다(아래). 여기선 안 그림(상담 단계·다른 탭만 여기).
+            } else if (displayAddr != null) {
                 // 프로토 .addr-card — 그라데이션 + 주소 + [길찾기 시작] 큰 파란 버튼.
                 val addrInteraction = remember { MutableInteractionSource() }
                 Column(
@@ -1105,12 +1109,65 @@ fun CustomerDetailScreen(
                 val allPaid = settle.isPaidOff
                 TossCard {
                     Column {
+                        // ②안: 이 카드 = **그 건**(주소+돈 한 장). 차수·색점·상태를 머리에. (2026-10-07 사장님 "한 건=한 카드")
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            CdTitleIcon(Icons.Filled.Payments, "amber")
-                            Spacer(Modifier.width(8.dp))
-                            Text("일정 · 정산", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                            if (jobNthPrefix.isNotBlank()) {
+                                androidx.compose.foundation.layout.Box(
+                                    Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(if (allPaid) TossTextTertiary else TossSuccess)
+                                )
+                                Spacer(Modifier.width(7.dp))
+                                Text(jobNthPrefix + "시공", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    if (allPaid) "완료" else "진행 중",
+                                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                                    color = if (allPaid) AppTheme.colors.doneText else TossBlue,
+                                    modifier = Modifier.clip(RoundedCornerShape(999.dp))
+                                        .background(if (allPaid) AppTheme.colors.doneBg else AppTheme.colors.primaryBg)
+                                        .padding(horizontal = 9.dp, vertical = 3.dp)
+                                )
+                            } else {
+                                CdTitleIcon(Icons.Filled.Payments, "amber")
+                                Spacer(Modifier.width(8.dp))
+                                Text("일정 · 정산", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                            }
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
+                        // 📍 주소 — **이 건** 것(위 주소 카드에서 합쳐 들어옴). 건이 있을 때만.
+                        if (shownJob != null && !displayAddr.isNullOrBlank()) {
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                                Text("📍", fontSize = 14.sp)
+                                Spacer(Modifier.width(6.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(displayAddr, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)
+                                    val addrDiffers = otherJobs.any { val a = it.address?.trim(); a != null && a.isNotBlank() && a != displayAddr.trim() }
+                                    if (addrDiffers) {
+                                        Spacer(Modifier.height(5.dp))
+                                        Text("다른 건과 주소 다름", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                                            color = AppTheme.colors.cautionText,
+                                            modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 7.dp, vertical = 2.dp))
+                                    }
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                Text("복사", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { ctx.copyToClip("주소", displayAddr) }.padding(horizontal = 8.dp, vertical = 4.dp))
+                                Text("✏️", fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showAddressDialog = true }.padding(horizontal = 4.dp, vertical = 4.dp))
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(TossBlue)
+                                    .clickable { startNavToAddress(ctx, displayAddr) }.padding(vertical = 12.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    androidx.compose.material3.Icon(Icons.Default.Navigation, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                    Spacer(Modifier.width(7.dp))
+                                    Text("길찾기 시작", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(Modifier.height(14.dp))
+                        }
                         // 화면을 둘로 가르지 않는다 — 표가 이미 "아직 예약 안 됨" 같은 빈 값을 말할 줄 안다.
                         //   전엔 예약·금액이 하나도 없으면 버튼만 있는 **딴 화면**이 떴다. (2026-09-22 사장님)
                         if (scheduled == null && !hasAmount) {
