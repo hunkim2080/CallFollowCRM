@@ -13877,3 +13877,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱만. AppPreferences.isCustomerAsked(공개) · CustomerDetailBits(ConfirmedCustomerBadge·CustomerKindSection 공용 분리) · CustomerDetailScreen(prefs 상향·kindAnswered state). 서버·DB 무관.
 - 폰 확인: ✅ 테스트폰(S9+ 23514638…) — 확정 고객=작은 배지, 링크→큰 토글 복귀, 「고객」 탭 즉시 접힘, 재진입 유지 확인.
 - 다음 액션: 없음.
+
+## 2026-10-07 · android (+ server)
+🔴 핫픽스: 접수서 '주소만받기'(/q/{token}) 가 KeyError: 'quote_block_html' 로 500 — 손님이 링크 못 엶. 10/6 견적블록 추가 때 접수서 렌더가 둘(/intake·/q)인데 /q 쪽 format 에 그 칸을 안 넘겨서. → 견적블록 셈을 공용 _build_quote_block_html 하나로 빼고 두 경로가 같이 씀(두 벌 제거).
+- 변경: 라이브 서버 main.py(GOTCHAS §3: 백업 20261007-224850→swap→kickstart→smoke 10 OK). repo server/main.py 동일 반영. 앱 무관.
+- 폰 확인: ✅ /q/nV8B93nY 로컬·공개(api.si0in.kr) 둘 다 200 복구(전 500). smoke 10곳 정상.
+- 다음 액션: 없음. (cowork: 라이브=origin 과 이 구간은 일치했음)

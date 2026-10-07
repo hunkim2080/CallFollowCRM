@@ -21143,6 +21143,26 @@ def _quote_amount_color(name, won: int) -> str:
     return ""
 
 
+def _build_quote_block_html(data: dict, items_html: str) -> str:
+    """접수서 '견적 블록'(항목 표·합계·부가세, 또는 '만나서 정하기' 한 줄) HTML. (2026-10-06)
+
+    접수서를 그리는 길이 둘(/intake/{token} · /q/{token})인데 이 셈이 **한쪽에만** 있어서
+    주소만받기(/q) 가 KeyError: 'quote_block_html' 로 500 났다. → 공용 함수 한 곳으로 통일.
+    (2026-10-07 사장님 "주소만받기 했는데 왜이래")
+    """
+    import html as _html
+    if not data["estimate_items"]:
+        return '<div class="q-empty">🤝 시공 내용은 현장에서 상담 후 정해요.</div>'
+    _total_won = _html.escape(_format_won(int(data.get("total_man") or 0) * 10000))
+    _vat = _vat_label(data.get("vat_included"))
+    return (
+        '<div class="q-th"><span class="q-c1">시공 항목</span><span class="q-c2">금액</span></div>'
+        + items_html
+        + '<div class="q-gt"><span>합계</span><b>' + _total_won + '원</b></div>'
+        + '<div class="q-gvat">' + _vat + '</div>'
+    )
+
+
 def _build_deposit_html(deposit_mode: str, deposit_amount_krw: int,
                        deposit_ratio_pct: Optional[int], total_won: int = 0) -> str:
     """계약금 안내 박스 HTML (프로토 q-deposit 1:1).
@@ -21210,18 +21230,8 @@ async def intake_form_page(token: str, request: Request) -> HTMLResponse:
     biz = _biz_display_name(data.get("biz_name"), data.get("biz_phone"))
     schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
     items_html = _build_items_html(data["estimate_items"])
-    # 🤝 만나서 정하기(항목 없음)면 견적 표·합계·부가세를 통째로 한 줄로. (2026-10-06 사장님)
-    if not data["estimate_items"]:
-        quote_block_html = '<div class="q-empty">🤝 시공 내용은 현장에서 상담 후 정해요.</div>'
-    else:
-        _total_won = _html.escape(_format_won(int(data.get("total_man") or 0) * 10000))
-        _vat = _vat_label(data.get("vat_included"))
-        quote_block_html = (
-            '<div class="q-th"><span class="q-c1">시공 항목</span><span class="q-c2">금액</span></div>'
-            + items_html
-            + '<div class="q-gt"><span>합계</span><b>' + _total_won + '원</b></div>'
-            + '<div class="q-gvat">' + _vat + '</div>'
-        )
+    # 견적 블록(항목 표·합계·부가세, 또는 '만나서 정하기' 한 줄) — 공용 _build_quote_block_html 한 곳. (2026-10-07)
+    quote_block_html = _build_quote_block_html(data, items_html)
     deposit_html = _build_deposit_html(
         data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"],
         int(data.get("total_man") or 0) * 10000,  # 추가115 — 잔금 동적
@@ -21785,6 +21795,7 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
     page = (INTAKE_FORM_HTML_V2_TEMPLATE
             .replace("__QUOTE_SUBMIT_PATH__", submit_path)
             .format(
+                quote_block_html=_build_quote_block_html(data, items_html),  # 빠져서 /q 가 500 났던 칸 (2026-10-07)
                 biz_html=_html.escape(biz),
                 biz_js=json.dumps(biz, ensure_ascii=False),
                 schedule_label_html=_html.escape(schedule_label),
