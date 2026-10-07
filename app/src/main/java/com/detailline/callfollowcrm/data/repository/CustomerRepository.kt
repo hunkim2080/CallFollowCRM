@@ -123,7 +123,10 @@ class CustomerRepository(
             //   여긴 손님을 하나씩 도는 루프라 못 고르면 **그 손님만 건너뛴다**(멈추지 않는다).
             val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)
                 ?: continue
-            if (rep.address?.trim()?.takeIf { it.isNotBlank() } == addr) continue
+            // 🔴 건에 **이미 주소가 있으면 건드리지 않는다** — 2차가 다른 현장이면 그 주소를 지킨다. (2026-10-07 사장님)
+            //   전엔 '고객 주소와 다르면 덮음'이라, 2차 주소(예: 목동)가 켤 때마다 고객 주소(역삼동)로 날아갔다.
+            //   돈 치유(syncMoneyFromRepresentative/repairMoneyMirror)처럼 **빈 건만 채운다**(멱등).
+            if (!rep.address.isNullOrBlank()) continue
             runCatching {
                 dao2.update(rep.copy(address = addr, updatedAt = System.currentTimeMillis()))
             }.onSuccess { fixed++ }

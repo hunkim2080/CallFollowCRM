@@ -13865,3 +13865,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱 AppRoot 만. 서버·DB 무관.
 - 폰 확인: ✅ 테스트폰(S9+ 23514638…)서 로그인 없이 홈 진입 확인.
 - 다음 액션: 없음.
+
+## 2026-10-07 · android
+2차 주소 따로 — 건별 주소 표시/저장 격리 + 시작 시 repairAddressMirror 덮어쓰기 버그 제거.
+- 변경: 앱 CustomerDetailScreen(shownJob 상향·주소 격리)·CustomerRepository(repairAddressMirror 멱등). 서버·DB 무관.
+- 폰 확인: ✅ 테스트폰(S9+)서 job2=목동 재시작 유지·달력 2차=양천/1차=강남 구분 확인.
+- 다음 액션: 없음. (홈 '다음시공' 배너는 아직 고객주소 표시 — 추후)

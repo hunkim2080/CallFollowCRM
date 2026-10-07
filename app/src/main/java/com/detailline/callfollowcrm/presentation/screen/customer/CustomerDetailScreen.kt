@@ -473,10 +473,25 @@ fun CustomerDetailScreen(
             //   3) 빈 상태 — "눌러서 등록" 안내
             //   탭 동작: 어느 상태든 AddressEditDialog 띄움 (입력/수정 가능).
             //   탭 길게 누름 = 복사 (기존 UX 보존) — 추후 BottomSheet 로 전환 가능.
+            // 🧾 지금 보고 있는 '건'을 여기서 한 번만 계산 — 주소 카드·일정정산 카드가 같은 건을 본다.
+            //   (2026-10-07 2차 주소 분리) 돈과 같은 규칙: 건이 있으면 반드시 그 건(대표 건)을 가리킨다.
+            val allJobsForTabs by viewModel.allJobs.collectAsState()
+            val repDay = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
+            val repJobId = allJobsForTabs.firstOrNull { j ->
+                j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } == repDay && repDay != null
+            }?.id
+            val shownJobId = selectedPastJobId ?: repJobId
+                ?: com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(
+                    allJobsForTabs.sortedBy { it.scheduledWorkDate ?: 0L },
+                    DateTimeUtils.startOfDay(System.currentTimeMillis())
+                )?.id
+            val shownJob = allJobsForTabs.firstOrNull { it.id == shownJobId }
+
             val extractedAddress by viewModel.extractedAddress.collectAsState()
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             val ctx = LocalContext.current
-            val manualAddress = c.address?.takeIf { it.isNotBlank() }
+            // 🔴 주소도 **그 건(job)** 것을 보여준다 — 2차를 보면 2차 주소. 없으면 고객 주소로 폴백. (2026-10-07)
+            val manualAddress = (shownJob?.address?.takeIf { it.isNotBlank() } ?: c.address)?.takeIf { it.isNotBlank() }
             // 🔴 표시는 **사장님이 확인해 저장한 주소만**. (2026-09-16 사장님 "끄기로 해줘")
             //   예전엔 `manualAddress ?: extractedAddress` 였고, 아래 LaunchedEffect 가 감지된 주소를
             //   **묻지도 않고 저장**까지 했다. 협업 중이면 그 주소가 상대 사장님 폰에까지 전파됐다.
@@ -712,7 +727,10 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.width(9.dp))
                             androidx.compose.foundation.layout.Box(
                                 Modifier.weight(2f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
-                                    .clickable { viewModel.updateManualAddress(extractedAddress) }
+                                    .clickable {
+                                        if (shownJobId != null) viewModel.setJobAddress(shownJobId, extractedAddress)
+                                        else viewModel.updateManualAddress(extractedAddress)
+                                    }
                                     .padding(vertical = 11.dp),
                                 contentAlignment = androidx.compose.ui.Alignment.Center
                             ) { Text("이 주소로 등록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White) }
@@ -746,7 +764,9 @@ fun CustomerDetailScreen(
                     currentAddress = manualAddress,
                     extractedSuggestion = extractedAddress?.takeIf { it != manualAddress },
                     onSave = { addr ->
-                        viewModel.updateManualAddress(addr)
+                        // 🔴 주소도 **그 건에만** 저장 — 2차 주소가 1차/고객 공유칸(→미러)으로 새지 않게. (2026-10-07)
+                        if (shownJobId != null) viewModel.setJobAddress(shownJobId, addr)
+                        else viewModel.updateManualAddress(addr)
                         showAddressDialog = false
                     },
                     onCopyExisting = displayAddr?.let { existing ->
@@ -863,24 +883,9 @@ fun CustomerDetailScreen(
             //   건이 하나뿐이면 탭을 안 띄운다 — 있으나 마나 한 줄이 자리만 먹는다.
             // 탭은 이 고객의 **모든 건**을 보여준다 — 지난 것도, 앞으로 잡힌 것도. (2026-09-17)
             //   전엔 완료된 건만 봐서 예정 건을 둘 잡아도 탭이 하나였다.
-            val allJobsForTabs by viewModel.allJobs.collectAsState()
-            val repDay = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
-            // 대표 건 = 고객 카드가 지금 보여주고 있는 그 건(같은 날짜). 이건 '지금 건' 탭으로 따로 그린다.
-            val repJobId = allJobsForTabs.firstOrNull { j ->
-                j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } == repDay && repDay != null
-            }?.id
+            // (allJobsForTabs·repDay·repJobId·shownJobId·shownJob 는 위 주소 카드 앞에서 한 번만 계산 — 같은 건을 본다.)
             val otherJobs = allJobsForTabs.filter { it.id != repJobId }
             val selectedPastJob = otherJobs.firstOrNull { it.id == selectedPastJobId }
-            // 지금 보고 있는 건 — 메모·사진이 이걸 따라간다. (2026-09-18 프로토)
-            // 🔴 **건이 있으면 반드시 그 건을 가리킨다.** repJobId 가 날짜 불일치로 null 이어도
-            //   대표 건으로 메꾼다 → 돈·주소 편집이 고객 공유칸(→대표건 미러로 1차 덮임)으로 새지 않는다.
-            //   (2026-10-07 사장님 "2차 총금액 고치면 1차가 같이 묶여 바뀐다")
-            val shownJobId = selectedPastJobId ?: repJobId
-                ?: com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(
-                    allJobsForTabs.sortedBy { it.scheduledWorkDate ?: 0L },
-                    DateTimeUtils.startOfDay(System.currentTimeMillis())
-                )?.id
-            val shownJob = allJobsForTabs.firstOrNull { it.id == shownJobId }
             // 건 줄은 **시공이 둘 이상일 때만** 띄운다. (2026-09-18 확정 프로토 artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
             //   "보통 손님은 시공을 한 번만 받는다. 그런 손님 화면에 '1차'라는 말과 탭 줄을 넣으면
             //    100명 중 95명한테 쓸데없는 줄 하나를 얹는 것" — 그게 '지저분하다'의 정체.
