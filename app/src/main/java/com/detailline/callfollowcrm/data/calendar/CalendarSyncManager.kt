@@ -205,8 +205,12 @@ class CalendarSyncManager(
         }
         broken = syncOne(token, cal, c, ScheduleType.AS) || broken
         if (broken && !retried) {
+            // 캘린더를 갈아끼운 뒤엔 **이 고객만** 다시 올리면 안 된다 — resetCalendar 가 **모든** 건의
+            //   번호표를 비우므로, 나머지 건은 번호 없이 남았다가 다음 동기화에서 **중복**으로 다시 올라간다.
+            //   그래서 전체 재동기화(syncAll)로 전부 다시 올리고 **끝에 고아청소(중복 쌍둥이 제거)까지** 돌린다.
+            //   (2026-10-08 사장님 — 9/23 달력 중복 2배 사고의 재발 방지)
             resetCalendar()
-            syncCustomer(c, retried = true)
+            syncAll(retried = true)
         }
     }
 
