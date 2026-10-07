@@ -69,6 +69,13 @@ fun AppRoot(container: AppContainer) {
             //   이후 단계 전환(로그인→동의→온보딩→권한→홈)은 각 화면의 명시적 navigate(popUpTo) 가 담당하므로 동작 불변. (2026-07-30 버그감사)
             val startDestination = remember {
                 when {
+                    // 🧪 디버그 빌드(우리 테스트폰 전용) — 로그인 관문을 건너뛰고 바로 홈으로.
+                    //   릴리스(플레이 사용자)는 BuildConfig.DEBUG=false 라 **전혀 영향 없음**.
+                    //   (2026-10-07 사장님 "운영자는 테스트폰에서 인증 없이 테스트해야지")
+                    com.detailline.callfollowcrm.BuildConfig.DEBUG -> {
+                        if (container.preferences.bizPhone.isBlank()) container.preferences.bizPhone = "01000000000"
+                        Destinations.HOME
+                    }
                     // 문자 회원가입(SIGNUP)은 SOLAPI 준비 전까지 off — 그동안은 예전 간단 로그인(번호만)으로 진입.
                     //   심사자·테스터가 문자 없이도 앱에 들어올 수 있어야 함(Play 검토·베타 테스트). (2026-07-05 사장님)
                     smsSignup && container.preferences.pendingWaitlist -> Destinations.SIGNUP
@@ -161,7 +168,9 @@ fun AppRoot(container: AppContainer) {
             LaunchedEffect(Unit) {
                 navController.currentBackStackEntryFlow.first()
                 container.sessionTokenStore.needsReauth.collect { needs ->
-                    if (needs && com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED) {
+                    // 🧪 디버그(테스트폰)는 401 이 와도 로그인으로 안 튕긴다 — 무인증 테스트 유지. 릴리스는 그대로.
+                    if (needs && com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED &&
+                        !com.detailline.callfollowcrm.BuildConfig.DEBUG) {
                         // 신호는 바로 내린다 — 안 내리면 다음 401 이 또 켜서 같은 자리로 다시 보낸다.
                         container.sessionTokenStore.clearReauthFlag()
                         // 🔁 **이미 로그인 화면이면 다시 안 보낸다.** (2026-10-06 송도 사장님 건)
