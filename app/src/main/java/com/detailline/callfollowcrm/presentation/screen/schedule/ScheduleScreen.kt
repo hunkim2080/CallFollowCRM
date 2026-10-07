@@ -203,6 +203,18 @@ fun ScheduleScreen(
                 (com.detailline.callfollowcrm.util.RegionName.shortRegion(site.addr) ?: "요청")
         }
     }
+    // A/S 칸에도 **지역명**을 적는다 — "A/S"만으론 어디인지 모른다. (2026-10-07 사장님 "지역+A/S 로")
+    //   asDayStarts 와 같은 방식으로 여러 날 A/S(asScheduledDays)까지 덮는다.
+    val asRegions = remember(asList) {
+        val m = HashMap<Long, String>()
+        for (c in asList) {
+            val s = c.asScheduledDate?.let { DateTimeUtils.startOfDay(it) } ?: continue
+            val region = com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address) ?: continue
+            val days = c.asScheduledDays.coerceAtLeast(1)
+            for (i in 0 until days) m[s + i * DateTimeUtils.DAY_MS] = region
+        }
+        m
+    }
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
 
@@ -443,6 +455,7 @@ fun ScheduleScreen(
                                         pendingRegions = pendingRegions,
                                         pendingCollabDays = pendingCollabDays,
                                         asDays = asDays,
+                                        asRegions = asRegions,
                                         simpleDays = simpleDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
@@ -947,6 +960,7 @@ private fun CalendarWeekRow(
     pendingRegions: Map<Long, String> = emptyMap(),
     pendingCollabDays: Set<Long>,
     asDays: Set<Long>,
+    asRegions: Map<Long, String> = emptyMap(),
     simpleDays: Set<Long>,
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
@@ -961,6 +975,7 @@ private fun CalendarWeekRow(
                 pendingRegion = pendingRegions[cell.dayStartMs],
                 isPendingCollab = cell.dayStartMs in pendingCollabDays,
                 isAs = cell.dayStartMs in asDays,
+                asRegion = asRegions[cell.dayStartMs],
                 isSimple = cell.dayStartMs in simpleDays,
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
@@ -982,6 +997,8 @@ private fun CalendarDay(
     pendingRegion: String? = null,
     isPendingCollab: Boolean = false,
     isAs: Boolean = false,
+    /** A/S 현장 지역명 — 없으면 "A/S"만. (2026-10-07 사장님) */
+    asRegion: String? = null,
     /** 간단 일정(번호 없는 메모형)이 있는 날 — 회색 점. (2026-09-16 사장님) */
     isSimple: Boolean = false,
     onClick: () -> Unit,
@@ -1040,7 +1057,9 @@ private fun CalendarDay(
                             // 종류는 **색**으로만 가른다. 연한 바탕 + 진한 글자 — 세 줄이 쌓여도 안 답답하다.
                             lane == asLane ->
                                 CalRegionBar(
-                                    BarSeg.SINGLE, AppTheme.colors.primaryBg, AppTheme.colors.primaryText, "A/S"
+                                    BarSeg.SINGLE, AppTheme.colors.primaryBg, AppTheme.colors.primaryText,
+                                    // 지역명이 있으면 "목동 A/S"처럼. 없으면 "A/S"만. (2026-10-07 사장님)
+                                    asRegion?.let { "$it A/S" } ?: "A/S"
                                 )
                             lane == pendingLane -> PendingCalBar(pendingRegion ?: "요청")
                             lane == collabLane ->

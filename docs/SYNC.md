@@ -13853,3 +13853,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱 CustomerStatusTag.customerStatusOf 판정 + 고객관리 「시공확인」 칩 추가. 서버·DB 무관.
 - 폰 확인: 못 봄(테스트폰 미연결). 단위테스트 TagRule·ScheduleTagLabel 통과로 로직 검증.
 - 다음 액션: 없음. (완료는 기존 '시공일 지났어요' 카드로 찍음)
+
+## 2026-10-07 · android
+일정 달력 A/S 칸에 지역명 — "A/S" → "지역 A/S"(예: 목동 A/S). 시공·협업과 통일.
+- 변경: 앱 ScheduleScreen asRegions 추가. 서버·DB 무관.
+- 폰 확인: 못 봄(테스트폰 미연결).
+- 다음 액션: 없음.
