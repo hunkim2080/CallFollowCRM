@@ -572,10 +572,12 @@ internal fun CompletionDialog(
     onSend: (phone: String, name: String, body: String, kind: String) -> Unit
 ) {
     val name = customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber)
-    val total = customer.totalAmount ?: 0L
-    val dep = customer.depositAmount ?: 0L
-    val bal = customer.balanceAmount ?: (total - dep).coerceAtLeast(0L)
-    val hasBal = customer.balancePaidAt == null && bal > 0L
+    // 🔴 잔금은 **정산 단일 출처(SettlementCalc)**로 — 상세 화면과 같은 규칙(총액이 있으면 총액−계약금, stale balanceAmount 무시).
+    //   전엔 customer.balanceAmount 를 직접 써서, 총액을 바꾸기 전 옛 잔금(예: 40만)이 남아 상세는 「완납」인데
+    //   완료 카드는 「잔금 40만 미수」로 갈렸다. (2026-10-07 사장님 신고)
+    val sRow = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(customer)
+    val bal = sRow.outstanding
+    val hasBal = bal > 0L
     val won = "%,d".format(bal)
     val reviewMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊 만족스러우셨다면 후기 한 줄 부탁드려요! 또 필요하시면 언제든 연락주세요 :)"
     val balanceMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊\n잔금은 ${won}원입니다.\n맡겨주셔서 대단히 감사합니다!"

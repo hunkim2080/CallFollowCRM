@@ -594,7 +594,8 @@ class CustomerDetailViewModel(
         // 잔금 받음 처리 = 그 시점을 챗 타임라인에 카드로. 취소(false)면 그 카드도 삭제 — 실수 처리 후 '받음' 잔상 방지. (2026-06-30 / 2026-08-28 사장님)
         if (paid) {
             val c = customer.value
-            val balanceWon = c?.balanceAmount ?: ((c?.totalAmount ?: 0L) - (c?.depositAmount ?: 0L))
+            // 잔금은 정산 단일 출처 — stale balanceAmount 안 쓴다. (2026-10-07)
+            val balanceWon = c?.let { com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(it).balanceAmount } ?: 0L
             recordTimelineEvent(type = "balance_paid", oldValue = null, newValue = wonLabel(balanceWon))
         } else {
             deleteTimelineEventsOfType("balance_paid")

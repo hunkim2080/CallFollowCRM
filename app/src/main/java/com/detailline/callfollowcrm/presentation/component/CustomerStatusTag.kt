@@ -184,9 +184,10 @@ private fun filterTagLabel(c: CustomerEntity, filter: String): String? = when (f
     }
     // 얼마가 남았나.
     "owe" -> {
-        val owed = c.balanceAmount ?: c.totalAmount?.let { t -> t - (c.depositAmount ?: 0L) }
+        // 잔금은 **정산 단일 출처**(SettlementCalc) — stale balanceAmount 안 쓴다. (2026-10-07)
+        val owed = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding
         // 딱지는 자리가 없다 → 내림. 정확한 금액은 고객 정보에서 본다. (2026-09-28 사장님 「내림」)
-        if (owed != null && owed > 0L)
+        if (owed > 0L)
             "잔금 " + com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(owed, "만")
         else null
     }
