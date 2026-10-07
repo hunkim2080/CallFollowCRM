@@ -193,6 +193,8 @@ fun CustomerDetailScreen(
     var pastOpen by remember { mutableStateOf(false) }
     // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
     var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
+    // 빈 메모 카드를 폈나 — 빈 공백 줄이려 접어두고, 누르면 펼친다. (2026-10-07 사장님 "허전해")
+    var memoExpanded by remember(customer?.id) { mutableStateOf(false) }
     // 🗑 취소/빈 '지난 건' 삭제 확인 대상. (2026-10-06 사장님)
     var deletePastJobConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.JobEntity?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
@@ -357,7 +359,8 @@ fun CustomerDetailScreen(
                 .verticalScroll(scrollState)
                 // bottom 을 크게 둬서 키보드 위로 입력칸이 바짝 붙지 않고 숨 쉴 공간 확보.
                 .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            // 카드 간 여백 12→10 — 허전함 줄이기. (2026-10-07 사장님)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // 1. 프로토 cd-card 헤더 — heat 점 + 이름(크게) + [변경] / 전화번호 + [분류 ›] + 📞.
             val categories by viewModel.categories.collectAsState()
@@ -620,6 +623,18 @@ fun CustomerDetailScreen(
             //   사장님이 적는 건 사건이다 — 「오늘 2시로 바뀜」. 사건은 시각이 반이다.
             //   📌 계좌·비번처럼 늘 봐야 하는 건 맨 위에 못 박는다.
             val custNotes by viewModel.notes.collectAsState()
+            // 빈 메모는 **한 줄로 접어** 빈 공백을 없앤다 — 누르면 펼쳐 입력. (2026-10-07 사장님 "허전해")
+            if (custNotes.isEmpty() && !memoExpanded) {
+                TossCard(onClick = { memoExpanded = true }) {
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        CdTitleIcon(Icons.Filled.Person, "gray")
+                        Spacer(Modifier.width(8.dp))
+                        Text("이 고객 메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+                        Spacer(Modifier.weight(1f))
+                        Text("＋ 적기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    }
+                }
+            } else {
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(
@@ -649,6 +664,7 @@ fun CustomerDetailScreen(
                     )
                 }
             }
+            }   // 빈 메모 접기 if/else 끝
 
 
             // ②안: '일정·정산' 탭에서 건이 있으면 주소는 아래 **그 건 카드 안**으로 들어간다. (2026-10-07 사장님 "한 건=한 카드")
