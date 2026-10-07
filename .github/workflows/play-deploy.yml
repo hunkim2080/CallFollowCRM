@@ -112,6 +112,9 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: ${{ github.event.inputs.track || 'internal' }}
           status: completed
+          # 구글 Play 가 "검토 제출을 자동으로 못 한다"며 커밋을 막음(2026-10-08) →
+          #   검토 없이 커밋만 한다. 내부테스트는 검토가 필요 없고, 필요하면 Play Console 에서 제출. (사장님)
+          changesNotSentForReview: true
           # Play 스토어 "새로운 기능" 문구 — distribution/whatsnew/whatsnew-ko-KR 내용이 올라감.
           #   배포 전에 그 파일에 이번 변경 한 줄 적으면 됨(빈칸이면 문구 없이 올라감).
           whatsNewDirectory: distribution/whatsnew
