@@ -173,6 +173,8 @@ class CustomerDetailViewModel(
                     balanceAmount = null,          // 총액이 바뀌면 잔금은 다시 계산되게 비운다
                     balancePaidAt = j.balancePaidAt
                 )
+                // 고객 카드(공유칸)를 **대표 건 기준으로** 다시 맞춘다 — 한 방향(jobs→customers). 역방향 미러 아님. (2026-10-07)
+                container.jobRepository.recomputeMirror(customerId, System.currentTimeMillis())
             }
         }
     }
@@ -189,6 +191,8 @@ class CustomerDetailViewModel(
                     balanceAmount = null,
                     balancePaidAt = j.balancePaidAt
                 )
+                // 고객 카드(공유칸)를 대표 건 기준으로 다시 맞춘다 — 한 방향(jobs→customers). (2026-10-07)
+                container.jobRepository.recomputeMirror(customerId, System.currentTimeMillis())
             }
         }
     }

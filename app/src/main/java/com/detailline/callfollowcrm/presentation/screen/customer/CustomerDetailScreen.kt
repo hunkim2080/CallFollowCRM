@@ -872,7 +872,14 @@ fun CustomerDetailScreen(
             val otherJobs = allJobsForTabs.filter { it.id != repJobId }
             val selectedPastJob = otherJobs.firstOrNull { it.id == selectedPastJobId }
             // 지금 보고 있는 건 — 메모·사진이 이걸 따라간다. (2026-09-18 프로토)
+            // 🔴 **건이 있으면 반드시 그 건을 가리킨다.** repJobId 가 날짜 불일치로 null 이어도
+            //   대표 건으로 메꾼다 → 돈·주소 편집이 고객 공유칸(→대표건 미러로 1차 덮임)으로 새지 않는다.
+            //   (2026-10-07 사장님 "2차 총금액 고치면 1차가 같이 묶여 바뀐다")
             val shownJobId = selectedPastJobId ?: repJobId
+                ?: com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(
+                    allJobsForTabs.sortedBy { it.scheduledWorkDate ?: 0L },
+                    DateTimeUtils.startOfDay(System.currentTimeMillis())
+                )?.id
             val shownJob = allJobsForTabs.firstOrNull { it.id == shownJobId }
             // 건 줄은 **시공이 둘 이상일 때만** 띄운다. (2026-09-18 확정 프로토 artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
             //   "보통 손님은 시공을 한 번만 받는다. 그런 손님 화면에 '1차'라는 말과 탭 줄을 넣으면
@@ -2194,10 +2201,14 @@ fun CustomerDetailScreen(
     }
 
     // 일정·정산 금액 편집 (총금액/계약금) — 만원 입력.
+    val allJobsForAmt by viewModel.allJobs.collectAsState()
     amountEditField?.let { field ->
+        // 🔴 초기값은 **고른 건(job)**의 값으로 — 전엔 고객 값이라 2차 열어도 1차/대표 값이 떴다. (2026-10-07)
+        val amtJob = amountEditJobId?.let { id -> allJobsForAmt.firstOrNull { it.id == id } }
         AmountInputDialog(
             title = if (field == "total") "총금액" else "계약금",
-            initialWon = if (field == "total") (customer?.totalAmount ?: 0L) else (customer?.depositAmount ?: 0L),
+            initialWon = if (field == "total") (amtJob?.totalAmount ?: customer?.totalAmount ?: 0L)
+                         else (amtJob?.depositAmount ?: customer?.depositAmount ?: 0L),
             onSave = { won ->
                 val jid = amountEditJobId
                 if (field == "total") {
