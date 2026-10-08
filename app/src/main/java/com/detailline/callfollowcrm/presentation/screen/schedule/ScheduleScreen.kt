@@ -1031,7 +1031,7 @@ private fun CalendarDay(
             // 날짜 15dp + 사이 2 + 띠 세 줄(13×3 + 1.5×2) = 59, 여유 3 = 62dp.
             //   ⚠️ 종류마다 띠 높이를 다르게 하지 말 것 — 층이 어긋나 **깨져 보인다**. (2026-09-22 사장님)
             .height(62.dp)
-            .padding(horizontal = 1.dp)
+            // 가로 여백은 띠가 스스로 챙긴다(CalRegionBar seg 별) — 같은 일정은 이어지고 다른 날은 떨어지게. (2026-10-08 사장님)
             .clip(AppShape.sm)
             .background(if (isSelected) AppTheme.colors.primaryBg else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -1138,8 +1138,13 @@ private fun CalBar(seg: BarSeg, color: Color) {
 @Composable
 private fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?) {
     val shape = calBarShape(seg)
+    // 여러 날 일정은 **이어 붙는 쪽 여백을 0**으로 둬서 칸과 칸 사이 틈 없이 하나의 띠로 흐르게.
+    //   붙지 않는 쪽(START 왼쪽·END 오른쪽·SINGLE 양쪽)은 1dp 여백 → 다른 날 일정과 안 붙는다. (2026-10-08 사장님)
+    val startPad = if (seg == BarSeg.MID || seg == BarSeg.END) 0.dp else 1.dp
+    val endPad = if (seg == BarSeg.MID || seg == BarSeg.START) 0.dp else 1.dp
     Box(
-        Modifier.fillMaxWidth().height(13.dp).clip(shape).background(bg),
+        Modifier.fillMaxWidth().padding(start = startPad, end = endPad)
+            .height(13.dp).clip(shape).background(bg),
         // 띠 안 글자는 가운데. 시공·A/S·협업·요청·간단 전부 이 공용 한 곳으로 정렬된다. (2026-10-08 사장님)
         contentAlignment = Alignment.Center
     ) {
