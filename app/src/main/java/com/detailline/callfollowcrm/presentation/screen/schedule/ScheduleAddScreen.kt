@@ -231,7 +231,8 @@ fun ScheduleAddScreen(
                 icon = Icons.Filled.Schedule,
                 title = if (!workMode && simpleDays > 1) rangeLabel(dayMs, endDayMs) else dayLabel(dayMs),
                 sub = buildString {
-                    append(if (allDay) "하루 종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
+                    // 여러 날 간단 일정은 '하루 종일' 고정이라 헤더도 그렇게 — 시간칸과 어긋나지 않게. (2026-10-08 사장님)
+                    append(if (allDay || (!workMode && simpleDays > 1)) "하루 종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
                     if (workMode && workDays > 1) append(" · ").append(workDays).append("일")
                     else if (!workMode && simpleDays > 1) append(" · ").append(simpleDays).append("일")
                 },
@@ -263,7 +264,8 @@ fun ScheduleAddScreen(
                         }
                     }
                 )
-                if (!allDay) {
+                // 여러 날 간단 일정은 하루 종일 고정 → 시간 고르는 칸을 숨긴다(헤더·하단과 일치). (2026-10-08 사장님)
+                if (!allDay && !(!workMode && simpleDays > 1)) {
                     // 05 — 칩 아홉 개를 한 줄로 접었다. (2026-09-18 사장님 "전부 클릭으로 해야 하나,
                     //   지저분하고 산만해 보인다") 대부분 오전 9시로 시작하시는데 그 하나를 고르자고
                     //   아홉 칸이 화면을 차지했다. 표면엔 한 줄, 누를 때만 펼친다.
