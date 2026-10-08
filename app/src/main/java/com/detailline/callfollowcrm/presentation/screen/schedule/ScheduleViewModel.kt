@@ -399,17 +399,22 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }.map { it.shareId }.toSet()
             // 표시용 dead set 갱신 + 즉시 재필터 (prefs 정리와 무관하게 배지에서 바로 빠지게).
             deadCollabShareIds = dead
-            loadCollabAssignments()
-            if (dead.isEmpty()) return@launch
+            // 🔗 협업은 '그 건(날짜)'에 붙는다 — 빈 days 를 서버 공유의 날짜로 백필해, 고객 전체로 퍼지던 걸 막는다.
+            //   (2026-10-09 사장님: 1차/2차 협업자 섞임) + 거절/종료(dead) 건은 한 번에 제거.
+            val dateByShare = sites.filter { it.scheduledAtMs > 0L }
+                .associate { it.shareId to DateTimeUtils.startOfDay(it.scheduledAtMs) }
             val before = container.preferences.collabAssignments
-            val after = before.filterNot { e ->
-                val sid = e.split('|').getOrNull(3)  // "customerId|phone|name|shareId"
-                !sid.isNullOrBlank() && sid in dead
+            val after = before.mapNotNull { raw ->
+                val line = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(raw)
+                    ?: return@mapNotNull raw
+                if (line.shareId.isNotBlank() && line.shareId in dead) return@mapNotNull null
+                if (line.days.isEmpty() && line.shareId.isNotBlank()) {
+                    dateByShare[line.shareId]?.let { d -> return@mapNotNull line.withDays(setOf(d)).format() }
+                }
+                raw
             }.toSet()
-            if (after.size != before.size) {
-                container.preferences.collabAssignments = after
-                loadCollabAssignments()
-            }
+            if (after != before) container.preferences.collabAssignments = after
+            loadCollabAssignments()
         }
     }
 

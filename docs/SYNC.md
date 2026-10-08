@@ -13953,3 +13953,14 @@ Fable 🧹3. 사장님 "고고"
 - 변경: ScheduleScreen/ScheduleAddScreen/ScheduleParts/ScheduleCalendarGrid/DesignSystem/DateTimeUtils(앞 커밋들) · SmsReceiver(스팸도 알림, 라우팅) · NotificationHelper(채널·showGeneralSms).
 - 폰 확인: 테스트폰 실기 — 달력 청록 이어진 띠·하루짜리 띠·카드 기간·범례·새일정 연속띠·하루종일 자동·고치기 범위픽커 전부 OK. 알림채널 '문자함·스팸' 기본소리(Skyline)·팝업없음 확인. (실제 소리는 수신문자 필요 → 사장님 폰서.)
 - 다음 액션: 사장님 폰 확인 + 배포 여부.
+
+## 2026-10-09 · android (+ server 확인)
+협업을 "고객 단위" → "건(날짜) 단위"로 (1차/2차 협업자 분리). (사장님 "1차엔 하우스픽, 2차엔 태그줄눈 다르게 주고 싶은데 1차 협업자가 2차로 딸려온다")
+- 원인: collabAssignments 가 customerId 로 묶이고, 배지가 days 빈 건을 **고객 전체 날짜**로 퍼뜨림 + reschedule/주소전파가 고객 광역.
+- 고침(앱): ① 배지 — 그 건(날짜)에만. days 빈 건은 대표일 하나로만(전체 X). ② reschedule — 바뀌는 그 날(oldDay) 맡은 협업자에게만(다른 건 안 샘) + 로컬 날짜 oldDay→newDay 갱신. ③ reconcile — 빈 days 를 서버 공유 scheduledAtMs 로 백필.
+- 공용 신설: domain/collab/CollabAssignmentLine.kt (파싱/포맷/coversDay) + collabCoversDay(). 단위테스트 9개.
+- 서버: shared_invite dedup 이 **이미 날짜 포함**(owner+partner+title/addr+scheduled_at_ms) → 1차/2차 같은 협업자도 안 합쳐짐. **서버 변경 불필요**(읽기 확인만).
+- 주소전파(propagateAddressToCollab)는 그대로 — 같은 현장이면 1·2차 다 같은 주소라 고객 광역이 맞음.
+- 프로토: artifact/YEgnUVAFgj2jr4GtYgqHk2 (고객단위→건단위, 지금 vs 바뀜) 사장님 「고고」.
+- 폰 확인: 빌드·가드 7개·전체 테스트 통과. 테스트폰 일정 탭 크래시 없음(실데이터 협업 재현은 불가 — 사장님 폰서 1차/2차 분리 확인 필요).
+- 다음 액션: 사장님 폰 확인 + 배포 여부.

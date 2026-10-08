@@ -559,9 +559,16 @@ fun ScheduleScreen(
                                 selectedDayMs = selectedDayMs,
                                 todayStart = todayStart,
                                 assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                                // 다일 공사: 이 협업자가 '일하는 날'에만 이름표 표시. days 비면=전체(하위호환). (2026-08-02 하루만 배정 버그 fix)
+                                // 협업은 '그 건(날짜)'에 붙는다 — 이 협업자가 맡은 그 날에만 이름표. 구버전(days 빈 건)은
+                                //   대표 건 날짜 하나로만(고객 전체로 퍼지지 않게). (2026-10-09 사장님: 1차/2차 분리)
                                 collabPartnerNames = collabAssign[c.id].orEmpty()
-                                    .filter { it.days.isEmpty() || selectedDayMs in it.days }
+                                    .filter { assign ->
+                                        val sel = selectedDayMs ?: return@filter false
+                                        com.detailline.callfollowcrm.domain.collab.collabCoversDay(
+                                            assign.days, sel,
+                                            representativeDay = c.scheduledWorkDate?.let { d -> DateTimeUtils.startOfDay(d) }
+                                        )
+                                    }
                                     .map { it.name to it.accepted },
                                 teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
                                 // 주소가 없어도 시트는 연다 — '내가 부른 일당' 배정은 아무것도 안 보내니 주소가 필요 없다.
