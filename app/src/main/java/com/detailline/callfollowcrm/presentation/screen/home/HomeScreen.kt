@@ -3261,8 +3261,9 @@ private fun WaitingCard(
 
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
+                // 같은 날 2번째 통화부터는 "신규"→"다시 전화옴"(새 사람 아님). callCount=오늘 통화 수. (2026-10-08 사장님)
                 Box(Modifier.background(TossBlueSoft, RoundedCornerShape(8.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                    Text("신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Text(if (item.callCount >= 2) "다시 전화옴" else "신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
             }
             Spacer(Modifier.weight(1f))

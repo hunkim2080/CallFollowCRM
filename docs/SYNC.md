@@ -13925,3 +13925,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱만. AppPreferences(inboxChipsSeen/Seeded) · HomeScreenHelpers(inboxChipMembers·inboxChipFirstNote·inboxChipLabel) · HomeScreenCards(NewChipNote) · HomeScreen(chipHasMember·seen state·LaunchedEffect·InboxChips seen 필터). 프로토 JvQ8oGXG 사장님 승인.
 - 폰 확인: 가드·빌드 통과. 기기 분리로 실화면 미확인 → 사장님 폰서 확인 필요(새 사용자 흐름은 신규 설치라야 완전).
 - 다음 액션: 사장님 폰 확인. 9/20 '0이면 흐리게' 결정과 충돌 → '처음 생기면 계속 둠'(하이브리드)으로 사장님이 재확정함.
+
+## 2026-10-08 · android
+새 문의 반복 — 같은 번호가 같은 날 또 전화하면 "신규"가 계속 뜨던 것(사장님 "또 새문의로 뜨네"). 번호+날짜로 한 줄 묶음이라 1명으로만 세지만(중복 아님), 라벨이 "신규" 유지됐다. → 같은 날 2번째 통화부터(callCount≥2) WaitingCard 뱃지를 "다시 전화옴"으로. 처음만 "신규".
+- 변경: 앱만. HomeScreen WaitingCard 뱃지. (SMS 반복은 제외 — '전화옴' 라벨이라 통화만.)
+- 폰 확인: 가드·빌드 통과. 기기 분리로 실화면 미확인.
+- 참고: 협업·접수서 탭 옛 주소카드 튀어나오던 것도 이 묶음에 포함(커밋 1e5ff560).
