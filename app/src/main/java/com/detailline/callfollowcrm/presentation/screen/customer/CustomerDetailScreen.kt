@@ -662,10 +662,14 @@ fun CustomerDetailScreen(
             }   // 빈 메모 접기 if/else 끝
 
 
-            // ②안: '일정·정산' 탭에서 건이 있으면 주소는 아래 **그 건 카드 안**으로 들어간다. (2026-10-07 사장님 "한 건=한 카드")
-            val addrInJobCard = detailTab == 0 && shownJob != null
+            // ②안: 건이 있으면 주소는 **그 건 카드 안**에만 있는다("한 건=한 카드"). (2026-10-07 사장님)
+            //   ⚠️ 전엔 `detailTab == 0 && shownJob != null` 이라, 협업·접수서 탭을 누르면 이 옛 독립
+            //      주소카드가 위로 **튀어나와** UI 가 확 바뀌었다(2026-10-08 사장님 "협업 누르면 예전 ui로 바뀌네").
+            //      → 건이 있으면 **어느 탭에서도** 독립카드를 안 띄운다(주소는 일정·정산 건 카드에만).
+            //      상담 단계(건 없음)에선 그대로 이 카드가 유일한 주소 표시 — 탭 바꿔도 안 변한다.
+            val addrInJobCard = shownJob != null
             if (addrInJobCard) {
-                // 주소는 '일정·정산' 그 건 카드 안에 그린다(아래). 여기선 안 그림(상담 단계·다른 탭만 여기).
+                // 주소는 '일정·정산' 그 건 카드 안에 그린다(아래). 여기선 안 그림(상담 단계만 여기).
             } else if (displayAddr != null) {
                 // 프로토 .addr-card — 그라데이션 + 주소 + [길찾기 시작] 큰 파란 버튼.
                 val addrInteraction = remember { MutableInteractionSource() }
