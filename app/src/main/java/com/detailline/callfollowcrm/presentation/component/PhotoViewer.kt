@@ -4,8 +4,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -239,9 +243,21 @@ private fun ViewerPage(
     BoxWithConstraints(
         Modifier.fillMaxSize()
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 5f)
-                    offset = if (scale <= 1.01f) Offset.Zero else offset + pan
+                // 🖐️ 한 손가락 + 확대 전이면 **제스처를 안 삼킨다** → 바깥 HorizontalPager 가 좌우로 넘긴다.
+                //   (2026-10-08 사장님 "여러 장(1/2)인데 옆으로 스와이프가 안 돼")
+                //   전엔 detectTransformGestures 가 한 손가락 드래그까지 전부 소비해 페이저가 못 받았다.
+                //   두 손가락(핀치)이거나 **이미 확대된** 상태에서만 확대/이동을 처리하고 소비한다.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val pointers = event.changes.count { it.pressed }
+                        if (pointers >= 2 || scale > 1.01f) {
+                            scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                            offset = if (scale <= 1.01f) Offset.Zero else offset + event.calculatePan()
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             }
             .pointerInput(Unit) {

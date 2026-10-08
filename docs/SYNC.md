@@ -13909,3 +13909,8 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱만. CalendarApi.AppCalEvent 에 location 추가+파싱, CalendarSyncManager.orphanEventIds 규칙 추가. CalendarOrphanSweepTest 3케이스 추가(통과).
 - 폰 확인: 단위테스트로 로직 고정. 실동작은 6674 폰 새 빌드 동기화 시 확인(부평 자동정리).
 - 다음 액션: 부평은 사장님이 수동 삭제 예정. 새 빌드 올라가면 이후 이런 잔재 자동정리.
+
+## 2026-10-08 · android
+사진 크게보기 여러 장 좌우 스와이프 복구 — PhotoViewer 에 HorizontalPager 는 있었는데 detectTransformGestures 가 한 손가락 드래그까지 삼켜 페이저가 못 받았다(1/2 뜨는데 스와이프 안 됨). → awaitEachGesture 로 바꿔 '두 손가락(핀치)이거나 이미 확대된 상태'에서만 소비. 한 손가락+확대전은 페이저로.
+- 변경: 앱만. presentation/component/PhotoViewer.kt. 핀치줌·더블탭·회전·닫기 그대로.
+- 폰 확인: 컴파일/가드 통과. 실제 스와이프는 여러 장 문자 사진에서 확인 필요(사장님).
