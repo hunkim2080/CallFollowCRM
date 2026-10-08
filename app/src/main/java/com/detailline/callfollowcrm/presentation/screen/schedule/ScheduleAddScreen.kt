@@ -136,6 +136,10 @@ fun ScheduleAddScreen(
     var monthAnchor by remember { mutableLongStateOf(DateTimeUtils.startOfMonth(seedDayMs)) }
     var workMinutes by remember { mutableStateOf(9 * 60) } // 프로토 기본 오전 9시 (미정 없음)
     var workDays by remember { mutableStateOf(1) }
+    // 📅 간단 일정 **여러 날** — 날짜를 두 번 찍으면 범위(시작·끝). 시공은 안 씀(기간 칩). (2026-10-08 사장님)
+    var endDayMs by remember { mutableLongStateOf(seedDayMs) }
+    var pickingEnd by remember { mutableStateOf(false) }
+    val simpleDays = (((endDayMs - dayMs) / DateTimeUtils.DAY_MS).toInt() + 1).coerceAtLeast(1)
 
     var showNewVendor by remember { mutableStateOf(false) }
     var showAddrSearch by remember { mutableStateOf(false) }
@@ -225,21 +229,39 @@ fun ScheduleAddScreen(
             //   맞는 말이다. 이미 정해진 날이니 **한 줄로 접어두고**, 바꿀 때만 펼친다.
             FoldRow(
                 icon = Icons.Filled.Schedule,
-                title = dayLabel(dayMs),
+                title = if (!workMode && simpleDays > 1) rangeLabel(dayMs, endDayMs) else dayLabel(dayMs),
                 sub = buildString {
                     append(if (allDay) "하루 종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
                     if (workMode && workDays > 1) append(" · ").append(workDays).append("일")
+                    else if (!workMode && simpleDays > 1) append(" · ").append(simpleDays).append("일")
                 },
                 open = dateOpen,
                 onClick = { dateOpen = !dateOpen }
             )
             if (dateOpen) {
                 Spacer(Modifier.height(10.dp))
+                if (!workMode) {
+                    // 날짜를 **두 번** 찍으면 기간이 돼요(시작→끝). 안내 한 줄. (2026-10-08 사장님)
+                    Text(
+                        if (pickingEnd) "끝나는 날을 한 번 더 눌러요 (하루면 같은 날)"
+                        else "여러 날이면 시작일 → 끝나는 날 순서로 눌러요",
+                        fontSize = 11.5.sp, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp)
+                    )
+                }
                 InlineMonthCalendar(
                     monthAnchor = monthAnchor,
                     selectedDayMs = dayMs,
+                    rangeEndMs = if (workMode) dayMs else endDayMs,
                     onShiftMonth = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, it) },
-                    onSelect = { dayMs = it }
+                    onSelect = { picked ->
+                        if (workMode) { dayMs = picked }
+                        else if (!pickingEnd) { dayMs = picked; endDayMs = picked; pickingEnd = true }
+                        else {
+                            if (picked >= dayMs) endDayMs = picked else { endDayMs = dayMs; dayMs = picked }
+                            pickingEnd = false
+                        }
+                    }
                 )
                 if (!allDay) {
                     // 05 — 칩 아홉 개를 한 줄로 접었다. (2026-09-18 사장님 "전부 클릭으로 해야 하나,
@@ -457,6 +479,7 @@ fun ScheduleAddScreen(
                                 dayMs = dayMs,
                                 minutes = if (allDay) null else workMinutes,
                                 memo = simpleMemo,
+                                days = simpleDays,
                                 onDone = onDone
                             )
                             return@clickable
@@ -614,6 +637,15 @@ private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismi
 /** "9월 22일 (화)" — 날짜 한 줄에 쓰는 라벨. */
 private fun dayLabel(ms: Long): String =
     java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(ms))
+
+/** 여러 날 범위 라벨 — "10월 17일 (토) ~ 23일 (금)". 달이 다르면 끝에도 월을 붙인다. (2026-10-08) */
+private fun rangeLabel(startMs: Long, endMs: Long): String {
+    val ym = java.text.SimpleDateFormat("yyyyM", java.util.Locale.KOREAN)
+    val sameMonth = ym.format(java.util.Date(startMs)) == ym.format(java.util.Date(endMs))
+    val endFmt = if (sameMonth) "d일 (E)" else "M월 d일 (E)"
+    return dayLabel(startMs) + " ~ " +
+        java.text.SimpleDateFormat(endFmt, java.util.Locale.KOREAN).format(java.util.Date(endMs))
+}
 
 /**
  * 제목 입력 — 구글 캘린더처럼 **테두리 없이 큰 글씨**. (2026-09-16 사장님)
@@ -795,7 +827,9 @@ private fun InlineMonthCalendar(
     monthAnchor: Long,
     selectedDayMs: Long,
     onShiftMonth: (Int) -> Unit,
-    onSelect: (Long) -> Unit
+    onSelect: (Long) -> Unit,
+    /** 범위 끝(간단 일정 여러 날). selectedDayMs 와 같으면 하루(범위 없음). (2026-10-08 사장님) */
+    rangeEndMs: Long = selectedDayMs
 ) {
     val todayStart = remember { DateTimeUtils.startOfDay(System.currentTimeMillis()) }
     val cells = remember(monthAnchor) { buildSelectCells(monthAnchor, todayStart) }
@@ -821,8 +855,16 @@ private fun InlineMonthCalendar(
         repeat(6) { week ->
             Row(Modifier.fillMaxWidth()) {
                 cells.subList(week * 7, week * 7 + 7).forEach { cell ->
-                    val isSel = DateTimeUtils.startOfDay(selectedDayMs) == cell.dayStartMs
-                    val bg = when { isSel -> TossBlue; cell.isToday -> TossBlueSoft; else -> Color.Transparent }
+                    val startDay = DateTimeUtils.startOfDay(selectedDayMs)
+                    val endDay = DateTimeUtils.startOfDay(rangeEndMs)
+                    val isSel = startDay == cell.dayStartMs || endDay == cell.dayStartMs   // 범위 양끝
+                    val inRange = cell.dayStartMs > startDay && cell.dayStartMs < endDay    // 사이 날
+                    val bg = when {
+                        isSel -> TossBlue
+                        inRange -> TossBlueSoft    // 범위 사이는 연하게
+                        cell.isToday -> TossBlueSoft
+                        else -> Color.Transparent
+                    }
                     val fg = when {
                         isSel -> Color.White
                         !cell.inMonth -> TossTextTertiary

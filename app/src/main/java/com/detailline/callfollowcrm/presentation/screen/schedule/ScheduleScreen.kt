@@ -389,8 +389,11 @@ fun ScheduleScreen(
         // 이 날 간단 일정 — 번호도 돈도 없는 메모형. 시공·A/S 와 안 섞는다. (2026-09-16 사장님)
         val simpleForSelected = remember(selectedDayMs, simpleEvents) {
             val day = selectedDayMs ?: return@remember emptyList()
-            simpleEvents.filter { it.dayStartMs == day }
-                .sortedBy { it.minutes ?: -1 }   // 하루 종일이 맨 위
+            // 여러 날 간단 일정은 기간 내 모든 날에 뜬다. (v64, 2026-10-08)
+            simpleEvents.filter { e ->
+                val end = e.dayStartMs + e.days.coerceAtLeast(1) * com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS
+                day >= e.dayStartMs && day < end
+            }.sortedBy { it.minutes ?: -1 }   // 하루 종일이 맨 위
         }
         // 이 날 A/S 예약(무료) — 시공과 별개. A/S만 있는 고객도 여기 뜬다(시공 목록엔 안 뜸). (DB v43)
         val asForSelected = remember(selectedDayMs, asList) {
@@ -649,7 +652,8 @@ fun ScheduleScreen(
                         event = ev,
                         onDelete = { viewModel.deleteSimpleEvent(ev.id) },
                         onSave = { title, dayMs, minutes, memo ->
-                            viewModel.editSimpleEvent(ev.id, title, dayMs, minutes, memo)
+                            // 기간(days)은 그대로 유지 — 카드에선 제목·시간·메모만 고친다. (v64)
+                            viewModel.editSimpleEvent(ev.id, title, dayMs, minutes, memo, days = ev.days)
                         }
                     )
                 }

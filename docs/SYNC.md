@@ -13931,3 +13931,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱만. HomeScreen WaitingCard 뱃지. (SMS 반복은 제외 — '전화옴' 라벨이라 통화만.)
 - 폰 확인: 가드·빌드 통과. 기기 분리로 실화면 미확인.
 - 참고: 협업·접수서 탭 옛 주소카드 튀어나오던 것도 이 묶음에 포함(커밋 1e5ff560).
+
+## 2026-10-08 · android
+간단 일정 여러 날 — 날짜 시작→끝 두 번 찍으면 기간(제주도 여행 17~23). DB v64(simple_events.days, ADD COLUMN NOT NULL DEFAULT 1=asScheduledDays 동일패턴). InlineMonthCalendar 범위선택, syncSimple all-day span(구글 7일 띠), 달력 표시 기간 내 모든 날.
+- 변경: 앱만. AppDatabase(v64)·SimpleEventEntity/Repository·ScheduleAddVM/ViewModel·CalendarSyncManager·ScheduleAddScreen·ScheduleScreen. style_baseline +1(안내 1줄).
+- 폰 확인: 빌드·가드·전체 테스트 통과. v64 스키마 매칭 검증. 기기 분리로 실화면 미확인 → 사장님 폰(앱 열림=마이그레이션, 범위탭, 달력 표시) 확인 필요.
+- 다음 액션: 사장님 폰 확인 후 이상없으면 끝.

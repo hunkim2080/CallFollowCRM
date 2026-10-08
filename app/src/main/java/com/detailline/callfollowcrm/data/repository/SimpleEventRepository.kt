@@ -22,14 +22,15 @@ class SimpleEventRepository(private val dao: SimpleEventDao) {
 
     suspend fun findById(id: Long): SimpleEventEntity? = dao.findById(id)
 
-    /** @param minutes 자정부터 분. null = 하루 종일. */
-    suspend fun add(title: String, dayMs: Long, minutes: Int?, memo: String): Long {
+    /** @param minutes 자정부터 분. null = 하루 종일. @param days 며칠(1=하루). (v64) */
+    suspend fun add(title: String, dayMs: Long, minutes: Int?, memo: String, days: Int = 1): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
             SimpleEventEntity(
                 title = title.trim(),
                 dayStartMs = DateTimeUtils.startOfDay(dayMs),
                 minutes = minutes,
+                days = days.coerceAtLeast(1),
                 memo = memo.trim(),
                 createdAt = now,
                 updatedAt = now
@@ -37,13 +38,14 @@ class SimpleEventRepository(private val dao: SimpleEventDao) {
         )
     }
 
-    suspend fun edit(id: Long, title: String, dayMs: Long, minutes: Int?, memo: String) = writeMutex.withLock {
+    suspend fun edit(id: Long, title: String, dayMs: Long, minutes: Int?, memo: String, days: Int = 1) = writeMutex.withLock {
         val e = dao.findById(id) ?: return@withLock
         dao.update(
             e.copy(
                 title = title.trim(),
                 dayStartMs = DateTimeUtils.startOfDay(dayMs),
                 minutes = minutes,
+                days = days.coerceAtLeast(1),
                 memo = memo.trim(),
                 updatedAt = System.currentTimeMillis()
             )

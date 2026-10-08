@@ -18,6 +18,7 @@ import androidx.room.PrimaryKey
  *
  *  - dayStartMs: 그 날 00:00 epoch ms.
  *  - minutes: 자정부터 분(9시 = 540). **null = 하루 종일** (CustomerEntity.scheduledWorkMinutes 와 같은 규칙).
+ *  - days: 며칠짜리(제주도 여행처럼 17~23). 1 = 하루. 날짜만 찍으면(시작·끝) 기간이 정해진다. (v64, 2026-10-08 사장님)
  *  - calendarEventId: 구글 캘린더에 올린 이벤트 id. null = 아직 안 올렸거나 연동 안 함.
  */
 @Entity(
@@ -29,6 +30,8 @@ data class SimpleEventEntity(
     val title: String,
     val dayStartMs: Long,
     val minutes: Int? = null,
+    /** 며칠짜리. 1 = 하루. (v64, 2026-10-08 사장님 — 여러 날 간단 일정) */
+    val days: Int = 1,
     val memo: String = "",
     val calendarEventId: String? = null,
     val createdAt: Long,

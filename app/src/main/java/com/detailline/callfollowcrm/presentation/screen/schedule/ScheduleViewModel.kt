@@ -80,9 +80,13 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         container.simpleEventRepository.observeAll()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 간단 일정이 있는 날(startOfDay) — 달력 회색 점. */
+    /** 간단 일정이 있는 날(startOfDay) — 달력 회색 점. 여러 날이면 **기간 내 모든 날**. (v64, 2026-10-08) */
     val simpleDayStarts: StateFlow<Set<Long>> = simpleEvents
-        .map { list -> list.mapTo(HashSet()) { it.dayStartMs } }
+        .map { list ->
+            list.flatMapTo(HashSet()) { e ->
+                (0 until e.days.coerceAtLeast(1)).map { e.dayStartMs + it * com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS }
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     fun deleteSimpleEvent(id: Long) = viewModelScope.launch {
@@ -96,10 +100,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         container.simpleEventRepository.delete(id)
     }
 
-    /** 간단 일정 고치기 — 제목·날짜·시간·메모. (2026-09-18 사장님 "수정할 수도 있는 건데") */
-    fun editSimpleEvent(id: Long, title: String, dayMs: Long, minutes: Int?, memo: String) =
+    /** 간단 일정 고치기 — 제목·날짜·시간·메모·기간. (2026-09-18 사장님) days 기본 1=하루. (v64) */
+    fun editSimpleEvent(id: Long, title: String, dayMs: Long, minutes: Int?, memo: String, days: Int = 1) =
         viewModelScope.launch {
-            container.simpleEventRepository.edit(id, title, dayMs, minutes, memo)
+            container.simpleEventRepository.edit(id, title, dayMs, minutes, memo, days)
         }
 
     private val ownerPhone: String get() = container.preferences.bizPhone.trim()

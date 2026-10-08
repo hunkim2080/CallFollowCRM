@@ -342,13 +342,17 @@ class CalendarSyncManager(
             if (e.memo.isNotBlank()) put("description", e.memo)
             val start = JSONObject(); val end = JSONObject()
             val mins = e.minutes
-            if (mins != null) {
+            val days = e.days.coerceAtLeast(1)
+            if (mins != null && days <= 1) {
+                // 하루 + 시각 → 시간 블록.
                 val startMs = e.dayStartMs + mins * 60_000L
                 start.put("dateTime", rfc3339(startMs)).put("timeZone", "Asia/Seoul")
                 end.put("dateTime", rfc3339(startMs + DEFAULT_BLOCK_MS)).put("timeZone", "Asia/Seoul")
             } else {
+                // 하루 종일 또는 **여러 날** → 날짜 기반. 구글 all-day 의 end.date 는 **배타적**(마지막 날 다음 날).
+                //   days=7 이면 17~23 = start 17, end 24. (2026-10-08 사장님 여러 날 간단 일정)
                 start.put("date", dateOnly(e.dayStartMs))
-                end.put("date", dateOnly(e.dayStartMs + DAY_MS))
+                end.put("date", dateOnly(e.dayStartMs + days * DAY_MS))
             }
             put("start", start); put("end", end)
             put(

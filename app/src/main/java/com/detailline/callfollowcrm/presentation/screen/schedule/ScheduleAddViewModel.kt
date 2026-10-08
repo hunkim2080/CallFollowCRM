@@ -62,13 +62,13 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
      * 간단 일정 저장 — 번호도 돈도 없이 제목만. (2026-09-16 사장님)
      * 고객 표를 안 건드린다 → 정산·통계·고객 목록에 안 잡힌다. 달력에만 보인다.
      */
-    fun submitSimple(title: String, dayMs: Long, minutes: Int?, memo: String, onDone: () -> Unit) {
+    fun submitSimple(title: String, dayMs: Long, minutes: Int?, memo: String, days: Int = 1, onDone: () -> Unit) {
         if (title.isBlank()) { _toast.value = "제목을 적어주세요"; return }
         if (_saving.value) return
         _saving.value = true
         viewModelScope.launch {
             runCatching {
-                container.simpleEventRepository.add(title, dayMs, minutes, memo)
+                container.simpleEventRepository.add(title, dayMs, minutes, memo, days)
             }.onFailure { _toast.value = "저장하지 못했어요" }
             _saving.value = false
             onDone()
