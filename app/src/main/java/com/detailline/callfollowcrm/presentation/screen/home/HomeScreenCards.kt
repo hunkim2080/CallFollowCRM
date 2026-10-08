@@ -1102,3 +1102,28 @@ internal fun WaitingEmptyMascot(newUser: Boolean = false) {
         }
     }
 }
+
+/**
+ * 📦 칩이 **처음 생길 때** 그 밑에 딱 한 번 뜨는 안내. (2026-10-08 사장님 "자연스럽게 스며들게")
+ *   막내 말투로 "이 칸이 뭔지" 한 줄. X 로 닫으면 끝 — 어차피 칩마다 한 번만 뜬다.
+ */
+@Composable
+internal fun NewChipNote(label: String, note: String, onDismiss: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = AppSpace.s4)
+            .clip(AppShape.md).background(TossBlueSoft).padding(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text("🧢", style = AppType.body)
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text("「$label」 칸이 생겼어요", style = AppType.label,
+                fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text(note, style = AppType.caption, color = TossTextSecondary)
+        }
+        Box(
+            Modifier.size(24.dp).clip(AppShape.pill).clickable { onDismiss() },
+            contentAlignment = Alignment.Center
+        ) { Text("✕", style = AppType.caption, color = TossTextTertiary) }
+    }
+}

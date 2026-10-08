@@ -361,6 +361,12 @@ fun HomeScreen(
             "owe" to all.count { it.customer?.id in dues && it.customer?.asPendingAt == null }
         )
     }
+    // 📦 각 칩에 **멤버가 있나** — 칩을 띄울지 판단(목록 필터와 같은 조건). 셈은 inboxChipMembers 한 곳. (2026-10-08 사장님)
+    val chipHasMember = remember(timeline, balanceDues) {
+        val all2 = timeline.flatMap { it.items }.distinctBy { PhoneKey.of(it.record.phoneNumber) }
+        inboxChipMembers(all2, balanceDues.mapNotNull { it.customerId }.toHashSet(),
+            DateTimeUtils.startOfDay(System.currentTimeMillis()))
+    }
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
     val estimateFollowupDismissed by viewModel.estimateFollowupDismissed.collectAsState()
     // 🕐 예약한 문자 — 상담함 위 카드·예약함 시트. (2026-10-05 사장님)
@@ -380,6 +386,25 @@ fun HomeScreen(
         (context.applicationContext as CallFollowCrmApplication).container.serverHealth
     }
     val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
+    // 📦 칩 '자라남' — 처음 생기면 계속 남고(0명이면 흐리게), 처음 생길 때 한 번 안내. (2026-10-08 사장님)
+    var chipsSeen by remember { mutableStateOf(prefs.inboxChipsSeen) }
+    var newChipKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(chipHasMember, isInitialSmsLoading) {
+        if (!prefs.inboxChipsSeeded) {
+            // 첫 실행: 자료 로드된 뒤, 이미 쓰던 사람(칩 있음)은 조용히 '본 것'으로 심어 안내가 안 쏟아지게.
+            //   새로 깐 사람은 비어 있어 그대로 — 쓰면서 칩이 자라날 때 안내가 뜬다.
+            if (!isInitialSmsLoading) {
+                chipsSeen = chipHasMember; prefs.inboxChipsSeen = chipHasMember; prefs.inboxChipsSeeded = true
+            }
+            return@LaunchedEffect
+        }
+        val fresh = chipHasMember - chipsSeen
+        if (fresh.isNotEmpty()) {
+            chipsSeen = chipsSeen + fresh
+            prefs.inboxChipsSeen = chipsSeen
+            newChipKey = fresh.firstOrNull { inboxChipFirstNote(it) != null }
+        }
+    }
     val makneContainer = remember { (context.applicationContext as CallFollowCrmApplication).container }
     val serverAlive by serverHealth.alive.collectAsState()
     val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
@@ -618,8 +643,15 @@ fun HomeScreen(
                         inboxTab = if (key == "box") 1 else 0
                     },
                     counts = inboxChipCounts,
-                    generalBadge = generalUnread
+                    generalBadge = generalUnread,
+                    seen = chipsSeen
                 )
+            }
+            // 📦 칩이 처음 생겼을 때 그 밑에 딱 한 번 안내. (2026-10-08 사장님)
+            newChipKey?.let { key ->
+                val note = inboxChipFirstNote(key)
+                if (note != null) NewChipNote(inboxChipLabel(key), note) { newChipKey = null }
+                else newChipKey = null
             }
 
             // 📬 **전부 읽음으로** — 안 읽은 게 있을 때만 뜬다. (2026-10-01 사장님)
@@ -2554,7 +2586,9 @@ private fun InboxChips(
     selected: String,
     onSelect: (String) -> Unit,
     counts: Map<String, Int>,
-    generalBadge: Int
+    generalBadge: Int,
+    /** 📦 한 번이라도 생긴 적 있는 칩 키 — 이 안의 것만 보여준다(전체·문자함·A/S 는 예외). (2026-10-08 사장님) */
+    seen: Set<String>
 ) {
     // 시공 대기 = **예약은 잡혔고 아직 안 끝난** 손님. (2026-09-20 사장님)
     //   예약일이 지났는데 완료 표시가 없는 건도 여기 담긴다 — 안 그러면 어디에도 안 떠서 잊어버린다.
@@ -2590,20 +2624,24 @@ private fun InboxChips(
         verticalAlignment = Alignment.CenterVertically
     ) {
         item { ChipPill("전체", null, selected == "all") { onSelect("all") } }
-        items(work.size) { i ->
-            val (k, label) = work[i]
+        // 📦 **한 번이라도 생긴 적 있는(seen) 칩만** — 처음 깐 사람은 전체만, 쓸수록 자라난다. (2026-10-08 사장님)
+        //   A/S 는 예외(있을 때만 뜨는 제 규칙). 한 번 seen 에 들면 0명이어도 흐리게 남는다(자리 안 깜빡임, 9/20 결정).
+        val workShown = work.filter { it.first == "as" || it.first in seen }
+        items(workShown.size) { i ->
+            val (k, label) = workShown[i]
             val c = counts[k] ?: 0
-            // 0 이면 **흐리게**. 숨기면 옆 칩 자리가 밀리고, 사장님: "생겼다 없어졌다하면 버그인가?
-            //   생각할수도있으니까. 회색으로 안눌리는 버튼처럼" (2026-09-20)
-            //   다만 **누르는 건 살려둔다** — 못 누르면 그것도 고장으로 보인다. 눌러보면 빈 화면이 확인해준다.
+            // 0 이면 **흐리게**(누르는 건 살려둠). "생겼다 없어졌다하면 버그인가 생각할수도" (2026-09-20)
             ChipPill(label, c.takeIf { it > 0 }, selected == k, dim = c == 0) { onSelect(k) }
         }
-        // 할 일 / 사람 찾기 사이 — 얇은 금
-        item {
-            Box(Modifier.padding(horizontal = 3.dp).width(1.dp).height(18.dp).background(TossDivider))
+        val whoShown = who.filter { it.first in seen }
+        // 할 일 / 사람 찾기 사이 — 얇은 금 (종료 고객이 보일 때만)
+        if (whoShown.isNotEmpty()) {
+            item {
+                Box(Modifier.padding(horizontal = 3.dp).width(1.dp).height(18.dp).background(TossDivider))
+            }
         }
-        items(who.size) { i ->
-            val (k, label) = who[i]
+        items(whoShown.size) { i ->
+            val (k, label) = whoShown[i]
             ChipPill(label, null, selected == k) { onSelect(k) }
         }
         // 📨 **택배·광고를 하나로.** (2026-09-20 사장님) 그 둘을 누르면 제목이 "문자함" 으로 바뀌고

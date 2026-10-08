@@ -801,6 +801,25 @@ class AppPreferences(context: Context) {
         set(value) { prefs.edit().putStringSet("reminder_notified_keys", value).commit() }
 
     /**
+     * 📦 상담함 필터 칩이 **한 번이라도 나타난(멤버가 생긴) 적 있는** 키들. (2026-10-08 사장님)
+     *   칩은 그 칸에 고객이 처음 생길 때 나타나고, **한 번 생기면 계속 남는다**(0명이면 흐리게).
+     *   처음 깐 사람은 「전체」만 보다가 일할수록 칩이 자라난다 — 나타나는 순간이 곧 설명.
+     *   여기 **처음 추가될 때 딱 한 번** 그 칩 밑에 안내 한 줄을 띄운다(그 뒤엔 조용).
+     */
+    var inboxChipsSeen: Set<String>
+        get() = prefs.getStringSet("inbox_chips_seen", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("inbox_chips_seen", value).commit() }
+
+    /**
+     * 📦 칩 '자라남' 기능이 **처음 한 번 초기화됐나.** (2026-10-08 사장님)
+     *   이미 쓰던 사람은 첫 실행 때 지금 있는 칩들을 조용히 '본 것'으로 심어 **안내가 안 쏟아지게** 한다.
+     *   새로 깐 사람(고객 0)은 비어있어 그대로 — 쓰면서 칩이 자라날 때 안내가 뜬다.
+     */
+    var inboxChipsSeeded: Boolean
+        get() = prefs.getBoolean("inbox_chips_seeded", false)
+        set(value) { prefs.edit().putBoolean("inbox_chips_seeded", value).commit() }
+
+    /**
      * 도착 안내 5km 진입 기록 — 지오펜스 ENTER 시 "arrival:{id}:{dayStart}" 적립.
      * 홈 "오늘 시공·도착 안내" 카드는 토글 ON + 이 키가 있어야(=실제 5km 진입) 노출.
      * 그냥 시공일이라고 무조건 뜨던 버그(위치·토글 무시) 방지. commit()=백그라운드 수신기에서 즉시 보존.

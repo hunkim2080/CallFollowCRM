@@ -323,6 +323,34 @@ internal fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
     else -> "여기 아무도 없어요" to null
 }
 
+/**
+ * 📦 각 상담함 칩에 **멤버가 있나** — 칩을 띄울지(seen 에 추가할지) 판단. (2026-10-08 사장님)
+ *   목록 필터(HomeScreen chipItems)와 **같은 조건**이어야 한다 — 칩이 생겼는데 열면 비면 둘 다 못 믿는다.
+ */
+internal fun inboxChipMembers(all: List<HomeItem>, dueIds: Set<Long>, todayStart: Long): Set<String> = buildSet {
+    if (all.any { it.isNewToday && it.customer?.asPendingAt == null }) add("today")
+    if (all.any { val c = it.customer; c != null && c.asPendingAt == null && (c.scheduledWorkDate ?: 0L) >= todayStart && !c.isWorkDone }) add("wait")
+    if (all.any { it.customer?.id in dueIds && it.customer?.asPendingAt == null }) add("owe")
+    if (all.any { it.customer?.isWorkDone == true && it.customer?.asPendingAt == null }) add("done")
+}
+
+/**
+ * 📦 칩이 **처음 나타날 때 딱 한 번** 그 밑에 띄우는 안내. (2026-10-08 사장님 "자연스럽게 스며들게")
+ *   나타나는 순간이 궁금한 바로 그때라, 여기서 "이 칸이 뭔지" 한 줄로 알려준다.
+ */
+internal fun inboxChipFirstNote(chip: String): String? = when (chip) {
+    "today" -> "오늘 새로 문의 온 고객이 여기 모여요"
+    "wait" -> "예약은 잡혔는데 아직 시공 전인 고객이 여기 모여요"
+    "owe" -> "시공은 끝났는데 잔금을 아직 못 받은 고객이 여기 모여요"
+    "done" -> "잔금까지 다 받아 끝난 고객이 여기 모여요"
+    else -> null
+}
+
+/** 칩 키 → 사람이 읽는 이름(안내 제목용). */
+internal fun inboxChipLabel(chip: String): String = when (chip) {
+    "today" -> "오늘 신규"; "wait" -> "시공 대기"; "owe" -> "잔금 대기"; "done" -> "종료 고객"; else -> chip
+}
+
 /** "540,000원" 은 딱지에 넣기엔 길다 → "54만원". 딱 떨어지지 않으면 원래대로. */
 internal fun shortWon(won: Long): String =
     if (won >= 10_000L && won % 10_000L == 0L) "${won / 10_000L}만원" else MoneyFormatter.won(won)

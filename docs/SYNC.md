@@ -13919,3 +13919,9 @@ Fable 🧹3. 사장님 "고고"
 자랑 칩 '올해/이번 달' 묶기 — "무엇을 자랑할까요?" 칩이 올해치·이번달치 뒤섞여 거슬리던 것. BigPick 에 isYear 추가, 두 묶음(올해/이번 달) 머리글로 갈라 렌더. 머리글이 기간을 말하니 칩 글자에선 '올해/이번 달' 뺌(chipText). 칩은 ShotChip 재사용(중복 X).
 - 변경: 앱만. presentation/screen/stats/StatsScreen.kt. 프로토 TG488Tvg 사장님 승인.
 - 폰 확인: 가드/빌드 통과. 실제는 데이터 있는 사장님 폰서.
+
+## 2026-10-08 · android
+상담함 칩 '자라남' 온보딩 — 처음 깐 사람이 칩(시공대기·잔금대기 등) 보고 "이게 뭐지" 막막하던 것. 칩은 그 칸에 멤버가 처음 생길 때 나타나고(전체는 늘·A/S는 예외), 한 번 생기면 계속 유지(0명이면 흐리게·9/20 결정 지킴). 처음 생길 때 칩 밑에 막내 안내 한 줄(칩당 한 번). 기존 사용자는 첫 실행 때 조용히 seeding(안내 안 뜸).
+- 변경: 앱만. AppPreferences(inboxChipsSeen/Seeded) · HomeScreenHelpers(inboxChipMembers·inboxChipFirstNote·inboxChipLabel) · HomeScreenCards(NewChipNote) · HomeScreen(chipHasMember·seen state·LaunchedEffect·InboxChips seen 필터). 프로토 JvQ8oGXG 사장님 승인.
+- 폰 확인: 가드·빌드 통과. 기기 분리로 실화면 미확인 → 사장님 폰서 확인 필요(새 사용자 흐름은 신규 설치라야 완전).
+- 다음 액션: 사장님 폰 확인. 9/20 '0이면 흐리게' 결정과 충돌 → '처음 생기면 계속 둠'(하이브리드)으로 사장님이 재확정함.
