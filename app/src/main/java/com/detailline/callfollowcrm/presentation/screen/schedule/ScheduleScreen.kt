@@ -166,8 +166,7 @@ fun ScheduleScreen(
     val asList by viewModel.asScheduled.collectAsState()           // A/S 예약 고객(시공과 별개 흐름). (DB v43)
     val asDays by viewModel.asDayStarts.collectAsState()           // 캘린더 A/S 주황 점
     val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라 띠 (#7)
-    val simpleEvents by viewModel.simpleEvents.collectAsState()    // 번호 없는 간단 일정 (2026-09-16)
-    val simpleDays by viewModel.simpleDayStarts.collectAsState()   // 캘린더 회색 점
+    val simpleEvents by viewModel.simpleEvents.collectAsState()    // 번호 없는 간단 일정 (2026-09-16). 달력엔 청록 띠로. (v64)
     val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "이름"
@@ -452,7 +451,7 @@ fun ScheduleScreen(
                             verticalAlignment = Alignment.Top
                         ) { page ->
                             val anchor = DateTimeUtils.shiftMonth(baseAnchor, page - SCHEDULE_PAGER_CENTER)
-                            val monthCells = buildCalendarCells(anchor, state.all, todayStart)
+                            val monthCells = buildCalendarCells(anchor, state.all, simpleEvents, todayStart)
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 repeat(6) { week ->
                                     CalendarWeekRow(
@@ -464,7 +463,6 @@ fun ScheduleScreen(
                                         pendingCollabDays = pendingCollabDays,
                                         asDays = asDays,
                                         asRegions = asRegions,
-                                        simpleDays = simpleDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
                                     )
@@ -487,22 +485,19 @@ fun ScheduleScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 색은 **다 다르게**, 모양은 **달력에 찍히는 그대로**(시공~A/S=막대, 간단=점).
-                        //   전엔 요청과 A/S 가 똑같은 주황이라 🔧 이모지로 억지 구분했고, 간단도 회색이
-                        //   겹쳐 📌 를 붙였다. 이모지로 때우는 건 **색이 틀렸다는 뜻**이다. (2026-09-20 사장님)
+                        // 색은 **다 다르게**, 모양은 전부 **막대**(간단도 이제 청록 띠 — 점이었던 걸 바꿈. 지난 회색과
+                        //   겹치지 않게 청록을 새로 뒀다). 이모지로 때우는 건 **색이 틀렸다는 뜻**이다. (2026-09-20·2026-10-08 사장님)
                         listOf(
-                            Triple(TossSuccess, "시공", true),
-                            Triple(TossTextTertiary, "지난", true),
-                            Triple(AppTheme.colors.category, "협업", true),
-                            Triple(AppTheme.colors.caution, "요청", true),
-                            Triple(AppTheme.colors.primary, "A/S", true),
-                            Triple(TossTextTertiary, "간단", false)
-                        ).forEach { (col, lbl, isBar) ->
-                            if (isBar) Box(
+                            TossSuccess to "시공",
+                            TossTextTertiary to "지난",
+                            AppTheme.colors.category to "협업",
+                            AppTheme.colors.caution to "요청",
+                            AppTheme.colors.primary to "A/S",
+                            AppTheme.colors.simpleText to "간단"
+                        ).forEach { (col, lbl) ->
+                            Box(
                                 Modifier.padding(start = 9.dp).width(13.dp).height(4.dp)
                                     .clip(RoundedCornerShape(2.dp)).background(col)
-                            ) else Box(
-                                Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(col)
                             )
                             Spacer(Modifier.width(3.dp))
                             Text(lbl, fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
@@ -651,9 +646,8 @@ fun ScheduleScreen(
                     SimpleEventCard(
                         event = ev,
                         onDelete = { viewModel.deleteSimpleEvent(ev.id) },
-                        onSave = { title, dayMs, minutes, memo ->
-                            // 기간(days)은 그대로 유지 — 카드에선 제목·시간·메모만 고친다. (v64)
-                            viewModel.editSimpleEvent(ev.id, title, dayMs, minutes, memo, days = ev.days)
+                        onSave = { title, dayMs, minutes, memo, days ->
+                            viewModel.editSimpleEvent(ev.id, title, dayMs, minutes, memo, days = days)
                         }
                     )
                 }
@@ -877,8 +871,8 @@ private fun PendingCollabDayCard(
 private fun SimpleEventCard(
     event: com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity,
     onDelete: () -> Unit,
-    /** 제목·날짜·시간·메모를 고쳐 저장. (2026-09-18 사장님) */
-    onSave: (title: String, dayMs: Long, minutes: Int?, memo: String) -> Unit = { _, _, _, _ -> }
+    /** 제목·날짜·시간·메모·기간을 고쳐 저장. (2026-09-18 사장님) days 1=하루. (v64) */
+    onSave: (title: String, dayMs: Long, minutes: Int?, memo: String, days: Int) -> Unit = { _, _, _, _, _ -> }
 ) {
     // 카드를 누르면 **고치기** 창. 전엔 "지울까요?" 만 물어서 고칠 길이 아예 없었다. (2026-09-18 사장님)
     var editing by remember { mutableStateOf(false) }
@@ -894,6 +888,10 @@ private fun SimpleEventCard(
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 val sub = buildString {
+                    // 여러 날이면 기간을 앞에 — 전엔 "하루 종일"만 떠서 며칠짜린지 몰랐다. (v64, 2026-10-08 사장님)
+                    if (event.days.coerceAtLeast(1) > 1) {
+                        append(DateTimeUtils.formatDayRange(event.dayStartMs, event.days)).append(" · ")
+                    }
                     append(event.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "하루 종일")
                     if (event.memo.isNotBlank()) append(" · ").append(event.memo)
                 }
@@ -908,7 +906,7 @@ private fun SimpleEventCard(
     if (editing) {
         SimpleEventEditDialog(
             event = event,
-            onSave = { t, d, m, memo -> editing = false; onSave(t, d, m, memo) },
+            onSave = { t, d, m, memo, days -> editing = false; onSave(t, d, m, memo, days) },
             onAskDelete = { editing = false; confirmDelete = true },
             onDismiss = { editing = false }
         )
@@ -970,7 +968,6 @@ private fun CalendarWeekRow(
     pendingCollabDays: Set<Long>,
     asDays: Set<Long>,
     asRegions: Map<Long, String> = emptyMap(),
-    simpleDays: Set<Long>,
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
 ) {
@@ -985,7 +982,6 @@ private fun CalendarWeekRow(
                 isPendingCollab = cell.dayStartMs in pendingCollabDays,
                 isAs = cell.dayStartMs in asDays,
                 asRegion = asRegions[cell.dayStartMs],
-                isSimple = cell.dayStartMs in simpleDays,
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
@@ -1008,8 +1004,6 @@ private fun CalendarDay(
     isAs: Boolean = false,
     /** A/S 현장 지역명 — 없으면 "A/S"만. (2026-10-07 사장님) */
     asRegion: String? = null,
-    /** 간단 일정(번호 없는 메모형)이 있는 날 — 회색 점. (2026-09-16 사장님) */
-    isSimple: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1079,8 +1073,17 @@ private fun CalendarDay(
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
                                 if (bar != null) {
-                                    val bg = if (bar.past) AppTheme.colors.surfaceMuted else AppTheme.colors.doneBg
-                                    val fg = if (bar.past) TossTextSecondary else AppTheme.colors.doneText
+                                    // 간단 일정 = 청록(지난 회색·시공 초록과 구분). 시공은 지난이면 회색, 아니면 초록. (2026-10-08 사장님)
+                                    val bg = when {
+                                        bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleBg
+                                        bar.past -> AppTheme.colors.surfaceMuted
+                                        else -> AppTheme.colors.doneBg
+                                    }
+                                    val fg = when {
+                                        bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleText
+                                        bar.past -> TossTextSecondary
+                                        else -> AppTheme.colors.doneText
+                                    }
                                     CalRegionBar(bar.seg, bg, fg, bar.label)
                                 } else {
                                     // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 띠가 가로로 이어지게.
@@ -1091,13 +1094,6 @@ private fun CalendarDay(
                     }
                 }
             }
-        }
-        // 간단 일정(번호 없는 메모형)은 점 그대로 — 적을 지역명이 없어서 띠로 만들 게 없다.
-        if (isSimple) {
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 4.dp)
-                    .size(5.dp).clip(CircleShape).background(TossTextTertiary)
-            )
         }
     }
 }
@@ -1144,7 +1140,8 @@ private fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?) {
     val shape = calBarShape(seg)
     Box(
         Modifier.fillMaxWidth().height(13.dp).clip(shape).background(bg),
-        contentAlignment = Alignment.CenterStart
+        // 띠 안 글자는 가운데. 시공·A/S·협업·요청·간단 전부 이 공용 한 곳으로 정렬된다. (2026-10-08 사장님)
+        contentAlignment = Alignment.Center
     ) {
         if (!label.isNullOrBlank()) {
             Text(
@@ -1378,10 +1375,8 @@ private fun AssignAvatars(members: List<com.detailline.callfollowcrm.data.local.
 // 캘린더 데이터 모델 + 빌더
 // ─────────────────────────────────────────────────────────────
 
-/** 캘린더 막대 한 칸 — 일정 1건 = 막대 1줄(lane). 여러 날 시공은 START/MID/END 로 이어 그림. (프로토 jbar) */
-/** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~2 = 최대 3줄). 칸 렌더러와 반드시 같은 값. */
-// 막대가 13dp 띠가 되면서 3줄은 칸이 너무 커진다 → 2줄(lane 0~1).
-private const val CAL_MAX_LANE = 2
+// 📅 달력 격자 모델·셈(CAL_MAX_LANE·BarSeg·BarKind·DayBar·CalendarCell·buildCalendarCells)은
+//   ScheduleCalendarGrid.kt 로 옮겼다(같은 패키지 internal). 여기선 그리기만. (2026-10-08, §12-F)
 
 /** 달력 막대 모서리 — 여러 날 시공이 가로로 이어져 보이게 끝만 둥글린다. CalBar/CalRegionBar 공용. */
 private fun calBarShape(seg: BarSeg) = when (seg) {
@@ -1391,121 +1386,6 @@ private fun calBarShape(seg: BarSeg) = when (seg) {
     BarSeg.MID -> RoundedCornerShape(0.dp)
 }
 
-
-private enum class BarSeg { SINGLE, START, MID, END }
-private data class DayBar(
-    val lane: Int,
-    val seg: BarSeg,
-    val past: Boolean,
-    /** 칸에 적을 **지역명**. 여러 날 시공은 **첫날만** 채운다(날마다 반복하면 지저분). */
-    val label: String? = null
-)
-
-private data class CalendarCell(
-    val dayStartMs: Long,
-    val dayOfMonth: Int,
-    val dayOfWeek: Int, // Calendar.SUNDAY..SATURDAY
-    val isCurrentMonth: Boolean,
-    val isToday: Boolean,
-    val scheduleCount: Int,
-    val hasPastSchedule: Boolean,
-    val hasUpcomingSchedule: Boolean,
-    val bars: List<DayBar> = emptyList()
-)
-
-/**
- * 한 달치 시공들에 lane(세로 칸) 배정 — 같은 시공은 며칠짜리든 매일 같은 lane 에 와야 막대가 가로로 이어진다.
- *   그리디 구간 패킹: 시작일 빠른 순 → 가장 위쪽 빈 lane(이전 시공 끝난 lane)에 배치. customerId→lane.
- */
-private fun assignScheduleLanes(schedules: List<CustomerEntity>): Map<String, Int> {
-    val intervals = schedules.mapNotNull { c ->
-        val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@mapNotNull null
-        val days = c.scheduledWorkDays.coerceAtLeast(1)
-        Triple(laneKeyOf(c), s, s + (days - 1) * DateTimeUtils.DAY_MS)
-    }.sortedWith(compareBy({ it.second }, { -(it.third - it.second) }))
-    val laneEnds = ArrayList<Long>() // lane -> 그 lane 에 마지막으로 들어간 시공의 끝 ms
-    val map = HashMap<String, Int>()
-    for ((key, s, e) in intervals) {
-        var lane = laneEnds.indexOfFirst { it < s }
-        if (lane < 0) { laneEnds.add(e); lane = laneEnds.size - 1 } else laneEnds[lane] = e
-        map[key] = lane
-    }
-    return map
-}
-
-
-// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
-/** 어떤 ms 가 들어와도 그 달 1일의 startOfDay 로 정규화. */
-
-
-/**
- * 보고 있는 달 anchor 기준 7×6=42 셀 생성.
- * 첫 셀 = 1일이 속한 주의 일요일. 마지막 셀 = 그로부터 +41일.
- * 다음 달 며칠 포함될 수 있음 → isCurrentMonth=false 로 회색 표시.
- */
-private fun buildCalendarCells(
-    monthAnchor: Long,
-    schedules: List<CustomerEntity>,
-    todayStart: Long
-): List<CalendarCell> {
-    val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }
-    val targetMonth = cal.get(Calendar.MONTH)
-    val firstDow = cal.get(Calendar.DAY_OF_WEEK) // 1=SUN..7=SAT
-    cal.add(Calendar.DAY_OF_MONTH, -(firstDow - 1)) // 그 주 일요일로
-
-    // ⚠️ lane 은 '보이는 42칸과 겹치는 시공'만으로 배정한다. (2026-09-14 사장님 신고)
-    //   전체 이력(state.all)으로 배정하면 건이 쌓일수록 lane 번호가 계속 커지는데,
-    //   칸 렌더러는 3줄(lane 0~2)까지만 그린다 → lane 3 이상이 걸린 날은 막대가 통째로 사라졌다.
-    //   창 단위로 배정하면 번호가 작게 유지되고, 42칸 × 전체목록 필터링도 안 하게 되어 더 가볍다.
-    val windowStart = DateTimeUtils.startOfDay(cal.timeInMillis)
-    val windowEnd = windowStart + 41 * DateTimeUtils.DAY_MS
-    val visible = schedules.filter { c ->
-        val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@filter false
-        val e = s + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
-        s <= windowEnd && e >= windowStart
-    }
-    val laneMap = assignScheduleLanes(visible)
-    val cells = ArrayList<CalendarCell>(42)
-    repeat(42) {
-        val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
-        // 여러 날 시공은 기간 내 모든 날에 막대 표시 (scheduledWorkDays).
-        val daySchedules = visible.filter { jobCoversDay(it, dayStart) }
-        val hasPast = daySchedules.isNotEmpty() && dayStart < todayStart
-        val hasUp = daySchedules.isNotEmpty() && dayStart >= todayStart
-        val bars = daySchedules.mapNotNull { c ->
-            val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@mapNotNull null
-            val e = s + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
-            val seg = when {
-                s == e -> BarSeg.SINGLE
-                dayStart == s -> BarSeg.START
-                dayStart == e -> BarSeg.END
-                else -> BarSeg.MID
-            }
-            // 그래도 한 날에 4건 이상 겹치면 마지막 줄에 눌러 담는다 — 안 보이는 것보다 낫다.
-            DayBar(
-                lane = (laneMap[laneKeyOf(c)] ?: 0).coerceAtMost(CAL_MAX_LANE),
-                seg = seg,
-                past = dayStart < todayStart,
-                // 글자는 첫날에만. 홈 띠에서 "동대문" 뽑을 때 쓰는 그 함수를 그대로 쓴다.
-                label = if (seg == BarSeg.SINGLE || seg == BarSeg.START)
-                    com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address) else null
-            )
-        }.sortedBy { it.lane }
-        cells += CalendarCell(
-            dayStartMs = dayStart,
-            dayOfMonth = cal.get(Calendar.DAY_OF_MONTH),
-            dayOfWeek = cal.get(Calendar.DAY_OF_WEEK),
-            isCurrentMonth = cal.get(Calendar.MONTH) == targetMonth,
-            isToday = dayStart == todayStart,
-            scheduleCount = daySchedules.size,
-            hasPastSchedule = hasPast,
-            hasUpcomingSchedule = hasUp,
-            bars = bars
-        )
-        cal.add(Calendar.DAY_OF_MONTH, 1)
-    }
-    return cells
-}
 
 /**
  * 팀원 현장 배정 시트 — 프로토 openAssign/renderAssign 1:1 (팀원 칩 토글).

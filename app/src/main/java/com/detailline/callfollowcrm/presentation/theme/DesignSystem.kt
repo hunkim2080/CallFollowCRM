@@ -99,7 +99,11 @@ data class AppColors(
     /** 회색 딱지의 글자: N일째(7일까지)·종료·지난. */
     val neutralText: Color,
     /** 회색 딱지의 면. */
-    val neutralBg: Color
+    val neutralBg: Color,
+    /** 간단 일정 띠의 글자 — 청록. 지난(회색)·시공(초록)과 구분. (2026-10-08 사장님) */
+    val simpleText: Color,
+    /** 간단 일정 띠의 연한 면. */
+    val simpleBg: Color
 )
 
 /** 밝은 화면. @Composable 이 아닌 자리에서는 이걸 직접 본다. */
@@ -134,7 +138,9 @@ val LightColors = AppColors(
     categoryBg = Color(0xFFF1EDFF),
     neutral = Color(0xFF9AA3AF),
     neutralText = Color(0xFF5A6472),
-    neutralBg = Color(0xFFEEF0F3)
+    neutralBg = Color(0xFFEEF0F3),
+    simpleText = Color(0xFF0E7C7C),
+    simpleBg = Color(0xFFE2F6F5)
 )
 
 /**
@@ -173,7 +179,9 @@ val DarkColors = AppColors(
     categoryBg = Color(0xFF2A2152),
     neutral = Color(0xFF6B7480),
     neutralText = Color(0xFFA9B1BD),
-    neutralBg = Color(0xFF2E3138)
+    neutralBg = Color(0xFF2E3138),
+    simpleText = Color(0xFF5CD6CF),
+    simpleBg = Color(0xFF123230)
 )
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }

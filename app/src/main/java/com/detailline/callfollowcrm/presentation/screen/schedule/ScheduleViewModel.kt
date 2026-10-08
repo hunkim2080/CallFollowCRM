@@ -80,14 +80,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         container.simpleEventRepository.observeAll()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 간단 일정이 있는 날(startOfDay) — 달력 회색 점. 여러 날이면 **기간 내 모든 날**. (v64, 2026-10-08) */
-    val simpleDayStarts: StateFlow<Set<Long>> = simpleEvents
-        .map { list ->
-            list.flatMapTo(HashSet()) { e ->
-                (0 until e.days.coerceAtLeast(1)).map { e.dayStartMs + it * com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    // 달력엔 간단 일정을 **청록 띠**로 그린다 — 기간(days)이 있어 START/MID/END 가 필요하므로
+    //   날짜 집합(simpleDayStarts)이 아니라 simpleEvents 를 통째로 buildCalendarCells 에 넘긴다. (v64, 2026-10-08)
 
     fun deleteSimpleEvent(id: Long) = viewModelScope.launch {
         // 📅 구글 캘린더에 올렸던 이벤트도 같이 지운다 — 전엔 로컬만 지워 구글엔 유령으로 남았다. (2026-10-06 사장님)

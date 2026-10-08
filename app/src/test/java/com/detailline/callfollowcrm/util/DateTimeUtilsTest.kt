@@ -107,6 +107,42 @@ class DateTimeUtilsTest {
         assertEquals("10분 0초", DateTimeUtils.durationLabel(600))
     }
 
+    // ---------- formatDayRange (간단 일정 기간 라벨) ----------
+
+    @Test fun `하루면 범위 아님 (물결 없음)`() {
+        val d = epochAt(2026, 10, 17, 9, 0)
+        val s = DateTimeUtils.formatDayRange(d, 1)
+        assertTrue("하루는 '~'가 없어야", !s.contains("~"))
+    }
+
+    @Test fun `여러 날이면 물결과 N일`() {
+        val d = epochAt(2026, 10, 17, 9, 0)
+        val s = DateTimeUtils.formatDayRange(d, 6) // 10/17 ~ 10/22
+        assertTrue("범위는 '~' 포함: $s", s.contains("~"))
+        assertTrue("'6일' 포함: $s", s.contains("6일"))
+        assertTrue("시작 '17일' 포함: $s", s.contains("17일"))
+        assertTrue("끝 '22일' 포함: $s", s.contains("22일"))
+    }
+
+    @Test fun `같은 달이면 끝날짜에 월 반복 안 함`() {
+        val d = epochAt(2026, 10, 17, 9, 0)
+        val s = DateTimeUtils.formatDayRange(d, 6) // 같은 10월
+        // "10월 17일 ~ 22일 · 6일" — '월'은 시작에만 한 번
+        assertEquals("월이 한 번만: $s", 1, Regex("월").findAll(s).count())
+    }
+
+    @Test fun `달을 넘기면 끝날짜에도 월 표기`() {
+        val d = epochAt(2026, 10, 29, 9, 0)
+        val s = DateTimeUtils.formatDayRange(d, 5) // 10/29 ~ 11/2
+        assertTrue("달 넘김이면 '11월' 포함: $s", s.contains("11월"))
+        assertTrue("'5일' 포함: $s", s.contains("5일"))
+    }
+
+    @Test fun `days 0이하는 하루로 취급`() {
+        val d = epochAt(2026, 10, 17, 9, 0)
+        assertTrue(!DateTimeUtils.formatDayRange(d, 0).contains("~"))
+    }
+
     // ---------- 헬퍼 ----------
 
     /**

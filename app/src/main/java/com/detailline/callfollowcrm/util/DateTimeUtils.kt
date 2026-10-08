@@ -212,4 +212,24 @@ object DateTimeUtils {
         val s = seconds % 60
         return if (m > 0) "${m}분 ${s}초" else "${s}초"
     }
+
+    /**
+     * 간단 일정 기간 라벨(간결형, 요일 없음) — "10월 17일 ~ 22일 · 6일".
+     *   같은 달이면 끝날짜는 "일"만, 다른 달이면 "M월 d일". days<=1 이면 단일 날짜(요일 포함). (v64, 2026-10-08 사장님)
+     *   달력 띠·카드·고치기·올린목록이 **이 한 곳**을 쓴다.
+     */
+    fun formatDayRange(startMs: Long, days: Int, now: Long = System.currentTimeMillis()): String {
+        val n = days.coerceAtLeast(1)
+        val start = startOfDay(startMs)
+        if (n <= 1) return formatScheduledDate(start, now)
+        val end = start + (n - 1) * DAY_MS
+        val sCal = Calendar.getInstance().apply { timeInMillis = start }
+        val eCal = Calendar.getInstance().apply { timeInMillis = end }
+        val mdStart = SimpleDateFormat("M월 d일", Locale.KOREAN).format(Date(start))
+        val sameMonth = sCal.get(Calendar.MONTH) == eCal.get(Calendar.MONTH) &&
+            sCal.get(Calendar.YEAR) == eCal.get(Calendar.YEAR)
+        val endFmt = if (sameMonth) "d일" else "M월 d일"
+        val mdEnd = SimpleDateFormat(endFmt, Locale.KOREAN).format(Date(end))
+        return "$mdStart ~ $mdEnd · ${n}일"
+    }
 }

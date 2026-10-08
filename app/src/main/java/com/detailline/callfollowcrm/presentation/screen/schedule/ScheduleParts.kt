@@ -86,6 +86,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -155,13 +156,14 @@ internal fun collabBossLabel(name: String): String? = when {
 @Composable
 internal fun SimpleEventEditDialog(
     event: com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity,
-    onSave: (title: String, dayMs: Long, minutes: Int?, memo: String) -> Unit,
+    onSave: (title: String, dayMs: Long, minutes: Int?, memo: String, days: Int) -> Unit,
     onAskDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var title by remember { mutableStateOf(event.title) }
     var memo by remember { mutableStateOf(event.memo) }
     var dayMs by remember { mutableLongStateOf(event.dayStartMs) }
+    var days by remember { mutableIntStateOf(event.days.coerceAtLeast(1)) }
     var minutes by remember { mutableStateOf(event.minutes) }
     var datePickerOpen by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -191,7 +193,8 @@ internal fun SimpleEventEditDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    DateTimeUtils.formatScheduledDate(dayMs),
+                    // \uC5EC\uB7EC \uB0A0\uC774\uBA74 "10\uC6D4 17\uC77C ~ 22\uC77C \u00B7 6\uC77C". \uD558\uB8E8\uBA74 \uB2E8\uC77C \uB0A0\uC9DC. (v64, 2026-10-08 \uC0AC\uC7A5\uB2D8)
+                    DateTimeUtils.formatDayRange(dayMs, days),
                     fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                     modifier = Modifier.weight(1f)
                 )
@@ -201,7 +204,15 @@ internal fun SimpleEventEditDialog(
             Spacer(Modifier.height(12.dp))
             Text("시간", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
             Spacer(Modifier.height(5.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            // 여러 날이면 시간은 '하루 종일' 고정 — 여행·휴가에 '오전 9시'는 안 맞는다. 등록 화면과 같은 규칙. (v64, 2026-10-08 사장님)
+            if (days > 1) {
+                Text(
+                    "여러 날은 하루 종일로 저장돼요",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                )
+            } else FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 listOf<Pair<String, Int?>>(
                     "하루 종일" to null, "오전 8시" to 8 * 60, "오전 9시" to 9 * 60,
                     "오전 10시" to 10 * 60, "오후 1시" to 13 * 60, "오후 3시" to 15 * 60
@@ -243,7 +254,7 @@ internal fun SimpleEventEditDialog(
                             val t = title.trim()
                             if (t.isBlank()) {
                                 android.widget.Toast.makeText(ctx, "제목을 적어주세요", android.widget.Toast.LENGTH_SHORT).show()
-                            } else onSave(t, dayMs, minutes, memo.trim())
+                            } else onSave(t, dayMs, if (days > 1) null else minutes, memo.trim(), days)
                         }.padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
                 ) { Text("저장", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
@@ -261,9 +272,13 @@ internal fun SimpleEventEditDialog(
     }
 
     if (datePickerOpen) {
+        // 등록 화면과 같은 방식 — 시작·끝을 찍어 기간을 정한다. (v64, 2026-10-08 사장님)
         val toUtcMidnight = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
-        val state = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = toUtcMidnight(dayMs)
+        val fromUtc = { ms: Long -> DateTimeUtils.startOfDay(ms - java.util.TimeZone.getDefault().getOffset(ms)) }
+        val endMs = dayMs + (days.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
+        val rangeState = androidx.compose.material3.rememberDateRangePickerState(
+            initialSelectedStartDateMillis = toUtcMidnight(dayMs),
+            initialSelectedEndDateMillis = toUtcMidnight(endMs)
         )
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { datePickerOpen = false },
@@ -271,7 +286,13 @@ internal fun SimpleEventEditDialog(
             tonalElevation = 0.dp,
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    state.selectedDateMillis?.let { dayMs = DateTimeUtils.startOfDay(it - java.util.TimeZone.getDefault().getOffset(it)) }
+                    val s = rangeState.selectedStartDateMillis
+                    if (s != null) {
+                        val startLocal = fromUtc(s)
+                        val endLocal = rangeState.selectedEndDateMillis?.let { fromUtc(it) } ?: startLocal
+                        dayMs = startLocal
+                        days = (((endLocal - startLocal) / DateTimeUtils.DAY_MS).toInt() + 1).coerceAtLeast(1)
+                    }
                     datePickerOpen = false
                 }) { Text("확인", color = TossBlue, fontWeight = FontWeight.Bold) }
             },
@@ -279,15 +300,21 @@ internal fun SimpleEventEditDialog(
                 androidx.compose.material3.TextButton(onClick = { datePickerOpen = false }) { Text("취소") }
             }
         ) {
-            androidx.compose.material3.DatePicker(
-                state = state,
+            androidx.compose.material3.DateRangePicker(
+                state = rangeState,
+                title = null,
+                headline = null,
+                showModeToggle = false,
                 colors = androidx.compose.material3.DatePickerDefaults.colors(
                     containerColor = Color.White,
                     selectedDayContainerColor = TossBlue,
                     selectedDayContentColor = Color.White,
+                    dayInSelectionRangeContainerColor = TossBlue.copy(alpha = 0.18f),
+                    dayInSelectionRangeContentColor = TossTextPrimary,
                     todayDateBorderColor = TossBlue,
                     todayContentColor = TossBlue
-                )
+                ),
+                modifier = Modifier.heightIn(max = 520.dp)
             )
         }
     }
@@ -726,7 +753,9 @@ internal fun CalendarSyncSheet(
             c.name?.takeIf { it.isNotBlank() } ?: c.address?.takeIf { it.isNotBlank() } ?: c.phoneNumber
         for (c in work) { val d = c.scheduledWorkDate ?: continue; out.add(CalRow("🏗️", d, who(c), "시공")) }
         for (c in asList) { val d = c.asScheduledDate ?: continue; out.add(CalRow("🔧", d, who(c), "A/S")) }
-        for (e in simples) out.add(CalRow("📌", e.dayStartMs, e.title, "간단 일정"))
+        for (e in simples) out.add(
+            CalRow("📌", e.dayStartMs, e.title, if (e.days.coerceAtLeast(1) > 1) "간단 일정 · ${e.days}일" else "간단 일정")
+        )
         out.sortedBy { it.day }
     }
     androidx.compose.foundation.layout.Box(

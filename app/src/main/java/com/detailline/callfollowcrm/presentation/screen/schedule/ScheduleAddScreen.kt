@@ -289,9 +289,19 @@ fun ScheduleAddScreen(
             }
 
             if (!workMode) {
-                // 하루 종일 — 시공엔 없는 개념(시공은 늘 시각이 있다). 간단 일정에만.
                 Spacer(Modifier.height(4.dp))
-                SwitchRow(icon = Icons.Filled.CalendarMonth, title = "하루 종일", on = allDay) { allDay = !allDay }
+                // 하루 종일 — 시공엔 없는 개념(시공은 늘 시각이 있다). 간단 일정에만.
+                //   여러 날이면 시간 개념이 안 맞아 '하루 종일' 고정(여행·휴가). 토글 숨김. (2026-10-08 사장님)
+                if (simpleDays > 1) {
+                    Text(
+                        "여러 날은 하루 종일로 저장돼요",
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(TossGrayBg).padding(horizontal = 14.dp, vertical = 12.dp)
+                    )
+                } else {
+                    SwitchRow(icon = Icons.Filled.CalendarMonth, title = "하루 종일", on = allDay) { allDay = !allDay }
+                }
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("메모 (선택)")
                 SheetTextField(simpleMemo, { simpleMemo = it }, placeholder = "예: 케라폭시 20개")
@@ -448,11 +458,18 @@ fun ScheduleAddScreen(
             //   (2026-09-21 사장님 "날짜가 두 번 나오네")
             Text(
                 buildString {
-                    append("이 날짜로 저장돼요 · ")
-                    append(DateTimeUtils.formatScheduledDate(dayMs))
-                    if (allDay) append(" 종일")
-                    else { append(' '); append(DateTimeUtils.formatWorkMinutes(workMinutes)) }
-                    if (workMode) append(if (workDays > 1) " · ${workDays}일" else " · 하루")
+                    // 여러 날 간단 일정이면 기간으로 — "이 기간으로 저장돼요 · 10월 17일 ~ 22일 · 6일 · 하루 종일". (2026-10-08 사장님)
+                    if (!workMode && simpleDays > 1) {
+                        append("이 기간으로 저장돼요 · ")
+                        append(DateTimeUtils.formatDayRange(dayMs, simpleDays))
+                        append(" · 하루 종일")
+                    } else {
+                        append("이 날짜로 저장돼요 · ")
+                        append(DateTimeUtils.formatScheduledDate(dayMs))
+                        if (allDay) append(" 종일")
+                        else { append(' '); append(DateTimeUtils.formatWorkMinutes(workMinutes)) }
+                        if (workMode) append(if (workDays > 1) " · ${workDays}일" else " · 하루")
+                    }
                 },
                 fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primaryText,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -476,8 +493,9 @@ fun ScheduleAddScreen(
                             }
                             viewModel.submitSimple(
                                 title = title,
+                                // 여러 날은 하루 종일 고정(시간 null). 하루면 토글대로. (2026-10-08 사장님)
                                 dayMs = dayMs,
-                                minutes = if (allDay) null else workMinutes,
+                                minutes = if (allDay || simpleDays > 1) null else workMinutes,
                                 memo = simpleMemo,
                                 days = simpleDays,
                                 onDone = onDone
@@ -857,14 +875,11 @@ private fun InlineMonthCalendar(
                 cells.subList(week * 7, week * 7 + 7).forEach { cell ->
                     val startDay = DateTimeUtils.startOfDay(selectedDayMs)
                     val endDay = DateTimeUtils.startOfDay(rangeEndMs)
-                    val isSel = startDay == cell.dayStartMs || endDay == cell.dayStartMs   // 범위 양끝
+                    val hasRange = endDay > startDay
+                    val isStart = hasRange && cell.dayStartMs == startDay
+                    val isEnd = hasRange && cell.dayStartMs == endDay
+                    val isSel = cell.dayStartMs == startDay || cell.dayStartMs == endDay   // 범위 양끝
                     val inRange = cell.dayStartMs > startDay && cell.dayStartMs < endDay    // 사이 날
-                    val bg = when {
-                        isSel -> TossBlue
-                        inRange -> TossBlueSoft    // 범위 사이는 연하게
-                        cell.isToday -> TossBlueSoft
-                        else -> Color.Transparent
-                    }
                     val fg = when {
                         isSel -> Color.White
                         !cell.inMonth -> TossTextTertiary
@@ -873,12 +888,40 @@ private fun InlineMonthCalendar(
                         else -> TossTextPrimary
                     }
                     Box(
-                        Modifier.weight(1f).aspectRatio(1f).padding(2.dp).clip(CircleShape)
-                            .background(bg).clickable { onSelect(cell.dayStartMs) },
+                        Modifier.weight(1f).aspectRatio(1f).clickable { onSelect(cell.dayStartMs) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(cell.dom.toString(), color = fg, fontSize = 13.sp,
-                            fontWeight = if (cell.isToday || isSel) FontWeight.Bold else FontWeight.SemiBold)
+                        // 범위 띠 — 셀을 좌/우 반으로 나눠 이어 붙이면 구글처럼 **연속된 띠**가 된다.
+                        //   양끝 셀은 알(파란 동그라미) 바깥쪽 반만 띠로 채운다. (2026-10-08 사장님 "강조 약해")
+                        if (hasRange && (inRange || isStart || isEnd)) {
+                            val bandColor = TossBlue.copy(alpha = 0.16f)
+                            Row(Modifier.matchParentSize().padding(vertical = 4.dp)) {
+                                Box(
+                                    Modifier.weight(1f).fillMaxHeight()
+                                        .background(if (isStart) Color.Transparent else bandColor)
+                                )
+                                Box(
+                                    Modifier.weight(1f).fillMaxHeight()
+                                        .background(if (isEnd) Color.Transparent else bandColor)
+                                )
+                            }
+                        }
+                        Box(
+                            Modifier.fillMaxSize().padding(2.dp).clip(CircleShape)
+                                .background(
+                                    when {
+                                        isSel -> TossBlue
+                                        !hasRange && cell.isToday -> TossBlueSoft
+                                        else -> Color.Transparent
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                cell.dom.toString(), color = fg, fontSize = 13.sp,
+                                fontWeight = if (cell.isToday || isSel) FontWeight.Bold else FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }

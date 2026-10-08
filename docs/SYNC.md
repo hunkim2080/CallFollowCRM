@@ -13937,3 +13937,10 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 앱만. AppDatabase(v64)·SimpleEventEntity/Repository·ScheduleAddVM/ViewModel·CalendarSyncManager·ScheduleAddScreen·ScheduleScreen. style_baseline +1(안내 1줄).
 - 폰 확인: 빌드·가드·전체 테스트 통과. v64 스키마 매칭 검증. 기기 분리로 실화면 미확인 → 사장님 폰(앱 열림=마이그레이션, 범위탭, 달력 표시) 확인 필요.
 - 다음 액션: 사장님 폰 확인 후 이상없으면 끝.
+
+## 2026-10-08 · android
+간단 일정 여러 날 **폴리시** (사장님 "하나 수정하면 연결된 UI/코드 다 봐야지"). 달력에 점→**청록 띠**(지난 회색·시공 초록과 구분 — 새 색토큰 simpleText/simpleBg 추가). 띠 안 글자 가운데(공용 CalRegionBar 한 곳 → 시공·A/S·협업·간단 다 같이). 하루짜리도 띠. 여러 날이면 하루 종일 자동. 범위 선택=연속 띠(셀 좌/우 반 이어붙임). 고치기 창에 기간(DateRangePicker). "방금 N건" 목록·날짜카드·footer·범례까지 기간 반영. CLAUDE.md §12-K(연결지점 다 훑기) 신설.
+- 변경: 앱만. DesignSystem(simpleText/simpleBg light+dark) · ScheduleScreen(달력 kind색분기·점제거·범례·카드부제·onSave days) · **ScheduleCalendarGrid.kt 신설**(격자 계산 잎 추출 §12-F) · ScheduleParts(고치기 범위픽커·올린목록) · ScheduleAddScreen(연속띠·footer·하루종일자동) · ScheduleViewModel(simpleDayStarts 제거) · DateTimeUtils.formatDayRange 공용. 테스트 +11(formatDayRange·packLanes).
+- 표시·소비 지점 6곳 다 확인(§12-K): 달력띠·범례·날짜카드·고치기창·올린목록·구글동기화(syncSimple 기존). 알림/위젯엔 간단일정 없음(확인).
+- 폰 확인: 빌드·가드 7개·전체 테스트(0 실패) 통과. style_baseline 2677→2681(안내 2줄×2). size 42줄 감소. **기기 분리로 실화면 미확인** → 사장님 폰 확인 필요(청록 띠·가운데 글자·범위강조·고치기 범위·하루종일).
+- 다음 액션: 사장님 폰 확인.
