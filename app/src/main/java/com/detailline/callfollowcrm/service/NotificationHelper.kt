@@ -26,8 +26,9 @@ object NotificationHelper {
     private const val CHANNEL_INCOMING_SMS = "incoming_sms_2"
     /** 처음 연락온 신규 고객 — 별도 소리로 구분. */
     private const val CHANNEL_INCOMING_SMS_NEW = "incoming_sms_new"
-    /** 문자함(고객 아님) 새 문자 — 조용히(소리·헤드업 X) 알림함에만 + 배지. (2026-07-11 사장님) */
-    private const val CHANNEL_GENERAL_SMS = "general_sms_box"
+    /** 문자함(고객 아님)·스팸 새 문자 — **기본 띵동** 소리(고객 소리와 구분). 헤드업은 없음.
+     *   (2026-07-11 조용히 → 2026-10-08 사장님 "고객 아닌 건 기본 소리로". 새 id 라 첫 생성부터 기본 소리 적용.) */
+    private const val CHANNEL_GENERAL_SMS = "general_sms_ding"
     /** 통화 후 문자 보내기 — 새 번호 통화 끝나면 "문자 보낼까요?" + 템플릿 선택. (2026-07-12 사장님) */
     private const val CHANNEL_POSTCALL = "postcall_picker"
     /** 고객이 시공접수서를 작성·제출했을 때 알림. */
@@ -469,14 +470,14 @@ object NotificationHelper {
                     setShowBadge(true)
                 })
             }
-            // 문자함(고객 아님) 새 문자 — 조용히: 헤드업 X, 소리 X, 알림함에만 + 배지. (2026-07-11 사장님)
+            // 문자함(고객 아님)·스팸 새 문자 — 기본 띵동 소리로(고객 소리와 구분). 헤드업 팝업은 없음(DEFAULT).
+            //   (2026-07-11 조용 → 2026-10-08 사장님 "고객 아닌 건 기본 소리로". setSound 안 건드리면 시스템 기본음.)
             if (manager.getNotificationChannel(CHANNEL_GENERAL_SMS) == null) {
                 manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_GENERAL_SMS, "문자함", NotificationManager.IMPORTANCE_LOW
+                    CHANNEL_GENERAL_SMS, "문자함·스팸", NotificationManager.IMPORTANCE_DEFAULT
                 ).apply {
-                    description = "고객이 아닌 문자(광고·인증·알림) — 조용히 알림함에만 표시"
-                    setSound(null, null)
-                    enableVibration(false)
+                    description = "고객이 아닌 문자(광고·인증·알림)·스팸 — 기본 소리로 알림(고객 소리와 구분)"
+                    enableVibration(true)
                     setShowBadge(true)
                 })
             }
@@ -1438,8 +1439,8 @@ object NotificationHelper {
     }
 
     /**
-     * 문자함(고객 아님) 새 문자 — 조용한 알림. (2026-07-11 사장님 결정: "조용히 알림 + 배지")
-     *   헤드업·소리·진동 없음. 알림함에만 쌓이고 탭하면 그 대화로. 인증번호 등 바로 봐야 할 때 대비해 알림은 남김.
+     * 문자함(고객 아님)·스팸 새 문자 — **기본 띵동** 소리 알림. (2026-10-08 사장님 "고객 아닌 건 기본 소리로")
+     *   고객 소리와 구분되는 시스템 기본음. 헤드업 팝업은 없음(DEFAULT). 탭하면 그 대화로.
      */
     fun showGeneralSms(
         context: Context,
@@ -1471,8 +1472,8 @@ object NotificationHelper {
             .setShowWhen(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(openPending)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setSilent(true)
+            // 기본 소리는 나되 헤드업 팝업은 없게 — DEFAULT. (조용(LOW)·setSilent 제거. 2026-10-08 사장님)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
         runCatching {
             NotificationManagerCompat.from(context).notify(smsNotificationId(phone), builder.build())
