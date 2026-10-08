@@ -13914,3 +13914,8 @@ Fable 🧹3. 사장님 "고고"
 사진 크게보기 여러 장 좌우 스와이프 복구 — PhotoViewer 에 HorizontalPager 는 있었는데 detectTransformGestures 가 한 손가락 드래그까지 삼켜 페이저가 못 받았다(1/2 뜨는데 스와이프 안 됨). → awaitEachGesture 로 바꿔 '두 손가락(핀치)이거나 이미 확대된 상태'에서만 소비. 한 손가락+확대전은 페이저로.
 - 변경: 앱만. presentation/component/PhotoViewer.kt. 핀치줌·더블탭·회전·닫기 그대로.
 - 폰 확인: 컴파일/가드 통과. 실제 스와이프는 여러 장 문자 사진에서 확인 필요(사장님).
+
+## 2026-10-08 · android
+자랑 칩 '올해/이번 달' 묶기 — "무엇을 자랑할까요?" 칩이 올해치·이번달치 뒤섞여 거슬리던 것. BigPick 에 isYear 추가, 두 묶음(올해/이번 달) 머리글로 갈라 렌더. 머리글이 기간을 말하니 칩 글자에선 '올해/이번 달' 뺌(chipText). 칩은 ShotChip 재사용(중복 X).
+- 변경: 앱만. presentation/screen/stats/StatsScreen.kt. 프로토 TG488Tvg 사장님 승인.
+- 폰 확인: 가드/빌드 통과. 실제는 데이터 있는 사장님 폰서.

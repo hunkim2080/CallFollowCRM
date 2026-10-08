@@ -773,22 +773,29 @@ private fun ShotPreviewDialog(
                     color = TossTextPrimary, modifier = Modifier.padding(start = 2.dp))
                 Text("하나만 크게 보여요", style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    picks.forEachIndexed { i, p ->
-                        val on = i == pick
-                        Box(
-                            Modifier.clip(AppShape.pill)
-                                .background(if (on) TossBlue else TossGrayBg)
-                                .clickable { pick = i }
-                                .padding(horizontal = 13.dp, vertical = 8.dp)
-                        ) {
-                            Text("${p.value}${p.unit} ${p.short}", style = AppType.caption,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (on) Color.White else TossTextSecondary, maxLines = 1)
-                        }
+                // 📦 올해치·이번 달치가 뒤섞여 거슬린다 → 두 묶음으로 가른다. (2026-10-08 사장님)
+                //   머리글이 기간을 말하니 칩 글자에선 '올해/이번 달' 을 뺀다(chipText). 칩은 ShotChip 재사용.
+                val yearPicks = picks.withIndex().filter { it.value.isYear }
+                val monthPicks = picks.withIndex().filter { !it.value.isYear }
+                if (yearPicks.isNotEmpty()) {
+                    Text("올해", style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                        color = TossTextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 5.dp))
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        yearPicks.forEach { (i, p) -> ShotChip(p.chipText(), on = i == pick) { pick = i } }
+                    }
+                }
+                if (monthPicks.isNotEmpty()) {
+                    Spacer(Modifier.height(AppSpace.s8))
+                    Text("이번 달", style = AppType.caption, fontWeight = FontWeight.ExtraBold,
+                        color = TossTextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 5.dp))
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        monthPicks.forEach { (i, p) -> ShotChip(p.chipText(), on = i == pick) { pick = i } }
                     }
                 }
                 // ── 영상 모양 ── 영상은 **둘 중 하나**다. 그림의 다섯 갈래를 그대로 보여주면
@@ -1126,6 +1133,8 @@ internal fun headOf(short: String, monthLabel: String): String {
 
 private data class BigPick(
     val value: String, val unit: String, val short: String, val caption: String,
+    /** 올해 누적이면 true, 이번 달이면 false — 「올해/이번 달」 묶음으로 가르는 데 쓴다. (2026-10-08 사장님) */
+    val isYear: Boolean = false,
     /**
      * 💰 영상에서 **도착할 때마다 오를 몫**을 그 동네에서 뽑는 법.
      *   null = 달린 거리에 맞춰 이어서 오른다(거리처럼 이어지는 숫자).
@@ -1133,6 +1142,12 @@ private data class BigPick(
      */
     val weight: ((com.detailline.callfollowcrm.presentation.component.RegionDot) -> Float)? = null
 )
+
+/** 칩에 보일 글자 — 머리글(올해/이번 달)이 기간을 말하니 칩에선 그 말을 뺀다. (2026-10-08 사장님) */
+private fun BigPick.chipText(): String {
+    val w = short.replace("올해", "").replace("이번 달", "").trim()
+    return if (w.isEmpty()) "$value$unit" else "$value$unit $w"
+}
 
 /**
  * 고를 수 있는 큰 숫자들 — **자랑할 수 있는 게 사람마다 다르다.** (2026-09-24 사장님)
@@ -1142,7 +1157,7 @@ private data class BigPick(
  */
 private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
     // 몫(weight) = 영상에서 **그 동네에 도착할 때 얼마나 오를지**.
-    if (rec.lastNo > 0) add(BigPick("${rec.lastNo}", "집", "올해", "올해 다녀온 집") { it.count.toFloat() })
+    if (rec.lastNo > 0) add(BigPick("${rec.lastNo}", "집", "올해", "올해 다녀온 집", isYear = true) { it.count.toFloat() })
     if (rec.monthSites > 0)
         add(BigPick("${rec.monthSites}", "집", "이번 달", "이번 달 다녀온 집") { it.count.toFloat() })
     // 💰 **번 돈** — 프로토엔 있는데 여기 빠져 있었다. 돈을 숨기고 싶은 사람을 위해
@@ -1156,7 +1171,7 @@ private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
         ) { it.amountManwon.toFloat() }
     )
     // 동네는 **한 곳 도착에 한 칸**. 나간 날은 동네별 현장 수로 나눈다(날짜별 자료는 없다).
-    if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "올해 동네", "올해 다녀온 동네") { 1f })
+    if (rec.yearTownCount > 0) add(BigPick("${rec.yearTownCount}", "곳", "올해 동네", "올해 다녀온 동네", isYear = true) { 1f })
     if (rec.monthWorkDays > 0)
         add(BigPick("${rec.monthWorkDays}", "일", "현장", "이번 달 현장에 나간 날") { it.count.toFloat() })
     // 🚛 **달린 거리** — 길을 타고 간 거리라 직선보다 훨씬 정직하다.
