@@ -20,8 +20,8 @@ import org.junit.Test
  */
 class CalendarOrphanSweepTest {
 
-    private fun ev(id: String, device: String = "", customer: String = "") =
-        CalendarApi.AppCalEvent(id = id, deviceId = device, customerId = customer)
+    private fun ev(id: String, device: String = "", customer: String = "", location: String = "") =
+        CalendarApi.AppCalEvent(id = id, deviceId = device, customerId = customer, location = location)
 
     private fun orphans(
         events: List<CalendarApi.AppCalEvent>,
@@ -69,5 +69,34 @@ class CalendarOrphanSweepTest {
     fun `내가 가리키는 건 내 폰 것이라도 안 지운다`() {
         val events = listOf(ev("a", device = "ME"))
         assertTrue(orphans(events, "ME", setOf("a"), emptySet()).isEmpty())
+    }
+
+    @Test
+    fun `고객 연결표 어긋난 옛 복사본 - 같은 주소에 지금 쓰는 일정 있으면 지운다 (부평 80만 잔재)`() {
+        // old 는 고객 연결표가 어긋나(owned 에 없는 99) 지금껏 안 지워지던 옛 복사본.
+        // 같은 주소를 new(내 고객 7)가 지금 가리킨다(tracked) → old 는 그 잔재이므로 지운다.
+        val addr = "인천 부평구 부평문화로37번길 1-1 13동1304호"
+        val events = listOf(
+            ev("old", customer = "99", location = addr),
+            ev("new", customer = "7", location = addr)
+        )
+        assertEquals(listOf("old"), orphans(events, "ME", setOf("new"), owned = setOf("7")))
+    }
+
+    @Test
+    fun `같은 주소여도 다른 폰 도장이면 안 지운다 - 멀티폰 안전핀 유지`() {
+        // 다른 폰(PHONE0131)이 올린 일정이 내 tracked 일정과 같은 주소여도, 도장 검사가 먼저라 안 지운다.
+        val events = listOf(
+            ev("other", device = "PHONE0131", location = "서울 강남구 A"),
+            ev("mine", device = "ME", location = "서울 강남구 A")
+        )
+        assertTrue(orphans(events, "ME", setOf("mine"), owned = emptySet()).isEmpty())
+    }
+
+    @Test
+    fun `주소 없는 옛 고아는 같은주소 규칙으로 안 지운다`() {
+        // location 비어있으면 같은주소 규칙에 안 걸린다(기존대로 고객 기준만) → owned 에 없으면 보존.
+        val events = listOf(ev("old", customer = "99"), ev("new", customer = "7", location = "서울 강남구 A"))
+        assertTrue(orphans(events, "ME", setOf("new"), owned = setOf("7")).isEmpty())
     }
 }

@@ -124,8 +124,8 @@ class CalendarApi(private val client: OkHttpClient) {
         }
     }
 
-    /** 우리 앱이 만든 캘린더 이벤트 한 건의 식별 정보. 고아 청소가 '내 폰/내 고객 것만' 가리는 데 쓴다. */
-    data class AppCalEvent(val id: String, val deviceId: String, val customerId: String)
+    /** 우리 앱이 만든 캘린더 이벤트 한 건의 식별 정보. 고아 청소가 '내 폰/내 고객/같은 주소 중복' 을 가리는 데 쓴다. */
+    data class AppCalEvent(val id: String, val deviceId: String, val customerId: String, val location: String = "")
 
     /**
      * 🧹 **이 앱(sigongmagne)이 만든 이벤트들 전부 (식별정보 포함).** 고아 청소용. (2026-10-06 사장님)
@@ -153,7 +153,8 @@ class CalendarApi(private val client: OkHttpClient) {
                     AppCalEvent(
                         id = id,
                         deviceId = priv?.optString("deviceId", "").orEmpty(),
-                        customerId = priv?.optString("customerId", "").orEmpty()
+                        customerId = priv?.optString("customerId", "").orEmpty(),
+                        location = it.optString("location", "")
                     )
                 )
             }

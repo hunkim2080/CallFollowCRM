@@ -138,7 +138,9 @@ class CalendarSyncManager(
          *      그래서 "내가 안 가리킨다"만으로 지우면, 보기 전용 폰에서 청소를 누를 때
          *      **다른 폰이 올린 일정을 전부 지운다.** 그걸 막으려고 두 겹으로 가린다:
          *      · 도장(deviceId)이 있는 일정 → **내 폰 도장일 때만** 지운다(다른 폰 것 절대 안 건드림).
-         *      · 도장이 없는 **옛 일정** → **내가 그 고객을 갖고 있을 때만** 지운다(보기 전용 폰은 고객이 없어 안 지움).
+         *      · 도장이 없는 **옛 일정** → **내가 그 고객을 갖고 있을 때** 지운다(보기 전용 폰은 고객이 없어 안 지움).
+         *      · 옛 일정인데 **고객 연결표가 어긋난**(합쳐짐/다시 저장됨) 것도 → **같은 주소에 '지금 쓰는' 일정이
+         *        이미 있으면** 지운다 = 그건 현재 일정의 **옛 복사본**이라 확실하므로 안전. (2026-10-08 사장님 — 부평 80만 잔재)
          *   🛡️ **tracked 가 비면 빈 목록** — DB 를 못 읽었을 때 전체삭제를 막는 안전핀.
          *   순수 함수라 [CalendarOrphanSweepTest] 로 고정한다(실제 달력을 지우는 판단이라 특히).
          */
@@ -149,11 +151,19 @@ class CalendarSyncManager(
             ownedCustomerIds: Set<String>
         ): List<String> {
             if (tracked.isEmpty()) return emptyList()
+            // '지금 쓰는(tracked)' 일정들의 주소 — 옛 복사본이 같은 주소면 그 현재 일정의 잔재다.
+            val liveLocations = events.asSequence()
+                .filter { it.id in tracked }
+                .mapNotNull { it.location.trim().takeIf { l -> l.isNotEmpty() } }
+                .toSet()
             return events.filter { e ->
                 when {
                     e.id in tracked -> false                               // 내가 지금 가리키는 = 산 것
-                    e.deviceId.isNotBlank() -> e.deviceId == myDeviceId     // 도장: 내 폰 고아만
-                    else -> e.customerId.isNotBlank() && e.customerId in ownedCustomerIds  // 옛것: 내 고객만
+                    e.deviceId.isNotBlank() -> e.deviceId == myDeviceId     // 도장: 내 폰 고아만(다른 폰 것 절대 안 건드림)
+                    e.customerId.isNotBlank() && e.customerId in ownedCustomerIds -> true  // 옛것: 내 고객
+                    // 고객 연결표가 어긋난 옛 복사본 — 같은 주소에 지금 쓰는 일정이 있으면 그 잔재이므로 지운다.
+                    e.location.trim().isNotEmpty() && e.location.trim() in liveLocations -> true
+                    else -> false
                 }
             }.map { it.id }
         }
