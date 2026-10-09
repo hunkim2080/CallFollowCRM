@@ -13964,3 +13964,11 @@ Fable 🧹3. 사장님 "고고"
 - 프로토: artifact/YEgnUVAFgj2jr4GtYgqHk2 (고객단위→건단위, 지금 vs 바뀜) 사장님 「고고」.
 - 폰 확인: 빌드·가드 7개·전체 테스트 통과. 테스트폰 일정 탭 크래시 없음(실데이터 협업 재현은 불가 — 사장님 폰서 1차/2차 분리 확인 필요).
 - 다음 액션: 사장님 폰 확인 + 배포 여부.
+
+## 2026-10-09 · server (android 담당 대행, §1 예외) — 홈페이지 SEO 마이너스 요인 정리 1·2
+블로그 양산글이 사이트 신뢰 깎던 것(페이블 전략). 사장님 승인.
+- ① 자동 발행 끔: _BLOG_AUTOPUBLISH 기본값 "1"→"0" (main.py:7424). 라이브 GOTCHAS §3 절차(scp→sed→py_compile→백업 main.py.bak-20261009-2325→swap→kickstart→smoke 10/10). 부팅로그 enabled=False 확인. repo server/main.py 도 동일 패치(이 커밋).
+- ② 자동차 4업종 글 8편 삭제(세차·썬팅·차량정비·광택 ×price/start). blog_posts 103→95. 삭제 전 백업 ~/blog_posts_backup_20261009-2323.sql. (DB라 git 아님)
+- 정체성: 시공막내=1인 시공자용 '문자 AI'. 줄눈 전용 아님(사장님 교정). 인테리어13+설치수리9 핵심, 청소5 보류, 자동차4 제거.
+- 남음: 랜딩/메타 "1인 시공자 문자 AI" 명확화(프로토 먼저), 얇은 템플릿글 품질 개선(대필), GA4 ID(사장님), 라이브vs repo landing·요금 결정.
+- 폰/검증: smoke.sh 10/10. 자동발행 다시 켜려면 env BLOG_AUTOPUBLISH=1.

@@ -7421,7 +7421,7 @@ async def tool_daywage(): return _serve_home_page(_TOOLS["daywage"])
 # ============================================================================
 
 _HOME_BASE = "https://si0in.kr"
-_BLOG_AUTOPUBLISH = os.environ.get("BLOG_AUTOPUBLISH", "1") == "1"
+_BLOG_AUTOPUBLISH = os.environ.get("BLOG_AUTOPUBLISH", "0") == "1"
 _THUMBS_DIR = BASE_DIR / "static" / "thumbs"
 
 # 추가108 — 검색엔진 소유확인 (env 로 값만 넣으면 <head> 에 meta 자동 삽입)
