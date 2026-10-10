@@ -131,7 +131,7 @@ fun SiteAddressField(
         if (filled) {
             Spacer(Modifier.height(9.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                UnitBox(dong, "103", "동", onDong, Modifier.weight(1f))
+                UnitBox(dong, "103", "동", onDong, Modifier.weight(1f), keyboardType = KeyboardType.Text)
                 UnitBox(ho, "1103", "호", onHo, Modifier.weight(1f))
             }
             Spacer(Modifier.height(7.dp))
@@ -180,7 +180,7 @@ fun SiteAddressField(
     }
 }
 
-/** [동] [호] 한 칸 — 숫자 키패드가 바로 뜨고, 단위 글자가 칸 안에 붙어 있다. */
+/** [동] [호] 한 칸 — 단위 글자가 칸 안에 붙어 있다. 동은 '가동·A동·라일락동' 가능해 글자 키패드. (2026-10-10 사장님) */
 @Composable
 private fun UnitBox(
     value: String,
@@ -188,6 +188,7 @@ private fun UnitBox(
     unit: String,
     onValue: (String) -> Unit,
     modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Number,
 ) {
     var focused by remember { mutableStateOf(false) }
     Row(
@@ -213,7 +214,7 @@ private fun UnitBox(
                 onValueChange = { onValue(it.filter { c -> c != '동' && c != '호' }) },
                 singleLine = true,
                 textStyle = AppType.headline.copy(color = AppTheme.colors.text),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 modifier = Modifier
                     .fillMaxWidth()
                     .onFocusChanged { focused = it.isFocused },

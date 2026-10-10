@@ -4316,13 +4316,14 @@ private fun AddressRegisterSheet(
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
-                    value = dong, onValueChange = { dong = it.filter { c -> c.isDigit() }.take(4) },
+                    // 동은 '가동·A동·라일락동'도 있어 글자 허용. 숫자 필터·숫자 키패드 제거. (2026-10-10 사장님)
+                    value = dong, onValueChange = { dong = it.filter { c -> c != '동' }.take(6) },
                     // "101" 은 예시인지 입력값인지 헷갈린다 → 무슨 칸인지 + 비워도 된다는 말로. (2026-09-20)
                     placeholder = { Text("동 (없으면 생략)", color = TossTextTertiary) },
                     suffix = { Text("동", color = TossTextSecondary) },
                     singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
                     ),
                     colors = tossFieldColors(),
                     modifier = Modifier.weight(1f)

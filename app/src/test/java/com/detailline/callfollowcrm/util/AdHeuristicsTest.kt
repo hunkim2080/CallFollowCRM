@@ -75,4 +75,22 @@ class AdHeuristicsTest {
     fun obviousAdsDetected() {
         adMessages.forEach { (b, a) -> assertTrue("미탐(광고를 놓침): " + b, isLikelyAd(b, a)) }
     }
+
+    // 2026-10-10 사장님 실제: 국외발신+광고 라벨이 링크·유인어 없어 '신규'로 울렸다. 이제 확정 광고.
+    @Test fun `국외발신 + 광고 라벨 = 광고`() {
+        assertTrue(isLikelyAd("[국외발신]\n[광고] 슈퍼 10/10 이벤트\n오후 7~9시 입금 30만 이상 합산", "01012345678"))
+        assertTrue(isLikelyAd("[웹발신](광고) 특가 안내", "01099998888"))
+    }
+
+    @Test fun `광고 라벨이 맨 앞 = 광고 (링크 없어도)`() {
+        assertTrue(isLikelyAd("[광고] 이번 주 특가 세일", "01012345678"))
+        assertTrue(isLikelyAd("(광고) 무이자 할부 안내드립니다", "01012345678"))
+        assertTrue(isLikelyAd("【광고】 신규 오픈 기념", "01012345678"))
+    }
+
+    // 오탐 방지: 고객이 본문 **중간**에 '[광고]' 를 인용하는 건 광고 아님(맨 앞 아님 + 헤더 없음).
+    @Test fun `본문 중간 광고 인용은 고객 유지`() {
+        assertFalse(isLikelyAd("어제 [광고] 문자 하나 받았는데 이거 시공 관련인가요?", "01012345678"))
+        assertFalse(isLikelyAd("아까 (광고) 라고 온 문자 보고 줄눈 시공 궁금해서요", "01012345678"))
+    }
 }

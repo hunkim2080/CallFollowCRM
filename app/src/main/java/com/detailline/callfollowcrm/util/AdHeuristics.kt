@@ -20,6 +20,8 @@ private val RE_080_NUM = Regex("080[-\\s]?\\d{3,4}")
 private val RE_OPTOUT_WITHDRAW = Regex("수신\\s*동의\\s*철회")
 private val RE_SENDER_HEADER = Regex("[\\[(【]\\s*(?:web|웹|국제|국외)\\s*발신\\s*[\\])】]", RegexOption.IGNORE_CASE)
 private val RE_AD_LABEL = Regex("[\\[(【]\\s*광고\\s*[\\])】]")
+// 맨 앞에 붙은 (광고) 법정 라벨 — 정보통신망법상 광고는 '(광고)' 로 시작. 고객이 문의를 이걸로 시작할 일 없음.
+private val RE_AD_LABEL_LEAD = Regex("^[\\[(【]\\s*광고\\s*[\\])】]")
 private val RE_PROMO_LURE = Regex("클릭|바로가기|지금\\s*(?:신청|가입|접속|참여)|선착순|사은품|기프티콘|무료\\s*상담|혜택\\s*(?:받|드)|쿠폰|이벤트\\s*(?:참여|응모)")
 
 // ── 1) 절대 확정 신호 ──
@@ -99,6 +101,16 @@ fun isLikelyAd(body: String, address: String): Boolean {
 
     // 1-d) 성인/유흥 유인 — 시공과 무관.
     if (RE_ADULT.containsMatchIn(body)) return true
+
+    // 1-e) 발신헤더(국외/웹발신) + (광고) 법정 라벨 **동시** = 광고 확정.
+    //   개인 고객은 국제 게이트웨이 헤더에 (광고) 라벨을 함께 달 수 없다. (2026-10-10 사장님 실제 사례:
+    //   "[국외발신][광고] 슈퍼 이벤트…" 가 링크·유인어 없어 '신규'로 울렸다)
+    if (hasSenderHeader && hasAdLabel) return true
+
+    // 1-f) (광고) 법정 라벨이 **맨 앞**(발신헤더 바로 뒤 포함) = 광고 확정.
+    //   본문 중간 인용만 피하려고 '맨 앞'으로 제한 — 오탐 위험 사실상 0.
+    val afterHeader = (RE_SENDER_HEADER.find(body)?.let { body.substring(it.range.last + 1) } ?: body).trimStart()
+    if (RE_AD_LABEL_LEAD.containsMatchIn(afterHeader)) return true
 
     // ---------- 2) 조합 신호 (2개 이상 결합해야 광고) ----------
 
