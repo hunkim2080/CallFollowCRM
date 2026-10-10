@@ -245,6 +245,9 @@ object IncomingCallOverlay {
                     CallerStatus.AD_SUSPECT
                 !known && kind == com.detailline.callfollowcrm.util.PhoneKind.Kind.LANDLINE ->
                     CallerStatus.LANDLINE
+                // 🆕 '새 문의'는 **최초 통화일 때만**. 모르는 번호라도 2번째 전화부터는 '재통화'로.
+                //   (2026-10-10 사장님: "신규가 두 번째 전화인데 새 문의로 떠서 당황") 광고·집전화는 위에서 먼저 빠짐.
+                !known && callNo >= 2 -> CallerStatus.REPEAT
                 !known -> CallerStatus.NEW
                 customer?.workCompletedAt != null -> CallerStatus.COMPLETED
                 (customer?.scheduledWorkDate ?: 0L) > 0L -> CallerStatus.SCHEDULED
