@@ -13997,3 +13997,6 @@ Fable 🧹3. 사장님 "고고"
   → 이제 isLikelyAd=true → 문자함(GENERAL) → 기본 띵동(고객 소리 아님).
 - 동 입력 숫자만 되던 것(사장님: 가동·A동·라일락동 못 침). 두 곳 다 고침(§12-K): SiteAddressField.UnitBox(동=KeyboardType.Text) + ChatScreen 인라인 동(isDigit 필터 제거·Text). 호는 숫자 유지. joinDongHo는 글자 동도 "가동 2008호"로 정상.
 - 폰 확인: 빌드·가드7·전체 테스트 통과. (사장님 폰서 광고 띵동·동 글자 확인 필요)
+
+## 2026-10-10 · android — '다시 전화옴' 태그 제거 (사장님)
+지난번 재통화 표시를 '다시 전화옴' 태그로 넣었는데, 사장님 의도는 "그냥 신규 태그만". → HomeScreen WaitingCard 배지 항상 "신규"(callCount≥2 분기 제거). 한 번호=한 카드 묶음은 유지라 중복 안 생김. '· 오늘 N통' 작은 표시는 태그 아니라 유지(원하면 제거).

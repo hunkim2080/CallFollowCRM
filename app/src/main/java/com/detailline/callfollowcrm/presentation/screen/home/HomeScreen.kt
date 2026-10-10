@@ -3261,9 +3261,10 @@ private fun WaitingCard(
 
             if (isNew) {
                 Spacer(Modifier.width(8.dp))
-                // 같은 날 2번째 통화부터는 "신규"→"다시 전화옴"(새 사람 아님). callCount=오늘 통화 수. (2026-10-08 사장님)
+                // 신규 태그만. (같은 날 재통화도 '신규' 그대로 — '다시 전화옴' 태그는 뺐다. 한 번호=한 카드로
+                //   이미 묶여 중복은 안 생긴다. 2026-10-10 사장님: "그냥 신규 태그만 있어야지")
                 Box(Modifier.background(TossBlueSoft, RoundedCornerShape(8.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                    Text(if (item.callCount >= 2) "다시 전화옴" else "신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Text("신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
             }
             Spacer(Modifier.weight(1f))
