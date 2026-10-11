@@ -14013,3 +14013,13 @@ Fable 🧹3. 사장님 "고고"
 - 변경: UI만. 서버/동기화/알림/데이터모델 영향 없음.
 - §12-K 연결 지점 5곳 다 확인 — 바꾼 곳: WaitingCard·SpamSwipeBox·SwipeRevealThreeBox·AppPreferences·HomeScreen 호출부. 둬도 됨: SwipeRevealBox/TwoBox(기본 off), 꾹 누르기 시트(단축 유지), VM 7일 로직.
 - 폰 확인: 테스트폰(S9, Tailscale 무선 adb)에 더미 부재중 2건 시드 → 상담함에서 손잡이+수명 줄 눈으로 확인, 손잡이 탭→[스팸][지인][정리] 열림 확인. 더미 정리 완료(call_records 2→0). BUILD=0·가드7 통과.
+
+## 2026-10-11 · android — 대기 카드 정리 UX 개편: 정리 주연 + ⋮ 더보기 (사장님 A안)
+앞 커밋(손잡이→3색 블록)을 사장님이 "스와이프 스팸/지인/정리 3개 별로다, 아이디어?" → 빈도·무게 다른데 같은 버튼 셋이라 어수선. A안 확정(정리를 앞으로, 스팸/지인은 ⋮ 뒤로). 스팸 자동분류는 "애매해서 안 됨"(사장님) 동의 — 확실한 광고만 자동, 나머지 손 버튼 유지.
+- 밀기 → **정리 하나**(SwipeRevealBox, 파랑, 되돌리기). 3색 블록 제거.
+- **⋮ 손잡이 → 더보기 시트**("이 손님, 어떻게 할까요?" + 번호): 정리 주연(파랑 큰 행) + 광고·스팸 + 지인. 꾹 누르기도 같은 시트(spamTarget).
+- 공용 `SwipeRevealBox`에 handleLabel/onHandleTap/peekHint 추가(기본 off → 기존 7+곳 호출자 영향 0). `SwipeRevealThreeBox` 제거(SpamSwipeBox만 쓰던 죽은 코드).
+- 수명 줄·피크·7일 자동빠짐·오른쪽 36dp 거터 = 유지.
+- 변경: UI만. VM/서버/데이터모델 영향 없음.
+- §12-K 연결 지점: SwipeRevealBox(+handle)·SwipeRevealThreeBox(제거)·SpamSwipeBox(1버튼으로)·호출부(onMarkSpam/onMarkPersonal 제거, onHandleTap=spamTarget)·spamTarget 시트(순서 정리 주연). 안 건드림: SwipeRevealTwoBox(최근대화 카드), VM.
+- 폰 확인: 테스트폰(S9, Tailscale 무선) 더미 부재중 2건 → ①평소 ⋮+수명 ②⋮탭→시트(정리/광고·스팸/지인) ③밀기→정리 하나, 셋 다 눈으로 확인. 더미 정리(call_records 2→0). BUILD=0·가드7(size −59줄, style 2682 그대로=ThreeBox제거가 +1 상쇄).

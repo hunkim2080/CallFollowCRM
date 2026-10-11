@@ -33,7 +33,7 @@ CLAUDE.md §0 이 가리키는 문서. **화면을 만들기 전 여기서 그 �
 | 문자 예약 발송 (보내기 창 작은 🕐 → 시각 → 자동) | `artifact/56gF4zzgC9UYVBihJcsN9Z` | 2026-10-05 구현됨 | 메인버튼 X·조용한 보조. 글 자동·사진은 기본앱일 때만(아니면 '사진 못 갔어요'). 예약함=상담함 위 |
 | 간단 일정 여러 날 — 구글처럼 **띠** | `artifact/U93GJ2KYz8Ma86fqXGf1fa` | 2026-10-08 구현됨 | 점→**청록 띠**(지난 회색·시공 초록과 구분, 새 토큰 `simpleText/simpleBg`). 띠 글자 가운데(공용 `CalRegionBar`). 하루짜리도 띠. 여러 날이면 **하루 종일 자동**. 범위=연속 띠. 고치기=범위 픽커. 격자 계산=`ScheduleCalendarGrid.kt` |
 | 예약 문자 챗 말풍선 (회색 대기+예정시간+취소) | `artifact/33Vh3bnVKdxudEmkkK8DKY` | 2026-10-05 구현됨 | 안 보낸=회색+주황점선·우측. 예정시간·[예약취소] 말풍선 밖. 시각되면 파랑으로 |
-| 상담함 '답장 기다려요' 카드 — 밀어서 정리 손잡이 + 수명 줄 | `artifact/QA2yU1cFNJkNRU5Kwr4Ytq` | 2026-10-11 구현됨 | 밀기=숨은 손짓("다들 모른다") → 오른쪽 **⋮ 손잡이**(눌러서 [스팸][지인][정리], 밀기도 유지). 처음 1회 **피크**(맨 위 카드 살짝 열림, `waitingSwipeHintSeen`). 수명 줄 "N일째 기다리는 중 · 답장하면 사라져요"(열어봐도 안 사라지고 답장해야 사라짐 = 사장님 설계). 7일 자동빠짐 유지. 손잡이=공용 `SwipeRevealThreeBox(handleLabel/peekHint)`. SpamSwipeBox→`HomeScreenCards.kt` 이동 |
+| 상담함 '답장 기다려요' 카드 — 정리 주연 + ⋮ 더보기 + 수명 줄 | `artifact/QA2yU1cFNJkNRU5Kwr4Ytq` | 2026-10-11 구현됨 | **밀기 → 🧹 정리 하나**(매일 쓰는 것, 되돌리기). **⋮ 손잡이 → 더보기 시트**("이 손님, 어떻게 할까요?": 🧹정리 주연 + 🚫광고·스팸 + 👤지인 — 가끔 쓰는 둘은 한 겹 뒤로). 꾹 누르기도 같은 시트. 처음 1회 **피크**(맨 위 카드 살짝 열림, `waitingSwipeHintSeen`). 수명 줄 "N일째 기다리는 중 · 답장하면 사라져요"(열어봐도 안 사라지고 답장해야 = 사장님 설계). 7일 자동빠짐 유지. 손잡이=공용 `SwipeRevealBox(handleLabel/onHandleTap/peekHint)`. 스팸 자동분류는 안 함(판단 애매 → 확실한 광고만 자동, 나머지 손으로). 지인 자동분류는 다음 선택지 |
 | 설정 없이 문자하다 되는 앱 | `artifact/FCngD4Yn` | 사장님 디벨롭 예정 | 시작체크 5 → 2 |
 | 건(件) 단위 전환 | `artifact/4ZvDfUfx` | 단계별 진행 | 계획서 `docs/PLAN_job_centric_migration.md` |
 | 카드에 다 얹지 않기 (조용한 자신감) | `artifact/22a5fa6a` | 2026-08-14 | 리스트는 한 줄, 풍부한 건 한 탭 안 |

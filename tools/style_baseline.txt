@@ -14,7 +14,7 @@ component/Mascot.kt 6
 component/MascotEmptyState.kt 3
 component/OutboxBand.kt 3
 component/RingTabBar.kt 2
-component/SwipeRevealBox.kt 5
+component/SwipeRevealBox.kt 4
 component/TossComponents.kt 24
 component/WorkTimePickerDialog.kt 5
 screen/aimessage/AiMessageScreen.kt 2
@@ -37,7 +37,7 @@ screen/customer/CustomerDetailScreen.kt 189
 screen/customers/CustomersScreen.kt 17
 screen/estimate/EstimateFollowupScreen.kt 6
 screen/followup/FollowUpScreen.kt 3
-screen/home/HomeScreen.kt 113
+screen/home/HomeScreen.kt 114
 screen/home/HomeScreenCards.kt 122
 screen/home/MessageBoxSection.kt 14
 screen/login/LoginScreen.kt 33

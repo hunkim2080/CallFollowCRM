@@ -1130,39 +1130,30 @@ internal fun NewChipNote(label: String, note: String, onDismiss: () -> Unit) {
 
 
 /**
- * 미확인('답장 기다려요') 카드 우→좌 swipe → [🚫 스팸][👤 지인][🧹 정리].
- *   threshold 35% (SwipeRevealThreeBox) · 좌→우 비활성(사장님 2026-05-25).
- *   📍 손잡이(⋮) — 밀 줄 모르는 사람도 눌러서 세 버튼을 연다(2026-10-11 사장님: 다들 모른다).
- *      부르는 WaitingCard 가 오른쪽 36dp 를 비워둬야 내용이 안 가린다.
- *   (HomeScreen.kt 에서 옮겨옴 — 같은 패키지라 호출부는 그대로. 2026-10-11 size_guard 상쇄)
+ * 미확인('답장 기다려요') 카드 — **밀면 정리 하나**(매일 쓰는 것), **⋮ 누르면 더보기 시트**(스팸·지인은 가끔).
+ *   (2026-10-11 사장님: 3색 블록이 어수선·셋 고르기 번거로움 → 정리를 앞으로, 나머지는 한 겹 뒤로. A안)
+ *   📍 손잡이(⋮) — 밀 줄 모르는 사람도 눌러서 더보기(onHandleTap). 부르는 WaitingCard 가 오른쪽 36dp 를 비운다.
+ *   (HomeScreen.kt 에서 옮겨옴 — 같은 패키지라 호출부는 그대로)
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpamSwipeBox(
-    onMarkSpam: () -> Unit,
-    onMarkPersonal: () -> Unit,
+    /** 밀기 → 정리(대기목록에서만 빼기, 되돌리기). */
     onCleanup: () -> Unit,
+    /** ⋮ 누르면 → 더보기 시트(정리·광고/스팸·지인). */
+    onHandleTap: () -> Unit,
     /** 처음 한 번 살짝 열렸다 닫히는 힌트(맨 위 카드만). */
     peekHint: Boolean = false,
     onPeekShown: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
-    // 스팸=광고/스팸 영구숨김 · 지인=내 개인연락처(문자함 [지인]) · 정리=대기목록에서만. 셋 다 Snackbar Undo.
-    com.detailline.callfollowcrm.presentation.component.SwipeRevealThreeBox(
-        onFirst = onMarkSpam,
-        onSecond = onMarkPersonal,
-        onThird = onCleanup,
-        firstLabel = "스팸",
-        secondLabel = "지인",
-        thirdLabel = "정리",
-        firstColor = TossError,
-        secondColor = AppTheme.colors.category,
-        thirdColor = TossBlue,
-        firstIcon = Icons.Filled.Block,
-        secondIcon = Icons.Filled.Person,
-        thirdIcon = Icons.Filled.CleaningServices,
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onCleanup,
+        label = "정리",
+        containerColor = TossBlue,
+        icon = Icons.Filled.CleaningServices,
         shape = RoundedCornerShape(18.dp),  // WaitingCard(18dp)와 모서리 맞춤 — 테두리 비침 fix.
         handleLabel = "정리",
+        onHandleTap = onHandleTap,
         peekHint = peekHint,
         onPeekShown = onPeekShown
     ) { content() }

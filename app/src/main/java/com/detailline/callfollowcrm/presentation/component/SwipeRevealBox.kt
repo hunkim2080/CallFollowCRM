@@ -69,6 +69,13 @@ fun SwipeRevealBox(
     contentColor: Color = Color.White,
     icon: ImageVector = Icons.Filled.Delete,
     shape: Shape = RoundedCornerShape(14.dp),
+    // 📍 손잡이(⋮) — 밀 줄 모르는 사람의 길(2026-10-11 사장님). null 이면 안 그림(옛 동작 그대로).
+    //   누르면 onHandleTap(보통 '더보기' 시트 열기). 쓰는 카드는 오른쪽 36dp 를 비워둬야 내용이 안 가린다.
+    handleLabel: String? = null,
+    onHandleTap: (() -> Unit)? = null,
+    // 처음 한 번 살짝 열렸다 닫히는 힌트(밀 수 있다를 몸으로). 끝나면 onPeekShown.
+    peekHint: Boolean = false,
+    onPeekShown: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -77,6 +84,16 @@ fun SwipeRevealBox(
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var opened by remember { mutableStateOf(false) }
+
+    if (peekHint) {
+        LaunchedEffect(Unit) {
+            delay(450)
+            offsetX.animateTo(-revealPx * 0.5f, tween(420))
+            delay(640)
+            offsetX.animateTo(0f, tween(360))
+            onPeekShown()
+        }
+    }
 
     Box(
         modifier
@@ -142,6 +159,27 @@ fun SwipeRevealBox(
                     }
                 }
         ) { content() }
+
+        // 📍 눌러서 '더보기'를 여는 손잡이 — 밀 줄 모르는 사람의 길(2026-10-11 사장님: "다들 모른다").
+        //   오른쪽 끝 36dp. 닫혀 있을 때만 보이고(밀려서 열리면 alpha 로 사라져 뒤 버튼을 안 가린다), 누르면 onHandleTap.
+        if (handleLabel != null && onHandleTap != null) {
+            val frac = (-offsetX.value / revealPx).coerceIn(0f, 1f)   // 0=닫힘 … 1=열림
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(36.dp)
+                    .graphicsLayer { alpha = 1f - frac }
+                    .clickable(enabled = frac < 0.08f) { onHandleTap() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.MoreVert, handleLabel,
+                    tint = AppTheme.colors.textHint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
     }
 }
 
@@ -255,130 +293,3 @@ private fun RevealActionButton(
     }
 }
 
-/**
- * SwipeRevealBox 의 "세 버튼" 버전 — 밀면 [첫][둘][셋] 세 개가 드러난다.
- *   (2026-06-23 사장님 — 상담함 대기 카드: [스팸][사생활][정리]). 버튼 64dp 라 갤S9 에서도 들어감.
- *
- * 📍 **손잡이(handleLabel)** — 밀기는 간판 없는 숨은 손짓이라 "다들 모른다"(2026-10-11 사장님).
- *   handleLabel 을 주면 오른쪽 끝에 **눌러서 여는 손잡이(⋮)**를 띄운다. 밀 줄 몰라도 눌러서 세 버튼을 연다.
- *   밀기도 그대로 된다. 손잡이를 쓰는 카드는 **오른쪽에 그만큼 여백**을 둬야 내용이 안 가린다(지금 36dp).
- * 📍 **peekHint** — 처음 한 번 카드가 살짝 열렸다 닫히며 "열 수 있다"를 몸으로 보여준다. 끝나면 onPeekShown.
- */
-@Composable
-fun SwipeRevealThreeBox(
-    onFirst: () -> Unit,
-    onSecond: () -> Unit,
-    onThird: () -> Unit,
-    firstLabel: String,
-    secondLabel: String,
-    thirdLabel: String,
-    firstColor: Color,
-    secondColor: Color,
-    thirdColor: Color,
-    firstIcon: ImageVector,
-    secondIcon: ImageVector,
-    thirdIcon: ImageVector,
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(14.dp),
-    /** null 이면 손잡이 안 그림(옛 동작 그대로). 접근성 설명용 라벨도 겸한다(예: "정리"). */
-    handleLabel: String? = null,
-    /** 처음 한 번 살짝 열렸다 닫히는 힌트를 보일지. */
-    peekHint: Boolean = false,
-    /** 피크가 끝났을 때 — 호출부가 "봤음" 을 영속 저장하라고. */
-    onPeekShown: () -> Unit = {},
-    content: @Composable () -> Unit
-) {
-    val density = LocalDensity.current
-    val buttonDp = 64.dp
-    val revealDp = buttonDp * 3
-    val revealPx = with(density) { revealDp.toPx() }
-    val offsetX = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    var opened by remember { mutableStateOf(false) }
-
-    // 손잡이로 열기 — 밀 줄 모르는 사람의 길. (밀기와 같은 열림 상태를 공유한다)
-    if (peekHint) {
-        LaunchedEffect(Unit) {
-            delay(450)
-            offsetX.animateTo(-revealPx * 0.24f, tween(420))
-            delay(640)
-            offsetX.animateTo(0f, tween(360))
-            onPeekShown()
-        }
-    }
-
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(shape)
-    ) {
-        Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
-            Row(Modifier.fillMaxHeight().graphicsLayer { alpha = if (offsetX.value < -0.5f) 1f else 0f }) {
-                RevealActionButton(buttonDp, firstColor, firstIcon, firstLabel, opened) {
-                    onFirst(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
-                }
-                RevealActionButton(buttonDp, secondColor, secondIcon, secondLabel, opened) {
-                    onSecond(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
-                }
-                RevealActionButton(buttonDp, thirdColor, thirdIcon, thirdLabel, opened) {
-                    onThird(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
-                }
-            }
-        }
-        Box(
-            Modifier
-                .clip(shape)
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            val open = offsetX.value < -revealPx * 0.35f
-                            opened = open
-                            scope.launch { offsetX.animateTo(if (open) -revealPx else 0f, tween(200)) }
-                        },
-                        onDragCancel = {
-                            scope.launch { offsetX.animateTo(if (opened) -revealPx else 0f, tween(200)) }
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            val target = (offsetX.value + dragAmount).coerceIn(-revealPx, 0f)
-                            scope.launch { offsetX.snapTo(target) }
-                        }
-                    )
-                }
-                .pointerInput(opened) {
-                    if (opened) {
-                        detectTapGestures(onTap = {
-                            opened = false
-                            scope.launch { offsetX.animateTo(0f, tween(180)) }
-                        })
-                    }
-                }
-        ) { content() }
-
-        // 📍 눌러서 여는 손잡이 — 밀 줄 모르는 사람의 길(2026-10-11 사장님: "다들 모른다, UI가 문제").
-        //   오른쪽 끝 36dp. 닫혀 있을 때만 보이고(열리면 alpha 로 사라져 뒤 버튼을 안 가린다), 누르면 세 버튼이 열린다.
-        if (handleLabel != null) {
-            val frac = (-offsetX.value / revealPx).coerceIn(0f, 1f)   // 0=닫힘 … 1=열림
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(36.dp)
-                    .graphicsLayer { alpha = 1f - frac }
-                    // 열리는 중/열림엔 비활성 → 뒤 [스팸][지인][정리] 버튼이 탭을 받는다.
-                    .clickable(enabled = frac < 0.08f) {
-                        opened = true
-                        scope.launch { offsetX.animateTo(-revealPx, tween(240)) }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.MoreVert, handleLabel,
-                    tint = AppTheme.colors.textHint,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-}

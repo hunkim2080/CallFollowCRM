@@ -1434,39 +1434,8 @@ fun HomeScreen(
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
                         val suffix = PhoneKey.of(item.record.phoneNumber)
-                        // 우→좌 swipe → [🚫 스팸][🧹 정리] 두 버튼. 스팸=영구 숨김, 정리=대기목록에서만. 둘 다 Snackbar Undo. (2026-06-23 사장님)
+                        // 밀기 → 정리 하나(매일). ⋮ → 더보기 시트(정리·광고/스팸·지인 — 가끔). (2026-10-11 사장님 A안)
                         SpamSwipeBox(
-                            onMarkSpam = {
-                                viewModel.markSpam(item.record.phoneNumber, item.customer?.name?.takeIf { it.isNotBlank() })
-                                scope.launch {
-                                    val r = snackbarHostState.showSnackbar(
-                                        message = "스팸으로 등록했어요 — 앞으로 안 보여요",
-                                        actionLabel = "되돌리기",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (r == SnackbarResult.ActionPerformed) {
-                                        viewModel.unmarkSpam(item.record.phoneNumber)
-                                    }
-                                }
-                            },
-                            onMarkPersonal = {
-                                // 👥 「사생활」을 없애고 **지인으로 통일**. 상담함에서 빠지고
-                                //   문자함 [지인] 에 모이면서, 시공막내도 안 건드린다. (2026-10-02 사장님)
-                                viewModel.moveToFriend(
-                                    item.record.phoneNumber,
-                                    item.customer?.name?.takeIf { it.isNotBlank() }
-                                )
-                                scope.launch {
-                                    val r = snackbarHostState.showSnackbar(
-                                        message = "지인으로 옮겼어요 — 문자함 [지인] 에 있어요",
-                                        actionLabel = "되돌리기",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (r == SnackbarResult.ActionPerformed) {
-                                        viewModel.unmarkSpam(item.record.phoneNumber)
-                                    }
-                                }
-                            },
                             onCleanup = {
                                 viewModel.dismissUnconfirmed(item.record.phoneNumber)
                                 scope.launch {
@@ -1480,7 +1449,9 @@ fun HomeScreen(
                                     }
                                 }
                             },
-                            // 맨 위 카드만, 아직 안 봤을 때 한 번 — 손잡이를 몸으로 알려준다.
+                            // ⋮ 손잡이 → 꾹 누름과 같은 더보기 시트.
+                            onHandleTap = { spamTarget = item },
+                            // 맨 위 카드만, 아직 안 봤을 때 한 번 — 밀 수 있다를 몸으로 알려준다.
                             peekHint = (!swipeHintSeen && item.record.id == waiting.firstOrNull()?.record?.id),
                             onPeekShown = { swipeHintSeen = true; prefs.waitingSwipeHintSeen = true },
                             content = {
@@ -1790,9 +1761,34 @@ fun HomeScreen(
                 val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { spamTarget = null },
-                    title = { Text(nm, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    title = {
+                        Column {
+                            Text("이 손님, 어떻게 할까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                            Text(nm, fontSize = 12.sp, color = TossTextTertiary)
+                        }
+                    },
                     text = {
                         Column {
+                            // 🧹 정리 — **매일 쓰는 주연**. 위에 크게, 눈에 띄는 파랑 배경. (2026-10-11 사장님 A안)
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)
+                                    .clickable {
+                                        spamTarget = null
+                                        viewModel.dismissUnconfirmed(phone)
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar("정리했어요 — 대기 목록에서만 빠져요(고객은 그대로)", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoDismissUnconfirmed(phone)
+                                        }
+                                    }
+                                    .padding(15.dp)
+                            ) {
+                                Column {
+                                    Text("정리", fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                                    Text("대기 목록에서 치우기 (고객·대화는 그대로 · 되돌리기 돼요)", fontSize = 12.sp, color = TossTextTertiary)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            // 🚫 광고·스팸 — 가끔. 자동으로 못 거른 광고를 손으로.
                             Box(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.unpaidBg)
                                     .clickable {
@@ -1806,13 +1802,12 @@ fun HomeScreen(
                                     .padding(14.dp)
                             ) {
                                 Column {
-                                    Text("스팸으로 등록", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossError)
+                                    Text("광고·스팸", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossError)
                                     Text("앞으로 상담함·신규에서 안 보여요", fontSize = 12.sp, color = TossTextTertiary)
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
-                            // 👥 **지인으로** — 아는 사람이 손님 사이에 섞여 있을 때. (2026-10-02 사장님)
-                            //   스팸도 아니고 그냥 정리도 아니다. 문자함 [지인] 칸으로 간다.
+                            // 👤 지인 — 가끔. 손님이 아니라 아는 사람. 문자함 [지인] 으로.
                             Box(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
                                     .clickable {
@@ -1825,27 +1820,9 @@ fun HomeScreen(
                                     .padding(14.dp)
                             ) {
                                 Column {
-                                    Text("지인으로", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                    Text("지인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                                     Text("손님이 아니라 아는 사람 — 문자함 [지인] 으로 모아요",
                                         fontSize = 12.sp, color = TossTextTertiary)
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                                    .clickable {
-                                        spamTarget = null
-                                        viewModel.dismissUnconfirmed(phone)
-                                        scope.launch {
-                                            val r = snackbarHostState.showSnackbar("정리했어요 — 대기 목록에서만 빠져요(고객은 그대로)", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoDismissUnconfirmed(phone)
-                                        }
-                                    }
-                                    .padding(14.dp)
-                            ) {
-                                Column {
-                                    Text("대기목록에서 정리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                                    Text("이 목록에서만 빼요 (고객·대화는 그대로)", fontSize = 12.sp, color = TossTextTertiary)
                                 }
                             }
                         }
