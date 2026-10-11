@@ -360,22 +360,40 @@ class JobRepository(
             if (!cardHasMoney) continue
             val jobs = jobDao.scheduledByCustomerOnce(c.id)
             if (jobs.isEmpty()) continue   // 건 없는 고객 = 카드가 SoT, 안 건드림
+            val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: continue
             val anyJobHasMoney = jobs.any {
                 it.totalAmount != null || it.depositAmount != null || it.balanceAmount != null ||
                     it.depositPaidAt != null || it.balancePaidAt != null || it.workCompletedAt != null
             }
-            if (anyJobHasMoney) continue   // 이미 건에 돈이 있음 → 안 건드림(멱등)
-            val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: continue
-            runCatching {
-                jobDao.update(
-                    rep.copy(
-                        totalAmount = c.totalAmount, depositAmount = c.depositAmount, depositPaidAt = c.depositPaidAt,
-                        balanceAmount = c.balanceAmount, balancePaidAt = c.balancePaidAt, workCompletedAt = c.workCompletedAt,
-                        updatedAt = now
+            if (!anyJobHasMoney) {
+                // 건에 돈이 하나도 없음 → 카드 돈 전체를 대표 건으로 (멱등)
+                runCatching {
+                    jobDao.update(
+                        rep.copy(
+                            totalAmount = c.totalAmount, depositAmount = c.depositAmount, depositPaidAt = c.depositPaidAt,
+                            balanceAmount = c.balanceAmount, balancePaidAt = c.balancePaidAt, workCompletedAt = c.workCompletedAt,
+                            updatedAt = now
+                        )
                     )
-                )
-            }.onSuccess { fixed++ }
+                }.onSuccess { fixed++ }
+            } else if (rep.balancePaidAt == null && c.balancePaidAt != null) {
+                // 🩹 (2026-10-12 사장님 동남) 건에 총액·계약금은 있는데 **완납/완료만 카드에** 있는 경우 — 그것만 끌어올린다.
+                //   채팅·정산·미수 카드의 '잔금 받음'(updateBalancePaidAt)이 건을 안 거치고 카드에만 찍혀,
+                //   '내 기록'(건 기준)에 번호가 안 붙고 "완료 누르기"가 남던 것. 전액 완납=시공 완료(사장님). 멱등.
+                runCatching {
+                    jobDao.update(
+                        rep.copy(
+                            balancePaidAt = c.balancePaidAt,
+                            balanceAmount = rep.balanceAmount ?: c.balanceAmount,
+                            workCompletedAt = rep.workCompletedAt ?: c.workCompletedAt ?: c.balancePaidAt,
+                            updatedAt = now
+                        )
+                    )
+                }.onSuccess { fixed++ }
+            }
         }
+        // 완료가 새로 붙은 건이 있으면 현장 번호를 다시 매긴다(멱등 — 기존 번호는 그대로).
+        if (fixed > 0) renumberRecords(now)
         return fixed
     }
 

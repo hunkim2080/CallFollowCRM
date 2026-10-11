@@ -14023,3 +14023,11 @@ Fable 🧹3. 사장님 "고고"
 - 변경: UI만. VM/서버/데이터모델 영향 없음.
 - §12-K 연결 지점: SwipeRevealBox(+handle)·SwipeRevealThreeBox(제거)·SpamSwipeBox(1버튼으로)·호출부(onMarkSpam/onMarkPersonal 제거, onHandleTap=spamTarget)·spamTarget 시트(순서 정리 주연). 안 건드림: SwipeRevealTwoBox(최근대화 카드), VM.
 - 폰 확인: 테스트폰(S9, Tailscale 무선) 더미 부재중 2건 → ①평소 ⋮+수명 ②⋮탭→시트(정리/광고·스팸/지인) ③밀기→정리 하나, 셋 다 눈으로 확인. 더미 정리(call_records 2→0). BUILD=0·가드7(size −59줄, style 2682 그대로=ThreeBox제거가 +1 상쇄).
+
+## 2026-10-12 · android — 완납인데 '내 기록'엔 "완료 누르기" 버그 (사장님 동남)
+사장님: "완료된 현장(전액 완납)이 왜 내 기록엔 완료 누르라고 뜨냐?" 전액 완납=시공 완료 확인받음.
+원인(§13-④): "잔금 받음"이 **고객 카드만** 찍는 길(`customerRepository.updateBalancePaidAt`)이 8곳(채팅·고객상세·홈 미수·정산)에서 쓰이는데, **건(job)엔 완료/번호를 안 내림**. 내 기록(StatsViewModel)은 **건 기준**(`job.recordNo`, `job.workCompletedAt`)이라 번호가 안 붙어 "완료 누르기"가 남음. 동남은 건에 총액/계약금은 있어서(`anyJobHasMoney=true`) 시작-복구(`repairMoneyMirror`)의 멱등 가드에도 걸려 안 고쳐졌음.
+- 고침1(복구 강화) `JobRepository.repairMoneyMirror`: "건에 돈은 있는데 **완납/완료만 카드에**" 있는 경우도 대표 건으로 끌어올림(balancePaidAt/workCompletedAt) + `renumberRecords`. → **동남 포함 모든 기존 건이 다음 앱 실행 때 자동 완료+번호**. 멱등(이미 건에 balancePaidAt 있으면 안 건드림).
+- 고침2(즉시) `ChatViewModel.markBalancePaid`: 고객 카드 + **대표 건(`setBalancePaid`)까지** 함께 → 재시작 없이 바로 번호. (나머지 7곳은 복구가 다음 실행 때 잡음 — 완전 통합은 건 단위 마이그레이션 follow-up)
+- 변경: 완료/번호 데이터 정합성만. 화면 코드·서버 영향 없음. 돈 값은 그대로(완료/번호만 보강).
+- 폰 확인: 테스트폰(Tailscale) 동남 상태 재현(고객 완납+건 비어있음) → 실행 → DB에서 건 balancePaidAt·workCompletedAt·recordNo=1 붙음 확인 + 내 기록 "시공 전환율 100%" + 다녀온 현장 "완료" 표시 확인. 더미 정리. BUILD=0·가드7 통과(size −52).
