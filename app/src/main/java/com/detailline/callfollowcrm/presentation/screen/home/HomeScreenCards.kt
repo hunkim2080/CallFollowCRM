@@ -1127,3 +1127,43 @@ internal fun NewChipNote(label: String, note: String, onDismiss: () -> Unit) {
         ) { Text("✕", style = AppType.caption, color = TossTextTertiary) }
     }
 }
+
+
+/**
+ * 미확인('답장 기다려요') 카드 우→좌 swipe → [🚫 스팸][👤 지인][🧹 정리].
+ *   threshold 35% (SwipeRevealThreeBox) · 좌→우 비활성(사장님 2026-05-25).
+ *   📍 손잡이(⋮) — 밀 줄 모르는 사람도 눌러서 세 버튼을 연다(2026-10-11 사장님: 다들 모른다).
+ *      부르는 WaitingCard 가 오른쪽 36dp 를 비워둬야 내용이 안 가린다.
+ *   (HomeScreen.kt 에서 옮겨옴 — 같은 패키지라 호출부는 그대로. 2026-10-11 size_guard 상쇄)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SpamSwipeBox(
+    onMarkSpam: () -> Unit,
+    onMarkPersonal: () -> Unit,
+    onCleanup: () -> Unit,
+    /** 처음 한 번 살짝 열렸다 닫히는 힌트(맨 위 카드만). */
+    peekHint: Boolean = false,
+    onPeekShown: () -> Unit = {},
+    content: @Composable () -> Unit
+) {
+    // 스팸=광고/스팸 영구숨김 · 지인=내 개인연락처(문자함 [지인]) · 정리=대기목록에서만. 셋 다 Snackbar Undo.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealThreeBox(
+        onFirst = onMarkSpam,
+        onSecond = onMarkPersonal,
+        onThird = onCleanup,
+        firstLabel = "스팸",
+        secondLabel = "지인",
+        thirdLabel = "정리",
+        firstColor = TossError,
+        secondColor = AppTheme.colors.category,
+        thirdColor = TossBlue,
+        firstIcon = Icons.Filled.Block,
+        secondIcon = Icons.Filled.Person,
+        thirdIcon = Icons.Filled.CleaningServices,
+        shape = RoundedCornerShape(18.dp),  // WaitingCard(18dp)와 모서리 맞춤 — 테두리 비침 fix.
+        handleLabel = "정리",
+        peekHint = peekHint,
+        onPeekShown = onPeekShown
+    ) { content() }
+}

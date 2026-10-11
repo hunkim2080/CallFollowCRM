@@ -388,6 +388,8 @@ fun HomeScreen(
     val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
     // 📦 칩 '자라남' — 처음 생기면 계속 남고(0명이면 흐리게), 처음 생길 때 한 번 안내. (2026-10-08 사장님)
     var chipsSeen by remember { mutableStateOf(prefs.inboxChipsSeen) }
+    // 📍 '답장 기다려요' 카드 밀어서 정리 손잡이 힌트 — 처음 한 번 맨 위 카드가 살짝 열림. (2026-10-11 사장님)
+    var swipeHintSeen by remember { mutableStateOf(prefs.waitingSwipeHintSeen) }
     var newChipKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(chipHasMember, isInitialSmsLoading) {
         if (!prefs.inboxChipsSeeded) {
@@ -1478,6 +1480,9 @@ fun HomeScreen(
                                     }
                                 }
                             },
+                            // 맨 위 카드만, 아직 안 봤을 때 한 번 — 손잡이를 몸으로 알려준다.
+                            peekHint = (!swipeHintSeen && item.record.id == waiting.firstOrNull()?.record?.id),
+                            onPeekShown = { swipeHintSeen = true; prefs.waitingSwipeHintSeen = true },
                             content = {
                                 val choices = waitingReplyChoices[suffix].orEmpty().ifEmpty {
                                     waitingReplies[suffix]?.let {
@@ -3060,41 +3065,6 @@ private fun HomeRow(
 
 
 /**
- * 미확인 카드 우→좌 swipe → "광고/스팸" 영구 마킹.
- *   배경: 빨강 + 🚫 차단 아이콘 — swipe 중 드러나는 affordance.
- *   threshold 60% (Material 표준보다 살짝 높게) — 실수 swipe 방지.
- *   사장님 결정 2026-05-25: 좌→우 방향은 비활성 (다른 의미와 충돌 방지).
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SpamSwipeBox(
-    onMarkSpam: () -> Unit,
-    onMarkPersonal: () -> Unit,
-    onCleanup: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    // 밀면 [🚫 스팸][👤 사생활][🧹 정리] 세 버튼(2026-06-23 사장님). 버튼 눌러야 동작 = 실수 방지.
-    //   스팸=광고/스팸 영구숨김 · 사생활=내 개인연락처 영구숨김(링고 제외) · 정리=대기목록에서만. 셋 다 Snackbar Undo.
-    //   스팸·사생활은 더보기 목록(kind별)에서 [해제]로 복구. undo 시 같은 LazyColumn key 라 카드 자연 복귀.
-    com.detailline.callfollowcrm.presentation.component.SwipeRevealThreeBox(
-        onFirst = onMarkSpam,
-        onSecond = onMarkPersonal,
-        onThird = onCleanup,
-        firstLabel = "스팸",
-        secondLabel = "지인",
-        thirdLabel = "정리",
-        firstColor = TossError,
-        secondColor = AppTheme.colors.category,
-        thirdColor = TossBlue,
-        firstIcon = Icons.Filled.Block,
-        secondIcon = Icons.Filled.Person,
-        thirdIcon = Icons.Filled.CleaningServices,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)   // WaitingCard(18dp)와 모서리 맞춤 — 테두리 비침 fix.
-    ) { content() }
-}
-
-
-/**
  * Compose LocalContext 는 ContextThemeWrapper 일 수 있어 직접 cast 실패.
  *   baseContext 따라가서 Activity 추출 — 뒤로가기 종료용.
  */
@@ -3241,7 +3211,8 @@ private fun WaitingCard(
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .combinedClickable(onClick = { onOpenChat() }, onLongClick = { onLongPress() })
-            .padding(16.dp)
+            // 오른쪽 36dp 는 '밀어서 정리' 손잡이(⋮) 자리 — 내용이 안 가리게 비워둔다. (2026-10-11 사장님)
+            .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 44.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).clip(androidx.compose.foundation.shape.CircleShape).background(heatColor))
@@ -3294,6 +3265,23 @@ private fun WaitingCard(
                 Text(
                     incoming, fontSize = 13.5.sp, color = TossTextPrimary,
                     maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+        // ⏳ 수명 한 줄 — "이거 언제까지 떠 있냐"에 화면이 직접 답한다. (2026-10-11 사장님)
+        //   열어봐도·스크롤해도 안 사라지고 **답장해야** 사라지는 설계를, 헷갈려하는 사람에게 대신 말해준다.
+        //   (7일 지나면 자동으로 빠지는 건 그대로 — 사장님 유지 결정. 날짜 셈은 공용 DateTimeUtils 재사용)
+        run {
+            val sinceMs = item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt
+            val waitingDays = ((DateTimeUtils.startOfDay(System.currentTimeMillis()) - DateTimeUtils.startOfDay(sinceMs)) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)
+            val waitLabel = if (waitingDays <= 0) "오늘 온 문의" else "${waitingDays}일째 기다리는 중"
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Schedule, null, tint = TossTextTertiary, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "$waitLabel · 답장하면 사라져요",
+                    fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium
                 )
             }
         }

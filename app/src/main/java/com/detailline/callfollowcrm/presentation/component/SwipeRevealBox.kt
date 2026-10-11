@@ -21,9 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -255,6 +258,11 @@ private fun RevealActionButton(
 /**
  * SwipeRevealBox 의 "세 버튼" 버전 — 밀면 [첫][둘][셋] 세 개가 드러난다.
  *   (2026-06-23 사장님 — 상담함 대기 카드: [스팸][사생활][정리]). 버튼 64dp 라 갤S9 에서도 들어감.
+ *
+ * 📍 **손잡이(handleLabel)** — 밀기는 간판 없는 숨은 손짓이라 "다들 모른다"(2026-10-11 사장님).
+ *   handleLabel 을 주면 오른쪽 끝에 **눌러서 여는 손잡이(⋮)**를 띄운다. 밀 줄 몰라도 눌러서 세 버튼을 연다.
+ *   밀기도 그대로 된다. 손잡이를 쓰는 카드는 **오른쪽에 그만큼 여백**을 둬야 내용이 안 가린다(지금 36dp).
+ * 📍 **peekHint** — 처음 한 번 카드가 살짝 열렸다 닫히며 "열 수 있다"를 몸으로 보여준다. 끝나면 onPeekShown.
  */
 @Composable
 fun SwipeRevealThreeBox(
@@ -272,6 +280,12 @@ fun SwipeRevealThreeBox(
     thirdIcon: ImageVector,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(14.dp),
+    /** null 이면 손잡이 안 그림(옛 동작 그대로). 접근성 설명용 라벨도 겸한다(예: "정리"). */
+    handleLabel: String? = null,
+    /** 처음 한 번 살짝 열렸다 닫히는 힌트를 보일지. */
+    peekHint: Boolean = false,
+    /** 피크가 끝났을 때 — 호출부가 "봤음" 을 영속 저장하라고. */
+    onPeekShown: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -281,6 +295,17 @@ fun SwipeRevealThreeBox(
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var opened by remember { mutableStateOf(false) }
+
+    // 손잡이로 열기 — 밀 줄 모르는 사람의 길. (밀기와 같은 열림 상태를 공유한다)
+    if (peekHint) {
+        LaunchedEffect(Unit) {
+            delay(450)
+            offsetX.animateTo(-revealPx * 0.24f, tween(420))
+            delay(640)
+            offsetX.animateTo(0f, tween(360))
+            onPeekShown()
+        }
+    }
 
     Box(
         modifier
@@ -330,5 +355,30 @@ fun SwipeRevealThreeBox(
                     }
                 }
         ) { content() }
+
+        // 📍 눌러서 여는 손잡이 — 밀 줄 모르는 사람의 길(2026-10-11 사장님: "다들 모른다, UI가 문제").
+        //   오른쪽 끝 36dp. 닫혀 있을 때만 보이고(열리면 alpha 로 사라져 뒤 버튼을 안 가린다), 누르면 세 버튼이 열린다.
+        if (handleLabel != null) {
+            val frac = (-offsetX.value / revealPx).coerceIn(0f, 1f)   // 0=닫힘 … 1=열림
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(36.dp)
+                    .graphicsLayer { alpha = 1f - frac }
+                    // 열리는 중/열림엔 비활성 → 뒤 [스팸][지인][정리] 버튼이 탭을 받는다.
+                    .clickable(enabled = frac < 0.08f) {
+                        opened = true
+                        scope.launch { offsetX.animateTo(-revealPx, tween(240)) }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.MoreVert, handleLabel,
+                    tint = AppTheme.colors.textHint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
     }
 }

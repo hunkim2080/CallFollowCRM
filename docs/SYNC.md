@@ -14003,3 +14003,13 @@ Fable 🧹3. 사장님 "고고"
 
 ## 2026-10-10 · android — 전화카드 '새 문의'는 최초 통화만 (사장님)
 신규가 2번째 전화인데 '새 문의'로 떠 당황(사장님). IncomingCallOverlay 상태: 모르는 번호도 callNo>=2 면 REPEAT('N번째 통화')로. 광고·집전화는 먼저 빠져 그대로. 1번째만 NEW('새 문의').
+
+## 2026-10-11 · android — 상담함 '답장 기다려요' 카드: 밀어서 정리 손잡이 + 수명 줄 (사장님)
+사장님: "답장 안 보낸 메시지가 언제까지 떠있냐고들 물어본다 + 밀어서 정리/지인/스팸을 다들 모른다. UI가 문제인가". 의도 확인: 열어봐도 안 사라지고 **답장해야** 사라지게(안 놓치려고) 만든 것 — 맞음. 프로토 A안 승인(artifact/QA2yU1cFNJkNRU5Kwr4Ytq).
+- **손잡이(⋮)**: 밀기는 간판 없는 숨은 손짓이라 발견 못함 → 공용 `SwipeRevealThreeBox`에 `handleLabel` 추가(오른쪽 36dp, 눌러서 [스팸][지인][정리] 열림, 밀기도 그대로, 열리면 alpha로 사라져 버튼 안 가림). 유일 호출자=SpamSwipeBox.
+- **피크**: `peekHint`로 처음 1회 맨 위 카드만 살짝 열렸다 닫힘. `AppPreferences.waitingSwipeHintSeen`(영속).
+- **수명 줄**: WaitingCard에 "N일째 기다리는 중 · 답장하면 사라져요"(오늘=오늘 온 문의). 날짜 셈=공용 `DateTimeUtils.startOfDay/DAY_MS`. **7일 자동빠짐은 그대로**(사장님 유지 결정, VM 로직 안 건드림).
+- size_guard 상쇄: `SpamSwipeBox`를 HomeScreen.kt→`HomeScreenCards.kt`로 이동(같은 패키지, 호출부 그대로). style +1(수명줄 fontSize 리터럴, 카드 관례와 일관) → styleBaselineUpdate(2681→2682).
+- 변경: UI만. 서버/동기화/알림/데이터모델 영향 없음.
+- §12-K 연결 지점 5곳 다 확인 — 바꾼 곳: WaitingCard·SpamSwipeBox·SwipeRevealThreeBox·AppPreferences·HomeScreen 호출부. 둬도 됨: SwipeRevealBox/TwoBox(기본 off), 꾹 누르기 시트(단축 유지), VM 7일 로직.
+- 폰 확인: 테스트폰(S9, Tailscale 무선 adb)에 더미 부재중 2건 시드 → 상담함에서 손잡이+수명 줄 눈으로 확인, 손잡이 탭→[스팸][지인][정리] 열림 확인. 더미 정리 완료(call_records 2→0). BUILD=0·가드7 통과.

@@ -712,6 +712,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_HAS_SEEN_LOGIN, false)
         set(value) = prefs.edit().putBoolean(KEY_HAS_SEEN_LOGIN, value).apply()
 
+    /** 상담함 '답장 기다려요' 카드의 **밀어서 정리 손잡이 힌트**(처음 한 번 맨 위 카드가 살짝 열렸다 닫힘)를 봤는지.
+     *   밀기/꾹누르기가 간판 없는 숨은 손짓이라 "다들 모른다" → 손잡이로 알려준다. (2026-10-11 사장님) */
+    var waitingSwipeHintSeen: Boolean
+        get() = prefs.getBoolean(KEY_WAITING_SWIPE_HINT, false)
+        set(value) = prefs.edit().putBoolean(KEY_WAITING_SWIPE_HINT, value).apply()
+
     /** 전면 리뉴얼 온보딩(스토리텔링 + 업종 + 상호·지역 + 막내 비서 탄생) 완료 여부. */
     var hasOnboarded: Boolean
         get() = prefs.getBoolean(KEY_HAS_ONBOARDED, false)
@@ -1160,6 +1166,7 @@ class AppPreferences(context: Context) {
         private const val KEY_TONE_TOTAL_UPLOADED = "tone_total_uploaded"
         private const val KEY_AUTO_CATEGORY_BACKFILLED = "auto_category_backfilled"
         private const val KEY_HAS_SEEN_LOGIN = "has_seen_login"
+        private const val KEY_WAITING_SWIPE_HINT = "waiting_swipe_hint_seen"
         private const val KEY_HAS_ONBOARDED = "has_onboarded"
         private const val KEY_OWNER_REGIONS = "owner_regions"
         private const val KEY_BIZ_NAME = "biz_name"
