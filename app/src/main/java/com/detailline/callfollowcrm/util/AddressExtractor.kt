@@ -194,6 +194,18 @@ object AddressExtractor {
     )
 
     /**
+     * 패턴 J(지번): 시/도·시/군/구 없이 **"동/읍/면/리 + 번지"만** 있는 순수 지번.
+     *   "학의동 632-32" · "영천동 720" — 앞 패턴들이 전부 시/도·시/구·아파트명 중 하나를 증거로
+     *   요구해 이런 흔한 주소를 통째로 놓쳤다. (2026-10-12 사장님: 채팅에서 주소가 파랗게 안 떠 탭 등록 못 함)
+     *   🔴 오탐 방지: '동/면/리'로 끝나는 흔한 낱말(노동·운동·활동 …) 뒤에 숫자가 오는 문장을 안 집으려고,
+     *     번지에 **하이픈(632-32)** 또는 **3자리 이상 숫자(720)** 를 요구한다 — 진짜 번지는 보통 그렇고
+     *     흔한 낱말 뒤 숫자는 1~2자리(시간·개·명·회)라 걸러진다. 뒤에 '호'가 오면 동호수라 제외.
+     */
+    private val patternJibun = Regex(
+        "(?<!\\d)[가-힣]{1,15}(?:동|읍|면|리)\\s*(?:\\d{1,5}-\\d{1,5}|\\d{3,5})(?!\\s*호)"
+    )
+
+    /**
      * 2026-05-30 사장님 #6 통점 fix — 동호수 캡처.
      *   pattern1/2 매칭 후 본문 뒤 부분에 "{N}동 {N}호" 또는 "{N}호" 가 가까이 (40자 이내) 있으면 합쳐서 반환.
      *   예: "송파구 잠실엘스 101동 1503호" → pattern2 가 "송파구 잠실엘스..." 매칭 후 뒤에 "101동 1503호" 합침.
@@ -256,6 +268,16 @@ object AddressExtractor {
         // 패턴 3 (아파트) 는 이미 동호수 포함이라 그대로 반환.
         pattern3.find(body)?.let {
             return Found(it.value.trim(), it.range.first, it.range.last + 1)
+        }
+        // 시/구 없는 순수 지번 "동+번지" — 마지막 수단(가장 느슨해 맨 뒤). 동호수가 붙어 있으면 이어붙인다.
+        //   (2026-10-12 사장님: 채팅에서 "학의동 632-32" 가 파랗게 안 떠 탭 등록 못 함)
+        patternJibun.find(body)?.let { m ->
+            val base = m.value.trim()
+            val merged = appendDongHo(body, m.range, base)
+            val end = if (merged.length > base.length) {
+                (m.range.last + 1 + (merged.length - base.length)).coerceAtMost(body.length)
+            } else m.range.last + 1
+            return Found(merged, m.range.first, end)
         }
         return null
     }

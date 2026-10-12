@@ -14036,3 +14036,10 @@ Fable 🧹3. 사장님 "고고"
 "또 이런 두벌 있나" 감사 결과: 돈·완료 가족(잔금·계약금·완료·금액)은 전부 "건 있으면 건, 없으면 고객" 패턴으로 올바름. 유일 구멍=채팅 잔금(어제 고침). 단 시작-복구(repairMoneyMirror)가 잔금(balance)만 끌어올리고 계약금(deposit)은 안 끌어올리는 형제 구멍이 있어 대칭으로 막음.
 - repairMoneyMirror: 건에 돈은 있는데 **계약금 받음(depositPaidAt)**만 카드에 있는 경우도 대표 건으로 끌어올림(balance와 동일 패턴, 멱등). → 정산(건 기준) 현금흐름에서 계약금 누락 방지.
 - 폰 확인: 테스트폰에서 계약금만 카드에 찍힌 상태 재현 → 실행 → logcat "MoneyRepair 1개" + DB(WAL까지)에서 건 depositPaidAt 붙음, 완료는 안 붙음(계약금≠완료) 확인. BUILD=0·가드7.
+
+## 2026-10-12 · android — 버그 3건 (사장님: 주소 파란색·S23U 네비바·템플릿 사진)
+① **채팅 주소 하이라이트** — "학의동 632-32"처럼 시/도·시/구 없이 "동+번지"만 있는 지번이 파랗게 안 떠 탭 등록을 못 함. AddressExtractor 패턴들이 전부 시/도·시/구·아파트명 중 하나를 요구. → findOneRaw 에 **patternJibun**(동/읍/면/리 + 번지) 추가, 맨 뒤(가장 느슨). 오탐 방지로 **하이픈(632-32) 또는 3자리+ 숫자(720)** 요구 → "노동 5"·"운동 30분" 안 걸림. AddressExtractorTest +5(양성 3·오탐 2). 전체 테스트 통과.
+② **S23U 바텀시트 네비바 가림** — "구글 캘린더에 올린 일정"(CalendarSyncSheet, ScheduleParts.kt) 하단 버튼이 네비바에 짤림. 원인: 이 시트는 **Dialog 창** 안인데 `keyboardOrNavPadding()`(인셋 직접)을 써서 삼성 Dialog에서 네비바 인셋 0 → 여백 0. → 앱의 다른 모든 Dialog 시트와 동일하게 `bottomBarClearance()`(인셋 0이면 리소스 fallback)로 교체. 한 줄.
+③ **문자 템플릿 관리 화면에 사진 안 보임** — 템플릿 사진은 template_attachments 테이블인데 관리 화면 VM/UI가 그걸 아예 안 읽음(채팅 피커만 읽어 거기만 보임). → TemplateAttachmentRepository 에 공용 `observeFirstImageUriByTemplate()` 추가(채팅의 인라인 map 을 공용화=두 벌 제거), TemplateListViewModel.photoByTemplate + TemplateListScreen 행에 썸네일(채팅과 동일 40dp).
+- 변경: UI/감지만. 서버·데이터모델 영향 없음.
+- 폰 확인: ① 단위테스트(학의동 632-32 등) 통과. ②③ 는 S9에선 재현 불가(S23U 네비바 인셋0 / 사진 템플릿 유무)라 검증된 패턴으로 적용 — 사장님 S23U 에서 확인 필요. BUILD=0·가드7(style 2683, size −57).

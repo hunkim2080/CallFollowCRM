@@ -121,7 +121,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import com.detailline.callfollowcrm.util.PhoneKey
 
 // ======================================================================
@@ -769,9 +769,11 @@ internal fun CalendarSyncSheet(
                 .background(AppTheme.colors.surface)
                 .clickable(interactionSource = noRipple, indication = null) { }
                 .heightIn(max = 620.dp)
-                // 🧷 바닥 버튼이 네비바에 짤리던 것 — 고정 22dp 대신 공용 여백으로. (2026-10-06 사장님 "또 짤림")
+                // 🧷 바닥 버튼이 네비바에 짤리던 것 — 이 시트는 **Dialog 창** 안이라 keyboardOrNavPadding(인셋 직접)은
+                //   삼성(S23U)에서 네비바 인셋이 0으로 와 또 짤렸다. Dialog 시트는 인셋 0이면 리소스로 fallback 하는
+                //   bottomBarClearance 를 쓴다(앱의 다른 Dialog 시트와 동일). (2026-10-12 사장님 "또 이버그 네비바에 가리는거")
                 .padding(horizontal = 20.dp).padding(top = 12.dp)
-                .keyboardOrNavPadding()
+                .bottomBarClearance()
         ) {
             androidx.compose.foundation.layout.Box(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)

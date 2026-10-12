@@ -157,4 +157,30 @@ class AddressExtractorTest {
         // 동만 있는 케이스 — 빈 것보단 동네라도.
         assertTrue(AddressExtractor.roughSite("천호동 어딘가").contains("천호동"))
     }
+
+    // ---------- 패턴 J: 시/구 없는 순수 지번 "동+번지" (2026-10-12 사장님 학의동) ----------
+
+    @Test fun `동 + 하이픈 번지 - 시구 없이도 잡는다`() {
+        val r = AddressExtractor.extractOne("학의동 632-32 시공범위보내드립니다. 목요일에 입금드릴게요")
+        assertEquals("학의동 632-32", r)
+    }
+
+    @Test fun `동 + 세자리 번지 - 시구 없이도 잡는다`() {
+        assertEquals("영천동 720", AddressExtractor.extractOne("영천동 720 입니다"))
+    }
+
+    @Test fun `읍면리 + 하이픈 번지`() {
+        assertEquals("오산리 15-3", AddressExtractor.extractOne("오산리 15-3 현장이에요"))
+    }
+
+    @Test fun `오탐 방지 - 동으로 끝나는 낱말 + 작은 숫자는 주소 아님`() {
+        assertNull(AddressExtractor.extractOne("노동 5시간 했어요"))
+        assertNull(AddressExtractor.extractOne("운동 30분 하고 왔어요"))
+    }
+
+    @Test fun `오탐 방지 - 숫자동은 동호수지 지번 아님`() {
+        // "3동 101호" 를 지번으로 오해해 "동 101" 같은 걸 뱉으면 안 된다.
+        val r = AddressExtractor.extractOne("3동 101호로 와주세요")
+        assertTrue(r == null || r!!.contains("호"))
+    }
 }

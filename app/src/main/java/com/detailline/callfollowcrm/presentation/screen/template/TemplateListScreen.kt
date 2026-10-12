@@ -67,6 +67,8 @@ fun TemplateListScreen(
     onOpenDiscover: () -> Unit = {}
 ) {
     val templates by viewModel.templates.collectAsState()
+    // 문구ID → 첫 사진 URI. 채팅 피커와 같은 공용 셈 — 등록한 사진을 이 화면에도 썸네일로. (2026-10-12 사장님)
+    val photoByTemplate by viewModel.photoByTemplate.collectAsState()
     // 펼친 줄 하나. LazyColumn **밖**에 둔다 — 안에 두면 스크롤로 밀려날 때 잊어버린다.
     var openId by remember { mutableStateOf<Long?>(null) }
     var renameTarget by remember { mutableStateOf<MessageTemplateEntity?>(null) }
@@ -175,6 +177,17 @@ fun TemplateListScreen(
                                                 .clickable { openId = if (open) null else t.id }
                                                 .padding(horizontal = 14.dp, vertical = 11.dp)
                                         ) {
+                                            // 사진 붙은 문구면 썸네일 — 채팅 피커와 똑같이 "사진 있는 문구"임을 목록에서 바로 알게. (2026-10-12 사장님)
+                                            val photoUri = photoByTemplate[t.id]
+                                            if (photoUri != null) {
+                                                coil.compose.AsyncImage(
+                                                    model = photoUri,
+                                                    contentDescription = "문구 사진",
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
+                                                )
+                                                Spacer(Modifier.width(10.dp))
+                                            }
                                             Column(Modifier.weight(1f)) {
                                                 Text(
                                                     t.title.ifBlank { t.body.lineSequence().firstOrNull().orEmpty() },

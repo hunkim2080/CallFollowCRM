@@ -110,14 +110,9 @@ class ChatViewModel(
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
-    /** 문구ID → 그 문구의 **첫 사진 URI**. 문구 넣기 목록에서 사진 썸네일 표시용. (2026-07-18 사장님) */
+    /** 문구ID → 그 문구의 **첫 사진 URI**. 문구 넣기 목록 썸네일용. 셈은 공용(문구 관리 화면과 같이 쓴다). (2026-07-18 · 2026-10-12 공용화) */
     val templatePhotoByTemplate: StateFlow<Map<Long, String>> =
-        container.templateAttachmentRepository.observeAll()
-            .map { list ->
-                list.filter { it.mimeType.startsWith("image/") }
-                    .groupBy { it.templateId }
-                    .mapValues { (_, atts) -> atts.minByOrNull { it.sortOrder }!!.fileUri }
-            }
+        container.templateAttachmentRepository.observeFirstImageUriByTemplate()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** 문구 넣기 시트에서 바로 문구 삭제 (2026-06-07). */
