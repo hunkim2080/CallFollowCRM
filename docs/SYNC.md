@@ -14059,3 +14059,9 @@ Fable 🧹3. 사장님 "고고"
 - 화면: NotificationCenterScreen + VM. 라우트 Destinations.NOTIFICATIONS, AppNavHost composable(탭→navTarget 매핑: chat/collab/schedule/settlement, 없으면 삭제만). HomeScreen 🔔 버튼+배지+onOpenNotifications(HomeViewModel.notificationCount).
 - 폰 확인: 테스트폰(Tailscale) v65 마이그레이션 OK → 알림 3건 시드 → 🔔 배지 → 센터(오늘/어제 그룹) → 첫 줄 탭 → 대화 이동 + 그 줄 삭제 확인. BUILD=0·가드7(size 34040·style 2693 — 새 기능/화면 justified 갱신).
 - 남음(follow-up): showProtoPush 경로 알림에 nav 추가(balance→settlement, collab→collab 등), showSummaryReady 훅, 배지 숫자 폴리시.
+
+## 2026-10-13 09:10 · android
+알림 뱃지 숫자 잘림 + Play 배포 실패 CI 수정
+- 변경: `.github/workflows/play-deploy.yml` changesNotSentForReview true→false (Play 가 "자동 검토제출" 모드로 전환돼 이 파라미터 거부). HomeScreen 알림 뱃지 Text includeFontPadding=false + lineHeight 9sp (숫자 "2" 바닥 잘림 수정).
+- 폰 확인: 테스트폰(S9+ 100.121.10.111) 뱃지 1·2 둘 다 중앙 정렬 깔끔 — 스샷 확인. assembleRelease 가드 7개 통과.
+- 다음 액션: 사장님 확인 후 내부테스트 재배포(태그). 협업 예약취소 전파 버그는 조사완료·구현 대기(사장님 승인 후).
