@@ -376,15 +376,19 @@ class JobRepository(
                         )
                     )
                 }.onSuccess { fixed++ }
-            } else if (rep.balancePaidAt == null && c.balancePaidAt != null) {
-                // 🩹 (2026-10-12 사장님 동남) 건에 총액·계약금은 있는데 **완납/완료만 카드에** 있는 경우 — 그것만 끌어올린다.
-                //   채팅·정산·미수 카드의 '잔금 받음'(updateBalancePaidAt)이 건을 안 거치고 카드에만 찍혀,
-                //   '내 기록'(건 기준)에 번호가 안 붙고 "완료 누르기"가 남던 것. 전액 완납=시공 완료(사장님). 멱등.
+            } else if ((rep.balancePaidAt == null && c.balancePaidAt != null) ||
+                (rep.depositPaidAt == null && c.depositPaidAt != null)) {
+                // 🩹 (2026-10-12 사장님 동남) 건에 총액 등은 있는데 **받음(완납·계약금)·완료만 카드에** 있는 경우 — 그것만 끌어올린다.
+                //   채팅·정산·미수 카드의 '잔금/계약금 받음'(updateBalancePaidAt/updateDepositPaidAt)이 건을 안 거치고
+                //   카드에만 찍혀, '내 기록'(건 기준) 번호가 안 붙거나 정산에서 받은 돈이 빠지던 것. 멱등(빈 칸만 채움).
+                //   전액 완납=시공 완료(사장님). 계약금만 받은 경우는 완료 아님(c.balancePaidAt==null).
                 runCatching {
                     jobDao.update(
                         rep.copy(
-                            balancePaidAt = c.balancePaidAt,
+                            balancePaidAt = rep.balancePaidAt ?: c.balancePaidAt,
                             balanceAmount = rep.balanceAmount ?: c.balanceAmount,
+                            depositPaidAt = rep.depositPaidAt ?: c.depositPaidAt,
+                            depositAmount = rep.depositAmount ?: c.depositAmount,
                             workCompletedAt = rep.workCompletedAt ?: c.workCompletedAt ?: c.balancePaidAt,
                             updatedAt = now
                         )
