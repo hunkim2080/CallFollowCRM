@@ -1138,7 +1138,12 @@ object NotificationHelper {
         note: String? = null,
         contentIntent: PendingIntent? = null,
         actions: List<PushAction> = emptyList(),
-        timeoutMs: Long? = null
+        timeoutMs: Long? = null,
+        // 🔔 알림 센터 — 탭하면 갈 곳(없으면 탭해도 삭제만). 종류는 채널로 자동 분류. (2026-10-13 사장님)
+        navTarget: String? = null,
+        navPhone: String? = null,
+        navCustomerId: Long? = null,
+        navShareId: String? = null,
     ) {
         val bigText = buildString {
             append(msg)
@@ -1162,6 +1167,26 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+        // 🔔 여기로 흐르는 모든 알림을 알림 센터에도 한 줄 기록(푸시 지워도 남게). 종류는 채널로 분류.
+        NotificationLog.record(
+            type = typeForChannel(channelId), title = title, body = msg,
+            navTarget = navTarget, navPhone = navPhone, navCustomerId = navCustomerId, navShareId = navShareId,
+        )
+    }
+
+    /** 채널 → 알림 센터 분류(아이콘). 모르면 etc(🔔). */
+    private fun typeForChannel(ch: String): String = when {
+        ch.startsWith("collab") -> "collab"
+        ch.startsWith("install_d1") -> "install_d1"
+        ch.startsWith("daily_brief") -> "daily_brief"
+        ch.startsWith("recurring") -> "recurring"
+        ch.startsWith("intake") -> "intake"
+        ch.startsWith("reminder") -> "reminder"
+        ch.startsWith("call_summary") -> "call_summary"
+        ch == CHANNEL_INCOMING_SMS_NEW -> "new_inquiry"
+        ch == CHANNEL_INCOMING_SMS -> "reply"
+        ch == CHANNEL_FOLLOW_UP || ch == CHANNEL_FOLLOW_UP_QUIET -> "missed_call"
+        else -> "etc"
     }
 
     /**
@@ -1436,6 +1461,13 @@ object NotificationHelper {
             NotificationManagerCompat.from(context)
                 .notify(smsNotificationId(phone), builder.build())
         }
+        // 🔔 알림 센터에도 남긴다 — 푸시 지워도 "뭐 왔었지" 해결. 탭하면 그 대화로. (2026-10-13 사장님)
+        NotificationLog.record(
+            type = if (isNewCustomer) "new_inquiry" else "reply",
+            title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)),
+            body = body,
+            navTarget = "chat", navPhone = phone, navCustomerId = customerId, at = receivedAtMs,
+        )
     }
 
     /**
@@ -1478,6 +1510,11 @@ object NotificationHelper {
         runCatching {
             NotificationManagerCompat.from(context).notify(smsNotificationId(phone), builder.build())
         }
+        NotificationLog.record(
+            type = "general_sms",
+            title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)),
+            body = body, navTarget = "chat", navPhone = phone, navCustomerId = customerId, at = receivedAtMs,
+        )
     }
 
     /**
@@ -1599,6 +1636,10 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+        NotificationLog.record(
+            type = "missed_call", title = title, body = text,
+            navTarget = "chat", navPhone = phoneNumber, navCustomerId = customerId,
+        )
     }
 
     /**

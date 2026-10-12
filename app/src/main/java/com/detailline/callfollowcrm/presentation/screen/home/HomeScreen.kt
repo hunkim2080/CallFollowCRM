@@ -77,6 +77,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
@@ -223,7 +224,8 @@ fun HomeScreen(
     /** 📮 홈 맨 위 주황 띠 → 「아직 못 보낸 것」 목록. (2026-10-04 우체통 2단계) */
     onOpenOutboxTrouble: () -> Unit = {},
     /** "{업종} AI" 뱃지 탭 → 업종 선택(대표업종 1개). 업종 데이터 수집 → 시공 시장 빅데이터. (2026-09-01 사장님) */
-    onOpenTradeSelect: () -> Unit = {}
+    onOpenTradeSelect: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     // 상단 고정(핀) 거래처 suffix — 상담함 '고정' 칸 분리 + '답장 기다려요' 제외. (2026-08-24 사장님)
@@ -515,6 +517,7 @@ fun HomeScreen(
                 (context.applicationContext as CallFollowCrmApplication).container.preferences
                     .ownerTrades.firstOrNull()?.takeIf { it.isNotBlank() } ?: "시공"
             }
+            val notiCount by viewModel.notificationCount.collectAsState()
             Column(Modifier.fillMaxWidth().background(TossGrayBg)) {
             Row(
                 modifier = Modifier
@@ -535,6 +538,35 @@ fun HomeScreen(
                     // 탭 → 업종 선택(대표업종 1개). 업종 데이터 수집 → 시공 시장 빅데이터. 서버상태는 뱃지 점 색으로 표시. (2026-09-01 사장님)
                     onClick = onOpenTradeSelect
                 )
+                Spacer(Modifier.width(6.dp))
+                // 🔔 알림 센터 — 새 활동 한눈에. 쌓인 수를 빨간 딱지로. (2026-10-13 사장님)
+                //   딱지가 원형 clip 에 안 잘리게 **겉 Box(안 잘림)** 로 감싸고 딱지는 그 위에.
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color.White)
+                            .clickable { onOpenNotifications() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Notifications, "알림", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
+                    }
+                    if (notiCount > 0) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp)
+                                .size(16.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(TossError),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (notiCount > 99) "99" else "$notiCount",
+                                color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.width(6.dp))
                 // 프로토 상담함 앱바 👤 고객 · 🔍 검색 — 흰 원형 아이콘 버튼.
                 Box(

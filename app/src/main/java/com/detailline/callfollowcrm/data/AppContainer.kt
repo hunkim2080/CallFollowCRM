@@ -97,6 +97,9 @@ class AppContainer(context: Context) {
         customerRepository = customerRepository
     )
     val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
+    // 🔔 인앱 알림 센터 — 만들 때 NotificationLog 에 꽂아, NotificationHelper 가 쏠 때마다 기록되게. (2026-10-13 사장님)
+    val appNotificationRepository = com.detailline.callfollowcrm.data.repository.AppNotificationRepository(db.appNotificationDao())
+        .also { com.detailline.callfollowcrm.service.NotificationLog.init(it) }
     // 사용자 여정 이벤트(화면진입·버튼·캡쳐·LLM) — 30초 배치 → POST /api/event. (2026-06-23 사장님)
     val journeyEventRepository = com.detailline.callfollowcrm.ai.JourneyEventRepository()
     // 정산 Phase 2 (DB v20) — 직접 현금 기록.

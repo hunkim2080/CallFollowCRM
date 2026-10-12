@@ -10,6 +10,7 @@ object Destinations {
     const val PERMISSIONS = "permissions"
     const val SETUP = "setup"                 // 연결 마법사 (권한 다음 — 통화녹음 연결)
     const val HOME = "home"
+    const val NOTIFICATIONS = "notifications"   // 🔔 인앱 알림 센터 (2026-10-13 사장님)
     const val FOLLOW_UP = "follow_up"
     const val FOLLOW_UP_WITH_ARG = "follow_up?phone={phone}&callRecordId={callRecordId}&templateId={templateId}"
     fun followUp(phone: String? = null, callRecordId: Long? = null, templateId: Long? = null): String {

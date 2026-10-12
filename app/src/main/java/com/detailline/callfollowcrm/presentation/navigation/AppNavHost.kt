@@ -354,7 +354,29 @@ fun AppNavHost(
                     )
                 },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
-                onOpenOutboxTrouble = { navController.navigate(Destinations.OUTBOX_TROUBLE) }
+                onOpenOutboxTrouble = { navController.navigate(Destinations.OUTBOX_TROUBLE) },
+                onOpenNotifications = { navController.navigate(Destinations.NOTIFICATIONS) }
+            )
+        }
+
+        // 🔔 알림 센터 (2026-10-13 사장님) — 탭하면 그 목적지로 이동하며 그 줄 삭제(VM 이 dismiss).
+        composable(Destinations.NOTIFICATIONS) {
+            val nvm: com.detailline.callfollowcrm.presentation.screen.notification.NotificationCenterViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.notification.NotificationCenterViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.notification.NotificationCenterScreen(
+                viewModel = nvm,
+                onBack = { navController.popBackStack() },
+                onOpen = { n ->
+                    when (n.navTarget) {
+                        "chat" -> if (!n.navPhone.isNullOrBlank()) navController.navigate(Destinations.chat(n.navPhone!!, n.navCustomerId))
+                        "collab" -> navController.navigate(Destinations.collabSites(n.navShareId))
+                        "schedule" -> navController.navigate(Destinations.SCHEDULE)
+                        "settlement" -> navController.navigate(Destinations.SETTLEMENT)
+                        "intake" -> if (!n.navPhone.isNullOrBlank()) navController.navigate(Destinations.chat(n.navPhone!!, n.navCustomerId))
+                            else navController.navigate(Destinations.HOME)
+                        else -> {}   // 목적지 없으면 삭제만(화면이 dismiss)
+                    }
+                }
             )
         }
 

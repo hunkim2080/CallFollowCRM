@@ -14050,3 +14050,12 @@ Fable 🧹3. 사장님 "고고"
 - 실측: "학의동 632-32" → resolved "경기 의왕시 학의동 632-32" + road "경기 의왕시 백운로 387", source=kakao(0.9). 전엔 llm(0.6) echo.
 - 변경: 서버만. 앱 업데이트 없이 모든 버전에 즉시 적용(서버 응답이 바뀜).
 - 배포: 라이브 핫픽스(GOTCHAS §3) — 백업 main.py.bak-20261012-195918 → swap → kickstart → smoke 10/10 통과. repo server/main.py 동일 패치 push.
+
+## 2026-10-13 · android — 🔔 인앱 알림 센터 (사장님: 신규 활동 한눈에 + 푸시 지워도 뭐 왔었지)
+프로토 artifact/4nYTBPyryAh4yQeY7axupc 승인. 상담함 우측 상단 🔔(쌓인 수 빨간 딱지) → 알림 센터(시간순 오늘/어제/지난7일). 탭하면 그 목적지로 이동 + 그 줄 삭제(사장님: "클릭 한번 하면 없어져야지"). 자동삭제 없음(상한 500). [모두 지우기].
+- 새 데이터: Room `app_notifications`(type·title·body·nav{Target,Phone,CustomerId,ShareId}·createdAt), DB v64→65(MIGRATION_64_65). DAO/Repository/AppContainer.
+- 기록 한 곳: `NotificationLog`(IO 스코프 fire-and-forget). AppContainer 생성 시 init.
+- 훅: 공통 헬퍼 `NotificationHelper.showProtoPush` 한 곳 → 25종(install_d1·balance·collab×10·daily_brief·recurring·intake·autoReply·send-failed 등) 자동 기록(종류=채널 분류 typeForChannel). 직접 notify 3개 추가: showIncomingSms(새문의/답장)·showGeneralSms(문자함)·showQuietFollowUp(부재중) — nav(chat)까지. (showProtoPush 경로는 기록만, nav는 호출부가 navTarget 넘기면 — follow-up)
+- 화면: NotificationCenterScreen + VM. 라우트 Destinations.NOTIFICATIONS, AppNavHost composable(탭→navTarget 매핑: chat/collab/schedule/settlement, 없으면 삭제만). HomeScreen 🔔 버튼+배지+onOpenNotifications(HomeViewModel.notificationCount).
+- 폰 확인: 테스트폰(Tailscale) v65 마이그레이션 OK → 알림 3건 시드 → 🔔 배지 → 센터(오늘/어제 그룹) → 첫 줄 탭 → 대화 이동 + 그 줄 삭제 확인. BUILD=0·가드7(size 34040·style 2693 — 새 기능/화면 justified 갱신).
+- 남음(follow-up): showProtoPush 경로 알림에 nav 추가(balance→settlement, collab→collab 등), showSummaryReady 훅, 배지 숫자 폴리시.
