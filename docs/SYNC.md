@@ -14043,3 +14043,10 @@ Fable 🧹3. 사장님 "고고"
 ③ **문자 템플릿 관리 화면에 사진 안 보임** — 템플릿 사진은 template_attachments 테이블인데 관리 화면 VM/UI가 그걸 아예 안 읽음(채팅 피커만 읽어 거기만 보임). → TemplateAttachmentRepository 에 공용 `observeFirstImageUriByTemplate()` 추가(채팅의 인라인 map 을 공용화=두 벌 제거), TemplateListViewModel.photoByTemplate + TemplateListScreen 행에 썸네일(채팅과 동일 40dp).
 - 변경: UI/감지만. 서버·데이터모델 영향 없음.
 - 폰 확인: ① 단위테스트(학의동 632-32 등) 통과. ②③ 는 S9에선 재현 불가(S23U 네비바 인셋0 / 사진 템플릿 유무)라 검증된 패턴으로 적용 — 사장님 S23U 에서 확인 필요. BUILD=0·가드7(style 2683, size −57).
+
+## 2026-10-12 · android (+ server) — 주소 조회: 카카오 주소검색 추가 (사장님 학의동 632-32)
+앱 fix①(동+번지 하이라이트)로 "학의동 632-32"가 파랗게 떠 탭 등록 시트까지 갔는데, "지도에서 찾기"가 풀주소로 못 바꿈("확인 못 했어요"). 원인: 서버 /api/address-resolve 가 카카오 키워드 검색(keyword.json)만 씀 — 장소·아파트명엔 맞지만 순수 지번은 0건. 네이버는 찾는데 앱은 못 찾던 것.
+- 서버 _search_kakao_local: 키워드 0건이면 주소 검색(address.json)으로 한 번 더. 공용 _kakao_search(url,params) 로 묶음. address.json 결과(road 중첩)는 keyword 모양으로 펴서 반환.
+- 실측: "학의동 632-32" → resolved "경기 의왕시 학의동 632-32" + road "경기 의왕시 백운로 387", source=kakao(0.9). 전엔 llm(0.6) echo.
+- 변경: 서버만. 앱 업데이트 없이 모든 버전에 즉시 적용(서버 응답이 바뀜).
+- 배포: 라이브 핫픽스(GOTCHAS §3) — 백업 main.py.bak-20261012-195918 → swap → kickstart → smoke 10/10 통과. repo server/main.py 동일 패치 push.

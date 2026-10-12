@@ -15045,40 +15045,62 @@ class AddressResolveRequest(BaseModel):
     context_text: Optional[str] = None
 
 
-async def _search_kakao_local(query: str) -> Optional[dict]:
-    """카카오 키워드 검색. 첫 hit 반환.
-
-    실패(키 없음 / 네트워크 오류 / 200 아님 / docs 빈 배열) 시 None.
-
-    🔴 2026-09-16: 예전엔 `category_group_code="AP1"`(아파트) 을 같이 보냈는데 **그런 코드는 없다.**
-       카카오가 매번 ValidationError(400) 로 거절 → 이 검색은 만들어진 이래 **한 번도 성공한 적이 없다.**
-       (앱이 이 API 를 안 부르고 있어서 아무도 몰랐고, 키 쿼터 오류가 한 번 더 가렸다.)
-       카카오의 유효 코드는 MT1·CS2·PS3·SC4·AC5·PK6·OL7·SW8·BK9·CT1·AG2·PO3·AT4·AD5·FD6·CE7·HP8·PM9 뿐.
-       아파트 전용 코드가 없으므로 **필터 없이** 키워드로 찾는다(어차피 우리가 넣는 말이 단지명이다).
-    """
-    if not KAKAO_REST_API_KEY:
-        return None
-    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
+async def _kakao_search(url: str, params: dict, query: str) -> Optional[dict]:
+    """카카오 로컬 GET — 첫 hit(dict) 반환. 실패/0건 시 None (status 이유도 로그)."""
     headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
-    params = {"query": query, "size": 5}
     try:
         async with httpx.AsyncClient(timeout=KAKAO_TIMEOUT_SEC) as client:
             resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
-            # 카카오가 준 이유를 같이 남긴다 — 숫자만 적어두면 원인을 찾을 때 또 직접 물어봐야 한다.
-            #   403 = 앱에서 카카오맵 기능이 꺼짐 / 400 "API limit has been exceeded" = 그 앱에 무료 쿼터가 없음.
             why = ""
             try:
                 why = " · " + (resp.json().get("message") or "")[:120]
             except Exception:
                 why = " · " + " ".join((resp.text or "")[:120].split())
-            print(f"[address-resolve] kakao status={resp.status_code}{why} query={query!r}")
+            kind = url.rsplit("/", 1)[-1]
+            print(f"[address-resolve] kakao status={resp.status_code}{why} ({kind}) query={query!r}")
             return None
         docs = resp.json().get("documents", [])
         return docs[0] if docs else None
     except Exception as e:
         print(f"[address-resolve] kakao error: {type(e).__name__}: {e} (query={query!r})")
         return None
+
+
+async def _search_kakao_local(query: str) -> Optional[dict]:
+    """카카오 검색 — 키워드(장소·아파트명) → 없으면 주소(지번·도로명). 첫 hit 를 공통 모양으로.
+
+    실패(키 없음 / 네트워크 / 200 아님 / 0건) 시 None.
+
+    🔴 2026-09-16: category_group_code="AP1" 은 없는 코드라 400 → 필터 없이 키워드로 찾는다(우리가 넣는 말이 단지명).
+    🟢 2026-10-12 사장님(학의동 632-32): 키워드 검색은 **순수 지번**을 못 찾는다(장소 POI 전용) → 0건이면
+       **주소 검색(address.json)** 으로 한 번 더. 지번·도로명이면 "경기 의왕시 학의동 632-32" 로 찾아준다.
+       (address.json 결과는 road 가 중첩이라 keyword 모양으로 펴서 돌려준다 — 엔드포인트가 그대로 읽게.)
+    """
+    if not KAKAO_REST_API_KEY:
+        return None
+    # 1) 키워드 — 아파트·건물명에 강하다.
+    kw = await _kakao_search(
+        "https://dapi.kakao.com/v2/local/search/keyword.json",
+        {"query": query, "size": 5}, query,
+    )
+    if kw:
+        return kw
+    # 2) 주소 — 시/구 없는 순수 지번·도로명에 강하다("학의동 632-32").
+    doc = await _kakao_search(
+        "https://dapi.kakao.com/v2/local/search/address.json",
+        {"query": query, "size": 5}, query,
+    )
+    if doc:
+        road = doc.get("road_address") or {}
+        return {
+            "address_name": doc.get("address_name"),
+            "road_address_name": road.get("address_name"),
+            "place_name": None,
+            "x": doc.get("x"),
+            "y": doc.get("y"),
+        }
+    return None
 
 
 async def _extract_address_by_llm(context_text: str) -> Optional[str]:
