@@ -328,7 +328,6 @@ fun AppNavHost(
                 onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
                 onOpenSearch = { navController.navigate(Destinations.SEARCH) },
-                onOpenCustomers = { navController.navigate(Destinations.CUSTOMERS) },
                 onOpenNewLeads = { navController.navigate(Destinations.NEW_LEADS) },
                 onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) },

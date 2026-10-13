@@ -200,7 +200,6 @@ fun HomeScreen(
     /** 상담함 앱바 🔍 → 검색 화면 (2026-06-01 전면 리뉴얼). */
     onOpenSearch: () -> Unit = {},
     /** 상담함 앱바 👤 → 고객 관리 목록 (2026-06-01 전면 리뉴얼). */
-    onOpenCustomers: () -> Unit = {},
     onOpenNewLeads: () -> Unit = {},
     /** 홈 "미수금" 카드 탭 → 정산 화면. 정산 Phase 1 (2026-06-01). */
     onOpenSettlement: () -> Unit,
@@ -567,18 +566,6 @@ fun HomeScreen(
                             )
                         }
                     }
-                }
-                Spacer(Modifier.width(6.dp))
-                // 프로토 상담함 앱바 👤 고객 · 🔍 검색 — 흰 원형 아이콘 버튼.
-                Box(
-                    Modifier
-                        .size(38.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(Color.White)
-                        .clickable { onOpenCustomers() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, "고객", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(6.dp))
                 // PC 웹 QR 빠른 로그인 — 어디서든 한 탭에 스캐너. (2026-08-31 사장님)
