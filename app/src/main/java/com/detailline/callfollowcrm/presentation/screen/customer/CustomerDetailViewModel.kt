@@ -826,7 +826,34 @@ class CustomerDetailViewModel(
                 oldDate?.let { d -> container.jobCrewRepository.deleteByCustomerAndDay(customerId, d) }
                 val before = container.preferences.collabAssignments
                 val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
-                if (after.size != before.size) container.preferences.collabAssignments = after
+                if (after.size != before.size) {
+                    container.preferences.collabAssignments = after
+                    // 🔴 예약을 취소하면 **협업 사장님들께도 "이 협업 끝났어요"** 를 보낸다. (2026-10-13 사장님)
+                    //   전엔 내 목록에서만 지우고 서버/상대엔 안 보내, 상대 일정에 유령처럼 남았다
+                    //   (바꾸기=notifyCollabReschedule 는 전파되는데 취소만 빠져 있었다).
+                    //   보내기(cancel_then_end)·상대 알림·상대 일정 삭제는 서버/핸들러가 이미 다 한다 — removeCollabAssignment 와 같은 길.
+                    val owner = container.preferences.bizPhone.filter { it.isDigit() }
+                    if (owner.length >= 9) {
+                        val endedShareIds = (before - after).mapNotNull { raw ->
+                            com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(raw)
+                                ?.shareId?.trim()?.takeIf { it.isNotBlank() }
+                        }.distinct()
+                        if (endedShareIds.isNotEmpty()) {
+                            container.applicationScope.launch {
+                                endedShareIds.forEach { sid ->
+                                    runCatching {
+                                        container.outbox.enqueue(
+                                            com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                                            sid,
+                                            org.json.JSONObject().put("mode", "cancel_then_end").toString()
+                                        )
+                                    }
+                                }
+                                container.outbox.tryNow()
+                            }
+                        }
+                    }
+                }
                 // 예약 취소 = 완전 백지 (사장님 2026-08-28 결정): 총액·계약금·잔금·받음표시 전부 삭제.
                 //   그 건의 돈은 이미 cancelJob 이 지웠다. 여기서 고객 카드까지 백지로 만드는 건
                 //   **남은 건이 하나도 없을 때만.** 다른 건이 남아 있으면 recomputeMirror 가
