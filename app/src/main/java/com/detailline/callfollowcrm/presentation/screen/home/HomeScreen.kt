@@ -294,8 +294,6 @@ fun HomeScreen(
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     // 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산. 채팅 열면 갱신 → 점 사라짐.
     val readStates by viewModel.readStates.collectAsState()
-    val waitingReplies by viewModel.waitingReplies.collectAsState()
-    val waitingReplyChoices by viewModel.waitingReplyChoices.collectAsState()
     val categoriesById by viewModel.categories.collectAsState()
     // 줄마다 firstOrNull 로 전체 카테고리를 훑던 것 → 맵 한 번(대화 200줄이면 200번 훑던 일). (2026-09-15)
     val categoryById = remember(categoriesById) { categoriesById.associateBy { it.id } }
@@ -391,7 +389,6 @@ fun HomeScreen(
     // 📦 칩 '자라남' — 처음 생기면 계속 남고(0명이면 흐리게), 처음 생길 때 한 번 안내. (2026-10-08 사장님)
     var chipsSeen by remember { mutableStateOf(prefs.inboxChipsSeen) }
     // 📍 '답장 기다려요' 카드 밀어서 정리 손잡이 힌트 — 처음 한 번 맨 위 카드가 살짝 열림. (2026-10-11 사장님)
-    var swipeHintSeen by remember { mutableStateOf(prefs.waitingSwipeHintSeen) }
     var newChipKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(chipHasMember, isInitialSmsLoading) {
         if (!prefs.inboxChipsSeeded) {
@@ -467,12 +464,9 @@ fun HomeScreen(
     // 협업 완료 알림 [입금했어요] → 일당 지급 금액 입력 대상. (일당 마켓 Phase 1)
     var payTarget by remember { mutableStateOf<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate?>(null) }
     // 대기 카드 꾹 누르면 뜨는 '스팸 등록 / 정리' 선택. null=닫힘. (2026-06-23 사장님)
-    var spamTarget by remember { mutableStateOf<HomeItem?>(null) }
     // 방(최근 대화·고정) 꾹 누르면 뜨는 '맨 위에 고정 / 해제' 선택. null=닫힘. (2026-08-24 사장님)
     var pinTarget by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.screen.home.HomeItem?>(null) }
     // 대기카드 비행기 → '확인 후 발송' 다이얼로그 대상 + 카드에서 고른 답변. (2026-07-02 사장님)
-    var waitingSendTarget by remember { mutableStateOf<HomeItem?>(null) }
-    var waitingSendReply by remember { mutableStateOf<String?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     // 목록 스크롤 위치 — **앱바가 알아야** 검색창을 접을 수 있어 Scaffold 밖으로 올렸다. (2026-09-19)
@@ -1364,11 +1358,13 @@ fun HomeScreen(
                 val adSuffixes = ads.mapTo(HashSet()) { PhoneKey.of(it.record.phoneNumber) }
                 fun notAd(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
                     PhoneKey.of(it.record.phoneNumber) !in adSuffixes
-                val waiting = chipItems.filter { it.isUnconfirmed && notAd(it) }
                 // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
                 //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
+                // 📥 미확인(답장 안 함)도 **최근 대화에 같이** 보여준다 — 전엔 위로 따로 뽑아 '대기 카드'로
+                //   띄웠는데(2026-10-13 사장님: 카드 제거, 「답장 안 함」 칩으로 대체) 이제 시간순에 섞인다.
+                //   답 안 한 것만 보려면 [답장 안 함] 칩, 치우려면 그 안에서 각 줄의 [확인].
                 // 고정 거래처는 최근 대화에서 빼서 '고정' 칸으로만 보여준다. 나머지는 그대로. (2026-08-24 사장님)
-                val recent = chipItems.filter { !it.isUnconfirmed && notAd(it) && PhoneKey.of(it.record.phoneNumber) !in pinnedSuffixes }
+                val recent = chipItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) !in pinnedSuffixes }
                 val pinned = chipItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) in pinnedSuffixes }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
@@ -1448,72 +1444,14 @@ fun HomeScreen(
                     }
                 }
 
-                // 칩을 켄 채 대기가 비면 머리글·막내를 안 띄운다 — "시공 끝남" 을 보는데
-                //   "지금 답장 기다려요 0 / 다 챙기셨네요" 가 나오면 딴소리다. (2026-09-20)
-                // 2026-09-20 사장님 "지금 답장 기다려요. 이거 없어져야 하는 거 아니야?"
-                //   맞다. **칩의 [안 챙긴 N] 이 이미 같은 말**을 한다. 머리글이 또 세면 같은 숫자가 두 곳에.
-                //   → 머리글은 아예 안 띄우고, 대기 줄은 목록 맨 위에 그대로 둔다(정보는 안 잃는다).
-                //   막내 마스코트는 **[안 챙긴] 칩이 비었을 때만** — 거기선 "다 챙겼다"가 진짜 할 말이다.
-                if (waiting.isEmpty() || hideThreads) {
-                    // 막내 인사는 **아무것도 없는 첫 폰**에서만. (2026-09-20)
-                    //   [답장 대기] 칩이 없어졌으니 "다 끝냈어요" 를 띄울 자리가 없고,
-                    //   [전체] 목록 맨 위에 매일 띄우면 그게 또 어수선하다.
-                    //   다 끝냈다는 신호는 **하단 탭 배지가 사라지는 것**이 대신한다.
-                    if (dedupItems.isEmpty() && !chipOn) {
-                        // '처음 오신 분' 인사(newUser)는 **대화가 정말 하나도 없을 때만.** (2026-09-20 실기)
-                        //   거른 목록(recent)을 보면 [안 챙긴] 이 비었다는 이유로 몇 년 쓰신 분께도
-                        //   "사장님, 잘 부탁드려요!" 가 떴다. 여기선 "다 챙기셨네요" 가 할 말이다.
-                        item(key = "waiting-empty") {
-                            Box(
-                                Modifier.fillParentMaxHeight().padding(bottom = 64.dp),
-                                contentAlignment = Alignment.Center
-                            ) { WaitingEmptyMascot(newUser = dedupItems.isEmpty()) }
-                        }
-                    }
-                } else {
-                    items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
-                        val suffix = PhoneKey.of(item.record.phoneNumber)
-                        // 밀기 → 정리 하나(매일). ⋮ → 더보기 시트(정리·광고/스팸·지인 — 가끔). (2026-10-11 사장님 A안)
-                        SpamSwipeBox(
-                            onCleanup = {
-                                viewModel.dismissUnconfirmed(item.record.phoneNumber)
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "정리했어요 — 대기 목록에서만 빠져요(고객은 그대로)",
-                                        actionLabel = "되돌리기",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.undoDismissUnconfirmed(item.record.phoneNumber)
-                                    }
-                                }
-                            },
-                            // ⋮ 손잡이 → 꾹 누름과 같은 더보기 시트.
-                            onHandleTap = { spamTarget = item },
-                            // 맨 위 카드만, 아직 안 봤을 때 한 번 — 밀 수 있다를 몸으로 알려준다.
-                            peekHint = (!swipeHintSeen && item.record.id == waiting.firstOrNull()?.record?.id),
-                            onPeekShown = { swipeHintSeen = true; prefs.waitingSwipeHintSeen = true },
-                            content = {
-                                val choices = waitingReplyChoices[suffix].orEmpty().ifEmpty {
-                                    waitingReplies[suffix]?.let {
-                                        listOf(com.detailline.callfollowcrm.ai.ReplyChoice(text = it))
-                                    } ?: emptyList()
-                                }
-                                WaitingCard(
-                                    item = item,
-                                    aiSummary = aiCardSummaries[suffix],
-                                    // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
-                                    category = item.customer?.categoryId?.let { cid -> categoryById[cid] },
-                                    replyChoices = choices,
-                                    aiPrepEnabled = prefs.aiReplyPrepEnabled,
-                                    onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
-                                    onCall = { dialHome(context, item.record.phoneNumber) },
-                                    // 비행기 = 카드에서 지금 보고 있는 답변으로 '확인 후 발송' 다이얼로그. (2026-07-02 사장님)
-                                    onQuickSend = { text -> waitingSendReply = text; waitingSendTarget = item },
-                                    onLongPress = { spamTarget = item }
-                                )
-                            }
-                        )
+                // 📭 아무 대화도 없는 첫 폰에서만 막내 인사. 대화가 있으면 아래 '최근 대화' 가 맡고,
+                //   칩을 켜서 비면 아래 ChipEmpty 가 맡는다. (대기 카드는 2026-10-13 제거)
+                if (dedupItems.isEmpty() && !chipOn) {
+                    item(key = "home-empty") {
+                        Box(
+                            Modifier.fillParentMaxHeight().padding(bottom = 64.dp),
+                            contentAlignment = Alignment.Center
+                        ) { WaitingEmptyMascot(newUser = true) }
                     }
                 }
 
@@ -1557,7 +1495,7 @@ fun HomeScreen(
                 //   백지는 "앱이 죽었나?" 로 읽힌다. 그리고 [안 챙긴] 은 막내가 이미 말하니 **두 번 말하지 않는다.**
                 val chipBodyEmpty =
                     if (hideThreads) balanceDues.isEmpty()
-                    else waiting.isEmpty() && recent.isEmpty() && pinned.isEmpty()
+                    else recent.isEmpty() && pinned.isEmpty()
                 if (chipOn && chipBodyEmpty) {
                     item(key = "chip-empty") {
                         // 빈 문구를 위에 붙이면 아래가 통째로 비어 **덜 그려진 화면**처럼 보인다.
@@ -1657,6 +1595,19 @@ fun HomeScreen(
                                                             // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
                                                             category = rItem.customer?.categoryId?.let { cid -> categoryById[cid] },
                                                             filter = inboxChip,
+                                                            // 📥 [답장 안 함] 칩에서만 '확인' 버튼 — 답장 없이 치움(전화로 끝낸 것 등). 되돌리기 돼요. (2026-10-13 사장님)
+                                                            onConfirm = if (inboxChip == "pending") {
+                                                                {
+                                                                    viewModel.dismissUnconfirmed(rItem.record.phoneNumber)
+                                                                    scope.launch {
+                                                                        val r = snackbarHostState.showSnackbar(
+                                                                            "확인했어요 — 답장 안 함 목록에서 빠져요(고객·대화는 그대로)",
+                                                                            actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                                                                        )
+                                                                        if (r == SnackbarResult.ActionPerformed) viewModel.undoDismissUnconfirmed(rItem.record.phoneNumber)
+                                                                    }
+                                                                }
+                                                            } else null,
                                                             onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
                                                             onLongClick = { pinTarget = rItem }
                                                         )
@@ -1794,89 +1745,6 @@ fun HomeScreen(
                 )
             }
 
-            // 대기 카드 꾹 누름 → 스팸 등록 / 대기목록 정리 선택. (2026-06-23 사장님: "정리도 있지만 스팸 등록도 있어야")
-            spamTarget?.let { target ->
-                val phone = target.record.phoneNumber
-                val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { spamTarget = null },
-                    title = {
-                        Column {
-                            Text("이 손님, 어떻게 할까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                            Text(nm, fontSize = 12.sp, color = TossTextTertiary)
-                        }
-                    },
-                    text = {
-                        Column {
-                            // 🧹 정리 — **매일 쓰는 주연**. 위에 크게, 눈에 띄는 파랑 배경. (2026-10-11 사장님 A안)
-                            Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)
-                                    .clickable {
-                                        spamTarget = null
-                                        viewModel.dismissUnconfirmed(phone)
-                                        scope.launch {
-                                            val r = snackbarHostState.showSnackbar("정리했어요 — 대기 목록에서만 빠져요(고객은 그대로)", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoDismissUnconfirmed(phone)
-                                        }
-                                    }
-                                    .padding(15.dp)
-                            ) {
-                                Column {
-                                    Text("정리", fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                                    Text("대기 목록에서 치우기 (고객·대화는 그대로 · 되돌리기 돼요)", fontSize = 12.sp, color = TossTextTertiary)
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            // 🚫 광고·스팸 — 가끔. 자동으로 못 거른 광고를 손으로.
-                            Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.unpaidBg)
-                                    .clickable {
-                                        spamTarget = null
-                                        viewModel.markSpam(phone, target.customer?.name?.takeIf { it.isNotBlank() })
-                                        scope.launch {
-                                            val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(phone)
-                                        }
-                                    }
-                                    .padding(14.dp)
-                            ) {
-                                Column {
-                                    Text("광고·스팸", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossError)
-                                    Text("앞으로 상담함·신규에서 안 보여요", fontSize = 12.sp, color = TossTextTertiary)
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            // 👤 지인 — 가끔. 손님이 아니라 아는 사람. 문자함 [지인] 으로.
-                            Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                                    .clickable {
-                                        spamTarget = null
-                                        viewModel.moveToFriend(phone)
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("지인으로 옮겼어요 — 문자함 [지인] 에 있어요")
-                                        }
-                                    }
-                                    .padding(14.dp)
-                            ) {
-                                Column {
-                                    Text("지인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                                    Text("손님이 아니라 아는 사람 — 문자함 [지인] 으로 모아요",
-                                        fontSize = 12.sp, color = TossTextTertiary)
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {},
-                    dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { spamTarget = null }) {
-                            Text("취소", color = TossTextSecondary)
-                        }
-                    },
-                    containerColor = Color.White,
-                    tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
-                )
-            }
-
             // 방 꾹 누름 → 맨 위에 고정 / 해제. (2026-08-24 사장님)
             pinTarget?.let { target ->
                 val phone = target.record.phoneNumber
@@ -1925,74 +1793,6 @@ fun HomeScreen(
                 )
             }
 
-            // '확인 후 발송' — 받은 문자 원문 + (카드에서 고른) 답변 전문 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
-            waitingSendTarget?.let { target ->
-                val phone = target.record.phoneNumber
-                val suffix = PhoneKey.of(phone)
-                val nm = target.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
-                val incoming = target.lastBody?.takeIf { it.isNotBlank() }
-                val reply = waitingSendReply
-                    ?: waitingReplyChoices[suffix]?.firstOrNull()?.text
-                    ?: waitingReplies[suffix]
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { waitingSendTarget = null },
-                    title = { Text("$nm 님께 보낼까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
-                    text = {
-                        Column {
-                            if (!incoming.isNullOrBlank()) {
-                                Text("받은 문자", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
-                                Spacer(Modifier.height(4.dp))
-                                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(11.dp)) {
-                                    Text(incoming, fontSize = 13.5.sp, color = TossTextPrimary)
-                                }
-                                Spacer(Modifier.height(12.dp))
-                            }
-                            Text("보낼 답변", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                            Spacer(Modifier.height(4.dp))
-                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.primaryBg).padding(11.dp)) {
-                                Text(
-                                    reply ?: "추천 답변이 아직 없어요 — 고쳐서 보내기로 채팅에서 직접 보내주세요",
-                                    fontSize = 13.5.sp, color = TossTextPrimary,
-                                    maxLines = 8, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        if (!reply.isNullOrBlank()) {
-                            androidx.compose.material3.TextButton(onClick = {
-                                waitingSendTarget = null
-                                scope.launch {
-                                    val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                        com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, reply)   // 발송 IO — 메인 멈칫 방지
-                                    }
-                                    if (ok) {
-                                        viewModel.onWaitingReplySent(phone, reply, target.customer?.id)
-                                        snackbarHostState.showSnackbar("$nm 님께 보냈어요", duration = SnackbarDuration.Short)
-                                    } else {
-                                        onOpenChat(phone, target.customer?.id)
-                                        snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
-                                    }
-                                }
-                            }) { Text("이대로 보내기", color = TossBlue, fontWeight = FontWeight.Bold) }
-                        }
-                    },
-                    dismissButton = {
-                        Row {
-                            androidx.compose.material3.TextButton(onClick = { waitingSendTarget = null }) {
-                                Text("취소", color = TossTextSecondary)
-                            }
-                            androidx.compose.material3.TextButton(onClick = {
-                                waitingSendTarget = null
-                                if (!reply.isNullOrBlank()) viewModel.prefillChatDraft(phone, reply)
-                                onOpenChat(phone, target.customer?.id)
-                            }) { Text("고쳐서 보내기", color = TossTextPrimary, fontWeight = FontWeight.Bold) }
-                        }
-                    },
-                    containerColor = Color.White,
-                    tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
-                )
-            }
             } // end Box(nestedScroll)
             } else {
                 // 문자함(고객 아님) — 삼성 기본 메시지식 단순 목록.
@@ -2645,6 +2445,12 @@ private fun InboxChips(
         verticalAlignment = Alignment.CenterVertically
     ) {
         item { ChipPill("전체", null, selected == "all") { onSelect("all") } }
+        // 📥 답장 안 함 — 내가 아직 답 안 한 손님만(상담만, 스팸·광고 안 들어옴). 0이면 흐리게(다 챙긴 느낌).
+        //   전체 바로 옆 = 제일 중요한 할 일. **대기 카드를 없애고 이 칩이 그 자리를 대신한다.** (2026-10-13 사장님)
+        item {
+            val p = counts["unhandled"] ?: 0
+            ChipPill("답장 안 함", p.takeIf { it > 0 }, selected == "pending", dim = p == 0) { onSelect("pending") }
+        }
         // 📦 **한 번이라도 생긴 적 있는(seen) 칩만** — 처음 깐 사람은 전체만, 쓸수록 자라난다. (2026-10-08 사장님)
         //   A/S 는 예외(있을 때만 뜨는 제 규칙). 한 번 seen 에 들면 0명이어도 흐리게 남는다(자리 안 깜빡임, 9/20 결정).
         val workShown = work.filter { it.first == "as" || it.first in seen }
@@ -3190,160 +2996,6 @@ private fun SecSub(text: String) {
 }
 
 
-/**
- * 프로토 waitingCardHtml — 대기 고객 카드.
- *   heat 점 + 이름(+신규칩) + 시간 + 전화 + preview(AI 요약) + [답장하기].
- *   프로토의 "AI 추천 답변 quick-send" 는 앱에선 채팅의 추천 시스템이 담당 → 여기선 preparing 변형([답장하기]→채팅).
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun WaitingCard(
-    item: HomeItem,
-    aiSummary: String?,
-    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
-    replyChoices: List<com.detailline.callfollowcrm.ai.ReplyChoice>,
-    aiPrepEnabled: Boolean = true,
-    onOpenChat: () -> Unit,
-    onCall: () -> Unit,
-    onQuickSend: (String) -> Unit,
-    onLongPress: () -> Unit = {}
-) {
-    val isNew = item.isNewToday
-    val heatColor = when {
-        isNew -> TossBlue
-        else -> when (item.customer?.leadHeat?.lowercase()) {
-            "hot" -> TossError
-            "warm" -> TossWarning
-            "cold" -> Color(0xFFC2C9D2)
-            else -> Color(0xFFC2C9D2)
-        }
-    }
-    val name = item.customer?.name?.takeIf { it.isNotBlank() }
-        ?: PhoneNumberFormatter.format(item.record.phoneNumber)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .tossCardShadow(RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .combinedClickable(onClick = { onOpenChat() }, onLongClick = { onLongPress() })
-            // 오른쪽 36dp 는 '밀어서 정리' 손잡이(⋮) 자리 — 내용이 안 가리게 비워둔다. (2026-10-11 사장님)
-            .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 44.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(9.dp).clip(androidx.compose.foundation.shape.CircleShape).background(heatColor))
-            Spacer(Modifier.width(10.dp))
-            Text(
-                name,
-                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
-            )
-            // 태그 두 종류 — 규칙은 공용 한 곳에만(CustomerStatusTag.kt). (2026-09-16 사장님)
-            com.detailline.callfollowcrm.presentation.component.CustomerTags(item.customer, category)
-            // 상태 태그 — 시공 D-N / D-DAY / 계약금 / 완료. (2026-09-16 사장님: "예약고객은 기다려요에 태그가 안붙나?")
-            //   최근 대화 줄엔 이미 붙던 것인데 여기엔 없었다. 이 고객은 분류가 '시공 대기'(자동 분류)라
-            //   분류 태그도 일부러 숨겨져(모두에게 붙어서 '일당' 같은 진짜 분류가 안 도드라짐) **아무것도 안 붙었다.**
-            //   답장을 기다리는 사람이 '오늘 시공 가는 집'인지 아닌지는 답장 내용이 완전히 달라지는 정보다.
-
-            if (isNew) {
-                Spacer(Modifier.width(8.dp))
-                // 신규 태그만. (같은 날 재통화도 '신규' 그대로 — '다시 전화옴' 태그는 뺐다. 한 번호=한 카드로
-                //   이미 묶여 중복은 안 생긴다. 2026-10-10 사장님: "그냥 신규 태그만 있어야지")
-                Box(Modifier.background(TossBlueSoft, RoundedCornerShape(8.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                    Text("신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            Text(DateTimeUtils.formatShort(item.record.endedAt), fontSize = 12.sp, color = TossTextTertiary)
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossGrayBg)
-                    .clickable { onCall() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Call, "전화", tint = TossTextSecondary, modifier = Modifier.size(17.dp))
-            }
-        }
-        // 받은 문자 — 고객이 실제로 보낸 마지막 문자 원문. "무슨 문자에 대한 답인지" 바로 알게. (2026-07-02 사장님)
-        //   원문 없으면(통화만 등) AI 대화요약으로 폴백.
-        val incoming = item.lastBody?.takeIf { it.isNotBlank() } ?: aiSummary
-        if (!incoming.isNullOrBlank()) {
-            Spacer(Modifier.height(10.dp))
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(10.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (item.lastBody.isNullOrBlank()) com.detailline.callfollowcrm.presentation.theme.AiMark(TossTextTertiary, 12.dp, 4.dp)
-                    Text(if (item.lastBody.isNullOrBlank()) "통화 요약" else "받은 문자", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
-                }
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    incoming, fontSize = 13.5.sp, color = TossTextPrimary,
-                    maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-        }
-        // ⏳ 수명 한 줄 — "이거 언제까지 떠 있냐"에 화면이 직접 답한다. (2026-10-11 사장님)
-        //   열어봐도·스크롤해도 안 사라지고 **답장해야** 사라지는 설계를, 헷갈려하는 사람에게 대신 말해준다.
-        //   (7일 지나면 자동으로 빠지는 건 그대로 — 사장님 유지 결정. 날짜 셈은 공용 DateTimeUtils 재사용)
-        run {
-            val sinceMs = item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt
-            val waitingDays = ((DateTimeUtils.startOfDay(System.currentTimeMillis()) - DateTimeUtils.startOfDay(sinceMs)) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)
-            val waitLabel = if (waitingDays <= 0) "오늘 온 문의" else "${waitingDays}일째 기다리는 중"
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Schedule, null, tint = TossTextTertiary, modifier = Modifier.size(12.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    "$waitLabel · 답장하면 사라져요",
-                    fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium
-                )
-            }
-        }
-        Spacer(Modifier.height(11.dp))
-        if (item.lastBody.isNullOrBlank() || item.lastActivityWasCall) {
-            // 통화/부재중만 있거나, 문자 뒤 마지막이 '통화로 끝난' 손님 — 답장할 문자가 없는데
-            //   "AI 답변 준비 중"이 떠 버그처럼 보임(2026-06-14, 2026-06-17 사장님). → 통화 안내 + [문자하기].
-            val missed = item.record.callType == "MISSED"
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Call, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    if (missed) "부재중 전화 · 문자로 이어가기" else "통화한 손님 · 문자로 이어가기",
-                    fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    Modifier
-                        .border(1.5.dp, Color(0xFFDCE7FB), RoundedCornerShape(999.dp))
-                        .clickable { onOpenChat() }
-                        .padding(horizontal = 15.dp, vertical = 8.dp)
-                ) {
-                    Text("문자하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                }
-            }
-        } else {
-            // 프로토 preparing — 문자 받았고 추천 준비 전: "AI 답변 준비 중…" + [답장하기].
-            //   'AI 답변 준비' OFF 면 준비 자체를 안 하므로 "준비 중"은 거짓 → 담백하게 "새 문자". (2026-07-16 사장님)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("답장하면 AI 추천도 받아요", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.weight(1f))
-                Box(
-                    Modifier
-                        .border(1.5.dp, Color(0xFFDCE7FB), RoundedCornerShape(999.dp))
-                        .clickable { onOpenChat() }
-                        .padding(horizontal = 15.dp, vertical = 8.dp)
-                ) {
-                    Text("답장하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                }
-            }
-        }
-    }
-}
-
 
 /**
  * 프로토 recentRowHtml — 최근 대화 행. 아바타 + 이름 + 태그 + 시간 + 요약 한 줄.
@@ -3359,6 +3011,8 @@ private fun RecentRow(
     category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
     /** 지금 고른 칩 — 뱃지가 '그 안에서 갈리는 것'을 보여주려고 필요하다. (2026-09-21) */
     filter: String = "all",
+    /** [답장 안 함] 칩에서만 — 답장 없이 치우는 '확인' 버튼. null 이면 안 그린다. (2026-10-13 사장님) */
+    onConfirm: (() -> Unit)? = null,
     onOpenChat: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
@@ -3450,6 +3104,16 @@ private fun RecentRow(
                     )
                 }
             }
+        }
+        // 📥 [답장 안 함] 칩에서만 — 답장 없이 치우는 '확인' 버튼. 전화로 끝냈거나 답 안 할 손님. (2026-10-13 사장님)
+        if (onConfirm != null) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.clip(AppShape.pill)
+                    .border(1.dp, AppTheme.colors.line, AppShape.pill)
+                    .clickable { onConfirm() }
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            ) { Text("확인", style = AppType.label, color = AppTheme.colors.textSub) }
         }
     }
 }

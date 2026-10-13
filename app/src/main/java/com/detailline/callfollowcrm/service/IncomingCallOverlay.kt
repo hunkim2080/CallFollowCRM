@@ -230,9 +230,9 @@ object IncomingCallOverlay {
             //   전화받은 그 자리에서 "언제 되냐"에 답하려고. 실패해도 카드는 떠야 하니 통째로 감싼다.
             val twoWeeks = runCatching { loadTwoWeeks(container) }.getOrDefault(emptyList())
 
-            // 저장 이름 없으면 기기 연락처(삼성)에서 조회 — "저장돼 있으면 그대로 반영". (2026-07-21 사장님)
-            val name = customer?.name?.takeIf { it.isNotBlank() }
-                ?: com.detailline.callfollowcrm.util.ContactNameResolver.lookup(container.appContext, number)
+            // 보여줄 이름 = 앱 이름 > 폰 연락처 > 번호. 한 곳(ContactNameResolver.resolveDisplayName)에서 결정. (§12 공용)
+            val name = com.detailline.callfollowcrm.util.ContactNameResolver
+                .resolveDisplayName(container.appContext, customer?.name, number)
                 ?: PhoneNumberFormatter.format(number)
             val known = customer != null || msgs.isNotEmpty()
             // 상태 = 색 결정. 완료(빨강) > 예정(초록) > 신규(노랑) > 그 외 기존(파랑).

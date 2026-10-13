@@ -1129,32 +1129,3 @@ internal fun NewChipNote(label: String, note: String, onDismiss: () -> Unit) {
 }
 
 
-/**
- * 미확인('답장 기다려요') 카드 — **밀면 정리 하나**(매일 쓰는 것), **⋮ 누르면 더보기 시트**(스팸·지인은 가끔).
- *   (2026-10-11 사장님: 3색 블록이 어수선·셋 고르기 번거로움 → 정리를 앞으로, 나머지는 한 겹 뒤로. A안)
- *   📍 손잡이(⋮) — 밀 줄 모르는 사람도 눌러서 더보기(onHandleTap). 부르는 WaitingCard 가 오른쪽 36dp 를 비운다.
- *   (HomeScreen.kt 에서 옮겨옴 — 같은 패키지라 호출부는 그대로)
- */
-@Composable
-internal fun SpamSwipeBox(
-    /** 밀기 → 정리(대기목록에서만 빼기, 되돌리기). */
-    onCleanup: () -> Unit,
-    /** ⋮ 누르면 → 더보기 시트(정리·광고/스팸·지인). */
-    onHandleTap: () -> Unit,
-    /** 처음 한 번 살짝 열렸다 닫히는 힌트(맨 위 카드만). */
-    peekHint: Boolean = false,
-    onPeekShown: () -> Unit = {},
-    content: @Composable () -> Unit
-) {
-    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
-        onAction = onCleanup,
-        label = "정리",
-        containerColor = TossBlue,
-        icon = Icons.Filled.CleaningServices,
-        shape = RoundedCornerShape(18.dp),  // WaitingCard(18dp)와 모서리 맞춤 — 테두리 비침 fix.
-        handleLabel = "정리",
-        onHandleTap = onHandleTap,
-        peekHint = peekHint,
-        onPeekShown = onPeekShown
-    ) { content() }
-}

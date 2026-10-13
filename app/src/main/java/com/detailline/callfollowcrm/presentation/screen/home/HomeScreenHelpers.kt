@@ -315,6 +315,7 @@ internal fun callTypeLabel(raw: String): String = when (raw) {
  * 앱이 죽은 줄 아신다. 칩마다 *지금 무엇이 없는지* 와 *언제 여기 채워지는지* 를 같이 말한다.
  */
 internal fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
+    "pending" -> "다 챙기셨네요" to "답장 안 한 손님이 없어요"
     "today" -> "오늘 새로 온 문의가 없어요" to "저장 안 된 번호에서 연락이 오면 여기 쌓여요"
     "wait" -> "잡혀 있는 시공이 없어요" to "날짜를 잡으면 여기 모여요"
     "owe" -> "기다리는 잔금이 없어요" to "시공이 끝났는데 잔금이 남으면 여기 떠요"

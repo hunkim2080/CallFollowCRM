@@ -49,6 +49,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("contacts_permission_asked", false)
         set(value) = prefs.edit().putBoolean("contacts_permission_asked", value).apply()
 
+    /** 연락처 권한 **안내 시트**("켜면 저장한 이름이 보여요")를 1회 띄웠는지. 전에 거부한 사람도 한 번은 안내받게 별도 플래그. (2026-10-13 사장님) */
+    var contactsGuideShown: Boolean
+        get() = prefs.getBoolean("contacts_guide_shown", false)
+        set(value) = prefs.edit().putBoolean("contacts_guide_shown", value).apply()
+
     /** 박람회 현장 목록(로컬, Phase 1). "|||" 로 구분해 저장(현장명엔 안 쓰는 구분자). 추후 서버/Room 이관. (2026-07-21) */
     var expoSites: List<String>
         get() = prefs.getString("expo_sites", "").orEmpty().split("|||").filter { it.isNotBlank() }

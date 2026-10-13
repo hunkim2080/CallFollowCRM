@@ -1564,14 +1564,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             ?.firstOrNull { it.isNotBlank() }
     }
 
-    // ── 대기 카드 AI 추천 답변 (프로토 sugbox + 홈 1탭 발송) ──────────────
-    /** suffix → 서버가 준비한 추천 답변 1순위 텍스트. 있으면 대기 카드에 미리보기 + 비행기 버튼. */
-    private val _waitingReplies = MutableStateFlow<Map<String, String>>(emptyMap())
-    val waitingReplies: StateFlow<Map<String, String>> = _waitingReplies
-
-    /** 대기 카드 추천답변 3개 후보(전략 라벨 포함) — '확인 후 발송' 다이얼로그에서 옆으로 넘겨 고르기. (2026-07-02 사장님) */
-    private val _waitingReplyChoices = MutableStateFlow<Map<String, List<com.detailline.callfollowcrm.ai.ReplyChoice>>>(emptyMap())
-    val waitingReplyChoices: StateFlow<Map<String, List<com.detailline.callfollowcrm.ai.ReplyChoice>>> = _waitingReplyChoices
+    // 대기 카드 AI 추천 답변 흐름은 2026-10-13 제거(대기 카드 삭제). 답변 추천은 채팅 화면이 맡는다.
 
     /** 새 버전 배너 — 하루 1회 체크 결과(서버 mtime_ms vs BUILD_TIMESTAMP). (2026-06-16) */
     private val _updateAvailable = MutableStateFlow(false)
@@ -1606,9 +1599,6 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         installer == "com.android.vending"
     }.getOrDefault(false)
 
-    /** 이미 fetch 시도한 suffix (중복 호출 방지). */
-    private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
-
     init {
         // 📮 하단 탭 배지로 흘려보낸다. **WhileSubscribed 가 아니라** viewModelScope 로 모으는 이유 —
         //   상담함 화면을 떠나면 구독이 끊겨 값이 멈춘다. 탭바는 다른 탭에서도 숫자를 보여야 한다.
@@ -1626,28 +1616,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             unhandledCount.collect { container.inboxUnansweredCount.value = it }
         }
-        // 미확인(대기) 고객마다 서버 추천 답변을 한 번씩 조회 → 준비돼 있으면 카드에 노출.
-        //   서버는 SMS 수신 시 이미 prepare 해두므로 보통 READY. MISSING 이면 조용히 스킵(채팅에서 ↻).
-        viewModelScope.launch {
-            timeline.collect { groups ->
-                val unconfirmed = groups.flatMap { it.items }.filter { it.isUnconfirmed }
-                for (item in unconfirmed) {
-                    val phone = item.record.phoneNumber
-                    val suffix = phoneSuffix(phone)
-                    if (!fetchedReplySuffixes.add(suffix)) continue
-                    launch(Dispatchers.IO) {
-                        val choices = runCatching {
-                            container.suggestionRepository.fetch(phone).getOrNull()
-                                ?.suggestions?.suggestions
-                        }.getOrNull().orEmpty().filter { it.text.isNotBlank() }.take(3)
-                        if (choices.isNotEmpty()) {
-                            _waitingReplies.value = _waitingReplies.value + (suffix to choices.first().text)
-                            _waitingReplyChoices.value = _waitingReplyChoices.value + (suffix to choices)
-                        }
-                    }
-                }
-            }
-        }
+        // (대기 카드용 AI 추천답변 프리페치는 2026-10-13 제거 — 카드가 없어졌다. 서버비도 아낀다.
+        //   답변 추천은 채팅 화면에서 필요할 때만 받는다.)
 
         // 새 버전 체크 — 앱 열 때마다(홈 진입) 체크하되 10분 연타만 방지. (2026-06-21 사장님: 베타 빨리 받게)
         //   서버 mtime_ms > BUILD_TIMESTAMP(+여유) 면 배너 ON. (기존 24시간 throttle → 테스터가 하루 늦게 받던 것)
@@ -1697,34 +1667,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /**
-     * 대기 카드에서 추천 답변을 홈에서 바로 발송한 직후 호출 (발송 자체는 화면이 SmsSender 로).
-     *   발송 기록 남기고, 그 카드를 미확인에서 즉시 제외 + 추천 미리보기 제거.
-     */
-    fun onWaitingReplySent(phone: String, body: String, customerId: Long?) {
-        container.journeyEventRepository.track("button_click", screen = "home", target = "quick_reply")
-        val suffix = phoneSuffix(phone)
-        _repliedAt.value = _repliedAt.value + (suffix to System.currentTimeMillis())
-        _waitingReplies.value = _waitingReplies.value - suffix
-        _waitingReplyChoices.value = _waitingReplyChoices.value - suffix
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                container.messageHistoryRepository.recordAutoSend(
-                    phoneNumber = phone,
-                    customerId = customerId,
-                    templateId = null,
-                    body = body,
-                    status = com.detailline.callfollowcrm.domain.model.MessageStatus.INLINE_SENT
-                )
-            }
-        }
-    }
-
-    /** 대기카드 '고쳐서 보내기' — 추천답변을 채팅 입력창 초안으로 넣어두고 채팅 열기. (2026-07-02 사장님) */
-    fun prefillChatDraft(phone: String, text: String) {
-        if (text.isBlank()) return
-        container.chatDraftStore.set(phone, text)
-    }
+    // onWaitingReplySent / prefillChatDraft (대기 카드 전용) 는 2026-10-13 제거 — 카드 삭제.
 
     companion object {
         /** 한 페이지 = 20개. 사장님 요청 (2026-05-24). */

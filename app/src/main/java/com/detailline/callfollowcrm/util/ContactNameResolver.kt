@@ -48,6 +48,16 @@ object ContactNameResolver {
         return name
     }
 
+    /**
+     * 화면에 보여줄 이름 — **한 곳에서 결정.** (2026-10-13 사장님: 앱 이름 > 폰 연락처 > 번호)
+     *   ① 사장님이 앱(시공막내)에 직접 적은 이름이 있으면 그걸(일부러 적은 현장 기준 이름).
+     *   ② 없으면 폰 연락처 이름(구글·삼성·폰을 폰이 하나로 합쳐 줌 — 권한 있을 때만).
+     *   둘 다 없으면 null → **부르는 쪽이 번호로** 보여준다(`PhoneNumberFormatter.format`).
+     *   ⚠️ 이 순서를 화면/서비스마다 새로 적지 말 것. (§12 공용 — IncomingCallOverlay·SmsReceiver 가 이걸 쓴다)
+     */
+    fun resolveDisplayName(context: Context, appName: String?, phone: String?): String? =
+        appName?.takeIf { it.isNotBlank() }?.trim() ?: lookup(context, phone)
+
     /** 삼성 연락처가 바뀌었을 수 있을 때(포그라운드 복귀·권한 획득) 캐시 비우기. */
     fun clearCache() = cache.clear()
 }

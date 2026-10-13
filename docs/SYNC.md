@@ -14065,3 +14065,11 @@ Fable 🧹3. 사장님 "고고"
 - 변경: `.github/workflows/play-deploy.yml` changesNotSentForReview true→false (Play 가 "자동 검토제출" 모드로 전환돼 이 파라미터 거부). HomeScreen 알림 뱃지 Text includeFontPadding=false + lineHeight 9sp (숫자 "2" 바닥 잘림 수정).
 - 폰 확인: 테스트폰(S9+ 100.121.10.111) 뱃지 1·2 둘 다 중앙 정렬 깔끔 — 스샷 확인. assembleRelease 가드 7개 통과.
 - 다음 액션: 사장님 확인 후 내부테스트 재배포(태그). 협업 예약취소 전파 버그는 조사완료·구현 대기(사장님 승인 후).
+
+## 2026-10-13 12:50 · android
+대기 카드 삭제 → 「답장 안 함」 필터 칩 + 확인 버튼 · 이름 우선순위(앱>폰>번호) 공용화 · 연락처 권한 안내 시트
+- 변경(UI): 상담함 '지금 답장 기다려요' 대기 카드(SpamSwipeBox/WaitingCard/더보기시트/확인후발송) 전부 삭제. 대신 칩줄에 「답장 안 함 N」(빨강, 0이면 흐리게) + 그 뷰 각 줄에 [확인](dismissUnconfirmed, 되돌리기). 미확인은 '최근 대화'에 시간순으로 섞여 표시. 빈 상태 ChipEmpty("pending")="다 챙기셨네요". 대기카드용 AI 추천답변 프리페치 제거(서버비 절감).
+- 변경(이름): ContactNameResolver.resolveDisplayName(앱 이름>폰 연락처>null) 공용 1곳. IncomingCallOverlay·SmsReceiver 가 이걸 씀(인라인 두 벌 합침 → dup 13→11).
+- 변경(권한): AppRoot 가 온보딩+연락처권한없음+미안내 시 ContactsPermissionGuideSheet 1회. 하드거부면 설정으로. prefs contactsGuideShown.
+- 폰 확인: 테스트폰(S9+) — 답장안함 칩 3→확인→2, 탭배지 동기, 전체뷰 카드없이 줄+파란점, 권한 시트+시스템요청까지 확인. 가드 7개 통과(dup 11·style 2656).
+- 남은 결정: 「답장 안 함」 7일 창(DB 쿼리에 박힘) — '자동삭제 없음' 완전 적용하려면 창 확대 필요(성능영향). 사장님께 7/30/60/무제한 문의 예정.

@@ -130,9 +130,9 @@ class SmsReceiver : BroadcastReceiver() {
                 //   단 AI 답변 준비·프리페치는 스팸·문자함이면 아래에서 스킵(서버비 절감)은 그대로.
                 val notifyEnabled = container.preferences.incomingSmsNotifyEnabled
 
-                // 저장 이름 없으면 기기 연락처(삼성)에서 조회해 알림에 표시 — "저장돼 있으면 그대로 반영". (2026-07-21 사장님)
-                val notifyName = customer?.name?.takeIf { it.isNotBlank() }
-                    ?: com.detailline.callfollowcrm.util.ContactNameResolver.lookup(appCtx, sender)
+                // 보여줄 이름 = 앱 이름 > 폰 연락처. 한 곳(ContactNameResolver.resolveDisplayName)에서 결정 — 둘 다 없으면 null → 알림이 번호로. (§12 공용)
+                val notifyName = com.detailline.callfollowcrm.util.ContactNameResolver
+                    .resolveDisplayName(appCtx, customer?.name, sender)
 
                 // 1) 알림 — 상담함(고객·애매)은 즉시 헤드업+고객 소리, 문자함(고객 아님)·스팸은 **기본 띵동**.
                 //   (2026-06-15 / 2026-07-11 / 2026-10-08 사장님) 저장 고객이 스팸 앞자리여도 고객 소리는 지킨다.

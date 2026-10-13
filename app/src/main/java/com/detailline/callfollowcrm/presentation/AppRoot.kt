@@ -2,7 +2,9 @@ package com.detailline.callfollowcrm.presentation
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,13 +54,16 @@ fun AppRoot(container: AppContainer) {
                     runCatching { container.customerRepository.fillBlankNamesFromContacts(context) }
                 }
             }
+            // 전엔 시스템 권한창을 **말없이** 띄웠다 → 뭔지 모르고 넘어가 "저장한 이름이 안 보인다". (2026-10-13 사장님)
+            //   왜 필요한지 안내 시트부터 보여주고 켜게 한다. 전에 (조용히) 거부한 사람도 한 번은 안내받게 별도 플래그.
+            var showContactsGuide by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 if (container.preferences.hasOnboarded &&
                     !PermissionHelper.hasContacts(context) &&
-                    !container.preferences.contactsPermissionAsked
+                    !container.preferences.contactsGuideShown
                 ) {
-                    container.preferences.contactsPermissionAsked = true
-                    runCatching { contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS) }
+                    container.preferences.contactsGuideShown = true   // 한 번만
+                    showContactsGuide = true
                 }
             }
 
@@ -201,6 +206,7 @@ fun AppRoot(container: AppContainer) {
             val detailRoutesWithTabs = setOf(Destinations.CUSTOMER_DETAIL_WITH_ARG)
             val showTabBar = currentRoute in RING_TAB_ROUTES || currentRoute in detailRoutesWithTabs
 
+            Box(Modifier.fillMaxSize()) {
             Scaffold(
                 // 상단 인셋은 각 화면이 자체 처리 → 외곽 Scaffold 는 0. 하단 탭바만 패딩 제공.
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -267,6 +273,37 @@ fun AppRoot(container: AppContainer) {
                     startDestination = startDestination,
                     modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
                 )
+            }
+
+            // 📇 연락처 권한 안내 시트 — "켜면 저장한 이름이 보여요". (2026-10-13 사장님)
+            if (showContactsGuide) {
+                com.detailline.callfollowcrm.presentation.component.ContactsPermissionGuideSheet(
+                    onEnable = {
+                        showContactsGuide = false
+                        val activity = context as? android.app.Activity
+                        // 이미 '다시 묻지 않음' 으로 거부됐으면 시스템 권한창이 안 뜸 → 앱 설정으로 보낸다.
+                        val hardDenied = activity != null &&
+                            container.preferences.contactsPermissionAsked &&
+                            !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                                activity, android.Manifest.permission.READ_CONTACTS
+                            )
+                        if (hardDenied) {
+                            runCatching {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        android.net.Uri.parse("package:" + context.packageName)
+                                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }
+                        } else {
+                            container.preferences.contactsPermissionAsked = true
+                            runCatching { contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS) }
+                        }
+                    },
+                    onLater = { showContactsGuide = false }
+                )
+            }
             }
         }
     }
