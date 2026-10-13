@@ -355,16 +355,16 @@ class JobRepository(
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
         var fixed = 0
         for (c in customers) {
-            val cardHasMoney = c.totalAmount != null || c.depositAmount != null || c.balanceAmount != null ||
-                c.depositPaidAt != null || c.balancePaidAt != null || c.workCompletedAt != null
-            if (!cardHasMoney) continue
             val jobs = jobDao.scheduledByCustomerOnce(c.id)
             if (jobs.isEmpty()) continue   // 건 없는 고객 = 카드가 SoT, 안 건드림
             val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: continue
+            val cardHasMoney = c.totalAmount != null || c.depositAmount != null || c.balanceAmount != null ||
+                c.depositPaidAt != null || c.balancePaidAt != null || c.workCompletedAt != null
             val anyJobHasMoney = jobs.any {
                 it.totalAmount != null || it.depositAmount != null || it.balanceAmount != null ||
                     it.depositPaidAt != null || it.balancePaidAt != null || it.workCompletedAt != null
             }
+            if (!cardHasMoney && !anyJobHasMoney) continue
             if (!anyJobHasMoney) {
                 // 건에 돈이 하나도 없음 → 카드 돈 전체를 대표 건으로 (멱등)
                 runCatching {
@@ -394,6 +394,14 @@ class JobRepository(
                         )
                     )
                 }.onSuccess { fixed++ }
+            } else if ((c.balancePaidAt == null && rep.balancePaidAt != null) ||
+                (c.depositPaidAt == null && rep.depositPaidAt != null) ||
+                (c.workCompletedAt == null && rep.workCompletedAt != null)) {
+                // 🩹 (2026-10-13 사장님) 반대 방향 — **받음·완료가 건 전표엔 있는데 카드엔 없는** 경우.
+                //   건 상세 [잔금/계약금 확인](setJobBalancePaid)이 전엔 고객 미러를 안 건드려,
+                //   고객정보는 "전액 완납"인데 상담함·챗 배지(카드 읽음)는 "잔금미수"로 남았다.
+                //   대표 건 → 카드 한 방향 미러로 바로잡는다(멱등).
+                runCatching { recomputeMirror(c.id, now) }.onSuccess { fixed++ }
             }
         }
         // 완료가 새로 붙은 건이 있으면 현장 번호를 다시 매긴다(멱등 — 기존 번호는 그대로).

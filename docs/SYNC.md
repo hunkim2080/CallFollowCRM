@@ -14073,3 +14073,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경(권한): AppRoot 가 온보딩+연락처권한없음+미안내 시 ContactsPermissionGuideSheet 1회. 하드거부면 설정으로. prefs contactsGuideShown.
 - 폰 확인: 테스트폰(S9+) — 답장안함 칩 3→확인→2, 탭배지 동기, 전체뷰 카드없이 줄+파란점, 권한 시트+시스템요청까지 확인. 가드 7개 통과(dup 11·style 2656).
 - 남은 결정: 「답장 안 함」 7일 창(DB 쿼리에 박힘) — '자동삭제 없음' 완전 적용하려면 창 확대 필요(성능영향). 사장님께 7/30/60/무제한 문의 예정.
+
+## 2026-10-13 18:00 · android
+잔금 '완납'인데 배지 '잔금미수' 버그 — 건→고객 돈 미러 누락 수정 + 과거 치유
+- 변경: `CustomerDetailViewModel.setJobBalancePaid/setJobDepositPaid` 가 건 전표만 찍고 **고객 미러를 안 건드렸다** → 고객정보는 "전액 완납"인데 상담함·챗 배지(고객 미러 읽음)는 "잔금미수". 둘 다 `recomputeMirror(customerId)` + `reclassify` 추가(다른 완납 경로와 동일). `JobRepository.repairMoneyMirror` 에 **반대 방향 치유**(건엔 받음/완료, 카드엔 없음 → recomputeMirror로 끌어올림) 추가 — 시작 시 과거 데이터 자동 보정(멱등).
+- 폰 확인: 테스트폰 — 건 paid·고객 미러 null 로 '막힌' 손님 시드 → 앱 켜니 치유로 고객.balancePaidAt SET, 고객관리 배지 "잔금미수"→"완료" 확인. 가드 7개 통과.
+- 원인: 고객정보는 건(JobCardRow.rowOf) 읽고, 배지(customerStatusOf)는 고객 미러 읽음 — 건 상세 [잔금 확인](setJobBalancePaid)만 미러를 안 넘겨 두 화면이 어긋남. (§13-④ 두 벌 칸)

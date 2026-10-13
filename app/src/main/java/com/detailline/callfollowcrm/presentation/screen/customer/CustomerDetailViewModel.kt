@@ -199,18 +199,28 @@ class CustomerDetailViewModel(
 
     fun setJobDepositPaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
+            val now = System.currentTimeMillis()
             SaveGuard.run("계약금 받음", _toast) {
-                container.jobRepository.setDepositPaid(jobId, if (paid) System.currentTimeMillis() else null)
+                container.jobRepository.setDepositPaid(jobId, if (paid) now else null)
+                // 고객 카드(요약)에도 반영 — 안 하면 상담함·챗 배지가 건 전표와 어긋난다. (2026-10-13 사장님 '잔금미수' 버그)
+                container.jobRepository.recomputeMirror(customerId, now)
             }
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
     /** 잔금 받음 — **완료도 자동**(JobRepository.setBalancePaid 안에서). */
     fun setJobBalancePaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
+            val now = System.currentTimeMillis()
             SaveGuard.run("잔금 받음", _toast) {
-                container.jobRepository.setBalancePaid(jobId, if (paid) System.currentTimeMillis() else null)
+                container.jobRepository.setBalancePaid(jobId, if (paid) now else null)
+                // 🔴 **고객 카드(요약)에도 반영.** 전엔 건 전표만 찍혀, 고객정보는 "전액 완납"인데
+                //   상담함·챗 배지(고객 미러를 읽음)는 "잔금미수"로 남았다. (2026-10-13 사장님)
+                //   돈은 대표 건 → 고객 한 방향 미러(recomputeMirror)가 balancePaidAt 까지 옮긴다.
+                container.jobRepository.recomputeMirror(customerId, now)
             }
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
