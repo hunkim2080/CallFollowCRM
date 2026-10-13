@@ -107,24 +107,28 @@ fun NotificationCenterScreen(
 
 @Composable
 private fun NotiRow(n: AppNotificationEntity, onTap: () -> Unit) {
+    // 🤏 알림센터는 상담함보다 **촘촘하게** — 시각을 제목 오른쪽으로 올려 2줄로(전엔 시각이 셋째 줄이라 넓었다). (2026-10-13 사장님)
     Row(
         Modifier.fillMaxWidth().background(AppTheme.colors.surface).clickable { onTap() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.Top
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(TossGrayBg),
+            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg),
             contentAlignment = Alignment.Center
-        ) { Text(iconOf(n.type), fontSize = 17.sp) }
+        ) { Text(iconOf(n.type), fontSize = 16.sp) }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
-            Text(n.title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(n.title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.text,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(6.dp))
+                Text(DateTimeUtils.formatShort(n.createdAt), fontSize = 11.sp, color = AppTheme.colors.textHint, fontWeight = FontWeight.Medium)
+            }
             if (!n.body.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
-                Text(n.body, fontSize = 12.sp, color = AppTheme.colors.textSub, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(n.body, fontSize = 12.sp, color = AppTheme.colors.textSub, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Spacer(Modifier.height(3.dp))
-            Text(DateTimeUtils.formatShort(n.createdAt), fontSize = 11.sp, color = AppTheme.colors.textHint, fontWeight = FontWeight.Medium)
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))

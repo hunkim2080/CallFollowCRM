@@ -793,6 +793,7 @@ object NotificationHelper {
             title = pushTitle,
             msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
             contentIntent = pending,
+            navTarget = "collab", navShareId = shareId,   // 🔔 알림센터 탭 → 그 협업 현장. (2026-10-13 사장님)
             // 단추 이름은 **그 알림의 다음 궁금증**을 말한다.
             actions = listOf(PushAction(
                 when (kind) {
@@ -856,6 +857,7 @@ object NotificationHelper {
             title = "협업 현장 새 댓글",
             msg = "${who}님 · ${where}: ${body.ifBlank { "(내용 없음)" }}",
             contentIntent = pending,
+            navTarget = "collab", navShareId = siteId,   // 🔔 알림센터 탭 → 그 현장 댓글로. (2026-10-13 사장님)
             actions = listOf(PushAction("댓글 보기", pending))
         )
     }
@@ -885,6 +887,7 @@ object NotificationHelper {
             title = "협업 현장 새 사진",
             msg = "${who}님이 '${where}'에 현장 사진을 올렸어요",
             contentIntent = pending,
+            navTarget = "collab", navShareId = siteId,
             actions = listOf(PushAction("사진 보기", pending))
         )
     }
@@ -912,6 +915,7 @@ object NotificationHelper {
             title = "협업 요청이 왔어요",
             msg = "${who}이 '${site}' 협업을 요청했어요. 눌러서 수락하기",
             contentIntent = pending,
+            navTarget = "collab", navShareId = shareId,
             actions = listOf(PushAction("수락하러 가기", pending))
         )
     }
@@ -971,6 +975,7 @@ object NotificationHelper {
             title = "협업이 해제됐어요",
             msg = "${who}이 '${site}' 협업을 해제했어요 — 기록(사진·메모)은 남아있어요",
             contentIntent = pending,
+            navTarget = "collab", navShareId = shareId,
             actions = listOf(PushAction("협업 현장 보기", pending))
         )
     }
@@ -993,6 +998,7 @@ object NotificationHelper {
             title = "입금 완료",
             msg = "'${site}' 정산 입금이 완료됐어요",
             contentIntent = pending,
+            navTarget = "collab", navShareId = shareId,
             actions = listOf(PushAction("협업 현장 보기", pending))
         )
     }
@@ -1058,6 +1064,7 @@ object NotificationHelper {
             title = "협업 현장 일정 변경",
             msg = msg,
             contentIntent = pending,
+            navTarget = "collab", navShareId = shareId,
             actions = listOf(PushAction("협업 현장 보기", pending))
         )
     }
