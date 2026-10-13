@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,9 +40,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.util.DateTimeUtils
 
 /**
- * 🔔 알림 센터 — 새 활동 한눈에. (2026-10-13 사장님)
- *   시간순(최신 위). 탭하면 그 대화·현장·일정으로 이동하며 **그 줄 삭제**. [모두 지우기].
- *   푸시를 지워도 여기 남는다("뭐 왔었지" 해결).
+ * 🔔 알림 센터 — 협업 현장 소식 한눈에. (2026-10-13 사장님)
+ *   시간순(최신 위). 탭하면 그 현장으로 이동하며 **읽음(회색)으로 남긴다** — 삭제 안 함(까먹지 않게).
+ *   [모두 읽기]. 🔔 배지 = 안 읽은 수. 푸시를 지워도 여기 남는다("뭐 왔었지" 해결).
  */
 @Composable
 fun NotificationCenterScreen(
@@ -65,10 +66,11 @@ fun NotificationCenterScreen(
             ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = AppTheme.colors.textSub, modifier = Modifier.size(22.dp)) }
             Text("알림", style = AppType.headline, color = AppTheme.colors.text)
             Spacer(Modifier.weight(1f))
-            if (items.isNotEmpty()) {
+            // 삭제가 아니라 **읽음** — 지우면 "뭐 왔었지" 하고 까먹어서. (2026-10-13 사장님)
+            if (items.any { it.readAt == null }) {
                 Text(
-                    "모두 지우기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primary,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { viewModel.clearAll() }.padding(6.dp)
+                    "모두 읽기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.primary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { viewModel.markAllRead() }.padding(6.dp)
                 )
             }
         }
@@ -96,7 +98,7 @@ fun NotificationCenterScreen(
                     items(rows, key = { it.id }) { n ->
                         NotiRow(n) {
                             onOpen(n)
-                            viewModel.dismiss(n.id)
+                            viewModel.markRead(n.id)   // 삭제 아님 — 읽음(회색)으로 남긴다
                         }
                     }
                 }
@@ -107,27 +109,36 @@ fun NotificationCenterScreen(
 
 @Composable
 private fun NotiRow(n: AppNotificationEntity, onTap: () -> Unit) {
-    // 🤏 알림센터는 상담함보다 **촘촘하게** — 시각을 제목 오른쪽으로 올려 2줄로(전엔 시각이 셋째 줄이라 넓었다). (2026-10-13 사장님)
+    // 🤏 상담함보다 촘촘하게(2줄). 🔘 **읽으면 회색**으로 남긴다 — 삭제 안 함(까먹지 않게). (2026-10-13 사장님)
+    val read = n.readAt != null
     Row(
         Modifier.fillMaxWidth().background(AppTheme.colors.surface).clickable { onTap() }
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 안 읽음 파란 점 — 읽으면 사라진다(자리는 지켜 정렬 유지).
+        Box(Modifier.width(9.dp), contentAlignment = Alignment.Center) {
+            if (!read) Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.primary))
+        }
         Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg),
+            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg).alpha(if (read) 0.55f else 1f),
             contentAlignment = Alignment.Center
         ) { Text(iconOf(n.type), fontSize = 16.sp) }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(n.title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.text,
+                Text(n.title, fontSize = 13.5.sp,
+                    fontWeight = if (read) FontWeight.Medium else FontWeight.Bold,
+                    color = if (read) AppTheme.colors.textHint else AppTheme.colors.text,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(6.dp))
                 Text(DateTimeUtils.formatShort(n.createdAt), fontSize = 11.sp, color = AppTheme.colors.textHint, fontWeight = FontWeight.Medium)
             }
             if (!n.body.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
-                Text(n.body, fontSize = 12.sp, color = AppTheme.colors.textSub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(n.body, fontSize = 12.sp,
+                    color = if (read) AppTheme.colors.textHint else AppTheme.colors.textSub,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

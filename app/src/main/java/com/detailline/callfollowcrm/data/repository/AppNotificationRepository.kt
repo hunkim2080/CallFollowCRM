@@ -9,8 +9,8 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
 
     fun observeAll(): Flow<List<AppNotificationEntity>> = dao.observeAll()
 
-    /** 🔔 딱지 숫자. */
-    fun observeCount(): Flow<Int> = dao.observeCount()
+    /** 🔔 딱지 숫자 = 안 읽은 것만(읽으면 줄어듦). */
+    fun observeUnreadCount(): Flow<Int> = dao.observeUnreadCount()
 
     suspend fun add(e: AppNotificationEntity): Long {
         val id = dao.insert(e)
@@ -19,11 +19,11 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
         return id
     }
 
-    /** 탭한 한 줄 삭제. */
-    suspend fun delete(id: Long) = dao.deleteById(id)
+    /** 탭한 한 줄 → 읽음(삭제 아님 — 회색으로 남는다). (2026-10-13 사장님) */
+    suspend fun markRead(id: Long) = dao.markRead(id, System.currentTimeMillis())
 
-    /** [모두 지우기]. */
-    suspend fun clearAll() = dao.clearAll()
+    /** [모두 읽기]. */
+    suspend fun markAllRead() = dao.markAllRead(System.currentTimeMillis())
 
     companion object {
         private const val KEEP_MAX = 500

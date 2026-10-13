@@ -9,15 +9,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** 🔔 알림 센터 — 쌓인 알림을 시간순으로. 탭하면 이동하며 그 줄 삭제(사장님: "클릭 한번 하면 없어져야지"). */
+/** 🔔 알림 센터 — 협업 소식을 시간순으로. 탭하면 이동하며 **읽음(회색)으로** 남긴다(삭제 아님 — 까먹지 않게). (2026-10-13 사장님) */
 class NotificationCenterViewModel(private val container: AppContainer) : ViewModel() {
 
     val items: StateFlow<List<AppNotificationEntity>> =
         container.appNotificationRepository.observeAll()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 탭한 한 줄 삭제(이동은 화면이 먼저 하고 호출). */
-    fun dismiss(id: Long) = viewModelScope.launch { container.appNotificationRepository.delete(id) }
+    /** 탭한 한 줄 → 읽음(이동은 화면이 먼저 하고 호출). 삭제 아님 — 회색으로 남는다. */
+    fun markRead(id: Long) = viewModelScope.launch { container.appNotificationRepository.markRead(id) }
 
-    fun clearAll() = viewModelScope.launch { container.appNotificationRepository.clearAll() }
+    /** [모두 읽기]. */
+    fun markAllRead() = viewModelScope.launch { container.appNotificationRepository.markAllRead() }
 }

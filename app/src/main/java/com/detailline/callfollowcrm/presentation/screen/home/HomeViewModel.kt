@@ -87,7 +87,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // 🔔 알림 센터 안 읽음(쌓인) 수 — 상담함 우측 상단 종 딱지. (2026-10-13 사장님)
-    val notificationCount = container.appNotificationRepository.observeCount()
+    val notificationCount = container.appNotificationRepository.observeUnreadCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // 🕐 예약 문자 — 상담함 위 「예약함」 카드·시트에 보여줄 대기 목록. (2026-10-05 사장님)

@@ -14099,3 +14099,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: NotiRow 를 **2줄**로(시각을 제목 오른쪽으로, body 1줄, padding 9dp·아이콘 34dp) — 상담함 96dp 줄에 맞췄던 걸 알림센터용으로 촘촘하게. (사장님 "간격 너무 넓다")
 - 변경: 협업 push 7종(showCollabEvent·Comment·Photo·Invite·Ended·Paid·Reschedule)이 showProtoPush 에 navTarget="collab"+navShareId=shareId 전달 → 알림센터 탭 시 collabSites(shareId) 로 **그 현장 상세(댓글 중심)** 열림. 전엔 push 자체 인텐트만 있고 센터 기록엔 nav 가 없어 탭해도 삭제만 됐다. (사장님 "새 댓글 클릭하면 그 현장 댓글로 가야지")
 - 폰 확인: 테스트폰 — 2줄로 촘촘, 댓글 알림 탭 → 협업현장 화면으로 이동 확인(실제 shareId면 그 현장 상세). 가드 7개 통과.
+
+## 2026-10-13 21:15 · android
+알림센터: 탭=삭제 → 읽음(회색)으로 (DB v66) + 모두 읽기
+- 변경: AppNotificationEntity.readAt(Long?) 추가(DB v65→66 ALTER + 협업 아닌 옛 기록 1회 DELETE). 탭 → 삭제 대신 markRead(회색으로 남음, 까먹지 않게). 상단 "모두 지우기"→"모두 읽기"(markAllRead, 안 읽은 게 있을 때만). 배지 = 안 읽은 수(observeUnreadCount). 읽은 줄 = 회색(제목 textHint·아이콘 alpha 0.55)·안 읽음은 파란 점.
+- 폰 확인: 테스트폰 — 안 읽음 파란점+진한 제목, 모두읽기→전부 회색으로 남음(삭제 안 됨), 배지 사라짐. 마이그레이션 크래시 0. 가드 통과(style 2657). schemas/66.json 커밋.
+- 사장님 재결정: 전엔 "클릭하면 없어져야지"였는데 → "사라지면 까먹을 듯, 회색으로".
