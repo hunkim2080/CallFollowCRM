@@ -1107,7 +1107,7 @@ fun ChatScreen(
             // 원칙 발견 카드 제거 (2026-08-14 사장님: "이상한 타이밍에만 떠서 차라리 없는 게 낫다").
             //   PrincipleDiscoveryCard 정의·ViewModel 로직은 보존(재활성 대비).
 
-            // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
+            // composer pill — 인스타 DM 스타일 ([⊕][입력][✨][▶]) + 사진 첨부 미리보기. 사진은 ⊕ 안. (2026-10-14)
             // 💰 고객이 "입금했다"고 한 문자 — 잔금이 남아 있을 때만 물어본다. (2026-09-17 사장님)
             //   실측: 받은 문자 1,085통 중 50통이 이런 문자였다(오탐 0). 지금은 사장님이 그걸 보고
             //   정산에 들어가 직접 눌러야 한다.
@@ -3380,6 +3380,8 @@ private fun ComposerActionMenu(
     onEstimate: () -> Unit,
     onSchedule: () -> Unit,
     onTemplate: () -> Unit,
+    // 사진 첨부 — 알약에서 ⊕ 맨 위로 이동. (2026-10-14 사장님)
+    onAttachPhoto: () -> Unit = {},
     /**
      * 입력창에 쓴 글을 문구로 저장. **글이 있을 때만** 보인다. (2026-09-16 사장님 개편)
      *   전엔 [문구 넣기] 시트 맨 위에 있었는데, 거기는 '꺼내 쓰는 방'이라 자리가 안 맞았다.
@@ -3470,6 +3472,8 @@ private fun ComposerActionMenu(
                             .background(Color.White)
                             .padding(6.dp)
                     ) {
+                        // 사진 = 제일 자주 쓰는 첨부라 맨 위. (2026-10-14 사장님: 알약에서 ⊕ 맨 위로 이동)
+                        ActionMenuRow(Icons.Default.Image, "사진 첨부", AppTheme.colors.caution) { open = false; onAttachPhoto() }
                         // 색은 **하는 일의 종류**. 견적=돈/문서, 일정=달력, 문구=글.
                         ActionMenuRow(Icons.Default.Description, "견적 작성", AppTheme.colors.primary) { open = false; onEstimate() }
                         ActionMenuRow(Icons.Default.DateRange, "내 일정 확인", AppTheme.colors.category) { open = false; onSchedule() }
@@ -3575,7 +3579,7 @@ private fun Composer(
                 }
             }
         }
-        // 프로토 .composer — [⊕ 액션][ 📷 입력 ✨ ][✈ 보내기]. ⊕ 왼쪽(카톡식)·보내기 오른쪽. ✨/보내기는 글 있을 때 톡. (2026-08-14 사장님)
+        // 프로토 .composer — [⊕ 액션][ 입력 ✨ ][✈ 보내기] (사진은 ⊕ 맨 위). ⊕ 왼쪽(카톡식)·보내기 오른쪽. ✨/보내기는 글 있을 때 톡. (2026-08-14 사장님)
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -3594,29 +3598,23 @@ private fun Composer(
                     onEstimate = onOpenEstimate,
                     onSchedule = onOpenSchedule,
                     onTemplate = onOpenTemplate,
+                    onAttachPhoto = onAttachPhoto,
                     canSaveText = input.isNotBlank() || attachments.isNotEmpty(),
                     onSaveText = onSaveAsTemplate
                 )
                 }
             }
-            // field — 회색 알약(radius22) : [📷 왼쪽][textarea][✨ 오른쪽·글 있을 때만]
+            // field — 회색 알약(radius22) : [textarea][✨ 오른쪽·글 있을 때만]. 사진은 ⊕ 메뉴로 이동. (2026-10-14 사장님)
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(22.dp))
                     .background(TossGrayBg)
                     .padding(horizontal = 8.dp, vertical = 5.dp),
-                // 알약 안(📷·글·✨)도 같은 이유로 바닥 정렬. (2026-09-18)
+                // 알약 안(글·✨)도 같은 이유로 바닥 정렬. (2026-09-18)
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // 📷 사진 첨부 (왼쪽) — 터치영역 44dp (거친 손가락).
-                androidx.compose.foundation.layout.Box(
-                    Modifier.size(44.dp).clickable { onAttachPhoto() },
-                    contentAlignment = androidx.compose.ui.Alignment.Center
-                ) {
-                    Icon(Icons.Default.Image, "사진 첨부", tint = TossTextTertiary, modifier = Modifier.size(22.dp))
-                }
                 // 한글 조합(composition) 보존 — value 를 매 입력마다 새 TextFieldValue 로 만들면 조합영역이 끊겨
                 //   "ㄱㅣㄷㅏㄹㅕ"처럼 자모가 분리됨. IME 가 준 TextFieldValue 를 그대로 들고 있어야 합쳐진다. (2026-06-17 사장님 버그)
                 //   외부(템플릿·다듬기·캘린더·발송클리어)에서 input 이 바뀐 경우에만 다시 채택(그땐 커서 지정 위치/끝).
@@ -3630,7 +3628,7 @@ private fun Composer(
                         )
                     )
                 }
-                // 글칸은 **📷 와 같은 44dp 를 최소 높이로** 잡고 그 안에서 가운데. (2026-09-19 사장님)
+                // 글칸은 **⊕·보내기와 같은 44dp 를 최소 높이로** 잡고 그 안에서 가운데. (2026-09-19 사장님)
                 //   전엔 최소 높이가 없어, 바닥 정렬하면 한 줄짜리 글이 📷 보다 11dp 쯤 아래로 처졌다.
                 //   ("+ 는 정렬됐는데 이번엔 메시지입력 텍스트가..")
                 //   dp 로 밀어 맞추지 않고 높이를 맞춘 이유: 글자 크기를 키운 폰에서도 안 어긋난다.

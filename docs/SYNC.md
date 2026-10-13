@@ -14133,3 +14133,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: ChatScreen.kt 의 showSuggestionArea 블록(SuggestionArea 호출 + 그 안 TradeAskCard) 삭제 + 고아 변수 6개(suggestion/suggestionsStale/Loading/Failed/unreflectedCount/endedWithCall) 정리. SuggestionArea 컴포저블·ChatViewModel 추천 로직(loadSuggestions/regenerateSuggestions)은 보존(재활성 대비). 생성은 띠 탭으로만 돼서 띠 제거=Sonnet 호출·비용도 멈춤. TradeAsk 는 업종 미설정 시에만 뜨던 보조입구(상단 시공AI 칩으로도 선택 가능)라 함께 사라져도 안전.
 - 폰 확인: 테스트폰(23514638000c7ece) DEBUG 설치·실행 OK. 단 테스트폰에 고객 대화가 없어(SMS 116통 전부 광고·재난·인증) 대화방 '전후' 스샷은 못 찍음. SMS 삽입도 기본문자앱 아니라 불가. 코드/빌드/가드로 검증.
 - 다음 액션: (사장님) 본인 폰에서 대화방 열어 ✨ 띠 사라진 것 확인 / 배포 원하면 태그.
+
+## 2026-10-14 00:05 · android
+대화방 컴포저: 📷 사진 버튼을 입력 알약에서 빼고 ⊕ 메뉴 맨 위로 이동. 사장님 지시(+프로토 GMQ1hfb5 승인).
+- 변경: ChatScreen.kt — ComposerActionMenu 에 onAttachPhoto 파라미터 + [사진 첨부] 행(맨 위, caution색/Image아이콘) 추가, 호출부 배선(onAttachPhoto=onAttachPhoto), 알약 안 📷 Box 제거. 레이아웃 설명 주석 현행화. 사진 피커(showPhotoPicker)·썸네일·발송 로직은 그대로.
+- 폰 확인: 테스트폰 DEBUG 설치·빌드 OK. 단 테스트폰 앱DB 완전 비어있고(customers/threads 0) SMS 전부 광고라 대화방 진입 불가 → ⊕ 메뉴 실물 스샷 못 찍음. 코드/빌드/가드 + 승인 프로토로 검증. 사장님 폰에서 배포 후 확인됨.
+- 다음 액션: (사장님) 배포 원하면 태그.
