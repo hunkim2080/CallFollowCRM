@@ -76,11 +76,11 @@ fun NotificationCenterScreen(
         if (items.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🔔", fontSize = 40.sp)
+                    Text("🤝", fontSize = 40.sp)
                     Spacer(Modifier.height(10.dp))
-                    Text("새 활동이 오면 여기 쌓여요", style = AppType.body, color = AppTheme.colors.textSub)
+                    Text("협업 현장 소식이 여기 쌓여요", style = AppType.body, color = AppTheme.colors.textSub)
                     Spacer(Modifier.height(3.dp))
-                    Text("푸시를 지워도 여기서 다시 볼 수 있어요", style = AppType.caption, color = AppTheme.colors.textHint)
+                    Text("도착·댓글·사진·일정변경·입금 — 상담함에서 안 보이는 것들", style = AppType.caption, color = AppTheme.colors.textHint)
                 }
             }
         } else {

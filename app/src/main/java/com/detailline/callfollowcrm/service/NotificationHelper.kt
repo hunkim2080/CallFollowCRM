@@ -1149,11 +1149,13 @@ object NotificationHelper {
             append(msg)
             if (!note.isNullOrBlank()) append("\n$note")
         }
+        // 🏷️ 제목 말머리 — 협업은 🤝. 알림 펼쳤을 때 종류가 한눈에. (2026-10-13 사장님)
+        val shownTitle = withTitleEmoji(typeForChannel(channelId), title)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, channelId))
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(accent)
             .setColorized(true)
-            .setContentTitle(title)
+            .setContentTitle(shownTitle)
             .setContentText(msg)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -1167,11 +1169,16 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
-        // 🔔 여기로 흐르는 모든 알림을 알림 센터에도 한 줄 기록(푸시 지워도 남게). 종류는 채널로 분류.
-        NotificationLog.record(
-            type = typeForChannel(channelId), title = title, body = msg,
-            navTarget = navTarget, navPhone = navPhone, navCustomerId = navCustomerId, navShareId = navShareId,
-        )
+        // 🔔 알림 센터엔 **협업 관련만** 쌓는다. (2026-10-13 사장님)
+        //   문자·문의·부재중·접수서·통화요약·브리핑·정기문자는 상담함/다른 탭에 **이미 보여서** 여기 쌓으면 두 번 본다.
+        //   알림센터의 값어치 = "상담함에선 안 보이는 협업 현장 소식(도착·댓글·사진·일정변경·입금·해제)"만 한눈에.
+        if (typeForChannel(channelId) == "collab") {
+            // 센터엔 🤝 아이콘 칩이 이미 있으니 제목은 이모지 없이(원본). 푸시 제목만 🤝 를 붙인다.
+            NotificationLog.record(
+                type = "collab", title = title, body = msg,
+                navTarget = navTarget, navPhone = navPhone, navCustomerId = navCustomerId, navShareId = navShareId,
+            )
+        }
     }
 
     /** 채널 → 알림 센터 분류(아이콘). 모르면 etc(🔔). */
@@ -1187,6 +1194,23 @@ object NotificationHelper {
         ch == CHANNEL_INCOMING_SMS -> "reply"
         ch == CHANNEL_FOLLOW_UP || ch == CHANNEL_FOLLOW_UP_QUIET -> "missed_call"
         else -> "etc"
+    }
+
+    /** 제목 말머리 이모지 — 알림 펼쳤을 때 종류가 한눈에(🤝협업·💬문자·📞부재중·📋접수서). (2026-10-13 사장님)
+     *   상태바 아이콘은 안드로이드가 흑백 하나로만 그려서, 종류 구분은 이 **제목 이모지**가 맡는다.
+     *   ⚠️ 2026-06-03 "OneUI 에서 이모지가 엉뚱하게" 지적이 있었음 — 사장님 실기 확인 후 이상하면 뺀다. */
+    private fun titleEmoji(type: String): String = when (type) {
+        "collab" -> "🤝"
+        "new_inquiry", "reply", "general_sms" -> "💬"
+        "missed_call" -> "📞"
+        "intake" -> "📋"
+        else -> ""   // reminder·brief·recurring 등은 제목 문구가 이미 분명 → 안 붙임
+    }
+
+    /** 제목 앞에 이모지를 붙인다(이미 그 이모지로 시작하면 그대로). */
+    private fun withTitleEmoji(type: String, title: String): String {
+        val e = titleEmoji(type)
+        return if (e.isNotBlank() && !title.startsWith(e)) "$e $title" else title
     }
 
     /**
@@ -1384,12 +1408,10 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 프로토 PUSH.sms 제목 = "{이름/번호} · 새 문자". (카테고리·🔖 이모지 안 붙임 — OneUI 에서 이모지가
-        //   엉뚱하게 렌더되고 프로토와도 달라서 제거. 2026-06-03 사장님 지적.)
-        val title = buildString {
-            append(displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone))
-            append(" · 새 문자")
-        }
+        // 제목 말머리 💬 — 협업(🤝)·부재중(📞)과 한눈에 구분. (2026-10-13 사장님)
+        //   ⚠️ 2026-06-03 "OneUI 이모지 렌더 이상" 지적이 있었음 — 사장님 실기 확인 후 이상하면 뺀다.
+        val who = displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)
+        val title = if (isNewCustomer) "💬 새 문의 · $who" else "💬 $who · 새 문자"
 
         // 빠른 답장 RemoteInput — 사장님이 알림창에서 직접 타이핑 → SmsManager 발송.
         //   AI 추천이 안 맞을 때 fallback. 추천 슬롯이 다 차면 빠짐 (본체 탭 → ChatScreen).
@@ -1461,13 +1483,7 @@ object NotificationHelper {
             NotificationManagerCompat.from(context)
                 .notify(smsNotificationId(phone), builder.build())
         }
-        // 🔔 알림 센터에도 남긴다 — 푸시 지워도 "뭐 왔었지" 해결. 탭하면 그 대화로. (2026-10-13 사장님)
-        NotificationLog.record(
-            type = if (isNewCustomer) "new_inquiry" else "reply",
-            title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)),
-            body = body,
-            navTarget = "chat", navPhone = phone, navCustomerId = customerId, at = receivedAtMs,
-        )
+        // (알림 센터엔 안 쌓는다 — 문자·문의는 상담함에 이미 보인다. 알림센터는 협업만. 2026-10-13 사장님)
     }
 
     /**
@@ -1493,7 +1509,7 @@ object NotificationHelper {
             context, phone.hashCode(), openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)) + " · 문자함"
+        val title = "💬 " + (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)) + " · 문자함"
         val builder = NotificationCompat.Builder(context, CHANNEL_GENERAL_SMS)
             .setSmallIcon(R.drawable.ic_notification)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII 가림
@@ -1510,11 +1526,7 @@ object NotificationHelper {
         runCatching {
             NotificationManagerCompat.from(context).notify(smsNotificationId(phone), builder.build())
         }
-        NotificationLog.record(
-            type = "general_sms",
-            title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)),
-            body = body, navTarget = "chat", navPhone = phone, navCustomerId = customerId, at = receivedAtMs,
-        )
+        // (알림 센터엔 안 쌓는다 — 문자함도 상담함에 있다. 알림센터는 협업만. 2026-10-13 사장님)
     }
 
     /**
@@ -1621,7 +1633,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (isMissed) "아직 답장 못 한 고객이 부재중 전화했어요" else "아직 답장 못 한 고객이 다시 전화했어요"
+        val title = if (isMissed) "📞 아직 답장 못 한 고객이 부재중 전화했어요" else "📞 아직 답장 못 한 고객이 다시 전화했어요"
         val text = "${formatPhone(phoneNumber)} · 문자 확인하기"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP_QUIET)
@@ -1636,10 +1648,7 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
-        NotificationLog.record(
-            type = "missed_call", title = title, body = text,
-            navTarget = "chat", navPhone = phoneNumber, navCustomerId = customerId,
-        )
+        // (알림 센터엔 안 쌓는다 — 부재중은 상담함 '답장 안 함'·통화기록에 있다. 알림센터는 협업만. 2026-10-13 사장님)
     }
 
     /**
