@@ -14116,3 +14116,8 @@ Fable 🧹3. 사장님 "고고"
 상태바 아이콘 — 통화요약 전용 추가(제일 자주 뜸)
 - 변경: showSummaryReadyNotification 의 small icon 을 ic_noti_summary(글줄 종이)로. smallIconFor 에도 call_summary 추가. (사장님: 통화요약이 제일 많이 뜬다)
 - 상태바 아이콘 5종: 문자(말풍선+AI) · 협업(사람) · 부재중(전화) · 접수서(문서) · 통화요약(글줄 종이).
+
+## 2026-10-13 22:00 · android
+상태바 아이콘 — 손님 문자/문의 전용(AI 말풍선 아님)
+- 변경: showIncomingSms·showGeneralSms small icon 을 ic_noti_message("…" 말풍선)로. smallIconFor 에도 SMS 채널 추가. 말풍선+AI(ic_notification)는 앱 소식·리마인더·브리핑 기본으로 남김. (사장님: 손님 문자는 AI 문자가 아니니 변화를)
+- 상태바 아이콘 종류: 손님문자(…말풍선) · 협업(사람) · 부재중(전화) · 접수서(문서) · 통화요약(글줄종이) · 앱소식(말풍선+AI).

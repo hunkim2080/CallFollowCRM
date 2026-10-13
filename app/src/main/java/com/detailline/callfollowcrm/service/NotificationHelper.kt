@@ -1211,7 +1211,8 @@ object NotificationHelper {
         channelId.startsWith("call_summary") -> R.drawable.ic_noti_summary
         channelId.startsWith("intake") -> R.drawable.ic_noti_intake
         channelId == CHANNEL_FOLLOW_UP || channelId == CHANNEL_FOLLOW_UP_QUIET -> R.drawable.ic_noti_call
-        else -> R.drawable.ic_notification
+        channelId == CHANNEL_INCOMING_SMS || channelId == CHANNEL_INCOMING_SMS_NEW || channelId == CHANNEL_GENERAL_SMS -> R.drawable.ic_noti_message
+        else -> R.drawable.ic_notification   // 앱 소식·리마인더·브리핑 = 기본 말풍선+AI(브랜드)
     }
 
     /** 제목 말머리 이모지 — 알림 펼쳤을 때 종류가 한눈에(🤝협업·💬문자·📞부재중·📋접수서). (2026-10-13 사장님)
@@ -1463,7 +1464,7 @@ object NotificationHelper {
 
         val smsChannel = if (isNewCustomer) CHANNEL_INCOMING_SMS_NEW else CHANNEL_INCOMING_SMS
         val builder = NotificationCompat.Builder(context, resolveChannel(context, smsChannel))
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_noti_message)   // 손님 문자 = 일반 말풍선(AI 아님). (2026-10-13 사장님)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII(번호·문자) 가림
             .setContentTitle(title)
             .setContentText(body.take(60))
@@ -1529,7 +1530,7 @@ object NotificationHelper {
         )
         val title = "💬 " + (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)) + " · 문자함"
         val builder = NotificationCompat.Builder(context, CHANNEL_GENERAL_SMS)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_noti_message)   // 문자함도 일반 말풍선. (2026-10-13 사장님)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII 가림
             .setContentTitle(title)
             .setContentText(body.take(60))
