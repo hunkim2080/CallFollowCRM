@@ -368,18 +368,11 @@ fun ChatScreen(
     val starred by viewModel.starred.collectAsState()
     val polishing by viewModel.aiPolishing.collectAsState()
     val isSending by viewModel.isSending.collectAsState()
-    val suggestion by viewModel.effectiveSuggestions.collectAsState()
-    // 문자함(고객 아님) 대화면 상담 기능(AI 추천·고객카드·견적·액션) 전부 숨김 — 순수 문자만. (2026-07-12 사장님)
+    // 문자함(고객 아님) 대화면 상담 기능(고객카드·견적·액션) 전부 숨김 — 순수 문자만. (2026-07-12 사장님)
     val isPlainThread by viewModel.isPlainThread.collectAsState()
-    val suggestionsStale by viewModel.suggestionsAreStale.collectAsState()
-    val suggestionsLoading by viewModel.suggestionsLoading.collectAsState()
-    val suggestionsFailed by viewModel.suggestionsFailed.collectAsState()
-    val unreflectedCount by viewModel.unreflectedCustomerCount.collectAsState()
-    // ⚠️ (2026-08-14 사장님) stale 자동 재생성 제거 — '볼 때만 생성'(비용 68% 절감).
-    //   채팅 보던 중 새 문자가 와도 자동으로 Sonnet 을 부르지 않음. 옛 답은 stale 로 숨겨지고,
-    //   '✨ AI 답변 추천받기' 띠가 떠서 사장님이 원할 때 탭 → 생성.
-    // 통화로 끝난 대화면 추천 준비 X — "준비 중" 대신 "문자 오면 준비" 안내. (2026-06-17 사장님)
-    val endedWithCall by viewModel.lastActivityIsCall.collectAsState()
+    // ✨ AI 답변 추천 띠 제거 (2026-10-13 사장님: "안 쓰게 되더라. 다듬기를 더 많이 쓴다").
+    //   SuggestionArea 컴포저블·ViewModel 추천 로직(loadSuggestions/regenerateSuggestions 등)은
+    //   보존(재활성 대비). 생성은 띠 탭으로만 돼서, 띠를 떼면 Sonnet 호출·비용도 함께 멈춘다.
     // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" 물음. (2026-06-17 사장님)
     val principleDiscovery by viewModel.principleDiscovery.collectAsState()
     // 별표된 메시지 식별 키 set — ChatBubble 의 isStarred 여부 빠르게 판정
@@ -1110,64 +1103,6 @@ fun ChatScreen(
             // (되돌리기는 **고객 정보 화면**에 둔다 — 대화방은 깨끗하게. 2026-09-17 사장님 C안 선택:
             //  "계속 고객아님으로 해두셨어요가 나오면 사용성과 ui를 헤치는거아닌가")
 
-            // AI 추천 답변 영역 — 가장 최신 메시지가 고객이 보낸 것일 때만 표시.
-            // SmsReceiver 가 백그라운드에서 서버에 prepare 트리거 → ChatScreen 진입 시 fetch.
-            // 없거나 stale 이면 사장님이 ↻ 로 재생성.
-            //
-            // 2026-05-25 자동 접힘: 사장님이 직접 타이핑 시작 (input.isNotBlank()) = 추천 안 보고 싶음
-            //   → 1줄 헤더로 접힘. composer 비우면 자동 펼침. 또는 헤더 탭으로 수동 토글.
-            // 문자함(고객 아님)은 AI 답변 추천 영역 자체를 안 띄움. (2026-07-12 사장님)
-            // 'AI 답변 준비' OFF 면 추천 영역 통째로 숨김 — 마스코트 로딩·↻ 없음(사장님이 끈 것). (2026-07-16 사장님)
-            val showSuggestionArea = messages.firstOrNull()?.sent == false && !isPlainThread &&
-                viewModel.aiReplyPrepEnabled
-            if (showSuggestionArea) {
-                var suggestionsExpanded by remember { mutableStateOf(false) }   // 기본 닫힘 = 얇은 띠. (2026-08-14 사장님)
-                val inputNonBlank = input.isNotBlank()
-                LaunchedEffect(inputNonBlank) {
-                    if (inputNonBlank) suggestionsExpanded = false   // 타이핑 시작하면 접힘(자동 펼침 X)
-                }
-                // 업종 물어보기 — 추천답변 **바로 위**. 왜 묻는지가 화면에 이미 있는 자리. (2026-09-16 사장님)
-                val tradeAskVisible by viewModel.tradeAskVisible.collectAsState()
-                val tradeGuesses by viewModel.tradeGuesses.collectAsState()
-                LaunchedEffect(tradeAskVisible) { if (tradeAskVisible) viewModel.ensureTradeGuess() }
-                androidx.compose.animation.AnimatedVisibility(visible = controlsVisible && tradeAskVisible) {
-                    TradeAskCard(
-                        guesses = tradeGuesses,
-                        onPick = { viewModel.pickTrade(it) },
-                        onOther = onOpenTradeSelect,
-                        onDismiss = { viewModel.dismissTradeAsk() }
-                    )
-                }
-                // 스크롤 자동 숨김 — 추천도 칩과 함께 숨고/나타남.
-                androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
-                SuggestionArea(
-                    suggestion = suggestion,
-                    loading = suggestionsLoading,
-                    failed = suggestionsFailed,
-                    unreflectedCount = unreflectedCount,
-                    endedWithCall = endedWithCall,
-                    expanded = suggestionsExpanded,
-                    isStale = suggestionsStale,
-                    onToggleExpand = { suggestionsExpanded = !suggestionsExpanded },
-                    onPickChoice = { picked ->
-                        // 2026-05-29 킬러콘텐츠 3단계 — chip 탭 시그널 capture.
-                        //   ViewModel 이 picked snapshot 보관 → send 후 SENT_AS_IS/EDITED/REFINED 판정.
-                        viewModel.onSuggestionTapped(picked)
-                        setInput(picked.text)
-                        // 답변 추천 사용 직후 = 자동 접힘 (사장님이 보낼 본문에 집중)
-                        suggestionsExpanded = false
-                        // 탭 → 입력칸 커서 끝 + 키보드 올림 (확인·수정 후 발송). (2026-08-14 사장님)
-                        runCatching { composerFocusRequester.requestFocus() }
-                    },
-                    onRegenerate = {
-                        // '✨ AI 답변 추천받기' 탭 → 생성 시작 + 끝나면 자동 펼쳐 보여주기. (2026-08-14 '볼 때만 생성')
-                        suggestionsExpanded = true
-                        viewModel.regenerateSuggestions()
-                    },
-                    onCancel = { viewModel.cancelSuggestions() }   // '작성 중' 탭 → 취소 (2026-08-15 UX감사#1)
-                )
-                }
-            }
 
             // 원칙 발견 카드 제거 (2026-08-14 사장님: "이상한 타이밍에만 떠서 차라리 없는 게 낫다").
             //   PrincipleDiscoveryCard 정의·ViewModel 로직은 보존(재활성 대비).

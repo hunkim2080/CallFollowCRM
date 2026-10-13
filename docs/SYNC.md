@@ -14127,3 +14127,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: HomeScreen 앱바 👤 버튼 + onOpenCustomers 파라미터 삭제, AppNavHost 연결선 삭제. CUSTOMERS route/CustomersScreen 는 그대로 남김(코드·IA 유지, 되살리기 쉽게). 상단바=[시공AI][🔔][▦QR].
 - 폰 확인: 테스트폰(23514638000c7ece) DEBUG 설치 → 상담함 상단바에서 👤 사라진 것 눈으로 확인(스샷).
 - 다음 액션: (사장님) 배포 원하시면 태그. / 프로토 SoT(32c88330) 상단바에서도 👤 빼야 함 — 다음 프로토 동기화 때.
+
+## 2026-10-13 23:40 · android
+대화방 '✨ AI 답변 추천받기' 띠 제거 — 사장님 지시("안 쓰게 되더라. 다듬기를 더 많이 쓴다"). 다듬기(polish)는 그대로.
+- 변경: ChatScreen.kt 의 showSuggestionArea 블록(SuggestionArea 호출 + 그 안 TradeAskCard) 삭제 + 고아 변수 6개(suggestion/suggestionsStale/Loading/Failed/unreflectedCount/endedWithCall) 정리. SuggestionArea 컴포저블·ChatViewModel 추천 로직(loadSuggestions/regenerateSuggestions)은 보존(재활성 대비). 생성은 띠 탭으로만 돼서 띠 제거=Sonnet 호출·비용도 멈춤. TradeAsk 는 업종 미설정 시에만 뜨던 보조입구(상단 시공AI 칩으로도 선택 가능)라 함께 사라져도 안전.
+- 폰 확인: 테스트폰(23514638000c7ece) DEBUG 설치·실행 OK. 단 테스트폰에 고객 대화가 없어(SMS 116통 전부 광고·재난·인증) 대화방 '전후' 스샷은 못 찍음. SMS 삽입도 기본문자앱 아니라 불가. 코드/빌드/가드로 검증.
+- 다음 액션: (사장님) 본인 폰에서 대화방 열어 ✨ 띠 사라진 것 확인 / 배포 원하면 태그.
