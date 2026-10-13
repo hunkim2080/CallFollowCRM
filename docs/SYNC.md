@@ -14111,3 +14111,8 @@ Fable 🧹3. 사장님 "고고"
 - 변경: 알림 small icon(setSmallIcon)을 종류별로 — 협업=사람 둘(ic_noti_collab) · 접수서=문서(ic_noti_intake) · 부재중/통화=전화(ic_noti_call) · 나머지(문자·문의·리마인더·브리핑)=기본 말풍선+AI(ic_notification, 브랜드). showProtoPush 는 smallIconFor(channelId), 부재중은 직접 ic_noti_call. (돈은 CHANNEL_REMINDER 공유라 채널로 못 가름 — 보류)
 - 상태바 아이콘은 안드로이드가 흰 실루엣으로만 → 색 불가, 모양으로만 구분. 벡터 3개 추가(Material group/call/description path).
 - ⚠️ 실기 스샷 불가(실제 푸시 트리거 필요) — 사장님 폰에서 실제 알림 올 때 확인 필요. 벡터는 유효·가드 통과.
+
+## 2026-10-13 21:50 · android
+상태바 아이콘 — 통화요약 전용 추가(제일 자주 뜸)
+- 변경: showSummaryReadyNotification 의 small icon 을 ic_noti_summary(글줄 종이)로. smallIconFor 에도 call_summary 추가. (사장님: 통화요약이 제일 많이 뜬다)
+- 상태바 아이콘 5종: 문자(말풍선+AI) · 협업(사람) · 부재중(전화) · 접수서(문서) · 통화요약(글줄 종이).

@@ -1208,6 +1208,7 @@ object NotificationHelper {
      *   ⚠️ 상태바 아이콘은 안드로이드가 흰 실루엣으로만 그려서 **모양**으로만 구분된다(색 불가). */
     private fun smallIconFor(channelId: String): Int = when {
         channelId.startsWith("collab") -> R.drawable.ic_noti_collab
+        channelId.startsWith("call_summary") -> R.drawable.ic_noti_summary
         channelId.startsWith("intake") -> R.drawable.ic_noti_intake
         channelId == CHANNEL_FOLLOW_UP || channelId == CHANNEL_FOLLOW_UP_QUIET -> R.drawable.ic_noti_call
         else -> R.drawable.ic_notification
@@ -1707,7 +1708,7 @@ object NotificationHelper {
         val body = if (summaryLine != null) "$summaryLine · ${who}님"
                    else "${who}님 통화 요약이 준비됐어요 · 눌러서 확인"
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_CALL_SUMMARY))
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_noti_summary)   // 상태바 요약 아이콘(통화요약 — 제일 많이 뜸). (2026-10-13 사장님)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 통화요약 가림
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(title)
@@ -1766,7 +1767,7 @@ object NotificationHelper {
         if (lines.size > 6) style.setSummaryText("외 ${lines.size - 6}건 더")
         val pending = appOpenPending(context, CALL_SUMMARY_GROUP_ID)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_CALL_SUMMARY))
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_noti_summary)   // 상태바 요약 아이콘(통화요약 — 제일 많이 뜸). (2026-10-13 사장님)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(headline)
