@@ -443,6 +443,7 @@ class JobRepository(
             )
         )
         if (alsoComplete) renumberRecords(now)   // 현장 번호도 같이 붙어야 맞는다
+        recomputeMirror(j.customerId, now)   // 🔒 도장 기계 한 대 — 건 돈을 고치면 고객 카드(요약)도 같이. (2026-10-13)
     }
 
     /**
@@ -454,6 +455,7 @@ class JobRepository(
         val j = jobDao.findById(jobId) ?: return
         jobDao.update(j.copy(workCompletedAt = at, updatedAt = now))
         renumberRecords(now)
+        recomputeMirror(j.customerId, now)   // 🔒 도장 기계 — 완료 찍으면 고객 카드 배지도 같이. (2026-10-13 완료 배지 버그)
     }
 
     /**
@@ -537,6 +539,7 @@ class JobRepository(
     suspend fun setDepositPaid(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
         val j = jobDao.findById(jobId) ?: return
         jobDao.update(j.copy(depositPaidAt = at, updatedAt = now))
+        recomputeMirror(j.customerId, now)   // 🔒 도장 기계 — 고객 카드(요약)도 같이. (2026-10-13)
     }
 
     /** 이 건의 잔금 받음/안받음. 잔금 액수가 비어 있으면 (총액-계약금)으로 채운다. */
@@ -552,6 +555,7 @@ class JobRepository(
         jobDao.update(j.copy(balancePaidAt = at, balanceAmount = filled, workCompletedAt = done, updatedAt = now))
         // 잔금을 받아 **자동으로 완료**된 건도 번호를 받아야 한다. 전엔 여기만 빠져서 번호가 안 붙었다.
         renumberRecords(now)
+        recomputeMirror(j.customerId, now)   // 🔒 도장 기계 — 잔금/완료가 고객 카드(요약)·배지에도 같이. (2026-10-13)
     }
 
     /** 그 고객의 **대표 건**(고객 카드가 지금 보여주는 건) id. 없으면 null. */

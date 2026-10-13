@@ -14079,3 +14079,10 @@ Fable 🧹3. 사장님 "고고"
 - 변경: `CustomerDetailViewModel.setJobBalancePaid/setJobDepositPaid` 가 건 전표만 찍고 **고객 미러를 안 건드렸다** → 고객정보는 "전액 완납"인데 상담함·챗 배지(고객 미러 읽음)는 "잔금미수". 둘 다 `recomputeMirror(customerId)` + `reclassify` 추가(다른 완납 경로와 동일). `JobRepository.repairMoneyMirror` 에 **반대 방향 치유**(건엔 받음/완료, 카드엔 없음 → recomputeMirror로 끌어올림) 추가 — 시작 시 과거 데이터 자동 보정(멱등).
 - 폰 확인: 테스트폰 — 건 paid·고객 미러 null 로 '막힌' 손님 시드 → 앱 켜니 치유로 고객.balancePaidAt SET, 고객관리 배지 "잔금미수"→"완료" 확인. 가드 7개 통과.
 - 원인: 고객정보는 건(JobCardRow.rowOf) 읽고, 배지(customerStatusOf)는 고객 미러 읽음 — 건 상세 [잔금 확인](setJobBalancePaid)만 미러를 안 넘겨 두 화면이 어긋남. (§13-④ 두 벌 칸)
+
+## 2026-10-13 19:50 · android
+돈/완료 미러 — 뿌리뽑기(도장 기계 한 대) + 장부검사 테스트
+- 변경: `JobRepository` 의 돈·완료 처리 함수 4개(setBalancePaid·setDepositPaid·setWorkCompleted·updateMoney)가 **안에서 recomputeMirror(고객 미러)를 직접 호출**(choke point). 어느 버튼을 눌러도 고객 카드·배지가 자동 동기화 → 이 종류 버그 구조적으로 불가능. ViewModel 쪽 중복 recomputeMirror 제거. 감사 발견 1건(StatsViewModel 완료 처리 — 2차 있는 손님 완료 배지 안 바뀜)도 choke point 로 해결.
+- 추가: `JobMoneyMirrorStatusTest`(장부검사) — "잔금 받으면 고객 배지=완료", "완료 찍으면 반영", "계약금만=예약". 미러 호출 지우면 테스트가 깨져 배포 전 멈춤. 기존 JobMoneyPerJobTest 1곳 mock 보강.
+- 폰 확인: 테스트폰 — 막힌 손님 시드→켜니 치유로 배지 완료, 크래시 0. 단위테스트 1000건 통과. 가드 7개 통과.
+- 남김(③ 반대방향 보류): 고객→건 '일정' 자동동기화는 달력 중복 리스크가 커서 choke point 로 안 넣음(현재 관례+테스트로 보호). 사장님 판단 대기.

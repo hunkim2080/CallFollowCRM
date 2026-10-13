@@ -81,6 +81,8 @@ class JobMoneyPerJobTest {
     fun `2차 총액을 90만으로 고쳐도 1차는 100만 그대로`() = runTest {
         val jobDao = mock<JobDao> {
             onBlocking { findById(20L) } doReturn secondJob()
+            // updateMoney 가 끝에 고객 카드 미러(recomputeMirror)를 돌린다 → 대표 건 목록이 필요. (2026-10-13 도장기계)
+            onBlocking { scheduledByCustomerOnce(1L) } doReturn listOf(firstJob(), secondJob())
         }
         val customerDao = mock<CustomerDao> {
             onBlocking { findById(1L) } doReturn customer()
