@@ -1159,7 +1159,7 @@ object NotificationHelper {
         // 🏷️ 제목 말머리 — 협업은 🤝. 알림 펼쳤을 때 종류가 한눈에. (2026-10-13 사장님)
         val shownTitle = withTitleEmoji(typeForChannel(channelId), title)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, channelId))
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(smallIconFor(channelId))   // 상태바 아이콘 종류별(협업=사람·접수서=문서…). (2026-10-13)
             .setColor(accent)
             .setColorized(true)
             .setContentTitle(shownTitle)
@@ -1201,6 +1201,16 @@ object NotificationHelper {
         ch == CHANNEL_INCOMING_SMS -> "reply"
         ch == CHANNEL_FOLLOW_UP || ch == CHANNEL_FOLLOW_UP_QUIET -> "missed_call"
         else -> "etc"
+    }
+
+    /** 상태바(배터리 옆) 작은 아이콘 — 종류별 흑백 실루엣으로 한눈에. (2026-10-13 사장님)
+     *   협업=사람 둘 · 접수서=문서 · 부재중=전화 · 나머지(문자·문의·리마인더·브리핑)=기본(말풍선+AI, 브랜드).
+     *   ⚠️ 상태바 아이콘은 안드로이드가 흰 실루엣으로만 그려서 **모양**으로만 구분된다(색 불가). */
+    private fun smallIconFor(channelId: String): Int = when {
+        channelId.startsWith("collab") -> R.drawable.ic_noti_collab
+        channelId.startsWith("intake") -> R.drawable.ic_noti_intake
+        channelId == CHANNEL_FOLLOW_UP || channelId == CHANNEL_FOLLOW_UP_QUIET -> R.drawable.ic_noti_call
+        else -> R.drawable.ic_notification
     }
 
     /** 제목 말머리 이모지 — 알림 펼쳤을 때 종류가 한눈에(🤝협업·💬문자·📞부재중·📋접수서). (2026-10-13 사장님)
@@ -1644,7 +1654,7 @@ object NotificationHelper {
         val text = "${formatPhone(phoneNumber)} · 문자 확인하기"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP_QUIET)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_noti_call)   // 상태바 전화 아이콘(부재중). (2026-10-13 사장님)
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(title)
             .setContentText(text)

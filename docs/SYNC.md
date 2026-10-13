@@ -14105,3 +14105,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: AppNotificationEntity.readAt(Long?) 추가(DB v65→66 ALTER + 협업 아닌 옛 기록 1회 DELETE). 탭 → 삭제 대신 markRead(회색으로 남음, 까먹지 않게). 상단 "모두 지우기"→"모두 읽기"(markAllRead, 안 읽은 게 있을 때만). 배지 = 안 읽은 수(observeUnreadCount). 읽은 줄 = 회색(제목 textHint·아이콘 alpha 0.55)·안 읽음은 파란 점.
 - 폰 확인: 테스트폰 — 안 읽음 파란점+진한 제목, 모두읽기→전부 회색으로 남음(삭제 안 됨), 배지 사라짐. 마이그레이션 크래시 0. 가드 통과(style 2657). schemas/66.json 커밋.
 - 사장님 재결정: 전엔 "클릭하면 없어져야지"였는데 → "사라지면 까먹을 듯, 회색으로".
+
+## 2026-10-13 21:40 · android
+상태바 작은 아이콘 — 종류별 흑백 실루엣
+- 변경: 알림 small icon(setSmallIcon)을 종류별로 — 협업=사람 둘(ic_noti_collab) · 접수서=문서(ic_noti_intake) · 부재중/통화=전화(ic_noti_call) · 나머지(문자·문의·리마인더·브리핑)=기본 말풍선+AI(ic_notification, 브랜드). showProtoPush 는 smallIconFor(channelId), 부재중은 직접 ic_noti_call. (돈은 CHANNEL_REMINDER 공유라 채널로 못 가름 — 보류)
+- 상태바 아이콘은 안드로이드가 흰 실루엣으로만 → 색 불가, 모양으로만 구분. 벡터 3개 추가(Material group/call/description path).
+- ⚠️ 실기 스샷 불가(실제 푸시 트리거 필요) — 사장님 폰에서 실제 알림 올 때 확인 필요. 벡터는 유효·가드 통과.
