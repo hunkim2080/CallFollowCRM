@@ -1170,6 +1170,31 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }.sortedByDescending { it.lastDateMs }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 👥 지인도 **상담함 전체 목록**에 시간순으로 보이게. (2026-10-14 사장님 "전체에는 고객과 지인까지")
+    //   ⚠️ KPI·답장대기·오늘신규·미수·AI 엔 **안 낀다** — 그것들은 dedupItems 만 쓴다(지인=일 아님).
+    //   광고·택배·스팸은 여기 없다(isFriend 만). HomeItem 으로 맞춰 재사용(SMS-only 와 같은 fake record).
+    val friendItems: StateFlow<List<HomeItem>> = generalThreads.map { list ->
+        list.filter { it.isFriend }.map { t ->
+            HomeItem(
+                record = CallRecordEntity(
+                    id = -t.lastDateMs,
+                    phoneNumber = t.phone,
+                    callType = CALL_TYPE_SMS_ONLY,
+                    duration = 0L,
+                    startedAt = null,
+                    endedAt = t.lastDateMs,
+                    handledStatus = HandledStatus.SAVED.name,
+                    linkedCustomerId = null
+                ),
+                customer = null,
+                callCount = 0,
+                lastSent = t.lastSent,
+                lastBody = t.lastBody,
+                lastActivityMs = t.lastDateMs
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** 문자함에서 안 읽은 **번호들**. 숫자도 「전부 읽음으로」도 여기서 나온다. */
     private val generalUnreadPhones: StateFlow<List<String>> =
         generalThreads.map { list -> list.filter { it.unread && !it.isSpam }.map { it.phone } }   // 스팸 안읽음은 문자함 배지에 안 센다

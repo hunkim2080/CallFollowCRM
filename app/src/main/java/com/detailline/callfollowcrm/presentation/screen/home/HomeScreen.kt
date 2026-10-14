@@ -272,6 +272,8 @@ fun HomeScreen(
 
     // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
     val generalThreads by viewModel.generalThreads.collectAsState()
+    // 👥 지인 — [전체] 목록에만 시간순으로 합쳐 보여준다(일 숫자·AI 엔 안 낌). (2026-10-14 사장님)
+    val friendItems by viewModel.friendItems.collectAsState()
     val generalUnread by viewModel.generalUnreadCount.collectAsState()
     val consultUnread by viewModel.consultUnreadCount.collectAsState()
     var inboxTab by rememberSaveable { mutableStateOf(0) }
@@ -1351,8 +1353,15 @@ fun HomeScreen(
                 //   띄웠는데(2026-10-13 사장님: 카드 제거, 「답장 안 함」 칩으로 대체) 이제 시간순에 섞인다.
                 //   답 안 한 것만 보려면 [답장 안 함] 칩, 치우려면 그 안에서 각 줄의 [확인].
                 // 고정 거래처는 최근 대화에서 빼서 '고정' 칸으로만 보여준다. 나머지는 그대로. (2026-08-24 사장님)
-                val recent = chipItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) !in pinnedSuffixes }
-                val pinned = chipItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) in pinnedSuffixes }
+                // 👥 [전체]일 때만 지인을 시간순으로 합친다. 다른 칩(답장안함·오늘신규·미수·문자함)엔 안 낀다. (2026-10-14 사장님)
+                //   KPI·카운트는 위 chipItems/dedupItems 만 쓰므로 지인이 일 숫자엔 안 들어간다.
+                val baseItems = if (inboxChip == "all") {
+                    (chipItems + friendItems)
+                        .distinctBy { PhoneKey.of(it.record.phoneNumber) }
+                        .sortedByDescending { it.lastActivityMs.takeIf { ms -> ms > 0L } ?: it.record.endedAt }
+                } else chipItems
+                val recent = baseItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) !in pinnedSuffixes }
+                val pinned = baseItems.filter { notAd(it) && PhoneKey.of(it.record.phoneNumber) in pinnedSuffixes }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 // [미수] 칩은 위 잔금 카드가 본문이다. 아래 대화 목록까지 띄우면 **같은 사람이 두 번** 나온다.
