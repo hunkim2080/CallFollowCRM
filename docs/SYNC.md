@@ -14182,3 +14182,9 @@ Fable 🧹3. 사장님 "고고"
 - 지인은 문자함 [지인] 에도 그대로 보임(전체에도 추가된 것). 서버 무관.
 - 폰 확인: 빌드·가드 통과. 테스트폰 상담함 전체 회귀 없음(고객 카드 정상, 크래시 0). 지인 데이터가 없어 지인 표시 실측은 사장님 폰.
 - 배포: 정산 달력 스와이프 + 협업 건별 + 문자 라벨 고치기 + 전체=고객+지인, 4개 묶어 태그.
+
+## 2026-10-14 15:41 · android
+정산 현금흐름 달력 월 전환을 detectHorizontalDrag(탁 전환) -> HorizontalPager(손가락 1:1 슬라이드)로. 사장님 지시("일정 달력은 쓸어넘기는 느낌인데 정산은 그냥 넘어가버림").
+- 변경: CashFlowSection.kt — 일정 달력(ScheduleScreen)과 같은 pager 패턴. monthAnchor(local state) -> pagerState(CASH_PAGER_CENTER=1200/COUNT=2401) + derivedStateOf. CashCalendar 그리드를 HorizontalPager(page->shiftMonth(baseAnchor, page-CENTER))로. 헤더 화살표 < > 는 animateScrollToPage. @OptIn(ExperimentalFoundationApi). 이전 detectHorizontalDrag/pointerInput 제거.
+- 폰 확인: 테스트폰 정산 현금흐름 달력 왼쪽 스와이프 -> 10월에서 11월로 슬라이드, 크래시 0. 빌드·가드 통과.
+- 배포: 단독(또는 사장님 지시 시).

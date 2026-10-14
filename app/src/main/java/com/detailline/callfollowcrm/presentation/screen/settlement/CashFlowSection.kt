@@ -40,9 +40,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.ui.draw.clip
@@ -81,11 +84,17 @@ private val CashInPlan = Color(0xFF86AEEE) // 들어올 (예정 수입) 연파�
 private val CashOut = Color(0xFFE0344F)    // 나간 (확정 지출) 빨강
 private val CashOutPlan = Color(0xFFF0A0B0) // 나갈 (예정 지출) 연빨강
 
+// 월 전환 Pager — 일정 달력과 같은 "손가락 1:1 슬라이드" 느낌. 가운데서 양쪽 ~100년. (2026-10-14 사장님)
+private const val CASH_PAGER_CENTER = 1200
+private const val CASH_PAGER_COUNT = 2401
+
 /**
  * 현금흐름 카드 — 4색 달력 + 월 순이익(확정/예상) + 선택일 상세 + 직접 기록 추가.
  * 정산 Phase 2 (2026-06-01). 프로토 cashcal-slot 위치 = settle-top 아래, 미수 목록 위.
  * 자체 remember 상태(달 이동/선택일)를 들고 있어 정산 단일 스크롤에 item 하나로 끼워 넣는다.
+ *   월 전환 = HorizontalPager(일정 달력과 같은 손가락 슬라이드). (2026-10-14 사장님)
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun CashFlowCard(
     viewModel: SettlementViewModel,
@@ -96,7 +105,13 @@ fun CashFlowCard(
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
 
-    var monthAnchor by remember { mutableLongStateOf(DateTimeUtils.startOfMonth(nowMs)) }
+    // 월 전환 = HorizontalPager(손가락 1:1 슬라이드) — 일정 달력과 같은 느낌. page→월 매핑. (2026-10-14 사장님)
+    val pagerScope = rememberCoroutineScope()
+    val baseAnchor = remember(nowMs) { DateTimeUtils.startOfMonth(nowMs) }
+    val pagerState = rememberPagerState(initialPage = CASH_PAGER_CENTER) { CASH_PAGER_COUNT }
+    val monthAnchor by remember {
+        derivedStateOf { DateTimeUtils.shiftMonth(baseAnchor, pagerState.currentPage - CASH_PAGER_CENTER) }
+    }
     var selectedDay by remember { mutableStateOf<Long?>(todayStart) }
     var showAddFor by remember { mutableStateOf<Long?>(null) }
     var confirmDeleteCash by remember { mutableStateOf<Long?>(null) }   // 돈 기록 삭제 확인(즉시삭제 방지). 2026-07-30
@@ -115,12 +130,14 @@ fun CashFlowCard(
         // 프로토 cc 카드 — 하나의 카드 안에: 달력(금액) → 점선 직접기록 → 범례 2×2 → 순이익 2줄 → 단위안내.
         CashCalendar(
             monthAnchor = monthAnchor,
+            baseAnchor = baseAnchor,
+            pagerState = pagerState,
             byDay = byDay,
             monthAgg = monthAgg,
             todayStart = todayStart,
             selectedDay = selectedDay,
-            onPrev = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, -1) },
-            onNext = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, +1) },
+            onPrev = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+            onNext = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
             onSelect = { selectedDay = it },
             onAddRecord = { showAddFor = selectedDay ?: todayStart }
         )
@@ -180,9 +197,12 @@ fun CashFlowCard(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun CashCalendar(
     monthAnchor: Long,
+    baseAnchor: Long,
+    pagerState: androidx.compose.foundation.pager.PagerState,
     byDay: Map<Long, List<CashItem>>,
     monthAgg: CashDayAgg,
     todayStart: Long,
@@ -223,36 +243,22 @@ private fun CashCalendar(
                     )
                 }
             }
-            val cells = remember(monthAnchor, byDay) { buildCashCells(monthAnchor, byDay, todayStart) }
-            // 📅 달력 좌우 스와이프 = 이전/다음 달 (화살표 < > 와 같은 동작). (2026-10-14 사장님)
-            //   그리드만 감싸 날짜 탭과 안 부딪히게. rememberUpdatedState 로 최신 onPrev/onNext 를 잡아
-            //   — 안 그러면 pointerInput 이 처음 람다를 붙들어 한 달만 움직이고 멈춘다.
-            val curPrev by androidx.compose.runtime.rememberUpdatedState(onPrev)
-            val curNext by androidx.compose.runtime.rememberUpdatedState(onNext)
-            Column(
-                Modifier.fillMaxWidth().pointerInput(Unit) {
-                    var dx = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dx = 0f },
-                        onDragCancel = { dx = 0f },
-                        onDragEnd = {
-                            val threshold = 56.dp.toPx()
-                            if (dx > threshold) curPrev()        // → 오른쪽으로 밀면 이전 달
-                            else if (dx < -threshold) curNext()  // ← 왼쪽으로 밀면 다음 달
-                        },
-                        onHorizontalDrag = { change, amount -> dx += amount; change.consume() }
-                    )
-                }
-            ) {
-                repeat(6) { w ->
-                    Row(Modifier.fillMaxWidth()) {
-                        cells.subList(w * 7, w * 7 + 7).forEach { cell ->
-                            CashDayCell(
-                                cell = cell,
-                                isSelected = selectedDay == cell.dayStartMs,
-                                onClick = { onSelect(cell.dayStartMs) },
-                                modifier = Modifier.weight(1f)
-                            )
+            // 📅 월 그리드 = HorizontalPager — 손가락 1:1 따라옴, 놓으면 한 달 스냅(일정 달력과 같은 느낌). (2026-10-14 사장님)
+            //   page→월: shiftMonth(baseAnchor, page - CENTER). 월 이동은 부모 pagerState 가 들고 있다(헤더 화살표도 같은 것).
+            HorizontalPager(state = pagerState, verticalAlignment = Alignment.Top) { page ->
+                val anchor = DateTimeUtils.shiftMonth(baseAnchor, page - CASH_PAGER_CENTER)
+                val cells = buildCashCells(anchor, byDay, todayStart)
+                Column(Modifier.fillMaxWidth()) {
+                    repeat(6) { w ->
+                        Row(Modifier.fillMaxWidth()) {
+                            cells.subList(w * 7, w * 7 + 7).forEach { cell ->
+                                CashDayCell(
+                                    cell = cell,
+                                    isSelected = selectedDay == cell.dayStartMs,
+                                    onClick = { onSelect(cell.dayStartMs) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }
