@@ -14313,3 +14313,17 @@ Fable 🧹3. 사장님 "고고"
 - 대표 사진: **꾹 누르면 대표**(DB v67 site_photos.isRepresentative, MIGRATION_66_67 ADD COLUMN DEFAULT 0). SitePhotoDao.markRepresentative/clearRepresentative, Repo.setRepresentative, VM.setRepresentativePhoto(SaveGuard). 썸네일 combinedClickable(onClick=크게, onLongClick=대표). representativeOf 가 isRepresentative 우선 → 대표딱지·인증샷·통계 전부 같은 출처(§12-K). 없으면 맨 먼저 올린 것(기존 폴백).
 - 실기 확인: ⋮더보기 접힘, 현장메모 접힘, 꾹 눌러 대표 이동+토스트 "대표 사진으로 정했어요". DB 마이그레이션 정상(크래시 0). 빌드 BUILD=0·가드 7종(style 2668->2672).
 - 배포는 지시 시(DB 버전 올라감 — 배포 시 정상 마이그레이션).
+
+## 2026-10-15 08:45 · android (Fable)
+고객상세 "정신없음" 일관화 — Fable 이 사장님 피드백 14개에서 원칙 5개(접기·확인vs행동·선택은작게·한묶음한네모·안펼쳐도알게) 뽑아 등급 4개(항상/접힘/⋮숨김/작은회색)로 통일. 사장님 "쭉 적용해".
+- 이모지·글리프 → 벡터(🏗️→Engineering, 📍Place, ✏️Edit, ▸▾→Chevron/Expand, ⋮→MoreHoriz, 팀원메모 EditNote) — 고객상세 이모지 0.
+- 접힘 머리 공용 1벌 CdFoldRow(Bits, §12 표 추가) → 고객메모·현장메모·팀원메모·이고객문서 4곳. (4벌→1)
+- 협업 → foot ④(작은 회색, 없으면 탭→바로 CollabShareSheet), 접수서 → foot 파란링크(발행 있을 때만), 전용 접힘줄·구분선 2개 제거.
+- 스택 행 2줄째 현장 라벨(siteLabel) + 완료 돈 오른쪽 끝. '다른 건과 주소 다름' 노란 딱지 삭제.
+- 스택 보일 때 카드 안 'N차 시공 [진행중]' 머리 삭제(중복). 1건 고객은 유지.
+- 고객 메모 항상 한 줄 + 안내문 삭제. A/S·완납취소·예약취소·골라지우기·이건지우기 → ⋯ 더보기 안으로.
+- 돈 3줄+큰버튼 → 잔금 한 줄(18sp) + 작은 '받았어요' 칩, foot에 총·계약금 작게(탭→AmountInputDialog 경로 보존). 큰 파란 버튼 2→1(길찾기만). ＋새시공 배경 primaryBg.
+- 기능 100% 보존(협업 해제·접수서 수정/삭제·완납 토글·사진 pick·대표 꾹). style 2672→2654(-18), size 안 늘음, 가드 7종 BUILD=0, 테스트 1013 통과.
+- 폰 확인: 스택 주소·완료 돈 오른쪽·돈 한 줄+받았어요·foot 한 줄(협업/총/계약금/더보기)·현장메모/사진 컴팩트·이 고객 문서 한 줄 — 실기 확인(스샷).
+- (덤) app/schemas/67.json = 어제 isRepresentative(대표사진) DB v67 스키마 — 그때 생성됐는데 누락돼 이번에 같이 커밋.
+- 남음: 아코디언(행=머리, 그 자리 펼침)은 큰 공사라 프로토 받고 별도. 배포 지시 시.

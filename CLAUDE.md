@@ -450,6 +450,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 인터넷 복구 듣기 | `util/NetworkWatch.kt` | 화면마다 `ConnectivityManager` 새로 |
 | 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |
 | 하단 시트 틀(스크림+카드+그랩+키보드/네비바 여백+스크롤) | `presentation/component/AppSheet.kt` | 시트마다 `Box(scrim)+Column+keyboardOrNavPadding+verticalScroll` 새로 (빠뜨리면 스크롤·키보드·네비바 버그) |
+| 고객 상세 **접힘 줄 머리**(아이콘 상자+제목+개수+›/▾, 비면 「＋ 적기」) | `CdFoldRow` (`presentation/screen/customer/CustomerDetailBits.kt`) — 고객 메모·현장 메모·팀원 메모·이 고객 문서 | 섹션마다 `Row + CdTitleIcon + Text + "▸"` 새로 (2026-10-15: 네 벌이 제각각이라 "정신없다"가 됐다) |
 
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).
 > 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**

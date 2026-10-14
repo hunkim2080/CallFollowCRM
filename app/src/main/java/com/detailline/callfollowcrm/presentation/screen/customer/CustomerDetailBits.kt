@@ -10,6 +10,9 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ExpandMore
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppType
@@ -328,6 +331,45 @@ internal fun CdTitleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, 
         contentAlignment = androidx.compose.ui.Alignment.Center
     ) {
         androidx.compose.material3.Icon(icon, null, tint = fg, modifier = Modifier.size(12.dp))
+    }
+}
+
+/**
+ * ② **접힘 줄** — 고객 상세에서 접히는 섹션의 머리는 **이 한 벌만** 쓴다. (2026-10-15 Fable 점검)
+ *   전엔 협업·접수서·현장 메모·고객 메모 머리가 제각각이었다(아이콘 15/24dp · 글자 12/13sp ·
+ *   보라/파랑/회색 · 펼침 표시 ▸ / ＋적기 / 없음). 같은 종류가 다른 옷을 입으니 "정신없다"가 됐다.
+ *   모양: 24dp 회색 아이콘 상자 + 12sp 회색 제목 + 개수 + 오른쪽 › (펼치면 ▾).
+ *   비어 있고 접혀 있으면 › 대신 [emptyAction](예: "＋ 적기")을 파란 글씨로.
+ */
+@Composable
+internal fun CdFoldRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    count: Int = 0,
+    expanded: Boolean,
+    emptyAction: String? = null,
+    onClick: () -> Unit
+) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().clip(AppShape.sm).clickable(onClick = onClick).padding(vertical = AppSpace.s4),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        CdTitleIcon(icon, "gray")
+        Spacer(Modifier.width(AppSpace.s8))
+        Text(title, style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+        if (count > 0) {
+            Spacer(Modifier.width(6.dp))
+            Text("$count", style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+        }
+        Spacer(Modifier.weight(1f))
+        if (emptyAction != null && !expanded) {
+            Text(emptyAction, style = AppType.label, fontWeight = FontWeight.Bold, color = TossBlue)
+        } else {
+            androidx.compose.material3.Icon(
+                if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight, null,
+                tint = TossTextTertiary, modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
@@ -689,9 +731,12 @@ internal fun JobTab(
     accent: Color? = null,
     /** 세로 스택에선 fillMaxWidth 를 넘겨 한 줄 가득 차게. (2026-10-14 재설계 4단계) */
     modifier: Modifier = Modifier,
+    /** 첫 줄 **오른쪽 끝** 작은 글 — 완료 건의 「60만원 · 완납」(프로토 `.fold-sum`). (2026-10-15 Fable §4-4) */
+    trailing: String? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
+    val subColor = if (muted && on) Color(0xFFD6DBE1) else TossTextTertiary
     Column(
         modifier
             .clip(shape)
@@ -727,11 +772,16 @@ internal fun JobTab(
                     else -> TossTextTertiary
                 }
             )
+            if (trailing != null) {
+                Spacer(Modifier.weight(1f))
+                Text(trailing, style = AppType.caption, fontWeight = FontWeight.Bold, color = subColor)
+            }
         }
         Spacer(Modifier.height(2.dp))
+        // 둘째 줄 = 날짜 · 현장 라벨 — 안 펼치고도 「아 그 현장」. 길면 한 줄로 줄인다. (2026-10-15 사장님 #14)
         Text(
-            sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
-            color = if (muted && on) Color(0xFFD6DBE1) else TossTextTertiary
+            sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = subColor,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }
@@ -815,7 +865,8 @@ internal fun IssuedDocRow(
     ) {
         // 제목 줄 — 무슨 문서인가. 꺾쇠 하나로 **누르면 열린다**를 말한다.
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Text(if (isQuote) "📜" else "📋", fontSize = 17.sp)
+            // 이모지 → 벡터(고객 상세는 이모지 0). 견적서=문서, 접수서=영수증 모양. (2026-10-15 사장님 #13)
+            CdTitleIcon(if (isQuote) Icons.Filled.Description else Icons.Filled.ReceiptLong, "blue")
             Spacer(Modifier.width(8.dp))
             if (isQuote) {
                 Text("견적서", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
