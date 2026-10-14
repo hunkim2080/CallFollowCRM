@@ -14139,3 +14139,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: ChatScreen.kt — ComposerActionMenu 에 onAttachPhoto 파라미터 + [사진 첨부] 행(맨 위, caution색/Image아이콘) 추가, 호출부 배선(onAttachPhoto=onAttachPhoto), 알약 안 📷 Box 제거. 레이아웃 설명 주석 현행화. 사진 피커(showPhotoPicker)·썸네일·발송 로직은 그대로.
 - 폰 확인: 테스트폰 DEBUG 설치·빌드 OK. 단 테스트폰 앱DB 완전 비어있고(customers/threads 0) SMS 전부 광고라 대화방 진입 불가 → ⊕ 메뉴 실물 스샷 못 찍음. 코드/빌드/가드 + 승인 프로토로 검증. 사장님 폰에서 배포 후 확인됨.
 - 다음 액션: (사장님) 배포 원하면 태그.
+
+## 2026-10-14 10:00 · android
+대화방 입력 알약 왼쪽 여백 8dp→16dp. 사장님 지시("너무 좌로 붙음", 프로토 VBgp9ZWc 승인). 📷 를 ⊕ 로 뺀 뒤 글이 모서리에 붙어 보여서.
+- 변경: ChatScreen.kt 알약 Row padding horizontal=8 → start=16,end=8 (상/하 5 유지). 오른쪽 ✨ 자리 그대로.
+- 폰 확인: 빌드·가드 통과. 테스트폰 대화 없어 실물 못 봄 → 프로토로 확인. 사장님 폰에서 배포 후 확인.
+- 참고(서버): 10/14 09:37 "서버 502 /api/refine" 알림 = 백엔드는 15시간째 가동 중(크래시 아님), 클라우드플레어 터널 순간 끊김으로 추정. 현재 /api/refine 정상(405 through tunnel). 재발 잦으면 앱쪽 refine 502 자동 1회 재시도 추가 검토.

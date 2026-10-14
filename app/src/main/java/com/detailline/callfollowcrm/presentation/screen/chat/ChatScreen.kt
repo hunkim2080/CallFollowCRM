@@ -3610,7 +3610,9 @@ private fun Composer(
                     .weight(1f)
                     .clip(RoundedCornerShape(22.dp))
                     .background(TossGrayBg)
-                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                    // 왼쪽 여백 16dp — 📷 를 ⊕ 로 뺀 뒤 글이 알약 모서리에 바짝 붙어 보여서.
+                    //   오른쪽(✨ 자리)은 8dp 유지. (2026-10-14 사장님 "너무 좌로 붙음")
+                    .padding(start = 16.dp, end = 8.dp, top = 5.dp, bottom = 5.dp),
                 // 알약 안(글·✨)도 같은 이유로 바닥 정렬. (2026-09-18)
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
