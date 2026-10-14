@@ -14145,3 +14145,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: ChatScreen.kt 알약 Row padding horizontal=8 → start=16,end=8 (상/하 5 유지). 오른쪽 ✨ 자리 그대로.
 - 폰 확인: 빌드·가드 통과. 테스트폰 대화 없어 실물 못 봄 → 프로토로 확인. 사장님 폰에서 배포 후 확인.
 - 참고(서버): 10/14 09:37 "서버 502 /api/refine" 알림 = 백엔드는 15시간째 가동 중(크래시 아님), 클라우드플레어 터널 순간 끊김으로 추정. 현재 /api/refine 정상(405 through tunnel). 재발 잦으면 앱쪽 refine 502 자동 1회 재시도 추가 검토.
+
+## 2026-10-14 10:15 · android
+다듬기(refine) 일시적 실패 자동 재시도 — 사장님 지시(09:37 터널 502 재발 방지). 사장님이 깜빡임 에러를 안 보게.
+- 변경: RemoteRefineRepository.refine 을 "1회 시도 → 일시적 실패면 0.6초 쉬고 1회 더"로. 일시적=502/503/504·SocketTimeout/Connect/UnknownHost·연결reset. 재시도 안 함=RefineQuotaException(한도)·4xx·빈 응답(같은 결과거나 LLM 비용 중복). 호출부/서버 변경 없음(Result 계약 동일). cancelPolish 중 delay 취소 가능.
+- 폰 확인: 빌드·가드 통과. 동작은 터널 깜빡임 때만이라 실측 불가 — 코드/빌드로 검증.
+- 다음 액션: (사장님) 배포 원하면 태그.
