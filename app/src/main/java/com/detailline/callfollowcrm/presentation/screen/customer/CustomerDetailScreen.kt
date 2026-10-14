@@ -1567,9 +1567,8 @@ fun CustomerDetailScreen(
                                 PhotoHeadBtn("골라 지우기", filled = false) { pickMode = true }
                                 Spacer(Modifier.width(4.dp))
                             }
-                            if (photoTotal < photoMax) {
-                                PhotoHeadBtn("올리기", filled = true) { launchPhotoPicker() }
-                            } else {
+                            // 올리기는 아래 스트립 맨 앞 ＋ 타일로 (프로토 스타일). 가득 차면 안내만. (2026-10-15 사장님)
+                            if (photoTotal >= photoMax) {
                                 Text(
                                     "${photoMax}장 다 찼어요",
                                     fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary
@@ -1577,41 +1576,27 @@ fun CustomerDetailScreen(
                             }
                         }
                     }
-                    // 안내문은 **처음 한 번만** — 파란 이름표는 파란 이름표를 보면 알게 된다.
-                    if (photoTotal == 0) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "현장 사진을 올리면 팀원과 같이 봐요. 팀원이 올린 사진엔 파란 이름표가 붙어요. (한 현장 ${photoMax}장까지)",
-                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "맨 처음 올린 사진이 그 현장의 「대표」가 돼요.",
-                            fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold, lineHeight = 17.sp
-                        )
-                    } else if (repPhotoId != null) {
-                        // 사진이 있을 땐 **딱지만으로 충분**하다 — 긴 안내를 계속 두면 카드가 시끄러워진다.
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "「대표」 = 맨 처음 올린 사진 · 그 달 마지막 현장이면 인증샷·영상에 이 사진이 들어가요",
-                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                        )
-                    }
+                    // 프로토 스타일 — 컴팩트 **가로 스트립**(썸네일 + 이름표 + 점선 ＋). 긴 안내문 제거. (2026-10-15 사장님 "현장사진 UI도 프로토 스타일")
                     val cells: List<Any> = sitePhotos + teamPhotos
-                    // 두 줄(6장)까지만. 더 있으면 마지막 칸이 "+N장" 이 되고, 누르면 다 펴진다.
-                    val collapsed = !photosExpanded && cells.size > PHOTO_COLLAPSED
-                    val shown = if (collapsed) cells.take(PHOTO_COLLAPSED) else cells
-                    val hiddenCount = cells.size - shown.size
-                    if (shown.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        shown.chunked(3).forEachIndexed { rowIdx, row ->
-                            if (rowIdx > 0) Spacer(Modifier.height(8.dp))
-                            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                row.forEachIndexed { colIdx, cell ->
-                                    val flatIdx = rowIdx * 3 + colIdx
-                                    val isLastShown = flatIdx == shown.lastIndex
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // ＋ 사진 올리기 타일(점선) — 맨 앞. 가득 찼거나 고르는 중이면 숨김.
+                        if (!pickMode && photoTotal < photoMax) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.size(64.dp).clip(AppShape.md)
+                                    .border(1.3.dp, TossBlue.copy(alpha = 0.4f), AppShape.md)
+                                    .clickable { launchPhotoPicker() },
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.material3.Icon(Icons.Default.Add, "사진 올리기", tint = TossBlue, modifier = Modifier.size(22.dp))
+                            }
+                        }
+                        cells.forEach { cell ->
                                     androidx.compose.foundation.layout.Box(
-                                        Modifier.weight(1f).aspectRatio(1f).clip(AppShape.md).background(TossGrayBg)
+                                        Modifier.size(64.dp).clip(AppShape.md).background(TossGrayBg)
                                     ) {
                                         val picked: Boolean
                                         when (cell) {
@@ -1699,26 +1684,9 @@ fun CustomerDetailScreen(
                                                 )
                                             }
                                         }
-                                        // 마지막 칸 "+N장" — 누르면 나머지가 다 펴진다.
-                                        if (collapsed && isLastShown && hiddenCount > 0) {
-                                            androidx.compose.foundation.layout.Box(
-                                                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
-                                                    .clickable { photosExpanded = true },
-                                                contentAlignment = androidx.compose.ui.Alignment.Center
-                                            ) {
-                                                Text(
-                                                    "+${hiddenCount}장", fontSize = 13.sp,
-                                                    fontWeight = FontWeight.ExtraBold, color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                // 마지막 줄 빈칸 채우기 (3열 정렬 유지)
-                                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                            }
-                        }
-                    }
+                                    }   // 사진 타일 Box 닫기
+                        }   // cells.forEach 닫기
+                    }   // 가로 스트립 Row 닫기
                     // 고른 장수 + [지우기] — 여러 장을 한 번에. 전엔 ✕ → 확인 을 장마다 반복해야 했다.
                     if (pickMode) {
                         Spacer(Modifier.height(11.dp))
