@@ -1388,9 +1388,11 @@ fun CustomerDetailScreen(
                 shownJob?.scheduledWorkDate?.let { sd ->
                     val jobDay = DateTimeUtils.startOfDay(sd)
                     val docsForJob = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.forJobDay(issuedDocs, jobDay)
+                    // 고객상세의 접수서는 **보기 전용** — 보내기는 챗스크린에서. 발행된 게 있을 때만 띄운다. (2026-10-15 사장님)
+                    if (docsForJob.isNotEmpty()) {
                     var intakeExpanded by remember(shownJobId) { mutableStateOf(false) }
                     CdCardDivider()
-                    // 컴팩트 한 줄(프로토 스타일) — 평소 접힘, 탭하면 펼침. (2026-10-15 사장님)
+                    // 컴팩트 한 줄 — 평소 접힘, 탭하면 발행 접수서 확인. (2026-10-15 사장님)
                     androidx.compose.foundation.layout.Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { intakeExpanded = !intakeExpanded }.padding(vertical = 4.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -1398,7 +1400,7 @@ fun CustomerDetailScreen(
                         CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (docsForJob.isEmpty()) "접수서 보내기" else "접수서 ${docsForJob.size}장",
+                            "접수서 ${docsForJob.size}장",
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
                             modifier = Modifier.weight(1f)
                         )
@@ -1445,6 +1447,7 @@ fun CustomerDetailScreen(
                                 }
                             }
                         }
+                    }   // if (docsForJob.isNotEmpty()) — 보기 전용(발행된 게 있을 때만)
                 }
             // ↓ 현장 메모·사진도 **같은 한 건 카드 안**. Column·TossCard·run 닫기는 사진 뒤에서. (2026-10-15 사장님 "한 건=한 카드")
 
