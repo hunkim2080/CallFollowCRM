@@ -496,6 +496,50 @@ fun CustomerDetailScreen(
             val issuedDocs by viewModel.issuedDocs.collectAsState()
             val intakeByToken by viewModel.intakeByToken.collectAsState()
 
+            // 💰 상단 요약 스트립 — 받을 돈(크게·빨강) + 시공 N건/합계. (2026-10-14 사장님 재설계 3단계)
+            //   "받을 돈"은 모든 건의 미수 합 → 홈·정산과 **같은 계산**(SettlementCalc.book)으로 숫자가 어긋나지 않는다(§12).
+            run {
+                val summaryBook = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+                    .book(listOf(c), allJobsForTabs).filter { it.customerId == c.id }
+                val receivable = summaryBook.sumOf { it.calc.outstanding }
+                val totalSum = summaryBook.sumOf { it.calc.total }
+                val activeJobs = allJobsForTabs.count { !jobCancelled(it) && it.scheduledWorkDate != null }
+                val jobCount = if (activeJobs > 0) activeJobs else (if (c.scheduledWorkDate != null) 1 else 0)
+                // 돈이 하나도 안 적힌 고객(상담만)은 숨긴다 — 허전/어수선 방지. (사장님 "중요한 것만")
+                if (totalSum > 0L) {
+                    Spacer(Modifier.height(10.dp))
+                    TossCard {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (receivable > 0L) "아직 받을 돈" else "받을 돈",
+                                    fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                if (receivable > 0L) {
+                                    Text(
+                                        manwonLabel(receivable),
+                                        fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
+                                        color = AppTheme.colors.unpaidText, letterSpacing = (-0.5).sp
+                                    )
+                                } else {
+                                    Text(
+                                        "다 받았어요",
+                                        fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                                        color = AppTheme.colors.doneText, letterSpacing = (-0.5).sp
+                                    )
+                                }
+                            }
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                                Text("시공 ${jobCount}건", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                                Spacer(Modifier.height(3.dp))
+                                Text("합계 " + manwonLabel(totalSum), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                            }
+                        }
+                    }
+                }
+            }
+
             val extractedAddress by viewModel.extractedAddress.collectAsState()
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             val ctx = LocalContext.current
