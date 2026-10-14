@@ -1273,12 +1273,9 @@ fun CustomerDetailScreen(
                                     }
                                 }
                             }
-                    }
-                }
-                // 🤝 이 현장(건) 협업 사장 — 고객이 아니라 **그 시공 건**에 붙는다. (2026-10-14 사장님: 1차·2차 협업 사장 분리)
-                //   협업 탭을 없애고 각 건 카드 아래로 내렸다. days 로 건별 필터 → 1차·2차가 섞이지 않는다.
-                //   건이 바뀌면(탭 전환) 그 건의 협업 사장만. '부르기'도 그 건 날짜로 저장된다.
-                if (cShown.scheduledWorkDate != null) {
+                        // 🤝 협업 사장 — 같은 카드 안 섹션(구분선). (2026-10-15 사장님 "네모칸이 너무 많아 / 한 건=한 카드")
+                        //   건별 협업: days 로 그 건 사장만. '부르기'도 그 건 날짜로 저장.
+                        if (cShown.scheduledWorkDate != null) {
                     val collabSiteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr ?: "").takeIf { it.isNotBlank() }?.let { "$it 현장" }
                         ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
                         ?: "이 현장"
@@ -1295,9 +1292,8 @@ fun CustomerDetailScreen(
                             .distinctBy { it.shareId.ifBlank { PhoneKey.of(it.phone) } }
                     }
                     val showJobCollabShare = remember(c.id, shownJobId) { mutableStateOf(false) }
-                    Spacer(Modifier.height(12.dp))
-                    TossCard {
-                        Column {
+                    CdCardDivider()
+                    Column {
                             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 androidx.compose.material3.Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(7.dp))
@@ -1354,7 +1350,6 @@ fun CustomerDetailScreen(
                                 }
                             }
                         }
-                    }
                     if (showJobCollabShare.value) {
                         CollabShareSheet(
                             siteTitle = collabSiteTitle, addr = displayAddr, scheduledAtMs = cShown.scheduledWorkDate,
@@ -1370,9 +1365,8 @@ fun CustomerDetailScreen(
                 shownJob?.scheduledWorkDate?.let { sd ->
                     val jobDay = DateTimeUtils.startOfDay(sd)
                     val docsForJob = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.forJobDay(issuedDocs, jobDay)
-                    Spacer(Modifier.height(12.dp))
-                    TossCard {
-                        Column {
+                    CdCardDivider()
+                    Column {
                             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
                                 Spacer(Modifier.width(8.dp))
@@ -1413,9 +1407,8 @@ fun CustomerDetailScreen(
                                 }
                             }
                         }
-                    }
                 }
-            }
+            // ↓ 현장 메모·사진도 **같은 한 건 카드 안**. Column·TossCard·run 닫기는 사진 뒤에서. (2026-10-15 사장님 "한 건=한 카드")
 
             // (입금 카드는 위 "일정 · 정산" 카드로 통합됨 — 2026-06-02 사장님 결정.)
             // (메모 카드는 프로토 순서대로 "일정 · 정산" 위로 이동 — 2026-06-03.)
@@ -1428,38 +1421,7 @@ fun CustomerDetailScreen(
             //   2026-06-04 사장님 결정 "프로토 100%". 통화기록/녹음/에이닷 요약 데이터 수집(backfill·
             //   AdotSummaryImporter)은 그대로 동작 — 고객정보 화면에서 카드로 노출만 안 함.
 
-            // 📄 이 고객 문서(차수 미지정) — 시공예정일이 없거나 어느 건과도 안 맞는 발행 문서. (2026-10-14 사장님)
-            //   날짜가 잡힌 접수서·견적서는 위 각 차수 카드 안으로 들어간다. 여기엔 '협의 후 확정(날짜 없음)'·옛 자료만 남는다.
-            //   (issuedDocs/intakeByToken 선언은 위 shownJob 계산부로 올렸다 — 차수 카드도 써야 해서.)
-            run {
-                val matchDays = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.jobDaySet(allJobsForTabs)
-                val unmatchedDocs = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.unmatched(issuedDocs, matchDays)
-                if (unmatchedDocs.isNotEmpty()) {
-                    TossCard {
-                        Column {
-                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "이 고객 문서 ${unmatchedDocs.size}건",
-                                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            IssuedDocList(
-                                docs = unmatchedDocs,
-                                phone = c.phoneNumber,
-                                intakeByToken = intakeByToken,
-                                onOpenQuoteDoc = { reviewQuoteDoc = it },
-                                onOpenIntakeDoc = { intakeReviewDoc = it },
-                                onEditIssued = { docId -> onOpenChatEditIssued(c.phoneNumber, c.id, docId) },
-                                onRequestDelete = { issuedDocToDelete = it },
-                                onNewDoc = { onOpenChat(c.phoneNumber, c.id) },
-                            )
-                        }
-                    }
-                }
-            }
+            // (이 고객 문서(차수 미지정)는 per-건 카드 밖 — 사진 뒤로 옮김. 고객 단위라 한 건 카드에 안 넣는다. 2026-10-15)
 
             // 📍 이 현장 메모 — **그 건에서만.** 손님 메모(👤)와 **같은 얼굴**(쪽지)로. (2026-09-27 사장님)
             //   "메모는 두 곳. 👤 이 손님 메모(현장이 바뀌어도 그대로인 것)와
@@ -1469,8 +1431,8 @@ fun CustomerDetailScreen(
                 val jid = shownJobId
                 val jobNotes by remember(jid) { viewModel.jobNotes(jid) }
                     .collectAsState(initial = emptyList())
-                TossCard {
-                    Column {
+                CdCardDivider()
+                Column {
                         androidx.compose.foundation.layout.Row(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -1499,7 +1461,6 @@ fun CustomerDetailScreen(
                             placeholder = "이 현장에서 기억할 것"
                         )
                     }
-                }
             }
 
             // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
@@ -1558,8 +1519,8 @@ fun CustomerDetailScreen(
             //   **되살려서** 내 기록·영상·백업에도 다시 들어가게 한다.
             val restorable by viewModel.restorable.collectAsState()
             if (restorable.isNotEmpty()) {
-                TossCard {
-                    Column(Modifier.padding(2.dp)) {
+                CdCardDivider()
+                Column(Modifier.padding(2.dp)) {
                         Text("서버에 이 현장 사진 ${restorable.size}장이 있어요",
                             style = AppType.headline, color = TossTextPrimary)
                         Spacer(Modifier.height(4.dp))
@@ -1576,11 +1537,10 @@ fun CustomerDetailScreen(
                                 style = AppType.label, color = Color.White)
                         }
                     }
-                }
                 Spacer(Modifier.height(12.dp))
             }
-            TossCard {
-                Column {
+            CdCardDivider()
+            Column {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         CdTitleIcon(Icons.Filled.PhotoCamera, "blue")
                         Spacer(Modifier.width(8.dp))
@@ -1910,6 +1870,39 @@ fun CustomerDetailScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            }   // 한 건 카드 Column 닫기 (상세+협업+접수서+메모+사진 한 카드) — 2026-10-15 사장님 "한 건=한 카드"
+            }   // 한 건 카드 TossCard · run 닫기
+
+            // 📄 이 고객 문서(차수 미지정) — **고객 단위**(per-건 카드 밖). 날짜 없는/안 맞는 발행 문서만. (2026-10-14~15 사장님)
+            run {
+                val matchDays = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.jobDaySet(allJobsForTabs)
+                val unmatchedDocs = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.unmatched(issuedDocs, matchDays)
+                if (unmatchedDocs.isNotEmpty()) {
+                    TossCard {
+                        Column {
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "이 고객 문서 ${unmatchedDocs.size}건",
+                                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            IssuedDocList(
+                                docs = unmatchedDocs,
+                                phone = c.phoneNumber,
+                                intakeByToken = intakeByToken,
+                                onOpenQuoteDoc = { reviewQuoteDoc = it },
+                                onOpenIntakeDoc = { intakeReviewDoc = it },
+                                onEditIssued = { docId -> onOpenChatEditIssued(c.phoneNumber, c.id, docId) },
+                                onRequestDelete = { issuedDocToDelete = it },
+                                onNewDoc = { onOpenChat(c.phoneNumber, c.id) },
+                            )
                         }
                     }
                 }
@@ -3496,8 +3489,18 @@ private fun JobTabsRow(
                 )
             }
         }
-        // 맨 아래 — ＋새 시공. 완료 건은 위 스택에 **접힌 카드**로 들어갔다(더는 '지난 건 N' 칩 아님). (2026-10-15 사장님 프로토)
-        JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, modifier = Modifier.fillMaxWidth(), onClick = onAddNew)
+        // 맨 아래 — ＋새 시공 잡기. **한 줄 점선 버튼**(프로토). 전엔 JobTab 을 full-width 로 써서 ＋ 위에 '새 시공'이
+        //   쌓인 큰 빈 네모가 됐다 — 사장님 "저 자리 레이아웃 왜이래". (2026-10-15)
+        androidx.compose.foundation.layout.Box(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, TossBlue.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                .clickable(onClick = onAddNew)
+                .padding(vertical = 13.dp),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            Text("＋ 새 시공 잡기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+        }
     }
     Spacer(Modifier.height(2.dp))
 }

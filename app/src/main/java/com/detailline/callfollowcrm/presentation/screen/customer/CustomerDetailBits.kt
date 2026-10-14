@@ -307,6 +307,14 @@ internal fun PersonaLine(emoji: String, text: String?) {
  *   전엔 👤 📍 💰 📷 이모지였다. 이모지는 **폰마다 그림이 다르고**, 특히 📍 는 새빨간 압정이라
  *   담긴 내용("주소 없음")보다 이모지가 더 튀었다. 앱이 직접 그리면 어느 폰에서나 같다.
  */
+/** 한 카드 안에서 섹션을 가르는 얇은 선 — 협업·접수서·사진을 한 건 카드 안 구분선으로. (2026-10-15 사장님 "네모칸이 너무 많아") */
+@Composable
+internal fun CdCardDivider() {
+    Spacer(Modifier.height(14.dp))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
+    Spacer(Modifier.height(14.dp))
+}
+
 @Composable
 internal fun CdTitleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, palette: String) {
     val (bg, fg) = when (palette) {
