@@ -97,6 +97,32 @@ class TodayBandPagesTest {
         assertEquals(1, TodayBandPages.pageCount(todayCount = -3, hasNext = false))
     }
 
+    // ── 다음 일정이 여러 개 — 2개인데 1개만 보이던 것 (2026-10-14 사장님) ──
+
+    @Test
+    fun `오늘 0곳 + 다음 2개 — 세 쪽 (빈 안내 + 다음 둘)`() {
+        assertEquals(3, TodayBandPages.pageCount(todayCount = 0, nextCount = 2))
+    }
+
+    @Test
+    fun `오늘 1곳 + 다음 3개 — 네 쪽`() {
+        assertEquals(4, TodayBandPages.pageCount(todayCount = 1, nextCount = 3))
+    }
+
+    @Test
+    fun `다음 0개면 오늘 자리뿐`() {
+        assertEquals(1, TodayBandPages.pageCount(todayCount = 0, nextCount = 0))
+        assertEquals(2, TodayBandPages.pageCount(todayCount = 2, nextCount = 0))
+    }
+
+    @Test
+    fun `Boolean 과 Int 오버로드가 같은 뜻이다`() {
+        assertEquals(
+            TodayBandPages.pageCount(todayCount = 2, hasNext = true),
+            TodayBandPages.pageCount(todayCount = 2, nextCount = 1)
+        )
+    }
+
     @Test
     fun `적은 숫자와 넘기는 쪽수가 늘 맞는다`() {
         // 적힌 「N/전체」 의 전체는 **오늘 쪽 수**와 같아야 한다 (한 몸짓 한 뜻)

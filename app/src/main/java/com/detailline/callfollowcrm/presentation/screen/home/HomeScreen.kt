@@ -317,6 +317,7 @@ fun HomeScreen(
     val outstandingCount by viewModel.outstandingCount.collectAsState()
     val todayJobs by viewModel.todayJobs.collectAsState()
     val nextJobs by viewModel.nextJobs.collectAsState()
+    val upcomingJobs by viewModel.upcomingJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
     val teamUpdates by viewModel.teamUpdates.collectAsState()
     val collabUpdates by viewModel.collabUpdates.collectAsState()
@@ -1046,6 +1047,8 @@ fun HomeScreen(
                     TodayBand(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
+                        upcomingJobs = upcomingJobs,
+                        collabUpcomingAll = collabUpcoming,
                         collabTodayCount = collabTodaySites.size,
                         collabTodaySites = collabTodaySites,
                         collabNext = collabBandNext,
@@ -2193,11 +2196,22 @@ private fun CollabHeroJobCard(
  *  - 색은 **일이 있을 때만**. 없는 날을 초록으로 칠하면 거짓말이 된다.
  *  - 두 곳 이상이면 이름 뒤에 **(1/2)** — 곳수는 절대 안 잘리게 **첫 줄**에 둔다.
  */
+/** 홈 띠 '다음 일정' 한 쪽 — 내 시공(job) 또는 협업(collab). ms = 정렬용 시각. (2026-10-14 사장님) */
+private data class UpcomingBandItem(
+    val ms: Long,
+    val job: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?,
+    val collab: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite?
+)
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TodayBand(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    /** 내일 이후 **모든** 예약 시공(가까운 순) — 다음 일정을 여러 개 넘겨 보려고. (2026-10-14 사장님) */
+    upcomingJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity> = emptyList(),
+    /** 내일 이후 모든 협업 현장 — 다음 일정 페이지에 내 시공과 시간순으로 섞는다. (2026-10-14) */
+    collabUpcomingAll: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList(),
     collabTodayCount: Int,
     /**
      * 오늘 잡힌 협업 현장 **전부**. 내 시공이 없어도 **오늘 갈 데가 있으면** 띠가 말해야 한다.
@@ -2252,9 +2266,22 @@ private fun TodayBand(
     //   한 몸짓에 두 가지 뜻이 섞여 있던 셈이다. 이제 (1/2) → (2/2) → 다음 시공.
     //   오늘 아무것도 없으면 그 자리는 안내 한 쪽(빈 날·끝난 날)으로 쓴다.
     //   셈과 「(1/2)」 글자는 [TodayBandPages] 한 곳에 있다 — 전엔 글자가 두 군데였다.
+    // 📄 **다음 일정(들)** — 내 시공 + 협업, 내일 이후, 시간순. 2개면 한 쪽씩 넘긴다. (2026-10-14 사장님)
+    //   전엔 가장 가까운 하루만(nextJobs) 봐서 "2개인데 1개만" 보였다. 이제 upcomingJobs(전부) + 협업을 섞어 센다.
+    val upcoming = remember(upcomingJobs, collabUpcomingAll, dayStart) {
+        val jobs = upcomingJobs.mapNotNull { j ->
+            j.scheduledWorkDate?.let { d ->
+                UpcomingBandItem(DateTimeUtils.startOfDay(d) + (j.scheduledWorkMinutes ?: 0) * 60_000L, j, null)
+            }
+        }
+        val collabs = collabUpcomingAll
+            .filter { it.scheduledAtMs > 0L && DateTimeUtils.startOfDay(it.scheduledAtMs) > dayStart }
+            .map { UpcomingBandItem(it.scheduledAtMs, null, it) }
+        (jobs + collabs).sortedBy { it.ms }.take(6)
+    }
     val todaySlots = com.detailline.callfollowcrm.domain.schedule.TodayBandPages.todaySlots(total)
     val pageCount = com.detailline.callfollowcrm.domain.schedule.TodayBandPages
-        .pageCount(total, hasNext)
+        .pageCount(total, upcoming.size)
     val pager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pageCount })
 
     Column(Modifier.fillMaxWidth()) {
@@ -2337,46 +2364,51 @@ private fun TodayBand(
                         onTap = onOpenSchedule
                     )
                 }
-            } else if (nextIsCollab && collabNext != null) {
-                // 2쪽도 '다음'이 협업이면 협업을 보여준다. 안 그러면 1쪽과 2쪽이 딴소리를 한다.
-                val cAddr = collabNext.addr?.trim()?.takeIf { it.isNotBlank() }
-                val cDays = ((DateTimeUtils.startOfDay(collabNext.scheduledAtMs) - dayStart) / DateTimeUtils.DAY_MS).toInt()
-                BandShell(
-                    bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,
-                    subFg = AppTheme.colors.textSub,
-                    icon = "", iconVector = Icons.Default.Handshake,
-                    border = AppTheme.colors.categoryBg,
-                    iconBg = Color.White, iconTint = AppTheme.colors.category,
-                    line1 = "협업 · " + DateTimeUtils.formatScheduledDate(collabNext.scheduledAtMs) +
-                        (collabNext.timeLabel?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "") +
-                        (if (cDays > 0) "  (D-$cDays)" else ""),
-                    line2 = (collabNext.ownerName.takeIf { it.isNotBlank() }?.let { "${it}님 · " } ?: "") +
-                        (cAddr ?: collabNext.title),
-                    action = if (cAddr != null) "길찾기" else null,
-                    onAction = { onNavigateAddr(cAddr) },
-                    onTap = onOpenSchedule
-                )
             } else {
-                val c = next!!
-                val who = c.name?.takeIf { it.isNotBlank() }
-                    ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(c.phoneNumber)
-                val addr = c.address?.trim()?.takeIf { it.isNotBlank() }
-                val d = c.scheduledWorkDate ?: 0L
-                val days = ((DateTimeUtils.startOfDay(d) - dayStart) / DateTimeUtils.DAY_MS).toInt()
-                val t = c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
-                BandShell(
-                    // 예정은 **파란 결**로 — 오늘(초록)과 한눈에 갈린다.
-                    bg = AppTheme.colors.primaryBg, fg = Color(0xFF1B5FC1), subFg = Color(0xFF6E92C9),
-                    icon = "", iconVector = Icons.Default.DateRange, border = Color(0xFFD7E5FB),
-                    // 아이콘 칸도 파란 결로 — 회색 네모만 혼자 튀면 또 '깨진 자리' 처럼 보인다.
-                    iconBg = Color(0xFFDCE8FC), iconTint = Color(0xFF3B77D1),
-                    line1 = DateTimeUtils.formatScheduledDate(d) + t +
-                        (if (days > 0) "  (D-$days)" else ""),
-                    line2 = who + " · " + (addr ?: "주소 아직 없어요"),
-                    action = if (addr != null) "길찾기" else null,
-                    onAction = { onNavigateAddr(addr) },
-                    onTap = { onOpenChat(c.phoneNumber, c.id) }
-                )
+                // 📄 다음 일정 쪽 — upcoming[page-todaySlots]. 내 시공/협업을 시간순으로 한 쪽씩. (2026-10-14 사장님)
+                val upItem = upcoming.getOrNull(page - todaySlots)
+                val upCollab = upItem?.collab
+                val upJob = upItem?.job
+                if (upCollab != null) {
+                    val cAddr = upCollab.addr?.trim()?.takeIf { it.isNotBlank() }
+                    val cDays = ((DateTimeUtils.startOfDay(upCollab.scheduledAtMs) - dayStart) / DateTimeUtils.DAY_MS).toInt()
+                    BandShell(
+                        bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,
+                        subFg = AppTheme.colors.textSub,
+                        icon = "", iconVector = Icons.Default.Handshake,
+                        border = AppTheme.colors.categoryBg,
+                        iconBg = Color.White, iconTint = AppTheme.colors.category,
+                        line1 = "협업 · " + DateTimeUtils.formatScheduledDate(upCollab.scheduledAtMs) +
+                            (upCollab.timeLabel?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "") +
+                            (if (cDays > 0) "  (D-$cDays)" else ""),
+                        line2 = (upCollab.ownerName.takeIf { it.isNotBlank() }?.let { "${it}님 · " } ?: "") +
+                            (cAddr ?: upCollab.title),
+                        action = if (cAddr != null) "길찾기" else null,
+                        onAction = { onNavigateAddr(cAddr) },
+                        onTap = onOpenSchedule
+                    )
+                } else if (upJob != null) {
+                    val c = upJob
+                    val who = c.name?.takeIf { it.isNotBlank() }
+                        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(c.phoneNumber)
+                    val addr = c.address?.trim()?.takeIf { it.isNotBlank() }
+                    val d = c.scheduledWorkDate ?: 0L
+                    val days = ((DateTimeUtils.startOfDay(d) - dayStart) / DateTimeUtils.DAY_MS).toInt()
+                    val t = c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                    BandShell(
+                        // 예정은 **파란 결**로 — 오늘(초록)과 한눈에 갈린다.
+                        bg = AppTheme.colors.primaryBg, fg = Color(0xFF1B5FC1), subFg = Color(0xFF6E92C9),
+                        icon = "", iconVector = Icons.Default.DateRange, border = Color(0xFFD7E5FB),
+                        // 아이콘 칸도 파란 결로 — 회색 네모만 혼자 튀면 또 '깨진 자리' 처럼 보인다.
+                        iconBg = Color(0xFFDCE8FC), iconTint = Color(0xFF3B77D1),
+                        line1 = DateTimeUtils.formatScheduledDate(d) + t +
+                            (if (days > 0) "  (D-$days)" else ""),
+                        line2 = who + " · " + (addr ?: "주소 아직 없어요"),
+                        action = if (addr != null) "길찾기" else null,
+                        onAction = { onNavigateAddr(addr) },
+                        onTap = { onOpenChat(c.phoneNumber, c.id) }
+                    )
+                }
             }
         }
         // 넘길 수 있다는 걸 알려주는 유일한 표시 — 점이 없으면 아무도 안 넘겨본다.

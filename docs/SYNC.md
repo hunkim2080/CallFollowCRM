@@ -14188,3 +14188,10 @@ Fable 🧹3. 사장님 "고고"
 - 변경: CashFlowSection.kt — 일정 달력(ScheduleScreen)과 같은 pager 패턴. monthAnchor(local state) -> pagerState(CASH_PAGER_CENTER=1200/COUNT=2401) + derivedStateOf. CashCalendar 그리드를 HorizontalPager(page->shiftMonth(baseAnchor, page-CENTER))로. 헤더 화살표 < > 는 animateScrollToPage. @OptIn(ExperimentalFoundationApi). 이전 detectHorizontalDrag/pointerInput 제거.
 - 폰 확인: 테스트폰 정산 현금흐름 달력 왼쪽 스와이프 -> 10월에서 11월로 슬라이드, 크래시 0. 빌드·가드 통과.
 - 배포: 단독(또는 사장님 지시 시).
+
+## 2026-10-14 16:46 · android
+(1) 통화요약 상태바 아이콘 종이->종이+전화기 (접수서와 구분). (2) 홈 띠 '다음 일정'을 1개->여러 개 넘기기. 사장님 지시.
+- 변경(아이콘): res/drawable/ic_noti_summary.xml = 종이(글줄)+전화기 2-path. 접수서(문서)·부재중(전화기)과 구분. 프로토 Xrp7aWyw "고".
+- 변경(밴드): 사장님 지적("기다리는 일정 2개인데 1개만 보임"). 원인=nextJobs 가 가장 가까운 하루만. 추가: HomeViewModel.upcomingJobs(내일 이후 모든 시공, 가까운 순, 최대 6). TodayBandPages.pageCount(todayCount, nextCount:Int) 오버로드(Boolean 것은 위임) + 테스트 4건. TodayBand: upcomingJobs+collabUpcomingAll 받아 UpcomingBandItem(ms,job,collab) 리스트로 합쳐 시간순 take(6), pageCount=todaySlots+upcoming.size, 다음-쪽 렌더를 upcoming[page-todaySlots] 루프로(기존 협업/시공 BandShell 재사용, 색값 그대로->style 불변). 호출부 배선.
+- 폰 확인: 빌드·가드 통과, TodayBandPages 테스트 통과(다음 2개->3쪽 등). 상담함 밴드 오늘 시공 히어로 정상 렌더·크래시 0(회귀 없음). 미래 2건 다중페이지 실측은 날짜선택기 제약으로 못 함 -> 사장님 폰에서 확인.
+- 다음: (사장님) 광고->신규 어디서 보이는지 알려주면 그 자리 수정. 배포는 ㄱㄱ 시.

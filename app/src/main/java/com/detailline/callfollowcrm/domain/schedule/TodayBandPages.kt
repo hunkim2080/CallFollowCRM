@@ -23,9 +23,13 @@ object TodayBandPages {
     /** 오늘 자리 수 — 오늘이 비어도 **안내 한 쪽**은 있어야 한다. */
     fun todaySlots(todayCount: Int): Int = maxOf(todayCount, 0).coerceAtLeast(1)
 
-    /** 띠 전체 쪽수 = 오늘 자리 + (다음 시공이 있으면 한 쪽). */
+    /** 띠 전체 쪽수 = 오늘 자리 + (다음 시공이 있으면 한 쪽). (한 개만 보던 옛 버전) */
     fun pageCount(todayCount: Int, hasNext: Boolean): Int =
-        todaySlots(todayCount) + (if (hasNext) 1 else 0)
+        pageCount(todayCount, if (hasNext) 1 else 0)
+
+    /** 띠 전체 쪽수 = 오늘 자리 + **다음 일정 개수**. 다음이 2개면 2쪽. (2026-10-14 사장님: 2개인데 1개만 보임) */
+    fun pageCount(todayCount: Int, nextCount: Int): Int =
+        todaySlots(todayCount) + nextCount.coerceAtLeast(0)
 
     /** 이 쪽이 **다음 시공** 쪽인가 (= 오늘 자리를 다 넘긴 뒤). */
     fun isNextPage(page: Int, todayCount: Int): Boolean = page >= todaySlots(todayCount)

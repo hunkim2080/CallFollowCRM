@@ -822,6 +822,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 내일 이후 **모든** 예약 시공 — 홈 띠에서 다음 일정을 여러 개 넘겨 보려고(가까운 순, 최대 6). (2026-10-14 사장님) */
+    val upcomingJobs: StateFlow<List<CustomerEntity>> = combine(customers, todayStartFlow) { list, ts ->
+        val todayEnd = ts + 24L * 60 * 60 * 1000 - 1
+        list.filter { (it.scheduledWorkDate ?: 0L) > todayEnd }
+            .sortedWith(
+                compareBy(
+                    { DateTimeUtils.startOfDay(it.scheduledWorkDate ?: 0L) },
+                    { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
+                )
+            )
+            .take(6)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /**
      * "미확인" 판정 = phone suffix set.
      *
