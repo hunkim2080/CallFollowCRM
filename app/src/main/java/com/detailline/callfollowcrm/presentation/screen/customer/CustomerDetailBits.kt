@@ -689,11 +689,13 @@ internal fun JobTab(
     muted: Boolean = false,
     /** 건 종류 색 점 — 완료=회색·예정 시공=초록(달력 범례와 같은 색). null = 안 그림(＋·지난건). (2026-10-07) */
     accent: Color? = null,
+    /** 세로 스택에선 fillMaxWidth 를 넘겨 한 줄 가득 차게. (2026-10-14 재설계 4단계) */
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
     Column(
-        Modifier
+        modifier
             .clip(shape)
             .background(
                 when {

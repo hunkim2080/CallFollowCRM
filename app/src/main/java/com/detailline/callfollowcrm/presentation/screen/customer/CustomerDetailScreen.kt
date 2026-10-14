@@ -985,19 +985,7 @@ fun CustomerDetailScreen(
                         }
                     }
                 )
-                // 💰 건들의 합 — **읽기전용 요약**. 고치는 건 각 카드에서만. (2026-10-07 사장님 "총액=건들의 합")
-                val liveJobs = allJobsForTabs.filterNot { jobCancelled(it) }
-                val sumTotal = liveJobs.sumOf { com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(it).total }
-                val sumDue = liveJobs.sumOf { com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(it).outstanding }
-                if (liveJobs.size >= 2 && sumTotal > 0L) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "시공 ${liveJobs.size}건 · 합계 " + manwonLabel(sumTotal) +
-                            (if (sumDue > 0L) " · 미수 " + manwonLabel(sumDue) else ""),
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
-                }
+                // (건들의 합 '시공 N건·합계·미수' 줄 제거 — 헤더 아래 상단 요약 스트립이 같은 걸 보여준다. 2026-10-14 재설계 3·4단계)
             }
             // 2-0-b. '지난 건'을 펼쳤을 때 — 마무리된 건 목록. (2026-09-18 프로토 `.past-list`)
             //   "펼치면 목록이 나오고, 고르면 그 건이 열려요."
@@ -3522,13 +3510,13 @@ private fun JobTabsRow(
     fun nthOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Int =
         com.detailline.callfollowcrm.util.JobOrder.nth(order, j.id)
     val curNth = com.detailline.callfollowcrm.util.JobOrder.nth(order, CUR)
-    androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth()
-            .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
+    // 세로 스택 — 최신 건이 맨 위(프로토 "최신부터"). 완료 건은 '지난 건'으로 접힘(맨 아래). (2026-10-14 재설계 4단계)
+    androidx.compose.foundation.layout.Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
         @Suppress("UNUSED_PARAMETER")
-        slots.forEachIndexed { idx, (_, job) ->
+        slots.reversed().forEachIndexed { idx, (_, job) ->
             if (job != null) {
                 // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
                 val done = job.workCompletedAt != null
@@ -3542,6 +3530,7 @@ private fun JobTabsRow(
                     on = selectedPastJobId == job.id,
                     // 완료=회색·예정=초록 점(달력 범례와 같은 색). 취소 건은 점 없음. (2026-10-07)
                     accent = if (jobCancelled(job)) null else if (done) TossTextTertiary else TossSuccess,
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = { onSelect(job.id) }
                 )
             } else {
@@ -3553,18 +3542,27 @@ private fun JobTabsRow(
                     sub = current.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정",
                     on = selectedPastJobId == null,
                     accent = if (current.workCompletedAt != null) TossTextTertiary else TossSuccess,
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = { onSelect(null) }
                 )
             }
         }
-        JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, onClick = onAddNew)
-        // 마무리된 건은 탭에서 빼고 여기 묶는다. (2026-09-18 확정 프로토 `.chip.past`)
-        //   "잔금 받으면 그 건은 마무리. 마무리된 건은 탭에서 빠지고 **지난 건 (N)** 으로 접혀요."
-        if (closedCount > 0) {
-            JobTab(
-                nth = "지난 건", sub = "${closedCount}건",
-                on = pastOpen, muted = true, onClick = onTogglePast
-            )
+        // 맨 아래 한 줄 — ＋새 시공 · 지난 건(완료 접힘). 나란히. (2026-10-14)
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+        ) {
+            JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, modifier = Modifier.weight(1f), onClick = onAddNew)
+            // 마무리된 건은 스택에서 빼고 여기 묶는다 — '완료 접기'. (2026-09-18 확정 프로토 `.chip.past`)
+            //   "잔금 받으면 그 건은 마무리. 마무리된 건은 **지난 건 (N)** 으로 접혀요."
+            if (closedCount > 0) {
+                JobTab(
+                    nth = "지난 건", sub = "${closedCount}건",
+                    on = pastOpen, muted = true, modifier = Modifier.weight(1f), onClick = onTogglePast
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
         }
     }
     Spacer(Modifier.height(2.dp))
