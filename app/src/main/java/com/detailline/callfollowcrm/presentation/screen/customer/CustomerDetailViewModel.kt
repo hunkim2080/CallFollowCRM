@@ -225,6 +225,28 @@ class CustomerDetailViewModel(
         }
     }
 
+    /**
+     * **그 건**에 시공 날짜+기간 저장 — 대표 건이 아니어도 그 건에 쓴다. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
+     *   돈은 건별(setJobTotalAmount 등)인데 날짜만 고객(대표) 경로였다 → 2차를 보며 잡으면 1차로 갔다.
+     */
+    fun setJobSchedule(jobId: Long, startMs: Long, days: Int) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            SaveGuard.run("시공 예약", _toast) {
+                val day = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(startMs)
+                container.jobRepository.setJobDateAndDays(jobId, day, days, System.currentTimeMillis())
+            }
+        }
+    }
+
+    /** **그 건**에 시공 시간(분)+기간 저장. (2026-10-14) */
+    fun setJobTiming(jobId: Long, minutes: Int?, days: Int) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            SaveGuard.run("시공 시간", _toast) {
+                container.jobRepository.setJobTiming(jobId, minutes, days, System.currentTimeMillis())
+            }
+        }
+    }
+
     /** 문자에서 잡힌 주소로 **새 건**을 만든다(날짜 미정). (2026-09-18 프로토 ⑤) */
     fun addJobWithAddress(address: String, onDone: (Long) -> Unit = {}) = viewModelScope.launch {
         // 🤫 전엔 실패하면 조용히 0 을 돌려줬다 — 화면은 '만들었다' 고 믿고 0번 건으로 넘어갔다. (2026-10-02)

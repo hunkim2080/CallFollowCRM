@@ -238,6 +238,28 @@ class JobRepository(
     }
 
     /**
+     * 특정 건에 **날짜+기간**을 직접 저장 — **대표 건이 아니어도** 그 건에 쓴다. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
+     *   전엔 날짜 저장이 고객(대표 건) 경로뿐이라, 2차를 보며 날짜를 잡아도 대표(1차)로 갔다. 돈은 건별인데 날짜만 아니었다.
+     */
+    suspend fun setJobDateAndDays(jobId: Long, dayMs: Long, days: Int, now: Long) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(
+            scheduledWorkDate = dayMs, scheduledWorkDays = days.coerceAtLeast(1),
+            cancelledAt = null, updatedAt = now
+        ))
+        recomputeMirror(j.customerId, now)
+    }
+
+    /** 특정 건에 **시공 시간(분)+기간**을 저장. (2026-10-14) */
+    suspend fun setJobTiming(jobId: Long, minutes: Int?, days: Int, now: Long) {
+        val j = jobDao.findById(jobId) ?: return
+        jobDao.update(j.copy(
+            scheduledWorkMinutes = minutes, scheduledWorkDays = days.coerceAtLeast(1), updatedAt = now
+        ))
+        recomputeMirror(j.customerId, now)
+    }
+
+    /**
      * CustomerEntity 시공필드 = 그 고객의 **대표 건** 미러 재계산.
      *   대표 = 오늘 이후(미래) 중 가장 가까운 건, 없으면 가장 최근 건.
      *   → CustomerEntity 를 읽는 기존 화면들(홈 히어로·챗·통화전 카드·접수서·미러·브리핑…)이 무변경으로 계속 동작.

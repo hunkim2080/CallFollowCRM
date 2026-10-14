@@ -189,6 +189,12 @@ fun CustomerDetailScreen(
     var datePickerOpen by remember { mutableStateOf(false) }
     /** 날짜 고르기가 '새 건 만들기' 로 열렸나. false = 지금 건의 날짜를 고치는 것. (2026-09-17) */
     var addingNewJob by remember { mutableStateOf(false) }
+    /** 날짜 고치기가 **어느 건**을 고치는지. null = 고객(대표) 경로. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
+     *   돈(amountEditJobId)처럼 날짜도 건별로 — 2차를 보며 날짜를 잡으면 그 2차에 쓴다. */
+    var dateEditJobId by remember { mutableStateOf<Long?>(null) }
+    var dateEditStart by remember { mutableStateOf<Long?>(null) }   // 그 건의 현재 예약일(달력 미리채움·축하 판단용)
+    var dateEditDays by remember { mutableStateOf(1) }              // 그 건의 현재 기간
+    var dateEditMinutes by remember { mutableStateOf<Int?>(null) }  // 그 건의 현재 시간(시간창 미리채움용)
     /** '지난 건' 묶음을 폈는지. (2026-09-18 프로토) */
     var pastOpen by remember { mutableStateOf(false) }
     // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
@@ -931,7 +937,7 @@ fun CustomerDetailScreen(
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                         } else {
-                            selectedPastJobId = null; addingNewJob = true; datePickerOpen = true
+                            selectedPastJobId = null; dateEditJobId = null; addingNewJob = true; datePickerOpen = true
                         }
                     }
                 )
@@ -1123,7 +1129,15 @@ fun CustomerDetailScreen(
                                 else "아직 예약 안 됨 · 눌러서 설정",
                                 valueColor = if (scheduled != null) AppTheme.colors.text else TossTextTertiary,
                                 trailing = if (scheduled != null) Icons.Default.Edit else Icons.Default.Add,
-                                onClick = { datePickerOpen = true }
+                                onClick = {
+                                    // 🔴 **그 건**을 고친다 — 돈처럼 날짜도 건별로. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
+                                    //   shownJobId 가 null(아직 건 없음)이면 아래 창이 고객(대표) 경로로 폴백.
+                                    dateEditJobId = shownJobId
+                                    dateEditStart = shownJob?.scheduledWorkDate
+                                    dateEditDays = (shownJob?.scheduledWorkDays ?: 1).coerceAtLeast(1)
+                                    dateEditMinutes = shownJob?.scheduledWorkMinutes
+                                    datePickerOpen = true
+                                }
                             )
                             // 🔧 **A/S 해줘야 하는 손님** — 날짜를 못 잡았어도 여기 뜬다. (2026-09-27 사장님)
                             //   "일정이 꽉 차 있어서 못 잡는 거야. 그래서 as 대기 고객으로 명단을 올려두고"
@@ -1937,7 +1951,7 @@ fun CustomerDetailScreen(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
                     modifier = Modifier.fillMaxWidth()
-                        .clickable { selectedPastJobId = null; addingNewJob = true; datePickerOpen = true }
+                        .clickable { selectedPastJobId = null; dateEditJobId = null; addingNewJob = true; datePickerOpen = true }
                         .padding(vertical = 12.dp)
                 )
                 Spacer(Modifier.height(6.dp))
@@ -1971,8 +1985,9 @@ fun CustomerDetailScreen(
         //   전엔 지금 건 날짜가 미리 찍힌 채로 열려서, 다른 날을 누르면 그게 '끝날'이 되어
         //   기간(10/6~10/20)이 잡혔다. 그대로 저장하면 시작일이 여전히 옛 날짜 → 같은 날 중복 가드에 걸려
         //   "그 날짜엔 이미 시공이 있어요" 만 뜨고 **2차가 아예 안 만들어졌다.**
-        val initStart = if (addingNewJob) null else customer?.scheduledWorkDate
-        val initDays = if (addingNewJob) 1 else (customer?.scheduledWorkDays ?: 1).coerceAtLeast(1)
+        // 🔴 특정 건을 고치는 중이면 **그 건** 날짜로 미리 채운다 — 전엔 대표 건 날짜가 떠서 다른 날이 '끝날'로 잡혔다. (2026-10-14)
+        val initStart = if (addingNewJob) null else (dateEditJobId?.let { dateEditStart } ?: customer?.scheduledWorkDate)
+        val initDays = if (addingNewJob) 1 else (if (dateEditJobId != null) dateEditDays else (customer?.scheduledWorkDays ?: 1)).coerceAtLeast(1)
         val initEnd = initStart?.takeIf { initDays > 1 }?.let { it + (initDays - 1) * DateTimeUtils.DAY_MS }
         val rangeState = androidx.compose.material3.rememberDateRangePickerState(
             initialSelectedStartDateMillis = initStart?.let(toUtcMidnight),
@@ -2060,9 +2075,17 @@ fun CustomerDetailScreen(
                                                 }
                                             } else {
                                                 // 날짜(시작) + 기간(며칠) 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
-                                                pendingCelebrate = customer?.scheduledWorkDate == null
                                                 pendingWorkDays = days.coerceAtLeast(1)
-                                                viewModel.updateScheduledWorkDate(start)
+                                                val jid = dateEditJobId
+                                                if (jid != null) {
+                                                    // 🔴 **그 건**에 저장 — 2차를 보며 잡으면 2차에 들어간다. (2026-10-14 사장님)
+                                                    pendingCelebrate = dateEditStart == null
+                                                    viewModel.setJobSchedule(jid, start, days)
+                                                } else {
+                                                    // 폴백: 아직 건이 없으면 고객(대표) 경로.
+                                                    pendingCelebrate = customer?.scheduledWorkDate == null
+                                                    viewModel.updateScheduledWorkDate(start)
+                                                }
                                                 workTimePickerOpen = true
                                             }
                                         }
@@ -2194,10 +2217,13 @@ fun CustomerDetailScreen(
     // 시공일 저장 직후 "시공 시간" 선택. 정하면(또는 닫으면) 첫 등록이면 축하. (2026-06-23 사장님)
     if (workTimePickerOpen && customer != null) {
         com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
-            initialMinutes = customer?.scheduledWorkMinutes,
+            initialMinutes = if (dateEditJobId != null) dateEditMinutes else customer?.scheduledWorkMinutes,
             initialDays = pendingWorkDays,
             onPick = { mins, days ->
-                viewModel.updateScheduledWorkTiming(mins, days)
+                // 🔴 날짜와 같은 건에 시간도 저장. (2026-10-14 사장님)
+                val jid = dateEditJobId
+                if (jid != null) viewModel.setJobTiming(jid, mins, days)
+                else viewModel.updateScheduledWorkTiming(mins, days)
                 workTimePickerOpen = false
                 if (pendingCelebrate) { celebrationVisible = true; vibrateCelebration(context); pendingCelebrate = false }
             },

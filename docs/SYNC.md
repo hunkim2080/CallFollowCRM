@@ -14202,3 +14202,14 @@ Fable 🧹3. 사장님 "고고"
 - 변경: HomeScreen inboxChipCounts 에 isAdItem(목록 ads 기준과 동일: customer==null && lastSent!=true && suffix !in adAllowlist && isLikelyAd) 추가, pending(it)=isUnconfirmed && !isAdItem. remember 키에 adAllowlist 추가. → 답장안함·오늘신규 배지가 목록과 일치. ①(광고→신규)도 동시 해결.
 - 폰 확인: 빌드·가드 통과. 테스트폰에 답장안함 광고가 없어 실측은 사장님 폰(그 광고 번호)에서.
 - 참고: 상단 '오늘 신규 N통' 카드(newTodaySuffixes)는 '새 번호' 집계라 별개 — 미분류 광고가 섞이면 그것도 뺄지 사장님 확인.
+
+## 2026-10-14 18:30 · android
+고객상세 재설계 1단계 — 시공 날짜·시간을 **건별로** 저장 (사장님: "2차 시공 날짜를 선택했는데 왜 등록이 안 되지?").
+- 원인: 돈(setJobTotalAmount 등)은 건별인데 **날짜만 고객(대표 건) 경로**(updateScheduledWorkDate)였다. 2차를 보며 날짜를 잡아도 대표(1차)로 가서 2차엔 안 들어갔다.
+- 변경:
+  - JobRepository.setJobDateAndDays / setJobTiming (그 jobId 에 직접 쓰고 recomputeMirror).
+  - CustomerDetailViewModel.setJobSchedule / setJobTiming (SaveGuard 로 감싸 실패 시 화면에 말함 — §13①).
+  - CustomerDetailScreen: dateEditJobId/Start/Days/Minutes 상태 추가(amountEditJobId 선례와 동일). 건 카드 '시공 예약' 탭에서 shownJob 정보를 실어 창을 연다. 날짜창 미리채움·저장(else 분기)·시간창을 dateEditJobId 로 라우팅(null 이면 고객 경로 폴백). 새 시공(＋) 열기엔 dateEditJobId=null.
+- 연결 지점(§12-K) 확인: ① 건 카드 CdKv ② 일정 탭/달력(ScheduleScreen) ③ Google 캘린더(CalendarAutoSync 가 jobs flow 관찰 → 2차 날짜 고치면 달력도 바뀜) ④ recomputeMirror→고객 미러(홈 배지·미수) — 전부 jobs flow 로 구동되어 자동 반영. 취소(예약 취소)는 기존 updateScheduledWorkDate(null)이 이미 그 건만 지워 그대로 둠.
+- 폰 확인: assembleRelease BUILD=0, 가드 7종 통과. 2차 다중 건 실측은 날짜창 UI 자동화 불가 + 테스트폰 DB 비어 못 함 → 사장님 폰(1차·2차 있는 고객)에서 확인.
+- 다음: 재설계 2~4단계(상단 요약 스트립 / 접수서를 건 카드 안으로 / 완료 건 접기) — 사장님 단계별 ㄱㄱ 대기. 배포도 지시 시.
