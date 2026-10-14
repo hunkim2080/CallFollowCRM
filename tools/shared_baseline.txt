@@ -1,28 +1,33 @@
 # 지금 「공용」인 파일들 — 새로 생기면 CLAUDE.md §12 표에 한 줄 적어야 빌드가 통과한다.
 # 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
 # 줄 모양: <파일이름> <쓰는 파일 수> <경로>
-# 총 24개 (3곳 이상에서 쓰이는 것)
-DateTimeUtils 58 util/DateTimeUtils.kt
-PhoneNumberFormatter 42 util/PhoneNumberFormatter.kt
-PhoneKey 27 util/PhoneKey.kt
-AddressExtractor 15 util/AddressExtractor.kt
-SettlementCalc 14 domain/settlement/SettlementCalc.kt
-SmsSender 11 util/SmsSender.kt
-MoneyFormatter 10 util/MoneyFormatter.kt
+# 총 29개 (3곳 이상에서 쓰이는 것)
+DateTimeUtils 72 util/DateTimeUtils.kt
+PhoneNumberFormatter 46 util/PhoneNumberFormatter.kt
+PhoneKey 41 util/PhoneKey.kt
+SettlementCalc 17 domain/settlement/SettlementCalc.kt
+AddressExtractor 17 util/AddressExtractor.kt
+MoneyFormatter 12 util/MoneyFormatter.kt
+SmsSender 12 util/SmsSender.kt
 PermissionHelper 10 util/PermissionHelper.kt
-RegionName 9 util/RegionName.kt
+PhoneDialer 10 util/PhoneDialer.kt
+RegionName 10 util/RegionName.kt
+SmsIntentHelper 9 util/SmsIntentHelper.kt
 SpamPrefix 9 util/SpamPrefix.kt
-PhoneDialer 8 util/PhoneDialer.kt
+DefaultSmsAppHelper 8 util/DefaultSmsAppHelper.kt
+SaveGuard 7 presentation/util/SaveGuard.kt
 NavApp 7 util/NavApp.kt
-DefaultSmsAppHelper 6 util/DefaultSmsAppHelper.kt
 LogRedact 6 util/LogRedact.kt
+RepresentativeJob 5 domain/job/RepresentativeJob.kt
+OutboxRules 5 domain/outbox/OutboxRules.kt
 MapGeo 5 util/MapGeo.kt
-SmsIntentHelper 5 util/SmsIntentHelper.kt
+CollabAssignmentLine 4 domain/collab/CollabAssignmentLine.kt
+OutboxWording 4 presentation/util/OutboxWording.kt
 CallLogHelper 4 util/CallLogHelper.kt
 ContactNameResolver 4 util/ContactNameResolver.kt
 DataBackup 4 util/DataBackup.kt
+CollabDayCheck 3 domain/collab/CollabDayCheck.kt
 BucketPolicy 3 domain/inbox/BucketPolicy.kt
 InboxClassifier 3 domain/inbox/InboxClassifier.kt
 NonCustomerHeuristics 3 domain/inbox/NonCustomerHeuristics.kt
 CashFlowCalc 3 domain/settlement/CashFlowCalc.kt
-SaveGuard 3 presentation/util/SaveGuard.kt

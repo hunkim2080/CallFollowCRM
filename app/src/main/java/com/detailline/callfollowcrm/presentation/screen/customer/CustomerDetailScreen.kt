@@ -241,7 +241,7 @@ fun CustomerDetailScreen(
     var issuedDocToDelete by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
-    // 고객 정보 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 0 일정·정산 / 1 협업 / 2 시공접수서 / 3 블로그(준비중).
+    // 고객 정보 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 0 일정·정산 / 1 시공접수서 / 2 블로그(준비중, 탭 숨김).
     //   이름·전화·주소는 탭 위, 메모·현장사진은 탭 내용 아래(짝) — 주소 바로 밑에 탭이 오게. (2026-09-15 사장님)
     var detailTab by remember(customer?.id) { mutableStateOf(0) }
 
@@ -804,95 +804,13 @@ fun CustomerDetailScreen(
             // ── 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 위 정보는 항상, 아래 4개 섹션만 탭으로 전환 ──
             run {
                 // "블로그"(비즈니스 요금제 예정) 탭은 출시 전까지 숨김 — 눌러도 "곧 제공" 토스트만 뜨는 데드엔드였음.
-                //   아래 detailTab==3 블로그 lockcard 블록은 탭이 없어 자동으로 도달 불가(코드는 유지). 2026-07-29.
-                val detailTabs = listOf("일정·정산", "협업", "시공접수서")
+                //   아래 detailTab==2 블로그 lockcard 블록은 탭이 없어 자동으로 도달 불가(코드는 유지). 2026-07-29.
+                // 협업 탭 제거 — 협업 사장은 각 현장(건) 카드 안으로. (2026-10-14 사장님: 1차·2차 협업 사장 분리)
+                val detailTabs = listOf("일정·정산", "시공접수서")
                 // 이 모양이 앱의 탭 기준이 됐다 → 공용 부품으로 옮김(AppTabs). (2026-09-21 사장님)
                 com.detailline.callfollowcrm.presentation.component.AppTabs(tabs = detailTabs, selected = detailTab, onSelect = { detailTab = it })
             }
 
-            // 1.4 협업 현장으로 공유 (collab-sites-proto a-card) — 다른 사장님과 이 현장 하나만 같이.
-            //   예약(시공일)이 잡힌 고객만 = 진짜 "현장". 상담 단계(날짜 없음)는 공유할 현장이 없으니 섹션 숨김.
-            //   (2026-06-11 사장님 요청) · [협업] 탭. (2026-07-18 탭 재배치)
-            if (detailTab == 1) {
-                if (c.scheduledWorkDate == null) {
-                    DetailTabEmpty("시공일이 잡히면 이 현장을 다른 사장님과 협업할 수 있어요.\n먼저 ‘일정·정산’ 탭에서 시공일을 잡아주세요.")
-                } else {
-                    val siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }?.let { "$it 현장" }
-                        ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
-                        ?: "이 현장"
-                    // 이 고객으로 공유한 협업 사장님(로컬 기록) — Triple(phone, name, shareId). 번호 끝 8자리 dedup.
-                    val collabPartners = remember(c.id, collabRefresh) {
-                        container.preferences.collabAssignments.mapNotNull { e ->
-                            val p = e.split("|")
-                            if (p.size >= 3 && p[0].toLongOrNull() == c.id) Triple(p[1], p[2], p.getOrNull(3).orEmpty()) else null
-                        }.distinctBy { PhoneKey.of(it.first) }
-                    }
-                    // 협업 사장님 부르기 — 예전엔 일정→전문가배정으로만(2026-06-13). 사장님 요청(2026-08-09)으로 협업 탭에서도 바로.
-                    //   협업 사장 전용 간단 시트(CollabShareSheet, 이미 구현됨) 재연결. 팀원 배정은 일정에 그대로.
-                    val showCollabShare = remember(c.id) { mutableStateOf(false) }
-                    Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.categoryBg)
-                            .clickable { showCollabShare.value = true }.padding(vertical = 13.dp),
-                        contentAlignment = androidx.compose.ui.Alignment.Center
-                    ) {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            androidx.compose.material3.Icon(
-                                Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(Modifier.width(7.dp))
-                            Text("협업 사장님 부르기", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText)
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    if (showCollabShare.value) {
-                        CollabShareSheet(
-                            siteTitle = siteTitle, addr = displayAddr, scheduledAtMs = c.scheduledWorkDate,
-                            customerId = c.id,
-                            // 이미 부른 사장님 — 줄에 「요청함」을 붙이기 위해.
-                            requestedPhones = collabPartners.map { it.first },
-                            onShared = { collabRefresh++ }, onDismiss = { showCollabShare.value = false }
-                        )
-                    }
-                    // 여기선 협업 중인 사장님 진행 표시.
-                    if (collabPartners.isNotEmpty()) {
-                        Text("협업 중", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                            modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
-                        collabPartners.forEach { (partnerPhone, partnerName, shareId) ->
-                            CollabAfterCard(
-                                partnerName = partnerName.ifBlank { "협업 사장님" },
-                                siteTitle = siteTitle,
-                                shareId = shareId,
-                                onRelease = {
-                                    // 📮 협업 해제 → 우체통. B 에게 알림은 연결되면 간다(옛날엔 runCatching 에 삼켜져 말도 없었다). (설계 §1-A #3·§7-B)
-                                    if (shareId.isNotBlank()) {
-                                        container.applicationScope.launch {
-                                            runCatching {
-                                                container.outbox.enqueue(
-                                                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
-                                                    shareId,
-                                                    org.json.JSONObject().put("mode", "end_owner").toString()
-                                                )
-                                            }
-                                            container.outbox.tryNow()
-                                        }
-                                    }
-                                    container.preferences.collabAssignments = container.preferences.collabAssignments
-                                        .filterNot { e ->
-                                            val p = e.split("|")
-                                            p.size >= 3 && p[0].toLongOrNull() == c.id &&
-                                                PhoneKey.of(p[1]) == PhoneKey.of(partnerPhone)
-                                        }.toSet()
-                                    collabRefresh++
-                                }
-                            )
-                            Spacer(Modifier.height(10.dp))
-                        }
-                    } else {
-                        DetailTabEmpty("아직 협업 중인 현장이 없어요.\n위 ‘협업 사장님 부르기’로 불러보세요.")
-                    }
-                }
-            }
 
             // 1.5 (제거) AI 대화 요약 — 챗스크린에 이미 있어 중복이라 고객 상세에선 뺌. (2026-07-18 사장님)
 
@@ -1364,6 +1282,95 @@ fun CustomerDetailScreen(
                             }
                     }
                 }
+                // 🤝 이 현장(건) 협업 사장 — 고객이 아니라 **그 시공 건**에 붙는다. (2026-10-14 사장님: 1차·2차 협업 사장 분리)
+                //   협업 탭을 없애고 각 건 카드 아래로 내렸다. days 로 건별 필터 → 1차·2차가 섞이지 않는다.
+                //   건이 바뀌면(탭 전환) 그 건의 협업 사장만. '부르기'도 그 건 날짜로 저장된다.
+                if (cShown.scheduledWorkDate != null) {
+                    val collabSiteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr ?: "").takeIf { it.isNotBlank() }?.let { "$it 현장" }
+                        ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
+                        ?: "이 현장"
+                    val jobDayStart = DateTimeUtils.startOfDay(cShown.scheduledWorkDate!!)
+                    val jobDays = remember(cShown.scheduledWorkDate, cShown.scheduledWorkDays) {
+                        val n = cShown.scheduledWorkDays.coerceAtLeast(1)
+                        (0 until n).map { jobDayStart + it * 86_400_000L }.toSet()
+                    }
+                    // 이 건에 걸린 협업 사장만. days 있으면 그 날들·없으면(구버전) 대표 건 하루 — CollabAssignmentLine 규칙 재사용.
+                    val jobCollab = remember(c.id, collabRefresh, jobDayStart, repDay) {
+                        container.preferences.collabAssignments.mapNotNull {
+                            com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it)
+                        }.filter { it.customerId == c.id && it.coversDay(jobDayStart, representativeDay = repDay) }
+                            .distinctBy { it.shareId.ifBlank { PhoneKey.of(it.phone) } }
+                    }
+                    val showJobCollabShare = remember(c.id, shownJobId) { mutableStateOf(false) }
+                    Spacer(Modifier.height(12.dp))
+                    TossCard {
+                        Column {
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                androidx.compose.material3.Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(7.dp))
+                                Text(
+                                    if (jobNthPrefix.isNotBlank()) "${jobNthPrefix}협업 사장" else "이 현장 협업 사장",
+                                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            jobCollab.forEach { line ->
+                                CollabAfterCard(
+                                    partnerName = line.name.ifBlank { "협업 사장님" },
+                                    siteTitle = collabSiteTitle,
+                                    shareId = line.shareId,
+                                    onRelease = {
+                                        // 📮 협업 해제 → 우체통(B 에게 알림은 연결되면 간다). (설계 §1-A #3)
+                                        if (line.shareId.isNotBlank()) {
+                                            container.applicationScope.launch {
+                                                runCatching {
+                                                    container.outbox.enqueue(
+                                                        com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
+                                                        line.shareId,
+                                                        org.json.JSONObject().put("mode", "end_owner").toString()
+                                                    )
+                                                }
+                                                container.outbox.tryNow()
+                                            }
+                                        }
+                                        // 그 한 건(shareId)만 뗀다 — 다른 건의 같은 사장님은 그대로.
+                                        container.preferences.collabAssignments = container.preferences.collabAssignments
+                                            .filterNot { e ->
+                                                val pl = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(e)
+                                                pl != null && pl.customerId == c.id &&
+                                                    (if (line.shareId.isNotBlank()) pl.shareId == line.shareId
+                                                     else PhoneKey.of(pl.phone) == PhoneKey.of(line.phone))
+                                            }.toSet()
+                                        collabRefresh++
+                                    }
+                                )
+                                Spacer(Modifier.height(10.dp))
+                            }
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.categoryBg)
+                                    .clickable { showJobCollabShare.value = true }.padding(vertical = 12.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    androidx.compose.material3.Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(7.dp))
+                                    Text(
+                                        if (jobCollab.isEmpty()) "협업 사장님 부르기" else "협업 사장님 더 부르기",
+                                        fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (showJobCollabShare.value) {
+                        CollabShareSheet(
+                            siteTitle = collabSiteTitle, addr = displayAddr, scheduledAtMs = cShown.scheduledWorkDate,
+                            customerId = c.id, jobDays = jobDays,
+                            requestedPhones = jobCollab.map { it.phone },
+                            onShared = { collabRefresh++ }, onDismiss = { showJobCollabShare.value = false }
+                        )
+                    }
+                }
             }
 
             // (입금 카드는 위 "일정 · 정산" 카드로 통합됨 — 2026-06-02 사장님 결정.)
@@ -1381,7 +1388,7 @@ fun CustomerDetailScreen(
             //   위치 일관성(2026-09-01 사장님): 다른 탭처럼 '탭 내용'이 현장사진 위. 시공접수서 내용(발행이력)을 현장사진 앞으로.
             val issuedDocs by viewModel.issuedDocs.collectAsState()
             val intakeByToken by viewModel.intakeByToken.collectAsState()
-            if (detailTab == 2 && issuedDocs.isNotEmpty()) {
+            if (detailTab == 1 && issuedDocs.isNotEmpty()) {
                 TossCard {
                     Column {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1431,7 +1438,7 @@ fun CustomerDetailScreen(
             }
 
             // [시공접수서] 탭인데 발행 이력이 없을 때 안내. (2026-07-18 탭 재배치)
-            if (detailTab == 2 && issuedDocs.isEmpty()) {
+            if (detailTab == 1 && issuedDocs.isEmpty()) {
                 DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
             }
 
@@ -1891,7 +1898,7 @@ fun CustomerDetailScreen(
 
             // 7. 하단 — 블로그 후기 lockcard([블로그] 탭) + "지난 문자 보기" 링크(항상 표시). (2026-07-18 탭 재배치)
             val bottomCtx = androidx.compose.ui.platform.LocalContext.current
-            if (detailTab == 3) androidx.compose.foundation.layout.Row(
+            if (detailTab == 2) androidx.compose.foundation.layout.Row(
                 Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White)
                     .clickable {
                         android.widget.Toast.makeText(bottomCtx, "블로그 후기 글 만들기는 비즈니스 요금제 기능이에요. 곧 열려요", android.widget.Toast.LENGTH_SHORT).show()

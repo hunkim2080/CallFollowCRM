@@ -470,6 +470,8 @@ internal fun CollabShareSheet(
     addr: String?,
     scheduledAtMs: Long?,
     customerId: Long,
+    /** 이 협업이 붙는 **그 시공 건의 날짜들**(startOfDay). 저장 시 함께 기록해 1차·2차를 안 섞는다. (2026-10-14 사장님) */
+    jobDays: Set<Long> = emptySet(),
     /** 이 현장에 이미 요청을 보낸 사장님 번호들 — 줄에 「요청함」을 붙인다. (2026-09-27) */
     requestedPhones: List<String> = emptyList(),
     onShared: () -> Unit,
@@ -599,14 +601,20 @@ internal fun CollabShareSheet(
                         }
                     }
                     runCatching {
+                        // 같은 건(=같은 shareId)에 이미 있으면 skip. 다른 건이면 shareId 가 달라 따로 저장된다
+                        //   → 같은 사장님도 1차·2차에 각각 붙을 수 있다. 저장 포맷은 CollabAssignmentLine(days 포함). (2026-10-14)
                         val already = container.preferences.collabAssignments.any { e ->
-                            val p = e.split("|")
-                            p.size >= 3 && p[0].toLongOrNull() == customerId &&
-                                PhoneKey.of(p[1]) == k8
+                            val l = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(e)
+                            l != null && l.customerId == customerId && PhoneKey.of(l.phone) == k8 &&
+                                (if (r.shareId.isNotBlank()) l.shareId == r.shareId else l.days == jobDays)
                         }
                         if (!already) {
+                            val line = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine(
+                                customerId = customerId, phone = partner, name = partnerName,
+                                shareId = r.shareId, days = jobDays
+                            )
                             container.preferences.collabAssignments =
-                                container.preferences.collabAssignments + "$customerId|$partner|$partnerName|${r.shareId}"
+                                container.preferences.collabAssignments + line.format()
                         }
                     }
                     if (r.deduped) dedupedAny = true

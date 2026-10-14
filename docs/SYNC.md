@@ -14157,3 +14157,14 @@ Fable 🧹3. 사장님 "고고"
 - 변경: CashFlowSection.kt CashCalendar 주간 그리드를 Column(pointerInput+detectHorizontalDragGestures)로 감쌈. 왼쪽 밀기=다음 달(onNext)·오른쪽=이전 달(onPrev), 임계 56dp. rememberUpdatedState 로 최신 콜백. 화살표 < > 그대로. 날짜 탭과 안 부딪힘(그리드만 감쌈).
 - 폰 확인: 테스트폰 실측 — 10월→(왼쪽 스와이프)→11월→(오른쪽)→10월 확인. 스샷 2장.
 - 다음 액션: (사장님) ①라벨고치기 프로토 확인 → ②전체에 지인. 배포 원하면 태그.
+
+## 2026-10-14 12:31 · android
+협업 사장을 "고객"→"시공 건(현장)" 단위로. 협업 탭 제거 + 각 건 카드 아래로 이동. 사장님 지시("1차 협업 사장·2차 협업 사장이 다르다, 현장 안에 깔려야"). 프로토 YEgnUVAF "가"(탭 없앰) 승인.
+- 변경(§12-K 연결 지점 다 확인):
+  · CustomerDetailScreen.kt — detailTabs 에서 "협업" 제거(2탭), 협업 탭 블록(detailTab==1) 삭제, 접수서 2->1·블로그 3->2 번호 당김. 건 카드(detailTab==0) 바로 아래 "이 현장 협업 사장" 섹션 추가: days 로 건별 필터(CollabAssignmentLine.coversDay), CollabAfterCard 목록 + 부르기. 해제는 shareId 로 그 건만.
+  · CustomerCollabParts.kt — CollabShareSheet 에 jobDays 파라미터 추가, 저장을 CollabAssignmentLine(days 포함).format() 로 + dedup 을 shareId 기준(같은 사장도 다른 건에 각각).
+  · CLAUDE.md §12 표에 CollabAssignmentLine 한 줄 추가(공용 29개), rulesBaselineUpdate.
+  · 데이터 포맷/저장 구조 불변(days 는 이미 있던 칸). 서버 무관.
+- 폰 확인: 테스트폰에서 시공 1건 만들어 고객정보 열어 실측 — 협업 탭 없음(2탭), 건 카드 아래 "이 현장 협업 사장"+부르기, 부르기 시트 "이 현장 10/14"로 정상, 크래시 0. 스샷.
+- 남은(선택): 같은 고객 2건(1차/2차)에서 서로 다른 협업 사장 분리 — 로직상 됨(days 필터), 실데이터 2건 검증은 사장님 폰.
+- 다음 액션: (사장님) 라벨고치기(프로토 XAidkbdA) · 전체=고객+지인 남음. 라벨+전체+달력스와이프+협업 묶어서 배포 예정.

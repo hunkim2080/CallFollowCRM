@@ -432,6 +432,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 홈 띠 쪽 넘기기·「(1/2)」 | `domain/schedule/TodayBandPages.kt` | 화면에서 `if (total > 1) "(${page+1}/$total)"` 를 직접 |
 | 협업 날짜 판단 | `domain/collab/CollabDayCheck.kt` | 화면에서 날짜 비교 |
 | 협업 요청 고르기·취소 판단 | `domain/collab/CollabRequestSelection.kt` | 시트에서 `reqKeys.any { it !in selected }` 를 직접 |
+| 협업 배정 한 줄(건별 days 파싱·판단) | `domain/collab/CollabAssignmentLine.kt` | `collabAssignments` 문자열을 화면에서 직접 `split("|")` |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
 | 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |
 | 주소 뽑기 | `util/AddressExtractor.kt` | 화면에서 정규식 |
