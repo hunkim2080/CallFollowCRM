@@ -1791,13 +1791,16 @@ fun HomeScreen(
                 val friends = generalThreads.filter { it.isFriend }
                 // 🚫 스팸(02·070 등 지역번호·인터넷전화) — 전엔 통째로 숨겼는데, OTP도 숨어서 여기 모아 보인다. (2026-10-06 사장님)
                 val spam = generalThreads.filter { it.isSpam }
+                // 📦📢 사장님이 직접 옮긴 칸(folderOverride)이 자동 판정(ParcelHeuristics)을 덮는다. (2026-10-14 틀린 라벨 고치기)
                 val parcels = generalThreads.filter {
                     !it.isFriend && !it.isSpam &&
-                        com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                        (it.folderOverride == "parcel" ||
+                            (it.folderOverride == null && com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)))
                 }
                 val ads = generalThreads.filter {
                     !it.isFriend && !it.isSpam &&
-                        !com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)
+                        (it.folderOverride == "ad" ||
+                            (it.folderOverride == null && !com.detailline.callfollowcrm.domain.inbox.ParcelHeuristics.isParcel(it.phone, it.lastBody)))
                 }
                 val boxThreads = when (boxSub) {
                     "parcel" -> parcels
@@ -1853,6 +1856,19 @@ fun HomeScreen(
                     onMoveToSpam = { phone, name ->
                         viewModel.markSpam(phone, name)
                         scope.launch { snackbarHostState.showSnackbar("스팸으로 옮겼어요") }
+                    },
+                    // 📦📢👥 틀린 라벨 고치기 — 그 번호를 기억해 다음부터 자동. (2026-10-14 사장님)
+                    onMoveToParcel = { phone, name ->
+                        viewModel.moveToParcel(phone, name)
+                        scope.launch { snackbarHostState.showSnackbar("택배로 옮겼어요 — 이 번호는 앞으로 택배로 와요") }
+                    },
+                    onMoveToAd = { phone, name ->
+                        viewModel.moveToAd(phone, name)
+                        scope.launch { snackbarHostState.showSnackbar("광고로 옮겼어요 — 이 번호는 앞으로 광고로 와요") }
+                    },
+                    onMoveToFriend = { phone, name ->
+                        viewModel.moveToFriend(phone, name)
+                        scope.launch { snackbarHostState.showSnackbar("지인으로 옮겼어요 — 문자함 [지인] 에 있어요") }
                     },
                     onTogglePin = { phone ->
                         val nowPinned = viewModel.togglePin(phone)

@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SpamPhoneDao {
 
-    @Query("SELECT phoneSuffix FROM spam_phones")
+    // 스팸 집합 — parcel/ad(문자함 라벨 교정)는 스팸이 아니므로 제외. personal 은 그대로(기존 동작). (2026-10-14 사장님)
+    @Query("SELECT phoneSuffix FROM spam_phones WHERE kind NOT IN ('parcel', 'ad')")
     fun observeSuffixes(): Flow<List<String>>
 
     /**
@@ -21,8 +22,16 @@ interface SpamPhoneDao {
     @Query("SELECT phoneSuffix FROM spam_phones WHERE kind = 'personal'")
     fun observePersonalSuffixes(): Flow<List<String>>
 
-    /** '스팸 목록' 화면용 — 최근 등록순 전체. (2026-06-23 사장님) */
-    @Query("SELECT * FROM spam_phones ORDER BY markedAt DESC")
+    /** 📦 문자함 [택배]로 사장님이 직접 옮긴 번호. (2026-10-14 사장님 "틀린 라벨 고치기") */
+    @Query("SELECT phoneSuffix FROM spam_phones WHERE kind = 'parcel'")
+    fun observeParcelSuffixes(): Flow<List<String>>
+
+    /** 📢 문자함 [광고]로 사장님이 직접 옮긴 번호(자동 택배 판정을 덮음). (2026-10-14 사장님) */
+    @Query("SELECT phoneSuffix FROM spam_phones WHERE kind = 'ad'")
+    fun observeAdSuffixes(): Flow<List<String>>
+
+    /** '스팸 목록' 화면용 — 최근 등록순. parcel/ad(라벨 교정)는 스팸 목록에 안 섞는다. (2026-06-23 사장님 · 2026-10-14) */
+    @Query("SELECT * FROM spam_phones WHERE kind NOT IN ('parcel', 'ad') ORDER BY markedAt DESC")
     fun observeAll(): Flow<List<SpamPhoneEntity>>
 
     @Query("SELECT phoneSuffix FROM spam_phones")

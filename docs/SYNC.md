@@ -14168,3 +14168,10 @@ Fable 🧹3. 사장님 "고고"
 - 폰 확인: 테스트폰에서 시공 1건 만들어 고객정보 열어 실측 — 협업 탭 없음(2탭), 건 카드 아래 "이 현장 협업 사장"+부르기, 부르기 시트 "이 현장 10/14"로 정상, 크래시 0. 스샷.
 - 남은(선택): 같은 고객 2건(1차/2차)에서 서로 다른 협업 사장 분리 — 로직상 됨(days 필터), 실데이터 2건 검증은 사장님 폰.
 - 다음 액션: (사장님) 라벨고치기(프로토 XAidkbdA) · 전체=고객+지인 남음. 라벨+전체+달력스와이프+협업 묶어서 배포 예정.
+
+## 2026-10-14 13:10 · android
+문자함 틀린 라벨 고치기 — ⋮ 메뉴에 [택배로/광고로/지인으로] 추가 + 그 번호 기억(다음부터 자동). 사장님 지시("틀린 라벨 거슬려"). 프로토 XAidkbdA.
+- 변경(§12-K): spam_phones 테이블에 kind=parcel/ad 재사용(새 시스템 X). SpamPhoneDao observeSuffixes 는 parcel/ad 제외(스팸 오인 방지), observeParcel/AdSuffixes 추가, observeAll 도 제외. SpamPhoneRepository parcel/adSuffixes 플로우. HomeViewModel: generalGate->GeneralGate(spam/personal/parcel/ad), GeneralThread.folderOverride, moveToParcel/moveToAd(기존 moveToFriend 패턴, PK=suffix 라 kind 교체). HomeScreen 택배/광고 필터가 folderOverride 존중(자동 ParcelHeuristics 덮음). MessageBoxSection ⋮ 메뉴 3항목 + 콜백.
+- 스키마 불변(kind 칼럼 이미 있음) -> DB 버전업 없음. 서버 무관.
+- 폰 확인: 빌드·가드 통과. 테스트폰 문자함이 비어(광고 0) ⋮ 메뉴 실물 스샷 불가 — 로직/빌드로 검증. 사장님 폰에서 확인됨.
+- 다음: 전체=고객+지인. 끝나면 라벨+전체+달력+협업 묶어 배포.

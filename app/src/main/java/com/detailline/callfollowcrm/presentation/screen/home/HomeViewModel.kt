@@ -196,17 +196,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.spamPhoneRepository.personalSuffixes
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    /** 📦📢 사장님이 [택배]/[광고]로 직접 옮긴 번호 — 자동 분류를 덮는다. (2026-10-14 틀린 라벨 고치기) */
+    private val parcelSuffixes: StateFlow<Set<String>> =
+        container.spamPhoneRepository.parcelSuffixes
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    private val adSuffixes: StateFlow<Set<String>> =
+        container.spamPhoneRepository.adSuffixes
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     private val spamGate: StateFlow<SpamGate> =
         combine(spamSuffixes, spamPrefixesFlow) { suf, pre -> SpamGate(suf, pre) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpamGate(emptySet(), emptySet()))
 
-    /** 👥 문자함이 보는 문 — **스팸은 막고, 지인은 통과.** (2026-10-02) */
-    private val generalGate: StateFlow<Pair<SpamGate, Set<String>>> =
-        combine(spamGate, personalSuffixes) { g, p -> g to p }
-            .stateIn(
-                viewModelScope, SharingStarted.WhileSubscribed(5_000),
-                SpamGate(emptySet(), emptySet()) to emptySet()
-            )
+    /** 👥 문자함이 보는 문 — **스팸은 막고, 지인은 통과.** + 라벨 교정(택배/광고 override). (2026-10-02 · 2026-10-14) */
+    private val generalGate: StateFlow<GeneralGate> =
+        combine(spamGate, personalSuffixes, parcelSuffixes, adSuffixes) { g, p, parcel, ad ->
+            GeneralGate(g, p, parcel, ad)
+        }.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            GeneralGate(SpamGate(emptySet(), emptySet()), emptySet(), emptySet(), emptySet())
+        )
 
     // ── 상담함/문자함 분류 (2026-07-11 사장님) ───────────────────────────────────────
     /** 분류 전체(suffix→행). 문자함 목록/배지가 GENERAL 행을 쓴다. */
@@ -943,6 +952,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phone, prefixes)
     }
 
+    /** 문자함이 보는 문 — 스팸·지인에 **라벨 교정(택배/광고 override)** 을 더한 묶음. (2026-10-14 사장님) */
+    private data class GeneralGate(
+        val spam: SpamGate,
+        val personal: Set<String>,
+        val parcel: Set<String>,
+        val ad: Set<String>
+    )
+
     // ── 답장 기다려요 '제외'는 처리 시각과 함께 (2026-07-02 사장님) ─────────────────────────
     //   답장했거나(1탭 발송) 밀어서 정리한 대화에 '새 고객 메시지'가 오면 다시 답장 기다려요로 올라와야 한다.
     //   예전엔 제외가 영구(suffix만 저장)라 새 메시지(사진 등)가 와도 안 풀려 "최근 대화"에 굵게만 떴음.
@@ -1113,7 +1130,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val generalThreads: StateFlow<List<GeneralThread>> = combine(
         smsContactsState, bucketMap, customers, readStates, generalGate
     ) { contacts, buckets, custs, reads, gate ->
-        val (spam, personal) = gate
+        val spam = gate.spam
+        val personal = gate.personal
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
         contacts.mapNotNull { c ->
             // 👥 **지인은 통과시킨다.** (2026-10-02 사장님 "사생활로 찍어둔 번호는 지인함에서 다 볼 수 있어야")
@@ -1127,6 +1145,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 // 🚫 스팸은 **숨기지 않고 태그만** — 문자함 [스팸] 칩에서 본다(인증번호도 여기). (2026-10-06 사장님)
             }
             val isSpamNo = !isFriendNo && spam.isSpam(c.address, c.normalizedSuffix)
+            // 📦📢 사장님이 직접 옮긴 칸(택배/광고). 있으면 자동 분류(ParcelHeuristics)를 덮는다. (2026-10-14)
+            val folderOverrideNo = when {
+                c.normalizedSuffix in gate.parcel -> "parcel"
+                c.normalizedSuffix in gate.ad -> "ad"
+                else -> null
+            }
             val readMs = reads[c.normalizedSuffix] ?: 0L
             GeneralThread(
                 isSpam = isSpamNo,
@@ -1140,6 +1164,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 // 👥 사장님이 직접 찍은 것. 글자로는 알 수 없다. (2026-10-02)
                 //   옛 「사생활」 번호도 같은 칸을 쓰므로 **한 목록에서 다 보인다.**
                 isFriend = isFriendNo,
+                folderOverride = folderOverrideNo,
                 unread = !c.lastSent && c.lastDateMs > readMs
             )
         }.sortedByDescending { it.lastDateMs }
@@ -1221,6 +1246,33 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 container.spamPhoneRepository.mark(
                     com.detailline.callfollowcrm.util.PhoneKey.of(phoneNumber),
                     phoneNumber, displayName, kind = "personal"
+                )
+            }
+        }
+
+    // 📦📢 틀린 라벨 고치기 — 문자함 칸끼리 옮기기 + 그 번호 기억(다음부터 자동). (2026-10-14 사장님)
+    //   spam_phones PK=suffix 라 kind 를 바꾸면 지인/스팸/택배/광고 중 **하나로** 교체된다(두 칸에 동시에 X).
+    //   moveToGeneral 로 문자함(GENERAL)에 있게 먼저 보장 — 지인이던 걸 택배로 옮겨도 안 사라지게.
+    /** 📦 [택배]로 — 자동 판정이 놓친 택배를 사장님이 직접. 그 번호는 다음부터 자동 택배. */
+    fun moveToParcel(phoneNumber: String, displayName: String? = null) =
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { container.threadBucketRepository.moveToGeneral(phoneNumber) }
+            runCatching {
+                container.spamPhoneRepository.mark(
+                    com.detailline.callfollowcrm.util.PhoneKey.of(phoneNumber),
+                    phoneNumber, displayName, kind = "parcel"
+                )
+            }
+        }
+
+    /** 📢 [광고]로 — 자동으로 택배로 잘못 잡힌 걸 사장님이 광고로. */
+    fun moveToAd(phoneNumber: String, displayName: String? = null) =
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { container.threadBucketRepository.moveToGeneral(phoneNumber) }
+            runCatching {
+                container.spamPhoneRepository.mark(
+                    com.detailline.callfollowcrm.util.PhoneKey.of(phoneNumber),
+                    phoneNumber, displayName, kind = "ad"
                 )
             }
         }
@@ -1695,6 +1747,8 @@ data class GeneralThread(
     val isAd: Boolean,        // 광고로 걸러진 것 → '광고' 딱지
     /** 👥 사장님이 「지인으로」 찍은 것 — 문자함 [지인] 칸에 모인다. (2026-10-02) */
     val isFriend: Boolean = false,
+    /** 📦📢 사장님이 직접 옮긴 칸 — "parcel"(택배)·"ad"(광고)·null(자동). 자동 분류를 덮는다. (2026-10-14) */
+    val folderOverride: String? = null,
     /** 🚫 스팸 앞자리(02·070 등)·스팸 마킹 — 문자함 [스팸] 칸에 모인다(OTP도 여기). (2026-10-06 사장님) */
     val isSpam: Boolean = false,
     val unread: Boolean

@@ -18,6 +18,12 @@ class SpamPhoneRepository(private val dao: SpamPhoneDao) {
     /** 👥 지인(옛 「사생활」)으로 찍은 번호만. 문자함 [지인] 이 이걸로 모은다. (2026-10-02) */
     val personalSuffixes: Flow<Set<String>> = dao.observePersonalSuffixes().map { it.toHashSet() }
 
+    /** 📦 사장님이 [택배]로 옮긴 번호. (2026-10-14 틀린 라벨 고치기) */
+    val parcelSuffixes: Flow<Set<String>> = dao.observeParcelSuffixes().map { it.toHashSet() }
+
+    /** 📢 사장님이 [광고]로 옮긴 번호(자동 택배 판정을 덮음). (2026-10-14) */
+    val adSuffixes: Flow<Set<String>> = dao.observeAdSuffixes().map { it.toHashSet() }
+
     /** '스팸 목록' 화면용 — 최근 등록순 전체 엔티티. (2026-06-23 사장님) */
     val all: Flow<List<SpamPhoneEntity>> = dao.observeAll()
 

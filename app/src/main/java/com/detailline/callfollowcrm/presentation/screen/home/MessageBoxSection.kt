@@ -138,6 +138,10 @@ fun MessageBoxSection(
     onOpen: (String) -> Unit,
     onMoveToConsult: (String) -> Unit,
     onMoveToSpam: (String, String?) -> Unit,
+    // 📦📢👥 틀린 라벨 고치기 — 칸끼리 옮기기(택배/광고/지인). (2026-10-14 사장님)
+    onMoveToParcel: (String, String?) -> Unit = { _, _ -> },
+    onMoveToAd: (String, String?) -> Unit = { _, _ -> },
+    onMoveToFriend: (String, String?) -> Unit = { _, _ -> },
     onTogglePin: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** 비었을 때 할 말 — **지금 고른 칩 얘기**여야 한다. (2026-09-20 실기: [택배] 인데 "문자함이 비어 있어요") */
@@ -164,6 +168,9 @@ fun MessageBoxSection(
             GeneralRow(t, pinned = true, onOpen = { onOpen(t.phone) },
                 onMoveToConsult = { onMoveToConsult(t.phone) },
                 onMoveToSpam = { onMoveToSpam(t.phone, t.displayName) },
+                onMoveToParcel = { onMoveToParcel(t.phone, t.displayName) },
+                onMoveToAd = { onMoveToAd(t.phone, t.displayName) },
+                onMoveToFriend = { onMoveToFriend(t.phone, t.displayName) },
                 onTogglePin = { onTogglePin(t.phone) })
         }
         if (pinnedThreads.isNotEmpty()) {
@@ -175,6 +182,9 @@ fun MessageBoxSection(
             GeneralRow(t, pinned = false, onOpen = { onOpen(t.phone) },
                 onMoveToConsult = { onMoveToConsult(t.phone) },
                 onMoveToSpam = { onMoveToSpam(t.phone, t.displayName) },
+                onMoveToParcel = { onMoveToParcel(t.phone, t.displayName) },
+                onMoveToAd = { onMoveToAd(t.phone, t.displayName) },
+                onMoveToFriend = { onMoveToFriend(t.phone, t.displayName) },
                 onTogglePin = { onTogglePin(t.phone) })
         }
     }
@@ -196,6 +206,9 @@ private fun GeneralRow(
     onOpen: () -> Unit,
     onMoveToConsult: () -> Unit,
     onMoveToSpam: () -> Unit,
+    onMoveToParcel: () -> Unit,
+    onMoveToAd: () -> Unit,
+    onMoveToFriend: () -> Unit,
     onTogglePin: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -279,6 +292,10 @@ private fun GeneralRow(
                     // 말 통일 — 처음엔 "이 사람 고객인가요?" 라고 물어놓고 되돌릴 땐 "상담함으로" 라고 하면
                     //   같은 일인 줄 모른다. (2026-09-17 사장님: "헷갈리겠다 싶지않아?")
                     DropdownMenuItem(text = { Text("고객이에요 · 상담함으로") }, onClick = { menu = false; onMoveToConsult() })
+                    // 📦📢👥 틀린 라벨 고치기 — 칸끼리 옮기기. 한 번 누르면 그 번호는 다음부터 자동으로 그 칸. (2026-10-14 사장님)
+                    DropdownMenuItem(text = { Text("택배로 옮기기") }, onClick = { menu = false; onMoveToParcel() })
+                    DropdownMenuItem(text = { Text("광고로 옮기기") }, onClick = { menu = false; onMoveToAd() })
+                    DropdownMenuItem(text = { Text("지인으로 옮기기") }, onClick = { menu = false; onMoveToFriend() })
                     DropdownMenuItem(text = { Text("스팸으로") }, onClick = { menu = false; onMoveToSpam() })
                 }
             }
