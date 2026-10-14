@@ -14195,3 +14195,10 @@ Fable 🧹3. 사장님 "고고"
 - 변경(밴드): 사장님 지적("기다리는 일정 2개인데 1개만 보임"). 원인=nextJobs 가 가장 가까운 하루만. 추가: HomeViewModel.upcomingJobs(내일 이후 모든 시공, 가까운 순, 최대 6). TodayBandPages.pageCount(todayCount, nextCount:Int) 오버로드(Boolean 것은 위임) + 테스트 4건. TodayBand: upcomingJobs+collabUpcomingAll 받아 UpcomingBandItem(ms,job,collab) 리스트로 합쳐 시간순 take(6), pageCount=todaySlots+upcoming.size, 다음-쪽 렌더를 upcoming[page-todaySlots] 루프로(기존 협업/시공 BandShell 재사용, 색값 그대로->style 불변). 호출부 배선.
 - 폰 확인: 빌드·가드 통과, TodayBandPages 테스트 통과(다음 2개->3쪽 등). 상담함 밴드 오늘 시공 히어로 정상 렌더·크래시 0(회귀 없음). 미래 2건 다중페이지 실측은 날짜선택기 제약으로 못 함 -> 사장님 폰에서 확인.
 - 다음: (사장님) 광고->신규 어디서 보이는지 알려주면 그 자리 수정. 배포는 ㄱㄱ 시.
+
+## 2026-10-14 17:40 · android
+칩 빨간 숫자(답장 안 함·오늘 신규)와 목록 불일치 수정 — "1인데 열면 빈 목록". 사장님 신고(+①광고→신규와 같은 뿌리).
+- 원인: 숫자 pending(it)=isUnconfirmed 만 봤는데, 목록은 recent=filter{notAd && !pinned} 로 **광고를 한 번 더 숨긴다**. 답장 안 한 광고가 있으면 숫자엔 세고 목록엔 안 떠 "1인데 빈 목록".
+- 변경: HomeScreen inboxChipCounts 에 isAdItem(목록 ads 기준과 동일: customer==null && lastSent!=true && suffix !in adAllowlist && isLikelyAd) 추가, pending(it)=isUnconfirmed && !isAdItem. remember 키에 adAllowlist 추가. → 답장안함·오늘신규 배지가 목록과 일치. ①(광고→신규)도 동시 해결.
+- 폰 확인: 빌드·가드 통과. 테스트폰에 답장안함 광고가 없어 실측은 사장님 폰(그 광고 번호)에서.
+- 참고: 상단 '오늘 신규 N통' 카드(newTodaySuffixes)는 '새 번호' 집계라 별개 — 미분류 광고가 섞이면 그것도 뺄지 사장님 확인.

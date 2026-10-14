@@ -333,16 +333,23 @@ fun HomeScreen(
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val balanceDues by viewModel.balanceDues.collectAsState()
     // 🏷️ 칩에 붙는 숫자 — **할 일만** 센다. "시공 끝남" 이 40명이어도 빨갛게 쓰지 않는다(할 일이 아니니까).
-    val inboxChipCounts = remember(timeline, balanceDues) {
+    val inboxChipCounts = remember(timeline, balanceDues, adAllowlist) {
         val dues = balanceDues.mapNotNull { it.customerId }.toHashSet()
         val all = timeline.flatMap { g -> g.items }
             .distinctBy { PhoneKey.of(it.record.phoneNumber) }
+        // 🔴 광고는 **목록에서 숨는다**(notAd) — 숫자도 같이 빼야 "1인데 열면 빈 목록"이 안 생긴다. (2026-10-14 사장님)
+        //   목록의 ads 기준과 **똑같이**: 저장 안 된 낯선 번호 + 내가 답장 안 함 + 허용목록 아님 + 광고 내용.
+        fun isAdItem(it: HomeItem): Boolean {
+            val suffix = PhoneKey.of(it.record.phoneNumber)
+            return it.customer == null && it.lastSent != true && suffix !in adAllowlist &&
+                com.detailline.callfollowcrm.util.isLikelyAd(it.lastBody ?: "", it.record.phoneNumber)
+        }
         // 🔴 **빨간 숫자는 뜻이 하나다 — "내가 손댈 게 몇 개인가".** (2026-09-20 사장님)
         //   전엔 "몇 명인가" 를 셌다. 그래서 시공이 열 건 잡히면 **잡혀 있다는 이유로** 빨간 10 이 늘 떠 있었다.
         //   사장님: *"잡혀있어서 뜨는게 아니라... 시공대기 목록 인원한테 문자가 오면 숫자가 뜨는 것"*
         //   → 오늘 신규·시공 대기도 **답 안 한 것만** 센다. 목록은 전부 보여주되
         //     안 챙긴 게 위로 오므로(waiting 섹션이 먼저) 숫자가 가리키는 줄이 바로 보인다.
-        fun pending(it: HomeItem) = it.isUnconfirmed
+        fun pending(it: HomeItem) = it.isUnconfirmed && !isAdItem(it)
         // 🔧 **AS 찍힌 손님은 다른 일 칩에서 모두 빠진다.** (2026-09-27 사장님)
         //   "as는 시공이 이미 끝나서 잔금까지 다 받은 사람인 경우가 많아"
         //   섞여 있으면 「시공 대기」·「잔금 대기」 숫자가 거짓말이 된다.
