@@ -27,5 +27,8 @@ data class SitePhotoEntity(
      * 시공막내 웹(서버 team_site_photos)에 올린 시각(ms). null = 아직 안 올림(백필 대상).
      * -1 = 파일이 사라져 올릴 수 없음(재시도 제외용 표식). (2026-08-13 웹 뷰어)
      */
-    val serverUploadedAt: Long? = null
+    val serverUploadedAt: Long? = null,
+    /** 사장님이 **꾹 눌러 직접 고른 대표 사진**. (v67, 2026-10-15 사장님: "맨 먼저 올린 게 대표가 되던데 — 꾹 누르면 대표로")
+     *   한 건에 최대 1장만 true. 없으면 맨 먼저 올린 사진이 대표(RepresentativeOf 폴백). */
+    val isRepresentative: Boolean = false
 )

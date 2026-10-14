@@ -14305,3 +14305,11 @@ Fable 🧹3. 사장님 "고고"
 - 각 섹션에 collabExpanded/intakeExpanded(기본 false). CdCardDivider 뒤 컴팩트 Row(아이콘+요약+화살표), if(expanded) Column{기존 내용}. 헤더·금액은 그대로(사장님 지시).
 - 기능 100% 보존: 펼침→부르기→CollabShareSheet, 접수서 보내기/목록/편집·삭제 그대로. 테스트폰 실기 확인(접힘·펼침·협업시트).
 - 빌드 BUILD=0·가드 7종(style 2666->2668, styleBaselineUpdate). 배포 지시 시.
+
+## 2026-10-15 07:46 · android
+고객상세 "정신없다" 정리 + 대표사진 수동 지정 (사장님).
+- ⋮ 더보기: A/S 잡기·A/S 명단·완납취소·예약취소를 '⋮ 더보기(A/S·취소)' 한 줄 뒤로 접음(평소 숨김). 길찾기·전액/잔금 확인은 유지.
+- 현장 메모: 고객 메모처럼 **접힘**(컴팩트 '2차 현장 메모 ＋적기'), 탭하면 NoteList 펼침. 헤더·금액은 그대로.
+- 대표 사진: **꾹 누르면 대표**(DB v67 site_photos.isRepresentative, MIGRATION_66_67 ADD COLUMN DEFAULT 0). SitePhotoDao.markRepresentative/clearRepresentative, Repo.setRepresentative, VM.setRepresentativePhoto(SaveGuard). 썸네일 combinedClickable(onClick=크게, onLongClick=대표). representativeOf 가 isRepresentative 우선 → 대표딱지·인증샷·통계 전부 같은 출처(§12-K). 없으면 맨 먼저 올린 것(기존 폴백).
+- 실기 확인: ⋮더보기 접힘, 현장메모 접힘, 꾹 눌러 대표 이동+토스트 "대표 사진으로 정했어요". DB 마이그레이션 정상(크래시 0). 빌드 BUILD=0·가드 7종(style 2668->2672).
+- 배포는 지시 시(DB 버전 올라감 — 배포 시 정상 마이그레이션).

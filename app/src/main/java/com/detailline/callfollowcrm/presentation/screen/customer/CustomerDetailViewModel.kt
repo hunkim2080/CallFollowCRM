@@ -327,6 +327,16 @@ class CustomerDetailViewModel(
         if (!ok) _toast.value = "사진을 돌리지 못했어요"
     }
 
+    /** 꾹 눌러 고른 사진을 대표로. 같은 건의 다른 사진(siblingIds)은 해제. (2026-10-15 사장님) */
+    fun setRepresentativePhoto(photoId: Long, siblingIds: List<Long>) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            SaveGuard.run("대표 사진", _toast) {
+                container.sitePhotoRepository.setRepresentative(photoId, siblingIds)
+            }
+        }
+        _toast.value = "대표 사진으로 정했어요"
+    }
+
     /** 🛟 서버에만 있는 내 사진 — 되살릴 수 있는 것들. 폰에 사진이 하나도 없을 때만 찬다. */
     private val _restorable =
         MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())

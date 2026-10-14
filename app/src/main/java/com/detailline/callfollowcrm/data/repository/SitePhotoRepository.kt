@@ -23,6 +23,12 @@ class SitePhotoRepository(
     /** 📮 사장님이 「그만 보내기」 한 사진 — 도장(-1)을 찍어 다음 스캔에 다시 안 뜨게. (우체통 2단계) */
     suspend fun markGivenUp(photoId: Long) = dao.markUploaded(photoId, -1L)
 
+    /** 사장님이 꾹 눌러 고른 사진을 **대표로**. 같은 건의 다른 사진은 해제(1장만). (2026-10-15 사장님) */
+    suspend fun setRepresentative(chosenId: Long, siblingIds: List<Long>) {
+        if (siblingIds.isNotEmpty()) dao.clearRepresentative(siblingIds)
+        dao.markRepresentative(chosenId)
+    }
+
     /** 전부, 올린 순서대로. 「내 기록」이 대표 사진을 고를 때 쓴다. */
     fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>> = dao.observeAllOldestFirst()
 
@@ -42,7 +48,9 @@ class SitePhotoRepository(
         fun representativeOf(
             photos: List<SitePhotoEntity>, customerId: Long, jobId: Long?
         ): SitePhotoEntity? =
-            photos.firstOrNull { it.jobId != null && it.jobId == jobId }
+            // 🔴 사장님이 **꾹 눌러 직접 고른 것**이 최우선. (2026-10-15 사장님)
+            photos.firstOrNull { it.isRepresentative }
+                ?: photos.firstOrNull { it.jobId != null && it.jobId == jobId }
                 ?: photos.firstOrNull { it.jobId == null && it.customerId == customerId }
                 // 마지막 수단 — **그 고객의 아무 사진.** (2026-09-25 "5집인데 사진 4개")
                 //   사장님이 1차 탭에서 올린 사진이 2차 건에 안 붙어 **조용히 빠지던** 경우를 건진다.

@@ -1203,11 +1203,18 @@ fun CustomerDetailScreen(
                             //   전엔 [완납 취소] 가 가로로 꽉 찬 큰 버튼이라 이 카드에서 제일 누르기 쉬웠다.
                             //   예약 취소는 카드에 보여야 한다(전엔 날짜 팝업 안에 숨어 못 찾음 — 2026-08-28).
                             if (allPaid || scheduled != null) {
+                                var moreActionsExpanded by remember(shownJobId) { mutableStateOf(false) }
                                 Spacer(Modifier.height(10.dp))
+                                // ⋮ 더보기 — A/S·취소는 자주 안 쓰니 평소엔 접어둔다. (2026-10-15 사장님 "버튼이 너무 많다")
+                                Text(
+                                    if (moreActionsExpanded) "▾ A/S · 취소 닫기" else "⋮ 더보기 (A/S · 취소)",
+                                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                        .clickable { moreActionsExpanded = !moreActionsExpanded }.padding(vertical = 5.dp)
+                                )
                                 // 📐 **넘치면 다음 줄로.** (2026-09-28 사장님 "디자인이.. 왜저래")
-                                //   Row 에 칩을 넷 넣었더니 마지막 칩이 폭이 모자라
-                                //   「시공/예약/취소」로 **글자가 세로로 쪼개졌다.**
-                                FlowRow(
+                                if (moreActionsExpanded) FlowRow(
                                     Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp,
                                         androidx.compose.ui.Alignment.End),
@@ -1462,24 +1469,28 @@ fun CustomerDetailScreen(
                 val jid = shownJobId
                 val jobNotes by remember(jid) { viewModel.jobNotes(jid) }
                     .collectAsState(initial = emptyList())
+                var memoJobExpanded by remember(shownJobId) { mutableStateOf(false) }
                 CdCardDivider()
-                Column {
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            CdTitleIcon(Icons.Filled.EditNote, "gray")
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 메모" else "이 현장 메모",
-                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                            )
-                            if (jobNotes.isNotEmpty()) {
-                                Spacer(Modifier.width(6.dp))
-                                Text("${jobNotes.size}", fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold, color = TossTextTertiary)
-                            }
-                        }
+                // 고객 메모처럼 접기 — 컴팩트 한 줄, 탭하면 펼침. (2026-10-15 사장님 "현장 메모는 고객메모처럼 접어두자")
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { memoJobExpanded = !memoJobExpanded }.padding(vertical = 4.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    CdTitleIcon(Icons.Filled.EditNote, "gray")
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 메모" else "이 현장 메모") +
+                            (if (jobNotes.isNotEmpty()) " ${jobNotes.size}" else ""),
+                        fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (jobNotes.isEmpty() && !memoJobExpanded) {
+                        Text("＋ 적기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    } else {
+                        Text(if (memoJobExpanded) "▾" else "▸", fontSize = 12.sp, color = TossTextTertiary)
+                    }
+                }
+                if (memoJobExpanded) Column {
                         Spacer(Modifier.height(4.dp))
                         Text("이 현장에서만 · 주차, 열쇠, 자재", fontSize = 11.5.sp, color = TossTextTertiary)
                         Spacer(Modifier.height(8.dp))
@@ -1640,16 +1651,22 @@ fun CustomerDetailScreen(
                                                         .of(LocalContext.current, cell.filePath),
                                                     contentDescription = "현장 사진",
                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize().clickable {
-                                                        if (pickMode) {
-                                                            pickedMine =
-                                                                if (picked) pickedMine - cell.id else pickedMine + cell.id
-                                                        } else {
-                                                            fullscreenPhotoId = cell.id
-                                                            fullscreenImageUri =
-                                                                android.net.Uri.fromFile(java.io.File(cell.filePath))
+                                                    // 탭=크게 보기, **꾹=대표 사진으로**. (2026-10-15 사장님: 맨 먼저 올린 게 대표 되던 것 → 꾹 눌러 지정)
+                                                    modifier = Modifier.fillMaxSize().combinedClickable(
+                                                        onClick = {
+                                                            if (pickMode) {
+                                                                pickedMine =
+                                                                    if (picked) pickedMine - cell.id else pickedMine + cell.id
+                                                            } else {
+                                                                fullscreenPhotoId = cell.id
+                                                                fullscreenImageUri =
+                                                                    android.net.Uri.fromFile(java.io.File(cell.filePath))
+                                                            }
+                                                        },
+                                                        onLongClick = {
+                                                            if (!pickMode) viewModel.setRepresentativePhoto(cell.id, sitePhotos.map { it.id })
                                                         }
-                                                    }
+                                                    )
                                                 )
                                                 // 🏅 이게 인증샷에 들어가는 그 사진이다.
                                                 if (cell.id == repPhotoId) {

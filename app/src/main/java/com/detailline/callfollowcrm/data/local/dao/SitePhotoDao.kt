@@ -34,4 +34,12 @@ interface SitePhotoDao {
     /** 서버 업로드 완료 표시(ts) 또는 파일없음 표식(-1) — 다음 백필서 제외. */
     @Query("UPDATE site_photos SET serverUploadedAt = :ts WHERE id = :id")
     suspend fun markUploaded(id: Long, ts: Long?)
+
+    /** 대표 사진 지정 — 고른 1장만 1. (2026-10-15 사장님: 꾹 눌러 대표) */
+    @Query("UPDATE site_photos SET isRepresentative = 1 WHERE id = :id")
+    suspend fun markRepresentative(id: Long)
+
+    /** 같은 건의 다른 사진들 대표 해제(한 건에 1장만). */
+    @Query("UPDATE site_photos SET isRepresentative = 0 WHERE id IN (:ids)")
+    suspend fun clearRepresentative(ids: List<Long>)
 }
