@@ -14151,3 +14151,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: RemoteRefineRepository.refine 을 "1회 시도 → 일시적 실패면 0.6초 쉬고 1회 더"로. 일시적=502/503/504·SocketTimeout/Connect/UnknownHost·연결reset. 재시도 안 함=RefineQuotaException(한도)·4xx·빈 응답(같은 결과거나 LLM 비용 중복). 호출부/서버 변경 없음(Result 계약 동일). cancelPolish 중 delay 취소 가능.
 - 폰 확인: 빌드·가드 통과. 동작은 터널 깜빡임 때만이라 실측 불가 — 코드/빌드로 검증.
 - 다음 액션: (사장님) 배포 원하면 태그.
+
+## 2026-10-14 11:36 · android
+정산 현금흐름 달력 좌우 스와이프 = 이전/다음 달. 사장님 지시(스와이프가 안 넘어감 — 원래 화살표만 있었음).
+- 변경: CashFlowSection.kt CashCalendar 주간 그리드를 Column(pointerInput+detectHorizontalDragGestures)로 감쌈. 왼쪽 밀기=다음 달(onNext)·오른쪽=이전 달(onPrev), 임계 56dp. rememberUpdatedState 로 최신 콜백. 화살표 < > 그대로. 날짜 탭과 안 부딪힘(그리드만 감쌈).
+- 폰 확인: 테스트폰 실측 — 10월→(왼쪽 스와이프)→11월→(오른쪽)→10월 확인. 스샷 2장.
+- 다음 액션: (사장님) ①라벨고치기 프로토 확인 → ②전체에 지인. 배포 원하면 태그.

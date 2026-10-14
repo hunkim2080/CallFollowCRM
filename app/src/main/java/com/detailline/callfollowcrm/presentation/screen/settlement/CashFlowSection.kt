@@ -40,7 +40,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.ui.draw.clip
@@ -222,15 +224,36 @@ private fun CashCalendar(
                 }
             }
             val cells = remember(monthAnchor, byDay) { buildCashCells(monthAnchor, byDay, todayStart) }
-            repeat(6) { w ->
-                Row(Modifier.fillMaxWidth()) {
-                    cells.subList(w * 7, w * 7 + 7).forEach { cell ->
-                        CashDayCell(
-                            cell = cell,
-                            isSelected = selectedDay == cell.dayStartMs,
-                            onClick = { onSelect(cell.dayStartMs) },
-                            modifier = Modifier.weight(1f)
-                        )
+            // 📅 달력 좌우 스와이프 = 이전/다음 달 (화살표 < > 와 같은 동작). (2026-10-14 사장님)
+            //   그리드만 감싸 날짜 탭과 안 부딪히게. rememberUpdatedState 로 최신 onPrev/onNext 를 잡아
+            //   — 안 그러면 pointerInput 이 처음 람다를 붙들어 한 달만 움직이고 멈춘다.
+            val curPrev by androidx.compose.runtime.rememberUpdatedState(onPrev)
+            val curNext by androidx.compose.runtime.rememberUpdatedState(onNext)
+            Column(
+                Modifier.fillMaxWidth().pointerInput(Unit) {
+                    var dx = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dx = 0f },
+                        onDragCancel = { dx = 0f },
+                        onDragEnd = {
+                            val threshold = 56.dp.toPx()
+                            if (dx > threshold) curPrev()        // → 오른쪽으로 밀면 이전 달
+                            else if (dx < -threshold) curNext()  // ← 왼쪽으로 밀면 다음 달
+                        },
+                        onHorizontalDrag = { change, amount -> dx += amount; change.consume() }
+                    )
+                }
+            ) {
+                repeat(6) { w ->
+                    Row(Modifier.fillMaxWidth()) {
+                        cells.subList(w * 7, w * 7 + 7).forEach { cell ->
+                            CashDayCell(
+                                cell = cell,
+                                isSelected = selectedDay == cell.dayStartMs,
+                                onClick = { onSelect(cell.dayStartMs) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }
