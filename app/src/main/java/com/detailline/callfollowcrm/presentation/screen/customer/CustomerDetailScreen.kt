@@ -3416,6 +3416,23 @@ private fun JobTabsRow(
         Modifier.fillMaxWidth(),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
+        // 🏗️ 시공 건 · 최신부터 — 프로토 `.slab` 라벨. (2026-10-15 사장님: 프로토 1:1)
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("🏗️", fontSize = 12.sp)
+            Spacer(Modifier.width(5.dp))
+            Text("시공 건 · 최신부터", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+        }
+        // ＋ 새 시공 잡기 — **건 카드들 위**(프로토). 한 줄 점선 버튼. (2026-10-15 사장님)
+        androidx.compose.foundation.layout.Box(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, TossBlue.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                .clickable(onClick = onAddNew)
+                .padding(vertical = 13.dp),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            Text("＋ 새 시공 잡기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+        }
         @Suppress("UNUSED_PARAMETER")
         slots.reversed().forEachIndexed { idx, (_, job) ->
             if (job != null) {
@@ -3457,18 +3474,7 @@ private fun JobTabsRow(
                 )
             }
         }
-        // 맨 아래 — ＋새 시공 잡기. **한 줄 점선 버튼**(프로토). 전엔 JobTab 을 full-width 로 써서 ＋ 위에 '새 시공'이
-        //   쌓인 큰 빈 네모가 됐다 — 사장님 "저 자리 레이아웃 왜이래". (2026-10-15)
-        androidx.compose.foundation.layout.Box(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, TossBlue.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                .clickable(onClick = onAddNew)
-                .padding(vertical = 13.dp),
-            contentAlignment = androidx.compose.ui.Alignment.Center
-        ) {
-            Text("＋ 새 시공 잡기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
-        }
+        // (＋새 시공 잡기는 위로 옮김 — 프로토대로 건 카드들 위. 2026-10-15 사장님)
     }
     Spacer(Modifier.height(2.dp))
 }
