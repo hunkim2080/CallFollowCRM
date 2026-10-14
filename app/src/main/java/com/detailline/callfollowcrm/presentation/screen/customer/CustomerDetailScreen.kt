@@ -491,6 +491,11 @@ fun CustomerDetailScreen(
                 )?.id
             val shownJob = allJobsForTabs.firstOrNull { it.id == shownJobId }
 
+            // 발행 문서(견적서·접수서) — 탭을 없애고 **각 차수 카드 안**으로. (2026-10-14 사장님)
+            //   시공접수서는 고객 번호에만 묶여 있어 차수 꼬리표가 없다 → 시공예정일(workDateMs)로 그 건에 맞춘다.
+            val issuedDocs by viewModel.issuedDocs.collectAsState()
+            val intakeByToken by viewModel.intakeByToken.collectAsState()
+
             val extractedAddress by viewModel.extractedAddress.collectAsState()
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             val ctx = LocalContext.current
@@ -807,15 +812,10 @@ fun CustomerDetailScreen(
                 )
             }
 
-            // ── 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 위 정보는 항상, 아래 4개 섹션만 탭으로 전환 ──
-            run {
-                // "블로그"(비즈니스 요금제 예정) 탭은 출시 전까지 숨김 — 눌러도 "곧 제공" 토스트만 뜨는 데드엔드였음.
-                //   아래 detailTab==2 블로그 lockcard 블록은 탭이 없어 자동으로 도달 불가(코드는 유지). 2026-07-29.
-                // 협업 탭 제거 — 협업 사장은 각 현장(건) 카드 안으로. (2026-10-14 사장님: 1차·2차 협업 사장 분리)
-                val detailTabs = listOf("일정·정산", "시공접수서")
-                // 이 모양이 앱의 탭 기준이 됐다 → 공용 부품으로 옮김(AppTabs). (2026-09-21 사장님)
-                com.detailline.callfollowcrm.presentation.component.AppTabs(tabs = detailTabs, selected = detailTab, onSelect = { detailTab = it })
-            }
+            // ── 상단 탭 제거 (2026-10-14 사장님: "시공접수서 탭 굳이 필요할까") ──
+            //   협업 탭(2026-10-14)·접수서 탭을 차례로 없애 '일정·정산' 하나만 남았다 → 탭 줄 자체를 뺀다.
+            //   접수서(발행 문서)는 아래 각 차수 카드 안으로. detailTab 은 0 고정(==1 블록은 아래에서 제거).
+            //   (블로그 ==2 lockcard 블록은 원래부터 도달 불가 — 코드만 유지.)
 
 
             // 1.5 (제거) AI 대화 요약 — 챗스크린에 이미 있어 중복이라 고객 상세에선 뺌. (2026-07-18 사장님)
@@ -1385,6 +1385,57 @@ fun CustomerDetailScreen(
                         )
                     }
                 }
+
+                // 📋 이 차수의 접수서 — 발행 문서 중 시공예정일이 이 건 날짜와 같은 것. (2026-10-14 사장님: 접수서 탭을 차수 안으로)
+                //   접수서는 고객 번호에만 묶여 차수 꼬리표가 없다 → workDateMs 로 그 건에 맞춘다. 안 맞는/날짜 없는 건 아래 '이 고객 문서'로.
+                shownJob?.scheduledWorkDate?.let { sd ->
+                    val jobDay = DateTimeUtils.startOfDay(sd)
+                    val docsForJob = issuedDocs.filter { d -> d.workDateMs?.let { DateTimeUtils.startOfDay(it) == jobDay } == true }
+                    Spacer(Modifier.height(12.dp))
+                    TossCard {
+                        Column {
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    jobNthPrefix + "접수서",
+                                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                                )
+                            }
+                            if (docsForJob.isEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "아직 없어요 · 눌러서 채팅에서 접수서·견적서 보내기",
+                                    fontSize = 13.sp, color = TossTextSecondary, lineHeight = 20.sp,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { onOpenChat(c.phoneNumber, c.id) }
+                                        .padding(vertical = 6.dp)
+                                )
+                            } else {
+                                Spacer(Modifier.height(10.dp))
+                                IssuedDocList(
+                                    docs = docsForJob,
+                                    phone = c.phoneNumber,
+                                    intakeByToken = intakeByToken,
+                                    onOpenQuoteDoc = { reviewQuoteDoc = it },
+                                    onOpenIntakeDoc = { intakeReviewDoc = it },
+                                    onEditIssued = { docId -> onOpenChatEditIssued(c.phoneNumber, c.id, docId) },
+                                    onRequestDelete = { issuedDocToDelete = it },
+                                    onNewDoc = { onOpenChat(c.phoneNumber, c.id) },
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                androidx.compose.foundation.layout.Box(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.bg)
+                                        .clickable { onOpenChat(c.phoneNumber, c.id) }.padding(vertical = 12.dp),
+                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                ) {
+                                    Text("접수서 다시 보내기", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // (입금 카드는 위 "일정 · 정산" 카드로 통합됨 — 2026-06-02 사장님 결정.)
@@ -1398,62 +1449,40 @@ fun CustomerDetailScreen(
             //   2026-06-04 사장님 결정 "프로토 100%". 통화기록/녹음/에이닷 요약 데이터 수집(backfill·
             //   AdotSummaryImporter)은 그대로 동작 — 고객정보 화면에서 카드로 노출만 안 함.
 
-            // 6.55 발행 이력 (2026-07-07 사장님) — 이 고객에게 발행한 견적서/시공접수서. · [시공접수서] 탭 (2026-07-18)
-            //   위치 일관성(2026-09-01 사장님): 다른 탭처럼 '탭 내용'이 현장사진 위. 시공접수서 내용(발행이력)을 현장사진 앞으로.
-            val issuedDocs by viewModel.issuedDocs.collectAsState()
-            val intakeByToken by viewModel.intakeByToken.collectAsState()
-            if (detailTab == 1 && issuedDocs.isNotEmpty()) {
-                TossCard {
-                    Column {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
-                            Spacer(Modifier.width(8.dp))
-                            // 「발행 이력」은 장부 말이다. (2026-09-27 사장님 "보낸문서 좋아")
-                            Text(
-                                "보낸 문서 ${issuedDocs.size}건",
-                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                            )
-                        }
-                        // 안내문은 지운다 — 카드의 꺾쇠와 버튼이 이미 같은 말을 한다.
-                        Spacer(Modifier.height(10.dp))
-                        issuedDocs.forEachIndexed { idx, doc ->
-                            if (idx > 0) Spacer(Modifier.height(8.dp))
-                            IssuedDocRow(
-                                doc = doc,
-                                onOpen = {
-                                    if (doc.kind == "quote") {
-                                        com.detailline.callfollowcrm.presentation.screen.chat.quoteDocDataFromIssuedJson(doc.docJson)
-                                            ?.let { reviewQuoteDoc = it }
-                                            ?: run { intakeReviewDoc = doc }  // JSON 깨졌으면 요약으로 폴백
-                                    } else {
-                                        intakeReviewDoc = doc
-                                    }
-                                },
-                                // 이미 보낸 접수서 수정하기 — intake 만. 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)
+            // 📄 이 고객 문서(차수 미지정) — 시공예정일이 없거나 어느 건과도 안 맞는 발행 문서. (2026-10-14 사장님)
+            //   날짜가 잡힌 접수서·견적서는 위 각 차수 카드 안으로 들어간다. 여기엔 '협의 후 확정(날짜 없음)'·옛 자료만 남는다.
+            //   (issuedDocs/intakeByToken 선언은 위 shownJob 계산부로 올렸다 — 차수 카드도 써야 해서.)
+            run {
+                val matchDays = allJobsForTabs.mapNotNull { j -> j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } }.toSet()
+                val unmatchedDocs = issuedDocs.filter { d ->
+                    val day = d.workDateMs?.let { DateTimeUtils.startOfDay(it) }
+                    day == null || day !in matchDays
+                }
+                if (unmatchedDocs.isNotEmpty()) {
+                    TossCard {
+                        Column {
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "이 고객 문서 ${unmatchedDocs.size}건",
+                                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            IssuedDocList(
+                                docs = unmatchedDocs,
                                 phone = c.phoneNumber,
-                                // 🔒 **손님이 쓴 접수서는 고칠 수 없다.** (2026-09-27 사장님)
-                                //   "손님이 작성한 경우에는 고쳐서 다시 보낼수없어. 그럼 견적을 바꿔버린다는거잖아."
-                                //   손님이 **보고 동의해서 보낸** 것을 나중에 고치면, 그 동의가 가리키는 게 바뀐다.
-                                onEdit = if (doc.kind == "intake" && doc.token?.let { tk -> intakeByToken[tk] } == null)
-                                    ({ onOpenChatEditIssued(c.phoneNumber, c.id, doc.id) }) else null,
-                                // 🔒 **손님이 쓴 접수서는 지울 수도 없다.** (2026-09-27 사장님)
-                                //   "분쟁이 있을때 이 접수서를 보고 이야기할수있어야하거든"
-                                //   고치기를 막는 이유와 같다 — 통째로 없어지면 증거 자체가 사라진다.
-                                onDelete = if (doc.token?.let { tk -> intakeByToken[tk] } == null)
-                                    ({ issuedDocToDelete = doc }) else null,
-                                // 바꿀 게 있으면 **새로 보낸다** — 옛것은 그대로 기록으로 남는다.
+                                intakeByToken = intakeByToken,
+                                onOpenQuoteDoc = { reviewQuoteDoc = it },
+                                onOpenIntakeDoc = { intakeReviewDoc = it },
+                                onEditIssued = { docId -> onOpenChatEditIssued(c.phoneNumber, c.id, docId) },
+                                onRequestDelete = { issuedDocToDelete = it },
                                 onNewDoc = { onOpenChat(c.phoneNumber, c.id) },
-                                // 📋 고객이 채워 보낸 게 있으면 같은 토큰으로 엮어 붙인다.
-                                filled = doc.token?.let { tk -> intakeByToken[tk] }
                             )
                         }
                     }
                 }
-            }
-
-            // [시공접수서] 탭인데 발행 이력이 없을 때 안내. (2026-07-18 탭 재배치)
-            if (detailTab == 1 && issuedDocs.isEmpty()) {
-                DetailTabEmpty("아직 발행한 견적서·시공접수서가 없어요.\n채팅에서 견적서·시공접수서를 보내면 여기에 쌓여요.")
             }
 
             // 📍 이 현장 메모 — **그 건에서만.** 손님 메모(👤)와 **같은 얼굴**(쪽지)로. (2026-09-27 사장님)
@@ -2457,140 +2486,6 @@ fun CustomerDetailScreen(
         )
     }
 
-}
-
-/**
- * 보낸 문서 한 장. 탭 = 여는 것, 꾹 누름 = 지우기(잠김 아닐 때만).
- *   제목은 시공일이 맨 앞, 그 아래 「내가 보냄 / 손님이 씀」 두 줄. (2026-09-27 사장님)
- */
-@Composable
-@OptIn(ExperimentalFoundationApi::class)
-private fun IssuedDocRow(
-    doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
-    /** 링크를 다시 보낼 고객 번호. */
-    phone: String,
-    onOpen: () -> Unit,
-    /** 접수서(intake)이고 **손님이 아직 안 썼을 때만.** null = 고치기 잠김. (2026-09-27 사장님) */
-    onEdit: (() -> Unit)? = null,
-    /** 손님이 **아직 안 썼을 때만.** null = 지우기 잠김 — 분쟁 때 봐야 하는 증거다. */
-    onDelete: (() -> Unit)? = null,
-    /** 바꿀 게 있으면 새로 보낸다. 옛것은 그대로 기록으로 남는다. */
-    onNewDoc: () -> Unit = {},
-    /** 고객이 채워 보낸 것. null = 아직 안 채움. */
-    filled: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity? = null
-) {
-    val isQuote = doc.kind == "quote"
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    // 🗓️ **시공일이 맨 앞.** (2026-09-27 사장님)
-    //   "1차 시공 2차시공 뭐 이렇게 있다보니까 차라리 시공일을 맨앞에.. 언제짜인지 한눈에 알아볼수있진않을까"
-    //   한 손님에게 1차·2차가 있으면 「시공접수서」라는 말만으로는 어느 건인지 알 수 없었다.
-    //   ⚠️ 시공일 없는 접수서는 이제 안 만들어진다("시공일이 없을땐 접수서가 만들어지질 않아").
-    //      옛 자료엔 있을 수 있어, 그럴 땐 날짜만 생략하고 그대로 보여준다.
-    val headDate = doc.workDateMs?.takeIf { it > 0L }?.let { DateTimeUtils.formatKoreanMonthDay(it) }
-    fun stamp(ms: Long): String =
-        DateTimeUtils.formatKoreanMonthDay(ms) + " " + DateTimeUtils.formatTime(ms)
-
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(AppTheme.colors.bg)
-            // 지우기는 꾹 눌러서 — 글 옆에 떠 있던 ✕ 단추가 사장님 눈에 「버튼이 겹쳐있는 디자인」이었다.
-            .combinedClickable(onLongClick = onDelete, onClick = onOpen).padding(13.dp)
-    ) {
-        // 제목 줄 — 무슨 문서인가. 꺾쇠 하나로 **누르면 열린다**를 말한다.
-        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Text(if (isQuote) "📜" else "📋", fontSize = 17.sp)
-            Spacer(Modifier.width(8.dp))
-            if (isQuote) {
-                Text("견적서", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                // 견적서는 **금액이 알맹이**다. 접수서는 눌러야 내용이 나온다.
-                if (doc.totalWon > 0L) {
-                    Text(" · ", fontSize = 14.sp, color = TossTextTertiary)
-                    Text(
-                        java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                            .format(doc.totalWon) + "원",
-                        fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-            } else {
-                if (headDate != null) {
-                    Text(headDate, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                    Spacer(Modifier.width(5.dp))
-                }
-                Text(
-                    "시공접수서", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
-                    color = TossTextPrimary, modifier = Modifier.weight(1f), maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-            Text("›", fontSize = 16.sp, color = TossTextTertiary)
-        }
-        Spacer(Modifier.height(7.dp))
-
-        // 두 줄 — **누가 무엇을 했나.** (2026-09-27 사장님이 고른 말투: "내가 보냄 / 손님이 씀")
-        IssuedKv("내가 보냄", stamp(doc.issuedAtMs), TossTextPrimary)
-        if (!isQuote) {
-            if (filled != null) IssuedKv("손님이 씀", stamp(filled.submittedAtMs), TossSuccess)
-            else IssuedKv("손님이 씀", "아직", TossTextTertiary)
-        }
-
-        // 손님 메모만 남긴다 — 주소·시공일은 이 화면 위쪽에 이미 있고, 메모는 여기밖에 없다.
-        filled?.customerMemo?.takeIf { it.isNotBlank() }?.let {
-            Spacer(Modifier.height(8.dp))
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                    .background(AppTheme.colors.doneBg).padding(horizontal = 11.dp, vertical = 9.dp)
-            ) {
-                Text("손님 메모", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
-                Spacer(Modifier.height(2.dp))
-                Text(it, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 19.sp)
-            }
-        }
-
-        // 그때그때 **할 일 하나**. 「다시 보기」는 카드를 누르면 되니 안 만든다.
-        //   (사장님 "내용보기랑 다시보기랑 뭐가달라?" — 같은 것이었다)
-        if (!isQuote) {
-            if (filled != null) {
-                Spacer(Modifier.height(11.dp))
-                Text(
-                    "손님이 확인해서 보낸 것이라 고치거나 지울 수 없어요",
-                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp
-                )
-                Spacer(Modifier.height(8.dp))
-                IssuedBtn("새 접수서 보내기", primary = false) { onNewDoc() }
-            } else {
-                Spacer(Modifier.height(11.dp))
-                val url = doc.url?.takeIf { it.isNotBlank() }
-                androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    if (url != null) {
-                        Box(Modifier.weight(1f)) {
-                            IssuedBtn("링크 다시 보내기", primary = true) {
-                                // 🔴 전엔 손으로 Intent 를 만들고 **조용히 삼켰다** — 못 열려도
-                                //   사장님은 「다시 보냈다」고 생각하는데 손님은 아무것도 못 받는다.
-                                com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(
-                                    ctx, phone, "시공접수서예요. 눌러서 작성해 주세요\n" + url
-                                )
-                            }
-                        }
-                    }
-                    if (onEdit != null) {
-                        Box(Modifier.weight(1f)) {
-                            IssuedBtn("고쳐서 보내기", primary = url == null) { onEdit() }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // 지우기를 숨기지 않고 **어떻게 지우는지를 적는다.** 모르게 두면 없는 기능이다.
-    if (onDelete != null) {
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "꾹 누르면 지울 수 있어요",
-            fontSize = 11.sp, color = TossTextTertiary,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
 }
 
 
