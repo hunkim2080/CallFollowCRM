@@ -1292,8 +1292,24 @@ fun CustomerDetailScreen(
                             .distinctBy { it.shareId.ifBlank { PhoneKey.of(it.phone) } }
                     }
                     val showJobCollabShare = remember(c.id, shownJobId) { mutableStateOf(false) }
+                    var collabExpanded by remember(shownJobId) { mutableStateOf(false) }
                     CdCardDivider()
-                    Column {
+                    // 컴팩트 한 줄(프로토 스타일) — 평소 접힘, 탭하면 펼침. (2026-10-15 사장님 "협업·접수서 프로토 스타일이 깔끔")
+                    androidx.compose.foundation.layout.Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { collabExpanded = !collabExpanded }.padding(vertical = 4.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            if (jobCollab.isEmpty()) "협업 사장님 부르기"
+                            else jobCollab.joinToString(", ") { it.name.ifBlank { "협업 사장님" } },
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.categoryText,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(if (collabExpanded) "▾" else "▸", fontSize = 12.sp, color = TossTextTertiary)
+                    }
+                    if (collabExpanded) Column {
                             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 androidx.compose.material3.Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.categoryText, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(7.dp))
@@ -1365,8 +1381,23 @@ fun CustomerDetailScreen(
                 shownJob?.scheduledWorkDate?.let { sd ->
                     val jobDay = DateTimeUtils.startOfDay(sd)
                     val docsForJob = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.forJobDay(issuedDocs, jobDay)
+                    var intakeExpanded by remember(shownJobId) { mutableStateOf(false) }
                     CdCardDivider()
-                    Column {
+                    // 컴팩트 한 줄(프로토 스타일) — 평소 접힘, 탭하면 펼침. (2026-10-15 사장님)
+                    androidx.compose.foundation.layout.Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { intakeExpanded = !intakeExpanded }.padding(vertical = 4.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (docsForJob.isEmpty()) "접수서 보내기" else "접수서 ${docsForJob.size}장",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(if (intakeExpanded) "▾" else "▸", fontSize = 12.sp, color = TossTextTertiary)
+                    }
+                    if (intakeExpanded) Column {
                             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 CdTitleIcon(Icons.Filled.ReceiptLong, "blue")
                                 Spacer(Modifier.width(8.dp))
