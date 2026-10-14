@@ -1422,7 +1422,7 @@ fun CustomerDetailScreen(
                 //   접수서는 고객 번호에만 묶여 차수 꼬리표가 없다 → workDateMs 로 그 건에 맞춘다. 안 맞는/날짜 없는 건 아래 '이 고객 문서'로.
                 shownJob?.scheduledWorkDate?.let { sd ->
                     val jobDay = DateTimeUtils.startOfDay(sd)
-                    val docsForJob = issuedDocs.filter { d -> d.workDateMs?.let { DateTimeUtils.startOfDay(it) == jobDay } == true }
+                    val docsForJob = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.forJobDay(issuedDocs, jobDay)
                     Spacer(Modifier.height(12.dp))
                     TossCard {
                         Column {
@@ -1485,11 +1485,8 @@ fun CustomerDetailScreen(
             //   날짜가 잡힌 접수서·견적서는 위 각 차수 카드 안으로 들어간다. 여기엔 '협의 후 확정(날짜 없음)'·옛 자료만 남는다.
             //   (issuedDocs/intakeByToken 선언은 위 shownJob 계산부로 올렸다 — 차수 카드도 써야 해서.)
             run {
-                val matchDays = allJobsForTabs.mapNotNull { j -> j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } }.toSet()
-                val unmatchedDocs = issuedDocs.filter { d ->
-                    val day = d.workDateMs?.let { DateTimeUtils.startOfDay(it) }
-                    day == null || day !in matchDays
-                }
+                val matchDays = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.jobDaySet(allJobsForTabs)
+                val unmatchedDocs = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.unmatched(issuedDocs, matchDays)
                 if (unmatchedDocs.isNotEmpty()) {
                     TossCard {
                         Column {
