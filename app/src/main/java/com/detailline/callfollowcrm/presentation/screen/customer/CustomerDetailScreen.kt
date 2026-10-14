@@ -195,8 +195,6 @@ fun CustomerDetailScreen(
     var dateEditStart by remember { mutableStateOf<Long?>(null) }   // 그 건의 현재 예약일(달력 미리채움·축하 판단용)
     var dateEditDays by remember { mutableStateOf(1) }              // 그 건의 현재 기간
     var dateEditMinutes by remember { mutableStateOf<Int?>(null) }  // 그 건의 현재 시간(시간창 미리채움용)
-    /** '지난 건' 묶음을 폈는지. (2026-09-18 프로토) */
-    var pastOpen by remember { mutableStateOf(false) }
     // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
     var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
     // 빈 메모 카드를 폈나 — 빈 공백 줄이려 접어두고, 누르면 펼친다. (2026-10-07 사장님 "허전해")
@@ -403,8 +401,8 @@ fun CustomerDetailScreen(
                         //   (2026-09-20 사장님 / 2026-10-07 이름 옆 「고객」 배지 추가)
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    // 이미 '고객'으로 확정된 사람 — 이름 바로 옆 작은 초록 배지(큰 토글 줄 대신). (2026-10-07 사장님)
-                    if (answeredCustomer) {
+                    // 기본이 '고객' — 이름 옆 작은 초록 배지. 비고객일 때만 숨긴다(깔끔하게). (2026-10-15 사장님)
+                    if (!nonCustomer) {
                         Spacer(Modifier.width(6.dp))
                         com.detailline.callfollowcrm.presentation.screen.customer.ConfirmedCustomerBadge()
                     }
@@ -960,9 +958,6 @@ fun CustomerDetailScreen(
                     pastJobs = otherJobs,
                     current = c,
                     selectedPastJobId = selectedPastJobId,
-                    closedCount = otherJobs.count { jobFolded(it) },
-                    pastOpen = pastOpen,
-                    onTogglePast = { pastOpen = !pastOpen },
                     onSelect = { selectedPastJobId = it },
                     // ＋ 는 **새 건을 만든다.** 전엔 날짜 고르기만 열고 그 날짜를 지금 건에 덮어썼다. (2026-09-17)
                     onAddNew = {
@@ -987,67 +982,19 @@ fun CustomerDetailScreen(
                 )
                 // (건들의 합 '시공 N건·합계·미수' 줄 제거 — 헤더 아래 상단 요약 스트립이 같은 걸 보여준다. 2026-10-14 재설계 3·4단계)
             }
-            // 2-0-b. '지난 건'을 펼쳤을 때 — 마무리된 건 목록. (2026-09-18 프로토 `.past-list`)
-            //   "펼치면 목록이 나오고, 고르면 그 건이 열려요."
-            if (detailTab == 0 && showJobBar && pastOpen) {
-                val closedJobs = remember(otherJobs) {
-                    otherJobs.filter { jobFolded(it) }.sortedBy { it.scheduledWorkDate ?: 0L }
-                }
-                if (closedJobs.isNotEmpty()) {
-                    TossCard {
-                        Column {
-                            Text(
-                                "마무리·취소한 건 · 고르면 열려요",
-                                fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            closedJobs.forEach { j ->
-                                androidx.compose.foundation.layout.Row(
-                                    Modifier.fillMaxWidth()
-                                        .clickable { selectedPastJobId = j.id }
-                                        .padding(vertical = 10.dp),
-                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            (if (jobCancelled(j)) (if (j.cancelledAt != null) "취소한 건" else "빈 건")
-                                             else "${jobNthOf(allJobsForTabs, j)}차") + " · " +
-                                                (j.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정"),
-                                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                            color = if (selectedPastJobId == j.id) TossBlue else TossTextPrimary
-                                        )
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(
-                                            listOfNotNull(
-                                                j.address?.takeIf { it.isNotBlank() } ?: "주소 없음",
-                                                j.totalAmount?.let { com.detailline.callfollowcrm.util.MoneyFormatter.won(it) },
-                                                when {
-                                                    j.cancelledAt != null -> "예약 취소함"
-                                                    jobBlank(j) -> "비어 있던 건"
-                                                    j.balancePaidAt != null -> "잔금 받음"
-                                                    else -> "완료"
-                                                }
-                                            ).joinToString(" · "),
-                                            fontSize = 11.5.sp, color = TossTextTertiary, maxLines = 1
-                                        )
-                                    }
-                                    // 취소/빈 건만 삭제 — 살아있는 건(금액·일정 있는)은 실수 삭제 방지. (2026-10-06 사장님)
-                                    if (jobCancelled(j) || jobBlank(j)) {
-                                        Text(
-                                            "삭제", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                            color = AppTheme.colors.unpaid,
-                                            modifier = Modifier.clip(AppShape.sm)
-                                                .clickable { deletePastJobConfirm = j }
-                                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    } else {
-                                        Text("›", fontSize = 18.sp, color = TossTextTertiary)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            // (2-0-b 제거) 옛 '지난 건 펼침' 목록 — 완료·취소 건은 이제 **스택에 접힌 카드**로 직접 들어가
+            //   눌러서 바로 상세가 열린다(프로토). 별도 목록·pastOpen 토글 불필요. (2026-10-15 사장님)
+            // 취소·빈 건을 골랐으면 **지우기** 한 줄 — 옛 '지난 건' 목록에 있던 삭제 경로를 여기로 옮김. (2026-10-15 §12-K)
+            if (detailTab == 0 && shownJob != null && (jobCancelled(shownJob) || jobBlank(shownJob))) {
+                val jobToDelete = shownJob
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "이 건 지우기",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.unpaid,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                        .clickable { deletePastJobConfirm = jobToDelete }.padding(vertical = 6.dp, horizontal = 8.dp)
+                )
             }
 
             // 2-1. 지난 건을 고른 상태 — 그 건의 기록만 보여준다(읽기 전용).
@@ -3465,11 +3412,7 @@ private fun JobTabsRow(
     current: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
     selectedPastJobId: Long?,
     onSelect: (Long?) -> Unit,
-    onAddNew: () -> Unit,
-    /** 마무리(잔금 받음)된 건 수 — 탭에서 빠져 '지난 건'으로 묶인다. (2026-09-18) */
-    closedCount: Int = 0,
-    pastOpen: Boolean = false,
-    onTogglePast: () -> Unit = {}
+    onAddNew: () -> Unit
 ) {
     // 차수는 **날짜순**이다 — 먼저 한 날이 1차. (2026-09-18 실기에서 발견해 고침)
     //   전엔 '지난 건들' 을 먼저 그리고 '지금 건' 을 **항상 맨 뒤**에 붙였다.
@@ -3488,7 +3431,7 @@ private fun JobTabsRow(
         remember(pastJobs, current.scheduledWorkDate, selectedPastJobId) {
             val xs = ArrayList<Triple<Long?, Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
             for (j in pastJobs) {
-                if (jobFolded(j) && j.id != selectedPastJobId) continue
+                // 완료·취소 건도 스택에 **접힌 카드**로 남긴다(프로토). 전엔 여기서 빼고 '지난 건 N' 칩으로 묶었다. (2026-10-15 사장님)
                 xs.add(Triple(j.scheduledWorkDate, j.id, j))
             }
             xs.add(Triple(current.scheduledWorkDate, CUR, null))
@@ -3518,15 +3461,24 @@ private fun JobTabsRow(
                 // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
                 val done = job.workCompletedAt != null
                 val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
+                val folded = jobFolded(job)
+                val dateLabel = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) }
+                    ?: if (job.cancelledAt != null) "예약 취소함" else "날짜 미정"
+                // 완료 건은 **접힌 카드**처럼 — 날짜 뒤에 금액·완납까지 한 줄(프로토 "60만원 · 완납"). (2026-10-15 사장님)
+                val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(job)
+                val sub = if (done && settle.total > 0L)
+                    dateLabel + " · " + manwonLabel(settle.total) + (if (settle.isPaidOff) " 완납" else " 잔금 " + manwonLabel(settle.outstanding))
+                else dateLabel
                 JobTab(
                     // 취소한 건은 차수를 안 준다 — 안 한 시공에 번호를 붙이면 뒤가 다 밀린다. (2026-09-18)
                     nth = if (jobCancelled(job)) (if (job.cancelledAt != null) "취소한 건" else "빈 건")
                           else "${nthOf(job)}차 · " + if (done) "완료" else (dd ?: "예정"),
-                    sub = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) }
-                        ?: if (job.cancelledAt != null) "예약 취소함" else "날짜 미정",
+                    sub = sub,
                     on = selectedPastJobId == job.id,
                     // 완료=회색·예정=초록 점(달력 범례와 같은 색). 취소 건은 점 없음. (2026-10-07)
                     accent = if (jobCancelled(job)) null else if (done) TossTextTertiary else TossSuccess,
+                    // 완료·취소 건은 접힌 느낌으로 회색 처리. (2026-10-15)
+                    muted = folded,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { onSelect(job.id) }
                 )
@@ -3544,23 +3496,8 @@ private fun JobTabsRow(
                 )
             }
         }
-        // 맨 아래 한 줄 — ＋새 시공 · 지난 건(완료 접힘). 나란히. (2026-10-14)
-        androidx.compose.foundation.layout.Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-        ) {
-            JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, modifier = Modifier.weight(1f), onClick = onAddNew)
-            // 마무리된 건은 스택에서 빼고 여기 묶는다 — '완료 접기'. (2026-09-18 확정 프로토 `.chip.past`)
-            //   "잔금 받으면 그 건은 마무리. 마무리된 건은 **지난 건 (N)** 으로 접혀요."
-            if (closedCount > 0) {
-                JobTab(
-                    nth = "지난 건", sub = "${closedCount}건",
-                    on = pastOpen, muted = true, modifier = Modifier.weight(1f), onClick = onTogglePast
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-        }
+        // 맨 아래 — ＋새 시공. 완료 건은 위 스택에 **접힌 카드**로 들어갔다(더는 '지난 건 N' 칩 아님). (2026-10-15 사장님 프로토)
+        JobTab(nth = "＋", sub = "새 시공", on = false, dashed = true, modifier = Modifier.fillMaxWidth(), onClick = onAddNew)
     }
     Spacer(Modifier.height(2.dp))
 }

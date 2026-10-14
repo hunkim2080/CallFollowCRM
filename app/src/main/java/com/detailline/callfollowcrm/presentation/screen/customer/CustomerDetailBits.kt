@@ -648,34 +648,24 @@ internal fun CustomerKindSection(
     nonCustomer: Boolean,
     onAnswer: (Boolean) -> Unit
 ) {
-    if (answeredCustomer) {
+    // 항상 **깔끔한 작은 링크**로 — 큰 버튼 두 개는 안 띄운다. (2026-10-15 사장님 "고객아님/고객, 지금이 더 깔끔")
+    //   기본은 고객(위 이름 옆 초록 배지). 아니면 이 링크로 바꾼다. 비고객이면 다시 고객으로도.
+    Text(
+        if (nonCustomer) "고객이면 여기를 눌러 바꿔요" else "고객이 아니면 여기를 눌러 바꿔요",
+        fontSize = 11.5.sp, color = TossTextTertiary,
+        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onAnswer(!nonCustomer) }
+            .padding(vertical = 3.dp)
+    )
+    if (nonCustomer) {
         Text(
-            "고객이 아니면 여기를 눌러 바꿔요",
-            fontSize = 11.5.sp, color = TossTextTertiary,
+            "추천 답변·고객 분석·주소 물어보기를 안 해요 (통화 요약은 그대로)",
+            fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onAnswer(true) }
-                .padding(vertical = 3.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
         )
-    } else {
-        Spacer(Modifier.height(12.dp))
-        androidx.compose.foundation.layout.Row(
-            Modifier.fillMaxWidth().padding(top = 11.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Text("이 사람은", fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
-            CustomerKindPill("고객 아님", on = nonCustomer) { onAnswer(true) }
-            Spacer(Modifier.width(6.dp))
-            CustomerKindPill("고객", on = !nonCustomer) { onAnswer(false) }
-        }
-        if (nonCustomer) {
-            Text(
-                "추천 답변·고객 분석·주소 물어보기를 안 해요 (통화 요약은 그대로)",
-                fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp,
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
     }
 }
 
