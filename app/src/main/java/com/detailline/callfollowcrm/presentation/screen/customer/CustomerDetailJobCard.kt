@@ -848,10 +848,11 @@ internal fun JobDetailCard(
                 }
                 var intakeExpanded by remember(jobId) { mutableStateOf(false) }
                 val canDeleteJob = job != null && (jobCancelled(job) || jobBlank(job))
-                // 🔧 A/S 잡을 수 있는 자리(고객 단위 → 대표 건 카드, 아직 A/S 안 잡힘). 완납·완료한 건이면 foot 에 바로, 아니면 더보기 안.
+                // 🔧 A/S 잡을 수 있는 자리(고객 단위, 아직 A/S 안 잡힘). 시공 전이면 **대표 건 더보기** 안,
+                //   완납·완료한 건이면 **그 건 foot 에 바로** — 대표가 아니어도. (2026-10-15 사장님: 완납 손님이 A/S 신청, 대표 아닌 완납 건에서도 보이게)
                 val asCanBook = isPrimary && scheduled != null && c.asScheduledDate == null
                 val jobDone = job?.workCompletedAt != null
-                val asReadyHere = asCanBook && (allPaid || jobDone)
+                val asReadyHere = (allPaid || jobDone) && scheduled != null && c.asScheduledDate == null
                 // ⋯ 더보기는 **안에 칩이 하나라도 있을 때만** — 아래 펼침 블록의 조건과 같은 식. (완납 취소는 잔금 줄로 갔다. 2026-10-15)
                 val showMore = (asCanBook && !asReadyHere) ||
                     (isPrimary && c.asPendingAt == null) ||
