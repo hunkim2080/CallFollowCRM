@@ -230,7 +230,13 @@ class SharedSiteRepository(
             val req = Request.Builder().url("$baseUrl/api/shared/invite")
                 .post(payload.toString().toRequestBody(jsonMedia)).build()
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                if (!resp.isSuccessful) {
+                    // 🐞 실패 사유를 들고 온다 — 전엔 "HTTP 401"만 던져 화면엔 "보내지 못했어요"로만 떴다.
+                    //   서버가 주는 detail(예: "로그인이 필요합니다")을 그대로 올려 사장님이 이유를 바로 알게. (2026-10-15 사장님 신고)
+                    val body = runCatching { resp.body?.string() }.getOrNull().orEmpty()
+                    val detail = runCatching { JSONObject(body).optString("detail") }.getOrNull()?.takeIf { it.isNotBlank() }
+                    throw IOException("HTTP ${resp.code}${detail?.let { " · $it" } ?: ""}")
+                }
                 val obj = JSONObject(resp.body?.string().orEmpty())
                 InviteResult(
                     shareId = obj.optString("share_id"),

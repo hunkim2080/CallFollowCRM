@@ -522,7 +522,9 @@ fun CustomerDetailScreen(
                 val activeJobs = allJobsForTabs.count { !jobCancelled(it) && it.scheduledWorkDate != null }
                 val jobCount = if (activeJobs > 0) activeJobs else (if (c.scheduledWorkDate != null) 1 else 0)
                 // 돈이 하나도 안 적힌 고객(상담만)은 숨긴다 — 허전/어수선 방지. (사장님 "중요한 것만")
-                if (totalSum > 0L) {
+                //   🔽 시공이 **2건 이상일 때만** 띄운다. 1건이면 바로 아래 건 카드가 같은 금액(잔금)을 또 보여줘
+                //      중복·지저분해진다(2026-10-15 사장님). 띠의 쓸모 = 여러 건 잔금을 합친 '총 받을 돈'은 여기만 있다.
+                if (totalSum > 0L && jobCount >= 2) {
                     Spacer(Modifier.height(10.dp))
                     TossCard {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1183,10 +1185,10 @@ fun CustomerDetailScreen(
             nth = allJobsForNew.count { !jobCancelled(it) } + 1,
             start = newJobStart, days = newJobDays,
             onPickDate = { dateEditJobId = null; addingNewJob = true; datePickerOpen = true },
-            onRegister = { address, totalWon ->
+            onRegister = { address, totalWon, depositWon ->
                 val start = newJobStart
                 if (start != null) {
-                    viewModel.addNewJob(start, newJobDays, address, totalWon) { id ->
+                    viewModel.addNewJob(start, newJobDays, address, totalWon, depositWon) { id ->
                         android.widget.Toast.makeText(
                             context,
                             if (id > 0L) "새 시공을 추가했어요" else "그 날짜엔 이미 시공이 있어요",

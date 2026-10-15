@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
@@ -847,8 +848,12 @@ internal fun JobDetailCard(
                 }
                 var intakeExpanded by remember(jobId) { mutableStateOf(false) }
                 val canDeleteJob = job != null && (jobCancelled(job) || jobBlank(job))
+                // 🔧 A/S 잡을 수 있는 자리(고객 단위 → 대표 건 카드, 아직 A/S 안 잡힘). 완납·완료한 건이면 foot 에 바로, 아니면 더보기 안.
+                val asCanBook = isPrimary && scheduled != null && c.asScheduledDate == null
+                val jobDone = job?.workCompletedAt != null
+                val asReadyHere = asCanBook && (allPaid || jobDone)
                 // ⋯ 더보기는 **안에 칩이 하나라도 있을 때만** — 아래 펼침 블록의 조건과 같은 식. (완납 취소는 잔금 줄로 갔다. 2026-10-15)
-                val showMore = (isPrimary && scheduled != null && c.asScheduledDate == null) ||
+                val showMore = (asCanBook && !asReadyHere) ||
                     (isPrimary && c.asPendingAt == null) ||
                     (scheduled != null && !allPaid) || canDeleteJob || (photoTotal > 0 && !pickMode)
                 var moreActionsExpanded by remember(jobId) { mutableStateOf(false) }
@@ -891,6 +896,12 @@ internal fun JobDetailCard(
                             "$docKindLabel ${docsForJob.size}장", danger = false, filled = true,
                             icon = Icons.Filled.ReceiptLong, tint = TossBlue
                         ) { intakeExpanded = !intakeExpanded }
+                    }
+                    // 🔧 A/S 잡기 — **완납·완료한 건에선 foot 에 바로**. (2026-10-15 사장님 "완납하면 as 일정 항목을 찾아볼 수가 없네")
+                    //   완납 손님이 A/S 를 제일 많이 신청하는데, 전엔 ⋯더보기 안에만 있어 접힌 카드를 펴고 더보기까지 열어야 보였다.
+                    //   아직 시공 전인 건은 전처럼 더보기 안(A/S 는 시공 뒤의 일). A/S 는 고객 단위라 대표 건 카드에서만(isPrimary — 데이터 모양).
+                    if (asReadyHere) {
+                        CdUndoChip("A/S 잡기", danger = false, filled = true, icon = Icons.Filled.Build) { host.onAsPicker() }
                     }
                     // ⋯ 더보기 — A/S·취소·사진 골라 지우기·이 건 지우기. 자주 안 쓰니 평소엔 접어둔다. (2026-10-15 사장님 "버튼이 너무 많다")
                     if (showMore) {
@@ -976,8 +987,8 @@ internal fun JobDetailCard(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // 🔧 A/S 가 아직 없을 때의 **조용한 길**. 잡히면 위에 줄로 올라간다. 시공 예약이 있을 때만 — A/S 는 시공 **뒤**의 일이다.
-                        if (isPrimary && scheduled != null && c.asScheduledDate == null) {
+                        // 🔧 A/S 가 아직 없을 때의 **조용한 길**(시공 전인 건). 완납·완료한 건은 foot 에 바로 보이니 여기엔 안 둔다(두 벌 X).
+                        if (asCanBook && !asReadyHere) {
                             CdUndoChip("A/S 잡기", danger = false) { host.onAsPicker() }
                         }
                         // 🔧 날짜를 못 잡아도 **명단에는 올려둔다.** (2026-09-27 사장님) — 이름이 **하는 일**을 말하게.

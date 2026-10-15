@@ -275,10 +275,14 @@ class CustomerDetailViewModel(
      * 새 건 쌓기 — 프로토 `s_newjob`(시공일 + 현장 주소 + 총 금액). 지금 건은 **손대지 않는다.** (2026-09-17 / 2026-10-15 주소·금액 추가)
      *   주소·총액은 **그 새 건에** 들어간다(고객 공유칸 아님 — 2차 주소가 1차로 새지 않게).
      */
-    fun addNewJob(startMs: Long, days: Int, address: String? = null, totalWon: Long? = null, onDone: (Long) -> Unit = {}) {
+    fun addNewJob(
+        startMs: Long, days: Int, address: String? = null, totalWon: Long? = null, depositWon: Long? = null,
+        onDone: (Long) -> Unit = {}
+    ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val day = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(startMs)
+            val deposit = depositWon?.takeIf { it > 0L }
             // 🤫 실패를 삼키지 않는다 — 새 건이 안 생겼는데 "추가했어요"가 뜨면 안 된다. (§13①)
             val id = SaveGuard.run("새 시공", _toast) {
                 container.jobRepository.addJob(
@@ -288,8 +292,9 @@ class CustomerDetailViewModel(
                     scheduledWorkDays = days.coerceAtLeast(1),
                     address = address?.trim()?.takeIf { it.isNotBlank() },   // 현장이 다를 수 있으니 고객 주소를 안 물려준다 — 건마다 따로
                     totalAmount = totalWon?.takeIf { it > 0L },
-                    depositAmount = null,
-                    depositPaidAt = null,
+                    depositAmount = deposit,
+                    // 💵 계약금을 적으면 받은 것(Q3) — 금액 창과 같은 규칙(SettlementCalc.depositPaidAfterSave).
+                    depositPaidAt = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.depositPaidAfterSave(deposit, null, now),
                     now = now
                 )
             } ?: return@launch

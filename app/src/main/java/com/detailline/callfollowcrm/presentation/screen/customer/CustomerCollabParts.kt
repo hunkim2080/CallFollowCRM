@@ -576,6 +576,7 @@ internal fun CollabShareSheet(
             var ok = 0
             var linkOpened = false
             var dedupedAny = false
+            var lastErr: String? = null   // 🐞 실패 사유 — 다 실패하면 이유를 화면에 알린다(§13 사장님 신고)
             for (partner in picks) {
                 val k8 = PhoneKey.of(partner)
                 val res = container.sharedSiteRepository.invite(
@@ -625,7 +626,7 @@ internal fun CollabShareSheet(
                             context, partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}"
                         )
                     }
-                }
+                }.onFailure { lastErr = it.message }
             }
             sending = false
             if (ok > 0) {
@@ -641,7 +642,15 @@ internal fun CollabShareSheet(
                 ).show()
                 onDismiss()
             } else {
-                android.widget.Toast.makeText(context, "보내지 못했어요 — 잠시 후 다시 해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                // 🐞 왜 안 갔는지 알려준다 — 로그인 풀림이면 그 안내를, 아니면 서버가 준 사유를. (2026-10-15 사장님 "협업 안 됨")
+                val err = lastErr
+                val msg = when {
+                    err == null -> "보내지 못했어요 — 잠시 후 다시 해주세요"
+                    err.contains("401") || err.contains("로그인") ->
+                        "로그인이 안 돼 있어요 — 더보기에서 로그인(내 번호 등록) 후 다시 해주세요"
+                    else -> "보내지 못했어요 — $err"
+                }
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }

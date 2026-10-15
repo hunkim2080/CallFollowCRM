@@ -119,7 +119,7 @@ internal fun AmountInputDialog(
             //   💵 적으면 **받은 걸로 기록**된다(2026-10-15 사장님 결정 Q3 — 규칙은 SettlementCalc.depositPaidAfterSave). 잔금은 별개.
             ManwonField(
                 label = "계약금", text = depositText, hint = "받은 돈",
-                focus = depositFocus, onChange = { depositText = it }
+                onChange = { depositText = it }, focus = depositFocus
             )
             Spacer(Modifier.height(AppSpace.s4))
             Text(
@@ -131,32 +131,11 @@ internal fun AmountInputDialog(
             // ② 총 받을 돈
             ManwonField(
                 label = "총 금액", text = totalText, hint = "받을 돈 전부",
-                focus = totalFocus, onChange = { totalText = it }
+                onChange = { totalText = it }, focus = totalFocus
             )
             Spacer(Modifier.height(AppSpace.s8))
-            // ③ 잔금 — 셈 결과만 보여준다(입력 아님).
-            Row(
-                Modifier.fillMaxWidth().clip(AppShape.md)
-                    .background(if (plan.depositOverTotal) AppTheme.colors.unpaidBg else AppTheme.colors.primaryBg)
-                    .padding(horizontal = AppSpace.s16, vertical = AppSpace.s12),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("잔금", style = AppType.body, color = AppTheme.colors.textSub, modifier = Modifier.width(72.dp))
-                when {
-                    plan.depositOverTotal -> Text(
-                        "계약금이 총 금액보다 커요", style = AppType.headline, color = AppTheme.colors.unpaidText,
-                        modifier = Modifier.weight(1f)
-                    )
-                    plan.balanceWon != null -> Text(
-                        manwonLabel(plan.balanceWon),
-                        style = AppType.headline, color = AppTheme.colors.primaryText, modifier = Modifier.weight(1f)
-                    )
-                    else -> Text(
-                        "총 금액을 적으면 계산돼요", style = AppType.body, color = AppTheme.colors.textHint,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            // ③ 잔금 — 셈 결과만 보여준다(입력 아님). 새 시공 시트와 **같은 줄**(BalancePreviewRow).
+            BalancePreviewRow(plan)
             Spacer(Modifier.height(AppSpace.s16))
             Row(horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
                 TossSecondaryButton(text = "취소", onClick = tryDismiss, modifier = Modifier.weight(1f))
@@ -166,14 +145,44 @@ internal fun AmountInputDialog(
     }
 }
 
-/** 프로토 `.fld` — 회색 알약 한 줄: [라벨 72][숫자 입력][만원]. 숫자만, 천 단위 콤마. */
+/**
+ * 잔금 미리보기 줄 — 금액 창과 새 시공 시트가 **같은 줄**을 쓴다(§12). 셈은 [SettlementCalc.planAmounts].
+ *   계약금>총액이면 빨간 바탕 + 안내, 총액 없으면 「총 금액을 적으면 계산돼요」.
+ */
 @Composable
-private fun ManwonField(
+internal fun BalancePreviewRow(plan: com.detailline.callfollowcrm.domain.settlement.AmountPlan) {
+    Row(
+        Modifier.fillMaxWidth().clip(AppShape.md)
+            .background(if (plan.depositOverTotal) AppTheme.colors.unpaidBg else AppTheme.colors.primaryBg)
+            .padding(horizontal = AppSpace.s16, vertical = AppSpace.s12),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("잔금", style = AppType.body, color = AppTheme.colors.textSub, modifier = Modifier.width(72.dp))
+        when {
+            plan.depositOverTotal -> Text(
+                "계약금이 총 금액보다 커요", style = AppType.headline, color = AppTheme.colors.unpaidText,
+                modifier = Modifier.weight(1f)
+            )
+            plan.balanceWon != null -> Text(
+                manwonLabel(plan.balanceWon),
+                style = AppType.headline, color = AppTheme.colors.primaryText, modifier = Modifier.weight(1f)
+            )
+            else -> Text(
+                "총 금액을 적으면 계산돼요", style = AppType.body, color = AppTheme.colors.textHint,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+/** 프로토 `.fld` — 회색 알약 한 줄: [라벨 72][숫자 입력][만원]. 숫자만, 천 단위 콤마. 금액 창·새 시공 시트 공용. */
+@Composable
+internal fun ManwonField(
     label: String,
     text: String,
     hint: String,
-    focus: FocusRequester,
-    onChange: (String) -> Unit
+    onChange: (String) -> Unit,
+    focus: FocusRequester? = null
 ) {
     Row(
         Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
@@ -191,7 +200,7 @@ private fun ManwonField(
                 cursorBrush = SolidColor(AppTheme.colors.primary),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 visualTransformation = ThousandsCommaTransformation,
-                modifier = Modifier.fillMaxWidth().focusRequester(focus)
+                modifier = Modifier.fillMaxWidth().then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
             )
         }
         Spacer(Modifier.width(AppSpace.s8))

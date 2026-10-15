@@ -3,15 +3,12 @@ package com.detailline.callfollowcrm.presentation.screen.customer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,17 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.presentation.component.AddressSearchDialog
 import com.detailline.callfollowcrm.presentation.component.AppSheet
 import com.detailline.callfollowcrm.presentation.component.SiteAddressField
-import com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
 import com.detailline.callfollowcrm.presentation.component.TossPrimaryButton
 import com.detailline.callfollowcrm.presentation.component.TossSecondaryButton
 import com.detailline.callfollowcrm.presentation.theme.AppShape
@@ -64,18 +58,24 @@ internal fun NewJobSheet(
     start: Long?,
     days: Int,
     onPickDate: () -> Unit,
-    onRegister: (address: String?, totalWon: Long?) -> Unit,
+    /** 등록 — 주소·총액·계약금이 **그 새 건**에. 계약금을 적으면 받은 것(Q3)은 호출부 addNewJob 이 같은 규칙으로. */
+    onRegister: (address: String?, totalWon: Long?, depositWon: Long?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var address by remember { mutableStateOf("") }
     var dong by remember { mutableStateOf("") }
     var ho by remember { mutableStateOf("") }
     var totalText by remember { mutableStateOf("") }
+    var depositText by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
-    val dirty = start != null || address.isNotBlank() || totalText.isNotBlank()
+    val dirty = start != null || address.isNotBlank() || totalText.isNotBlank() || depositText.isNotBlank()
     val tryDismiss = { if (dirty) confirmDiscard = true else onDismiss() }
-    val totalWon = SettlementCalc.wonFromMan(totalText.toLongOrNull(), null)
+    // 💰 셈은 금액 창과 **같은 한 곳**(planAmounts) — 잔금 자동·계약금>총액 막기. (2026-10-15 사장님 "총금액 밑에 계약금 항목")
+    val plan = SettlementCalc.planAmounts(
+        totalWon = SettlementCalc.wonFromMan(totalText.toLongOrNull(), null),
+        depositWon = SettlementCalc.wonFromMan(depositText.toLongOrNull(), null)
+    )
 
     if (showSearch) {
         AddressSearchDialog(
@@ -143,29 +143,19 @@ internal fun NewJobSheet(
             onDong = { dong = it }, onHo = { ho = it }
         )
         Spacer(Modifier.height(AppSpace.s12))
-        // ③ 총 금액 — 만원. 계약금·잔금은 등록 뒤 카드의 금액 창에서(안내형).
-        Row(
-            Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
-                .padding(horizontal = AppSpace.s16, vertical = AppSpace.s12),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("총 금액", style = AppType.body, color = AppTheme.colors.textSub, modifier = Modifier.width(72.dp))
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (totalText.isEmpty()) Text("예: 90", style = AppType.headline, color = AppTheme.colors.textHint)
-                BasicTextField(
-                    value = totalText,
-                    onValueChange = { v -> totalText = v.filter { it.isDigit() }.take(9) },
-                    singleLine = true,
-                    textStyle = AppType.headline.copy(color = AppTheme.colors.text),
-                    cursorBrush = SolidColor(AppTheme.colors.primary),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    visualTransformation = ThousandsCommaTransformation,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Spacer(Modifier.width(AppSpace.s8))
-            Text("만원", style = AppType.label, color = AppTheme.colors.primaryText)
-        }
+        // ③ 총 금액 → ④ 계약금 → 잔금 자동 — 금액 창(CustomerDetailAmountDialog)과 **같은 칸·같은 줄**(ManwonField / BalancePreviewRow).
+        //   계약금을 적으면 받은 걸로 기록(Q3) — 저장 규칙은 addNewJob 쪽 depositPaidAfterSave 한 곳.
+        ManwonField(label = "총 금액", text = totalText, hint = "예: 90", onChange = { totalText = it })
+        Spacer(Modifier.height(AppSpace.s8))
+        ManwonField(label = "계약금", text = depositText, hint = "받은 돈", onChange = { depositText = it })
+        Spacer(Modifier.height(AppSpace.s4))
+        Text(
+            "계약금을 적으면 받은 걸로 기록돼요.",
+            style = AppType.caption, color = AppTheme.colors.textHint,
+            modifier = Modifier.padding(start = AppSpace.s4)
+        )
+        Spacer(Modifier.height(AppSpace.s8))
+        BalancePreviewRow(plan)
         if (start == null) {
             Spacer(Modifier.height(AppSpace.s8))
             Text("시공일을 고르면 등록할 수 있어요", style = AppType.caption, color = AppTheme.colors.textHint)
@@ -175,11 +165,11 @@ internal fun NewJobSheet(
             TossSecondaryButton(text = "취소", onClick = tryDismiss, modifier = Modifier.weight(1f))
             TossPrimaryButton(
                 text = "새 시공 등록",
-                enabled = start != null,
+                enabled = start != null && plan.canSave,
                 onClick = {
                     val tail = joinDongHo(dong, ho)
                     val full = (address.trim() + if (tail.isBlank()) "" else " $tail").trim()
-                    onRegister(full.takeIf { it.isNotBlank() }, totalWon)
+                    onRegister(full.takeIf { it.isNotBlank() }, plan.totalWon, plan.depositWon)
                 },
                 modifier = Modifier.weight(1f)
             )
