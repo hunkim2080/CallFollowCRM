@@ -122,8 +122,8 @@ internal class JobCardHost(
     val onCancelBooking: () -> Unit,
     val onDeleteJob: (JobEntity?) -> Unit,
     val onEditNote: (CustomerNoteEntity) -> Unit,
-    val onOpenPhoto: (uri: android.net.Uri, photoId: Long) -> Unit,
-    val onOpenBitmap: (android.graphics.Bitmap) -> Unit,
+    /** 크게 보기 — **그 건 사진 전부**를 넘겨 좌우 스와이프. startIndex=탭한 사진. (2026-10-15) */
+    val onOpenPhoto: (photos: List<com.detailline.callfollowcrm.presentation.component.ViewerPhoto>, startIndex: Int) -> Unit,
     val onPicksToDelete: (Pair<Set<Long>, Set<Long>>) -> Unit,
     val onOpenQuoteDoc: (com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocData) -> Unit,
     val onOpenIntakeDoc: (IssuedDocEntity) -> Unit,
@@ -542,6 +542,19 @@ internal fun JobDetailCard(
                     }
                     // 프로토 스타일 — 컴팩트 **가로 스트립**(썸네일 + 이름표 + 점선 ＋). 긴 안내문 제거. (2026-10-15 사장님 "현장사진 UI도 프로토 스타일")
                     val cells: List<Any> = sitePhotos + teamPhotos
+                    // 📷 크게 보기용 한 리스트 — 그리드와 같은 순서(내 사진→팀 사진). 팀 비트맵은 이미 로드돼 있어 추가 비용 없다.
+                    //   탭하면 이 리스트 전부를 뷰어에 넘겨 좌우로 넘긴다(한 장만 넘기면 스와이프할 게 없다). (2026-10-15 사장님)
+                    val viewerCells = cells.mapNotNull { cell ->
+                        when (cell) {
+                            is com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity ->
+                                com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfFile(
+                                    android.net.Uri.fromFile(java.io.File(cell.filePath)), cell.id
+                                )
+                            is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto ->
+                                cell.bitmap?.let { com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(it) }
+                            else -> null
+                        }
+                    }
                     Spacer(Modifier.height(10.dp))
                     androidx.compose.foundation.layout.Row(
                         modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
@@ -580,7 +593,10 @@ internal fun JobDetailCard(
                                                                 pickedMine =
                                                                     if (picked) pickedMine - cell.id else pickedMine + cell.id
                                                             } else {
-                                                                host.onOpenPhoto(android.net.Uri.fromFile(java.io.File(cell.filePath)), cell.id)
+                                                                val start = viewerCells.indexOfFirst {
+                                                                    it is com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfFile && it.photoId == cell.id
+                                                                }.coerceAtLeast(0)
+                                                                host.onOpenPhoto(viewerCells, start)
                                                             }
                                                         },
                                                         onLongClick = {
@@ -613,7 +629,12 @@ internal fun JobDetailCard(
                                                                 pickedTeam =
                                                                     if (picked) pickedTeam - cell.photoId
                                                                     else pickedTeam + cell.photoId
-                                                            } else host.onOpenBitmap(bmp)
+                                                            } else {
+                                                                val start = viewerCells.indexOfFirst {
+                                                                    it is com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap && it.bitmap === bmp
+                                                                }.coerceAtLeast(0)
+                                                                host.onOpenPhoto(viewerCells, start)
+                                                            }
                                                         }
                                                     )
                                                 }

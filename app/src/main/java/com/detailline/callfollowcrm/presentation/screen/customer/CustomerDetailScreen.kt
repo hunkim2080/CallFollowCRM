@@ -219,12 +219,10 @@ fun CustomerDetailScreen(
     var cancelBookingConfirm by remember { mutableStateOf(false) }  // 예약 취소 확인창 (2026-08-28 사장님)
     // 시공금액 변경 시 이유 입력 다이얼로그 (oldWon, newWon). null = 닫힘. (2026-06-30 사장님)
     var amountChangeReason by remember { mutableStateOf<Pair<Long, Long>?>(null) }
-    // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
-    var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    /** 🔄 크게 보는 그 사진의 id — 돌려서 저장하려면 어느 줄인지 알아야 한다. (2026-09-30) */
-    var fullscreenPhotoId by remember { mutableStateOf(0L) }
-    // 팀/서버 현장사진(비트맵) 풀스크린 — base64 디코드본이라 Uri 가 아닌 Bitmap.
-    var fullscreenBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    // 📷 현장 사진 풀스크린 뷰어 — 썸네일 탭하면 **그 건의 사진 전부**를 넘겨 좌우로 넘긴다(한 장만 넘기면 스와이프할 게 없다). (2026-10-15 사장님 "스와이프가 안 돼")
+    //   내 사진(OfFile)·팀 사진(OfBitmap)이 한 리스트에 섞여 들어온다 — 뷰어가 둘 다 넘기고 내 사진만 돌려 저장. null 이면 닫힘.
+    var fullscreenPhotos by remember { mutableStateOf<List<com.detailline.callfollowcrm.presentation.component.ViewerPhoto>?>(null) }
+    var fullscreenStart by remember { mutableStateOf(0) }
     // 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 전화 알게 되면 가져옴.
     val teamPhotos by viewModel.teamPhotos.collectAsState()
     val teamNotes by viewModel.teamNotes.collectAsState()
@@ -998,8 +996,7 @@ fun CustomerDetailScreen(
                 onCancelBooking = { cancelBookingConfirm = true },
                 onDeleteJob = { deletePastJobConfirm = it },
                 onEditNote = { editingNote = it },
-                onOpenPhoto = { uri, id -> fullscreenPhotoId = id; fullscreenImageUri = uri },
-                onOpenBitmap = { fullscreenBitmap = it },
+                onOpenPhoto = { photos, start -> fullscreenPhotos = photos; fullscreenStart = start },
                 onPicksToDelete = { picksToDelete = it },
                 onOpenQuoteDoc = { reviewQuoteDoc = it },
                 onOpenIntakeDoc = { intakeReviewDoc = it },
@@ -1464,27 +1461,14 @@ fun CustomerDetailScreen(
         )
     }
 
-    // 풀스크린 이미지 뷰어 — 썸네일 탭 시 표시. 검은 배경 + X 닫기.
-    // 📷 내가 올린 현장 사진 — **돌리면 저장된다.** (공용 뷰어, 2026-10-01)
-    fullscreenImageUri?.let { uri ->
+    // 📷 풀스크린 이미지 뷰어 — 썸네일 탭 시 표시. 검은 배경 + X 닫기. **좌우로 넘겨 그 건 사진 전부** 본다.
+    //   내 사진(OfFile)은 돌리면 저장되고, 팀 사진(OfBitmap)은 돌려 보기만 된다 — 한 뷰어에서 둘 다. (공용 뷰어, 2026-10-01)
+    fullscreenPhotos?.let { photos ->
         com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
-            photos = listOf(
-                com.detailline.callfollowcrm.presentation.component.ViewerPhoto
-                    .OfFile(uri, fullscreenPhotoId)
-            ),
-            onDismiss = { fullscreenImageUri = null; fullscreenPhotoId = 0L },
+            photos = photos,
+            startIndex = fullscreenStart,
+            onDismiss = { fullscreenPhotos = null },
             onSaveRotation = { id, deg -> viewModel.rotatePhoto(id, deg) }
-        )
-    }
-
-    // 📷 팀원·서버에서 받은 현장 사진 — **돌려 보기만** 된다(내 파일이 아니다).
-    //   2026-10-01 전엔 여기선 돌리기가 아예 없었다. 사장님 "사진 회전기능 왜 추가안됐니"
-    fullscreenBitmap?.let { bmp ->
-        com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
-            photos = listOf(
-                com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(bmp)
-            ),
-            onDismiss = { fullscreenBitmap = null }
         )
     }
 

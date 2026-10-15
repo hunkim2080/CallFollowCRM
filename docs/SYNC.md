@@ -14359,3 +14359,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경: setJobAddress 가 저장 뒤 그 건(날짜)의 협업 shareId 에만 COLLAB_ADDRESS 우체통 전파(+알림). 타깃팅을 CollabAssignmentLine.forJob/shareIdsForJob 한 곳으로 통일(카드 jobCollab·주소 전파 재사용). updateManualAddress(대표)도 대표 건 날짜로 좁혀 과전파 방지. 서버 /api/shared/update-address 는 이미 구현됨(17990).
 - 폰 확인: 두 폰 실연동은 사장님 실기 필요(A 2차 주소 수정 → B 알림+갱신, 1차 협업엔 안 감). 테스트 1045건(CollabAssignmentLine +3).
 - 질문(Q8): 고객(대표) 주소 전파를 대표 건 날짜로 좁힘 — 모든 협업에 보내길 원하면 되돌림.
+
+## 2026-10-15 20:05 · android
+고객상세 사진 크게보기 좌우 스와이프 안 되던 것 수정 — 한 장만 넘겨서 넘길 게 없었음. (사장님 "옆으로 스와이프 반응 없어")
+- 변경(UI): CustomerDetailScreen 사진 뷰어가 탭한 한 장만 FullscreenPhotoViewer 에 넘기던 것 → 그 건 사진 **전부**(내 사진 OfFile + 팀 사진 OfBitmap, 그리드와 같은 순서)를 넘기고 startIndex=탭한 사진. 공용 FullscreenPhotoViewer 의 HorizontalPager 가 좌우 넘김(이미 챗에서 쓰는 그 페이저, 2026-10-08 한손가락 제스처 fix 포함). 뷰어 호출 두 벌(OfFile 단건 + OfBitmap 단건) → 한 벌로 합침. JobCardHost.onOpenPhoto 시그니처 (uri,id)→(List<ViewerPhoto>,startIndex), onOpenBitmap 제거(grep 0). 챗은 이미 메시지 단위 리스트를 넘겨 그대로.
+- 폰 확인: **못 봄** — S9+ 테스트폰 메인 패키지가 지금 릴리스 키와 서명 불일치(덮어 설치하면 사장님 테스트 데이터 날아감), .test 는 run-as 불가. 다음 내부테스트 업로드 때 사장님 폰에서 확인. 빌드·테스트 1045건·가드 7개 통과.
+- 다음 액션: 챗 사진 스와이프 = 한 메시지에 사진 여러 장이면 넘어감, 한 장씩 온 문자면 넘길 것 없음(폰 확인 필요). / 협업 '1차 사라짐' = 날짜 없는 협업 줄이 대표 건(2차)으로 몰리는 것 — 수리 방향 사장님 결정 대기.
