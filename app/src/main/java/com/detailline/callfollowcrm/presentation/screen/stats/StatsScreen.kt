@@ -83,7 +83,7 @@ private typealias ShotShape = com.detailline.callfollowcrm.util.RecordShot.Shape
  *   stat-grid(다녀온 현장/받은 문의/시공 전환율/보낸 답장) → sec-sub "문의 추이 · 전기간 비교" →
  *   period-toggle + 추이 panel + 시장 비교[모이는 중] → "이번 달 시공 종류" → 타입 panel.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StatsScreen(
     viewModel: StatsViewModel,
@@ -162,15 +162,30 @@ fun StatsScreen(
             )
         }
     ) { inner ->
+        // 📅 달 스와이프 — 일정처럼 손가락 1:1(HorizontalPager). **마지막 페이지 = 이번 달**이라 미래로는 못 넘어간다.
+        //   월 내용(지도 경로 km 등)이 무거워 양옆을 다 라이브로 그리면 S9 가 버벅인다 → **놓는 순간** 그 달이 채워지고,
+        //   넘기는 중엔 옆 달은 달 이름만 보인다. (2026-10-15 사장님 "일정처럼 스와이프로")
+        val now = remember { System.currentTimeMillis() }
+        val lastPage = RECORD_PAGER_MONTHS - 1
+        val recPager = androidx.compose.foundation.pager.rememberPagerState(initialPage = lastPage) { RECORD_PAGER_MONTHS }
+        LaunchedEffect(recPager.settledPage) { viewModel.setRecordMonthAbsolute(recPager.settledPage - lastPage) }
+        androidx.compose.foundation.pager.HorizontalPager(
+            state = recPager,
+            modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize()
+        ) { page ->
+          if (page == recPager.settledPage) {
         LazyColumn(
-            modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
+            modifier = Modifier.fillMaxSize().background(TossGrayBg),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)  // top 14 = 헤더와 첫 카드 숨 쉬는 간격
         ) {
             // ── ① 달을 **먼저** 정한다. 아래 전부가 그 달이다. (프로토 "달 고르기")
             //   전엔 달 고르기가 지도 카드 **안**에 있어서, 8월 지도를 보는 동안
             //   위 숫자는 9월이었다. **한 화면에 달이 둘이면 숫자를 못 믿는다.**
             item(key = "month") {
-                RecordMonthBar(rec, onShiftMonth = viewModel::shiftRecordMonth)
+                // 화살표도 페이저를 움직인다 — 스와이프와 한 길(단일 소스). 미래(이번 달 너머)는 lastPage 에서 막힌다.
+                RecordMonthBar(rec, onShiftMonth = { d ->
+                    scope.launch { recPager.animateScrollToPage((recPager.currentPage + d).coerceIn(0, lastPage)) }
+                })
             }
             // ── ② 할 일 — **있으면** 맨 위 한 줄. 없으면 아예 안 뜬다. (프로토 .todobar)
             //   전엔 자랑하는 화면 한복판에 파랑·빨강 경고가 두 줄 박혀 있었다.
@@ -246,6 +261,37 @@ fun StatsScreen(
             //   · StatTypes(시공 종류) — 사장님 확정 "상품명이 매번 달라져서 통계 잡을 이유가 없다"
             //   · 시장 비교 — 2년째 "모이는 중". 빈 약속은 치운다 (TrendSection 안에서 제거)
         }
+          } else {
+            // 넘기는 중인 옆 달 — 놓으면 채워진다. 달 이름만 보여줘 "어느 달로 가는지" 알게.
+            MyRecordMonthLoading(now = now, monthDelta = page - lastPage)
+          }
+        }
+    }
+}
+
+/** 보여줄 달 개수 — 이번 달 + 뒤로 24개월. 마지막 페이지가 이번 달이라 미래로는 못 넘어간다. */
+private const val RECORD_PAGER_MONTHS = 25
+
+/** 📅 스와이프 중 옆 달 자리 — 달 이름 + 「불러오는 중」. 놓는 순간 실제 내용으로 바뀐다. (2026-10-15) */
+@Composable
+private fun MyRecordMonthLoading(now: Long, monthDelta: Int) {
+    val monthStart = com.detailline.callfollowcrm.util.DateTimeUtils
+        .shiftMonth(com.detailline.callfollowcrm.util.DateTimeUtils.startOfMonth(now), monthDelta)
+    val label = java.text.SimpleDateFormat("yyyy년 M월", java.util.Locale.KOREA)
+        .format(java.util.Date(monthStart))
+    Column(
+        modifier = Modifier.fillMaxSize().background(TossGrayBg).padding(top = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            label,
+            style = com.detailline.callfollowcrm.presentation.theme.AppType.title,
+            fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+        )
+        Spacer(Modifier.height(14.dp))
+        androidx.compose.material3.CircularProgressIndicator(
+            modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp, color = TossBlue
+        )
     }
 }
 

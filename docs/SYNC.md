@@ -14409,3 +14409,9 @@ Fable 🧹3. 사장님 "고고"
 - 숫자: 엔드포인트 문자열 1파일(home)·호출부 2곳(수신 훅) · 테스트 1088건 통과(ThreadVerdictTest 8 + ServerClassifyGateTest 11 신규) · BUILD=0 가드 7종 · dup 13 · size 35287 · style 2633 · 공용 29.
 - 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(SYNC 20:05 와 같음). 다음 내부테스트 때 사장님 폰: 모르는 번호가 「택배 도착 예정」 같은 문자 보내면 1~2초 뒤 상담함에서 빠져 문자함으로. logcat 태그 `ThreadServerClassify`.
 - 다음 액션: (android) 폰에서 실제 수신 1건 확인 후 서버 `llm_usage_log` 의 thread/classify 건수가 수신 건수를 안 넘는지 보기. batch 엔드포인트는 repo 에 있지만 부르는 곳 없음(재접속 N건 제한 자리 생기면 그때). (server) 없음.
+
+## 2026-10-15 23:10 · android
+「내 기록」 월을 일정처럼 **손가락 스와이프**로 넘기게. (사장님 "일정처럼 스와이프로, 손가락 따라가듯")
+- 변경(UI): StatsScreen 「내 기록」을 HorizontalPager 로 감쌈 — 마지막 페이지=이번 달(미래로 못 넘어감, canGoNext 와 같은 규칙). 월 내용(지도 경로 km 등)이 무거워 양옆 동시 라이브는 S9 부담 → **놓는 순간**(settledPage) 그 달이 채워지고 넘기는 중엔 옆 달은 달 이름+스피너(MyRecordMonthLoading). 화살표(‹ ›)도 같은 페이저를 움직임(단일 소스). VM 에 setRecordMonthAbsolute(절대 월) 추가. size 기준선 +StatsScreen(스와이프 래핑은 그 화면 소속). 
+- 폰 확인: 못 봄(테스트폰 서명). 빌드·가드 7개·시험 1088 통과.
+- 참고: 옆 달이 '놓는 순간' 채워지는 방식(라이브 3개월 동시 렌더 아님) — 사장님이 더 매끄럽게 원하면 buildMyRecord 를 백그라운드로 빼는 후속 필요.

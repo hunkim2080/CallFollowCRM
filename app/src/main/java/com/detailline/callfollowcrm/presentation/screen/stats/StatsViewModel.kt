@@ -129,6 +129,12 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         recordMonth.value = (recordMonth.value + delta).coerceAtMost(0)
     }
 
+    /** 스와이프 페이저가 **그 달로** 맞춘다(절대값). 0=이번 달, 음수=지난달. 미래는 막는다. (2026-10-15 사장님 "일정처럼 스와이프") */
+    fun setRecordMonthAbsolute(delta: Int) {
+        val d = delta.coerceAtMost(0)
+        if (recordMonth.value != d) recordMonth.value = d
+    }
+
     /** 현장 사진 전부(올린 순서). 인증샷에 넣을 **대표 사진**을 여기서 고른다. */
     private val sitePhotosFlow = container.sitePhotoRepository.observeAllOldestFirst()
 
