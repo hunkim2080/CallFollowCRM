@@ -430,7 +430,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val phone = if (parts.size >= 3) parts[1].filter { it.isDigit() } else ""
             val name = if (parts.size >= 3) parts[2] else parts.getOrNull(1).orEmpty()
             if (name.isBlank()) continue
-            // 5번째 칸 = 일하는 날(startOfDay, 콤마). 없거나 비면 = 전체(구버전·단일일 호환). (2026-08-02)
+            // 5번째 칸 = 일하는 날(startOfDay, 콤마). 비면 = 떠돌이(어느 날 카드에도 안 뜸 — 판단은 collabCoversDay 한 곳). (2026-10-15)
             val days = parts.getOrNull(4)?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet().orEmpty()
             val list = map.getOrPut(id) { mutableListOf() }
             val dup = list.any {
@@ -622,9 +622,17 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 dailyWage = dailyWage, timeLabel = timeLabel,
                 ownerName = container.preferences.bizName
             ).onSuccess { r ->
-                // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId, 5번째=일하는 날(콤마, 비면 전체).
-                val daysCsv = workDayStarts.sorted().joinToString(",")
-                container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName|${r.shareId}|$daysCsv"
+                // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 형식·셈은 CollabAssignmentLine 한 곳.
+                //   날짜 없는 줄은 어느 건에도 안 뜬다(2026-10-15 사장님) → 고른 날이 없으면 **그 건의 날짜 전부**를 적는다.
+                val days = workDayStarts.toSet().ifEmpty {
+                    com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(
+                        customer.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }, customer.scheduledWorkDays
+                    )
+                }
+                val line = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine(
+                    customerId = customer.id, phone = partner, name = partnerName, shareId = r.shareId, days = days
+                )
+                container.preferences.collabAssignments = container.preferences.collabAssignments + line.format()
                 if (startHour in 0..23) container.preferences.lastCollabStartHour = startHour  // 다음 요청 때 미리 선택
                 loadCollabAssignments()
                 if (r.deduped) {

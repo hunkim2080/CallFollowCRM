@@ -14365,3 +14365,15 @@ Fable 🧹3. 사장님 "고고"
 - 변경(UI): CustomerDetailScreen 사진 뷰어가 탭한 한 장만 FullscreenPhotoViewer 에 넘기던 것 → 그 건 사진 **전부**(내 사진 OfFile + 팀 사진 OfBitmap, 그리드와 같은 순서)를 넘기고 startIndex=탭한 사진. 공용 FullscreenPhotoViewer 의 HorizontalPager 가 좌우 넘김(이미 챗에서 쓰는 그 페이저, 2026-10-08 한손가락 제스처 fix 포함). 뷰어 호출 두 벌(OfFile 단건 + OfBitmap 단건) → 한 벌로 합침. JobCardHost.onOpenPhoto 시그니처 (uri,id)→(List<ViewerPhoto>,startIndex), onOpenBitmap 제거(grep 0). 챗은 이미 메시지 단위 리스트를 넘겨 그대로.
 - 폰 확인: **못 봄** — S9+ 테스트폰 메인 패키지가 지금 릴리스 키와 서명 불일치(덮어 설치하면 사장님 테스트 데이터 날아감), .test 는 run-as 불가. 다음 내부테스트 업로드 때 사장님 폰에서 확인. 빌드·테스트 1045건·가드 7개 통과.
 - 다음 액션: 챗 사진 스와이프 = 한 메시지에 사진 여러 장이면 넘어감, 한 장씩 온 문자면 넘길 것 없음(폰 확인 필요). / 협업 '1차 사라짐' = 날짜 없는 협업 줄이 대표 건(2차)으로 몰리는 것 — 수리 방향 사장님 결정 대기.
+
+## 2026-10-15 20:26 · android (Fable)
+협업 「1차에서 협업 사장이 사라지고 2차에 두 이름」 뿌리 수정 — 날짜 없는 떠돌이 협업은 어느 건에도 자동으로 안 붙이고 사장님이 「N차에 붙이기」로 지정. (사장님 두 폰 실기 · 결정)
+- 원인(코드로 확정): `CollabAssignmentLine.collabCoversDay` 가 days 빈 줄을 **대표 건 날짜**로 폴백 → 1차·2차 둘 다 완료면 대표=더 나중(2차)이라 1차의 날짜 없는 줄이 2차 카드로 넘어감. 서버 공유는 멀쩡(진짜 삭제 아님). 서버 dedup(`/api/shared/invite` 17362~)은 `scheduled_at_ms` 도 비교하므로 1차·2차가 같은 share 로 합쳐지는 경로 **아님**(배제).
+- 변경(도메인): `collabCoversDay(days, dayStart)` 폴백 제거(비면 false). `forJob/shareIdsForJob(raw, customerId, jobDayStart)` 에서 representativeDay 인자 제거. 새 셈 `unassigned`(떠돌이)·`assignDays`(이 건에 붙이기)·`daysOfJob`(건 날짜 집합, 카드/일정 시트/붙이기 한 곳). 옛 3인자 `collabCoversDay(…, representativeDay)` 는 ScheduleScreen(미승인 변경 중이라 못 건드림) 호환용 다리 — 폴백 없음.
+- 변경(UI): 고객 상세 건 카드들 아래 **「어느 건인지 모르는 협업 N · 건 고르기」** 접힘 카드(`CollabOrphanCard`, CustomerCollabParts.kt · CdFoldRow/CdUndoChip 재사용). 펼치면 사장 이름 + 「1차 9/30에 붙이기」 칩 → 그 줄 days 에 그 건 날짜 기록, 토스트. 날짜 있는 건이 없으면 안내만. 서버엔 안 보냄.
+- 변경(일정 시트 초대): `ScheduleViewModel.inviteCollabToSite` 가 날짜 안 고르면 **그 건 날짜 전부**를 적음(전엔 빈 days = 떠돌이 생성). 줄 포맷도 `CollabAssignmentLine.format()` 로(문자열 손조립 제거).
+- 자동 백필(ScheduleViewModel.reconcile)은 그대로 — shareId+서버 날짜 있으면 자가치유, 안 되는 것만 수동.
+- 가드: dup_guard `collab-rep-fallback`(17가지) — `representativeDay =` / `(0 until x.scheduledWorkDays…).map` 손계산. 기준선 ScheduleScreen 2곳(못 건드림). CLAUDE.md §12 표·§12-H 갱신.
+- 숫자: 옛 표기 5곳 → 1곳(ScheduleScreen, 기준선) · 테스트 1051건 통과(CollabAssignmentLine 18, 재현 케이스 3 포함) · 빌드 BUILD=0 가드 7종 · size 35192(기준선 안) · style 2633.
+- 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(SYNC 20:05 와 같음). 사장님 폰(A)에서 확인: 그 손님 고객상세 맨 아래 「어느 건인지 모르는 협업 1」 → 「1차 …에 붙이기」 → 1차 카드에 협업 사장 돌아오고 2차엔 하우스픽만.
+- 다음 액션: (android) ScheduleScreen.kt 승인되면 579줄 `representativeDay =` 호출과 694줄 날짜 손계산을 `daysOfJob`/2인자로 바꾸고 다리 삭제 + dupBaselineUpdate. (server) 없음.

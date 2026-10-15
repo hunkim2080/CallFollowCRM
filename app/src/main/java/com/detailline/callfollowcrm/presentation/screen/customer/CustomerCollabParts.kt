@@ -881,3 +881,82 @@ internal fun CollabShareSheet(
         }
     }
 }
+
+/**
+ * 🤝 **어느 건인지 모르는 협업** — 날짜 꼬리표 없는 협업 줄(옛 빌드 invite · 서버에 날짜가 없어 자동 백필이 안 된 것)을
+ *   고객 상세 건 카드들 아래에 **눈에 보이게** 띄우고, 사장님이 「N차에 붙이기」를 누르면 그 건 날짜를 그 줄에 적는다.
+ *
+ *   왜 (2026-10-15 사장님 "1차에 협업사장이 지워졌던데"): 전엔 날짜 없는 줄을 **대표 건 날짜**로 폴백시켰다.
+ *   1차·2차 둘 다 완료면 대표 = 더 나중 건(2차) → 1차 협업 사장이 2차 카드로 넘어가 「1차엔 협업 부르기만, 2차엔 두 이름」.
+ *   사장님 결정: 떠돌이는 어디에도 자동으로 안 붙이고 **사장님이 직접 지정**한다.
+ *
+ *   셈은 전부 CollabAssignmentLine 한 곳(unassigned · assignDays · daysOfJob) — 카드 협업 칩(forJob)과 같은 자료를 본다.
+ *   접힘 머리 = CdFoldRow · 행동 칩 = CdUndoChip(고객 상세 foot 과 같은 옷, §12). 붙일 건이 없으면(날짜 있는 건 0) 안내만.
+ *   서버엔 아무것도 안 보낸다 — 서버 공유(share)는 멀쩡하고, 틀린 건 **내 폰의 보이는 자리**뿐이다.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun CollabOrphanCard(
+    customerId: Long,
+    allJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
+    container: com.detailline.callfollowcrm.data.AppContainer,
+    /** prefs 는 비반응형 — 공유·해제·붙이기 뒤 이 값이 바뀌어야 다시 읽는다(JobCardHost.collabRefresh 와 같은 열쇠). */
+    collabRefresh: Int,
+    onAssigned: () -> Unit
+) {
+    val ctx = LocalContext.current
+    val orphans = remember(customerId, collabRefresh) {
+        com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.unassigned(container.preferences.collabAssignments, customerId)
+    }
+    // 붙일 수 있는 건 = 날짜 있고 취소 안 된 건, 차수 순(JobOrder — 카드 머리의 N차와 같은 셈).
+    val datedJobs = remember(allJobs) {
+        val seq = com.detailline.callfollowcrm.util.JobOrder.order(
+            allJobs.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate to it.id }
+        )
+        allJobs.filter { it.scheduledWorkDate != null && !jobCancelled(it) }
+            .sortedBy { seq.indexOf(it.id) }
+            .map { j -> Triple(com.detailline.callfollowcrm.util.JobOrder.nth(seq, j.id), j, DateTimeUtils.startOfDay(j.scheduledWorkDate!!)) }
+    }
+    var expanded by remember(customerId) { mutableStateOf(false) }
+    val open: (() -> Unit)? = if (expanded) null else ({ expanded = true })
+    if (orphans.isNotEmpty()) TossCard(onClick = open) {
+        Column {
+            CdFoldRow(
+                Icons.Filled.Handshake, "어느 건인지 모르는 협업", orphans.size, expanded,
+                emptyAction = if (datedJobs.isEmpty()) null else "건 고르기"
+            ) { expanded = !expanded }
+            if (expanded) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (datedJobs.isEmpty()) "날짜 없이 저장된 협업이에요. 시공 건에 날짜를 먼저 넣어주세요"
+                    else "날짜 없이 저장된 협업이에요. 어느 시공 건인지 골라주세요",
+                    style = AppType.caption, color = TossTextTertiary
+                )
+                orphans.forEach { line ->
+                    val who = line.name.ifBlank { "협업 사장님" }
+                    Spacer(Modifier.height(10.dp))
+                    Text(who, style = AppType.headline, color = AppTheme.colors.categoryText)
+                    if (datedJobs.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            datedJobs.forEach { (nth, j, dayStart) ->
+                                CdUndoChip(
+                                    "${nth}차 " + DateTimeUtils.formatDateLabel(dayStart) + "에 붙이기",
+                                    danger = false, filled = true, icon = Icons.Filled.Handshake
+                                ) {
+                                    container.preferences.collabAssignments =
+                                        com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.assignDays(
+                                            container.preferences.collabAssignments, line,
+                                            com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(dayStart, j.scheduledWorkDays)
+                                        )
+                                    onAssigned()
+                                    android.widget.Toast.makeText(ctx, "$who → ${nth}차에 붙였어요", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                }
+            }   // if (expanded)
+        }
+    }
+}

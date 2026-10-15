@@ -979,7 +979,7 @@ fun CustomerDetailScreen(
             }
             val jobHost = JobCardHost(
                 viewModel = viewModel, container = container, customer = c,
-                allJobs = allJobsForTabs, repJobId = repJobId, repDay = repDay,
+                allJobs = allJobsForTabs, repJobId = repJobId,
                 earliestJobId = earliestJobId, showNth = showJobBar,
                 issuedDocs = issuedDocs, intakeByToken = intakeByToken,
                 collabRefresh = collabRefresh, onCollabRefresh = { collabRefresh++ },
@@ -1076,6 +1076,15 @@ fun CustomerDetailScreen(
                     }
                 }
             }
+
+            // 🤝 어느 건인지 모르는 협업 — **날짜 꼬리표 없는 협업 줄**(옛 빌드 invite·서버에 날짜 없어 자동 백필 안 된 것).
+            //   어느 건 카드에도 자동으로 안 붙는다(2026-10-15 사장님 결정 — 전엔 대표 건으로 몰려 1차 협업이 2차에 가 보였다).
+            //   사라진 게 아니라고 **눈에 보이게** 하고, 사장님이 「이 건」을 고르면 그 건 날짜를 그 줄에 적는다(CollabAssignmentLine.assignDays).
+            //   셈(떠돌이 고르기·붙이기·건 날짜)은 전부 CollabAssignmentLine 한 곳. 접힘 머리는 CdFoldRow(§12).
+            CollabOrphanCard(
+                customerId = c.id, allJobs = allJobsForTabs, container = container,
+                collabRefresh = collabRefresh, onAssigned = { collabRefresh++ }
+            )
 
             // 📄 이 고객 문서 — **맨 처음 건(1차)이 아예 없을 때만**(건이 없거나 전부 취소). (2026-10-15 사장님: 날짜 없는 문서는 1차로)
             //   1차가 있으면 떠돌이 문서는 그 1차 카드 안에 모이므로(JobDetailCard) 여기선 안 띄운다 — 위계: 고객 > 건 > 문서.

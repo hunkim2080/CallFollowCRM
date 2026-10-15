@@ -957,12 +957,10 @@ class CustomerDetailViewModel(
         val oldDay = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(oldAtMs)
         val newDay = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(newAtMs)
         // 협업은 '그 건(날짜)'에 붙는다 — **바뀌는 그 날(oldDay)을 맡은 협업자에게만** 보낸다(다른 건 1차/2차엔 안 샘).
-        //   구버전(days 빈 건)은 백필 전까진 제외(새어나가는 것보다 안전). (2026-10-09 사장님)
-        val shareIds = container.preferences.collabAssignments.mapNotNull { raw ->
-            val l = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(raw) ?: return@mapNotNull null
-            if (l.customerId == customerId && l.shareId.isNotBlank() && l.coversDay(oldDay, representativeDay = null))
-                l.shareId else null
-        }.distinct()
+        //   날짜 없는 떠돌이 줄은 제외(새어나가는 것보다 안전). 타깃팅은 카드 협업 칩과 같은 한 곳(shareIdsForJob). (2026-10-09·10-15)
+        val shareIds = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(
+            container.preferences.collabAssignments, customerId, oldDay
+        )
         if (shareIds.isEmpty()) return
         // 옮긴 건의 로컬 날짜도 oldDay→newDay 로 갈아끼운다(배지가 새 날짜로 따라가게).
         if (oldDay != newDay) {
@@ -1028,9 +1026,8 @@ class CustomerDetailViewModel(
             .takeIf { it.isNotBlank() } ?: return
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length < 9) return
-        val repDay = customer.value?.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
         val shareIds = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(
-            container.preferences.collabAssignments, customerId, jobDayStart, representativeDay = repDay
+            container.preferences.collabAssignments, customerId, jobDayStart
         )
         if (shareIds.isEmpty()) return
         val label = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(addr)

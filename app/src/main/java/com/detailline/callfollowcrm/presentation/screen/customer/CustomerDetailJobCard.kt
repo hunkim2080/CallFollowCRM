@@ -101,7 +101,6 @@ internal class JobCardHost(
     val allJobs: List<JobEntity>,
     /** 고객 카드 날짜와 같은 날의 건(대표 건) id. 옛 사진(jobId 없음)은 이 건에 붙여 보여준다. */
     val repJobId: Long?,
-    val repDay: Long?,
     /** 맨 처음 건(1차) id — 날짜 없는/안 맞는 떠돌이 문서(견적서 등)를 이 건 카드에 모은다. (2026-10-15 사장님) null = 1차 없음. */
     val earliestJobId: Long?,
     /** 시공이 둘 이상이면 "N차" 꼬리표를 붙인다. 하나뿐이면 안 붙인다(2026-09-18 프로토 — 95% 손님은 한 번). */
@@ -838,14 +837,15 @@ internal fun JobDetailCard(
                     ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
                     ?: "이 현장"
                 val jobDayStart: Long? = cShown.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
+                // 이 건의 날짜들 — 협업을 붙일 때 적는 days 는 CollabAssignmentLine.daysOfJob **한 곳**(「이 건에 붙이기」와 같은 셈).
                 val jobDays = remember(cShown.scheduledWorkDate, cShown.scheduledWorkDays) {
-                    if (jobDayStart == null) emptySet<Long>()
-                    else (0 until cShown.scheduledWorkDays.coerceAtLeast(1)).map { jobDayStart + it * 86_400_000L }.toSet()
+                    com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(jobDayStart, cShown.scheduledWorkDays)
                 }
                 // 이 건에 걸린 협업 사장만 — 타깃팅은 CollabAssignmentLine.forJob **한 곳**(주소 전파도 같은 것을 쓴다. 2026-10-15).
-                val jobCollab = remember(c.id, host.collabRefresh, jobDayStart, host.repDay) {
+                //   날짜 없는 떠돌이 줄은 어느 카드에도 안 뜬다 — 고객 상세 아래 「어느 건인지 모르는 협업」에서 사장님이 붙인다.
+                val jobCollab = remember(c.id, host.collabRefresh, jobDayStart) {
                     com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.forJob(
-                        host.container.preferences.collabAssignments, c.id, jobDayStart, representativeDay = host.repDay
+                        host.container.preferences.collabAssignments, c.id, jobDayStart
                     )
                 }
                 val showJobCollabShare = remember(c.id, jobId) { mutableStateOf(false) }

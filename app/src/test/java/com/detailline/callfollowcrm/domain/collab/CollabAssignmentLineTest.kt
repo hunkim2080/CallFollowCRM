@@ -8,6 +8,9 @@ import org.junit.Test
 
 /**
  * 협업 배정 줄 파싱 + "그 건(날짜)에만 붙는다" 판단 검증. (2026-10-09 사장님 — 1차/2차 분리)
+ *
+ * 2026-10-15 사장님 결정: **날짜 없는 떠돌이 협업은 어느 건에도 자동으로 안 붙는다.** 사장님이 「이 건」을 직접 고른다.
+ *   (전엔 대표 건 날짜로 폴백 → 1차·2차 둘 다 완료면 대표=2차라서 1차 협업 사장이 2차 카드로 넘어가 보였다.)
  */
 class CollabAssignmentLineTest {
 
@@ -52,20 +55,21 @@ class CollabAssignmentLineTest {
 
     @Test fun `days 있으면 그 날에만 — 1차 협업자가 2차에 안 뜸`() {
         val h = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(30)))      // 1차 9/30
-        assertTrue(h.coversDay(day(30), representativeDay = day(30)))
-        assertFalse("2차 날짜엔 안 떠야", h.coversDay(day(45), representativeDay = day(30)))  // 2차(10/15)
+        assertTrue(h.coversDay(day(30)))
+        assertFalse("2차 날짜엔 안 떠야", h.coversDay(day(45)))  // 2차(10/15)
     }
 
-    @Test fun `days 비면 대표 건 날짜 하나로만 (전체 X)`() {
+    @Test fun `days 비면 어느 날에도 안 뜸 — 대표 건으로 몰리지 않는다`() {
         val legacy = CollabAssignmentLine(7, "p", "태그줄눈", "sh2", emptySet())
-        assertTrue(legacy.coversDay(day(45), representativeDay = day(45)))
-        assertFalse("대표일 아니면 안 떠야", legacy.coversDay(day(30), representativeDay = day(45)))
+        assertFalse(legacy.coversDay(day(45)))
+        assertFalse(legacy.coversDay(day(30)))
+        assertTrue("날짜 없는 줄 = 떠돌이", legacy.isUnassigned)
     }
 
-    @Test fun `days 비고 대표일 null 이면 안 뜸 (옛날처럼 전체로 안 퍼짐)`() {
-        val legacy = CollabAssignmentLine(7, "p", "태그줄눈", "sh2", emptySet())
-        assertFalse(legacy.coversDay(day(30), representativeDay = null))
-        assertFalse(legacy.coversDay(day(45), representativeDay = null))
+    @Test fun `옛 입구(representativeDay 넘기는 collabCoversDay)도 같은 답 — 폴백 없음`() {
+        // ScheduleScreen 이 아직 이 모양으로 부른다. 대표 건 날짜를 넘겨도 days 가 비면 안 걸린다.
+        assertFalse(collabCoversDay(emptySet(), day(45), representativeDay = day(45)))
+        assertTrue(collabCoversDay(setOf(day(45)), day(45), representativeDay = null))
     }
 
     // ── forJob / shareIdsForJob — 카드 협업 칩과 주소 전파가 같은 타깃팅 (2026-10-15 사장님 "2차 주소 바꿨는데 B 에 안 감") ──
@@ -73,32 +77,79 @@ class CollabAssignmentLineTest {
     private val lines = listOf(
         "7|01011110001|하우스픽|sh1|${day(30)}",            // 1차(9/30) 협업
         "7|01011110002|태그줄눈|sh2|${day(45)}",            // 2차(10/15) 협업
-        "7|01011110003|옛줄|sh3|",                          // days 없는 구버전 → 대표 건 날짜로만
+        "7|01011110003|옛줄|sh3|",                          // days 없는 구버전 → 떠돌이(어느 건에도 안 붙음)
         "7|01011110002|태그줄눈|sh2|${day(45)}",            // 같은 사장 중복 줄
         "8|01011110009|딴손님|sh9|${day(45)}"               // 다른 고객
     )
 
-    @Test fun `forJob - 2차 날짜엔 2차 협업만 (1차·다른 고객 X)`() {
-        val got = CollabAssignmentLine.forJob(lines, customerId = 7, jobDayStart = day(45), representativeDay = day(30))
+    @Test fun `forJob - 2차 날짜엔 2차 협업만 (1차·다른 고객·떠돌이 X)`() {
+        val got = CollabAssignmentLine.forJob(lines, customerId = 7, jobDayStart = day(45))
         assertEquals(listOf("sh2"), got.map { it.shareId })
-        assertEquals(listOf("sh2"), CollabAssignmentLine.shareIdsForJob(lines, 7, day(45), day(30)))
+        assertEquals(listOf("sh2"), CollabAssignmentLine.shareIdsForJob(lines, 7, day(45)))
     }
 
-    @Test fun `forJob - 대표 건 날짜면 구버전(days 없음) 줄도 같이`() {
-        val ids = CollabAssignmentLine.shareIdsForJob(lines, 7, day(30), representativeDay = day(30))
-        assertEquals(listOf("sh1", "sh3"), ids)
+    @Test fun `forJob - 1차 날짜엔 1차 협업만, 떠돌이는 안 섞임`() {
+        assertEquals(listOf("sh1"), CollabAssignmentLine.shareIdsForJob(lines, 7, day(30)))
     }
 
     @Test fun `forJob - 날짜 모르면(null) 아무도 안 고른다 — 전체로 퍼뜨리지 않음`() {
-        assertTrue(CollabAssignmentLine.forJob(lines, 7, jobDayStart = null, representativeDay = day(30)).isEmpty())
-        assertTrue(CollabAssignmentLine.shareIdsForJob(lines, 7, null, day(30)).isEmpty())
+        assertTrue(CollabAssignmentLine.forJob(lines, 7, jobDayStart = null).isEmpty())
+        assertTrue(CollabAssignmentLine.shareIdsForJob(lines, 7, null).isEmpty())
     }
 
     @Test fun `withDays — 일정 변경 시 날짜 갈아끼우기`() {
         val before = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(30)))
         val after = before.withDays(setOf(day(45)))
         assertEquals(setOf(day(45)), after.days)
-        assertFalse(after.coversDay(day(30), representativeDay = day(45)))
-        assertTrue(after.coversDay(day(45), representativeDay = day(45)))
+        assertFalse(after.coversDay(day(30)))
+        assertTrue(after.coversDay(day(45)))
+    }
+
+    // ── 🐞 사장님 실기 재현 (2026-10-15): 1차(9/30 완료)·2차(10/15 완료) 둘 다 협업. 1차 줄은 날짜 없음(옛 빌드 invite).
+    //    대표 건 = 둘 다 완료라 더 나중 = 2차. 옛 규칙이면 1차 줄이 2차 카드로 넘어가 「1차엔 협업 부르기만, 2차엔 두 이름」.
+
+    private val realCase = setOf(
+        "7|01011110001|해시줄눈|sh1|",              // 1차 — 날짜 꼬리표 없음 (떠돌이)
+        "7|01011110002|하우스픽|sh2|${day(45)}"     // 2차 — 10/15
+    )
+
+    @Test fun `재현 - 1차 떠돌이 줄이 2차(대표) 카드로 넘어가지 않는다`() {
+        val on2nd = CollabAssignmentLine.forJob(realCase, 7, day(45))
+        assertEquals("2차 카드엔 하우스픽 하나만", listOf("하우스픽"), on2nd.map { it.name })
+        assertTrue("1차 카드엔 (아직) 아무도 없다 — 사장님이 붙여야 한다", CollabAssignmentLine.forJob(realCase, 7, day(30)).isEmpty())
+    }
+
+    @Test fun `재현 - 떠돌이는 unassigned 로 보인다 (사라진 게 아니다)`() {
+        val orphans = CollabAssignmentLine.unassigned(realCase, 7)
+        assertEquals(listOf("해시줄눈"), orphans.map { it.name })
+        assertTrue(CollabAssignmentLine.unassigned(realCase, 8).isEmpty())
+    }
+
+    @Test fun `재현 - 이 건에 붙이기 → 1차 카드에 뜨고 떠돌이 목록에서 빠진다`() {
+        val orphan = CollabAssignmentLine.unassigned(realCase, 7).single()
+        val after = CollabAssignmentLine.assignDays(realCase, orphan, setOf(day(30)))
+        assertEquals(listOf("해시줄눈"), CollabAssignmentLine.forJob(after, 7, day(30)).map { it.name })
+        assertEquals(listOf("하우스픽"), CollabAssignmentLine.forJob(after, 7, day(45)).map { it.name })
+        assertTrue(CollabAssignmentLine.unassigned(after, 7).isEmpty())
+        assertEquals("줄 수는 그대로(바꿔 끼움)", 2, after.size)
+    }
+
+    @Test fun `assignDays - shareId 없는 아주 옛 줄은 번호로 맞춰 바꾼다, 다른 줄은 손 안 댐`() {
+        val raw = setOf("7|01011110001|해시줄눈", "7|01011110002|하우스픽|sh2|${day(45)}")
+        val orphan = CollabAssignmentLine.unassigned(raw, 7).single()
+        val after = CollabAssignmentLine.assignDays(raw, orphan, setOf(day(30)))
+        assertTrue(after.contains("7|01011110001|해시줄눈||${day(30)}"))
+        assertTrue(after.contains("7|01011110002|하우스픽|sh2|${day(45)}"))
+    }
+
+    @Test fun `assignDays - 빈 days 로는 못 붙인다(떠돌이를 떠돌이로)`() {
+        val orphan = CollabAssignmentLine.unassigned(realCase, 7).single()
+        assertEquals(realCase, CollabAssignmentLine.assignDays(realCase, orphan, emptySet()))
+    }
+
+    @Test fun `daysOfJob - 시공일 + 기간 → 그 건의 날짜들, 날짜 없으면 빈 집합`() {
+        assertEquals(setOf(day(30), day(31), day(32)), CollabAssignmentLine.daysOfJob(day(30), 3))
+        assertEquals(setOf(day(30)), CollabAssignmentLine.daysOfJob(day(30), 0))
+        assertTrue(CollabAssignmentLine.daysOfJob(null, 3).isEmpty())
     }
 }

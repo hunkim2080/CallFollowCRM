@@ -143,6 +143,16 @@ val dupRules = listOf(
         instead = "isInboxAd(item, adAllowlist) / inboxUnanswered(all, adAllowlist)  (presentation/screen/home/HomeScreenHelpers.kt)",
         homes = listOf("/home/HomeScreenHelpers.kt", "/domain/inbox/")
     ),
+    // 🤝 협업을 건에 붙이는 셈 — **「대표 건 날짜」 폴백**과 **건 날짜 집합 손계산**. (2026-10-15 사장님 "1차에 협업사장이 지워졌던데")
+    //   날짜 없는 협업 줄을 대표 건 날짜로 폴백시키니 1차·2차 둘 다 완료면 대표=2차라 1차 협업이 2차 카드로 갔다.
+    //   이제 떠돌이는 어디에도 자동으로 안 붙고(coversDay/forJob 에 representativeDay 없음), 건 날짜 집합은
+    //   CollabAssignmentLine.daysOfJob 한 곳. ScheduleScreen 에 남은 둘(미승인 변경 중이라 못 건드림)은 기준선 — 늘면 막는다.
+    DupRule(
+        id = "collab-rep-fallback",
+        regex = Regex("""representativeDay\s*=|until\s+\w+\.scheduledWorkDays\.coerceAtLeast\(1\)\)\.map"""),
+        instead = "CollabAssignmentLine.forJob(raw, customerId, jobDayStart) / .daysOfJob(jobDayStart, nDays)  (domain/collab/CollabAssignmentLine.kt)",
+        homes = listOf("/domain/collab/")
+    ),
     // ③ 끌어서 자리 바꾸기 — 가격표와 접수서에 같은 셈이 두 벌이었다.
     DupRule(
         id = "drag-reorder",
