@@ -14353,3 +14353,9 @@ Fable 🧹3. 사장님 "고고"
 - 변경(UI/데이터): 세는 자가 세 곳(칩 숫자·칩 목록·하단 탭 점프용 VM 수)이고 잣대가 달랐다 → 공용 "HomeScreenHelpers.inboxUnanswered" 한 곳으로 통일. VM "unhandledCount" 플로우 삭제(두 벌 제거), 하단 탭 점프는 칩이 보여주는 수 그대로("publishUnansweredCount"). A/S 손님도 답 안 했으면 숫자·목록 양쪽 포함(일관). dup_guard "inbox-ad-inline" 추가(16가지), CLAUDE.md §12 갱신.
 - 메모: 이 증상은 10-14 cac481e1(광고 case) 이전 빌드에서 나는 것 + HEAD의 탭-점프 불일치. 사장님 폰이 옛 빌드면 업데이트 필요.
 - 폰 확인: S9 터치 불안정 → 테스트 1042건(새 9건)로 검증. 내부테스트 올려 사장님 폰에서 확인 예정.
+
+## 2026-10-15 19:10 · android (Fable)
+협업 주소 전파 버그 — 건별(2차 등) 주소 바꾸면 협업 사장 B에 안 가던 것 수정. (사장님 두 폰 실기)
+- 변경: setJobAddress 가 저장 뒤 그 건(날짜)의 협업 shareId 에만 COLLAB_ADDRESS 우체통 전파(+알림). 타깃팅을 CollabAssignmentLine.forJob/shareIdsForJob 한 곳으로 통일(카드 jobCollab·주소 전파 재사용). updateManualAddress(대표)도 대표 건 날짜로 좁혀 과전파 방지. 서버 /api/shared/update-address 는 이미 구현됨(17990).
+- 폰 확인: 두 폰 실연동은 사장님 실기 필요(A 2차 주소 수정 → B 알림+갱신, 1차 협업엔 안 감). 테스트 1045건(CollabAssignmentLine +3).
+- 질문(Q8): 고객(대표) 주소 전파를 대표 건 날짜로 좁힘 — 모든 협업에 보내길 원하면 되돌림.

@@ -68,6 +68,32 @@ class CollabAssignmentLineTest {
         assertFalse(legacy.coversDay(day(45), representativeDay = null))
     }
 
+    // ── forJob / shareIdsForJob — 카드 협업 칩과 주소 전파가 같은 타깃팅 (2026-10-15 사장님 "2차 주소 바꿨는데 B 에 안 감") ──
+
+    private val lines = listOf(
+        "7|01011110001|하우스픽|sh1|${day(30)}",            // 1차(9/30) 협업
+        "7|01011110002|태그줄눈|sh2|${day(45)}",            // 2차(10/15) 협업
+        "7|01011110003|옛줄|sh3|",                          // days 없는 구버전 → 대표 건 날짜로만
+        "7|01011110002|태그줄눈|sh2|${day(45)}",            // 같은 사장 중복 줄
+        "8|01011110009|딴손님|sh9|${day(45)}"               // 다른 고객
+    )
+
+    @Test fun `forJob - 2차 날짜엔 2차 협업만 (1차·다른 고객 X)`() {
+        val got = CollabAssignmentLine.forJob(lines, customerId = 7, jobDayStart = day(45), representativeDay = day(30))
+        assertEquals(listOf("sh2"), got.map { it.shareId })
+        assertEquals(listOf("sh2"), CollabAssignmentLine.shareIdsForJob(lines, 7, day(45), day(30)))
+    }
+
+    @Test fun `forJob - 대표 건 날짜면 구버전(days 없음) 줄도 같이`() {
+        val ids = CollabAssignmentLine.shareIdsForJob(lines, 7, day(30), representativeDay = day(30))
+        assertEquals(listOf("sh1", "sh3"), ids)
+    }
+
+    @Test fun `forJob - 날짜 모르면(null) 아무도 안 고른다 — 전체로 퍼뜨리지 않음`() {
+        assertTrue(CollabAssignmentLine.forJob(lines, 7, jobDayStart = null, representativeDay = day(30)).isEmpty())
+        assertTrue(CollabAssignmentLine.shareIdsForJob(lines, 7, null, day(30)).isEmpty())
+    }
+
     @Test fun `withDays — 일정 변경 시 날짜 갈아끼우기`() {
         val before = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(30)))
         val after = before.withDays(setOf(day(45)))

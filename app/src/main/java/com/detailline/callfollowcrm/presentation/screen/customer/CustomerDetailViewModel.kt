@@ -235,7 +235,14 @@ class CustomerDetailViewModel(
 
     fun setJobAddress(jobId: Long, address: String?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            SaveGuard.run("현장 주소", _toast) { container.jobRepository.updateAddress(jobId, address) }
+            val job = SaveGuard.run("현장 주소", _toast) {
+                container.jobRepository.updateAddress(jobId, address)
+                container.jobRepository.findById(jobId)
+            }
+            // 🤝 **그 건(날짜)의 협업 사장에게만** 새 주소 전파 — 전엔 건별 저장은 전파를 안 해 B 폰이 옛 주소 그대로였다.
+            //   (2026-10-15 사장님 실기: 2차 현장 주소 바꿨는데 하우스픽 폰에 알림도 주소도 안 감) 1차 협업엔 안 간다(타깃팅 = 카드 협업 칩과 같은 forJob).
+            val jobDayStart = job?.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+            if (jobDayStart != null) propagateAddressToCollab(address, jobDayStart)
         }
     }
 
@@ -627,13 +634,6 @@ class CustomerDetailViewModel(
         }
     }
 
-    /** 받은 날짜만 수정 (사장님이 DatePicker 로 다른 날짜 선택). 자정 normalize 안 함 — 사장님이 정한 그대로. */
-    fun setDepositPaidAt(epochMs: Long) = viewModelScope.launch {
-        withContext(NonCancellable) {
-            container.customerRepository.updateDepositPaidAt(customerId, epochMs)
-        }
-    }
-
     fun setDepositAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
             SaveGuard.run("계약금", _toast) {
@@ -664,8 +664,6 @@ class CustomerDetailViewModel(
             deleteTimelineEventsOfType("balance_paid")
         }
     }
-
-    // (setBalancePaidAt — 받은 날짜만 고치던 함수 — 부르는 곳이 없어 지움. 잔금 도장은 WorkCompletionManager.setBalancePaid 한 곳. 2026-10-15)
 
     fun setBalanceAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
@@ -1015,19 +1013,25 @@ class CustomerDetailViewModel(
         }
         // 이 현장이 협업 중이면 상대 사장(B)들에게 새 주소 전파(+알림). 안 하면 B는 옛 주소 그대로. (2026-08-02 사장님 버그신고)
         //   서버 미구현(update-address 404)이면 조용히 무시 — 로컬은 이미 바뀜. reschedule 와 같은 best-effort.
-        withContext(NonCancellable) { propagateAddressToCollab(address) }
+        //   고객 주소 = **대표 건** 주소이므로 대표 건 날짜의 협업에게만(전엔 그 고객 shareId 전부 → 다른 차수까지 과전파). (2026-10-15)
+        //   대표 건 날짜를 모르면(건 없음·날짜 미정) 협업도 없으니 안 보낸다.
+        val repDay = customer.value?.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+        withContext(NonCancellable) { propagateAddressToCollab(address, repDay) }
     }
 
-    /** 이 고객(현장)의 살아있는 협업 shareId 들에 새 주소를 전파. collabAssignments = "customerId|phone|name|shareId|days". */
-    private suspend fun propagateAddressToCollab(newAddress: String?) {
+    /**
+     * **그 건(jobDayStart)에 걸린** 협업 shareId 들에 새 주소를 전파. 타깃팅은 카드 협업 칩과 같은 한 곳
+     *   ([com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob]). collabAssignments = "customerId|phone|name|shareId|days".
+     */
+    private suspend fun propagateAddressToCollab(newAddress: String?, jobDayStart: Long?) {
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(newAddress.orEmpty())
             .takeIf { it.isNotBlank() } ?: return
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length < 9) return
-        val shareIds = container.preferences.collabAssignments.mapNotNull { e ->
-            val p = e.split('|')
-            if (p.getOrNull(0)?.toLongOrNull() == customerId) p.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } else null
-        }.distinct()
+        val repDay = customer.value?.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+        val shareIds = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(
+            container.preferences.collabAssignments, customerId, jobDayStart, representativeDay = repDay
+        )
         if (shareIds.isEmpty()) return
         val label = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(addr)
             .takeIf { it.isNotBlank() }?.let { "$it 현장" }

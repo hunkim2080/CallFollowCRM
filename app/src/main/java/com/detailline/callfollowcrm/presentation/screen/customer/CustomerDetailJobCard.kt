@@ -821,13 +821,11 @@ internal fun JobDetailCard(
                     if (jobDayStart == null) emptySet<Long>()
                     else (0 until cShown.scheduledWorkDays.coerceAtLeast(1)).map { jobDayStart + it * 86_400_000L }.toSet()
                 }
-                // 이 건에 걸린 협업 사장만. days 있으면 그 날들·없으면(구버전) 대표 건 하루 — CollabAssignmentLine 규칙 재사용.
+                // 이 건에 걸린 협업 사장만 — 타깃팅은 CollabAssignmentLine.forJob **한 곳**(주소 전파도 같은 것을 쓴다. 2026-10-15).
                 val jobCollab = remember(c.id, host.collabRefresh, jobDayStart, host.repDay) {
-                    if (jobDayStart == null) emptyList<com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine>()
-                    else host.container.preferences.collabAssignments.mapNotNull {
-                        com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it)
-                    }.filter { it.customerId == c.id && it.coversDay(jobDayStart, representativeDay = host.repDay) }
-                        .distinctBy { it.shareId.ifBlank { PhoneKey.of(it.phone) } }
+                    com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.forJob(
+                        host.container.preferences.collabAssignments, c.id, jobDayStart, representativeDay = host.repDay
+                    )
                 }
                 val showJobCollabShare = remember(c.id, jobId) { mutableStateOf(false) }
                 var collabExpanded by remember(jobId) { mutableStateOf(false) }

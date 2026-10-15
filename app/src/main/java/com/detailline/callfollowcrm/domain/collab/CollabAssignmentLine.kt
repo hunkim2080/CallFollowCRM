@@ -38,6 +38,29 @@ data class CollabAssignmentLine(
         collabCoversDay(days, dayStart, representativeDay)
 
     companion object {
+        /**
+         * 🎯 **이 건(날짜)에 걸린 협업 배정만** — 카드의 협업 칩과 주소/일정 전파가 **같은 타깃팅**을 쓴다(§12). (2026-10-15)
+         *   왜: A 가 2차 건의 주소를 바꿨는데 B 에게 안 갔다 — 건별 주소 저장(setJobAddress)이 전파를 안 했고,
+         *   고객 주소 전파는 **그 고객의 shareId 전부**로 보내 1차 협업까지 과전파였다. 둘을 이 한 함수로 좁힌다.
+         *   @param jobDayStart 그 건 시공일 0시. **null 이면 날짜를 모르는 것 → 아무도 안 고른다**(전체로 퍼뜨리지 않음).
+         *   @param representativeDay 대표 건 날짜(구버전 days 없는 줄의 폴백 — [coversDay]).
+         *   같은 사장이 두 줄이면(shareId 같거나, shareId 없으면 번호 같음) 하나로.
+         */
+        fun forJob(
+            raw: Collection<String>, customerId: Long, jobDayStart: Long?, representativeDay: Long?
+        ): List<CollabAssignmentLine> {
+            if (jobDayStart == null) return emptyList()
+            return raw.mapNotNull { parse(it) }
+                .filter { it.customerId == customerId && it.coversDay(jobDayStart, representativeDay) }
+                .distinctBy { it.shareId.ifBlank { it.phone } }
+        }
+
+        /** [forJob] 중 서버에 말을 걸 수 있는(shareId 있는) 것의 shareId 들 — 우체통 전파 대상. */
+        fun shareIdsForJob(
+            raw: Collection<String>, customerId: Long, jobDayStart: Long?, representativeDay: Long?
+        ): List<String> =
+            forJob(raw, customerId, jobDayStart, representativeDay).map { it.shareId }.filter { it.isNotBlank() }.distinct()
+
         fun parse(raw: String): CollabAssignmentLine? {
             val p = raw.split('|')
             val id = p.getOrNull(0)?.toLongOrNull() ?: return null
