@@ -32,6 +32,14 @@ interface AppNotificationDao {
     @Query("DELETE FROM app_notifications WHERE type NOT LIKE 'collab%'")
     suspend fun deleteNonCollab()
 
+    /** 🤝 같은 협업 현장의 **안 읽은** 같은 제목(사진) 알림 — 개수 묶기용. 있으면 그 줄을 갱신한다. (2026-10-15 사장님: 사진 N장 한 줄로) */
+    @Query("SELECT * FROM app_notifications WHERE type = 'collab' AND title = :title AND navShareId = :shareId AND readAt IS NULL AND createdAt >= :since ORDER BY createdAt DESC LIMIT 1")
+    suspend fun latestUnreadCollab(title: String, shareId: String, since: Long): AppNotificationEntity?
+
+    /** 묶기 — 본문(개수)·시각만 갱신(새 줄 안 만든다). */
+    @Query("UPDATE app_notifications SET body = :body, createdAt = :at WHERE id = :id")
+    suspend fun bumpBody(id: Long, body: String, at: Long)
+
     /** 자동삭제는 안 하지만(사장님) 테이블이 무한정 커지지 않게 상한만 — 최신 keep 개만 남기고 옛것 정리. */
     @Query("DELETE FROM app_notifications WHERE id NOT IN (SELECT id FROM app_notifications ORDER BY createdAt DESC LIMIT :keep)")
     suspend fun trimTo(keep: Int)

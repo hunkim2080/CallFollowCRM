@@ -882,14 +882,22 @@ object NotificationHelper {
         )
         val who = uploaderName.ifBlank { "협업 사장님" }
         val where = siteTitle.ifBlank { "협업 현장" }
-        showProtoPush(
-            context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_BLUE,   // 댓글과 한 칸 (사장님 지시)
-            title = "협업 현장 새 사진",
-            msg = "${who}님이 '${where}'에 현장 사진을 올렸어요",
-            contentIntent = pending,
-            navTarget = "collab", navShareId = siteId,
-            actions = listOf(PushAction("사진 보기", pending))
-        )
+        // 📸 **한 장당 알림 하나**로 도배되던 걸 → 같은 현장이면 **「사진 N장」 한 줄**로 묶는다. (2026-10-15 사장님)
+        //   센터 기록은 bumpCollabPhoto 가 **직접(묶어서)** 하고 묶인 수(N)를 돌려준다 → 시스템 알림도 그 N 으로.
+        //   시스템 알림은 같은 notifId 라 덮인다(= 상태바엔 하나). setOnlyAlertOnce 라 소리/진동도 한 번.
+        NotificationLog.bumpCollabPhoto(who, where, siteId) { count ->
+            val msg = if (count <= 1) "${who}님이 '${where}'에 사진을 올렸어요"
+                      else "${who}님이 '${where}'에 사진 ${count}장을 올렸어요"
+            showProtoPush(
+                context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_BLUE,   // 댓글과 한 칸 (사장님 지시)
+                title = "협업 현장 새 사진",
+                msg = msg,
+                contentIntent = pending,
+                navTarget = "collab", navShareId = siteId,
+                actions = listOf(PushAction("사진 보기", pending)),
+                logToCenter = false,   // 위 bump 가 센터에 한 줄(묶음)로 이미 기록함 — 여기서 또 쌓지 않는다
+            )
+        }
     }
 
     /**
@@ -1151,6 +1159,8 @@ object NotificationHelper {
         navPhone: String? = null,
         navCustomerId: Long? = null,
         navShareId: String? = null,
+        // 🤝 협업 사진처럼 **센터 기록을 직접(묶어서) 하는** 경우엔 false — 여기서 또 쌓지 않게. (2026-10-15 사장님)
+        logToCenter: Boolean = true,
     ) {
         val bigText = buildString {
             append(msg)
@@ -1179,7 +1189,7 @@ object NotificationHelper {
         // 🔔 알림 센터엔 **협업 관련만** 쌓는다. (2026-10-13 사장님)
         //   문자·문의·부재중·접수서·통화요약·브리핑·정기문자는 상담함/다른 탭에 **이미 보여서** 여기 쌓으면 두 번 본다.
         //   알림센터의 값어치 = "상담함에선 안 보이는 협업 현장 소식(도착·댓글·사진·일정변경·입금·해제)"만 한눈에.
-        if (typeForChannel(channelId) == "collab") {
+        if (logToCenter && typeForChannel(channelId) == "collab") {
             // 센터엔 🤝 아이콘 칩이 이미 있으니 제목은 이모지 없이(원본). 푸시 제목만 🤝 를 붙인다.
             NotificationLog.record(
                 type = "collab", title = title, body = msg,

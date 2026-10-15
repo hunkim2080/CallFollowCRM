@@ -56,4 +56,17 @@ object NotificationLog {
             }
         }
     }
+
+    /**
+     * 🤝 협업 현장 **사진** — 같은 현장 사진을 한 줄(「사진 N장」)로 묶어 센터에 기록하고,
+     *   묶인 수를 [onCount] 로 돌려준다(시스템 알림 본문에도 그 수를 쓰게). (2026-10-15 사장님)
+     *   repo 가 아직 없으면(앱 아주 초기) 그냥 1장으로 본다.
+     */
+    fun bumpCollabPhoto(who: String, where: String, shareId: String, onCount: (Int) -> Unit) {
+        val r = repo ?: run { onCount(1); return }
+        scope.launch {
+            val count = runCatching { r.bumpCollabPhoto(who, where, shareId) }.getOrDefault(1)
+            onCount(count)
+        }
+    }
 }
