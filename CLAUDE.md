@@ -347,8 +347,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 18가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify`
+**`dup_guard` 가 지금 막는 19가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -453,6 +453,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |
 | 하단 시트 틀(스크림+카드+그랩+키보드/네비바 여백+스크롤) | `presentation/component/AppSheet.kt` | 시트마다 `Box(scrim)+Column+keyboardOrNavPadding+verticalScroll` 새로 (빠뜨리면 스크롤·키보드·네비바 버그) |
 | 고객 상세 **접힘 줄 머리**(아이콘 상자+제목+개수+›/▾, 비면 「＋ 적기」) | `CdFoldRow` (`presentation/screen/customer/CustomerDetailBits.kt`) — 고객 메모·현장 메모·팀원 메모·이 고객 문서 | 섹션마다 `Row + CdTitleIcon + Text + "▸"` 새로 (2026-10-15: 네 벌이 제각각이라 "정신없다"가 됐다) |
+| 상담함/문자함 **서버 정정**(애매한 수신 1건만 Haiku 에 묻기 — 비용 가드 포함) | `ThreadServerClassifier.refineIfUnsure()` (`data/repository/ThreadServerClassifier.kt`) — 「물어볼까」는 `ServerClassifyGate` (`domain/inbox/ServerClassifyGate.kt`), 서버 호출은 `ThreadClassifyServerRepository` (`ai/ThreadClassifyServerRepository.kt`) | 수신 경로·스캔·백필에서 서버 주소를 직접 부르기 (2026-10-15: 통화요약 신규설치 burst 와 같은 사고 방지) |
 
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).
 > 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**

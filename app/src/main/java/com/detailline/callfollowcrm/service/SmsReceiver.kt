@@ -166,6 +166,21 @@ class SmsReceiver : BroadcastReceiver() {
                 }
                 // 브로드캐스트 종료 — 무거운 prepare 는 이 scope(Application 수명) 에서 계속. pending 은 여기서 놓아줌.
                 finishOnce()
+                // 1-b) 애매(UNSURE)하면 서버(Haiku)에 **이 1건만** 묻는다 — Phase 2 (2026-10-15).
+                //   CONSULT/GENERAL 로컬 확정이면 안 묻고(0원), 스캔/백필도 안 묻는다. 실패·consult = 상담함 유지.
+                //   general 이면 ThreadServerClassifier 가 바구니에 적고 홈/채팅은 observeBuckets 로 따라온다.
+                //   알림은 위에서 이미 상담함 소리로 울렸다 — 서버 답(1~2초)을 기다려 알림을 늦추진 않는다.
+                if (!isSpam && verdict == com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.UNSURE) {
+                    runCatching {
+                        container.threadServerClassifier.refineIfUnsure(
+                            phone = sender,
+                            body = combinedBody,
+                            localVerdict = verdict,
+                            isSavedCustomer = customer != null,
+                            hasOwnerReply = false
+                        )
+                    }.onFailure { e -> Log.w(TAG, "서버 분류 보정 실패 — 상담함 유지", e) }
+                }
                 // 스팸이거나 문자함(고객 아님)이면 AI 답변 준비·프리페치 스킵(서버비 절감). (2026-07-11 사장님)
                 if (isSpam || isGeneral) return@launch
 

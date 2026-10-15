@@ -266,21 +266,34 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         runCatching { runBlocking { container.cachedMessageRepository.mergeMmsForSuffix(suffix, listOf(mms)) } }
             .onFailure { e -> Log.e(TAG, "direct MMS cache merge failed", e) }
 
+        // 2-c) 상담함/문자함 1차 분류(로컬) — SMS 경로(SmsReceiver)와 같은 셈. 'AI 답변 준비' 토글과 무관하게 돈다.
+        //   애매(UNSURE)하면 서버(Haiku)에 **이 1건만** 묻는다 — Phase 2 (2026-10-15). 스캔/백필은 안 묻는다.
+        //   서버 답을 기다리느라 pending.finish() 를 늦추지 않게 scope 에서 따로 돈다. 실패·consult = 상담함 유지.
+        val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
+        val cust = runCatching { runBlocking { container.customerRepository.findByPhone(sender) } }.getOrNull()
+        val verdict = runCatching {
+            runBlocking { container.threadBucketRepository.classifyLocal(sender, displayBody, cust != null, false) }
+        }.getOrDefault(com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.UNSURE)
+        if (!isSpam && verdict == com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.UNSURE) {
+            scope.launch {
+                runCatching {
+                    container.threadServerClassifier.refineIfUnsure(
+                        phone = sender,
+                        body = displayBody,
+                        localVerdict = verdict,
+                        isSavedCustomer = cust != null,
+                        hasOwnerReply = false
+                    )
+                }.onFailure { e -> Log.w(TAG, "서버 분류 보정 실패 — 상담함 유지", e) }
+            }
+        }
+
         // 3) prepare-reply (fire-and-forget). 'AI 답변 준비' OFF 또는 '고객 아님' 번호면 스킵. (2026-07-16/18 사장님)
         //   문자·사진 캐시(위 2번 mergeMms)는 이미 끝났으니 여긴 AI 준비만 담당 → 통째로 return 안전. 통화요약은 별개라 유지.
         if (!container.preferences.aiReplyPrepEnabled || container.preferences.isNonCustomer(sender)) return
         // SMS 경로(isSpam||isGeneral)와 동일하게 스팸 앞자리/문자함(GENERAL) MMS 엔 AI 준비 스킵 —
         //   광고·대표번호 MMS 에 서버비(Sonnet prepare) 낭비 방지. (2026-08-02 비용감사 — SMS 트윈과 필터 일치)
-        run {
-            val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
-            val isGeneral = runCatching {
-                runBlocking {
-                    val cust = container.customerRepository.findByPhone(sender)
-                    container.threadBucketRepository.classifyLocal(sender, displayBody, cust != null, false)
-                } == com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.GENERAL
-            }.getOrDefault(false)
-            if (isSpam || isGeneral) return
-        }
+        if (isSpam || verdict == com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.GENERAL) return
         // ⚠️ (2026-08-14 사장님) 답변 추천 '미리 생성(requestPrepare)' 제거 → '볼 때만 생성' 전환(비용 68% 절감).
         //   사진(MMS) 수신 시에도 미리 만들지 않음. 문자방에서 '✨ AI 답변 추천받기' 탭 시 생성.
         //   prefetch(문자·사진 캐시 데우기)만 유지 — AI 와 무관, 문자방 빨리 뜨게.

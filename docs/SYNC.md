@@ -14399,3 +14399,13 @@ Fable 🧹3. 사장님 "고고"
 - §12-K 표시·소비 지점 5곳 확인: ① 상태바 알림(같은 notifId 라 이미 하나 — 둬도 됨) ② 알림 센터 목록(observeAll — 줄 수만 줄어듦, 코드 그대로) ③ 🔔 배지(observeUnreadCount — 같음) ④ 홈 협업 업데이트 카드(HomeScreen 1217, 서버 todayUpdates 를 eventId 로 그림 — 원래 하나, 둬도 됨) ⑤ 소리(setOnlyAlertOnce — 둘째 호출 자체가 사라짐). 바꾼 것 0 · 둬도 됨 5.
 - 폰 확인: **못 봄**(S9+ 테스트폰 서명 불일치). 테스트 10건 + 빌드로 대신. 사장님 폰 다음 내부테스트에서: B 가 출발 → A 알림 센터에 「협업 현장 출발」 **한 줄**만.
 - 다음 액션: (android) 없음. (server) 없음 — 서버 중복 발송 아님.
+
+## 2026-10-15 23:10 · android (Fable)
+상담함/문자함 Phase 2 앱 연결 — 로컬이 애매(UNSURE)한 **수신 문자 1건**만 서버 Haiku(`/api/thread/classify`, 이미 라이브)에 물어 general(확신 ≥0.9)이면 문자함으로. 서버는 안 건드림.
+- 변경(앱): 새 공용 3개 — `ai/ThreadClassifyServerRepository.kt`(Net.builder, 1건+batch ≤20 호출·파싱, 실패=Result.failure) · `domain/inbox/ServerClassifyGate.kt`(「물어볼까」 순수 판단: UNSURE 만·행 없을 때만·저장고객/답장이력/고객아님 제외·사장님 줄 있으면 제외·본문 없으면 제외·같은 번호 10분 쿨다운, payloadMessages=시간순 마지막 5개) · `domain/inbox/ThreadVerdict.kt`(응답 데이터, 빠진 칸·이상값 → consult, 0.9 문턱은 서버 `_classify_safe_result` 와 같은 숫자로 주석 교차). 부르는 자리는 `data/repository/ThreadServerClassifier.refineIfUnsure()` **한 곳**(inFlight 로 같은 번호 연타 1회, §13③). `ThreadBucketRepository.findRow/applyServerGeneral` 추가 — BucketPolicy(SRC_HAIKU) 경유라 OWNER 고정 못 덮고, 나중에 사장님이 답장하면 자동 CONSULT 승격이 행을 지움. consult/실패 응답은 아무것도 안 함(옛 GENERAL 행 안 지움).
+- 훅: `SmsReceiver`(finishOnce 뒤, UNSURE·비스팸만) · `MmsDownloadedReceiver`(classifyLocal 을 AI준비 토글 앞으로 올려 SMS 와 같은 셈, 서버 호출은 scope.launch 로 pending.finish 안 늦춤). 비용 가드: 스캔/백필(`CallFollowCrmApplication.classifyCachedContacts`)은 **안 부름**(로컬만, 전과 같음). 알림은 서버 답 안 기다리고 먼저 울림(상담함 소리) — 1~2초 뒤 문자함으로 옮겨질 수 있음.
+- §12-K 소비 지점 4곳 다 확인(바꾼 것 0·둬도 됨 4): HomeViewModel 223 observeBuckets(자동) · ChatViewModel 106 observeBuckets + 1571/1595 isGeneral(열 때 읽음) · CustomerDetailScreen 599 isGeneral(열 때 읽음). HomeViewModel 1164 `reason=="광고"` 로 [광고] 칸 가름 — 서버 reason 은 자유문장이라 문자함 일반 칸에 들어감(둬도 됨).
+- 가드: dup_guard `thread-classify-raw`(19가지) — 엔드포인트 주소가 home 밖에 적히면 실패. CLAUDE.md §12-H 목록·§12 표 한 줄.
+- 숫자: 엔드포인트 문자열 1파일(home)·호출부 2곳(수신 훅) · 테스트 1088건 통과(ThreadVerdictTest 8 + ServerClassifyGateTest 11 신규) · BUILD=0 가드 7종 · dup 13 · size 35287 · style 2633 · 공용 29.
+- 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(SYNC 20:05 와 같음). 다음 내부테스트 때 사장님 폰: 모르는 번호가 「택배 도착 예정」 같은 문자 보내면 1~2초 뒤 상담함에서 빠져 문자함으로. logcat 태그 `ThreadServerClassify`.
+- 다음 액션: (android) 폰에서 실제 수신 1건 확인 후 서버 `llm_usage_log` 의 thread/classify 건수가 수신 건수를 안 넘는지 보기. batch 엔드포인트는 repo 에 있지만 부르는 곳 없음(재접속 N건 제한 자리 생기면 그때). (server) 없음.

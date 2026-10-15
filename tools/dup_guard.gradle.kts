@@ -239,6 +239,15 @@ val dupRules = listOf(
         regex = Regex("""\.(reschedule|updateAddress|endCollab|cancel)\(\s*(?:share|site|sid|shareId)|\.uploadOwnerPhoto\(|(?:repo|sharedSiteRepository)\.(?:progress|postComment)\("""),
         instead = "container.outbox.enqueue(...) (data/outbox/) — 화면·매니저는 enqueue, 보내기는 handler",
         homes = listOf("/data/outbox/")
+    ),
+
+    // 📨 상담함/문자함 서버 정정(Haiku)은 **문이 하나**다 — 수신 1건만 묻고 스캔·백필은 안 묻는 비용 가드가 거기 있다. (2026-10-15)
+    //   엔드포인트 주소를 다른 파일에 적는 순간 그 가드를 비켜간 두 번째 길이 생긴다(통화요약 신규설치 burst 가 그렇게 났다).
+    DupRule(
+        id = "thread-classify-raw",
+        regex = Regex("""api/thread/classify"""),
+        instead = "container.threadServerClassifier.refineIfUnsure(...) (data/repository/ThreadServerClassifier.kt) — 서버 호출은 ai/ThreadClassifyServerRepository.kt 한 곳",
+        homes = listOf("/ai/ThreadClassifyServerRepository.kt")
     )
 )
 

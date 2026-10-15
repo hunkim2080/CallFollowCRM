@@ -72,6 +72,46 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
         return verdict
     }
 
+    /** 이 번호의 바구니 행(없으면 null = 상담함 기본). 서버에 물어볼지 판단(ServerClassifyGate)용. */
+    suspend fun findRow(phone: String): ThreadBucketEntity? {
+        val suffix = suffixOf(phone)
+        if (suffix.isBlank()) return null
+        return runCatching { dao.findBySuffix(suffix) }.getOrNull()
+    }
+
+    /**
+     * 서버(Haiku) 정정 반영 — **general(확신 ≥0.9)만** 받아 문자함으로. (2026-10-15 Phase 2)
+     *   consult 응답은 아무것도 안 한다(상담함은 기본값이고, 실패 응답도 consult 라 옛 GENERAL 행을 지우면 안 된다).
+     *   BucketPolicy(SRC_HAIKU) 를 지나므로 사장님(OWNER) 고정은 못 덮고, 나중에 사장님이 답장하면
+     *   classifyLocal 의 자동 CONSULT 승격이 이 행을 지운다(HAIKU < OWNER, 삭제는 source 무관).
+     * @return 문자함으로 옮겼으면 true.
+     */
+    suspend fun applyServerGeneral(
+        phone: String,
+        body: String,
+        verdict: com.detailline.callfollowcrm.domain.inbox.ThreadVerdict,
+        now: Long = System.currentTimeMillis()
+    ): Boolean {
+        if (!verdict.isGeneral) return false
+        val suffix = suffixOf(phone)
+        if (suffix.isBlank()) return false
+        val existing = runCatching { dao.findBySuffix(suffix) }.getOrNull()
+        val action = BucketPolicy.decide(
+            existing = existing,
+            suffix = suffix,
+            verdictBucket = BucketPolicy.GENERAL,
+            source = BucketPolicy.SRC_HAIKU,
+            reason = verdict.reason.ifBlank { "서버 분류" },
+            bodyHash = body.hashCode(),
+            now = now
+        )
+        if (action !is BucketPolicy.Action.Write) return false
+        return runCatching { dao.upsert(action.entity) }
+            .onSuccess { Log.i(TAG, "classify $suffix → 문자함(서버 ${"%.2f".format(verdict.confidence)}: ${verdict.reason})") }
+            .onFailure { Log.w(TAG, "서버 판정 저장 실패 — 상담함 유지", it) }
+            .isSuccess
+    }
+
     /** 사장님이 "이건 고객이야" → 상담함으로(영구 보호). 문자함 스와이프/채팅 메뉴. */
     suspend fun moveToConsult(phone: String, now: Long = System.currentTimeMillis()) {
         val suffix = suffixOf(phone)

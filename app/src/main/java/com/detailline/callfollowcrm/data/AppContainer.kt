@@ -145,6 +145,16 @@ class AppContainer(context: Context) {
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
     // 상담함/문자함 분류(2026-07-11 사장님) — 기본 문자앱이 되며 고객/일반 문자 분리.
     val threadBucketRepository = com.detailline.callfollowcrm.data.repository.ThreadBucketRepository(db.threadBucketDao())
+    // 상담함/문자함 Phase 2 (2026-10-15) — 로컬이 애매(UNSURE)한 **수신 1건**만 서버(Haiku)에 묻는다.
+    //   부르는 자리는 ThreadServerClassifier.refineIfUnsure 한 곳(SmsReceiver·MmsDownloadedReceiver). 스캔/백필은 안 부른다(비용).
+    val threadClassifyServerRepository =
+        com.detailline.callfollowcrm.ai.ThreadClassifyServerRepository(ownerPhone = { preferences.bizPhone })
+    val threadServerClassifier = com.detailline.callfollowcrm.data.repository.ThreadServerClassifier(
+        smsRepository = smsRepository,
+        threadBucketRepository = threadBucketRepository,
+        server = threadClassifyServerRepository,
+        ownerMarkedNonCustomer = { preferences.isNonCustomer(it) }
+    )
     // 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 저장 (DB v17).
     val suggestionEventRepository = com.detailline.callfollowcrm.data.repository.SuggestionEventRepository(db.suggestionEventDao())
     val usageStatsRepository = com.detailline.callfollowcrm.ai.UsageStatsRepository()
