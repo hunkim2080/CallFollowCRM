@@ -1033,20 +1033,31 @@ internal fun AiMark() {
 }
 
 @Composable
-internal fun Avatar(name: String?, index: Int) {
-    if (name.isNullOrBlank()) {
-        Box(
-            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossGrayBg),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Person, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
-        }
-    } else {
-        val (bg, fg) = AV_TINTS[index % AV_TINTS.size]
-        Box(
-            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg),
-            contentAlignment = Alignment.Center
-        ) {
+internal fun Avatar(
+    name: String?,
+    index: Int,
+    /** 상태 불 — 상담함 줄은 [inboxAvatarStatus] 로 늘 하나를 받는다. NONE = 상담함 밖(옛 한 색). (2026-10-15 사장님) */
+    status: InboxAvatarStatus = InboxAvatarStatus.NONE
+) {
+    // 색은 상태에만 — 뜻 있는 한 색(§AV_TINTS 주석, 2026-09-20 사장님). 토큰: 미수(빨강)·주의(노랑)·파랑·완료(초록)·회색.
+    val c = AppTheme.colors
+    // (바탕, 글자, 테두리 링) — 링 null 이면 안 그린다.
+    val bg: Color; val fg: Color; val ring: Color?
+    when (status) {
+        InboxAvatarStatus.URGENT -> { bg = c.unpaidBg; fg = c.unpaidText; ring = c.unpaid }
+        InboxAvatarStatus.WAITING -> { bg = c.cautionBg; fg = c.cautionText; ring = c.caution }
+        InboxAvatarStatus.UNREAD -> { bg = c.primaryBg; fg = c.primaryText; ring = c.primary }
+        InboxAvatarStatus.SCHEDULED -> { bg = c.doneBg; fg = c.doneText; ring = c.done }
+        InboxAvatarStatus.QUIET -> { bg = c.neutralBg; fg = c.neutralText; ring = null }
+        InboxAvatarStatus.NONE -> { bg = AV_TINTS[index % AV_TINTS.size].first; fg = AV_TINTS[index % AV_TINTS.size].second; ring = null }
+    }
+    var mod = Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape)
+    mod = (if (name.isNullOrBlank() && status == InboxAvatarStatus.NONE) mod.background(TossGrayBg) else mod.background(bg))
+    if (ring != null) mod = mod.border(2.5.dp, ring, androidx.compose.foundation.shape.CircleShape)
+    Box(mod, contentAlignment = Alignment.Center) {
+        if (name.isNullOrBlank()) {
+            Icon(Icons.Default.Person, null, tint = if (status == InboxAvatarStatus.NONE) TossTextTertiary else fg, modifier = Modifier.size(20.dp))
+        } else {
             Text(name.trim().first().toString(), color = fg, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
         }
     }

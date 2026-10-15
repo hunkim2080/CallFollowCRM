@@ -233,6 +233,13 @@ fun HomeScreen(
     // 광고 자동감지 — "이건 광고 아냐" 예외 목록 + 광고함 펼침 상태. (2026-07-08 사장님)
     val adAllowlist by viewModel.adAllowlist.collectAsState()
     var adBoxExpanded by rememberSaveable { mutableStateOf(false) }
+    // 📥 아이콘 상태색 — 「답장 안 함」(inboxUnanswered 한 곳)과 **같은 잣대**. 줄마다 멤버십으로 받는다. (2026-10-15 사장님)
+    //   줄 안에서 다시 세면 칩 숫자와 또 어긋난다(§12) — 여기 한 번 만든 집합을 모든 줄이 본다.
+    val inboxUnansweredKeys = remember(timeline, adAllowlist) {
+        val all = timeline.flatMap { it.items }.distinctBy { PhoneKey.of(it.record.phoneNumber) }
+        inboxUnanswered(all, adAllowlist).mapTo(HashSet()) { PhoneKey.of(it.record.phoneNumber) }
+    }
+    val inboxNowMs = System.currentTimeMillis()
     // 🏷️ 상담함 칩 (2026-09-20 사장님 "거르기로 가자") — 탭 두 개를 칩 한 줄로.
     //   왼쪽은 오늘 할 일, 오른쪽은 사람 찾기. "msg" 만 본문이 문자함으로 바뀌고 나머지는 **같은 목록을 거른다.**
     var inboxChip by rememberSaveable { mutableStateOf("all") }
@@ -1482,6 +1489,12 @@ fun HomeScreen(
                                         index = j,
                                         unread = unread,
                                         aiSummary = aiCardSummaries[suffix],
+                                        avatarStatus = inboxAvatarStatus(
+                                            unanswered = suffix in inboxUnansweredKeys,
+                                            lastActivityMs = custMsgMs, nowMs = inboxNowMs, unread = unread,
+                                            scheduledWorkDate = rItem.customer?.scheduledWorkDate,
+                                            isWorkDone = rItem.customer?.isWorkDone == true
+                                        ),
                                         // // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
                                         category = rItem.customer?.categoryId?.let { cid -> categoryById[cid] },
                                         filter = inboxChip,
@@ -1594,6 +1607,12 @@ fun HomeScreen(
                                                             index = index,
                                                             unread = unread,
                                                             aiSummary = aiCardSummaries[suffix],
+                                                            avatarStatus = inboxAvatarStatus(
+                                                                unanswered = suffix in inboxUnansweredKeys,
+                                                                lastActivityMs = custMsgMs, nowMs = inboxNowMs, unread = unread,
+                                                                scheduledWorkDate = rItem.customer?.scheduledWorkDate,
+                                                                isWorkDone = rItem.customer?.isWorkDone == true
+                                                            ),
                                                             // 그룹 태그 — 사장님이 만든 분류(일당 등)만. 자동 시스템 카테고리(시공 대기/완료)는
                                                             //   상태 태그와 중복이라 태그로 안 띄움(그럼 모든 행에 붙어 '일당' 이 안 도드라짐). (2026-08-04)
                                                             // 자동 카테고리는 이제 없다(2026-09-20 제거) → 숨기던 코드 걷어냄.
@@ -3057,6 +3076,9 @@ private fun RecentRow(
     index: Int,
     unread: Boolean,
     aiSummary: String?,
+    /** 아이콘 상태 불 — [inboxAvatarStatus] 로 계산해 넘긴다. 기본 NONE(옛 한 색). (2026-10-15 사장님) */
+    avatarStatus: com.detailline.callfollowcrm.presentation.screen.home.InboxAvatarStatus =
+        com.detailline.callfollowcrm.presentation.screen.home.InboxAvatarStatus.NONE,
     category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
     /** 지금 고른 칩 — 뱃지가 '그 안에서 갈리는 것'을 보여주려고 필요하다. (2026-09-21) */
     filter: String = "all",
@@ -3097,7 +3119,7 @@ private fun RecentRow(
                 Box(Modifier.size(8.dp).clip(CircleShape).background(TossBlue))
             }
         }
-        Avatar(name, index)
+        Avatar(name, index, avatarStatus)
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -14377,3 +14377,10 @@ Fable 🧹3. 사장님 "고고"
 - 숫자: 옛 표기 5곳 → 1곳(ScheduleScreen, 기준선) · 테스트 1051건 통과(CollabAssignmentLine 18, 재현 케이스 3 포함) · 빌드 BUILD=0 가드 7종 · size 35192(기준선 안) · style 2633.
 - 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(SYNC 20:05 와 같음). 사장님 폰(A)에서 확인: 그 손님 고객상세 맨 아래 「어느 건인지 모르는 협업 1」 → 「1차 …에 붙이기」 → 1차 카드에 협업 사장 돌아오고 2차엔 하우스픽만.
 - 다음 액션: (android) ScheduleScreen.kt 승인되면 579줄 `representativeDay =` 호출과 694줄 날짜 손계산을 `daysOfJob`/2인자로 바꾸고 다리 삭제 + dupBaselineUpdate. (server) 없음.
+
+## 2026-10-15 21:20 · android
+상담함 아이콘에 상태색 — 급함🔴·대기🟡·새것🔵·조율🟢·조용⚪. (사장님 "아이콘 색으로 빠른 눈대중")
+- 변경(UI): 상담함 줄 아바타(Avatar)가 index별 장식색 한 색이던 것 → 상태색. 셈은 새 공용 inboxAvatarStatus(HomeScreenHelpers, enum InboxAvatarStatus) 한 곳 — 급함(미답 1일+)>대기(미답 오늘)>새것(안읽음)>조율(앞으로 일정)>조용. 미답은 inboxUnanswered 와 **같은 잣대**(멤버십 집합 inboxUnansweredKeys 하나를 모든 줄이 봄, 줄마다 다시 안 셈). 「답장 안 함」 확인 누르면 미답에서 빠져 불 꺼짐(기존 동작 그대로). 색 토큰: unpaid/caution/primary/done/neutral. Avatar status 기본 NONE=옛 한 색이라 상담함 밖 호출부(오늘 일정, HomeScreen 2977)는 그대로.
+- 폰 확인: **못 봄** — 테스트폰 서명 불일치. 단위테스트 7건(InboxAvatarStatusTest, 우선순위·일정·완료 가름) + 빌드로 대신. 시험 1058건·가드 7개 통과. 다음 내부테스트 때 사장님 폰에서 확인.
+- 프로토: docs/PROTOTYPES.md 에 「상담함 아이콘 색상 (전/후)」 artifact/B2PxEgNEZW1UfhCvpujuk6 추가.
+- 다음 액션: 사장님이 "써보고 아니면 되돌리게" — 이 커밋만 revert 하면 원복. 색 묶음/링 vs 점/노랑-빨강 분리는 폰에서 보고 조정.

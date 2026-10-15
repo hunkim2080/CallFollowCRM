@@ -401,5 +401,40 @@ internal val AV_TINTS = listOf(
     LightColors.primaryBg to LightColors.primaryText,
 )
 
+/**
+ * 📥 상담함 아이콘에 켜는 **상태 불** — 색은 상태에만 쓴다(2026-09-20 사장님, 위 [AV_TINTS] 주석). (2026-10-15 사장님 "아이콘 색으로 빠른 눈대중")
+ *   NONE = 상담함 밖 호출부(예: 오늘 일정)용 — 옛 한 색 그대로. 상담함 줄은 아래 [inboxAvatarStatus] 로 늘 하나를 받는다.
+ */
+enum class InboxAvatarStatus { NONE, URGENT, WAITING, UNREAD, SCHEDULED, QUIET }
+
+/**
+ * 한 줄 아이콘에 켤 불 — **급함 > 대기 > 새것 > 조율 > 조용** 순. (2026-10-15 사장님)
+ *   · URGENT(빨강) = 「답장 안 함」인데 고객 마지막 메시지가 **하루 넘게** 방치됨
+ *   · WAITING(노랑) = 「답장 안 함」(오늘·최근, 아직 확인 전) — 「확인」 누르면 미답에서 빠져 꺼진다
+ *   · UNREAD(파랑) = 안 읽은 새 메시지
+ *   · SCHEDULED(초록) = 앞으로 시공 일정이 잡힘(아직 완료 전)
+ *   · QUIET(회색) = 할 일 없음(기본)
+ *   미답 여부는 [inboxUnanswered] 와 **같은 잣대**를 멤버십으로 받는다(칩·숫자와 한 목록). 날짜 경계는 [DateTimeUtils].
+ */
+internal fun inboxAvatarStatus(
+    unanswered: Boolean,
+    lastActivityMs: Long,
+    nowMs: Long,
+    unread: Boolean,
+    scheduledWorkDate: Long?,
+    isWorkDone: Boolean
+): InboxAvatarStatus {
+    val oneDayAgo = nowMs - 24L * 60 * 60 * 1000
+    val hasFutureSchedule =
+        (scheduledWorkDate ?: 0L) >= com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(nowMs) && !isWorkDone
+    return when {
+        unanswered && lastActivityMs in 1 until oneDayAgo -> InboxAvatarStatus.URGENT
+        unanswered -> InboxAvatarStatus.WAITING
+        unread -> InboxAvatarStatus.UNREAD
+        hasFutureSchedule -> InboxAvatarStatus.SCHEDULED
+        else -> InboxAvatarStatus.QUIET
+    }
+}
+
 /** 최근 대화 줄에서 쓰는 날짜 포맷 — 줄마다 새로 만들면 낭비라 하나만 둔다. (2026-09-15) */
 internal val RECENT_MD_FORMAT = java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN)
