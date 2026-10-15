@@ -342,13 +342,13 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (17가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (18가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 17가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback`
+**`dup_guard` 가 지금 막는 18가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -433,6 +433,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 협업 날짜 판단 | `domain/collab/CollabDayCheck.kt` | 화면에서 날짜 비교 |
 | 협업 요청 고르기·취소 판단 | `domain/collab/CollabRequestSelection.kt` | 시트에서 `reqKeys.any { it !in selected }` 를 직접 |
 | 협업 배정 한 줄(건별 days 파싱·판단·떠돌이·이 건에 붙이기·건 날짜 집합) | `domain/collab/CollabAssignmentLine.kt` — `forJob(raw, customerId, jobDayStart)` · `unassigned` · `assignDays` · `daysOfJob` | `collabAssignments` 문자열을 화면에서 직접 `split("|")`, 날짜 없는 줄을 대표 건 날짜로 폴백(2026-10-15: 1차 협업이 2차 카드로 갔다), `(0 until scheduledWorkDays).map{…}` 손계산 |
+| 협업 진행 알림 **한 번만**(FCM·폴링이 같은 이벤트를 각각 들고 와도) | `NotificationHelper.showCollabEvent` 문 하나 + 그 안의 게이트(셈은 `domain/collab/CollabNotifyDedup.kt`, 기억은 `prefs.collabNotifiedKeys`) | 협업 진행 채널(`CHANNEL_COLLAB_DEPARTED` 등)로 `showProtoPush` 직접, 부르는 쪽에서 「본 이벤트」를 따로 기억(2026-10-15: FCM 과 폴링이 각자 기억해 센터에 두 줄씩) |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
 | 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |
 | 주소 뽑기 | `util/AddressExtractor.kt` | 화면에서 정규식 |

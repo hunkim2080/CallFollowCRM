@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.data.repository
 import com.detailline.callfollowcrm.data.local.dao.AppNotificationDao
 import com.detailline.callfollowcrm.data.local.entity.AppNotificationEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.withLock
 
 /** 🔔 인앱 알림 센터 저장소. 알림 센터 화면·🔔 딱지가 읽고, [[NotificationLog]] 가 쓴다. */
 class AppNotificationRepository(private val dao: AppNotificationDao) {
@@ -31,7 +32,7 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
      *   "사진 올리면 총 몇 장 올라왔습니다로 떠야" — 장당 하나씩 알림이 도배되던 걸 묶음.)
      *   @return 이 현장에 쌓인 사진 수(= 보여줄 N). 시스템 알림에도 같은 N 을 쓴다.
      */
-    suspend fun bumpCollabPhoto(who: String, where: String, shareId: String): Int {
+    suspend fun bumpCollabPhoto(who: String, where: String, shareId: String): Int = photoBumpMutex.withLock {
         val now = System.currentTimeMillis()
         val title = "협업 현장 새 사진"
         val existing = dao.latestUnreadCollab(title, shareId, now - BATCH_WINDOW_MS)
@@ -50,8 +51,11 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
             )
             runCatching { dao.trimTo(KEEP_MAX) }
         }
-        return newCount
+        newCount
     }
+
+    /** 사진 두 장이 거의 동시에 오면(FCM 두 건) 둘 다 「기존 줄 없음」을 읽고 **두 줄**을 만든다 → 읽고-쓰기를 한 번에(§13③). */
+    private val photoBumpMutex = kotlinx.coroutines.sync.Mutex()
 
     /** 본문에서 「사진 N장」의 N 을 읽는다. 옛 줄(개수 없음)은 1 로 본다. */
     private fun parsePhotoCount(body: String?): Int =

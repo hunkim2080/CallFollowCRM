@@ -7,6 +7,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 협업 현장 진행 이벤트 폴링 + 알림 센터.
@@ -43,7 +44,13 @@ class CollabEventCenter(
         val dailyWage: Int? = null       // 보낼 금액(만원)
     )
 
-    suspend fun poll(context: Context) {
+    /** poll 은 60초 루프·앱 복귀(MainActivity.onResume)·ReminderWorker·FCM owner_event 네 군데서 불린다 —
+     *  둘이 겹치면 둘 다 옛 lastSeen 을 읽고 같은 이벤트를 두 번 띄운다 → 한 번에 하나만(§13③). */
+    private val pollMutex = kotlinx.coroutines.sync.Mutex()
+
+    suspend fun poll(context: Context) = pollMutex.withLock { pollLocked(context) }
+
+    private suspend fun pollLocked(context: Context) {
         val owner = preferences.bizPhone.trim()
         if (owner.isBlank()) return
         val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
@@ -94,6 +101,7 @@ class CollabEventCenter(
         // 폭주·묵은알림 방지:
         //   ① 6시간 지난 옛 진행 이벤트는 알림 X(이미 지난 출발/도착은 알려도 의미 없음 — 옛 테스트 이벤트 surface 차단).
         //   ② 앱이 한동안 꺼졌어도 한 폴당 최대 5개(최신순)만. 나머지는 조용히 lastSeen 넘김.
+        //   ③ FCM 이 먼저 띄운 같은 이벤트는 showCollabEvent 안의 게이트(CollabNotifyDedup)가 막는다 — 여기선 안 센다.
         val recentCutoff = System.currentTimeMillis() - 6 * 60 * 60 * 1000L
         val newOnes = infos.filter { it.createdAtMs > lastSeen && it.createdAtMs >= recentCutoff }.sortedBy { it.createdAtMs }
         for (u in newOnes.takeLast(5)) {

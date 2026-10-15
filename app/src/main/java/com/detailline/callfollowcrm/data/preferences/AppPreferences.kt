@@ -859,6 +859,12 @@ class AppPreferences(context: Context) {
     var collabEventLastSeenMs: Long
         get() = prefs.getLong("collab_event_last_seen_ms", 0L)
         set(value) { prefs.edit().putLong("collab_event_last_seen_ms", value).commit() }  // commit: 종료 시 유실→재알림 방지. (2026-08-11 알림 감사)
+    /** 🤝 협업 진행 알림을 **이미 띄운 열쇠**(「shareId|단계|event_id@시각」) — FCM 과 폴링이 같은 이벤트를
+     *  각각 들고 와도 둘째를 막는 기억. 셈·만료(24h)·상한은 domain/collab/CollabNotifyDedup 한 곳.
+     *  commit: 백그라운드 종료에도 보존(안 그러면 다음 폴이 또 띄운다). (2026-10-15 사장님 "출발이 왜 2번 찍히지") */
+    var collabNotifiedKeys: Set<String>
+        get() = prefs.getStringSet("collab_notified_keys", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("collab_notified_keys", value).commit() }
     /** 상담함 "협업 진행" 배너 밀어서 정리한 event_id 들. */
     var dismissedCollabEventIds: Set<String>
         get() = prefs.getStringSet("dismissed_collab_event_ids", emptySet()) ?: emptySet()

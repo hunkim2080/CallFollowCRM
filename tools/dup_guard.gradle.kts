@@ -153,6 +153,16 @@ val dupRules = listOf(
         instead = "CollabAssignmentLine.forJob(raw, customerId, jobDayStart) / .daysOfJob(jobDayStart, nDays)  (domain/collab/CollabAssignmentLine.kt)",
         homes = listOf("/domain/collab/")
     ),
+    // 🤝 협업 진행 알림(출발·도착·완료·수락·거절)을 **채널로 직접 쏘기**. (2026-10-15 사장님 "출발이 왜 2번 찍히지")
+    //   같은 이벤트를 FCM 과 폴링이 각각 띄워 센터에 두 줄씩 찍혔다 → 문을 showCollabEvent 하나로 모으고
+    //   그 안의 게이트(CollabNotifyDedup)가 거른다. 협업 진행 채널을 밖에서 직접 쓰면 게이트를 비켜가는 **둘째 문**이다.
+    //   지금 NotificationHelper 밖엔 0곳 — 새로 생기면 바로 막힌다.
+    DupRule(
+        id = "collab-event-notify",
+        regex = Regex("""CHANNEL_COLLAB_(DEPARTED|ARRIVED|COMPLETED|ACCEPTED|DECLINED)"""),
+        instead = "NotificationHelper.showCollabEvent(…)  (게이트 포함 · 셈은 domain/collab/CollabNotifyDedup.kt)",
+        homes = listOf("/service/NotificationHelper.kt")
+    ),
     // ③ 끌어서 자리 바꾸기 — 가격표와 접수서에 같은 셈이 두 벌이었다.
     DupRule(
         id = "drag-reorder",

@@ -709,7 +709,26 @@ object NotificationHelper {
         )
     }
 
-    /** 협업 진행 알림 — 다른 사장님이 공유 현장에서 출발/도착/완료를 누르면. */
+    /**
+     * 🤝 협업 진행 알림 **한 번만** 게이트 — 같은 이벤트를 FCM(즉시)과 owner-events 폴링이 **각각** 들고 와도
+     *   둘째는 여기서 멈춘다. (2026-10-15 사장님 "출발이 왜 2번 찍히지" — 센터에 22:35·22:36 두 줄)
+     *   셈은 CollabNotifyDedup(순수·테스트), 기억은 prefs.collabNotifiedKeys. synchronized = FCM 스레드와
+     *   폴링 코루틴이 **같은 순간** 와도 읽고-쓰기가 한 번에(§13③ 연타). 컨테이너가 아직 없으면 막지 않는다.
+     */
+    private val collabNotifyLock = Any()
+    private fun admitCollabEvent(context: Context, key: String): Boolean {
+        val prefs = prefsOf(context) ?: return true
+        synchronized(collabNotifyLock) {
+            val v = com.detailline.callfollowcrm.domain.collab.CollabNotifyDedup.admit(
+                prefs.collabNotifiedKeys, key, System.currentTimeMillis()
+            )
+            if (v.admit) prefs.collabNotifiedKeys = v.next
+            return v.admit
+        }
+    }
+
+    /** 협업 진행 알림 — 다른 사장님이 공유 현장에서 출발/도착/완료를 누르면.
+     *  부르는 길은 둘(RingGoFcmService collab_event · CollabEventCenter.poll)이지만 **문은 여기 하나** — 위 게이트가 거른다. */
     fun showCollabEvent(
         context: Context,
         eventId: String,
@@ -722,6 +741,8 @@ object NotificationHelper {
         reason: String? = null,   // 거절 사유(declined) — A 에게 "왜 거절했는지" 표시. (2026-07-08 사장님)
         auto: Boolean = false
     ) {
+        // 🚪 이미 띄운 이벤트(shareId|단계|event_id)면 그만 — 상태바·알림 센터·소리 전부 두 번째는 없다.
+        if (!admitCollabEvent(context, com.detailline.callfollowcrm.domain.collab.CollabNotifyDedup.key(shareId, kind, eventId))) return
         val notifId = famId(FAM_COLLAB, eventId.hashCode())
         // 📍 **그 현장 한 곳으로 보낸다.** (2026-09-28 사장님 "여기페이지로 왜보내지? 하는 느낌")
         //   「○○ 사장님이 출발했어요」를 누른 다음 궁금증은 **어디까지 왔나**인데,

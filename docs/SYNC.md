@@ -14390,3 +14390,12 @@ Fable 🧹3. 사장님 "고고"
 - 변경: isLikelyAd(AdHeuristics.kt) RE_GAMBLING 에 '손실(루징) 지급' 수법 추가 — "실시간 손실", "손실 N% 지급", "손실금/액 지급", "루징", "낙첨 지급". 한 곳(isLikelyAd→isInboxAd→inboxUnanswered)이라 상담함 목록·숫자 칩·아이콘 색 다 같이 해결(스팸이 답장안함에서 빠짐). 정밀도 가드: '손실' 단독(지급/실시간 없음)은 고객 유지. 테스트 +3케이스(실스팸 1 + 고객가드 2).
 - 폰 확인: 못 봄(서명). 테스트로 대신. 빌드·가드 7개 통과.
 - 다음 액션: 사장님 폰에서 그 00632... 국외발신 줄이 상담함 최근대화에서 빠지고 노란불 사라지는지 확인(다음 업로드분).
+
+## 2026-10-15 23:10 · android (Fable)
+협업 알림(출발·도착·완료)이 알림 센터에 **두 줄씩** 찍히던 것 — FCM 과 폴링이 같은 이벤트를 각자 띄움 → 문 하나·게이트 하나로. (사장님 두 폰 실기 "출발이 왜 2번 찍히지")
+- 원인(코드로 확정): 상대가 「출발」을 누르면 서버가 ① FCM `collab_event`(event_id 포함) 즉시 푸시 + ② 같은 이벤트를 `owner-events` 에 적재. 앱은 ①(RingGoFcmService:56) 과 ②(CollabEventCenter.poll:100, 60초·앱복귀·ReminderWorker·FCM owner_event 네 군데서 호출) **둘 다** `showCollabEvent` 를 부르는데, ① 은 「본 이벤트」를 아무 데도 안 적어 ② 의 `collabEventLastSeenMs` 가드가 같은 걸 새것으로 또 띄움. 상태바는 같은 notifId 라 덮여 하나 → **센터(NotificationLog.record)에만 두 줄**(22:35 FCM / 22:36 폴링). 폴링끼리도 겹치면(onResume 직접 호출 + syncAllOnce) lastSeen 을 둘 다 옛값으로 읽어 두 번(§13③). 「새 사진」 두 줄(13:27)은 17:24 커밋(사진 N장 묶기) **이전 빌드**의 옛 동작 + 묶기의 읽고-쓰기 레이스.
+- 변경: 새 순수 셈 `domain/collab/CollabNotifyDedup.kt`(열쇠 = shareId|단계|event_id, 24h 기억, 상한 300) + `NotificationHelper.showCollabEvent` 입구에 게이트 1곳(`admitCollabEvent`, synchronized, 기억 `prefs.collabNotifiedKeys` commit). `CollabEventCenter.poll` Mutex 직렬화. `AppNotificationRepository.bumpCollabPhoto` Mutex(사진 두 장 동시 도착 시 두 줄 방지). dup_guard `collab-event-notify`(18가지) — 협업 진행 채널로 직접 쏘기 금지. CLAUDE.md §12 표·§12-H 갱신. 서버 **안 건드림**(서버는 중복 발송 아님 — FCM 1 + 폴링 적재 1 은 설계대로, 앱이 합쳐야 했음).
+- 숫자: 협업 진행 알림 쏘는 곳 2곳(FCM·폴링) → 문 1곳(게이트) · 옛 표기(채널 직접) 0곳 · 테스트 1069건(CollabNotifyDedupTest +10, 재현 케이스 22:35/22:36·14:00 포함) · 빌드 EXIT=0 가드 7종 통과(dup 13/13 · size 35241 · style 2633 · rules 공용 29) · health 2026-10-15 줄 쌓음.
+- §12-K 표시·소비 지점 5곳 확인: ① 상태바 알림(같은 notifId 라 이미 하나 — 둬도 됨) ② 알림 센터 목록(observeAll — 줄 수만 줄어듦, 코드 그대로) ③ 🔔 배지(observeUnreadCount — 같음) ④ 홈 협업 업데이트 카드(HomeScreen 1217, 서버 todayUpdates 를 eventId 로 그림 — 원래 하나, 둬도 됨) ⑤ 소리(setOnlyAlertOnce — 둘째 호출 자체가 사라짐). 바꾼 것 0 · 둬도 됨 5.
+- 폰 확인: **못 봄**(S9+ 테스트폰 서명 불일치). 테스트 10건 + 빌드로 대신. 사장님 폰 다음 내부테스트에서: B 가 출발 → A 알림 센터에 「협업 현장 출발」 **한 줄**만.
+- 다음 액션: (android) 없음. (server) 없음 — 서버 중복 발송 아님.
