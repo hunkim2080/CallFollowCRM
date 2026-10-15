@@ -36,6 +36,24 @@ object IssuedDocAssign {
     fun unmatched(docs: List<IssuedDocEntity>, jobDays: Set<Long>): List<IssuedDocEntity> =
         docs.filter { val d = docDayMs(it); d == null || d !in jobDays }
 
+    /**
+     * 이 건 카드에 보일 문서 — 날짜가 같은 것 + (이 건이 **맨 처음 건(1차)**이면) 날짜 없는/안 맞는 **떠돌이 문서까지**.
+     *   (2026-10-15 사장님: "날짜 없는 견적서는 1차 안으로. 문서는 건 안에 있어야 위계가 맞다.")
+     *   날짜 없는 견적서처럼 어느 건과도 안 맞는 문서를 고객 단위로 띄우지 않고 **맨 처음 건**에 모은다.
+     *   맨 처음 건(1차)이 없으면(건이 아예 없거나 전부 취소) 호출 측이 '이 고객 문서'로 따로 띄운다.
+     */
+    fun forJob(
+        docs: List<IssuedDocEntity>,
+        jobDayMs: Long?,
+        isEarliest: Boolean,
+        allJobDays: Set<Long>
+    ): List<IssuedDocEntity> {
+        val matched = forJobDay(docs, jobDayMs)
+        if (!isEarliest) return matched
+        val orphans = unmatched(docs, allJobDays)
+        return (matched + orphans).distinctBy { it.id }
+    }
+
     /** 모든 건의 시공일(0시) 집합 — unmatched 판단용. */
     fun jobDaySet(jobs: List<JobEntity>): Set<Long> =
         jobs.mapNotNull { jobDayMs(it) }.toSet()

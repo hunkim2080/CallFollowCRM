@@ -161,39 +161,53 @@ class CustomerDetailViewModel(
     //   지난 건을 골라도 금액·계약금·잔금·주소를 고칠 수 있어야 한다.
     //   jobId 가 null 이면 '지금 건'(=고객 카드 경로)이라 기존 함수를 그대로 쓴다.
 
-    fun setJobTotalAmount(jobId: Long, won: Long?) = viewModelScope.launch {
+    /**
+     * 이 건의 **총액·계약금을 한 번에** 저장. (2026-10-15 사장님 — 금액 창이 계약금 → 총액 → 잔금 안내형으로)
+     *   전엔 총액·계약금이 각각 다른 launch 였다 — 둘을 연달아 쓰면 **읽고-쓰기가 겹쳐 한쪽이 지워질 수 있다**(lost update).
+     *   잔금 칸은 비운다(총액이 바뀌면 SettlementCalc 가 총액−계약금으로 다시 센다 — stale 잔금 방지).
+     */
+    fun setJobAmounts(jobId: Long, totalWon: Long?, depositWon: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            SaveGuard.run("총금액", _toast) {
-                val j = container.jobRepository.findById(jobId) ?: return@run
+            val stamped = SaveGuard.run("금액", _toast) {
+                val j = container.jobRepository.findById(jobId) ?: return@run false
+                val now = System.currentTimeMillis()
+                // 💵 계약금을 적으면 받은 것(Q3) — 규칙은 SettlementCalc.depositPaidAfterSave 한 곳. 잔금 받음은 안 건드린다.
+                val depositPaidAt = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+                    .depositPaidAfterSave(depositWon, j.depositPaidAt, now)
                 container.jobRepository.updateMoney(
                     jobId = jobId,
-                    totalAmount = won,
-                    depositAmount = j.depositAmount,
-                    depositPaidAt = j.depositPaidAt,
+                    totalAmount = totalWon,
+                    depositAmount = depositWon,
+                    depositPaidAt = depositPaidAt,
                     balanceAmount = null,          // 총액이 바뀌면 잔금은 다시 계산되게 비운다
-                    balancePaidAt = j.balancePaidAt
+                    balancePaidAt = j.balancePaidAt,
+                    now = now
                 )
-                // 고객 카드(공유칸)를 **대표 건 기준으로** 다시 맞춘다 — 한 방향(jobs→customers). 역방향 미러 아님. (2026-10-07)
-                container.jobRepository.recomputeMirror(customerId, System.currentTimeMillis())
-            }
+                // (updateMoney 안에서 고객 카드(공유칸)도 대표 건 기준으로 같이 맞춰진다 — 한 방향 jobs→customers.)
+                depositPaidAt != null && j.depositPaidAt == null
+            } ?: false
+            if (stamped) _toast.value = "계약금 받음으로 기록했어요"
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
-    fun setJobDepositAmount(jobId: Long, won: Long?) = viewModelScope.launch {
+    /**
+     * 건이 없는 고객(상담 단계)의 총액·계약금 — 금액 창의 고객 경로. 계약금 받음 규칙은 건 경로와 **같은 한 곳**(depositPaidAfterSave).
+     */
+    fun setCustomerAmounts(totalWon: Long?, depositWon: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            SaveGuard.run("계약금", _toast) {
-                val j = container.jobRepository.findById(jobId) ?: return@run
-                container.jobRepository.updateMoney(
-                    jobId = jobId,
-                    totalAmount = j.totalAmount,
-                    depositAmount = won,
-                    depositPaidAt = j.depositPaidAt,
-                    balanceAmount = null,
-                    balancePaidAt = j.balancePaidAt
-                )
-                // 고객 카드(공유칸)를 대표 건 기준으로 다시 맞춘다 — 한 방향(jobs→customers). (2026-10-07)
-                container.jobRepository.recomputeMirror(customerId, System.currentTimeMillis())
-            }
+            val stamped = SaveGuard.run("금액", _toast) {
+                val c = container.customerRepository.findById(customerId) ?: return@run false
+                val now = System.currentTimeMillis()
+                val depositPaidAt = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+                    .depositPaidAfterSave(depositWon, c.depositPaidAt, now)
+                if (totalWon != c.totalAmount) container.customerRepository.updateTotalAmount(customerId, totalWon)
+                if (depositWon != c.depositAmount) container.customerRepository.updateDepositAmount(customerId, depositWon)
+                if (depositPaidAt != c.depositPaidAt) container.customerRepository.updateDepositPaidAt(customerId, depositPaidAt)
+                depositPaidAt != null && c.depositPaidAt == null
+            } ?: false
+            if (stamped) _toast.value = "계약금 받음으로 기록했어요"
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
@@ -227,7 +241,7 @@ class CustomerDetailViewModel(
 
     /**
      * **그 건**에 시공 날짜+기간 저장 — 대표 건이 아니어도 그 건에 쓴다. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
-     *   돈은 건별(setJobTotalAmount 등)인데 날짜만 고객(대표) 경로였다 → 2차를 보며 잡으면 1차로 갔다.
+     *   돈은 건별(setJobAmounts 등)인데 날짜만 고객(대표) 경로였다 → 2차를 보며 잡으면 1차로 갔다.
      */
     fun setJobSchedule(jobId: Long, startMs: Long, days: Int) = viewModelScope.launch {
         withContext(NonCancellable) {
@@ -257,23 +271,28 @@ class CustomerDetailViewModel(
         onDone(id)
     }
 
-    fun addNewJob(startMs: Long, days: Int, onDone: (Long) -> Unit = {}) {
+    /**
+     * 새 건 쌓기 — 프로토 `s_newjob`(시공일 + 현장 주소 + 총 금액). 지금 건은 **손대지 않는다.** (2026-09-17 / 2026-10-15 주소·금액 추가)
+     *   주소·총액은 **그 새 건에** 들어간다(고객 공유칸 아님 — 2차 주소가 1차로 새지 않게).
+     */
+    fun addNewJob(startMs: Long, days: Int, address: String? = null, totalWon: Long? = null, onDone: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val day = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(startMs)
-            val id = runCatching {
+            // 🤫 실패를 삼키지 않는다 — 새 건이 안 생겼는데 "추가했어요"가 뜨면 안 된다. (§13①)
+            val id = SaveGuard.run("새 시공", _toast) {
                 container.jobRepository.addJob(
                     customerId = customerId,
                     scheduledWorkDate = day,
                     scheduledWorkMinutes = null,
                     scheduledWorkDays = days.coerceAtLeast(1),
-                    address = null,          // 현장이 다를 수 있으니 안 물려준다 — 건마다 따로 적는다
-                    totalAmount = null,
+                    address = address?.trim()?.takeIf { it.isNotBlank() },   // 현장이 다를 수 있으니 고객 주소를 안 물려준다 — 건마다 따로
+                    totalAmount = totalWon?.takeIf { it > 0L },
                     depositAmount = null,
                     depositPaidAt = null,
                     now = now
                 )
-            }.getOrDefault(0L)
+            } ?: return@launch
             // 0 = 안 만들어짐(그 날 그 현장이 이미 있음). 조용히 넘어가지 않는다. (2026-09-28)
             if (id <= 0L) _toast.value = "그 날은 이미 잡혀 있어요 — 일정에서 확인해주세요"
             onDone(id)
@@ -387,27 +406,36 @@ class CustomerDetailViewModel(
     /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). 한 현장 최대 [sitePhotoMax]장(로컬+서버 합산). */
     fun addSitePhotos(uris: List<android.net.Uri>, jobId: Long? = null) = viewModelScope.launch {
         if (uris.isEmpty()) return@launch
-        val current = sitePhotos.value.size + _teamPhotos.value.size
-        val room = (sitePhotoMax - current).coerceAtLeast(0)
+        // 🔴 **어느 건의 사진인지** 붙인다. 안 붙이면 1차·2차 사진이 안 갈린다.
+        //   지금 보고 있는 건(없으면 대표 건). (2026-09-18 사장님: "현장사진도 1차 2차 개별로")
+        val repId = runCatching { container.jobRepository.representativeJobId(customerId) }.getOrNull()
+        val jid = jobId ?: repId
+        // 📸 한도는 **내 사진만** 센다 — 협업 사장 사진(_teamPhotos)은 그 사장의 20장(각 사장마다 따로).
+        //   (2026-10-15 사장님: "나 20장, 그 사장 20장. 각 사장마다 20장." 전엔 내 것+협업 것을 **합쳐** 20이라,
+        //    둘이 합쳐 20을 넘으면 내 사진을 못 올렸다 — "19장 중 5장만" 신고의 진짜 원인.)
+        //   그리고 **이 현장(건)** 것만("한 현장 20장") — 다른 차수 사진은 안 센다. (옛 사진=jobId 없음 → 대표 건에 포함)
+        val ownOnJob = sitePhotos.value.count { it.jobId == jid || (it.jobId == null && jid != null && jid == repId) }
+        val room = (sitePhotoMax - ownOnJob).coerceAtLeast(0)
         if (room == 0) {
-            _toast.value = "한 현장에 사진은 ${sitePhotoMax}장까지예요"
+            _toast.value = "내 사진은 한 현장에 ${sitePhotoMax}장까지예요"
             return@launch
         }
         val toAdd = uris.take(room)
+        val capped = uris.size - toAdd.size   // 내 20장이 차서 아예 안 넣은 수
         var ok = 0
         withContext(NonCancellable) {
-            // 🔴 **어느 건의 사진인지** 붙인다. 안 붙이면 1차·2차 사진이 안 갈린다.
-            //   지금 보고 있는 건(없으면 대표 건). (2026-09-18 사장님: "현장사진도 1차 2차 개별로")
-            val jid = jobId ?: runCatching {
-                container.jobRepository.representativeJobId(customerId)
-            }.getOrNull()
             toAdd.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it, jid)) ok++ }
         }
+        // 🐞 복사가 실패한 수 — 전엔 성공 장수만 세고 **실패 장수를 안 알려서** 사진이 조용히 사라졌다.
+        //   (2026-10-15 신고) 이제 **실패 장수를 화면에 또렷이 말한다** + 실패 사유는 로그로 남긴다(SitePhotoRepository). §13①
+        val failed = toAdd.size - ok
         // 웹 로그인 상태면 방금 추가한 사진을 서버로도 바로 올림(PC 웹에 즉시 반영). 아니면 매니저가 조용히 skip.
         if (ok > 0) container.ownerPhotoUploadManager.kick(viewModelScope)
         _toast.value = when {
-            ok == 0 -> "사진을 추가하지 못했어요"
-            uris.size > room -> "${sitePhotoMax}장까지만 — ${ok}장 추가했어요"
+            ok == 0 -> "사진을 못 올렸어요 — 잠시 후 다시 시도해주세요"
+            failed > 0 && capped > 0 -> "${ok}장 추가 · ${failed}장 실패 · ${capped}장은 내 ${sitePhotoMax}장 초과"
+            failed > 0 -> "${toAdd.size}장 중 ${ok}장만 올라갔어요 · ${failed}장 실패 (다시 시도해주세요)"
+            capped > 0 -> "내 사진은 ${sitePhotoMax}장까지 — ${ok}장 추가 (${capped}장은 자리 없음)"
             else -> "현장 사진 ${ok}장 추가했어요"
         }
     }
@@ -613,18 +641,11 @@ class CustomerDetailViewModel(
 
     fun setBalancePaid(paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            val at = if (paid) System.currentTimeMillis() else null
-            container.customerRepository.updateBalancePaidAt(customerId, at)
-            // 대표 **건 전표**에도 같은 처리 — 고객 카드만 찍히면 건 탭의 '완료' 표시가 틀린다.
-            //   돈 미러는 mutate 가 맡지만 완료일은 미러 대상이 아니라서 여기서 직접. (2026-09-18)
-            if (paid) {
-                // 🤫 **여기가 Fable 1순위였다.** 고객 카드엔 '받음'이 찍히는데 이 미러가 조용히
-                //   실패하면 건 전표는 '미수' 로 남아 다음 날 잘못된 미수 알람이 뜬다. (2026-10-02)
-                SaveGuard.run("잔금 받음(건 전표)", _toast) {
-                    container.jobRepository.representativeJobId(customerId)?.let { jid ->
-                        container.jobRepository.setBalancePaid(jid, at)
-                    }
-                }
+            // 🤫 **여기가 Fable 1순위였다.** 고객 카드엔 '받음'이 찍히는데 건 미러가 조용히
+            //   실패하면 건 전표는 '미수' 로 남아 다음 날 잘못된 미수 알람이 뜬다. (2026-10-02)
+            // 💵 도장은 WorkCompletionManager.setBalancePaid 한 곳 — 카드·대표 건을 같이 찍고, 되돌릴 때도 같이. (2026-10-15)
+            SaveGuard.run("잔금 받음", _toast) {
+                container.workCompletionManager.setBalancePaid(customerId, if (paid) System.currentTimeMillis() else null)
             }
             container.autoCategoryClassifier.reclassify(customerId)
         }
@@ -639,11 +660,7 @@ class CustomerDetailViewModel(
         }
     }
 
-    fun setBalancePaidAt(epochMs: Long) = viewModelScope.launch {
-        withContext(NonCancellable) {
-            container.customerRepository.updateBalancePaidAt(customerId, epochMs)
-        }
-    }
+    // (setBalancePaidAt — 받은 날짜만 고치던 함수 — 부르는 곳이 없어 지움. 잔금 도장은 WorkCompletionManager.setBalancePaid 한 곳. 2026-10-15)
 
     fun setBalanceAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
@@ -897,7 +914,8 @@ class CustomerDetailViewModel(
                 //   그 건의 돈을 고객 카드에 넣어둔 상태라, 여기서 지우면 남은 건 돈이 날아간다. (2026-09-18)
                 val stillHasJob = runCatching { container.jobRepository.hasScheduledJob(customerId) }.getOrDefault(false)
                 if (!stillHasJob) {
-                    container.customerRepository.updateBalancePaidAt(customerId, null)
+                    // 잔금 도장 풀기도 WorkCompletionManager 한 곳(건이 없으니 카드만 풀린다). (2026-10-15 balance-paid-stamp 가드)
+                    container.workCompletionManager.setBalancePaid(customerId, null)
                     container.customerRepository.updateDepositPaidAt(customerId, null)
                     container.customerRepository.updateTotalAmount(customerId, null)
                     container.customerRepository.updateDepositAmount(customerId, null)

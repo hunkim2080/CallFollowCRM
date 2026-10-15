@@ -208,6 +208,85 @@ class SettlementCalcTest {
         assertEquals(1_200_000, SettlementCalc.receivedInRange(1_300_000, 100_000, 100L, null, 200L, 150L, 250L))
     }
 
+    // ── 금액 입력 창 셈(planAmounts · wonFromMan) — 계약금 → 총액 → 잔금 자동 (2026-10-15 사장님) ──
+
+    @Test fun `planAmounts - 둘 다 적으면 잔금 = 총액 - 계약금`() {
+        val p = SettlementCalc.planAmounts(totalWon = 900_000, depositWon = 300_000)
+        assertEquals(600_000L, p.balanceWon)
+        assertTrue(p.canSave)
+        assertFalse(p.depositOverTotal)
+        // 창이 보여준 잔금 = 저장 뒤 카드(rowOfFields)의 잔금 — 같은 자.
+        assertEquals(p.balanceWon, SettlementCalc.rowOfFields(1L, 900_000, 300_000, null, null, null).balanceAmount)
+    }
+
+    @Test fun `planAmounts - 계약금만 적어도 저장은 되고 잔금은 계산 불가(null)`() {
+        val p = SettlementCalc.planAmounts(totalWon = null, depositWon = 300_000)
+        assertEquals(300_000L, p.depositWon)
+        assertEquals(null, p.totalWon)
+        assertEquals(null, p.balanceWon)
+        assertTrue(p.canSave)
+    }
+
+    @Test fun `planAmounts - 총액만 적으면 잔금 = 총액`() {
+        val p = SettlementCalc.planAmounts(totalWon = 500_000, depositWon = null)
+        assertEquals(500_000L, p.balanceWon)
+        assertTrue(p.canSave)
+    }
+
+    @Test fun `planAmounts - 계약금이 총액보다 크면 저장 막고 안내`() {
+        val p = SettlementCalc.planAmounts(totalWon = 300_000, depositWon = 900_000)
+        assertTrue(p.depositOverTotal)
+        assertFalse(p.canSave)
+        assertEquals(null, p.balanceWon)
+    }
+
+    @Test fun `planAmounts - 0원·음수는 안 적은 것(null)`() {
+        val p = SettlementCalc.planAmounts(totalWon = 0, depositWon = -5)
+        assertEquals(null, p.totalWon)
+        assertEquals(null, p.depositWon)
+        assertEquals(null, p.balanceWon)
+        assertTrue(p.canSave)   // 둘 다 비움 = 지우기 저장
+    }
+
+    @Test fun `planAmounts - 계약금 = 총액이면 잔금 0 (완납 가능)`() {
+        val p = SettlementCalc.planAmounts(totalWon = 300_000, depositWon = 300_000)
+        assertEquals(0L, p.balanceWon)
+        assertTrue(p.canSave)
+        // 계약금 받음만 찍혀도 받을 돈 0 → 완납.
+        val r = SettlementCalc.rowOfFields(1L, 300_000, 300_000, 1L, null, null)
+        assertEquals(0L, r.outstanding)
+        assertTrue(r.isPaidOff)
+    }
+
+    @Test fun `wonFromMan - 만원 칸을 안 바꿨으면 원래 원 값 그대로(절삭 방지)`() {
+        assertEquals(375_000L, SettlementCalc.wonFromMan(37L, 375_000L))   // 37만 표시 그대로 → 375,000 유지
+        assertEquals(400_000L, SettlementCalc.wonFromMan(40L, 375_000L))   // 바꿨으면 만원→원
+        assertEquals(900_000L, SettlementCalc.wonFromMan(90L, null))        // 처음 적음
+        assertEquals(null, SettlementCalc.wonFromMan(null, 375_000L))      // 비움 = 지움
+        assertEquals(null, SettlementCalc.wonFromMan(0L, 0L))
+    }
+
+    @Test fun `depositPaidAfterSave - 계약금 적으면 받음, 이미 찍혔으면 그대로, 지우면 풀림`() {
+        assertEquals(500L, SettlementCalc.depositPaidAfterSave(100_000, null, 500L))      // 새로 찍음
+        assertEquals(123L, SettlementCalc.depositPaidAfterSave(100_000, 123L, 500L))      // 멱등 — 옛 시각 유지
+        assertEquals(null, SettlementCalc.depositPaidAfterSave(null, 123L, 500L))         // 지우면 해제
+        assertEquals(null, SettlementCalc.depositPaidAfterSave(0, 123L, 500L))
+        assertEquals(null, SettlementCalc.depositPaidAfterSave(null, null, 500L))
+    }
+
+    @Test fun `hasMoney(건) - 총액·계약금·잔금 다 없으면 false, 하나라도 있으면 true`() {
+        fun job(t: Long? = null, d: Long? = null, b: Long? = null) =
+            com.detailline.callfollowcrm.data.local.entity.JobEntity(
+                id = 1L, customerId = 1L, scheduledWorkDate = 0L, scheduledWorkDays = 1,
+                totalAmount = t, depositAmount = d, balanceAmount = b, workCompletedAt = 10L,
+                createdAt = 0L, updatedAt = 0L
+            )
+        assertFalse(SettlementCalc.hasMoney(job()))                   // 완료만 찍힘 → 「완료 · 금액 미입력」
+        assertTrue(SettlementCalc.hasMoney(job(t = 500_000)))
+        assertTrue(SettlementCalc.hasMoney(job(d = 100_000)))
+        assertTrue(SettlementCalc.hasMoney(job(b = 100_000)))
+    }
+
     @Test fun `receivedInRange - CustomerEntity 오버로드는 raw 와 동일`() {
         // 헬퍼 기본값: depositPaidAt=1000, balancePaidAt=2000.
         val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, balance = 700_000, balancePaid = true)

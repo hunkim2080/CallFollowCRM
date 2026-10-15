@@ -651,9 +651,15 @@ internal fun AddressEditDialog(
 /**
  * 이 건은 **마무리됐나** — 잔금을 받았으면 마무리. (2026-09-18 사장님 확정 · 프로토 `closed()`)
  *   잔금이 애초에 없는 건은 완료 표시만으로 마무리로 본다.
+ *   🔒 **잔금·완납은 SettlementCalc 한 자**로 — (2026-10-15 사장님 "완납 안 눌렀는데 완료")
+ *     전엔 `balancePaidAt != null` 만 보고 마무리로 쳐서 **돈이 하나도 없는 건**(카드에서 번진 받음 도장)도
+ *     「완료」로 접혔고, 저장된 balanceAmount 만 봐서 총액 있고 잔금 칸이 비면 미수인데도 접혔다.
+ *     이제 완납(isPaidOff = 총액>0 이고 다 받음)·잔금(총액−계약금)을 정산과 같은 셈으로 본다.
  */
-internal fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
-    j.balancePaidAt != null || (j.workCompletedAt != null && (j.balanceAmount ?: 0L) <= 0L)
+internal fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean {
+    val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
+    return settle.isPaidOff || (j.workCompletedAt != null && settle.balanceAmount <= 0L)
+}
 
 /**
  * 이미 '고객'으로 확정된 사람 — 이름 옆 작은 초록 배지. (2026-10-07 사장님 "헤더토글도 정리")
@@ -719,73 +725,7 @@ internal fun CustomerKindSection(
     }
 }
 
-@Composable
-internal fun JobTab(
-    nth: String,
-    sub: String,
-    on: Boolean,
-    dashed: Boolean = false,
-    /** '지난 건' 묶음 — 진행 중인 건과 구분되게 회색으로. (2026-09-18 프로토 `.chip.past`) */
-    muted: Boolean = false,
-    /** 건 종류 색 점 — 완료=회색·예정 시공=초록(달력 범례와 같은 색). null = 안 그림(＋·지난건). (2026-10-07) */
-    accent: Color? = null,
-    /** 세로 스택에선 fillMaxWidth 를 넘겨 한 줄 가득 차게. (2026-10-14 재설계 4단계) */
-    modifier: Modifier = Modifier,
-    /** 첫 줄 **오른쪽 끝** 작은 글 — 완료 건의 「60만원 · 완납」(프로토 `.fold-sum`). (2026-10-15 Fable §4-4) */
-    trailing: String? = null,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
-    val subColor = if (muted && on) Color(0xFFD6DBE1) else TossTextTertiary
-    Column(
-        modifier
-            .clip(shape)
-            .background(
-                when {
-                    muted && on -> Color(0xFF4E5968)
-                    on -> Color.White
-                    else -> TossGrayBg
-                }
-            )
-            .then(
-                if (on && !muted) Modifier.border(1.5.dp, TossBlue, shape)
-                else if (dashed) Modifier.border(1.dp, TossBlue.copy(alpha = 0.45f), shape)
-                else Modifier
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 9.dp)
-    ) {
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            if (accent != null) {
-                Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(accent))
-                Spacer(Modifier.width(5.dp))
-            }
-            Text(
-                nth,
-                fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-                color = when {
-                    muted && on -> Color.White
-                    dashed -> TossBlue
-                    on -> TossTextPrimary
-                    else -> TossTextTertiary
-                }
-            )
-            if (trailing != null) {
-                Spacer(Modifier.weight(1f))
-                Text(trailing, style = AppType.caption, fontWeight = FontWeight.Bold, color = subColor)
-            }
-        }
-        Spacer(Modifier.height(2.dp))
-        // 둘째 줄 = 날짜 · 현장 라벨 — 안 펼치고도 「아 그 현장」. 길면 한 줄로 줄인다. (2026-10-15 사장님 #14)
-        Text(
-            sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = subColor,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-        )
-    }
-}
-
+// (JobTab 제거 — 건 탭/스택 행. 이제 건마다 자기 카드(CustomerDetailJobCard.kt JobCardHead). 2026-10-15)
 
 /**
  * 보낸 문서(견적서·접수서) 목록 — 차수 카드 안 + '이 고객 문서(미지정)' 두 곳에서 같은 행을 쓴다.

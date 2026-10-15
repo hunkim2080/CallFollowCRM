@@ -191,14 +191,17 @@ fun CustomerDetailScreen(
     var datePickerOpen by remember { mutableStateOf(false) }
     /** 날짜 고르기가 '새 건 만들기' 로 열렸나. false = 지금 건의 날짜를 고치는 것. (2026-09-17) */
     var addingNewJob by remember { mutableStateOf(false) }
+    /** ➕ 새 시공 시트(프로토 `s_newjob`: 시공일+주소+총액) — 열림 · 시트에서 고른 날짜/기간. 달력(위 datePickerOpen)이 돌려준다. (2026-10-15) */
+    var newJobSheetOpen by remember { mutableStateOf(false) }
+    var newJobStart by remember { mutableStateOf<Long?>(null) }
+    var newJobDays by remember { mutableStateOf(1) }
     /** 날짜 고치기가 **어느 건**을 고치는지. null = 고객(대표) 경로. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
      *   돈(amountEditJobId)처럼 날짜도 건별로 — 2차를 보며 날짜를 잡으면 그 2차에 쓴다. */
     var dateEditJobId by remember { mutableStateOf<Long?>(null) }
     var dateEditStart by remember { mutableStateOf<Long?>(null) }   // 그 건의 현재 예약일(달력 미리채움·축하 판단용)
     var dateEditDays by remember { mutableStateOf(1) }              // 그 건의 현재 기간
     var dateEditMinutes by remember { mutableStateOf<Int?>(null) }  // 그 건의 현재 시간(시간창 미리채움용)
-    // 건(件) 탭에서 고른 지난 시공. null = 지금 건(대표 건)을 보는 중. (2026-09-17 B안)
-    var selectedPastJobId by remember(customer?.id) { mutableStateOf<Long?>(null) }
+    // (selectedPastJobId 제거 — 건 탭에서 하나를 고르던 상태. 이제 건마다 자기 카드가 다 보인다. 2026-10-15)
     // 빈 메모 카드를 폈나 — 빈 공백 줄이려 접어두고, 누르면 펼친다. (2026-10-07 사장님 "허전해")
     var memoExpanded by remember(customer?.id) { mutableStateOf(false) }
     // 🗑 취소/빈 '지난 건' 삭제 확인 대상. (2026-10-06 사장님)
@@ -304,6 +307,8 @@ fun CustomerDetailScreen(
         uri?.let { viewModel.attachManualRecording(context, it) }
     }
 
+    // 시트(새 시공 잡기)는 화면 위 인라인 오버레이 — 다른 시트(AppSheet)와 같은 방식. Box 가 그 자리를 준다.
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
@@ -393,22 +398,31 @@ fun CustomerDetailScreen(
                 Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
             ) {
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    // 고객온도 점 제거 (2026-06-14 사장님: 온도 더 안 씀 — 통화 후 카드에서 뺀 것과 일관).
-                    Text(
-                        headerName, fontSize = if (hasName) 22.sp else 20.sp,
-                        fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
-                        letterSpacing = (-0.6).sp, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        // 이름이 길면 줄여서(…) 보이되, 옆 배지·딱지를 밀어내지 않게 fill=false + 뒤에 Spacer(weight).
-                        //   (2026-09-20 사장님 / 2026-10-07 이름 옆 「고객」 배지 추가)
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    // 기본이 '고객' — 이름 옆 작은 초록 배지. 비고객일 때만 숨긴다(깔끔하게). (2026-10-15 사장님)
-                    if (!nonCustomer) {
-                        Spacer(Modifier.width(6.dp))
-                        com.detailline.callfollowcrm.presentation.screen.customer.ConfirmedCustomerBadge()
+                    // 🔧 이름+「고객」배지 = **왼쪽 한 그룹**(weight 1)으로 묶는다. 이 그룹이 남는 공간을 전부 먹어
+                    //   상태 딱지·수정 버튼은 항상 **오른쪽 끝**에 붙는다. (2026-10-15 사장님 "텍스트 정렬 깨진거")
+                    //   ❌ 전엔 이름 Text 와 그 뒤 Spacer 에 **weight 를 둘 다** 줘서 남는 공간을 반반씩 나눴다 →
+                    //      이름이 짧으면 배지가 가운데로 뜨고 오른쪽 딱지가 끝에 안 붙었다(정렬 깨짐).
+                    androidx.compose.foundation.layout.Row(
+                        Modifier.weight(1f),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        // 고객온도 점 제거 (2026-06-14 사장님: 온도 더 안 씀 — 통화 후 카드에서 뺀 것과 일관).
+                        Text(
+                            headerName, fontSize = if (hasName) 22.sp else 20.sp,
+                            fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                            letterSpacing = (-0.6).sp, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            // 이름이 길면 줄여서(…) — 그룹 안에서 배지를 밀어내지 않게 fill=false.
+                            //   (2026-09-20 사장님 / 2026-10-07 이름 옆 「고객」 배지 추가)
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        // 기본이 '고객' — 이름 옆 작은 초록 배지. 비고객일 때만 숨긴다(깔끔하게). (2026-10-15 사장님)
+                        if (!nonCustomer) {
+                            Spacer(Modifier.width(6.dp))
+                            com.detailline.callfollowcrm.presentation.screen.customer.ConfirmedCustomerBadge()
+                        }
                     }
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
                     // 상태 딱지(예약/잔금미수/완료 등) — 고객관리와 같은 계산, 어디서나 따라다니게. (2026-09-03 사장님)
                     com.detailline.callfollowcrm.presentation.component.CustomerStatusTag(
                         com.detailline.callfollowcrm.presentation.component.customerStatusOf(c)
@@ -484,12 +498,14 @@ fun CustomerDetailScreen(
             val repJobId = allJobsForTabs.firstOrNull { j ->
                 j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } == repDay && repDay != null
             }?.id
-            val shownJobId = selectedPastJobId ?: repJobId
+            // 대표(기본) 건 — 전엔 탭에서 안 고르면 이 건의 카드 한 장이 떴다. 이제 모든 건이 카드로 다 보이고,
+            //   **고객 단위**인 것(팀원 사진·메모·서버 사진 되살리기·A/S 줄·옛 사진)만 이 건 카드에 붙는다. (2026-10-15)
+            val primaryJobId = repJobId
                 ?: com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(
                     allJobsForTabs.sortedBy { it.scheduledWorkDate ?: 0L },
                     DateTimeUtils.startOfDay(System.currentTimeMillis())
                 )?.id
-            val shownJob = allJobsForTabs.firstOrNull { it.id == shownJobId }
+            val hasJobs = allJobsForTabs.isNotEmpty()
 
             // 발행 문서(견적서·접수서) — 탭을 없애고 **각 차수 카드 안**으로. (2026-10-14 사장님)
             //   시공접수서는 고객 번호에만 묶여 있어 차수 꼬리표가 없다 → 시공예정일(workDateMs)로 그 건에 맞춘다.
@@ -543,8 +559,9 @@ fun CustomerDetailScreen(
             val extractedAddress by viewModel.extractedAddress.collectAsState()
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             val ctx = LocalContext.current
-            // 🔴 주소도 **그 건(job)** 것을 보여준다 — 2차를 보면 2차 주소. 없으면 고객 주소로 폴백. (2026-10-07)
-            val manualAddress = (shownJob?.address?.takeIf { it.isNotBlank() } ?: c.address)?.takeIf { it.isNotBlank() }
+            // 🔴 건이 있으면 주소는 **그 건 카드 안**(JobDetailCard 가 job.address 를 본다). 여기(독립 주소 카드)는
+            //   건이 없는 상담 단계만 그리므로 고객 주소다. (2026-10-07 건별 주소 / 2026-10-15 건마다 카드)
+            val manualAddress = c.address?.takeIf { it.isNotBlank() }
             // 🔴 표시는 **사장님이 확인해 저장한 주소만**. (2026-09-16 사장님 "끄기로 해줘")
             //   예전엔 `manualAddress ?: extractedAddress` 였고, 아래 LaunchedEffect 가 감지된 주소를
             //   **묻지도 않고 저장**까지 했다. 협업 중이면 그 주소가 상대 사장님 폰에까지 전파됐다.
@@ -583,6 +600,8 @@ fun CustomerDetailScreen(
                 }.getOrDefault(false)
             }
             var showAddressDialog by remember { mutableStateOf(false) }
+            /** 주소 수정 창이 **어느 건**을 고치는지. null = 고객(상담 단계) 경로. 돈·날짜처럼 주소도 건별로. (2026-10-15) */
+            var addressEditJobId by remember { mutableStateOf<Long?>(null) }
             /**
              * 🔧 **눌러봐도 아무 일 안 생기게.** (2026-09-27 사장님)
              *   "처음 보면 뭔지 나처럼 다 눌러볼 것 같아. 아는 사람에겐 직관적이지만
@@ -714,7 +733,7 @@ fun CustomerDetailScreen(
             //      주소카드가 위로 **튀어나와** UI 가 확 바뀌었다(2026-10-08 사장님 "협업 누르면 예전 ui로 바뀌네").
             //      → 건이 있으면 **어느 탭에서도** 독립카드를 안 띄운다(주소는 일정·정산 건 카드에만).
             //      상담 단계(건 없음)에선 그대로 이 카드가 유일한 주소 표시 — 탭 바꿔도 안 변한다.
-            val addrInJobCard = shownJob != null
+            val addrInJobCard = hasJobs
             if (addrInJobCard) {
                 // 주소는 '일정·정산' 그 건 카드 안에 그린다(아래). 여기선 안 그림(상담 단계만 여기).
             } else if (displayAddr != null) {
@@ -727,7 +746,7 @@ fun CustomerDetailScreen(
                         .clip(RoundedCornerShape(18.dp))
                         .background(Brush.linearGradient(listOf(AppTheme.colors.primaryBg, Color.White)))
                         .border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(18.dp))
-                        .clickable(interactionSource = addrInteraction, indication = null) { showAddressDialog = true }
+                        .clickable(interactionSource = addrInteraction, indication = null) { addressEditJobId = null; showAddressDialog = true }
                         .padding(17.dp)
                 ) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -797,7 +816,7 @@ fun CustomerDetailScreen(
                             androidx.compose.foundation.layout.Box(
                                 Modifier.weight(2f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
                                     .clickable {
-                                        if (shownJobId != null) viewModel.setJobAddress(shownJobId, extractedAddress)
+                                        if (primaryJobId != null) viewModel.setJobAddress(primaryJobId, extractedAddress)
                                         else viewModel.updateManualAddress(extractedAddress)
                                     }
                                     .padding(vertical = 11.dp),
@@ -806,11 +825,11 @@ fun CustomerDetailScreen(
                         }
                         Spacer(Modifier.height(6.dp))
                         Text("직접 고치려면 여기를 누르세요", fontSize = 11.sp, color = TossTextTertiary,
-                            modifier = Modifier.clickable { showAddressDialog = true })
+                            modifier = Modifier.clickable { addressEditJobId = null; showAddressDialog = true })
                     }
                 }
             } else {
-                TossCard(onClick = { showAddressDialog = true }) {
+                TossCard(onClick = { addressEditJobId = null; showAddressDialog = true }) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         // 전엔 새빨간 압정 이모지(22sp)가 카드에서 제일 튀었다 — 담긴 건 "주소 없음" 인데.
                         CdTitleIcon(Icons.Filled.Place, "blue")
@@ -829,16 +848,20 @@ fun CustomerDetailScreen(
             }
 
             if (showAddressDialog) {
+                // 창은 화면에 **한 벌** — 어느 건 카드에서 열었든 addressEditJobId 가 가리키는 그 건의 주소를 보여주고 거기에 쓴다.
+                val addrJob = addressEditJobId?.let { id -> allJobsForTabs.firstOrNull { it.id == id } }
+                val dlgManual = (addrJob?.address?.takeIf { it.isNotBlank() } ?: c.address)?.takeIf { it.isNotBlank() }
                 AddressEditDialog(
-                    currentAddress = manualAddress,
-                    extractedSuggestion = extractedAddress?.takeIf { it != manualAddress },
+                    currentAddress = dlgManual,
+                    extractedSuggestion = extractedAddress?.takeIf { it != dlgManual },
                     onSave = { addr ->
                         // 🔴 주소도 **그 건에만** 저장 — 2차 주소가 1차/고객 공유칸(→미러)으로 새지 않게. (2026-10-07)
-                        if (shownJobId != null) viewModel.setJobAddress(shownJobId, addr)
+                        val jid = addressEditJobId
+                        if (jid != null) viewModel.setJobAddress(jid, addr)
                         else viewModel.updateManualAddress(addr)
                         showAddressDialog = false
                     },
-                    onCopyExisting = displayAddr?.let { existing ->
+                    onCopyExisting = dlgManual?.let { existing ->
                         {
                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(existing))
                             android.widget.Toast.makeText(
@@ -859,24 +882,16 @@ fun CustomerDetailScreen(
 
             // 1.5 (제거) AI 대화 요약 — 챗스크린에 이미 있어 중복이라 고객 상세에선 뺌. (2026-07-18 사장님)
 
-            // 2-0. 건(件) 탭 — 한 고객의 시공이 여러 번일 때. (2026-09-17 사장님 "B안이 괜찮다")
-            //   프로토 artifact/KKMyncpHy1Ni7GK6dygMRY 의 B안(탭형). 크롬 새 탭처럼 건을 옆으로 늘어놓는다.
-            //   한 번에 **한 건만** 보여준다 → 화면이 짧다. `＋` 는 이 고객으로 새 시공 잡기.
-            //   건이 하나뿐이면 탭을 안 띄운다 — 있으나 마나 한 줄이 자리만 먹는다.
-            // 탭은 이 고객의 **모든 건**을 보여준다 — 지난 것도, 앞으로 잡힌 것도. (2026-09-17)
-            //   전엔 완료된 건만 봐서 예정 건을 둘 잡아도 탭이 하나였다.
-            // (allJobsForTabs·repDay·repJobId·shownJobId·shownJob 는 위 주소 카드 앞에서 한 번만 계산 — 같은 건을 본다.)
+            // 2-0. 건(件) 여러 개 — 한 고객의 시공이 여러 번일 때. (2026-09-17 B안 탭 → 2026-10-15 건마다 카드)
+            //   이 고객의 **모든 건**을 다 그린다 — 지난 것도, 앞으로 잡힌 것도. (2026-09-17)
+            // (allJobsForTabs·repDay·repJobId·primaryJobId 는 위 주소 카드 앞에서 한 번만 계산 — 같은 건을 본다.)
             val otherJobs = allJobsForTabs.filter { it.id != repJobId }
-            val selectedPastJob = otherJobs.firstOrNull { it.id == selectedPastJobId }
-            // 건 줄은 **시공이 둘 이상일 때만** 띄운다. (2026-09-18 확정 프로토 artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
+            // 「시공 건」 머리·＋새 시공·"N차" 꼬리표는 **시공이 둘 이상일 때만**. (2026-09-18 확정 프로토 artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
             //   "보통 손님은 시공을 한 번만 받는다. 그런 손님 화면에 '1차'라는 말과 탭 줄을 넣으면
             //    100명 중 95명한테 쓸데없는 줄 하나를 얹는 것" — 그게 '지저분하다'의 정체.
             //   1건일 때의 두 번째 시공 입구는 **맨 아래 조용한 링크**(＋ 시공 하나 더 잡기)로 옮겼다.
             val showJobBar = otherJobs.isNotEmpty()
-            // 지금 고른 건의 **차수 꼬리표**("2차 "). 시공이 하나뿐이면 빈 문자열.
-            //   메모·사진 제목이 각자 만들다가 번호가 어긋났다 → 한 곳에서 만든다. (2026-09-19 사장님)
-            val jobNthPrefix = if (showJobBar && shownJob != null)
-                "${jobNthOf(allJobsForTabs, shownJob)}차 " else ""
+            // (차수 꼬리표 "2차 " 는 카드 안에서 jobNthOf 로 — 메모·사진 제목이 같이 쓴다. 2026-09-19 사장님 / 2026-10-15 이동)
 
             // ⑤ **마무리 뒤에 문자에서 주소가 잡히면 다음 현장 것으로 묻는다.** (2026-09-18 확정 프로토 `.catch`)
             //   "1차 현장이 잔금 확인이 됐으면 마무리로 봄. 그 이후 대화에서 주소가 나오면
@@ -933,13 +948,11 @@ fun CustomerDetailScreen(
                             androidx.compose.foundation.layout.Box(
                                 Modifier.weight(1.4f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
                                     .clickable {
+                                        // (고른 건으로 옮겨 가던 selectedPastJobId 는 없어졌다 — 모든 건이 카드로 다 보인다. 2026-10-15)
                                         if (fillTarget != null) {
                                             viewModel.setJobAddress(fillTarget.id, caught)
-                                            selectedPastJobId = fillTarget.id
                                         } else {
-                                            viewModel.addJobWithAddress(caught) { id ->
-                                                if (id > 0L) selectedPastJobId = id
-                                            }
+                                            viewModel.addJobWithAddress(caught)
                                         }
                                     }.padding(vertical = 11.dp),
                                 contentAlignment = androidx.compose.ui.Alignment.Center
@@ -950,919 +963,127 @@ fun CustomerDetailScreen(
                 }
             }
 
+            // 2. 🏗️ 시공 건 — **건마다 자기 카드**(프로토 artifact/32G2BkhhFkdE9J5Wj8u4JC). (2026-10-15 사장님)
+            //   전엔 작은 탭 줄(JobTabsRow)에서 하나를 고르면 그 아래 상세 카드 **한 장**만 보였다 →
+            //   '현재 카드'가 완료 건 탭보다 아래로 밀렸다. 이제 탭 줄 없이:
+            //     · 진행 중인 건 = **펼쳐진 카드**, 최신(높은 차수)이 맨 위
+            //     · 완료·취소한 건 = **접힌 줄**, 맨 아래 — 누르면 그 자리에서 같은 상세가 펼쳐진다
+            //   카드 한 장(머리+주소·길찾기·예약·잔금·메모·사진·foot)은 CustomerDetailJobCard.kt 의 JobDetailCard **하나**.
+            //   창(날짜·금액·주소·A/S·취소·삭제·사진)은 이 화면에 한 벌 — 카드는 어느 건인지만 콜백으로 넘긴다(§12).
+            // 🔎 맨 처음 건(1차) — 날짜 없는/안 맞는 떠돌이 문서(견적서 등)를 이 건 카드에 모은다. (2026-10-15 사장님)
+            //   차수와 같은 규칙(JobOrder·취소/빈 건 제외)으로 날짜가 가장 이른 건. 없으면(건 없음/전부 취소) null → '이 고객 문서'로.
+            val earliestJobId = remember(allJobsForTabs) {
+                com.detailline.callfollowcrm.util.JobOrder.order(
+                    allJobsForTabs.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate to it.id }
+                ).firstOrNull()
+            }
+            val jobHost = JobCardHost(
+                viewModel = viewModel, container = container, customer = c,
+                allJobs = allJobsForTabs, repJobId = repJobId, repDay = repDay,
+                earliestJobId = earliestJobId, showNth = showJobBar,
+                issuedDocs = issuedDocs, intakeByToken = intakeByToken,
+                collabRefresh = collabRefresh, onCollabRefresh = { collabRefresh++ },
+                onEditDate = { jid, start, days, minutes ->
+                    // 🔴 **그 건**을 고친다 — 돈처럼 날짜도 건별로. jid null(아직 건 없음)이면 창이 고객(대표) 경로로 폴백. (2026-10-14)
+                    dateEditJobId = jid; dateEditStart = start; dateEditDays = days; dateEditMinutes = minutes
+                    datePickerOpen = true
+                },
+                onEditAmount = { jid, field -> amountEditJobId = jid; amountEditField = field },
+                onEditAddress = { jid -> addressEditJobId = jid; showAddressDialog = true },
+                onAsDone = { asDoneConfirm = true },
+                onAsPending = { asPendingConfirm = true },
+                onAsPicker = { asPickerOpen = true },
+                onCancelBooking = { cancelBookingConfirm = true },
+                onDeleteJob = { deletePastJobConfirm = it },
+                onEditNote = { editingNote = it },
+                onOpenPhoto = { uri, id -> fullscreenPhotoId = id; fullscreenImageUri = uri },
+                onOpenBitmap = { fullscreenBitmap = it },
+                onPicksToDelete = { picksToDelete = it },
+                onOpenQuoteDoc = { reviewQuoteDoc = it },
+                onOpenIntakeDoc = { intakeReviewDoc = it },
+                onEditIssued = { docId -> onOpenChatEditIssued(c.phoneNumber, c.id, docId) },
+                onRequestDeleteDoc = { issuedDocToDelete = it },
+                onOpenChat = { onOpenChat(c.phoneNumber, c.id) }
+            )
             if (detailTab == 0 && showJobBar) {
-                JobTabsRow(
-                    pastJobs = otherJobs,
-                    current = c,
-                    selectedPastJobId = selectedPastJobId,
-                    onSelect = { selectedPastJobId = it },
-                    // ＋ 는 **새 건을 만든다.** 전엔 날짜 고르기만 열고 그 날짜를 지금 건에 덮어썼다. (2026-09-17)
-                    onAddNew = {
-                        // ② 날짜를 아직 안 정한 건이 있으면 새로 만들지 않는다. (2026-09-18 사장님)
-                        //    그 건으로 데려가 날짜부터 넣게 한다 — 날짜 없는 건이 줄줄이 생기는 걸 막는다.
-                        //    ※ 1차에 날짜가 있는데 2차를 미리 잡는 건 그대로 열어둔다.
-                        //   '지금 자리'가 이미 날짜 미정이면 그것도 빈 자리다 — 취소 직후가 그렇다. (2026-09-18 실기)
-                        val pending = allJobsForTabs.firstOrNull {
-                            it.scheduledWorkDate == null && !jobFolded(it)
+                // 시공 건 · 최신부터 — 프로토 `.slab` 라벨. 이모지 대신 **벡터**(안전모 쓴 사람 = 브랜드 「노란 안전모」,
+                //   마감 브리핑·일정 추가와 같은 아이콘 — 세 번째 벌 안 만듦 §12). (2026-10-15 사장님 #13)
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.material3.Icon(Icons.Filled.Engineering, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("시공 건 · 최신부터", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                }
+                // ＋ 새 시공 잡기 — **건 카드들 위**(프로토 `.addnew`: 점선 + 연파랑 바탕). 한 줄 점선 버튼. (2026-10-15 사장님)
+                androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppTheme.colors.primaryBg)
+                        .border(1.dp, TossBlue.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .clickable {
+                            // ＋ 는 **새 건을 만든다.** 전엔 날짜 고르기만 열고 그 날짜를 지금 건에 덮어썼다. (2026-09-17)
+                            // ② 날짜를 아직 안 정한 건이 있으면 새로 만들지 않는다. (2026-09-18 사장님)
+                            //    그 건에 날짜부터 넣게 한다 — 날짜 없는 건이 줄줄이 생기는 걸 막는다.
+                            //    ※ 1차에 날짜가 있는데 2차를 미리 잡는 건 그대로 열어둔다.
+                            //   '지금 자리'가 이미 날짜 미정이면 그것도 빈 자리다 — 취소 직후가 그렇다. (2026-09-18 실기)
+                            val pending = allJobsForTabs.firstOrNull {
+                                it.scheduledWorkDate == null && !jobFolded(it)
+                            }
+                            val currentDateless = customer?.scheduledWorkDate == null
+                            if (pending != null || currentDateless) {
+                                android.widget.Toast.makeText(
+                                    ctx, "날짜를 아직 안 정한 시공이 있어요. 그 날짜부터 넣어주세요",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                // 시트(시공일·주소·총액)부터 — 전엔 달력만 열려 주소 적을 곳이 안 보였다. (2026-10-15 사장님)
+                                newJobStart = null; newJobDays = 1; newJobSheetOpen = true
+                            }
                         }
-                        val currentDateless = customer?.scheduledWorkDate == null
-                        if (pending != null || currentDateless) {
-                            selectedPastJobId = pending?.id?.takeIf { it != repJobId }
-                            android.widget.Toast.makeText(
-                                ctx, "날짜를 아직 안 정한 시공이 있어요. 그 날짜부터 넣어주세요",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            selectedPastJobId = null; dateEditJobId = null; addingNewJob = true; datePickerOpen = true
-                        }
-                    }
-                )
+                        .padding(vertical = 13.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text("＋ 새 시공 잡기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                }
                 // (건들의 합 '시공 N건·합계·미수' 줄 제거 — 헤더 아래 상단 요약 스트립이 같은 걸 보여준다. 2026-10-14 재설계 3·4단계)
             }
-            // (2-0-b 제거) 옛 '지난 건 펼침' 목록 — 완료·취소 건은 이제 **스택에 접힌 카드**로 직접 들어가
-            //   눌러서 바로 상세가 열린다(프로토). 별도 목록·pastOpen 토글 불필요. (2026-10-15 사장님)
-            // (「이 건 지우기」는 카드 foot 의 ⋯ 더보기 안으로 — 가끔 하는 일은 평소엔 숨긴다. 2026-10-15 Fable §4-7)
-
-            // 2-1. 지난 건을 고른 상태 — 그 건의 기록만 보여준다(읽기 전용).
-            //   지난 건은 이미 끝난 일이라 여기서 고칠 게 없다. 고칠 일이 생기면 그때 붙인다.
-            // (제거) 지난 건 읽기 전용 패널 — 이제 아래 정산 카드가 **고른 건 값으로** 바뀌고
-            //   그 건에 바로 쓴다. 따로 읽기 전용 카드를 겹쳐 보여줄 이유가 없다. (2026-09-18 프로토 ④)
-
-            // 2. 프로토 "일정 · 정산" 카드 (사장님 결정 2026-06-02: 프로토 단순화). · [일정·정산] 탭 (2026-07-18)
-            //    데이터(예약일·금액·계약금/잔금)는 그대로, UI 만 프로토 단순형(시공예약+총금액+계약금/잔금 상태+확인).
-            //    지난 건을 보는 중이면 숨긴다 — 탭은 **한 번에 한 건**이 규칙이다.
-            if (detailTab == 0) run {
-                // 어느 건을 골랐든 **그 건의 값**을 보여주고, 그 건에 쓴다. (2026-09-18 확정 프로토 ④)
-                //   전엔 지난 건을 고르면 이 카드를 숨기고 읽기 전용 패널만 보여줬다.
-                //   editJobId = null 이면 '지금 건'(고객 카드 경로), 아니면 그 건에 직접 쓴다.
-                // 🔴 지난 건뿐 아니라 **지금 보는 건(대표 포함)**을 그 건의 값으로 — shownJob + 공용 JobCardRow.
-                //   전엔 대표 건을 고객 카드(c)로 그려, 2차가 대표가 되면 1차 돈·완납이 묻어났다. (2026-10-05 Fable 감사)
-                //   건이 하나도 없는 고객만 null → 고객 카드 경로(옛 데이터·날짜 미정).
-                val editJobId: Long? = shownJobId
-                val cShown = shownJob?.let { com.detailline.callfollowcrm.domain.job.JobCardRow.rowOf(c, it) } ?: c
-                val scheduled = cShown.scheduledWorkDate
-                val totalWon = cShown.totalAmount ?: 0L
-                val depositWon = cShown.depositAmount ?: 0L
-                // 총금액 또는 계약금 중 하나라도 입력되면 정산 영역을 펼친다(계약금만 따로 넣는 경우 포함).
-                val hasAmount = totalWon > 0L || depositWon > 0L
-                // 잔금·완납은 정산 단일 출처(SettlementCalc)로 — 화면마다 잔금이 다르던 버그 통일. (2026-07-30)
-                val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(cShown)
-                val balanceWon = settle.balanceAmount
-                val depPaid = cShown.depositPaidAt != null
-                val balPaid = cShown.balancePaidAt != null
-                val allPaid = settle.isPaidOff
-                TossCard {
-                    Column {
-                        // 건이 여럿이면 위 스택 행이 이미 「N차 · D-19 / 완료」를 말한다 — 카드 안에 같은 머리를
-                        //   **또 적지 않는다**(같은 말 두 번 = 정신없음의 한 뿌리). 1건 고객만 「일정 · 정산」 머리. (2026-10-15 Fable §4-5)
-                        if (jobNthPrefix.isBlank()) {
-                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                CdTitleIcon(Icons.Filled.Payments, "amber")
-                                Spacer(Modifier.width(8.dp))
-                                Text("일정 · 정산", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-                            }
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        // 📍 주소 — **이 건** 것(위 주소 카드에서 합쳐 들어옴). 건이 있을 때만.
-                        if (shownJob != null && !displayAddr.isNullOrBlank()) {
-                            // 📍·✏️ 이모지 → 벡터. 「다른 건과 주소 다름」 딱지는 뺐다 — 스택 행 둘째 줄에 현장 라벨이
-                            //   들어가면서 그 역할을 행이 하기 때문(§12-K 같은 정보 두 모양). (2026-10-15 Fable §4-1·4)
-                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.Top) {
-                                androidx.compose.material3.Icon(
-                                    Icons.Filled.Place, null, tint = TossTextTertiary,
-                                    modifier = Modifier.padding(top = 3.dp).size(14.dp)
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    displayAddr, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text("복사", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
-                                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { ctx.copyToClip("주소", displayAddr) }.padding(horizontal = 8.dp, vertical = 4.dp))
-                                androidx.compose.material3.Icon(
-                                    Icons.Default.Edit, "주소 수정", tint = TossTextTertiary,
-                                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showAddressDialog = true }
-                                        .padding(horizontal = 4.dp, vertical = 4.dp).size(22.dp).padding(4.dp)
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(TossBlue)
-                                    .clickable { startNavToAddress(ctx, displayAddr) }.padding(vertical = 12.dp),
-                                contentAlignment = androidx.compose.ui.Alignment.Center
-                            ) {
-                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    androidx.compose.material3.Icon(Icons.Default.Navigation, null, tint = Color.White, modifier = Modifier.size(17.dp))
-                                    Spacer(Modifier.width(7.dp))
-                                    Text("길찾기 시작", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                        }
-                        // 화면을 둘로 가르지 않는다 — 표가 이미 "아직 예약 안 됨" 같은 빈 값을 말할 줄 안다.
-                        //   전엔 예약·금액이 하나도 없으면 버튼만 있는 **딴 화면**이 떴다. (2026-09-22 사장님)
-                        if (scheduled == null && !hasAmount) {
-                            // 2026-06-07 사장님 통점: 통화로 다 정해졌는데 일정 등록하려면 견적서 보내기밖에 없었음.
-                            //   그 안내는 아무것도 없을 때만 한 줄로 남긴다.
-                            Text(
-                                "통화로 정해졌으면 여기서 바로 등록하세요. 고객에게 또 입력시키지 않아도 돼요.",
-                                fontSize = 13.sp, color = TossTextSecondary, lineHeight = 20.sp
-                            )
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        CdKv(
-                                "시공 예약",
-                                // 여러 날 시공이면 기간까지 — 전엔 시작 날짜만 보여 "3일 중 1일차"인 걸 알 수 없었다. (2026-09-15 사장님)
-                                //   날짜는 짧게("9/16(수)") — 올해 일이면 연도는 정보가 아니다. (2026-09-20 사장님)
-                                if (scheduled != null)
-                                    DateTimeUtils.formatShortKoreanDate(scheduled) +
-                                        (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") +
-                                        DateTimeUtils.workPeriodSuffix(scheduled, c.scheduledWorkDays)
-                                else "아직 예약 안 됨 · 눌러서 설정",
-                                valueColor = if (scheduled != null) AppTheme.colors.text else TossTextTertiary,
-                                trailing = if (scheduled != null) Icons.Default.Edit else Icons.Default.Add,
-                                onClick = {
-                                    // 🔴 **그 건**을 고친다 — 돈처럼 날짜도 건별로. (2026-10-14 사장님: 2차 날짜 등록 안 됨)
-                                    //   shownJobId 가 null(아직 건 없음)이면 아래 창이 고객(대표) 경로로 폴백.
-                                    dateEditJobId = shownJobId
-                                    dateEditStart = shownJob?.scheduledWorkDate
-                                    dateEditDays = (shownJob?.scheduledWorkDays ?: 1).coerceAtLeast(1)
-                                    dateEditMinutes = shownJob?.scheduledWorkMinutes
-                                    datePickerOpen = true
-                                }
-                            )
-                            // 🔧 **A/S 해줘야 하는 손님** — 날짜를 못 잡았어도 여기 뜬다. (2026-09-27 사장님)
-                            //   "일정이 꽉 차 있어서 못 잡는 거야. 그래서 as 대기 고객으로 명단을 올려두고"
-                            if (c.asPendingAt != null) {
-                                CdKv(
-                                    "A/S",
-                                    if (c.asScheduledDate != null) "예약 잡힘 · 무료"
-                                    else "해드릴 곳 · 날짜 미정",
-                                    valueColor = AppTheme.colors.cautionText,
-                                    trailing = Icons.Default.Check,
-                                    onClick = { asDoneConfirm = true }
-                                )
-                            }
-                            // 🔧 A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
-                            //   **잡혀 있을 때만** 줄로 보여준다. A/S 는 가끔 있는 일인데
-                            //   늘 「아직 없음」이 한 줄을 먹고 있었다 — 정보가 아니라 빈 줄이다.
-                            //   안 잡혔을 땐 카드 맨 아래 작은 「A/S 잡기」로 물러난다. (2026-09-26 사장님)
-                            if (c.asScheduledDate != null) {
-                                CdKv(
-                                    "A/S 예약",
-                                    DateTimeUtils.formatShortKoreanDate(c.asScheduledDate!!) +
-                                        (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료",
-                                    valueColor = AppTheme.colors.text,
-                                    trailing = Icons.Default.Edit,
-                                    onClick = { asPickerOpen = true }
-                                )
-                            }
-                            // 💰 돈은 **잔금 한 줄 크게**(프로토 `.moneyline` 18px) — 총·계약금은 카드 맨 아래 foot 에 작게.
-                            //   큰 파란 버튼은 길찾기 **하나만**. 받음 확인은 잔금 옆 **작은 회색 칩**으로.
-                            //   (2026-10-15 사장님 결정 — Fable §4-8 / §5-1 (가). 저장 경로는 전과 같다: setJob*Paid / set*Paid)
-                            androidx.compose.foundation.layout.Row(
-                                Modifier.fillMaxWidth().padding(vertical = 9.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, color = TossTextSecondary)
-                                Spacer(Modifier.weight(1f))
-                                if (!hasAmount) {
-                                    // 프로토 "아직 입력 안 함 ＋" — 탭하면 총금액 입력(옛 [총금액 입력] 버튼과 같은 창).
-                                    Text(
-                                        "아직 입력 안 함 ＋", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                                            .clickable { amountEditJobId = editJobId; amountEditField = "total" }
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                } else {
-                                    Text(
-                                        if (allPaid) "전액 완납" else manwonLabel(balanceWon) + " 남음",
-                                        fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
-                                        color = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.unpaidText
-                                    )
-                                    if (!allPaid) {
-                                        Spacer(Modifier.width(9.dp))
-                                        // 계약금이 아직이면 계약금부터, 아니면 잔금(또는 전액) — 옛 세 버튼의 순서 그대로.
-                                        val paidLabel = if (depositWon > 0L && !depPaid) "계약금 받았어요" else "받았어요"
-                                        CdUndoChip(paidLabel, danger = false, filled = true) {
-                                            when {
-                                                depositWon > 0L && !depPaid ->
-                                                    if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true)
-                                                    else viewModel.setDepositPaid(true)
-                                                depositWon > 0L ->
-                                                    if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true)
-                                                    else {
-                                                        if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
-                                                        viewModel.setBalancePaid(true)
-                                                    }
-                                                else ->
-                                                    if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true)
-                                                    else {
-                                                        if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
-                                                        viewModel.setBalancePaid(true)
-                                                    }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-            // ↓ 현장 메모·사진도 **같은 한 건 카드 안**. Column·TossCard·run 닫기는 사진 뒤에서. (2026-10-15 사장님 "한 건=한 카드")
-
-            // (입금 카드는 위 "일정 · 정산" 카드로 통합됨 — 2026-06-02 사장님 결정.)
-            // (메모 카드는 프로토 순서대로 "일정 · 정산" 위로 이동 — 2026-06-03.)
-
-            // 4. 옛 "문자" 카드 제거 (2026-05-28 사장님 보고):
-            //    "📩 주고받은 문자" 접이식 섹션이 대화요약 아래로 올라옴 → 여기 중복.
-            //    MessageRow/MessageRowView 는 dead code 가능성 → 다른 사용처 없으면 추후 정리.
-
-            // 5·6. (제거) "통화 기록" + "에이닷 통화 요약" 카드 — 프로토 openCustomer 엔 없음.
-            //   2026-06-04 사장님 결정 "프로토 100%". 통화기록/녹음/에이닷 요약 데이터 수집(backfill·
-            //   AdotSummaryImporter)은 그대로 동작 — 고객정보 화면에서 카드로 노출만 안 함.
-
-            // (이 고객 문서(차수 미지정)는 per-건 카드 밖 — 사진 뒤로 옮김. 고객 단위라 한 건 카드에 안 넣는다. 2026-10-15)
-
-            // 📍 이 현장 메모 — **그 건에서만.** 손님 메모(👤)와 **같은 얼굴**(쪽지)로. (2026-09-27 사장님)
-            //   "메모는 두 곳. 👤 이 손님 메모(현장이 바뀌어도 그대로인 것)와
-            //    📍 이 현장 메모(그 건에서만)."
-            //   둘 다 NoteList 하나를 쓴다 — 따로 만들면 또 어긋난다.
-            if (shownJobId != null) {
-                val jid = shownJobId
-                val jobNotes by remember(jid) { viewModel.jobNotes(jid) }
-                    .collectAsState(initial = emptyList())
-                var memoJobExpanded by remember(shownJobId) { mutableStateOf(false) }
-                CdCardDivider()
-                // 고객 메모처럼 접기 — ② 공용 접힘 줄(CdFoldRow). (2026-10-15 사장님 "현장 메모는 고객메모처럼 접어두자")
-                CdFoldRow(
-                    Icons.Filled.EditNote,
-                    if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 메모" else "이 현장 메모",
-                    jobNotes.size, memoJobExpanded,
-                    emptyAction = if (jobNotes.isEmpty()) "＋ 적기" else null
-                ) { memoJobExpanded = !memoJobExpanded }
-                if (memoJobExpanded) Column {
-                        Spacer(Modifier.height(4.dp))
-                        Text("이 현장에서만 · 주차, 열쇠, 자재", fontSize = 11.5.sp, color = TossTextTertiary)
-                        Spacer(Modifier.height(8.dp))
-                        com.detailline.callfollowcrm.presentation.component.NoteList(
-                            notes = jobNotes,
-                            onAdd = { viewModel.addJobNote(jid, it) },
-                            onEdit = { editingNote = it },
-                            onTogglePin = { viewModel.togglePinNote(it.id) },
-                            onDelete = { viewModel.deleteNote(it.id) },
-                            placeholder = "이 현장에서 기억할 것"
+            if (detailTab == 0) {
+                if (allJobsForTabs.isEmpty()) {
+                    // 건이 하나도 없는 고객(상담 단계·옛 데이터) — 고객 카드(c) 값으로 카드 한 장(옛 editJobId=null 경로).
+                    JobDetailCard(host = jobHost, job = null, teamPhotos = teamPhotos, teamNotes = teamNotes, isPrimary = true)
+                } else {
+                    // 차수는 **날짜순**(JobOrder — 날짜 없는 건은 맨 뒤, 동점은 먼저 만든 건). 화면엔 **최신(높은 차수)부터**.
+                    // 🔽 진행 중인 건이 위, **완료·취소한 건은 맨 아래로.** (2026-10-15 사장님 "진행한 시공건은 맨 아래로")
+                    //   partition 은 순서를 지키니 각 묶음 안에선 '최신부터'가 그대로 유지된다.
+                    val stackOrder = remember(allJobsForTabs) {
+                        val seq = com.detailline.callfollowcrm.util.JobOrder.order(
+                            allJobsForTabs.map { it.scheduledWorkDate to it.id }
                         )
+                        val newestFirst = allJobsForTabs.sortedBy { seq.indexOf(it.id) }.reversed()
+                        val (openJobs, closedJobs) = newestFirst.partition { !jobFolded(it) }
+                        openJobs + closedJobs
                     }
-            }
-
-            // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
-            //   ※ 팀원↔사장님 공유는 서버(team_site_photos) 보강 후 별도 연동 — docs/SERVER_HANDOFF 참조.
-            val allSitePhotos by viewModel.sitePhotos.collectAsState()
-            // 🔴 사진도 **그 건 것만.** 1차 사진이 2차 탭에 보이면 안 된다.
-            //   (2026-09-18 사장님: "현장사진도 1차 2차 개별로 들어가야해")
-            //   어느 건인지 안 붙은 옛 사진(jobId=null)은 **대표 건**에 붙여 보여준다 — 안 그러면
-            //   지금까지 올린 사진이 통째로 안 보이게 된다.
-            val sitePhotos = remember(allSitePhotos, shownJobId, repJobId) {
-                allSitePhotos.filter { p ->
-                    p.jobId == shownJobId || (p.jobId == null && shownJobId == repJobId)
-                }
-            }
-            // 카톡식 사진 첨부 시트(아래→위) — 기존 시스템 "내 파일" 피커는 권한 거부/구형 fallback 으로만 유지. (2026-06-11)
-            var showPhotoPicker by remember { mutableStateOf(false) }
-            // 사진 첨부 = 시스템 Photo Picker(권한 없음, Play 정책 + 사진 우선 화면).
-            //   기존 GetMultipleContents(ACTION_GET_CONTENT)는 삼성 "항목 선택" 폴더 탐색기라 연세 있으신 분들이 헤맴
-            //   → PickMultipleVisualMedia(깔끔한 사진 그리드)로 교체. (2026-07-06 사장님)
-            val photoPicker = rememberLauncherForActivityResult(
-                // 2026-08-24 사장님: 본인 현장 사진도 한 번에 10 → 20장 (협업과 통일, 총량 sitePhotoMax=20).
-                ActivityResultContracts.PickMultipleVisualMedia(20)
-            ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris, selectedPastJobId ?: repJobId) }
-            val launchPhotoPicker = { showPhotoPicker = true }
-            val photoMax = viewModel.sitePhotoMax
-            val photoTotal = sitePhotos.size + teamPhotos.size
-            // 🏅 **대표 사진** — 그 현장에 제일 먼저 올린 사진. 인증샷에 이게 들어간다. (2026-09-25 사장님)
-            //   목록은 최신이 먼저라 대표는 보통 **맨 끝 칸**에 있다 → 위치로는 알 수 없으니 딱지를 붙인다.
-            // 🔒 인증샷과 **같은 규칙**으로 고른다(두 벌이면 서로 다른 사진을 가리킨다 — 2026-09-25 점검).
-            //   observe 는 최신순이라, 규칙이 요구하는 '올린 순서'로 뒤집어 넘긴다.
-            val repCustomerId = customer?.id ?: 0L
-            val repPhotoId = remember(sitePhotos, shownJobId, repCustomerId) {
-                com.detailline.callfollowcrm.data.repository.SitePhotoRepository.representativeOf(
-                    sitePhotos.sortedBy { it.createdAt }, repCustomerId, shownJobId
-                )?.id
-            }
-            LaunchedEffect(showPhotoPicker) {
-                if (showPhotoPicker) {
-                    showPhotoPicker = false
-                    photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-            }
-            // 사진이 많아도 카드가 화면을 통째로 먹지 않게 — 두 줄까지만 보이고 나머지는 접는다.
-            var photosExpanded by remember(shownJobId) { mutableStateOf(false) }
-            // [고르기] 를 눌렀을 때만 동그라미가 뜬다. 평소엔 사진을 눌러 크게 본다. (2026-09-22 사장님)
-            var pickMode by remember(shownJobId) { mutableStateOf(false) }
-            var pickedMine by remember(shownJobId) { mutableStateOf(setOf<Long>()) }
-            var pickedTeam by remember(shownJobId) { mutableStateOf(setOf<Long>()) }
-            val pickedCount = pickedMine.size + pickedTeam.size
-            fun exitPickMode() {
-                pickMode = false; pickedMine = emptySet(); pickedTeam = emptySet()
-            }
-            // 🛟 **서버에만 남은 내 사진** — 폰을 재설치하면 이렇게 된다. (2026-09-28 사장님)
-            //   사장님: "그럼 직원폰에 그대로 보이게 해줄수 있는거아니야?"
-            //   맞다 — 서버에 살아 있으니 내려받으면 된다. 보기만 하면 반쪽이라
-            //   **되살려서** 내 기록·영상·백업에도 다시 들어가게 한다.
-            val restorable by viewModel.restorable.collectAsState()
-            if (restorable.isNotEmpty()) {
-                CdCardDivider()
-                Column(Modifier.padding(2.dp)) {
-                        Text("서버에 이 현장 사진 ${restorable.size}장이 있어요",
-                            style = AppType.headline, color = TossTextPrimary)
-                        Spacer(Modifier.height(4.dp))
-                        Text("폰을 다시 깔면서 사진이 빠졌어요. 되살리면 내 기록·영상에도 다시 들어가요.",
-                            style = AppType.caption, color = TossTextTertiary)
-                        Spacer(Modifier.height(11.dp))
-                        Box(
-                            Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
-                                .clickable { viewModel.restorePhotosFromServer() }
-                                .padding(vertical = 13.dp),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
-                        ) {
-                            Text("사진 ${restorable.size}장 되살리기",
-                                style = AppType.label, color = Color.White)
-                        }
-                    }
-                Spacer(Modifier.height(12.dp))
-            }
-            CdCardDivider()
-            Column {
-                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        CdTitleIcon(Icons.Filled.PhotoCamera, "blue")
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
-                            if (pickMode) "지울 사진 고르는 중"
-                            else (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
-                                (if (photoTotal == 0) "" else " ${photoTotal}장 / ${photoMax}"),
-                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        // 버튼은 **제목 줄에**. 전엔 사진이 늘수록 아래로 도망갔고, 20장이 차면
-                        //   [올리기] 타일이 아예 사라져서 왜 못 올리는지도 안 보였다. (2026-09-22 사장님)
-                        if (pickMode) {
-                            PhotoHeadBtn("취소", filled = false) { exitPickMode() }
-                        } else {
-                            // 「사진 골라 지우기」는 foot 의 ⋯ 더보기 안으로 — 가끔 하는 일을 머리 줄에 늘 두지 않는다. (2026-10-15 Fable §4-7)
-                            //   이름은 그대로 「골라 지우기」(2026-09-30 사장님: 「고르기」만으론 뭘 고르는지 모르고,
-                            //   「지우기」만이면 다 지워질 것 같다). 색도 중립 그대로 — 이 버튼은 아무것도 안 지운다.
-                            // 올리기는 아래 스트립 맨 앞 ＋ 타일로 (프로토 스타일). 가득 차면 안내만. (2026-10-15 사장님)
-                            if (photoTotal >= photoMax) {
-                                Text(
-                                    "${photoMax}장 다 찼어요",
-                                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary
-                                )
-                            }
-                        }
-                    }
-                    // 프로토 스타일 — 컴팩트 **가로 스트립**(썸네일 + 이름표 + 점선 ＋). 긴 안내문 제거. (2026-10-15 사장님 "현장사진 UI도 프로토 스타일")
-                    val cells: List<Any> = sitePhotos + teamPhotos
-                    Spacer(Modifier.height(10.dp))
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // ＋ 사진 올리기 타일(점선) — 맨 앞. 가득 찼거나 고르는 중이면 숨김.
-                        if (!pickMode && photoTotal < photoMax) {
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.size(64.dp).clip(AppShape.md)
-                                    .border(1.3.dp, TossBlue.copy(alpha = 0.4f), AppShape.md)
-                                    .clickable { launchPhotoPicker() },
-                                contentAlignment = androidx.compose.ui.Alignment.Center
-                            ) {
-                                androidx.compose.material3.Icon(Icons.Default.Add, "사진 올리기", tint = TossBlue, modifier = Modifier.size(22.dp))
-                            }
-                        }
-                        cells.forEach { cell ->
-                                    androidx.compose.foundation.layout.Box(
-                                        Modifier.size(64.dp).clip(AppShape.md).background(TossGrayBg)
-                                    ) {
-                                        val picked: Boolean
-                                        when (cell) {
-                                            is com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity -> {
-                                                picked = cell.id in pickedMine
-                                                // 🖼️ 열쇠에 **파일이 바뀐 시각**을 붙인다 — 안 그러면 돌려도
-                                                //   **여기 작은 사진만 옛 그림**으로 남는다. (2026-10-02 사장님)
-                                                coil.compose.AsyncImage(
-                                                    model = com.detailline.callfollowcrm.util.PhotoModel
-                                                        .of(LocalContext.current, cell.filePath),
-                                                    contentDescription = "현장 사진",
-                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    // 탭=크게 보기, **꾹=대표 사진으로**. (2026-10-15 사장님: 맨 먼저 올린 게 대표 되던 것 → 꾹 눌러 지정)
-                                                    modifier = Modifier.fillMaxSize().combinedClickable(
-                                                        onClick = {
-                                                            if (pickMode) {
-                                                                pickedMine =
-                                                                    if (picked) pickedMine - cell.id else pickedMine + cell.id
-                                                            } else {
-                                                                fullscreenPhotoId = cell.id
-                                                                fullscreenImageUri =
-                                                                    android.net.Uri.fromFile(java.io.File(cell.filePath))
-                                                            }
-                                                        },
-                                                        onLongClick = {
-                                                            if (!pickMode) viewModel.setRepresentativePhoto(cell.id, sitePhotos.map { it.id })
-                                                        }
-                                                    )
-                                                )
-                                                // 🏅 이게 인증샷에 들어가는 그 사진이다.
-                                                if (cell.id == repPhotoId) {
-                                                    androidx.compose.foundation.layout.Box(
-                                                        Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(5.dp)
-                                                            .clip(AppShape.pill).background(TossBlue)
-                                                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                                                    ) {
-                                                        Text("대표", fontSize = 9.sp,
-                                                            fontWeight = FontWeight.ExtraBold, color = Color.White)
-                                                    }
-                                                }
-                                            }
-                                            is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto -> {
-                                                picked = cell.photoId in pickedTeam
-                                                val bmp = cell.bitmap
-                                                if (bmp != null) {
-                                                    androidx.compose.foundation.Image(
-                                                        bitmap = bmp.asImageBitmap(),
-                                                        contentDescription = "현장 사진 (${cell.uploaderName})",
-                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxSize().clickable {
-                                                            if (pickMode) {
-                                                                pickedTeam =
-                                                                    if (picked) pickedTeam - cell.photoId
-                                                                    else pickedTeam + cell.photoId
-                                                            } else fullscreenBitmap = bmp
-                                                        }
-                                                    )
-                                                }
-                                                // 업로더 이름표 — 팀원=파랑, 사장님=회색. 그대로 둔다.
-                                                androidx.compose.foundation.layout.Box(
-                                                    Modifier.align(androidx.compose.ui.Alignment.BottomStart).padding(4.dp)
-                                                        .clip(AppShape.sm)
-                                                        .background(if (cell.isOwner) Color.Black.copy(alpha = 0.5f) else TossBlue)
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        cell.uploaderName, fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold, color = Color.White
-                                                    )
-                                                }
-                                            }
-                                            else -> picked = false
-                                        }
-                                        // 고르는 중일 때만 동그라미. 평소엔 사진 위에 아무것도 안 얹는다.
-                                        if (pickMode) {
-                                            if (picked) {
-                                                androidx.compose.foundation.layout.Box(
-                                                    Modifier.fillMaxSize().background(TossBlue.copy(alpha = 0.22f))
-                                                )
-                                            }
-                                            androidx.compose.foundation.layout.Box(
-                                                Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(5.dp)
-                                                    .size(19.dp).clip(CircleShape)
-                                                    .background(if (picked) TossBlue else Color.Black.copy(alpha = 0.3f))
-                                                    .border(2.dp, Color.White, CircleShape),
-                                                contentAlignment = androidx.compose.ui.Alignment.Center
-                                            ) {
-                                                if (picked) androidx.compose.material3.Icon(
-                                                    Icons.Default.Check, null, tint = Color.White,
-                                                    modifier = Modifier.size(12.dp)
-                                                )
-                                            }
-                                        }
-                                    }   // 사진 타일 Box 닫기
-                        }   // cells.forEach 닫기
-                    }   // 가로 스트립 Row 닫기
-                    // 고른 장수 + [지우기] — 여러 장을 한 번에. 전엔 ✕ → 확인 을 장마다 반복해야 했다.
-                    if (pickMode) {
-                        Spacer(Modifier.height(11.dp))
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Text(
-                                // 「고른 것만 지워요」 — 전체가 날아갈까 걱정 안 하시게. (2026-09-30 사장님)
-                                if (pickedCount == 0) "지울 사진을 눌러 고르세요 · 고른 것만 지워요"
-                                else "${pickedCount}장 고름 · 고른 것만 지워요",
-                                fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (pickedCount == 0) TossTextTertiary else TossTextSecondary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (pickedCount > 0) {
-                                Text(
-                                    "지우기",
-                                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                                    modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.unpaid)
-                                        .clickable { picksToDelete = pickedMine to pickedTeam }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-            // 6.52 지난 시공 이력 — **건 탭(2-0)으로 옮겼다.** (2026-09-17 B안)
-            //   전에는 맨 아래에 "지난 시공 N건" 목록이 따로 있었는데,
-            //   그러면 '지금 건'과 '지난 건'이 화면의 다른 층에 흩어져 한 고객의 이력이 안 보였다.
-
-            // 6.6 팀원 현장 메모 — 직원이 링크 화면에서 보낸 특이사항(2026-06-06). 있을 때만 카드.
-            if (teamNotes.isNotEmpty()) {
-                // 한 건 카드 안 ② 접힘 줄로 — 전엔 카드 안에 카드가 또 있었다("네모 안 네모"). (2026-10-15 Fable 점검)
-                //   답글 안 단 메모가 있으면 펼친 채로 시작 — 직원이 보낸 특이사항을 놓치지 않게.
-                var teamNotesExpanded by remember(shownJobId, teamNotes.size) {
-                    mutableStateOf(teamNotes.any { it.replyText.isNullOrBlank() })
-                }
-                CdCardDivider()
-                CdFoldRow(Icons.Filled.EditNote, "팀원 현장 메모", teamNotes.size, teamNotesExpanded) { teamNotesExpanded = !teamNotesExpanded }
-                if (teamNotesExpanded) Column {
-                        Spacer(Modifier.height(10.dp))
-                        teamNotes.forEachIndexed { idx, note ->
-                            if (idx > 0) Spacer(Modifier.height(8.dp))
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                                    .background(AppTheme.colors.cautionBg).padding(12.dp)
-                            ) {
-                                Column {
-                                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                        Text(note.memberName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(
-                                            com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(note.createdAtMs),
-                                            fontSize = 11.sp, color = TossTextTertiary
-                                        )
-                                    }
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(note.text, fontSize = 13.5.sp, color = Color(0xFF5A3D00), lineHeight = 19.sp)
-
-                                    // 답글 편집 상태 — 평소엔 닫힘(버튼만), 누르면 입력칸 열림.
-                                    var editing by remember(note.eventId) { mutableStateOf(false) }
-                                    var reply by remember(note.eventId) { mutableStateOf("") }
-                                    val hasReply = !note.replyText.isNullOrBlank()
-
-                                    // 내 답글(있으면) — 팀원 링크 화면에도 같이 보임. 편집 중엔 숨김.
-                                    if (hasReply && !editing) {
-                                        Spacer(Modifier.height(8.dp))
-                                        androidx.compose.foundation.layout.Box(
-                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
-                                                .background(TossBlueSoft).padding(horizontal = 10.dp, vertical = 8.dp)
-                                        ) {
-                                            Column {
-                                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                                    Text("↳ 내 답글", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                                                    Spacer(Modifier.weight(1f))
-                                                    Text("수정", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                                                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                                                            .clickable { reply = note.replyText.orEmpty(); editing = true }
-                                                            .padding(horizontal = 6.dp, vertical = 2.dp))
-                                                }
-                                                Spacer(Modifier.height(2.dp))
-                                                Text(note.replyText!!, fontSize = 13.sp, color = TossBlueDark, lineHeight = 18.sp)
-                                            }
-                                        }
-                                    }
-
-                                    // 답글 없고 편집도 아니면 → "답글 달기" 버튼만(접힘).
-                                    if (!hasReply && !editing) {
-                                        Spacer(Modifier.height(8.dp))
-                                        androidx.compose.foundation.layout.Row(
-                                            Modifier.clip(RoundedCornerShape(8.dp))
-                                                .clickable { reply = ""; editing = true }
-                                                .padding(vertical = 4.dp),
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                        ) {
-                                            androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.Reply, null,
-                                                tint = Color(0xFFB8780A), modifier = Modifier.size(15.dp))
-                                            Spacer(Modifier.width(5.dp))
-                                            Text("답글 달기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
-                                        }
-                                    }
-
-                                    // 편집 중 → 입력칸 + 보내기/취소.
-                                    if (editing) {
-                                        Spacer(Modifier.height(8.dp))
-                                        androidx.compose.foundation.layout.Box(
-                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Color.White)
-                                                .border(1.dp, Color(0xFFEAD9A8), RoundedCornerShape(9.dp))
-                                                .padding(horizontal = 10.dp, vertical = 9.dp)
-                                        ) {
-                                            androidx.compose.foundation.text.BasicTextField(
-                                                value = reply,
-                                                onValueChange = { reply = it },
-                                                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.sp, color = TossTextPrimary),
-                                                cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
-                                                modifier = Modifier.fillMaxWidth(),
-                                                decorationBox = { inner ->
-                                                    if (reply.isEmpty()) Text("팀원에게 답글…", fontSize = 13.sp, color = TossTextTertiary)
-                                                    inner()
-                                                }
-                                            )
-                                        }
-                                        Spacer(Modifier.height(8.dp))
-                                        androidx.compose.foundation.layout.Row(
-                                            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                        ) {
-                                            Text("취소", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                                                modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                                                    .clickable { editing = false; reply = "" }
-                                                    .padding(horizontal = 14.dp, vertical = 9.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            androidx.compose.foundation.layout.Box(
-                                                Modifier.clip(RoundedCornerShape(9.dp))
-                                                    .background(if (reply.isBlank()) Color(0xFFE2E6EC) else TossBlue)
-                                                    .clickable(enabled = reply.isNotBlank()) {
-                                                        viewModel.replyToTeamNote(note.eventId, reply.trim())
-                                                        editing = false
-                                                    }
-                                                    .padding(horizontal = 16.dp, vertical = 9.dp)
-                                            ) {
-                                                Text("보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-            }   // if (teamNotes.isNotEmpty())
-            // ── ④ foot — 프로토 `.foot`: **작은 회색 한 줄**에 선택사항을 모은다. (2026-10-15 사장님 "협업 줄이 너무 큰 느낌" / Fable §2 ④)
-            //   [총 N · 계약금 N]  [🤝 협업]  [접수서 N장]  [⋯ 더보기]
-            //   협업·접수서는 전용 줄(구분선 + 캐럿)을 없애고 여기로 — 부를 수도 안 부를 수도 있는 건 작게.
-            //   자주 안 쓰는 일(A/S·취소·사진 골라 지우기·이 건 지우기)은 ⋯ 더보기 안 — 평소엔 안 보인다.
-            //   넘치면 다음 줄로(FlowRow). 저장·해제·삭제 경로는 전과 같다(CollabAfterCard / IssuedDocList / 확인창).
-            run {
-                val hasDate = cShown.scheduledWorkDate != null
-                val collabSiteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr ?: "").takeIf { it.isNotBlank() }?.let { "$it 현장" }
-                    ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
-                    ?: "이 현장"
-                val jobDayStart: Long? = cShown.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
-                val jobDays = remember(cShown.scheduledWorkDate, cShown.scheduledWorkDays) {
-                    if (jobDayStart == null) emptySet<Long>()
-                    else (0 until cShown.scheduledWorkDays.coerceAtLeast(1)).map { jobDayStart + it * 86_400_000L }.toSet()
-                }
-                // 이 건에 걸린 협업 사장만. days 있으면 그 날들·없으면(구버전) 대표 건 하루 — CollabAssignmentLine 규칙 재사용.
-                val jobCollab = remember(c.id, collabRefresh, jobDayStart, repDay) {
-                    if (jobDayStart == null) emptyList<com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine>()
-                    else container.preferences.collabAssignments.mapNotNull {
-                        com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it)
-                    }.filter { it.customerId == c.id && it.coversDay(jobDayStart, representativeDay = repDay) }
-                        .distinctBy { it.shareId.ifBlank { PhoneKey.of(it.phone) } }
-                }
-                val showJobCollabShare = remember(c.id, shownJobId) { mutableStateOf(false) }
-                var collabExpanded by remember(shownJobId) { mutableStateOf(false) }
-                // 📋 이 차수의 접수서 — 발행 문서 중 시공예정일이 이 건 날짜와 같은 것(IssuedDocAssign). **보기 전용**, 보내기는 챗.
-                val docsForJob = remember(issuedDocs, jobDayStart) {
-                    if (jobDayStart == null) emptyList<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>()
-                    else com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.forJobDay(issuedDocs, jobDayStart)
-                }
-                var intakeExpanded by remember(shownJobId) { mutableStateOf(false) }
-                val canDeleteJob = shownJob != null && (jobCancelled(shownJob) || jobBlank(shownJob))
-                val showMore = allPaid || scheduled != null || canDeleteJob || (photoTotal > 0 && !pickMode)
-                var moreActionsExpanded by remember(shownJobId) { mutableStateOf(false) }
-
-                CdCardDivider()
-                FlowRow(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // 총·계약금 — 탭하면 그 칸을 고친다(AmountInputDialog 경로 그대로). 계약금은 총금액 없이도 따로 넣을 수 있다(2026-06-11).
-                    androidx.compose.foundation.layout.Row(Modifier.height(22.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        if (hasAmount) {
-                            Text(
-                                "총 " + (if (totalWon > 0L) manwonLabel(totalWon) else "미입력"),
-                                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                                    .clickable { amountEditJobId = editJobId; amountEditField = "total" }
-                                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                            )
-                            Text(" · ", fontSize = 12.sp, color = TossTextTertiary)
-                            Text(
-                                "계약금 " + (if (depositWon > 0L) manwonLabel(depositWon) + (if (depPaid) " 받음" else "") else "미설정"),
-                                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                                    .clickable { amountEditJobId = editJobId; amountEditField = "deposit" }
-                                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                            )
-                        } else {
-                            Text(
-                                "계약금 넣기", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                                    .clickable { amountEditJobId = editJobId; amountEditField = "deposit" }
-                                    .padding(horizontal = 3.dp, vertical = 2.dp)
+                    stackOrder.forEach { j ->
+                        // 건별 펼침 상태(메모·사진·협업·접수서·더보기·고르기)는 카드 안 remember — key 로 건마다 안정.
+                        androidx.compose.runtime.key(j.id) {
+                            // 팀원 사진·메모·서버 사진 되살리기·A/S 줄은 **고객 단위** → 대표(기본) 건 카드에만(전과 같은 거동).
+                            val primary = j.id == primaryJobId
+                            JobDetailCard(
+                                host = jobHost, job = j,
+                                teamPhotos = if (primary) teamPhotos else emptyList(),
+                                teamNotes = if (primary) teamNotes else emptyList(),
+                                isPrimary = primary
                             )
                         }
                     }
-                    // 🤝 협업 — 없으면 회색 「협업 부르기」(탭 → 바로 부르기 시트), 있으면 아이콘만 보라 + 이름(탭 → 펼침).
-                    if (hasDate) {
-                        androidx.compose.foundation.layout.Row(
-                            Modifier.height(22.dp).clip(RoundedCornerShape(6.dp))
-                                .clickable {
-                                    if (jobCollab.isEmpty()) showJobCollabShare.value = true
-                                    else collabExpanded = !collabExpanded
-                                }
-                                .padding(horizontal = 3.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.Icon(
-                                Icons.Filled.Handshake, null,
-                                tint = if (jobCollab.isEmpty()) TossTextTertiary else AppTheme.colors.categoryText,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                if (jobCollab.isEmpty()) "협업 부르기"
-                                else jobCollab.joinToString(", ") { it.name.ifBlank { "협업 사장님" } },
-                                fontSize = 12.sp,
-                                fontWeight = if (jobCollab.isEmpty()) FontWeight.SemiBold else FontWeight.Bold,
-                                color = if (jobCollab.isEmpty()) TossTextTertiary else TossTextSecondary,
-                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 150.dp)
-                            )
-                        }
-                    }
-                    // 📋 접수서 — 발행된 게 있을 때만, 파란 링크(프로토 `.lk`). 탭 → 아래 펼침(보기 전용).
-                    if (docsForJob.isNotEmpty()) {
-                        androidx.compose.foundation.layout.Row(
-                            Modifier.height(22.dp).clip(RoundedCornerShape(6.dp))
-                                .clickable { intakeExpanded = !intakeExpanded }.padding(horizontal = 3.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.Icon(Icons.Filled.ReceiptLong, null, tint = TossBlue, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("접수서 ${docsForJob.size}장", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                        }
-                    }
-                    // ⋯ 더보기 — A/S·취소·사진 골라 지우기·이 건 지우기. 자주 안 쓰니 평소엔 접어둔다. (2026-10-15 사장님 "버튼이 너무 많다")
-                    if (showMore) {
-                        androidx.compose.foundation.layout.Row(
-                            Modifier.height(22.dp).clip(RoundedCornerShape(6.dp))
-                                .clickable { moreActionsExpanded = !moreActionsExpanded }.padding(horizontal = 3.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.Icon(Icons.Filled.MoreHoriz, null, tint = TossTextTertiary, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(3.dp))
-                            Text(if (moreActionsExpanded) "닫기" else "더보기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
-                        }
-                    }
-                }
-
-                // 협업 펼침 — 이 건의 협업 사장 카드(해제 포함) + 더 부르기. 내용은 전과 같다.
-                if (collabExpanded && jobCollab.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    jobCollab.forEach { line ->
-                        CollabAfterCard(
-                            partnerName = line.name.ifBlank { "협업 사장님" },
-                            siteTitle = collabSiteTitle,
-                            shareId = line.shareId,
-                            onRelease = {
-                                // 📮 협업 해제 → 우체통(B 에게 알림은 연결되면 간다). (설계 §1-A #3)
-                                if (line.shareId.isNotBlank()) {
-                                    container.applicationScope.launch {
-                                        runCatching {
-                                            container.outbox.enqueue(
-                                                com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
-                                                line.shareId,
-                                                org.json.JSONObject().put("mode", "end_owner").toString()
-                                            )
-                                        }
-                                        container.outbox.tryNow()
-                                    }
-                                }
-                                // 그 한 건(shareId)만 뗀다 — 다른 건의 같은 사장님은 그대로.
-                                container.preferences.collabAssignments = container.preferences.collabAssignments
-                                    .filterNot { e ->
-                                        val pl = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(e)
-                                        pl != null && pl.customerId == c.id &&
-                                            (if (line.shareId.isNotBlank()) pl.shareId == line.shareId
-                                             else PhoneKey.of(pl.phone) == PhoneKey.of(line.phone))
-                                    }.toSet()
-                                collabRefresh++
-                            }
-                        )
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    Text(
-                        "협업 사장님 더 부르기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.categoryText,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                            .clickable { showJobCollabShare.value = true }.padding(vertical = 8.dp)
-                    )
-                }
-
-                // 접수서 펼침 — 발행 접수서 목록(열기·수정·삭제) + 다시 보내기(챗으로). 내용은 전과 같다.
-                if (intakeExpanded && docsForJob.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    IssuedDocList(
-                        docs = docsForJob,
-                        phone = c.phoneNumber,
-                        intakeByToken = intakeByToken,
-                        onOpenQuoteDoc = { reviewQuoteDoc = it },
-                        onOpenIntakeDoc = { intakeReviewDoc = it },
-                        onEditIssued = { docId -> onOpenChatEditIssued(c.phoneNumber, c.id, docId) },
-                        onRequestDelete = { issuedDocToDelete = it },
-                        onNewDoc = { onOpenChat(c.phoneNumber, c.id) },
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "접수서 다시 보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                            .clickable { onOpenChat(c.phoneNumber, c.id) }.padding(vertical = 8.dp)
-                    )
-                }
-
-                // ⋯ 더보기 펼침 — 📐 넘치면 다음 줄로. (2026-09-28 사장님 "디자인이.. 왜저래")
-                if (moreActionsExpanded) {
-                    Spacer(Modifier.height(10.dp))
-                    FlowRow(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // 🔧 A/S 가 아직 없을 때의 **조용한 길**. 잡히면 위에 줄로 올라간다. 시공 예약이 있을 때만 — A/S 는 시공 **뒤**의 일이다.
-                        if (scheduled != null && c.asScheduledDate == null) {
-                            CdUndoChip("A/S 잡기", danger = false) { asPickerOpen = true }
-                        }
-                        // 🔧 날짜를 못 잡아도 **명단에는 올려둔다.** (2026-09-27 사장님) — 이름이 **하는 일**을 말하게.
-                        if (c.asPendingAt == null) {
-                            CdUndoChip("A/S 명단에 올리기", danger = false) { asPendingConfirm = true }
-                        }
-                        if (allPaid) {
-                            // 💰 **돈은 물어보고 뒤집는다.** (2026-09-27 사장님) — 처음 보는 분이 뜻을 알려고 누르면
-                            //   받은 돈이 안 받은 돈이 되고 상담함 [잔금 대기] 에 없던 손님이 올라온다.
-                            var unpaidConfirm by remember { mutableStateOf(false) }
-                            if (unpaidConfirm) {
-                                androidx.compose.material3.AlertDialog(
-                                    tonalElevation = 0.dp,
-                                    onDismissRequest = { unpaidConfirm = false },
-                                    title = {
-                                        Text("잔금을 아직 못 받으신 걸로 되돌릴까요?",
-                                            fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                                    },
-                                    text = {
-                                        Text(
-                                            "이 손님이 상담함 [잔금 대기] 로 다시 올라오고, " +
-                                                "정산에서도 못 받은 돈으로 잡혀요.",
-                                            style = AppType.body, color = TossTextSecondary
-                                        )
-                                    },
-                                    confirmButton = {
-                                        TextButton(onClick = {
-                                            unpaidConfirm = false
-                                            if (editJobId != null) viewModel.setJobBalancePaid(editJobId, false)
-                                            else viewModel.setBalancePaid(false)
-                                        }) {
-                                            Text("되돌릴게요", color = TossBlue, fontWeight = FontWeight.Bold)
-                                        }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = { unpaidConfirm = false }) {
-                                            Text("그냥 둘게요", color = TossTextSecondary)
-                                        }
-                                    },
-                                    containerColor = Color.White
-                                )
-                            }
-                            CdUndoChip("완납 취소", danger = false) { unpaidConfirm = true }
-                        }
-                        // 🚫 **잔금까지 받은 일은 「예약 취소」가 말이 안 된다.** (2026-09-28 사장님) — [완납 취소]가 먼저다.
-                        if (scheduled != null && !allPaid) {
-                            CdUndoChip("시공 예약 취소", danger = true) { cancelBookingConfirm = true }
-                        }
-                        // 🖼 사진 골라 지우기 — 고르는 화면으로 갈 뿐 아무것도 안 지운다. 색 중립. (2026-09-30 사장님)
-                        if (photoTotal > 0 && !pickMode) {
-                            CdUndoChip("사진 골라 지우기", danger = false) { pickMode = true; moreActionsExpanded = false }
-                        }
-                        // 🗑 취소·빈 건만 지울 수 있다 — 옛 '지난 건' 목록에 있던 삭제 경로 그대로(확인창 deletePastJobConfirm).
-                        if (canDeleteJob) {
-                            val jobToDelete = shownJob
-                            CdUndoChip("이 건 지우기", danger = true) { deletePastJobConfirm = jobToDelete }
-                        }
-                    }
-                }
-
-                if (showJobCollabShare.value) {
-                    CollabShareSheet(
-                        siteTitle = collabSiteTitle, addr = displayAddr, scheduledAtMs = cShown.scheduledWorkDate,
-                        customerId = c.id, jobDays = jobDays,
-                        requestedPhones = jobCollab.map { it.phone },
-                        onShared = { collabRefresh++ }, onDismiss = { showJobCollabShare.value = false }
-                    )
                 }
             }
-            }   // 한 건 카드 Column 닫기 (상세+메모+사진+foot 한 카드) — 2026-10-15 사장님 "한 건=한 카드"
-            }   // 한 건 카드 TossCard 닫기
-            }   // run 닫기
 
-            // 📄 이 고객 문서(차수 미지정) — **고객 단위**(per-건 카드 밖). 날짜 없는/안 맞는 발행 문서만. (2026-10-14~15 사장님)
+            // 📄 이 고객 문서 — **맨 처음 건(1차)이 아예 없을 때만**(건이 없거나 전부 취소). (2026-10-15 사장님: 날짜 없는 문서는 1차로)
+            //   1차가 있으면 떠돌이 문서는 그 1차 카드 안에 모이므로(JobDetailCard) 여기선 안 띄운다 — 위계: 고객 > 건 > 문서.
             run {
                 val matchDays = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.jobDaySet(allJobsForTabs)
                 val unmatchedDocs = com.detailline.callfollowcrm.domain.customer.IssuedDocAssign.unmatched(issuedDocs, matchDays)
-                if (unmatchedDocs.isNotEmpty()) {
+                if (unmatchedDocs.isNotEmpty() && earliestJobId == null) {
                     // ② 접힘 — 고객 메모와 같은 옷(CdFoldRow). 드문 경우라 평소엔 한 줄. (2026-10-15 Fable §2)
                     var docsExpanded by remember(c.id) { mutableStateOf(false) }
                     val openDocs: (() -> Unit)? = if (docsExpanded) null else ({ docsExpanded = true })
@@ -1928,7 +1149,7 @@ fun CustomerDetailScreen(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
                     modifier = Modifier.fillMaxWidth()
-                        .clickable { selectedPastJobId = null; dateEditJobId = null; addingNewJob = true; datePickerOpen = true }
+                        .clickable { newJobStart = null; newJobDays = 1; newJobSheetOpen = true }
                         .padding(vertical = 12.dp)
                 )
                 Spacer(Modifier.height(6.dp))
@@ -1953,6 +1174,32 @@ fun CustomerDetailScreen(
         }
         }   // ── if (c == null) … else 끝
     }
+    // ➕ 새 시공 잡기 시트 — 프로토 `s_newjob`(시공일·현장 주소·총 금액). 시공일 칸은 아래 기간 달력(addingNewJob)을 연다.
+    //   저장은 addNewJob(start, days, address, totalWon) — 주소·총액이 **그 새 건**에 들어간다. (2026-10-15 사장님)
+    if (newJobSheetOpen && customer != null) {
+        val allJobsForNew by viewModel.allJobs.collectAsState()
+        NewJobSheet(
+            customerName = customer?.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 },
+            nth = allJobsForNew.count { !jobCancelled(it) } + 1,
+            start = newJobStart, days = newJobDays,
+            onPickDate = { dateEditJobId = null; addingNewJob = true; datePickerOpen = true },
+            onRegister = { address, totalWon ->
+                val start = newJobStart
+                if (start != null) {
+                    viewModel.addNewJob(start, newJobDays, address, totalWon) { id ->
+                        android.widget.Toast.makeText(
+                            context,
+                            if (id > 0L) "새 시공을 추가했어요" else "그 날짜엔 이미 시공이 있어요",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                newJobSheetOpen = false; newJobStart = null; newJobDays = 1
+            },
+            onDismiss = { newJobSheetOpen = false; newJobStart = null; newJobDays = 1 }
+        )
+    }
+    }   // Box(시트 오버레이 자리)
 
     if (datePickerOpen && customer != null) {
         // 항공권식 기간 선택 — 시작일 → 끝날 탭하면 기간. 하루면 시작일만. (2026-08-01 사장님)
@@ -1963,8 +1210,9 @@ fun CustomerDetailScreen(
         //   기간(10/6~10/20)이 잡혔다. 그대로 저장하면 시작일이 여전히 옛 날짜 → 같은 날 중복 가드에 걸려
         //   "그 날짜엔 이미 시공이 있어요" 만 뜨고 **2차가 아예 안 만들어졌다.**
         // 🔴 특정 건을 고치는 중이면 **그 건** 날짜로 미리 채운다 — 전엔 대표 건 날짜가 떠서 다른 날이 '끝날'로 잡혔다. (2026-10-14)
-        val initStart = if (addingNewJob) null else (dateEditJobId?.let { dateEditStart } ?: customer?.scheduledWorkDate)
-        val initDays = if (addingNewJob) 1 else (if (dateEditJobId != null) dateEditDays else (customer?.scheduledWorkDays ?: 1)).coerceAtLeast(1)
+        //   새 시공 시트에서 이미 고른 날짜가 있으면(「변경」) 그걸로 미리 채운다 — 처음이면 빈 달력.
+        val initStart = if (addingNewJob) newJobStart else (dateEditJobId?.let { dateEditStart } ?: customer?.scheduledWorkDate)
+        val initDays = if (addingNewJob) newJobDays.coerceAtLeast(1) else (if (dateEditJobId != null) dateEditDays else (customer?.scheduledWorkDays ?: 1)).coerceAtLeast(1)
         val initEnd = initStart?.takeIf { initDays > 1 }?.let { it + (initDays - 1) * DateTimeUtils.DAY_MS }
         val rangeState = androidx.compose.material3.rememberDateRangePickerState(
             initialSelectedStartDateMillis = initStart?.let(toUtcMidnight),
@@ -2042,14 +1290,8 @@ fun CustomerDetailScreen(
                                             val days = if (end != null && end > start)
                                                 ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
                                             if (addingNewJob) {
-                                                // 새 건 — 지금 건은 **손대지 않는다.** 한 줄 더 쌓는다. (2026-09-17)
-                                                viewModel.addNewJob(start, days) { id ->
-                                                    android.widget.Toast.makeText(
-                                                        context,
-                                                        if (id > 0L) "새 시공을 추가했어요" else "그 날짜엔 이미 시공이 있어요",
-                                                        android.widget.Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
+                                                // 새 건 — 날짜는 시트로 돌려주기만. 저장은 시트의 [새 시공 등록](주소·총액과 함께). (2026-10-15)
+                                                newJobStart = start; newJobDays = days
                                             } else {
                                                 // 날짜(시작) + 기간(며칠) 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
                                                 pendingWorkDays = days.coerceAtLeast(1)
@@ -2304,25 +1546,31 @@ fun CustomerDetailScreen(
     val allJobsForAmt by viewModel.allJobs.collectAsState()
     amountEditField?.let { field ->
         // 🔴 초기값은 **고른 건(job)**의 값으로 — 전엔 고객 값이라 2차 열어도 1차/대표 값이 떴다. (2026-10-07)
+        // 💰 한 창에서 계약금 → 총 금액 → 잔금 자동(안내형, CustomerDetailAmountDialog). field 는 어느 칸에 커서를 둘지만 정한다. (2026-10-15)
         val amtJob = amountEditJobId?.let { id -> allJobsForAmt.firstOrNull { it.id == id } }
+        val initTotal = if (amtJob != null) amtJob.totalAmount else customer?.totalAmount
+        val initDeposit = if (amtJob != null) amtJob.depositAmount else customer?.depositAmount
         AmountInputDialog(
-            title = if (field == "total") "총금액" else "계약금",
-            initialWon = if (field == "total") (amtJob?.totalAmount ?: customer?.totalAmount ?: 0L)
-                         else (amtJob?.depositAmount ?: customer?.depositAmount ?: 0L),
-            onSave = { won ->
+            initialTotalWon = initTotal,
+            initialDepositWon = initDeposit,
+            focusDeposit = field == "deposit",
+            onSave = { totalWon, depositWon ->
                 val jid = amountEditJobId
-                if (field == "total") {
-                    val old = customer?.totalAmount ?: 0L
-                    if (jid != null) viewModel.setJobTotalAmount(jid, won) else viewModel.setTotalAmount(won)
-                    // 시공금액이 "바뀌면"(첫 설정 제외) 이유 입력 띄움. 변경 이력 카드는 거기서 기록. (2026-06-30 사장님)
-                    if (jid == null && won != old && old > 0L) amountChangeReason = old to won
+                if (jid != null) {
+                    // 총액·계약금을 **한 번에** 그 건에 — 따로 두 번 쓰면 읽고-쓰기가 겹쳐 한쪽이 지워질 수 있다.
+                    viewModel.setJobAmounts(jid, totalWon, depositWon)
                 } else {
-                    if (jid != null) viewModel.setJobDepositAmount(jid, won) else viewModel.setDepositAmount(won)
+                    val old = customer?.totalAmount ?: 0L
+                    // 건 없는 고객 — 둘을 한 번에(계약금 적으면 받음 자동, 건 경로와 같은 규칙).
+                    viewModel.setCustomerAmounts(totalWon, depositWon)
+                    // 시공금액이 "바뀌면"(첫 설정 제외) 이유 입력 띄움. 변경 이력 카드는 거기서 기록. (2026-06-30 사장님)
+                    val newTotal = totalWon ?: 0L
+                    if (newTotal != old && old > 0L) amountChangeReason = old to newTotal
                 }
                 amountEditJobId = null
                 amountEditField = null
             },
-            onDismiss = { amountEditField = null }
+            onDismiss = { amountEditJobId = null; amountEditField = null }
         )
     }
     // 시공금액 변경 이유(선택) — 기록/그냥넘어가기/바깥탭 모두 변경 이력 카드 남김. 이유는 사장님 기억용. (2026-06-30 사장님)
@@ -2405,7 +1653,6 @@ fun CustomerDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deletePastJob(j.id)
-                    if (selectedPastJobId == j.id) selectedPastJobId = null
                     deletePastJobConfirm = null
                 }) { Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold) }
             },
@@ -2638,99 +1885,49 @@ private fun NameEditDialog(
 }
 
 
-/** 되돌리는 단추 — 작게, 오른쪽 끝에. 빨강은 '취소' 하나에만. (2026-09-20 사장님) */
+/**
+ * 되돌리는 단추 — 작게, 오른쪽 끝에. 빨강은 '취소' 하나에만. (2026-09-20 사장님)
+ *   🔎 (2026-10-15 사장님 "계약금 넣기·협업 부르기·더보기가 보이지도 않고 익숙하지 않은 UX")
+ *   foot 의 행동들도 이 칩 **한 벌**로 — 아이콘(선택)을 앞에 붙이고 글자는 AppType.label(12.5·ExtraBold).
+ *   회색 글자만 덩그러니 있던 것 → 알약 바탕 + 아이콘이라 「누르는 것」으로 보인다.
+ */
 @Composable
-private fun CdUndoChip(
+internal fun CdUndoChip(
     label: String, danger: Boolean,
     /** 채운 회색 칩 — 잔금 옆 「받았어요」처럼 **평소에 보이는 작은 행동**. 테두리만(기본)은 ⋯ 더보기 안 되돌리기용. (2026-10-15) */
     filled: Boolean = false,
+    /** 앞에 붙는 작은 아이콘(14dp). foot 의 계약금·협업·더보기가 쓴다. */
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    /** 글자·아이콘 색을 바꿀 때(협업=보라, 접수서=파랑). null = 기본(회색). */
+    tint: Color? = null,
     onClick: () -> Unit
 ) {
-    val fg = if (danger) TossError else if (filled) AppTheme.colors.textSub else AppTheme.colors.textHint
-    androidx.compose.foundation.layout.Box(
-        Modifier.clip(RoundedCornerShape(10.dp))
+    val fg = tint ?: if (danger) TossError else if (filled) AppTheme.colors.textSub else AppTheme.colors.textHint
+    androidx.compose.foundation.layout.Row(
+        Modifier.clip(AppShape.sm)
             .then(
                 if (filled) Modifier.background(AppTheme.colors.surfaceMuted)
-                else Modifier.border(1.dp, if (danger) AppTheme.colors.unpaidBg else AppTheme.colors.surfaceMuted, RoundedCornerShape(10.dp))
+                else Modifier.border(1.dp, if (danger) AppTheme.colors.unpaidBg else AppTheme.colors.surfaceMuted, AppShape.sm)
             )
             .clickable { onClick() }
-            .padding(horizontal = 11.dp, vertical = 6.dp)
+            .padding(horizontal = 11.dp, vertical = 6.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fg)
+        if (icon != null) {
+            Icon(icon, null, tint = fg, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(AppSpace.s4))
+        }
+        Text(label, style = AppType.label, color = fg, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
 /** 원 → "N만원"(만 단위로 떨어지면) / "N원". 규칙은 MoneyFormatter 한 곳에. (2026-09-28) */
-private fun manwonLabel(won: Long): String =
+internal fun manwonLabel(won: Long): String =
     com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)
 
 // (payStatusLabel / MoneyEditPill 제거 — 돈도 CdKv 한 줄로 바뀌면서 쓸 곳이 없어졌다. 2026-09-20)
 
-/** 금액(총금액/계약금) 입력 다이얼로그 — 만원 단위. */
-@Composable
-private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf(if (initialWon > 0L) (initialWon / 10000L).toString() else "") }
-    // 🔴 적어둔 금액을 **조용히 버리지 않는다.** (2026-09-18 사장님 "금액 수정까지 했었거든? 근데 날아갔네")
-    //   숫자를 치면 키보드가 올라오면서 [저장] 버튼이 위로 밀린다. 원래 자리를 누르면 키보드가 눌리고,
-    //   바깥을 누르거나 뒤로 가면 **입력한 값이 그냥 사라졌다**(안내도 없음). 돈에서 이러면 안 된다.
-    //   → 값을 바꿔놓고 닫으려 하면 한 번 되묻는다.
-    val changed = (text.toLongOrNull() ?: 0L) != (if (initialWon > 0L) initialWon / 10000L else 0L)
-    var confirmDiscard by remember { mutableStateOf(false) }
-    val tryDismiss = { if (changed) confirmDiscard = true else onDismiss() }
-    if (confirmDiscard) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            containerColor = Color.White,
-            tonalElevation = 0.dp,
-            title = { Text("적어둔 금액을 버릴까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
-            text = {
-                Text(
-                    "${text.ifBlank { "0" }}만원을 적어두셨어요. 저장하지 않고 닫으면 사라져요.",
-                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val enteredMan = text.toLongOrNull() ?: 0L
-                    onSave(if (enteredMan == initialWon / 10000L) initialWon else enteredMan * 10000L)
-                    confirmDiscard = false
-                }) { Text("저장할게요", color = TossBlue, fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscard = false; onDismiss() }) {
-                    Text("버리기", color = TossError, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        )
-    }
-    androidx.compose.ui.window.Dialog(onDismissRequest = tryDismiss) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
-            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-            Text("$title 입력", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = text,
-                onValueChange = { v -> text = v.filter { it.isDigit() } },
-                suffix = { Text("만원") },
-                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = tossFieldColors()
-            )
-            Spacer(Modifier.height(14.dp))
-            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TossSecondaryButton(text = "취소", onClick = tryDismiss, modifier = Modifier.weight(1f))
-                TossPrimaryButton(text = "저장", onClick = {
-                    val enteredMan = text.toLongOrNull() ?: 0L
-                    // 표시 만원을 안 바꿨으면 원본 '원' 값 그대로 유지(만원 미만 절삭 방지: 375,000원을 안 건드려도 370,000 되던 것).
-                    //   바꿨을 때만 만원→원. (2026-08-11 돈 정확성 감사 rank2)
-                    onSave(if (enteredMan == initialWon / 10000L) initialWon else enteredMan * 10000L)
-                }, modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
+// (금액 입력 창은 CustomerDetailAmountDialog.kt — 계약금 → 총 금액 → 잔금 자동. 2026-10-15 사장님)
 
 /** 시공금액 변경 시 이유 입력(선택) — 적으면 변경 이력 카드에 남고, 안 적어도(그냥 넘어가기) 변경 자체는 기록. (2026-06-30 사장님) */
 @Composable
@@ -2769,7 +1966,7 @@ private const val PHOTO_COLLAPSED = 6
 
 /** 사진 카드 제목 줄의 작은 버튼 — [올리기] 파랑 채움 / [고르기]·[취소] 회색. */
 @Composable
-private fun PhotoHeadBtn(label: String, filled: Boolean, onClick: () -> Unit) {
+internal fun PhotoHeadBtn(label: String, filled: Boolean, onClick: () -> Unit) {
     Text(
         label,
         fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
@@ -2783,7 +1980,7 @@ private fun PhotoHeadBtn(label: String, filled: Boolean, onClick: () -> Unit) {
 }
 
 /** 주소로 지도 앱 길찾기 — geo: 쿼리. 설치된 지도 앱(카카오내비/구글지도 등) 선택. */
-private fun startNavToAddress(context: android.content.Context, address: String) {
+internal fun startNavToAddress(context: android.content.Context, address: String) {
     runCatching {
         val uri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(address))
         context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
@@ -3339,7 +2536,7 @@ private fun CategoryNameInputDialog(
  *   [1차 날짜미상][2차 날짜미상][3차 신규] 처럼 빈 칸이 줄줄이 늘어섰다.
  *   돈이나 주소가 하나라도 적혀 있으면 빈 건이 아니다 — 그건 살려둬야 할 기록이다.
  */
-private fun jobBlank(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+internal fun jobBlank(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
     j.scheduledWorkDate == null && j.workCompletedAt == null &&
         j.totalAmount == null && j.depositAmount == null && j.balanceAmount == null &&
         j.depositPaidAt == null && j.balancePaidAt == null && j.address.isNullOrBlank()
@@ -3350,11 +2547,11 @@ private fun jobBlank(j: com.detailline.callfollowcrm.data.local.entity.JobEntity
  *   `cancelledAt` 이 안 찍힌 옛 껍데기(일정만 푼 건)도 같이 접는다 — 사장님 눈엔 똑같은 빈 칸이다.
  *   앞줄에서 빼고 '지난 건'으로 접는다. 지우는 게 아니라 접는 거라 되살릴 수 있다.
  */
-private fun jobCancelled(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+internal fun jobCancelled(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
     j.cancelledAt != null || jobBlank(j)
 
 /** 앞줄(탭)에서 빼고 접어둘 건 — 마무리됐거나 취소한 것. */
-private fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
+internal fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean =
     jobClosed(j) || jobCancelled(j)
 
 /**
@@ -3375,7 +2572,7 @@ private fun jobFolded(j: com.detailline.callfollowcrm.data.local.entity.JobEntit
  *   탭은 취소·빈 건을 빼고 세는데 여기선 다 세고 있어서 **번호가 하나씩 밀렸다.**
  *   같은 규칙을 두 군데 따로 적으면 또 어긋난다 — 셈은 여기 하나로 모은다.
  */
-private fun jobNthOf(
+internal fun jobNthOf(
     all: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
     job: com.detailline.callfollowcrm.data.local.entity.JobEntity
 ): Int {
@@ -3386,136 +2583,5 @@ private fun jobNthOf(
 }
 
 
-/**
- * 스택 행 둘째 줄 — 「날짜 · 현장 라벨」. 안 펼치고도 「아 그 현장」 하고 알게. (2026-10-15 사장님 #14)
- *   현장 라벨은 협업 제목과 **같은 규칙**(`AddressExtractor.siteLabel`: 동·호 떼고 지역+건물명 — §12 재사용).
- *   주소가 없거나 라벨이 안 나오면 **날짜만** — 「주소 없음」 같은 빈말은 안 적는다.
- */
-private fun jobStackSub(dateLabel: String, address: String?): String {
-    val site = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(address).takeIf { it.isNotBlank() }
-    return if (site == null) dateLabel else "$dateLabel · $site"
-}
-
-@Composable
-private fun JobTabsRow(
-    pastJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
-    current: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
-    selectedPastJobId: Long?,
-    onSelect: (Long?) -> Unit,
-    onAddNew: () -> Unit
-) {
-    // 차수는 **날짜순**이다 — 먼저 한 날이 1차. (2026-09-18 실기에서 발견해 고침)
-    //   전엔 '지난 건들' 을 먼저 그리고 '지금 건' 을 **항상 맨 뒤**에 붙였다.
-    //   그런데 '지금 건'(대표) = 오늘 이후 **가장 가까운** 건이라, 2차를 더 뒤 날짜로 잡으면
-    //   [1차 11/10][2차 10/27] 처럼 **순서와 차수가 뒤집혀** 보였다.
-    //   지금 건도 날짜를 가진 한 칸으로 같이 줄 세운다. 날짜 없는 지금 건은 맨 뒤.
-    // 마무리(잔금 받음)된 건은 탭에서 뺀다 — 아래 '지난 건'으로 묶인다. (2026-09-18 프로토)
-    //   다만 **지금 고른 건**은 마무리됐어도 남겨야 화면이 비지 않는다.
-    // 🔴 **날짜 없는 건은 맨 뒤.** (2026-09-27 사장님 "1차 시공도 없는데 2차 날짜가 잡히는 건 버그인가?")
-    //   전엔 지난 건의 빈 날짜를 0L(1970년)로 봐서 **맨 앞 = 1차**를 차지했다.
-    //   아직 날짜도 안 잡은 시공이 이미 끝낸 시공보다 먼저일 수는 없다.
-    //   지금 건은 원래 맨 뒤(Long.MAX_VALUE)였다 — **지난 건만 반대**여서 어긋났다.
-    //   날짜가 없어 동점이면 **먼저 만든 건**이 앞. 지금 건(대표)은 그중 맨 뒤.
-    val CUR = com.detailline.callfollowcrm.util.JobOrder.CURRENT
-    val slots: List<Pair<Long?, com.detailline.callfollowcrm.data.local.entity.JobEntity?>> =
-        remember(pastJobs, current.scheduledWorkDate, selectedPastJobId) {
-            val xs = ArrayList<Triple<Long?, Long, com.detailline.callfollowcrm.data.local.entity.JobEntity?>>()
-            for (j in pastJobs) {
-                // 완료·취소 건도 스택에 **접힌 카드**로 남긴다(프로토). 전엔 여기서 빼고 '지난 건 N' 칩으로 묶었다. (2026-10-15 사장님)
-                xs.add(Triple(j.scheduledWorkDate, j.id, j))
-            }
-            xs.add(Triple(current.scheduledWorkDate, CUR, null))
-            val seq = com.detailline.callfollowcrm.util.JobOrder.order(xs.map { it.first to it.second })
-            xs.sortedBy { seq.indexOf(it.second) }.map { it.first to it.third }
-        }
-    // 차수는 **숨겨진 지난 건까지 포함한 날짜순**. 접었다 폈다 해도 "2차"가 "1차"로 바뀌지 않는다.
-    //   단 **취소한 건은 차수를 차지하지 않는다.** (2026-09-18 실기에서 발견)
-    //   1차를 취소했더니 빈 자리가 "2차 · 신규" 라고 떴다 — 한 번도 안 한 시공이 2차일 수는 없다.
-    val order: List<Long> = remember(pastJobs, current.scheduledWorkDate) {
-        com.detailline.callfollowcrm.util.JobOrder.order(
-            pastJobs.filterNot { jobCancelled(it) }.map { it.scheduledWorkDate to it.id } +
-                listOf(current.scheduledWorkDate to CUR)
-        )
-    }
-    fun nthOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Int =
-        com.detailline.callfollowcrm.util.JobOrder.nth(order, j.id)
-    val curNth = com.detailline.callfollowcrm.util.JobOrder.nth(order, CUR)
-    // 세로 스택 — 최신 건이 맨 위(프로토 "최신부터"). 완료 건은 '지난 건'으로 접힘(맨 아래). (2026-10-14 재설계 4단계)
-    androidx.compose.foundation.layout.Column(
-        Modifier.fillMaxWidth(),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-    ) {
-        // 시공 건 · 최신부터 — 프로토 `.slab` 라벨. 이모지 대신 **벡터**(안전모 쓴 사람 = 브랜드 「노란 안전모」,
-        //   마감 브리핑·일정 추가와 같은 아이콘 — 세 번째 벌 안 만듦 §12). (2026-10-15 사장님 #13)
-        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            androidx.compose.material3.Icon(Icons.Filled.Engineering, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("시공 건 · 최신부터", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-        }
-        // ＋ 새 시공 잡기 — **건 카드들 위**(프로토 `.addnew`: 점선 + 연파랑 바탕). 한 줄 점선 버튼. (2026-10-15 사장님)
-        androidx.compose.foundation.layout.Box(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(AppTheme.colors.primaryBg)
-                .border(1.dp, TossBlue.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                .clickable(onClick = onAddNew)
-                .padding(vertical = 13.dp),
-            contentAlignment = androidx.compose.ui.Alignment.Center
-        ) {
-            Text("＋ 새 시공 잡기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
-        }
-        @Suppress("UNUSED_PARAMETER")
-        slots.reversed().forEachIndexed { idx, (_, job) ->
-            if (job != null) {
-                // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
-                val done = job.workCompletedAt != null
-                val dd = job.scheduledWorkDate?.let { DateTimeUtils.dDayLabel(it) }
-                val folded = jobFolded(job)
-                val dateLabel = job.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) }
-                    ?: if (job.cancelledAt != null) "예약 취소함" else "날짜 미정"
-                // 완료 건은 **접힌 카드**처럼 — 금액·완납은 첫 줄 **오른쪽 끝**(프로토 `.fold-sum` "60만원 · 완납"). (2026-10-15 사장님)
-                val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(job)
-                val trailing = if (done && settle.total > 0L)
-                    manwonLabel(settle.total) + (if (settle.isPaidOff) " · 완납" else " · 잔금 " + manwonLabel(settle.outstanding))
-                else null
-                JobTab(
-                    // 취소한 건은 차수를 안 준다 — 안 한 시공에 번호를 붙이면 뒤가 다 밀린다. (2026-09-18)
-                    nth = if (jobCancelled(job)) (if (job.cancelledAt != null) "취소한 건" else "빈 건")
-                          else "${nthOf(job)}차 · " + if (done) "완료" else (dd ?: "예정"),
-                    sub = jobStackSub(dateLabel, job.address),
-                    trailing = trailing,
-                    on = selectedPastJobId == job.id,
-                    // 완료=회색·예정=초록 점(달력 범례와 같은 색). 취소 건은 점 없음. (2026-10-07)
-                    accent = if (jobCancelled(job)) null else if (done) TossTextTertiary else TossSuccess,
-                    // 완료·취소 건은 접힌 느낌으로 회색 처리. (2026-10-15)
-                    muted = folded,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onSelect(job.id) }
-                )
-            } else {
-                // 지금 건 — 예약이 남았으면 D-day, 아니면 '진행 중'.
-                val label: String? = com.detailline.callfollowcrm.presentation.component.scheduleTagLabel(current)
-                val nowLabel = label?.removePrefix("시공 ")?.takeIf { t -> t.isNotBlank() } ?: "진행"
-                val curSettle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(current)
-                JobTab(
-                    nth = "${curNth}차 · " + nowLabel,
-                    sub = jobStackSub(
-                        current.scheduledWorkDate?.let { DateTimeUtils.formatDateLabel(it) } ?: "날짜 미정",
-                        current.address
-                    ),
-                    trailing = if (current.workCompletedAt != null && curSettle.total > 0L)
-                        manwonLabel(curSettle.total) + (if (curSettle.isPaidOff) " · 완납" else " · 잔금 " + manwonLabel(curSettle.outstanding))
-                    else null,
-                    on = selectedPastJobId == null,
-                    accent = if (current.workCompletedAt != null) TossTextTertiary else TossSuccess,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onSelect(null) }
-                )
-            }
-        }
-        // (＋새 시공 잡기는 위로 옮김 — 프로토대로 건 카드들 위. 2026-10-15 사장님)
-    }
-    Spacer(Modifier.height(2.dp))
-}
 
 

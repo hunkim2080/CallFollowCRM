@@ -342,13 +342,13 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (14가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (15가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 14가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send`
+**`dup_guard` 가 지금 막는 15가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -443,7 +443,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 서버에 말 걸기 | `ai/Net.builder()` — **로그인 토큰이 자동으로 붙는다** | `OkHttpClient.Builder()` 직접 |
 | 권한 묻기 | `util/PermissionHelper.kt` | 화면마다 런처 |
 | 끌어서 순서 바꾸기 | `util/DragReorder.kt` | 화면마다 복사 |
-| 완료 찍기 | `data/repository/WorkCompletionManager.kt` | 화면마다 따로 |
+| 완료 찍기·잔금 받음 도장(카드+건 같이) | `data/repository/WorkCompletionManager.kt` — `setCompleted` / `setBalancePaid(customerId, at, jobId)` | 화면마다 따로, `customerRepository.updateBalancePaidAt` 직접(2026-10-15: 카드에만 찍혀 건은 「금액 미입력」+「완료」로 보였다) |
 | 로그에 번호 가리기 | `util/LogRedact.kt` | 번호를 그대로 로그 |
 | 대화 화면 조각 | `presentation/screen/chat/` 의 `ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts` | ChatScreen.kt 안에 또 쌓기 |
 | 서버로 보내는 명령(협업·사진, 오프라인 보관·재시도) | `data/outbox/Outbox.kt` (셈은 `domain/outbox/OutboxRules.kt`, 보내기는 `data/outbox/handlers/`) | 화면·매니저에서 `runCatching { sharedSiteRepository.reschedule/updateAddress/endCollab/cancel }` · `serverRepo.uploadOwnerPhoto` 직접 |

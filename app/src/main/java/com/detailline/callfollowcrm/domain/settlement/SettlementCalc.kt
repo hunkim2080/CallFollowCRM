@@ -43,7 +43,70 @@ data class SettleBookRow(
     val scheduledWorkDate: Long?
 )
 
+/**
+ * 💬 **금액 입력 창의 셈** — 계약금·총액을 받아 잔금을 미리 보여주고, 저장해도 되는지 판단한다. (2026-10-15 사장님)
+ *   사장님: "계약금 받았으면 입력. 총 받아야 할 돈 얼마? 이렇게 해서 잔금은 그럼 얼마인가요? 해서 금액 계산되게."
+ *   잔금 규칙은 [SettlementCalc.rowOfFields] 와 **같은 자**(총액 − 계약금) — 창이 보여준 잔금과 저장 뒤 카드의 잔금이 어긋나면 안 된다.
+ *
+ * @property totalWon   저장할 총액(원). null = 안 적음(0 포함 — 0원은 '지움'으로 본다).
+ * @property depositWon 저장할 계약금(원). null = 안 적음.
+ * @property balanceWon 잔금(원) = 총액 − 계약금. 총액을 안 적었으면 null(계산 불가).
+ * @property depositOverTotal 계약금이 총액보다 크다 — 저장 막고 안내.
+ * @property canSave 저장해도 되나(계약금>총액이면 false).
+ */
+data class AmountPlan(
+    val totalWon: Long?,
+    val depositWon: Long?,
+    val balanceWon: Long?,
+    val depositOverTotal: Boolean,
+    val canSave: Boolean
+)
+
 object SettlementCalc {
+
+    /**
+     * 금액 입력 창 미리보기 — 순수 셈. 음수·0원·계약금>총액까지 여기서 정한다([SettlementCalcTest]).
+     *   · 0 이하 = 안 적음(null). 계약금만 적는 것도 된다(총액 없이 계약금 먼저 받는 일이 있다 — 2026-06-11).
+     *   · 계약금 > 총액 → 저장 불가(잔금이 음수가 되는 걸 [rowOfFields] 가 0으로 눌러 숨기기 전에, 입력에서 막는다).
+     */
+    fun planAmounts(totalWon: Long?, depositWon: Long?): AmountPlan {
+        val total = totalWon?.takeIf { it > 0L }
+        val deposit = depositWon?.takeIf { it > 0L }
+        val over = total != null && deposit != null && deposit > total
+        val balance = if (total != null && !over) total - (deposit ?: 0L) else null
+        return AmountPlan(
+            totalWon = total,
+            depositWon = deposit,
+            balanceWon = balance,
+            depositOverTotal = over,
+            canSave = !over
+        )
+    }
+
+    /**
+     * 만원 칸에 적힌 수 → 원. **표시 만원을 안 바꿨으면 원래 원 값을 그대로** 돌려준다
+     *   (375,000원을 안 건드렸는데 370,000원이 되던 절삭 — 2026-08-11 돈 정확성 감사 rank2).
+     *   빈 칸(null/0)은 null = 지움.
+     */
+    fun wonFromMan(enteredMan: Long?, initialWon: Long?): Long? {
+        val man = enteredMan ?: 0L
+        if (man <= 0L) return null
+        val init = initialWon ?: 0L
+        return if (init > 0L && man == init / 10_000L) init else man * 10_000L
+    }
+
+    /**
+     * 💵 **계약금을 적으면 = 받은 것.** (2026-10-15 사장님 결정 Q3 — "계약금 받았으면 입력")
+     *   금액 창에서 저장할 때 계약금 받음 시각을 어떻게 둘지 — 건 경로·고객 경로가 **같은 규칙**을 쓴다.
+     *   · 계약금 > 0 이고 아직 안 찍혔으면 지금(now) 찍는다. 이미 찍혔으면 그대로(멱등).
+     *   · 계약금을 지우면(0/null) 받음도 푼다.
+     *   · 잔금(balancePaidAt)은 여기서 안 건드린다 — 완납은 별개(「받았어요」).
+     */
+    fun depositPaidAfterSave(depositWon: Long?, currentPaidAt: Long?, now: Long): Long? =
+        if ((depositWon ?: 0L) > 0L) currentPaidAt ?: now else null
+
+    /** 건에 돈이 하나라도 적혔나(총액·계약금·잔금). 「완료 · 금액 미입력」 표시 판단(Q1). 규칙은 [rowOf] 의 total. */
+    fun hasMoney(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean = rowOf(j).total > 0L
 
     /**
      * 📒 **장부 전체 — 이 앱에서 「못 받은 돈」을 세는 유일한 목록.** (2026-09-28)

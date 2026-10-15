@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.data.repository
 
 import com.detailline.callfollowcrm.data.local.dao.CustomerDao
 import com.detailline.callfollowcrm.data.local.dao.JobDao
+import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.JobEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -374,61 +375,45 @@ class JobRepository(
      */
     suspend fun repairMoneyMirror(now: Long = System.currentTimeMillis()): Int {
         val customers = runCatching { customerDao.allOnce() }.getOrDefault(emptyList())
-        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
         var fixed = 0
         for (c in customers) {
-            val jobs = jobDao.scheduledByCustomerOnce(c.id)
-            if (jobs.isEmpty()) continue   // 건 없는 고객 = 카드가 SoT, 안 건드림
-            val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: continue
-            val cardHasMoney = c.totalAmount != null || c.depositAmount != null || c.balanceAmount != null ||
-                c.depositPaidAt != null || c.balancePaidAt != null || c.workCompletedAt != null
-            val anyJobHasMoney = jobs.any {
-                it.totalAmount != null || it.depositAmount != null || it.balanceAmount != null ||
-                    it.depositPaidAt != null || it.balancePaidAt != null || it.workCompletedAt != null
-            }
-            if (!cardHasMoney && !anyJobHasMoney) continue
-            if (!anyJobHasMoney) {
-                // 건에 돈이 하나도 없음 → 카드 돈 전체를 대표 건으로 (멱등)
-                runCatching {
-                    jobDao.update(
-                        rep.copy(
-                            totalAmount = c.totalAmount, depositAmount = c.depositAmount, depositPaidAt = c.depositPaidAt,
-                            balanceAmount = c.balanceAmount, balancePaidAt = c.balancePaidAt, workCompletedAt = c.workCompletedAt,
-                            updatedAt = now
-                        )
-                    )
-                }.onSuccess { fixed++ }
-            } else if ((rep.balancePaidAt == null && c.balancePaidAt != null) ||
-                (rep.depositPaidAt == null && c.depositPaidAt != null)) {
-                // 🩹 (2026-10-12 사장님 동남) 건에 총액 등은 있는데 **받음(완납·계약금)·완료만 카드에** 있는 경우 — 그것만 끌어올린다.
-                //   채팅·정산·미수 카드의 '잔금/계약금 받음'(updateBalancePaidAt/updateDepositPaidAt)이 건을 안 거치고
-                //   카드에만 찍혀, '내 기록'(건 기준) 번호가 안 붙거나 정산에서 받은 돈이 빠지던 것. 멱등(빈 칸만 채움).
-                //   전액 완납=시공 완료(사장님). 계약금만 받은 경우는 완료 아님(c.balancePaidAt==null).
-                runCatching {
-                    jobDao.update(
-                        rep.copy(
-                            balancePaidAt = rep.balancePaidAt ?: c.balancePaidAt,
-                            balanceAmount = rep.balanceAmount ?: c.balanceAmount,
-                            depositPaidAt = rep.depositPaidAt ?: c.depositPaidAt,
-                            depositAmount = rep.depositAmount ?: c.depositAmount,
-                            workCompletedAt = rep.workCompletedAt ?: c.workCompletedAt ?: c.balancePaidAt,
-                            updatedAt = now
-                        )
-                    )
-                }.onSuccess { fixed++ }
-            } else if ((c.balancePaidAt == null && rep.balancePaidAt != null) ||
-                (c.depositPaidAt == null && rep.depositPaidAt != null) ||
-                (c.workCompletedAt == null && rep.workCompletedAt != null)) {
-                // 🩹 (2026-10-13 사장님) 반대 방향 — **받음·완료가 건 전표엔 있는데 카드엔 없는** 경우.
-                //   건 상세 [잔금/계약금 확인](setJobBalancePaid)이 전엔 고객 미러를 안 건드려,
-                //   고객정보는 "전액 완납"인데 상담함·챗 배지(카드 읽음)는 "잔금미수"로 남았다.
-                //   대표 건 → 카드 한 방향 미러로 바로잡는다(멱등).
-                runCatching { recomputeMirror(c.id, now) }.onSuccess { fixed++ }
-            }
+            if (repairMoneyMirrorOf(c, now, renumber = false)) fixed++
         }
         // 완료가 새로 붙은 건이 있으면 현장 번호를 다시 매긴다(멱등 — 기존 번호는 그대로).
         if (fixed > 0) renumberRecords(now)
         return fixed
+    }
+
+    /** 고객 id 로 한 명만 치유 — 「잔금 받음」 도장([WorkCompletionManager.setBalancePaid]) 직전에 카드-전용 돈을 건으로 올릴 때. (2026-10-15) */
+    suspend fun repairMoneyMirrorOf(customerId: Long, now: Long = System.currentTimeMillis()): Boolean {
+        val c = customerDao.findById(customerId) ?: return false
+        return repairMoneyMirrorOf(c, now, renumber = true)
+    }
+
+    /**
+     * 한 고객 치유. 카드 → 대표 건 방향의 규칙은 [com.detailline.callfollowcrm.domain.job.JobMoneyBackfill] **한 곳**(순수·테스트).
+     *   반대 방향(받음·완료가 건엔 있는데 카드엔 없음 — 2026-10-13 사장님)은 대표 건 → 카드 미러([recomputeMirror])로.
+     */
+    private suspend fun repairMoneyMirrorOf(c: CustomerEntity, now: Long, renumber: Boolean): Boolean {
+        val jobs = jobDao.scheduledByCustomerOnce(c.id)
+        if (jobs.isEmpty()) return false   // 건 없는 고객 = 카드가 SoT, 안 건드림
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: return false
+        val merged = com.detailline.callfollowcrm.domain.job.JobMoneyBackfill.merge(rep, c)
+        if (merged != null) {
+            val ok = runCatching { jobDao.update(merged.copy(updatedAt = now)) }.isSuccess
+            if (ok && renumber) renumberRecords(now)
+            return ok
+        }
+        if ((c.balancePaidAt == null && rep.balancePaidAt != null) ||
+            (c.depositPaidAt == null && rep.depositPaidAt != null) ||
+            (c.workCompletedAt == null && rep.workCompletedAt != null)) {
+            // 🩹 (2026-10-13 사장님) 반대 방향 — **받음·완료가 건 전표엔 있는데 카드엔 없는** 경우.
+            //   건 상세 [잔금/계약금 확인](setJobBalancePaid)이 전엔 고객 미러를 안 건드려,
+            //   고객정보는 "전액 완납"인데 상담함·챗 배지(카드 읽음)는 "잔금미수"로 남았다.
+            return runCatching { recomputeMirror(c.id, now) }.isSuccess
+        }
+        return false
     }
 
     /**

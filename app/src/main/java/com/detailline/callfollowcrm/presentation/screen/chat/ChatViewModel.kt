@@ -744,14 +744,9 @@ class ChatViewModel(
         viewModelScope.launch {
             val ok = runCatching {
                 withContext(kotlinx.coroutines.NonCancellable) {
-                    val now = System.currentTimeMillis()
-                    container.customerRepository.updateBalancePaidAt(c.id, now)
                     // 💵 잔금 받음은 **건까지** 내려야 '내 기록'(건 기준)에 번호가 붙고 "완료 누르기"가 안 남는다.
-                    //   고객 정보의 '잔금 받음'과 같은 길(setBalancePaid: 건 완납+완료+번호). (2026-10-12 사장님 동남:
-                    //   채팅으로 완납했더니 돈은 완납인데 내 기록엔 '완료 누르기'로 남음 — 건에 완료가 안 내려감)
-                    container.jobRepository.representativeJobId(c.id, now)?.let { jid ->
-                        container.jobRepository.setBalancePaid(jid, now, now)
-                    }
+                    //   (2026-10-12 사장님 동남) → 도장은 WorkCompletionManager.setBalancePaid **한 곳**(카드+대표 건). (2026-10-15)
+                    container.workCompletionManager.setBalancePaid(c.id, System.currentTimeMillis())
                     container.autoCategoryClassifier.reclassify(c.id)
                 }
             }.isSuccess

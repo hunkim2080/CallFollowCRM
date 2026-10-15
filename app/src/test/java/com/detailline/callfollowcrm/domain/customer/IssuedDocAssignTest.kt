@@ -91,4 +91,36 @@ class IssuedDocAssignTest {
         assertTrue(IssuedDocAssign.jobDaySet(listOf(job(1, null))).isEmpty())
         assertTrue(IssuedDocAssign.forJobDay(listOf(doc(1, day1)), null).isEmpty())
     }
+
+    // forJob — 날짜 없는/안 맞는 떠돌이 문서를 **맨 처음 건(1차)**에 모은다. (2026-10-15 사장님)
+    private val allDays get() = IssuedDocAssign.jobDaySet(listOf(job(1, day1), job(2, day2)))
+
+    @Test fun `F1 맨 처음 건이면 그 건 날짜 문서 + 떠돌이(날짜없음·안맞음)까지`() {
+        val docs = listOf(
+            doc(1, day1),      // 1차 날짜
+            doc(2, day2),      // 2차 날짜 — 1차엔 안 와야
+            doc(3, null),      // 날짜 없음(견적서) → 1차로
+            doc(4, otherDay)   // 안 맞음 → 1차로
+        )
+        val got = IssuedDocAssign.forJob(docs, day1, isEarliest = true, allJobDays = allDays).map { it.id }
+        assertEquals(listOf(1L, 3L, 4L), got)   // 2차 것은 빠지고 떠돌이가 1차로
+    }
+
+    @Test fun `F2 맨 처음 건이 아니면 그 건 날짜 문서만 (떠돌이 안 붙음)`() {
+        val docs = listOf(doc(2, day2), doc(3, null), doc(4, otherDay))
+        val got = IssuedDocAssign.forJob(docs, day2, isEarliest = false, allJobDays = allDays).map { it.id }
+        assertEquals(listOf(2L), got)   // 2차 날짜 것만, 떠돌이는 안 붙는다
+    }
+
+    @Test fun `F3 날짜 없는 견적서 하나뿐이면 1차 카드에 뜬다`() {
+        val docs = listOf(doc(99, null))   // 날짜 없는 견적서(실제 신고 케이스)
+        assertEquals(listOf(99L), IssuedDocAssign.forJob(docs, day1, isEarliest = true, allJobDays = allDays).map { it.id })
+        assertTrue(IssuedDocAssign.forJob(docs, day2, isEarliest = false, allJobDays = allDays).isEmpty())
+    }
+
+    @Test fun `F4 1차 날짜 문서가 떠돌이로 두 번 세지 않는다 (중복 제거)`() {
+        val docs = listOf(doc(1, day1))   // 1차 날짜 문서. day1 은 allDays 에 있으니 떠돌이 아님.
+        val got = IssuedDocAssign.forJob(docs, day1, isEarliest = true, allJobDays = allDays).map { it.id }
+        assertEquals(listOf(1L), got)     // 한 번만
+    }
 }

@@ -288,15 +288,10 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     fun setBalancePaid(customerId: Long, paid: Boolean, jobId: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             runCatching {
-                val at = if (paid) System.currentTimeMillis() else null
-                if (jobId != null) {
-                    container.jobRepository.setBalancePaid(jobId, at)
-                    if (container.jobRepository.representativeJobId(customerId) == jobId) {
-                        container.customerRepository.updateBalancePaidAt(customerId, at)
-                    }
-                } else {
-                    container.customerRepository.updateBalancePaidAt(customerId, at)
-                }
+                // 💵 도장은 WorkCompletionManager.setBalancePaid 한 곳 — 카드와 건을 같이. (2026-10-15 §13④)
+                container.workCompletionManager.setBalancePaid(
+                    customerId, if (paid) System.currentTimeMillis() else null, jobId
+                )
             }.onSuccess {
                 if (paid) _toast.value = "잔금을 받았어요"
             }.onFailure {

@@ -75,6 +75,11 @@ class SitePhotoRepository(
                 true
             } ?: false
             if (!copied || file.length() == 0L) {
+                // 🐞 클라우드(삼성 클라우드·구글 포토)에 있고 **아직 폰에 안 받아진 사진**은
+                //   스트림이 null 이거나 0바이트라 복사가 비어서 떨어진다. (2026-10-15 "19장 중 5장만" 신고)
+                //   조용히 버리면 사장님은 사진이 어디 갔는지 모른다 → **왜 빠졌는지 로그로 남긴다**
+                //   (개인정보 아닌 실패 사유만). 부른 쪽(addSitePhotos)이 **실패 장수를 화면에 알린다**. §13①
+                android.util.Log.w("SitePhoto", "photo skipped — empty/null stream (likely cloud photo not downloaded yet)")
                 runCatching { file.delete() }
                 return@runCatching false
             }
@@ -85,6 +90,8 @@ class SitePhotoRepository(
                 )
             )
             true
+        }.onFailure {
+            android.util.Log.w("SitePhoto", "photo copy failed: ${it.javaClass.simpleName} ${it.message}")
         }.getOrDefault(false)
     }
 

@@ -14327,3 +14327,17 @@ Fable 🧹3. 사장님 "고고"
 - 폰 확인: 스택 주소·완료 돈 오른쪽·돈 한 줄+받았어요·foot 한 줄(협업/총/계약금/더보기)·현장메모/사진 컴팩트·이 고객 문서 한 줄 — 실기 확인(스샷).
 - (덤) app/schemas/67.json = 어제 isRepresentative(대표사진) DB v67 스키마 — 그때 생성됐는데 누락돼 이번에 같이 커밋.
 - 남음: 아코디언(행=머리, 그 자리 펼침)은 큰 공사라 프로토 받고 별도. 배포 지시 시.
+
+## 2026-10-15 17:00 · android (Fable)
+고객상세 프로토 재구성(건마다 자기 카드) + 금액·완료 재설계 + 사진/알림 신고 2건. (사장님 연속 피드백)
+- 변경(UI/데이터):
+  · 고객상세: 탭 제거 → **건마다 펼친 카드**(진행 최신 위·완료 접혀 아래, `CustomerDetailJobCard.kt` 신규). 헤더 이름줄 정렬, 더보기 칩 왼쪽+알약, 날짜없는 견적서 → **1차 카드**(`IssuedDocAssign.forJob`).
+  · 금액: **안내형 창**(계약금→총액→잔금 자동, `CustomerDetailAmountDialog.kt`). `SettlementCalc.planAmounts/wonFromMan/depositPaidAfterSave/hasMoney`. 계약금 입력=**자동 받음**. `setJobAmounts`/`setCustomerAmounts` 한 곳(옛 setJob/CustomerTotal+Deposit 두 번 호출 제거).
+  · 완료: **「완납 안 눌렀는데 완료」 뿌리 수정** — `WorkCompletionManager.setBalancePaid`(카드+건 한 곳), `JobMoneyBackfill.merge`(스테일 완납 번짐·0원 완납 금지), `jobClosed`→SettlementCalc 기준. 돈 없는 완료 = **「완료·금액 미입력」** 표시. 전액완납 옆 **「완납 취소」 칩 노출**(더보기 속 숨김 제거).
+  · 새 시공: `CustomerDetailNewJobSheet.kt`(시공일·주소·금액) → `addNewJob`(주소·총액 그 건에 저장).
+  · 사진: 한도 **사장마다 20장**(내 사진만 셈, 협업 사진 별도). 실패 장수 화면 안내 + 사유 로그(`SitePhotoRepository`). 헤더 「/20」 제거.
+  · 알림: 협업 현장 사진 **「사진 N장」 한 줄 묶음**(`AppNotificationRepository.bumpCollabPhoto`, `NotificationHelper.showCollabPhoto` — 장당 하나씩 도배 해결).
+  · 가드: `dup_guard` **balance-paid-stamp** 추가(15가지). CLAUDE.md §12 표/§12-H 갱신.
+- 폰 확인: 테스트폰 S9(100.121.10.111) — 건별 카드·완료 맨아래·헤더 정렬·1차 견적서·사진 한도(/20 제거)·금액 안내형+계산(계약금50·총200→잔금150만)·더보기 칩 **✅ 눈으로 봄**. 나머지(완납취소·새시공·완료표시·완료버그 재현)는 **삼성 오동작방지+화면잠김으로 실기 못 봄** → 테스트 1033건 + 빌드(가드 7종)로 검증.
+- 서버: 공유 사진 엔드포인트(`/api/shared/photo`)에 합산 한도 없음(확인 — 20장은 앱에만 있던 제한).
+- 다음 액션: (server/cowork) 없음. (android) **`IntakeSyncManager`가 접수서 금액을 아직 고객 카드에만 씀 → 건에도 쓰게** 해야 완료 불일치 재발 안 함. ScheduleScreen 네비 수정은 미승인(보류).

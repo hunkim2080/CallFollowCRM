@@ -123,6 +123,15 @@ val dupRules = listOf(
         instead = "AlertDialog(containerColor = Color.White, tonalElevation = 0.dp, …)",
         homes = listOf()
     ),
+    // 💵 잔금 받음 도장 — **카드와 건을 같이 찍는 곳은 WorkCompletionManager.setBalancePaid 하나.** (2026-10-15 사장님)
+    //   홈 미수 카드·정산·완료 팝업·채팅이 **고객 카드에만** 찍고 건은 안 건드려, 카드는 「200만 · 다 받았어요」인데
+    //   건은 「금액 미입력」 + 「완료」 로 보였다("완납 안 눌렀는데 완료"). 고객 카드 칸을 직접 찍는 줄이 새로 생기면 막는다.
+    DupRule(
+        id = "balance-paid-stamp",
+        regex = Regex("""customerRepository\.updateBalancePaidAt\("""),
+        instead = "workCompletionManager.setBalancePaid(customerId, at, jobId)  (data/repository/WorkCompletionManager.kt)",
+        homes = listOf("/repository/WorkCompletionManager.kt")
+    ),
     // ③ 끌어서 자리 바꾸기 — 가격표와 접수서에 같은 셈이 두 벌이었다.
     DupRule(
         id = "drag-reorder",

@@ -1370,34 +1370,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         // 🤫 조용히 삼키면 **고객은 '받음', 정산은 '미수'** 가 되고 다음 날 잘못된 미수 알람이 뜬다.
         //   (2026-09-17 과 같은 모양 — Fable 점검에서 1순위로 꼽힌 자리) (2026-10-02)
         SaveGuard.run("잔금 받음", _toast) {
-            val now = System.currentTimeMillis()
-            if (jobId != null) {
-                // 🔴 **그 건에만** 찍는다 — 옆 건 돈을 건드리면 안 된다. (2026-09-18)
-                container.jobRepository.setBalancePaid(jobId, now, now)
-                if (container.jobRepository.representativeJobId(customerId, now) == jobId) {
-                    container.customerRepository.updateBalancePaidAt(customerId, now)
-                }
-                return@run
-            }
-            val c = container.customerRepository.findById(customerId) ?: return@run
-            val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
-            if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)
-            container.customerRepository.updateBalancePaidAt(customerId, now)
+            // 💵 도장은 WorkCompletionManager.setBalancePaid 한 곳 — 카드와 건(그 건 또는 대표 건)을 같이 찍는다. (2026-10-15)
+            //   전엔 고객 경로가 카드에만 찍어 건은 「금액 미입력」으로 남았다(사장님 "완납 안 눌렀는데 완료").
+            container.workCompletionManager.setBalancePaid(customerId, System.currentTimeMillis(), jobId)
         }
     }
 
-    /** 미수 카드 받음 처리 되돌리기(스낵바 '되돌리기') — 잔금 다시 미수로. */
+    /** 미수 카드 받음 처리 되돌리기(스낵바 '되돌리기') — 잔금 다시 미수로. 카드·건 같이(도장 한 곳). */
     fun undoBalanceReceived(customerId: Long, jobId: Long? = null) = viewModelScope.launch {
-        runCatching {
-            if (jobId != null) {
-                val now = System.currentTimeMillis()
-                container.jobRepository.setBalancePaid(jobId, null, now)
-                if (container.jobRepository.representativeJobId(customerId, now) == jobId) {
-                    container.customerRepository.updateBalancePaidAt(customerId, null)
-                }
-            } else {
-                container.customerRepository.updateBalancePaidAt(customerId, null)
-            }
+        SaveGuard.run("잔금 받음 되돌리기", _toast) {
+            container.workCompletionManager.setBalancePaid(customerId, null, jobId)
         }
     }
 
