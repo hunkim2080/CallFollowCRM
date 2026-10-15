@@ -112,10 +112,11 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: ${{ github.event.inputs.track || 'internal' }}
           status: completed
-          # 2026-10-08 엔 Play 가 "자동 검토제출을 못 한다"며 막아서 true 로 켰는데,
-          #   2026-10-13 엔 반대로 "이제 검토가 자동으로 간다 → 이 파라미터를 보내지 마라"며 막혔다
-          #   (앱이 첫 검토를 통과해 성숙 단계로 넘어간 것). → 파라미터를 아예 안 보낸다(false). (사장님)
-          changesNotSentForReview: false
+          # ⚠️ Play 가 성숙도에 따라 이걸 **뒤집는다**(배포 실패의 단골 원인):
+          #   2026-10-08 true 요구 → 2026-10-13 "보내지 마라"(false) → **2026-10-15 다시 true 요구**
+          #   ("Changes cannot be sent for review automatically. Please set ... changesNotSentForReview to true").
+          #   업로드는 되는데 **Edit 커밋에서 막힌다.** 또 막히면 이 값을 반대로 뒤집고 재배포.
+          changesNotSentForReview: true
           # Play 스토어 "새로운 기능" 문구 — distribution/whatsnew/whatsnew-ko-KR 내용이 올라감.
           #   배포 전에 그 파일에 이번 변경 한 줄 적으면 됨(빈칸이면 문구 없이 올라감).
           whatsNewDirectory: distribution/whatsnew
