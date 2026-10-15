@@ -311,7 +311,6 @@ fun HomeScreen(
     // 숫자엔 잡혔는데 목록엔 없는 것 = **광고·문자함으로 간 것.** 조용히 지우지 말고 어디 갔는지 말한다.
     val todayNewElsewhere = (todayNew - todayNewShown).coerceAtLeast(0)
     val yesterdayNew by viewModel.yesterdayNewInquiryCount.collectAsState()
-    val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
     val outstandingTotal by viewModel.outstandingTotal.collectAsState()
     val outstandingCount by viewModel.outstandingCount.collectAsState()
@@ -337,26 +336,24 @@ fun HomeScreen(
         val dues = balanceDues.mapNotNull { it.customerId }.toHashSet()
         val all = timeline.flatMap { g -> g.items }
             .distinctBy { PhoneKey.of(it.record.phoneNumber) }
-        // 🔴 광고는 **목록에서 숨는다**(notAd) — 숫자도 같이 빼야 "1인데 열면 빈 목록"이 안 생긴다. (2026-10-14 사장님)
-        //   목록의 ads 기준과 **똑같이**: 저장 안 된 낯선 번호 + 내가 답장 안 함 + 허용목록 아님 + 광고 내용.
-        fun isAdItem(it: HomeItem): Boolean {
-            val suffix = PhoneKey.of(it.record.phoneNumber)
-            return it.customer == null && it.lastSent != true && suffix !in adAllowlist &&
-                com.detailline.callfollowcrm.util.isLikelyAd(it.lastBody ?: "", it.record.phoneNumber)
-        }
+        // 📥 「답장 안 함」은 **inboxUnanswered 한 목록**이다 (HomeScreenHelpers) — 칩 숫자·칩 목록·하단 탭 점프가 다 이걸 본다.
+        //   광고는 목록에서 숨으니 숫자도 거기서 빠진다. 10-14 에 숫자 쪽만 광고를 세서 "1인데 열면 빈 목록"이 났고,
+        //   10-15 에 하단 탭 점프 쪽(VM 이 따로 세던 수)이 또 어긋나 — 셋을 한 목록으로 묶었다. (2026-10-15 사장님)
+        val unanswered = inboxUnanswered(all, adAllowlist)
+        val unansweredKeys = unanswered.mapTo(HashSet()) { PhoneKey.of(it.record.phoneNumber) }
         // 🔴 **빨간 숫자는 뜻이 하나다 — "내가 손댈 게 몇 개인가".** (2026-09-20 사장님)
         //   전엔 "몇 명인가" 를 셌다. 그래서 시공이 열 건 잡히면 **잡혀 있다는 이유로** 빨간 10 이 늘 떠 있었다.
         //   사장님: *"잡혀있어서 뜨는게 아니라... 시공대기 목록 인원한테 문자가 오면 숫자가 뜨는 것"*
         //   → 오늘 신규·시공 대기도 **답 안 한 것만** 센다. 목록은 전부 보여주되
         //     안 챙긴 게 위로 오므로(waiting 섹션이 먼저) 숫자가 가리키는 줄이 바로 보인다.
-        fun pending(it: HomeItem) = it.isUnconfirmed && !isAdItem(it)
+        fun pending(it: HomeItem) = PhoneKey.of(it.record.phoneNumber) in unansweredKeys
         // 🔧 **AS 찍힌 손님은 다른 일 칩에서 모두 빠진다.** (2026-09-27 사장님)
         //   "as는 시공이 이미 끝나서 잔금까지 다 받은 사람인 경우가 많아"
         //   섞여 있으면 「시공 대기」·「잔금 대기」 숫자가 거짓말이 된다.
         fun isAs(it: HomeItem) = it.customer?.asPendingAt != null
         mapOf(
             "today" to all.count { it.isNewToday && pending(it) && !isAs(it) },
-            "unhandled" to all.count { pending(it) },
+            "unhandled" to unanswered.size,
             // 🔧 AS — 0명이면 칩 자체를 안 띄운다(아래 ChipRow).
             "as" to all.count { isAs(it) },
             "wait" to all.count {
@@ -370,6 +367,9 @@ fun HomeScreen(
             "owe" to all.count { it.customer?.id in dues && it.customer?.asPendingAt == null }
         )
     }
+    // 📮 하단 [상담함] 탭을 **이미 상담함에서** 눌렀을 때 「답장 안 함」으로 뛸지 — 칩이 보여주는 **그 수**를 그대로 넘긴다.
+    //   전엔 VM 이 다른 잣대(고정·정리·광고를 안 뺀 수)로 따로 세서, 뛰었더니 「다 챙기셨네요」가 떴다. (2026-10-15)
+    LaunchedEffect(inboxChipCounts) { viewModel.publishUnansweredCount(inboxChipCounts["unhandled"] ?: 0) }
     // 📦 각 칩에 **멤버가 있나** — 칩을 띄울지 판단(목록 필터와 같은 조건). 셈은 inboxChipMembers 한 곳. (2026-10-08 사장님)
     val chipHasMember = remember(timeline, balanceDues) {
         val all2 = timeline.flatMap { it.items }.distinctBy { PhoneKey.of(it.record.phoneNumber) }
@@ -1338,7 +1338,8 @@ fun HomeScreen(
                     "owe" -> dedupItems.filter { it.customer?.id in dueIds && it.customer?.asPendingAt == null }
                     // 빨간 숫자가 가리키는 것 = 답 안 한 것. 칩이 없고 **탭 숫자로만** 들어온다.
                     //   키를 "unhandled" 로 쓰면 안 된다 — 없앤 옛 칩 값이라 위 이사 코드가 되돌린다.
-                    "pending" -> dedupItems.filter { it.isUnconfirmed }
+                    // 📥 칩 숫자(inboxChipCounts["unhandled"])와 **같은 함수** — 숫자가 1이면 여기 1줄이다.
+                    "pending" -> inboxUnanswered(dedupItems, adAllowlist)
                     // '끝났다' 는 앱에 이미 단일 출처가 있다 — CustomerEntity.isWorkDone
                     //   (완료 버튼 **또는** 잔금 받음. 사장님 2026-08-18 "잔금 받으면 = 완료").
                     //   칩만 다른 자를 쓰면 딱지와 목록이 서로 딴소리를 한다.
@@ -1349,11 +1350,8 @@ fun HomeScreen(
                 }
                 val chipOn = inboxChip != "all"
 
-                val ads = chipItems.filter { row ->
-                    val suffix = PhoneKey.of(row.record.phoneNumber)
-                    row.customer == null && row.lastSent != true && suffix !in adAllowlist &&
-                        com.detailline.callfollowcrm.util.isLikelyAd(row.lastBody ?: "", row.record.phoneNumber)
-                }
+                // 광고 판정은 isInboxAd 한 곳(HomeScreenHelpers) — 숫자(inboxUnanswered)와 같은 자.
+                val ads = chipItems.filter { isInboxAd(it, adAllowlist) }
                 val adSuffixes = ads.mapTo(HashSet()) { PhoneKey.of(it.record.phoneNumber) }
                 fun notAd(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
                     PhoneKey.of(it.record.phoneNumber) !in adSuffixes

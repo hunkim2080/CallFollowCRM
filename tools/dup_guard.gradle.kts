@@ -132,6 +132,17 @@ val dupRules = listOf(
         instead = "workCompletionManager.setBalancePaid(customerId, at, jobId)  (data/repository/WorkCompletionManager.kt)",
         homes = listOf("/repository/WorkCompletionManager.kt")
     ),
+    // 📥 상담함 「광고」 판정을 화면에서 **직접 조합**하기. (2026-10-15 사장님 "왜 1이 떠 있을까?")
+    //   `customer == null && lastSent != true && 허용목록 아님 && isLikelyAd(lastBody…)` 네 줄이 HomeScreen 에
+    //   숫자용·목록용 **두 벌**로 있었다 → 10-14 한쪽만 고쳐져 「답장 안 함 1 인데 열면 빈 목록」.
+    //   이제 `isInboxAd` / `inboxUnanswered`(HomeScreenHelpers) 한 곳이고, 화면에서 isLikelyAd 를 lastBody 로 직접 부르면 막는다.
+    //   (InboxClassifier 는 **받는 순간** 문자함으로 가를 때 쓰는 다른 문이라 집에 넣는다.)
+    DupRule(
+        id = "inbox-ad-inline",
+        regex = Regex("""isLikelyAd\([^)]*lastBody"""),
+        instead = "isInboxAd(item, adAllowlist) / inboxUnanswered(all, adAllowlist)  (presentation/screen/home/HomeScreenHelpers.kt)",
+        homes = listOf("/home/HomeScreenHelpers.kt", "/domain/inbox/")
+    ),
     // ③ 끌어서 자리 바꾸기 — 가격표와 접수서에 같은 셈이 두 벌이었다.
     DupRule(
         id = "drag-reorder",

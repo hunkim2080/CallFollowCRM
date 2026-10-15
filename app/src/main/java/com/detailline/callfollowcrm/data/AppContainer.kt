@@ -288,11 +288,12 @@ class AppContainer(context: Context) {
         com.detailline.callfollowcrm.ai.CollabEventCenter(sharedSiteRepository, preferences)
     }
     /**
-     * 📮 하단 [상담함] 탭 배지에 쓸 **답장 안 한 수**. (2026-09-20 사장님)
-     *   HomeViewModel 이 계산해 여기 담아두고, AppRoot(탭바)가 읽는다 —
-     *   탭바는 화면 밖에 있어서 HomeViewModel 을 직접 못 보기 때문.
-     *   ⚠️ 상담함이 살아있는 동안 갱신된다. 다른 탭에 오래 머물면 마지막 값을 유지한다
-     *      (새 문자는 그 자체로 알림이 오므로 놓칠 일은 없다).
+     * 📮 하단 [상담함] 탭을 **이미 상담함에서** 눌렀을 때 「답장 안 함」으로 뛸지 정하는 **답장 안 한 수**. (2026-09-20 사장님)
+     *   HomeScreen 이 「답장 안 함」 칩에 보여주는 **바로 그 수**를 넣는다(`inboxUnanswered` 한 목록 —
+     *   HomeViewModel.publishUnansweredCount). AppRoot(탭바)가 읽는다 — 탭바는 화면 밖이라 VM 을 직접 못 본다.
+     *   ⚠️ 전엔 VM 이 다른 잣대로 따로 셌다(고정·정리·광고를 안 뺀 수) → 뛰었더니 목록이 비었다. (2026-10-15)
+     *   ⚠️ 상담함이 살아있는 동안 갱신된다. 다른 탭에 오래 머물면 마지막 값을 유지한다 —
+     *      이 값은 「이미 상담함일 때」만 쓰므로 그때는 늘 최신이다.
      */
     val inboxUnansweredCount = kotlinx.coroutines.flow.MutableStateFlow(0)
 

@@ -343,24 +343,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /**
-     * 미확인 KPI = 최근 7일 내 문의 (SMS 수신 또는 부재중 통화) 받았는데 사장님이 답장 한 번도 안 한 번호 수.
-     * 사장님 결정 (2026-05-24) — 이전엔 CallRecord.handledStatus 기반이었으나 정의 변경.
-     */
-    // 📅 **7일 창은 볼 때마다 다시 잡는다.** (2026-10-01)
-    //   전엔 앱을 켠 **그 시점**에 한 번 계산한 값(sevenDayWindowStart)을 그대로 썼다.
-    //   폰을 며칠 안 끄면 창이 7일이 아니라 **10일·12일로 늘어났다** — 9월 19일 문자가
-    //   10월 1일까지 「답장 기다려요」에 남아 있던 게 이것이다.
-    //   목록(timelineFlags)은 2026-08-13 에 이미 _todayTick 으로 고쳤는데 **여기만 빠졌다.**
-    val unhandledCount: StateFlow<Int> = _todayTick.flatMapLatest { now ->
-        val sevenStart = DateTimeUtils.startOfDay(now) - 6L * 24 * 60 * 60 * 1000
-        combine(
-            smsContactsState, callsForFlags, hiddenForConsult, scheduledCustomerSuffixes, spamPrefixesFlow
-        ) { smsContacts, calls, spam, scheduled, _ ->
-            val (missed, _, handledMs) = calls
-            unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs, sevenStart).size
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    // 📥 「답장 안 함」 수는 **여기서 따로 세지 않는다.** (2026-10-15 사장님 "왜 1이 떠 있을까?")
+    //   전엔 여기 unhandledCount 가 있었다 — 스팸·문자함만 빼고 센 수라, 목록(timelineFlags)이 빼는
+    //   고정·정리(확인)·광고를 안 뺐다. 그 수로 하단 탭이 「답장 안 함」으로 뛰면 목록은 비어 있었다.
+    //   이제 화면이 보여주는 칩 숫자(inboxUnanswered 한 목록)를 [publishUnansweredCount] 로 받는다.
+    /** 칩이 보여주는 「답장 안 함」 수를 하단 탭 점프용(container.inboxUnansweredCount)으로 넘긴다 — 화면이 센 **그 수** 그대로. */
+    fun publishUnansweredCount(n: Int) { container.inboxUnansweredCount.value = n }
 
     /** 오늘 ~ 오늘+6일(7일 윈도우) 시공 예약된 고객 수. */
     val thisWeekScheduledCount = customers.map { list ->
@@ -1015,7 +1003,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             out
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    // callsForFlags(missed·inbound·handledMs 묶음)는 위(inboundRecent 아래)에서 선언 — KPI(unhandledCount)와
+    // callsForFlags(missed·inbound·handledMs 묶음)는 위(inboundRecent 아래)에서 선언 — respondedMsBySuffix 와
     //   여기 timelineFlags 둘 다 쓰므로 앞으로 올림.
 
     private val timelineFlags: StateFlow<TimelineFlags> = _todayTick.flatMapLatest { now ->
@@ -1683,11 +1671,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             consultUnreadCount.collect { container.inboxUnreadCount.value = it }
         }
-        // 숫자를 눌렀을 때 「답장 기다려요」로 걸러주는 건 그대로 — 그건 **할 일 목록**이라
-        //   읽었다고 사라지면 안 된다. 거를 게 있을 때만 거른다.
-        viewModelScope.launch {
-            unhandledCount.collect { container.inboxUnansweredCount.value = it }
-        }
+        // 숫자를 눌렀을 때 「답장 안 함」으로 걸러주는 수(container.inboxUnansweredCount)는 **화면이 넘긴다**
+        //   ([publishUnansweredCount] — 칩 숫자와 같은 목록). 여기서 따로 세면 또 두 벌이 된다. (2026-10-15)
         // (대기 카드용 AI 추천답변 프리페치는 2026-10-13 제거 — 카드가 없어졌다. 서버비도 아낀다.
         //   답변 추천은 채팅 화면에서 필요할 때만 받는다.)
 

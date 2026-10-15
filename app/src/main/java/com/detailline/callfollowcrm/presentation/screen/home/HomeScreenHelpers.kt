@@ -336,6 +336,34 @@ internal fun inboxChipMembers(all: List<HomeItem>, dueIds: Set<Long>, todayStart
 }
 
 /**
+ * 📢 상담함 줄 하나가 **광고인가** — 목록에서 숨기는 자와 숫자에서 빼는 자가 **같은 자**다. (2026-10-15)
+ *   매우 보수적(오탐 방지 3중 가드): 저장 안 된 낯선 번호 + 내가 답장 안 함 + "광고 아냐" 예외 아님 + 내용이 뻔한 광고.
+ *   하나라도 아니면 상담함에 그대로 남긴다. (2026-07-08 사장님)
+ *
+ *   ⚠️ 전엔 이 네 줄이 HomeScreen 에 **두 벌**(숫자용·목록용)로 있었다. 2026-10-14 에 한쪽(숫자)에 빠져
+ *   「답장 안 함 1 인데 열면 빈 목록」이 났다 — 한 벌로 합쳐 다시 못 갈라지게 한다.
+ */
+internal fun isInboxAd(item: HomeItem, adAllowlist: Set<String>): Boolean {
+    val suffix = PhoneKey.of(item.record.phoneNumber)
+    return item.customer == null && item.lastSent != true && suffix !in adAllowlist &&
+        com.detailline.callfollowcrm.util.isLikelyAd(item.lastBody ?: "", item.record.phoneNumber)
+}
+
+/**
+ * 📥 **「답장 안 함」 한 목록.** 칩 숫자 = 이 목록의 크기, 칩을 열면 이 목록, 하단 탭을 눌렀을 때
+ *   「답장 안 함」으로 뛸지도 이 목록의 크기로 정한다. (2026-10-15 사장님 "왜 1이 떠 있을까?")
+ *
+ *   셋이 각자 세면 한쪽만 고쳐져 **숫자는 1인데 보여줄 손님은 0** 이 된다 — 10-14 에 그렇게 났다.
+ *   그래서 세는 곳은 여기 하나다. `all` 은 번호당 1줄로 거른 상담함 목록(지인·문자함·스팸 제외)을 넣는다.
+ *
+ *   들어가는 것: `isUnconfirmed`(7일 내 고객 마지막 메시지/부재중 + 답장·통화응대·정리·고정 없음) 이고 광고가 아닌 줄.
+ *   A/S 잡힌 손님도 **답 안 했으면 들어간다** — 다른 일 칩(오늘 신규·시공 대기·잔금 대기)은 A/S 를 빼지만,
+ *   「답장 안 함」은 '내가 답해야 할 사람' 이라 A/S 든 아니든 답 안 했으면 할 일이다.
+ */
+internal fun inboxUnanswered(all: List<HomeItem>, adAllowlist: Set<String>): List<HomeItem> =
+    all.filter { it.isUnconfirmed && !isInboxAd(it, adAllowlist) }
+
+/**
  * 📦 칩이 **처음 나타날 때 딱 한 번** 그 밑에 띄우는 안내. (2026-10-08 사장님 "자연스럽게 스며들게")
  *   나타나는 순간이 궁금한 바로 그때라, 여기서 "이 칸이 뭔지" 한 줄로 알려준다.
  */
