@@ -187,6 +187,8 @@ fun HomeScreen(
     onOpenChat: (phone: String, customerId: Long?) -> Unit,
     /** 카드 탭 인라인 액션의 [ⓘ 고객 카드] → CustomerDetail. */
     onOpenCustomerDetail: (customerId: Long) -> Unit,
+    /** ⏸️ [보류] 카드 「일정 잡기」 → CustomerDetail 이 날짜 창을 바로 연다. (2026-10-16) */
+    onOpenCustomerSchedule: (customerId: Long) -> Unit = {},
     /** FAB "수동 입력" 전용 — 번호 직접 타이핑하는 FollowUp 화면. */
     onOpenManualEntry: () -> Unit,
     onOpenSchedule: () -> Unit,
@@ -357,21 +359,26 @@ fun HomeScreen(
         // 🔧 **AS 찍힌 손님은 다른 일 칩에서 모두 빠진다.** (2026-09-27 사장님)
         //   "as는 시공이 이미 끝나서 잔금까지 다 받은 사람인 경우가 많아"
         //   섞여 있으면 「시공 대기」·「잔금 대기」 숫자가 거짓말이 된다.
+        // ⏸️ **보류 손님도 같은 규칙** — 계약금 받고 날짜를 미룬 손님은 [보류] 한 칸에만. (2026-10-16 사장님) 판정은 OnHold 한 곳.
         fun isAs(it: HomeItem) = it.customer?.asPendingAt != null
+        fun isHold(it: HomeItem) = it.customer?.isOnHold == true
+        fun aside(it: HomeItem) = isAs(it) || isHold(it)
         mapOf(
-            "today" to all.count { it.isNewToday && pending(it) && !isAs(it) },
+            "today" to all.count { it.isNewToday && pending(it) && !aside(it) },
             "unhandled" to unanswered.size,
             // 🔧 AS — 0명이면 칩 자체를 안 띄운다(아래 ChipRow).
             "as" to all.count { isAs(it) },
+            // ⏸️ 보류 — 연락이 와서가 아니라 **돈 낸 손님을 잊지 않으려고** 있는 칸이라 사람 수 그대로(프로토 빨간 숫자).
+            "onhold" to all.count { isHold(it) },
             "wait" to all.count {
                 val c = it.customer
                 // 목록과 **같은 규칙**이어야 한다 — 숫자가 3인데 열면 5줄이면 둘 다 못 믿는다.
-                c != null && !isAs(it) &&
+                c != null && !aside(it) &&
                     (c.scheduledWorkDate ?: 0L) >= DateTimeUtils.startOfDay(System.currentTimeMillis()) &&
                     !c.isWorkDone && pending(it)
             },
             // 미수는 연락이 와서가 아니라 **받을 돈이 남아서** 할 일이다 — 건수 그대로.
-            "owe" to all.count { it.customer?.id in dues && it.customer?.asPendingAt == null }
+            "owe" to all.count { it.customer?.id in dues && !aside(it) }
         )
     }
     // 📮 하단 [상담함] 탭을 **이미 상담함에서** 눌렀을 때 「답장 안 함」으로 뛸지 — 칩이 보여주는 **그 수**를 그대로 넘긴다.
@@ -1329,20 +1336,24 @@ fun HomeScreen(
                 //   거른 목록을 그대로 받으니 렌더가 통째로 재사용된다. (2026-09-20)
                 val dueIds = balanceDues.mapNotNull { it.customerId }.toHashSet()
                 val todayStart0 = DateTimeUtils.startOfDay(System.currentTimeMillis())
-                // 🔧 AS 찍힌 손님은 다른 일 칩에서 빠진다 — 숫자와 **같은 규칙**.
+                // 🔧 AS 찍힌 손님·⏸️ 보류 손님은 다른 일 칩에서 빠진다 — 숫자와 **같은 규칙**.
+                fun aside(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
+                    it.customer?.asPendingAt != null || it.customer?.isOnHold == true
                 val chipItems = when (inboxChip) {
                     "as" -> dedupItems.filter { it.customer?.asPendingAt != null }
-                    "today" -> dedupItems.filter { it.isNewToday && it.customer?.asPendingAt == null }
+                    // ⏸️ 보류 — 판정은 OnHold 한 곳(CustomerEntity.isOnHold).
+                    "onhold" -> dedupItems.filter { it.customer?.isOnHold == true }
+                    "today" -> dedupItems.filter { it.isNewToday && !aside(it) }
                     // 🔨 **앞으로 할 시공만.** (2026-09-20 실기)
                     //   전엔 '예약일이 있고 완료 버튼을 안 누른 것' 이었다. 그래서 **이미 끝난 시공**이
                     //   (완료 버튼을 안 눌렀다는 이유로) 여기 들어와 초록 '완료' 딱지를 달고 앉아 있었다.
                     //   사장님: *"시공대기 칩은 시공 예약이 되어있는 고객군만"* → 예약일이 **오늘 이후**인 것만.
                     "wait" -> dedupItems.filter {
                         val c = it.customer
-                        c != null && c.asPendingAt == null &&
+                        c != null && !aside(it) &&
                             (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
                     }
-                    "owe" -> dedupItems.filter { it.customer?.id in dueIds && it.customer?.asPendingAt == null }
+                    "owe" -> dedupItems.filter { it.customer?.id in dueIds && !aside(it) }
                     // 빨간 숫자가 가리키는 것 = 답 안 한 것. 칩이 없고 **탭 숫자로만** 들어온다.
                     //   키를 "unhandled" 로 쓰면 안 된다 — 없앤 옛 칩 값이라 위 이사 코드가 되돌린다.
                     // 📥 칩 숫자(inboxChipCounts["unhandled"])와 **같은 함수** — 숫자가 1이면 여기 1줄이다.
@@ -1380,7 +1391,8 @@ fun HomeScreen(
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 // [미수] 칩은 위 잔금 카드가 본문이다. 아래 대화 목록까지 띄우면 **같은 사람이 두 번** 나온다.
-                val hideThreads = inboxChip == "owe"
+                //   ⏸️ [보류] 도 같다 — 본문은 보류 카드(OnHoldCard)다.
+                val hideThreads = inboxChip == "owe" || inboxChip == "onhold"
 
                 if (inboxChip == "owe" && balanceDues.isNotEmpty()) {
                     // 💰 합계 먼저 — 돈은 "다 더하면 얼마인지" 가 첫 질문이다.
@@ -1455,6 +1467,12 @@ fun HomeScreen(
                     }
                 }
 
+                // ⏸️ [보류] 본문 — 프로토 artifact/D4EwQSrXk4TFPzc9gjW6Cs. 맨 위 안전망 띠(3주째 조용한 **한 명**) + 보류 카드들.
+                //   가장 오래 조용한 사람이 위 — 띠가 가리키는 사람이 바로 아래 보인다. 판정·주 수는 OnHold 한 곳.
+                if (inboxChip == "onhold") {
+                    onHoldSection(chipItems, inboxNowMs, onOpenChat = onOpenChat, onSchedule = onOpenCustomerSchedule)
+                }
+
                 // 📭 아무 대화도 없는 첫 폰에서만 막내 인사. 대화가 있으면 아래 '최근 대화' 가 맡고,
                 //   칩을 켜서 비면 아래 ChipEmpty 가 맡는다. (대기 카드는 2026-10-13 제거)
                 if (dedupItems.isEmpty() && !chipOn) {
@@ -1511,7 +1529,7 @@ fun HomeScreen(
                 //   [미수] 는 목록을 안 쓰고 잔금 카드가 본문이라, 잔금이 0이면 **글자 하나 없는 백지**였다.
                 //   백지는 "앱이 죽었나?" 로 읽힌다. 그리고 [안 챙긴] 은 막내가 이미 말하니 **두 번 말하지 않는다.**
                 val chipBodyEmpty =
-                    if (hideThreads) balanceDues.isEmpty()
+                    if (hideThreads) (if (inboxChip == "onhold") chipItems.isEmpty() else balanceDues.isEmpty())
                     else recent.isEmpty() && pinned.isEmpty()
                 if (chipOn && chipBodyEmpty) {
                     item(key = "chip-empty") {
@@ -2489,7 +2507,9 @@ private fun InboxChips(
         //   안 챙긴 줄은 [전체] 에서도 이미 맨 위에 모이고 파란 점이 붙는다 — 앱이 더해주는 게 없었다.
         //   숫자는 하단 [상담함] 탭 배지로 갔다(카톡·문자앱이 쓰는 그 자리).
         "today" to "오늘 신규",
-        "wait" to "시공 대기", "owe" to "잔금 대기"
+        "wait" to "시공 대기", "owe" to "잔금 대기",
+        // ⏸️ 보류 — 계약금 받고 날짜를 미룬 손님. 프로토 순서(잔금 대기 다음). 0명이면 위 '비면 숨김' 규칙으로 안 보인다. (2026-10-16)
+        "onhold" to "보류"
     ) + (
         // 🔧 AS — **0명이면 아예 안 띄운다.** (2026-09-27 사장님)
         //   다른 칩은 0이어도 흐리게 남긴다(2026-09-20 "생겼다 없어졌다 하면 버그인가 생각할 수도") —

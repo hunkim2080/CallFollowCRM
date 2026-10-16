@@ -431,6 +431,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 그날 갈 곳 순서 | `domain/schedule/DayOrder.kt` | 화면에서 직접 시각 파싱 |
 | 홈 띠 쪽 넘기기·「(1/2)」 | `domain/schedule/TodayBandPages.kt` | 화면에서 `if (total > 1) "(${page+1}/$total)"` 를 직접 |
 | 협업 날짜 판단 | `domain/collab/CollabDayCheck.kt` | 화면에서 날짜 비교 |
+| 보류 손님 판정·풀림·안부 넛지(3주) | `domain/customer/OnHold.kt` (`CustomerEntity.isOnHold` 가 이걸 부름) | 화면에서 `onHoldAt != null` 직접, 날짜 잡힐 때 화면마다 `onHoldAt = null`, 「3주」 숫자 직접 |
 | 협업 요청 고르기·취소 판단 | `domain/collab/CollabRequestSelection.kt` | 시트에서 `reqKeys.any { it !in selected }` 를 직접 |
 | 협업 배정 한 줄(건별 days 파싱·판단·떠돌이·이 건에 붙이기·건 날짜 집합) | `domain/collab/CollabAssignmentLine.kt` — `forJob(raw, customerId, jobDayStart)` · `unassigned` · `assignDays` · `daysOfJob` | `collabAssignments` 문자열을 화면에서 직접 `split("|")`, 날짜 없는 줄을 대표 건 날짜로 폴백(2026-10-15: 1차 협업이 2차 카드로 갔다), `(0 until scheduledWorkDays).map{…}` 손계산 |
 | 협업 진행 알림 **한 번만**(FCM·폴링이 같은 이벤트를 각각 들고 와도) | `NotificationHelper.showCollabEvent` 문 하나 + 그 안의 게이트(셈은 `domain/collab/CollabNotifyDedup.kt`, 기억은 `prefs.collabNotifiedKeys`) | 협업 진행 채널(`CHANNEL_COLLAB_DEPARTED` 등)로 `showProtoPush` 직접, 부르는 쪽에서 「본 이벤트」를 따로 기억(2026-10-15: FCM 과 폴링이 각자 기억해 센터에 두 줄씩) |

@@ -118,6 +118,8 @@ internal class JobCardHost(
     val onAsDone: () -> Unit,
     val onAsPending: () -> Unit,
     val onAsPicker: () -> Unit,
+    /** ⏸️ 일정 보류 창 — 찍기(이유 입력) / 보류 중이면 메모 고치기·풀기. 창은 화면에 한 벌. (2026-10-16) */
+    val onHold: () -> Unit,
     val onCancelBooking: () -> Unit,
     val onDeleteJob: (JobEntity?) -> Unit,
     val onEditNote: (CustomerNoteEntity) -> Unit,
@@ -277,6 +279,17 @@ internal fun JobDetailCard(
                                     valueColor = AppTheme.colors.cautionText,
                                     trailing = Icons.Default.Check,
                                     onClick = { host.onAsDone() }
+                                )
+                            }
+                            // ⏸️ **보류 손님** — 계약금은 받았는데 날짜를 미룬 손님. 누르면 메모 고치기·풀기 창. (2026-10-16 사장님)
+                            //   날짜를 잡으면(위 「시공 예약」 줄) 보류는 자동으로 풀린다 — OnHold.afterDateSet.
+                            if (isPrimary && c.isOnHold) {
+                                CdKv(
+                                    "일정 보류",
+                                    c.onHoldReason?.takeIf { it.isNotBlank() }?.let { "보류 중 · $it" } ?: "보류 중 · 고객이 다시 연락하기로",
+                                    valueColor = AppTheme.colors.cautionText,
+                                    trailing = Icons.Default.Edit,
+                                    onClick = { host.onHold() }
                                 )
                             }
                             // 🔧 A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
@@ -872,8 +885,10 @@ internal fun JobDetailCard(
                 val asCanBook = isPrimary && scheduled != null && c.asScheduledDate == null
                 val jobDone = job?.workCompletedAt != null
                 val asReadyHere = (allPaid || jobDone) && scheduled != null && c.asScheduledDate == null
+                // ⏸️ 보류로 보낼 수 있는 자리 — 아직 안 끝난 대표 건. 이미 보류면 위 「일정 보류」 줄이 맡는다.
+                val holdCanMark = isPrimary && !c.isOnHold && !jobDone && !allPaid
                 // ⋯ 더보기는 **안에 칩이 하나라도 있을 때만** — 아래 펼침 블록의 조건과 같은 식. (완납 취소는 잔금 줄로 갔다. 2026-10-15)
-                val showMore = (asCanBook && !asReadyHere) ||
+                val showMore = (asCanBook && !asReadyHere) || holdCanMark ||
                     (isPrimary && c.asPendingAt == null) ||
                     (scheduled != null && !allPaid) || canDeleteJob || (photoTotal > 0 && !pickMode)
                 var moreActionsExpanded by remember(jobId) { mutableStateOf(false) }
@@ -1014,6 +1029,10 @@ internal fun JobDetailCard(
                         // 🔧 날짜를 못 잡아도 **명단에는 올려둔다.** (2026-09-27 사장님) — 이름이 **하는 일**을 말하게.
                         if (isPrimary && c.asPendingAt == null) {
                             CdUndoChip("A/S 명단에 올리기", danger = false) { host.onAsPending() }
+                        }
+                        // ⏸️ 계약금은 받았는데 고객이 날짜를 미룸 — 「예약 취소」(돈까지 백지)가 아니라 **보류**. (2026-10-16 사장님)
+                        if (holdCanMark) {
+                            CdUndoChip("일정 보류", danger = false) { host.onHold() }
                         }
                         // (「완납 취소」는 잔금 줄의 「전액 완납」 옆으로 올라갔다 — 여기 두 벌로 두지 않는다. 2026-10-15)
                         // 🚫 **잔금까지 받은 일은 「예약 취소」가 말이 안 된다.** (2026-09-28 사장님) — [완납 취소]가 먼저다.

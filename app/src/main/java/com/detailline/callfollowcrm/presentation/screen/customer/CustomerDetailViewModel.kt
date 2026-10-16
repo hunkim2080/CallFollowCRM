@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -881,36 +882,7 @@ class CustomerDetailViewModel(
                 // 일당(자동지출)도 정리 — 단 '취소하는 그 시공일'의 일당만. 예전엔 deleteByCustomer 로 모든 날짜를 지워
                 //   재방문 고객의 과거(이미 지급한) 일당 지출까지 소거돼 그 달 순이익이 부풀던 것. (2026-08-11 돈 감사 rank5)
                 oldDate?.let { d -> container.jobCrewRepository.deleteByCustomerAndDay(customerId, d) }
-                val before = container.preferences.collabAssignments
-                val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
-                if (after.size != before.size) {
-                    container.preferences.collabAssignments = after
-                    // 🔴 예약을 취소하면 **협업 사장님들께도 "이 협업 끝났어요"** 를 보낸다. (2026-10-13 사장님)
-                    //   전엔 내 목록에서만 지우고 서버/상대엔 안 보내, 상대 일정에 유령처럼 남았다
-                    //   (바꾸기=notifyCollabReschedule 는 전파되는데 취소만 빠져 있었다).
-                    //   보내기(cancel_then_end)·상대 알림·상대 일정 삭제는 서버/핸들러가 이미 다 한다 — removeCollabAssignment 와 같은 길.
-                    val owner = container.preferences.bizPhone.filter { it.isDigit() }
-                    if (owner.length >= 9) {
-                        val endedShareIds = (before - after).mapNotNull { raw ->
-                            com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(raw)
-                                ?.shareId?.trim()?.takeIf { it.isNotBlank() }
-                        }.distinct()
-                        if (endedShareIds.isNotEmpty()) {
-                            container.applicationScope.launch {
-                                endedShareIds.forEach { sid ->
-                                    runCatching {
-                                        container.outbox.enqueue(
-                                            com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_END,
-                                            sid,
-                                            org.json.JSONObject().put("mode", "cancel_then_end").toString()
-                                        )
-                                    }
-                                }
-                                container.outbox.tryNow()
-                            }
-                        }
-                    }
-                }
+                endCollabForCustomer()
                 // 예약 취소 = 완전 백지 (사장님 2026-08-28 결정): 총액·계약금·잔금·받음표시 전부 삭제.
                 //   그 건의 돈은 이미 cancelJob 이 지웠다. 여기서 고객 카드까지 백지로 만드는 건
                 //   **남은 건이 하나도 없을 때만.** 다른 건이 남아 있으면 recomputeMirror 가
@@ -940,6 +912,34 @@ class CustomerDetailViewModel(
             if (normalized != null && oldDate != null) notifyCollabReschedule(oldDate, normalized)
         }
     }
+
+    // ── ⏸️ 보류 손님 (2026-10-16 사장님, 프로토 artifact/D4EwQSrXk4TFPzc9gjW6Cs) — 하는 일은 CustomerHoldFlow 한 곳 ──
+    private val holdFlow by lazy { CustomerHoldFlow(container, customerId, _toast) }   // _toast 가 아래 선언이라 lazy (Kotlin init 순서)
+
+    /** 일정 보류 — 계약금은 받았는데 고객이 날짜를 미룬 손님을 상담함 [보류] 칸으로. 날짜가 있었으면 변경 이력에 「보류」로 남긴다. */
+    fun holdSchedule(reason: String) = viewModelScope.launch {
+        holdFlow.hold(customer.value, reason) { oldDate, oldMinutes, why ->
+            recordTimelineEvent(
+                type = "schedule", oldValue = scheduleLabel(oldDate, oldMinutes), newValue = null,
+                reason = "보류" + (why?.let { " — $it" } ?: "")
+            )
+        }
+    }
+
+    /** 보류 풀기. `restoreDate` = 방금 달력에서 뺀 날짜로 되돌리기(잘못 눌렀을 때). 날짜를 새로 잡으면 자동으로 풀린다. */
+    fun releaseHold(restoreDate: Boolean) = viewModelScope.launch { holdFlow.release(restoreDate) }
+
+    /** 되돌릴 날짜가 있나 — 방금 이 화면에서 보류하며 달력에서 뺀 날짜. */
+    fun holdRestorableDate(): Long? = holdFlow.restorableDate
+
+    fun updateHoldReason(reason: String) = viewModelScope.launch { holdFlow.updateReason(reason) }
+
+    /** 협업 끝내기 — 예약 취소·보류가 같은 길(CustomerHoldFlow.endCollab). */
+    private fun endCollabForCustomer() = holdFlow.endCollab()
+
+    /** 이 고객의 건 — **DB 에서 한 번** 읽는다(allJobs 의 첫 값은 빈 목록이라 '아직 안 읽힘'과 '없음'을 못 가른다). */
+    suspend fun allJobsOnce(): List<com.detailline.callfollowcrm.data.local.entity.JobEntity> =
+        container.jobRepository.observeByCustomer(customerId).first()
 
     /**
      * 이 고객 현장의 협업 사장(들)에게 일정 변경 알림 전송. (2026-07-16 사장님)

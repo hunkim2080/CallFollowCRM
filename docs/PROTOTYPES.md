@@ -56,6 +56,7 @@ CLAUDE.md §0 이 가리키는 문서. **화면을 만들기 전 여기서 그 �
 | 리포트 허브 | `artifact/b1d39996` | 「허브 열어줘」. 새 리포트는 카드 추가 |
 | 상담함 아이콘 색상 (전/후) | `artifact/B2PxEgNEZW1UfhCvpujuk6` | 아이콘 상태색: 급함🔴·대기🟡·새것🔵·조율🟢·조용⚪. 색은 상태에만(미답은 inboxUnanswered 와 한 잣대) |
 | 스팸·광고 거르기 (더보기 한 화면) | `artifact/Xy86m2QdTsetr3pLvd8KKi` | 2026-10-16 「가」. ① AI 자동 거르기(스위치) ② 광고·스팸 번호 앞자리(칩+직접입력, 「자동으로 챙기기」에서 **옮김**) ③ 이 단어가 있으면(키워드 칩+직접입력, 모르는 번호만 문자함으로 — 2026-10-16 추가) ④ 차단한 번호(풀기). 지인은 그대로 더보기. 코드 `SpamHubScreen` · 줄은 `SpamPhoneRows` 한 곳 · 칩편집 `HubChipEditor` 한 조각 · 낱말 셈 `SpamKeywordMatch` |
+| 보류 손님 (상담함 「보류」 칩) | `artifact/D4EwQSrXk4TFPzc9gjW6Cs` | 2026-10-16 「가」. 계약금은 받았는데 고객이 날짜를 미룬 손님 — 「시공 대기」(날짜 必)·「잔금 대기」(완료 必) 어디에도 안 들어가 잊히던 사람. 칩 「보류」(잔금 대기 다음) · 안전망 넛지 띠(3주째 조용한 1명) · 카드(주황 테두리 아바타·「보류」 딱지·초록 「계약금 N 받음」·📝 이유·[일정 잡기][안부 문자]). 코드 `HomeOnHoldParts`(카드·띠) · 판정·풀림·3주 `domain/customer/OnHold` 한 곳 · 찍는 곳 고객상세 ⋯더보기 「일정 보류」(`CustomerDetailJobCard`) · DB v68 `onHoldAt/onHoldReason` |
 
 ## ⚪ 옛것 — 참고만, 스펙 아님
 

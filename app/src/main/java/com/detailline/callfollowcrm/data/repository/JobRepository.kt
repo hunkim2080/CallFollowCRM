@@ -290,6 +290,9 @@ class JobRepository(
                 balanceAmount = rep.balanceAmount,
                 balancePaidAt = rep.balancePaidAt,
                 workCompletedAt = rep.workCompletedAt,
+                // ⏸️ 날짜가 잡히면 보류가 풀린다(오늘 이후일 때만) — 규칙은 OnHold 한 곳. (2026-10-16 사장님)
+                //   건 경로(setJobDateAndDays·rescheduleJob·addJob)는 전부 여기를 지나니 한 곳이면 된다.
+                onHoldAt = com.detailline.callfollowcrm.domain.customer.OnHold.afterDateSet(c.onHoldAt, rep.scheduledWorkDate, today),
                 updatedAt = now
             ) else c.copy(
                 // 예정 건이 하나도 없음 — 일정만 비운다. 돈·완료는 **안 건드린다**(건 없는 고객은 카드가 SoT).

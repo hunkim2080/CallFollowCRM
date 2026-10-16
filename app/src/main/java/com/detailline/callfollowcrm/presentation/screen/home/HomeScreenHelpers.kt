@@ -320,6 +320,7 @@ internal fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
     "wait" -> "잡혀 있는 시공이 없어요" to "날짜를 잡으면 여기 모여요"
     "owe" -> "기다리는 잔금이 없어요" to "시공이 끝났는데 잔금이 남으면 여기 떠요"
     "as" -> "A/S 해드릴 손님이 없어요" to null
+    "onhold" -> "보류 중인 손님이 없어요" to "계약은 됐는데 날짜를 미룬 손님이 생기면 여기 모여요"
     "done" -> "시공을 끝낸 손님이 아직 없어요" to null
     else -> "여기 아무도 없어요" to null
 }
@@ -329,9 +330,12 @@ internal fun chipEmptyText(chip: String): Pair<String, String?> = when (chip) {
  *   목록 필터(HomeScreen chipItems)와 **같은 조건**이어야 한다 — 칩이 생겼는데 열면 비면 둘 다 못 믿는다.
  */
 internal fun inboxChipMembers(all: List<HomeItem>, dueIds: Set<Long>, todayStart: Long): Set<String> = buildSet {
-    if (all.any { it.isNewToday && it.customer?.asPendingAt == null }) add("today")
-    if (all.any { val c = it.customer; c != null && c.asPendingAt == null && (c.scheduledWorkDate ?: 0L) >= todayStart && !c.isWorkDone }) add("wait")
-    if (all.any { it.customer?.id in dueIds && it.customer?.asPendingAt == null }) add("owe")
+    // 🔧 A/S 찍힌 손님·⏸️ 보류 손님은 다른 일 칩에서 빠진다 — 숫자(HomeScreen inboxChipCounts)·목록(chipItems)과 **같은 규칙**.
+    fun aside(it: HomeItem) = it.customer?.asPendingAt != null || it.customer?.isOnHold == true
+    if (all.any { it.isNewToday && !aside(it) }) add("today")
+    if (all.any { val c = it.customer; c != null && !aside(it) && (c.scheduledWorkDate ?: 0L) >= todayStart && !c.isWorkDone }) add("wait")
+    if (all.any { it.customer?.id in dueIds && !aside(it) }) add("owe")
+    if (all.any { it.customer?.isOnHold == true }) add("onhold")
     if (all.any { it.customer?.isWorkDone == true && it.customer?.asPendingAt == null }) add("done")
 }
 
@@ -371,13 +375,15 @@ internal fun inboxChipFirstNote(chip: String): String? = when (chip) {
     "today" -> "오늘 새로 문의 온 고객이 여기 모여요"
     "wait" -> "예약은 잡혔는데 아직 시공 전인 고객이 여기 모여요"
     "owe" -> "시공은 끝났는데 잔금을 아직 못 받은 고객이 여기 모여요"
+    // ⏸️ 프로토 `.note` 그대로 (artifact/D4EwQSrXk4TFPzc9gjW6Cs)
+    "onhold" -> "계약은 됐는데 날짜는 미룬 손님이 여기 모여요"
     "done" -> "잔금까지 다 받아 끝난 고객이 여기 모여요"
     else -> null
 }
 
 /** 칩 키 → 사람이 읽는 이름(안내 제목용). */
 internal fun inboxChipLabel(chip: String): String = when (chip) {
-    "today" -> "오늘 신규"; "wait" -> "시공 대기"; "owe" -> "잔금 대기"; "done" -> "종료 고객"; else -> chip
+    "today" -> "오늘 신규"; "wait" -> "시공 대기"; "owe" -> "잔금 대기"; "onhold" -> "보류"; "done" -> "종료 고객"; else -> chip
 }
 
 /** "540,000원" 은 딱지에 넣기엔 길다 → "54만원". 딱 떨어지지 않으면 원래대로. */

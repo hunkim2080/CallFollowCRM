@@ -273,6 +273,19 @@ class CustomerRepository(
     /** 🔧 「A/S 해줘야 하는 손님」 찍기/떼기. 앱이 알 수 없는 것이라 사장님이 손으로 찍는다. (2026-09-27) */
     suspend fun setAsPending(id: Long, at: Long?) = mutate(id) { it.copy(asPendingAt = at) }
 
+    /**
+     * ⏸️ 보류 손님으로 찍기/풀기 — at=null 이면 풀린다(이유는 그대로 둔다: 다시 찍을 때 미리 채우려고).
+     *   규칙은 OnHold 한 곳. 날짜를 잡으면 [updateScheduledWorkDate]·JobRepository.recomputeMirror 가 자동으로 푼다.
+     */
+    suspend fun setOnHold(id: Long, at: Long?, reason: String?) = mutate(id) {
+        val cleaned = reason?.trim()?.takeIf { r -> r.isNotBlank() }
+        it.copy(onHoldAt = at, onHoldReason = if (at == null) it.onHoldReason else cleaned)
+    }
+
+    /** ⏸️ 보류 이유만 고치기. */
+    suspend fun updateOnHoldReason(id: Long, reason: String?) =
+        mutate(id) { it.copy(onHoldReason = reason?.trim()?.takeIf { r -> r.isNotBlank() }) }
+
     suspend fun updateName(id: Long, name: String?) = mutate(id) { it.copy(name = name) }
 
     /** 리드 온도 설정/변경/해제(null). 통화 직후 카드에서 optimistic 저장 호출. */
@@ -339,7 +352,16 @@ class CustomerRepository(
 
     /** 시공 예약일 설정/변경/취소(null). 자정 epoch ms 권장. */
     suspend fun updateScheduledWorkDate(id: Long, scheduledWorkDate: Long?) =
-        mutate(id) { it.copy(scheduledWorkDate = scheduledWorkDate) }
+        mutate(id) {
+            it.copy(
+                scheduledWorkDate = scheduledWorkDate,
+                // ⏸️ 날짜를 잡으면 보류가 풀린다 — 규칙은 OnHold 한 곳(JobRepository.recomputeMirror 와 같은 식).
+                onHoldAt = com.detailline.callfollowcrm.domain.customer.OnHold.afterDateSet(
+                    it.onHoldAt, scheduledWorkDate,
+                    com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+                )
+            )
+        }
 
     /** 시공 완료 처리/취소 (2026-06-08 #2). null = 완료 취소(되돌리기). 오늘 시공 히어로에서 호출. */
     suspend fun updateWorkCompletedAt(id: Long, completedAt: Long?) =

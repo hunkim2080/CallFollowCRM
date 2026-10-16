@@ -69,6 +69,20 @@ data class CustomerEntity(
      */
     val asPendingAt: Long? = null,
     /**
+     * ⏸️ **보류 손님**으로 찍은 시각. null = 아님. DB v68 (2026-10-16 사장님)
+     *
+     * 사장님: "시공 계약금까지 다 받았는데, 고객이 와이프가 아프다고 일정을 추후에 본인이 다시 연락하겠다고 함.
+     *          그럼 이 사람을 어디다 둬야 하지?"
+     *   「시공 대기」는 날짜가 있어야, 「잔금 대기」는 시공이 끝나야 들어간다 → 계약금 받고 날짜 없는 손님이
+     *   **어느 칸에도 없어 잊힌다.** 그래서 A/S 명단(asPendingAt)처럼 **사장님이 손으로 찍는** 칸을 하나 더 뒀다.
+     *   판정·풀림(날짜 잡히면 자동 null)·안부 넛지 규칙은 `domain/customer/OnHold.kt` **한 곳**.
+     *   찍힌 손님은 다른 일 칩(오늘 신규·시공 대기·잔금 대기)에서 **빠진다**(A/S 와 같은 규칙).
+     *   돈은 새 칸을 안 만든다 — 계약금은 기존 depositAmount/정산(SettlementCalc) 그대로(§13④).
+     */
+    val onHoldAt: Long? = null,
+    /** 보류 이유 메모 — "와이프 아파서 미룸 — 고객이 다시 연락하기로". 안 적어도 된다(null). DB v68. */
+    val onHoldReason: String? = null,
+    /**
      * 시공 완료 처리 시각(ms). null = 미완료. DB v31 (2026-06-08 사장님 #2).
      *   오늘 시공 히어로 [완료]→완료처리 시 set → 그 현장이 히어로에서 빠진다(완료 반영).
      */
@@ -91,4 +105,7 @@ data class CustomerEntity(
 
     /** 완료로 볼 시각 — 완료처리 시각 우선, 없으면 잔금 받은 시각. 정렬·날짜 귀속용. */
     val doneAtMs: Long? get() = workCompletedAt ?: balancePaidAt
+
+    /** ⏸️ 보류 손님인가 — 찍혀 있고 아직 안 끝난 손님. 규칙은 OnHold 한 곳(계산 프로퍼티 → 컬럼 아님). */
+    val isOnHold: Boolean get() = com.detailline.callfollowcrm.domain.customer.OnHold.isOnHold(onHoldAt, isWorkDone)
 }

@@ -21,8 +21,10 @@ object Destinations {
         return if (query.isEmpty()) "follow_up" else "follow_up?$query"
     }
 
-    const val CUSTOMER_DETAIL_WITH_ARG = "customer/{customerId}"
-    fun customerDetail(customerId: Long) = "customer/$customerId"
+    /** openDate=true — ⏸️ 상담함 [보류] 「일정 잡기」: 열리자마자 날짜 창. (2026-10-16) */
+    const val CUSTOMER_DETAIL_WITH_ARG = "customer/{customerId}?openDate={openDate}"
+    fun customerDetail(customerId: Long, openDate: Boolean = false) =
+        if (openDate) "customer/$customerId?openDate=true" else "customer/$customerId"
 
     /**
      * 메인 채팅 화면. 번호는 필수, customerId 는 있으면 빠른 로드용 (없으면 phone 으로 lookup).

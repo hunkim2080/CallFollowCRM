@@ -318,6 +318,8 @@ fun AppNavHost(
                 },
                 // 카드 탭 [ⓘ 고객 카드] 인라인 액션. customerId 없는 카드(SMS-only 등)는 호출부에서 차단.
                 onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                // ⏸️ [보류] 카드 「일정 잡기」 → 고객 상세가 날짜 창을 바로 연다. (2026-10-16)
+                onOpenCustomerSchedule = { id -> navController.navigate(Destinations.customerDetail(id, openDate = true)) },
                 // FAB "수동 입력" 은 기존 FollowUp 화면 유지 (번호 직접 입력 + 상태/메모 한 번에).
                 onOpenManualEntry = { navController.navigate(Destinations.followUp()) },
                 onOpenSchedule = { navController.navigate(Destinations.SCHEDULE) },
@@ -662,7 +664,10 @@ fun AppNavHost(
 
         composable(
             route = Destinations.CUSTOMER_DETAIL_WITH_ARG,
-            arguments = listOf(navArgument("customerId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("customerId") { type = NavType.LongType },
+                navArgument("openDate") { type = NavType.BoolType; defaultValue = false }
+            )
         ) { backStack ->
             val id = backStack.arguments?.getLong("customerId") ?: return@composable
             val vm: CustomerDetailViewModel = viewModel(
@@ -671,6 +676,8 @@ fun AppNavHost(
             CustomerDetailScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
+                // ⏸️ 상담함 [보류] 「일정 잡기」 — 날짜 창부터 열린다.
+                autoOpenDatePicker = backStack.arguments?.getBoolean("openDate") ?: false,
                 // CustomerDetail 의 하단 "문자 보내기" 는 이제 ChatScreen 으로 (메인 대화 채널).
                 onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) },
                 // 발행 이력 "수정" → 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)

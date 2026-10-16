@@ -103,6 +103,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -170,7 +171,9 @@ fun CustomerDetailScreen(
     /** "💬 문자 보내기" 탭 시 ChatScreen 으로 이동. customerId 알고 있으므로 같이 전달. */
     onOpenChat: (phone: String, customerId: Long) -> Unit,
     /** 발행 이력 "수정" 탭 시 채팅으로 이동하며 그 접수서를 편집기로 재오픈. (2026-07-10 사장님) */
-    onOpenChatEditIssued: (phone: String, customerId: Long, issuedId: Long) -> Unit = { _, _, _ -> }
+    onOpenChatEditIssued: (phone: String, customerId: Long, issuedId: Long) -> Unit = { _, _, _ -> },
+    /** ⏸️ 상담함 [보류] 카드 「일정 잡기」로 들어왔다 — 열리자마자 날짜 창을 띄운다(날짜 없는 그 건에). (2026-10-16) */
+    autoOpenDatePicker: Boolean = false
 ) {
     val customer by viewModel.customer.collectAsState()
     val records by viewModel.callRecords.collectAsState()
@@ -505,6 +508,20 @@ fun CustomerDetailScreen(
                 )?.id
             val hasJobs = allJobsForTabs.isNotEmpty()
 
+            // ⏸️ 상담함 [보류] 카드 「일정 잡기」로 들어왔으면 날짜 창부터 — **딱 한 번**(rememberSaveable: 회전해도 다시 안 뜸).
+            //   🔴 건은 DB 에서 한 번 읽는다(allJobsOnce) — allJobs 의 첫 값은 빈 목록이라 그걸로 고르면 '건 없음' 경로(고객 카드)로
+            //   가서 새 건이 하나 더 생기고 **계약금이 두 건에 찍힌다**(§13④). 보류하며 날짜만 뺀 그 건(날짜 없음·돈 있음)에 써야 한다.
+            var autoOpened by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(autoOpenDatePicker, c.id) {
+                if (!autoOpenDatePicker || autoOpened) return@LaunchedEffect
+                autoOpened = true
+                val jobs = runCatching { viewModel.allJobsOnce() }.getOrDefault(emptyList())
+                val target = jobs.firstOrNull { it.scheduledWorkDate == null && !jobFolded(it) }
+                dateEditJobId = target?.id; dateEditStart = null
+                dateEditDays = (target?.scheduledWorkDays ?: 1).coerceAtLeast(1); dateEditMinutes = target?.scheduledWorkMinutes
+                addingNewJob = false; datePickerOpen = true
+            }
+
             // 발행 문서(견적서·접수서) — 탭을 없애고 **각 차수 카드 안**으로. (2026-10-14 사장님)
             //   시공접수서는 고객 번호에만 묶여 있어 차수 꼬리표가 없다 → 시공예정일(workDateMs)로 그 건에 맞춘다.
             val issuedDocs by viewModel.issuedDocs.collectAsState()
@@ -675,6 +692,9 @@ fun CustomerDetailScreen(
                     containerColor = Color.White
                 )
             }
+            // ⏸️ 일정 보류 창 — CustomerHoldDialog 한 벌(찍기·메모 고치기·풀기). 카드는 host.onHold 로 열기만. (2026-10-16)
+            var holdDialog by remember { mutableStateOf(false) }
+            if (holdDialog) CustomerHoldDialog(c = c, viewModel = viewModel, onClose = { holdDialog = false })
             // 📝 쪽지를 꼬 눌러 「고쳐 적기」를 고를면 여기에 들어온다. (2026-09-27)
             var editingNote by remember {
                 mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity?>(null)
@@ -993,6 +1013,7 @@ fun CustomerDetailScreen(
                 onAsDone = { asDoneConfirm = true },
                 onAsPending = { asPendingConfirm = true },
                 onAsPicker = { asPickerOpen = true },
+                onHold = { holdDialog = true },
                 onCancelBooking = { cancelBookingConfirm = true },
                 onDeleteJob = { deletePastJobConfirm = it },
                 onEditNote = { editingNote = it },
@@ -1826,7 +1847,7 @@ private fun MessageRowView(m: MessageRow, onImageTap: (android.net.Uri) -> Unit 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = TossBlue,
     unfocusedBorderColor = TossDivider,
     focusedTextColor = TossTextPrimary,
