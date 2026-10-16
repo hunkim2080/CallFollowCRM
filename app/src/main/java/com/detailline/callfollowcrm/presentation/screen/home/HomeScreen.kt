@@ -2519,16 +2519,17 @@ private fun InboxChips(
             val p = counts["unhandled"] ?: 0
             ChipPill("답장 안 함", p.takeIf { it > 0 }, selected == "pending", dim = p == 0) { onSelect("pending") }
         }
-        // 📦 **한 번이라도 생긴 적 있는(seen) 칩만** — 처음 깐 사람은 전체만, 쓸수록 자라난다. (2026-10-08 사장님)
-        //   A/S 는 예외(있을 때만 뜨는 제 규칙). 한 번 seen 에 들면 0명이어도 흐리게 남는다(자리 안 깜빡임, 9/20 결정).
-        val workShown = work.filter { it.first == "as" || it.first in seen }
+        // 📦 **지금 손님이 있는 칩만** 보인다 — 비면 사라진다. (2026-10-16 사장님 "잔금 기다리는 사람 없는데 왜 이 칩이?")
+        //   단 **지금 보고 있는 칩**은 비어도 남긴다(내가 그 칸에 서 있는데 칩이 사라지면 헷갈림 — 떠나면 사라짐).
+        //   (전엔 "한 번 생기면 흐리게 유지"였는데, 사장님이 빈 칩이 더 거슬린다고 숨기기로.)
+        val workShown = work.filter { (counts[it.first] ?: 0) > 0 || selected == it.first }
         items(workShown.size) { i ->
             val (k, label) = workShown[i]
             val c = counts[k] ?: 0
-            // 0 이면 **흐리게**(누르는 건 살려둠). "생겼다 없어졌다하면 버그인가 생각할수도" (2026-09-20)
+            // 지금 보는 칩이라 0인데 남은 경우만 흐리게(누르는 건 살려둠).
             ChipPill(label, c.takeIf { it > 0 }, selected == k, dim = c == 0) { onSelect(k) }
         }
-        val whoShown = who.filter { it.first in seen }
+        val whoShown = who.filter { (counts[it.first] ?: 0) > 0 || selected == it.first }
         // 할 일 / 사람 찾기 사이 — 얇은 금 (종료 고객이 보일 때만)
         if (whoShown.isNotEmpty()) {
             item {
