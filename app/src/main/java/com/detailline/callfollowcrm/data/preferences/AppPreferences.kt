@@ -378,6 +378,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("ai_spam_filter_enabled", true)
         set(value) = prefs.edit().putBoolean("ai_spam_filter_enabled", value).apply()
 
+    /**
+     * 🔕 광고·스팸은 알림 안 울리기 — 기본 **OFF**(옵트인). (2026-10-16 사장님 A안 "확실한 광고·스팸만")
+     *   ON: 수신 알림 세 곳(SMS·MMS 즉시·MMS 폴링)이 DefiniteAd 가 「확실한 광고」라 하면 알림을 아예 안 띄운다.
+     *       인증번호(OTP)·은행 입금·택배·저장 고객은 DefiniteAd 가 절대 안 잡으니 그대로 울린다.
+     *   문자 저장·문자함 분류·목록은 이 스위치와 무관 — 알림만 끈다. 기본 OFF 인 이유: 푸시가 안 오는 건 놓치면 큰일이라.
+     */
+    var adSilentPush: Boolean
+        get() = prefs.getBoolean(KEY_AD_SILENT_PUSH, false)
+        set(value) = prefs.edit().putBoolean(KEY_AD_SILENT_PUSH, value).apply()
+
     // ── '이 사람 고객 아님' (2026-07-18 사장님) — 협업사장·거래처·지인 등을 고객 상담으로 오인하는 AI 방지 ──
     //   '고객 아님' 표시된 번호는 고객상담 AI(페르소나·추천답변)를 안 만든다. 통화요약 같은 중립 기능은 유지.
     //   기본 = 고객(안전). 모르는 새 번호가 한 번 오간 뒤 대화방 조용한 줄로 물어 본다.
@@ -1190,6 +1200,7 @@ class AppPreferences(context: Context) {
         private const val KEY_QUICK_ACTION_TPL_3 = "quick_action_tpl_id_3"
         private const val KEY_INCOMING_SMS_NOTIFY = "incoming_sms_notify_enabled"
         private const val KEY_AI_REPLY_PREP = "ai_reply_prep_enabled"
+        private const val KEY_AD_SILENT_PUSH = "ad_silent_push"
         private const val KEY_NON_CUSTOMER = "non_customer_suffixes"
         private const val KEY_CUSTOMER_ASKED = "customer_asked_suffixes"
         private const val KEY_DEFAULT_NAV_APP = "default_nav_app_key"

@@ -212,15 +212,27 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
             val categoryLabel = customerForNotif?.categoryId?.let { cid ->
                 runCatching { runBlocking { container.categoryRepository.findById(cid)?.name } }.getOrNull()
             }
-            NotificationHelper.showIncomingSms(
-                context = app,
-                phone = sender,
-                displayName = customerForNotif?.name,
-                body = displayBody,
-                receivedAtMs = receivedAtMs,
-                categoryLabel = categoryLabel,
-                customerId = customerForNotif?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
-            )
+            // 🔕 「광고·스팸은 알림 안 울리기」(기본 OFF) — 확실한 광고(DefiniteAd 한 곳)면 알림만 건너뛴다.
+            //   아래 '알렸다는 기록'은 그대로 남긴다 — 폴링(notifyNewInboxMms)이 같은 문자를 다시 보지 않게. (2026-10-16 사장님 A안)
+            val silentReason = if (container.preferences.adSilentPush) {
+                com.detailline.callfollowcrm.domain.inbox.DefiniteAd.reason(
+                    body = displayBody, address = sender, isSavedCustomer = customerForNotif != null,
+                    spamPrefixes = container.preferences.spamPrefixes, spamKeywords = container.preferences.spamKeywords
+                )
+            } else null
+            if (silentReason != null) {
+                Log.i(TAG, "알림 안 울림(광고·$silentReason) — ${LogRedact.phone(sender)}")
+            } else {
+                NotificationHelper.showIncomingSms(
+                    context = app,
+                    phone = sender,
+                    displayName = customerForNotif?.name,
+                    body = displayBody,
+                    receivedAtMs = receivedAtMs,
+                    categoryLabel = categoryLabel,
+                    customerId = customerForNotif?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
+                )
+            }
             // 🔴 여기서 알렸다는 걸 **기록**해야 한다. (2026-09-15 사장님: "시간 지나고 또 신규문자 왔다고 2번 울려")
             //   MMS 알림 경로가 둘이다 — ① 다운로드 완료(여기, 즉시) ② 주기 폴링(notifyNewInboxMms).
             //   ①이 기록을 안 남기니 ②가 같은 문자를 '새 문자'로 보고 한 번 더 울렸다.

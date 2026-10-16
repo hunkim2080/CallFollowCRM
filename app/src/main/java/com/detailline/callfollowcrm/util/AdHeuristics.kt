@@ -40,7 +40,19 @@ private val RE_GAMBLING = Regex(
 private val RE_ADULT = Regex("조건만남|성인바카라|섹파|애인대행|출장샵|휴게텔|오피걸|야동")
 
 // ── 2) 조합 신호 ──
-private val RE_NORMAL_NOTIF = Regex("입금\\s*(?:완료|되|했|확인)|잔액|인증\\s*번호|인증번호|배송\\s*(?:출발|완료|시작)|택배")
+// 정상 알림(인증번호·입금·택배) — 광고 조합 신호(2-a)에서 빼고, 「알림 안 울리기」(DefiniteAd)도 이걸로 절대 안 끈다.
+//   2026-10-16: 인증 코드·승인번호·OTP 표기도 같이 — 인증문자를 잘못 끄면 로그인·결제를 못 한다(제일 중요한 안전선).
+private val RE_NORMAL_NOTIF = Regex(
+    "입금\\s*(?:완료|되|했|확인|[\\d,]+)|잔액|인증\\s*번호|인증번호|인증\\s*코드|승인\\s*번호|\\bOTP\\b|배송\\s*(?:출발|완료|시작)|택배",
+    RegexOption.IGNORE_CASE
+)
+
+/**
+ * 인증번호(OTP)·은행 입금·택배 같은 **꼭 봐야 하는 알림**인가. (2026-10-16 사장님)
+ *   [isLikelyAd] 의 2-a 조합 신호가 이걸로 빠지고, 「광고·스팸은 알림 안 울리기」(DefiniteAd) 는 이게 맞으면
+ *   앞자리·낱말이 걸려도 **절대 안 끈다.** 셈은 여기 한 곳(RE_NORMAL_NOTIF) — 두 벌 금지(§12).
+ */
+fun isProtectedNotice(body: String): Boolean = RE_NORMAL_NOTIF.containsMatchIn(body)
 private val RE_LOAN_IDIOM = Regex(
     "저금리|무직자|무서류|무방문|한도\\s*조회|당일\\s*대출|대출\\s*한도|" +
     "정부\\s*지원\\s*대출|채무\\s*통합|대환\\s*대출|연체자\\s*가능|신용\\s*회복|디딤돌|버팀목"

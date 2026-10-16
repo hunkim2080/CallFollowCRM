@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Abc
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +59,8 @@ import com.detailline.callfollowcrm.presentation.util.keyboardPadding
  *   프로토: docs/PROTOTYPES.md 「스팸·광고 거르기」 `artifact/Xy86m2QdTsetr3pLvd8KKi` — 위에서 아래로 그대로.
  *
  *   ① AI 자동 거르기 — 스위치 하나(AppPreferences.aiSpamFilterEnabled). 꺼지면 ServerClassifyGate 가 서버에 안 묻는다.
+ *   ①-b 광고·스팸은 알림 안 울리기 — 스위치(AppPreferences.adSilentPush, 기본 OFF). 판정은 DefiniteAd 한 곳(2026-10-16).
+ *       프로토(Xy86m2Qd…)엔 없던 카드 — 사장님 A안 결정으로 문구를 받아 넣음. 인증·은행·택배·손님은 그대로 울린다.
  *   ② 광고·스팸 번호 앞자리 — 더보기 「자동으로 챙기기」 에 있던 칩·직접입력을 **이리로 옮겼다**(복제 아님, §12).
  *      저장은 AppPreferences.spamPrefixes 한 칸 그대로 — SmsReceiver·HomeViewModel 등 쓰는 쪽은 안 바뀐다.
  *   ③ 이 단어가 있으면 — 본문에 이 낱말이 든 **모르는 번호** 문자는 광고로 봐 문자함으로(2026-10-16).
@@ -77,6 +80,7 @@ fun SpamHubScreen(
     val context = LocalContext.current
 
     var aiFilterOn by remember { mutableStateOf(prefs.aiSpamFilterEnabled) }
+    var adSilentOn by remember { mutableStateOf(prefs.adSilentPush) }
     var spamPrefixes by remember { mutableStateOf(prefs.spamPrefixes) }
     var newSpamPrefix by remember { mutableStateOf("") }
     var spamKeywords by remember { mutableStateOf(prefs.spamKeywords) }
@@ -131,6 +135,29 @@ fun SpamHubScreen(
                     Switch(checked = aiFilterOn, onCheckedChange = {
                         aiFilterOn = it
                         prefs.aiSpamFilterEnabled = it
+                    })
+                }
+            }
+
+            // ── ①-b 광고·스팸은 알림 안 울리기 (2026-10-16 사장님 A안 — 기본 OFF, 옵트인) ──
+            //   판정은 DefiniteAd 한 곳(앞자리·뻔한 광고 본문·적어둔 단어 중 하나 + 저장 고객 아님).
+            //   인증번호·입금·택배는 DefiniteAd 가 절대 안 잡는다. 저장·분류·목록은 그대로 — 알림만 끈다.
+            HubCard {
+                Row(verticalAlignment = Alignment.Top) {
+                    HubTile(Icons.Filled.NotificationsOff, AppTheme.colors.surfaceMuted, AppTheme.colors.textSub)
+                    Spacer(Modifier.width(AppSpace.s12))
+                    Column(Modifier.weight(1f)) {
+                        Text("광고·스팸은 알림 안 울리기", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.text)
+                        Spacer(Modifier.height(AppSpace.s4))
+                        Text(
+                            "켜면 확실한 광고·스팸은 알림이 안 와요. 인증문자·은행·택배·손님 문자는 그대로 울려요.",
+                            style = AppType.label, color = AppTheme.colors.textSub
+                        )
+                    }
+                    Spacer(Modifier.width(AppSpace.s8))
+                    Switch(checked = adSilentOn, onCheckedChange = {
+                        adSilentOn = it
+                        prefs.adSilentPush = it
                     })
                 }
             }

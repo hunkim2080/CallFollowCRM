@@ -14470,3 +14470,15 @@ Fable 🧹3. 사장님 "고고"
 - 변경(UI): 말풍선 길게누름 시트에 「골라서 복사」 추가 → 그 메시지를 SelectionContainer 창으로 띄워 글자 끌어 부분 복사. 창은 ChatSmallParts.PartialCopyDialog 로 빼서 ChatScreen 비대 방지(§12-F). 토큰(AppType/AppShape/AppTheme)만. 말풍선이 링크 등록(탭) 때문에 통짜 클릭이라 부분선택 불가한 Compose 1.6.8 한계를 창으로 우회(근본은 1.7업).
 - 폰 확인: 못 봄(서명). 빌드·가드 7개·시험 통과.
 - 다음 액션: 광고·스팸 푸시 안 울리기(사장님 계획) — OTP/은행/택배는 push 유지 설계 논의 중(A=확실한 광고만/B=AI광고까지).
+
+## 2026-10-16 20:15 · android (Fable)
+🔕 「광고·스팸은 알림 안 울리기」 — 확실한 광고·스팸만 푸시를 끈다(A안, 기본 OFF 옵트인). 인증번호(OTP)·은행 입금·택배·저장 고객은 그대로 울린다. (사장님 "광고나 스팸은 푸시알람조차 안 오게 … 인증문자가 껴있을까 봐 걱정")
+- 변경(데이터): `AppPreferences.adSilentPush: Boolean`(키 `ad_silent_push`, 기본 **false**). 켜는 자리 = 스팸·광고 거르기 화면 한 곳.
+- 변경(공용): 새 `domain/inbox/DefiniteAd.kt` **한 곳** — `reason(body, address, isSavedCustomer, spamPrefixes, spamKeywords)`: ① 저장 고객이면 절대 아님 ② `isProtectedNotice`(인증번호·인증 코드·승인번호·OTP·입금(완료/금액)·잔액·배송·택배)면 **절대 아님** — 앞자리(02·1588 등)·낱말이 걸려도 안 끈다 ③ 그다음 앞자리(SpamPrefix) · 뻔한 광고 본문(isLikelyAd) · 적어둔 단어(SpamKeywordMatch) 중 하나. 애매하면 울린다(§13② 안 끄는 쪽이 안전). `util/AdHeuristics.kt` 의 `RE_NORMAL_NOTIF` 를 `isProtectedNotice` 로 열고 인증 코드·승인번호·OTP·「입금 N원」 을 더함(isLikelyAd 2-a 도 같은 낱말로 더 보수적 — AdHeuristicsTest 6건 그대로 통과). §12 표 1줄 + `rulesBaselineUpdate`(공용 32→33).
+- 변경(알림 3곳, 전부 같은 한 곳을 부름): `SmsReceiver`(SMS: showGeneralSms/showIncomingSms 둘 다 skip) · `CallFollowCrmApplication.notifyNewInboxMms`(MMS 폴링: skip + freshIds 에 넣어 재알림 안 됨) · `MmsDownloadedReceiver.runMmsHook`(MMS 즉시: skip, '알렸다는 기록' 은 그대로 남겨 폴링이 다시 안 봄). 끌 때 logcat `알림 안 울림(광고·사유) — 번호(가림)`. **문자 저장·문자함 분류(classifyLocal)·목록·AI 준비 스킵 규칙은 안 건드림** — 알림만.
+- 변경(UI): SpamHubScreen ① AI 카드 바로 아래 「광고·스팸은 알림 안 울리기」 스위치 카드(NotificationsOff 아이콘·surfaceMuted/textSub 토큰). 문구 "켜면 확실한 광고·스팸은 알림이 안 와요. 인증문자·은행·택배·손님 문자는 그대로 울려요." — 프로토(Xy86m2Qd…)에 없던 카드, 사장님 A안 결정 문구 그대로. 손으로 적은 값 0(style 2610 그대로).
+- 브리프와 다르게 간 곳: ⓐ 판정에 **보호 낱말 우선 규칙(②)** 을 더했다 — 브리프는 "isLikelyAd 가 OTP 를 이미 false" 라 했지만 **앞자리·낱말 신호엔 그 보호가 없어** 02·1588 발신 인증문자가 앞자리만으로 꺼질 수 있었다(기본 앞자리에 02·031… 포함). 안전선이 제일 중요하다 해서 넣음. ⓑ 시그니처에 `spamPrefixes` 인자 추가(SpamPrefix 가 필요).
+- §12-K 소비 지점 4곳 다 확인(바꾼 것 4 · 둬도 됨 0): SmsReceiver showGeneralSms/showIncomingSms(2) · Application MMS 폴링(1) · MmsDownloadedReceiver(1). 둬도 됨 = `MmsDownloadedReceiver.notifyBroken/notifyFail`(MMS 깨짐 알림 — 광고 판정 대상 아님) · `CopyToClipboardReceiver`(OTP 복사 버튼 — 인증문자는 애초에 안 끔).
+- 숫자: ① 세 신호를 알림 자리에서 직접 조합한 곳 0곳(신규) ② 새 공용 1개(DefiniteAd, 쓰는 곳 3) ③ dup 가드 규칙 추가 안 함(막을 옛 표기가 없는 신규) ④ §12 표 1줄 ⑤ 테스트 **1134건 통과**(DefiniteAdTest 13 신규: 인증번호 4종·앞자리 스팸이어도·낱말 섞여도·입금 3종·택배 3종·저장고객·보통손님·빈본문 = 안 끔 / 수신거부·070·낱말·도박 = 끔) · BUILD=0 가드 7종(brand · dup 13/13 · size 35280/기준선 안 · style 2610/2610 · rules 공용 33 · save 0 · compose) · health 2026-10-16 줄.
+- 폰 확인: **못 봄** — 빌드·테스트로 대신. 사장님 폰 다음 내부테스트: 더보기 → 스팸·광고 거르기 → 「광고·스팸은 알림 안 울리기」 켬 → 070 번호나 (광고)+수신거부080 문자는 알림 없이 문자함에만 쌓임 · 은행 인증번호·택배 문자는 전처럼 울림. logcat `SmsReceiver`/`MmsDownloaded`/`MmsNotify` 에 「알림 안 울림(광고·…)」.
+- 다음 액션: (android) 프로토 아티팩트(Xy86m2Qd…)에 ①-b 카드 한 장 추가해 앱↔프로토 맞추기. ScheduleScreen.kt 미승인 변경은 **안 건드림·커밋 안 함**. (server) 없음 — 앱 로컬만.

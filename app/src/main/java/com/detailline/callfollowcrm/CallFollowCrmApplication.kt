@@ -719,6 +719,18 @@ class CallFollowCrmApplication : Application() {
             //   MMS 는 2단계(신호→다운로드 몇 초)라, 다운로드 감지 시점엔 이미 읽었을 수 있음 → "읽었는데 몇 초 뒤 딩동" 방지. (2026-08-01 사장님)
             if (m.read) { freshIds.add(key); continue }
             val customer = runCatching { container.customerRepository.findByPhone(m.sender) }.getOrNull()
+            // 🔕 「광고·스팸은 알림 안 울리기」(기본 OFF) — 확실한 광고(DefiniteAd 한 곳)면 알림만 건너뛰고 '알린 것'으로 친다.
+            //   인증번호·입금·택배·저장 고객은 DefiniteAd 가 절대 안 잡는다. (2026-10-16 사장님 A안)
+            if (prefs.adSilentPush) {
+                val silentReason = com.detailline.callfollowcrm.domain.inbox.DefiniteAd.reason(
+                    body = m.preview, address = m.sender, isSavedCustomer = customer != null,
+                    spamPrefixes = prefs.spamPrefixes, spamKeywords = prefs.spamKeywords
+                )
+                if (silentReason != null) {
+                    android.util.Log.i("MmsNotify", "알림 안 울림(광고·$silentReason) — ${com.detailline.callfollowcrm.util.LogRedact.phone(m.sender)}")
+                    freshIds.add(key); continue
+                }
+            }
             val categoryLabel = customer?.categoryId?.let { cid ->
                 runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
             }

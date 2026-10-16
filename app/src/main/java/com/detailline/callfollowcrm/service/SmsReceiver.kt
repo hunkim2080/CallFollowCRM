@@ -129,6 +129,15 @@ class SmsReceiver : BroadcastReceiver() {
                 // 스팸이어도 알림은 띄운다(기본 띵동 소리로) — 전엔 아예 안 떠서 온 줄도 몰랐다. (2026-10-08 사장님)
                 //   단 AI 답변 준비·프리페치는 스팸·문자함이면 아래에서 스킵(서버비 절감)은 그대로.
                 val notifyEnabled = container.preferences.incomingSmsNotifyEnabled
+                // 🔕 「광고·스팸은 알림 안 울리기」(기본 OFF) — 켜져 있고 **확실한 광고**(DefiniteAd 한 곳)면 알림만 건너뛴다.
+                //   인증번호·입금·택배·저장 고객은 DefiniteAd 가 절대 안 잡는다. 저장·분류·목록은 그대로. (2026-10-16 사장님 A안)
+                val silentReason = if (container.preferences.adSilentPush) {
+                    com.detailline.callfollowcrm.domain.inbox.DefiniteAd.reason(
+                        body = combinedBody, address = sender, isSavedCustomer = customer != null,
+                        spamPrefixes = container.preferences.spamPrefixes, spamKeywords = container.preferences.spamKeywords
+                    )
+                } else null
+                if (silentReason != null) Log.i(TAG, "알림 안 울림(광고·$silentReason) — ${com.detailline.callfollowcrm.util.LogRedact.phone(sender)}")
 
                 // 보여줄 이름 = 앱 이름 > 폰 연락처. 한 곳(ContactNameResolver.resolveDisplayName)에서 결정 — 둘 다 없으면 null → 알림이 번호로. (§12 공용)
                 val notifyName = com.detailline.callfollowcrm.util.ContactNameResolver
@@ -137,7 +146,7 @@ class SmsReceiver : BroadcastReceiver() {
                 // 1) 알림 — 상담함(고객·애매)은 즉시 헤드업+고객 소리, 문자함(고객 아님)·스팸은 **기본 띵동**.
                 //   (2026-06-15 / 2026-07-11 / 2026-10-08 사장님) 저장 고객이 스팸 앞자리여도 고객 소리는 지킨다.
                 val soundAsGeneral = isGeneral || (isSpam && customer == null)
-                if (notifyEnabled) {
+                if (notifyEnabled && silentReason == null) {
                     runCatching {
                         if (soundAsGeneral) {
                             NotificationHelper.showGeneralSms(
