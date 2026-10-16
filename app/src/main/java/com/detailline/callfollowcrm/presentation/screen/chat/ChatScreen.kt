@@ -388,6 +388,9 @@ fun ChatScreen(
     var bubbleActionTarget by remember {
         mutableStateOf<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage?>(null)
     }
+    // ✂️ 「골라서 복사」 — 말풍선은 통짜 클릭(링크 등록용)이라 부분 선택이 안 돼서(Compose 1.6.8),
+    //   이 창에서 글자를 끌어 원하는 부분만 복사한다. (2026-10-16 사장님 "특정 부분만 복사하고 싶은데 전체가 복사돼")
+    var partialCopyText by remember { mutableStateOf<String?>(null) }
     // 문자 속 전화/날짜 링크 탭 → 액션 시트 대상. (2026-08-04 사장님)
     var linkActionTarget by remember { mutableStateOf<LinkTapAction?>(null) }
     // 대화 요약 카드 사장님 명시 접기 — composer focus 자동 접힘과는 별개.
@@ -1532,9 +1535,20 @@ fun ChatScreen(
                         icon = Icons.Default.Info,
                         tint = TossTextSecondary,
                         label = "복사",
-                        subtitle = "문자 본문을 클립보드에",
+                        subtitle = "문자 본문 전체를 클립보드에",
                         onClick = {
                             clipboard.setText(AnnotatedString(msg.body))
+                            bubbleActionTarget = null
+                        }
+                    )
+                    // ✂️ 원하는 부분만 — 끌어서 선택해 복사. (2026-10-16 사장님)
+                    BubbleActionRow(
+                        icon = Icons.Default.Edit,
+                        tint = TossTextSecondary,
+                        label = "골라서 복사",
+                        subtitle = "원하는 부분만 끌어서 선택",
+                        onClick = {
+                            partialCopyText = msg.body
                             bubbleActionTarget = null
                         }
                     )
@@ -1543,6 +1557,9 @@ fun ChatScreen(
             }
         }
     }
+
+    // ✂️ 「골라서 복사」 창 — 글자를 끌어 원하는 부분만. 창은 ChatSmallParts 로 뺌(ChatScreen 비대 방지 §12-F). (2026-10-16 사장님)
+    partialCopyText?.let { text -> PartialCopyDialog(text) { partialCopyText = null } }
 
     // 내 일정 확인 시트 (2026-06-01) — 대화 중 시공 일정 미니 달력.
     if (myScheduleOpen) {

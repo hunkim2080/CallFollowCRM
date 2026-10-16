@@ -709,3 +709,39 @@ internal fun ScheduledPendingBubble(
         }
     }
 }
+
+/**
+ * ✂️ 「골라서 복사」 창 — 말풍선은 링크 등록(전화·주소 탭) 때문에 통짜 클릭이라 부분 글자 선택이 안 된다(Compose 1.6.8).
+ *   여기서 **표준 글자 선택**(SelectionContainer)으로 원하는 부분만 끌어 복사한다. (2026-10-16 사장님)
+ */
+@Composable
+internal fun PartialCopyDialog(text: String, onClose: () -> Unit) {
+    val ty = com.detailline.callfollowcrm.presentation.theme.AppType
+    val sh = com.detailline.callfollowcrm.presentation.theme.AppShape
+    Dialog(onDismissRequest = onClose) {
+        Surface(shape = sh.lg, color = AppTheme.colors.surface) {
+            Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                Text("골라서 복사", style = ty.title, fontWeight = FontWeight.Bold, color = AppTheme.colors.text)
+                Spacer(Modifier.height(4.dp))
+                Text("글자를 꾹 눌러 끌면 원하는 부분만 복사돼요.", style = ty.label, color = AppTheme.colors.textSub)
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier.fillMaxWidth().heightIn(max = 340.dp)
+                        .verticalScroll(rememberScrollState())
+                        .background(AppTheme.colors.surfaceMuted, sh.md)
+                        .padding(14.dp)
+                ) {
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(text, style = ty.headline, fontWeight = FontWeight.Normal, color = AppTheme.colors.text)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    Modifier.align(Alignment.End).clip(sh.sm)
+                        .clickable { onClose() }
+                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                ) { Text("닫기", style = ty.body, fontWeight = FontWeight.Bold, color = AppTheme.colors.primary) }
+            }
+        }
+    }
+}
