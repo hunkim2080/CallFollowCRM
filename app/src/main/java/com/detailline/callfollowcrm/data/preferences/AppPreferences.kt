@@ -654,6 +654,20 @@ class AppPreferences(context: Context) {
             ?: com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.toSet()
         set(value) { prefs.edit().putStringSet("spam_prefixes", value).commit() }
 
+    /**
+     * 🔤 「이 단어가 있으면」 — 본문에 이 낱말이 들어간 **모르는 번호** 문자는 광고로 봐 문자함으로. (2026-10-16 사장님)
+     *   편집은 「스팸·광고 거르기」(SpamHubScreen) 한 곳. 읽는 쪽은 AppContainer 가 ThreadBucketRepository 에 넘기는 한 곳.
+     *   매칭 셈은 SpamKeywordMatch. 기본값 없음(빈 집합) — 앞자리와 달리 추천 낱말을 안 깐다(진짜 손님이 가려질 수 있어서).
+     *   빈 글자·공백만인 낱말은 저장·읽기 양쪽에서 걸러진다. 저장은 commit(즉시).
+     */
+    var spamKeywords: Set<String>
+        get() = (prefs.getStringSet("spam_keywords", emptySet()) ?: emptySet())
+            .mapNotNull { com.detailline.callfollowcrm.domain.inbox.SpamKeywordMatch.normalize(it) }.toSet()
+        set(value) {
+            val clean = value.mapNotNull { com.detailline.callfollowcrm.domain.inbox.SpamKeywordMatch.normalize(it) }.toSet()
+            prefs.edit().putStringSet("spam_keywords", clean).commit()
+        }
+
     /** "이건 광고 아냐" 로 사장님이 되살린 번호(끝8자리) — AdHeuristics 자동 광고분류 예외. (2026-07-08 사장님) */
     var adAllowlistSuffixes: Set<String>
         get() = prefs.getStringSet("ad_allowlist_suffixes", emptySet()) ?: emptySet()

@@ -1161,7 +1161,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 lastBody = c.lastBody,
                 lastDateMs = c.lastDateMs,
                 lastSent = c.lastSent,
-                isAd = b?.reason == "광고",
+                isAd = com.detailline.callfollowcrm.data.repository.ThreadBucketRepository.isAdReason(b?.reason),
                 // 👥 사장님이 직접 찍은 것. 글자로는 알 수 없다. (2026-10-02)
                 //   옛 「사생활」 번호도 같은 칸을 쓰므로 **한 목록에서 다 보인다.**
                 isFriend = isFriendNo,

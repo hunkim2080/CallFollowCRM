@@ -14427,3 +14427,15 @@ Fable 🧹3. 사장님 "고고"
 - 숫자: 테스트 1090건 통과(ServerClassifyGateTest +2: OFF→SKIP_FILTER_OFF, OFF 가 로컬 확정보다 앞섬) · BUILD=0 가드 7종(brand·dup 13/13·size 35187(−100)·style 2610(−23)·rules 공용 30·save 0·compose) · 기준선 style/size 갱신(줄였음) · health 2026-10-16 줄.
 - 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(전과 같음). 빌드·테스트로 대신. 사장님 폰 다음 내부테스트: 더보기 → 「스팸·광고 거르기」 한 줄, 「자동으로 챙기기」 에서 앞자리 칸 사라짐, AI 스위치 끄면 logcat `ThreadServerClassify` 에 `SKIP_FILTER_OFF`.
 - 다음 액션: (android) 사장님이 폰에서 「풀기」 테두리 버튼·칩 모양 보고 조정. ScheduleScreen.kt 미승인 변경은 **안 건드림·커밋 안 함**. (server) 없음.
+
+## 2026-10-16 · android (Fable)
+「스팸·광고 거르기」 에 **「이 단어가 있으면」(키워드로 거르기)** 추가 — 프로토 `artifact/Xy86m2QdTsetr3pLvd8KKi` ③ 말로 거르기 그대로. 사장님 결정: 걸리면 지우지 않고 **문자함으로 옮기기만**, **모르는 번호만**(저장 고객·답장한 번호는 그 단어를 써도 상담함 유지).
+- 변경(공용): 새 `domain/inbox/SpamKeywordMatch.kt` — 낱말 맞추기 **한 곳**(부분일치·띄어쓰기 무시·영문 소문자·빈 낱말 무시) + `hit(body, keywords, saved, replied)` 가 「모르는 번호만」 규칙을 지킴 + `normalize`(trim·빈 값). 3곳(prefs·repo·화면)에서 써서 rules_guard 가 §12 표에 적으라 함 → CLAUDE.md §12 표 한 줄 + `rulesBaselineUpdate`(공용 30→31).
+- 변경(데이터): `AppPreferences.spamKeywords: Set<String>` — `spamPrefixes` 와 같은 패턴(StringSet·commit 즉시). 기본값 없음(앞자리와 달리 추천 낱말 안 깖 — 진짜 손님 보호). 저장·읽기 양쪽에서 normalize.
+- 변경(훅): `ThreadBucketRepository` 생성자에 `spamKeywords: () -> Set<String>` 람다(AppContainer 가 `preferences.spamKeywords` 연결). `classifyLocal` 에서 **로컬이 UNSURE 일 때만** `SpamKeywordMatch.hit` → 걸리면 GENERAL, 사유 `REASON_KEYWORD`("광고(단어)"). 호출부 3곳(SmsReceiver·MmsDownloadedReceiver·Application.classifyCachedContacts)은 **안 바뀜** — 인자 추가 대신 생성자 주입이라 네 번째 호출부가 생겨도 빠뜨릴 수 없음. 걸리면 UNSURE 가 아니라 서버(Haiku)에 안 묻는다(0원).
+- 변경(UI): SpamHubScreen ③ 「이 단어가 있으면」 카드(Abc 아이콘·caution 토큰·주황 주의 박스 문구 verbatim·칩 ✕·입력 「예: 실시간 손실」·추가) + 섹션 라벨 「말로 거르기」. 앞자리 섹션의 칩+입력+추가를 private `HubChipEditor` **한 조각**으로 빼서 ②·③ 이 같이 씀(복제 X). 손으로 적은 값 0(style 2610 그대로).
+- §12-K 소비 지점: `HomeViewModel` 1164 `reason=="광고"` 로 문자함 [광고] 칸 가름 → `ThreadBucketRepository.isAdReason()` 으로 바꿔 낱말 걸린 것도 [광고] 칸에 섬(바꾼 것 1). 둬도 됨 3 = ChatViewModel/CustomerDetail `isGeneral`(bucket 만 봄), `ServerClassifyGate`(UNSURE 만 받으니 자동), `BucketPolicy`(OWNER 고정은 낱말도 못 덮음).
+- 숫자: ① 낱말 매칭 셈 1곳(SpamKeywordMatch) · `spamKeywords` 쓰는 곳 = 저장 1(SpamHubScreen) · 읽기 1(AppContainer→repo) · ② 새 공용 1개(쓰는 곳 3) · ③ 가드 규칙 추가 안 함(옛 표기가 없던 신규 — 막을 옛 모양이 없음) · ④ §12 표 1줄 · 테스트 1100건 통과(SpamKeywordMatchTest 10 신규: 일치·띄어쓰기·영문·불일치·부분·빈값·공백·저장고객·답장번호·모르는번호) · BUILD=0 가드 7종(dup 13/13 · size 35201(+14, 기준선 안) · style 2610/2610 · rules 공용 31 · save 0 · compose · brand) · health 2026-10-16 줄.
+- 프로토와 다르게 간 곳: ⓐ 프로토 칩 예시(손실 지급·토토·꽁머니·무료수신거부)는 **기본값으로 안 깖** — 빈 상태로 시작, 사장님이 직접 적음(흔한 낱말이 손님을 가릴 수 있어서). 빈 상태 문구 「아직 등록한 단어가 없어요」 는 프로토에 없는 한 줄(앞자리와 같은 모양). ⓑ 띄어쓰기 무시 매칭(「손실 지급」=「손실지급」)은 프로토에 명시 없음 — 광고가 띄어쓰기를 제멋대로 해서 넣음.
+- 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(전과 같음). 빌드·테스트로 대신. 사장님 폰 다음 내부테스트: 더보기 → 스팸·광고 거르기 → 「말로 거르기」 카드에 낱말 하나 넣고, 모르는 번호로 그 낱말 든 문자 받으면 문자함 [광고] 로. 저장 고객이 같은 낱말 보내면 상담함 그대로. logcat `ThreadBucket` 에 「낱말 걸림: …」.
+- 다음 액션: (android) 없음. ScheduleScreen.kt 미승인 변경은 **안 건드림·커밋 안 함**. (server) 없음 — 앱 로컬만.

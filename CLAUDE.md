@@ -438,6 +438,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |
 | 주소 뽑기 | `util/AddressExtractor.kt` | 화면에서 정규식 |
 | 상담함/문자함 가르기 | `domain/inbox/InboxClassifier.kt` · `BucketPolicy.kt` | 화면에서 직접 판단 |
+| 「이 단어가 있으면」 낱말 맞추기·낱말 정리(trim·빈 값) | `domain/inbox/SpamKeywordMatch.kt` — `hit(body, keywords, saved, replied)` 는 **저장 고객·답장한 번호를 안 가린다**. 거는 자리는 `ThreadBucketRepository.classifyLocal` 한 곳, 저장은 `AppPreferences.spamKeywords` | 화면·수신기에서 `body.contains(keyword)` 직접, 낱말 trim 을 따로 |
 | 상담함 「답장 안 함」 한 목록 + 광고 판정(칩 숫자·칩 목록·하단 탭 점프가 **같은 목록**) | `inboxUnanswered` / `isInboxAd` (`presentation/screen/home/HomeScreenHelpers.kt`) | 화면에서 `isUnconfirmed` 와 광고 조건을 직접 조합, VM 에서 따로 세기 (2026-10-15: 셋이 각자 세서 「1인데 열면 빈 목록」) |
 | 사진 업로드 한도 | `util/ImageEncoder.CAP_CHARS` | `1_400_000` 직접 |
 | 문자 보내기 | `util/SmsSender.kt` | `SmsManager` 직접 |

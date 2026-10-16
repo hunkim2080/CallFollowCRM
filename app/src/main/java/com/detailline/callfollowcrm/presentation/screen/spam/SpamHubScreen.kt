@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Abc
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,7 +60,10 @@ import com.detailline.callfollowcrm.presentation.util.keyboardPadding
  *   ① AI 자동 거르기 — 스위치 하나(AppPreferences.aiSpamFilterEnabled). 꺼지면 ServerClassifyGate 가 서버에 안 묻는다.
  *   ② 광고·스팸 번호 앞자리 — 더보기 「자동으로 챙기기」 에 있던 칩·직접입력을 **이리로 옮겼다**(복제 아님, §12).
  *      저장은 AppPreferences.spamPrefixes 한 칸 그대로 — SmsReceiver·HomeViewModel 등 쓰는 쪽은 안 바뀐다.
- *   ③ 차단한 번호 — 상담함에서 밀어서 「스팸」 찍은 번호. 줄은 [SpamPhoneRows] 한 곳(지인 목록과 같이 씀).
+ *   ③ 이 단어가 있으면 — 본문에 이 낱말이 든 **모르는 번호** 문자는 광고로 봐 문자함으로(2026-10-16).
+ *      저장은 AppPreferences.spamKeywords, 셈은 SpamKeywordMatch, 거는 자리는 ThreadBucketRepository.classifyLocal 한 곳.
+ *      칩+입력+추가는 ②와 같은 조각 [HubChipEditor].
+ *   ④ 차단한 번호 — 상담함에서 밀어서 「스팸」 찍은 번호. 줄은 [SpamPhoneRows] 한 곳(지인 목록과 같이 씀).
  *
  *   「지인 번호」 는 스팸이 아니라 더보기에 그대로 둔다 — 여기 안 넣는다.
  */
@@ -75,6 +79,8 @@ fun SpamHubScreen(
     var aiFilterOn by remember { mutableStateOf(prefs.aiSpamFilterEnabled) }
     var spamPrefixes by remember { mutableStateOf(prefs.spamPrefixes) }
     var newSpamPrefix by remember { mutableStateOf("") }
+    var spamKeywords by remember { mutableStateOf(prefs.spamKeywords) }
+    var newSpamKeyword by remember { mutableStateOf("") }
 
     val all by container.spamPhoneRepository.all.collectAsState(initial = emptyList())
     val blocked = all.filter { it.kind == "spam" }
@@ -145,73 +151,90 @@ fun SpamHubScreen(
                         )
                     }
                 }
+                // 칩(✕ 삭제)+직접입력+추가 — 아래 「이 단어가 있으면」 과 **같은 조각**(HubChipEditor). 저장은 그 자리에서(commit=즉시).
+                HubChipEditor(
+                    items = spamPrefixes,
+                    chipBg = AppTheme.colors.unpaidBg,
+                    chipText = AppTheme.colors.unpaidText,
+                    emptyText = "아직 등록한 앞자리가 없어요",
+                    input = newSpamPrefix,
+                    onInputChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
+                    placeholder = "예: 070",
+                    keyboardType = KeyboardType.Number,
+                    onRemove = { p -> spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes },
+                    onAdd = { p ->
+                        // 저장 됐는지 사장님이 헷갈리던 통점(2026-06-16): 추가 결과를 토스트로 분명히 알림 + 중복 안내.
+                        if (p in spamPrefixes) {
+                            Toast.makeText(context, "‘$p’ 는 이미 등록돼 있어요", Toast.LENGTH_SHORT).show()
+                        } else {
+                            spamPrefixes = spamPrefixes + p
+                            prefs.spamPrefixes = spamPrefixes   // .commit() = 즉시 저장
+                            Toast.makeText(context, "‘$p’ 저장됐어요 — 앞자리에 추가됐어요", Toast.LENGTH_SHORT).show()
+                        }
+                        newSpamPrefix = ""
+                    }
+                )
+            }
+
+            HubSectionLabel("말로 거르기")
+
+            // ── ③ 이 단어가 있으면 (2026-10-16 사장님) ──
+            //   본문에 이 낱말이 든 **모르는 번호** 문자는 광고로 봐 문자함으로. 저장 고객·답장한 번호는 안 가린다.
+            //   셈은 SpamKeywordMatch 한 곳, 거는 자리는 ThreadBucketRepository.classifyLocal 한 곳.
+            HubCard {
+                Row(verticalAlignment = Alignment.Top) {
+                    HubTile(Icons.Filled.Abc, AppTheme.colors.cautionBg, AppTheme.colors.cautionText)
+                    Spacer(Modifier.width(AppSpace.s12))
+                    Column(Modifier.weight(1f)) {
+                        Text("이 단어가 있으면", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.text)
+                        Spacer(Modifier.height(AppSpace.s4))
+                        Text(
+                            "이 단어가 들어간 문자는 광고로 봐서 문자함으로 내려요.",
+                            style = AppType.label, color = AppTheme.colors.textSub
+                        )
+                    }
+                }
                 Spacer(Modifier.height(AppSpace.s12))
-                if (spamPrefixes.isEmpty()) {
-                    Box(
-                        Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
-                            .padding(vertical = AppSpace.s12),
-                        contentAlignment = Alignment.Center
-                    ) { Text("아직 등록한 앞자리가 없어요", style = AppType.label, color = AppTheme.colors.textSub) }
-                } else {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(AppSpace.s8),
-                        verticalArrangement = Arrangement.spacedBy(AppSpace.s8)
-                    ) {
-                        spamPrefixes.sorted().forEach { p ->
-                            // 칩을 누르면 빠진다(✕). 저장은 그 자리에서 — prefs.spamPrefixes 는 commit 이라 즉시.
-                            Row(
-                                Modifier.clip(AppShape.pill).background(AppTheme.colors.unpaidBg)
-                                    .clickable { spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes }
-                                    .padding(horizontal = AppSpace.s12, vertical = AppSpace.s8),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(p, style = AppType.label, fontWeight = FontWeight.Bold, color = AppTheme.colors.unpaidText)
-                                Spacer(Modifier.width(AppSpace.s8))
-                                Text("✕", style = AppType.caption, fontWeight = FontWeight.Bold, color = AppTheme.colors.unpaidText.copy(alpha = 0.7f))
+                // 프로토 `.warn` — 주황 주의 박스.
+                Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.cautionBg)
+                        .padding(horizontal = AppSpace.s12, vertical = AppSpace.s8)
+                ) {
+                    Text(
+                        "⚠️ 흔한 한 단어(할인·대출)는 진짜 손님도 가려질 수 있어요. ‘손실 지급’처럼 딱 떨어지는 광고 문구로 넣으세요. (지우는 게 아니라 문자함으로 옮기기만 해요)",
+                        style = AppType.caption, color = AppTheme.colors.cautionText
+                    )
+                }
+                HubChipEditor(
+                    items = spamKeywords,
+                    chipBg = AppTheme.colors.cautionBg,
+                    chipText = AppTheme.colors.cautionText,
+                    emptyText = "아직 등록한 단어가 없어요",
+                    input = newSpamKeyword,
+                    onInputChange = { newSpamKeyword = it.take(40) },
+                    placeholder = "예: 실시간 손실",
+                    keyboardType = KeyboardType.Text,
+                    onRemove = { k -> spamKeywords = spamKeywords - k; prefs.spamKeywords = spamKeywords },
+                    onAdd = { raw ->
+                        // 빈 글자·공백은 SpamKeywordMatch.normalize 가 거른다(저장 쪽과 같은 셈). 중복은 토스트로.
+                        val k = com.detailline.callfollowcrm.domain.inbox.SpamKeywordMatch.normalize(raw)
+                        when {
+                            k == null -> Unit
+                            k in spamKeywords -> Toast.makeText(context, "‘$k’ 는 이미 등록돼 있어요", Toast.LENGTH_SHORT).show()
+                            else -> {
+                                spamKeywords = spamKeywords + k
+                                prefs.spamKeywords = spamKeywords   // .commit() = 즉시 저장
+                                Toast.makeText(context, "‘$k’ 저장됐어요 — 이 단어가 든 모르는 번호 문자는 문자함으로 가요", Toast.LENGTH_SHORT).show()
                             }
                         }
+                        newSpamKeyword = ""
                     }
-                }
-                Spacer(Modifier.height(AppSpace.s12))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
-                    Box(Modifier.weight(1f)) {
-                        SheetTextField(
-                            value = newSpamPrefix,
-                            onValueChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
-                            placeholder = "예: 070",
-                            keyboardType = KeyboardType.Number
-                        )
-                    }
-                    val canAdd = newSpamPrefix.isNotBlank()
-                    Box(
-                        Modifier.clip(AppShape.md)
-                            .background(if (canAdd) AppTheme.colors.primary else AppTheme.colors.surfaceMuted)
-                            .clickable(enabled = canAdd) {
-                                val p = newSpamPrefix
-                                // 저장 됐는지 사장님이 헷갈리던 통점(2026-06-16): 추가 결과를 토스트로 분명히 알림 + 중복 안내.
-                                if (p in spamPrefixes) {
-                                    Toast.makeText(context, "‘$p’ 는 이미 등록돼 있어요", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    spamPrefixes = spamPrefixes + p
-                                    prefs.spamPrefixes = spamPrefixes   // .commit() = 즉시 저장
-                                    Toast.makeText(context, "‘$p’ 저장됐어요 — 앞자리에 추가됐어요", Toast.LENGTH_SHORT).show()
-                                }
-                                newSpamPrefix = ""
-                            }
-                            .padding(horizontal = AppSpace.s20, vertical = AppSpace.s12),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "추가", style = AppType.label, fontWeight = FontWeight.Bold,
-                            color = if (canAdd) AppTheme.colors.textOnPrimary else AppTheme.colors.textSub
-                        )
-                    }
-                }
+                )
             }
 
             HubSectionLabel("차단한 번호")
 
-            // ── ③ 차단한 번호 ──
+            // ── ④ 차단한 번호 ──
             HubCard {
                 Text(
                     "상담함에서 밀어서 「스팸」 찍은 번호예요. 풀면 다시 상담함으로 돌아와요.",
@@ -240,6 +263,77 @@ fun SpamHubScreen(
                 "* 「지인 번호」는 스팸이 아니라 그대로 더보기에 둬요 (문자함 [지인]).",
                 style = AppType.caption, color = AppTheme.colors.textHint,
                 modifier = Modifier.padding(start = AppSpace.s4, top = AppSpace.s4, bottom = AppSpace.s24)
+            )
+        }
+    }
+}
+
+/**
+ * 칩 목록(누르면 ✕ 삭제) + 직접입력 + 「추가」 — 프로토 `.chips` + `.inputrow`.
+ *   앞자리(②)와 「이 단어가 있으면」(③)이 **같은 조각**을 쓴다(복제 X, §12). 색만 바꿔 받는다.
+ *   「추가」는 입력이 비면 눌리지 않는다(빈 값 막기). 중복·저장 안내는 부르는 쪽 onAdd 가 토스트로.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HubChipEditor(
+    items: Set<String>,
+    chipBg: androidx.compose.ui.graphics.Color,
+    chipText: androidx.compose.ui.graphics.Color,
+    emptyText: String,
+    input: String,
+    onInputChange: (String) -> Unit,
+    placeholder: String,
+    keyboardType: KeyboardType,
+    onRemove: (String) -> Unit,
+    onAdd: (String) -> Unit
+) {
+    Spacer(Modifier.height(AppSpace.s12))
+    if (items.isEmpty()) {
+        Box(
+            Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                .padding(vertical = AppSpace.s12),
+            contentAlignment = Alignment.Center
+        ) { Text(emptyText, style = AppType.label, color = AppTheme.colors.textSub) }
+    } else {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(AppSpace.s8),
+            verticalArrangement = Arrangement.spacedBy(AppSpace.s8)
+        ) {
+            items.sorted().forEach { p ->
+                Row(
+                    Modifier.clip(AppShape.pill).background(chipBg)
+                        .clickable { onRemove(p) }
+                        .padding(horizontal = AppSpace.s12, vertical = AppSpace.s8),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(p, style = AppType.label, fontWeight = FontWeight.Bold, color = chipText)
+                    Spacer(Modifier.width(AppSpace.s8))
+                    Text("✕", style = AppType.caption, fontWeight = FontWeight.Bold, color = chipText.copy(alpha = 0.7f))
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(AppSpace.s12))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
+        Box(Modifier.weight(1f)) {
+            SheetTextField(
+                value = input,
+                onValueChange = onInputChange,
+                placeholder = placeholder,
+                keyboardType = keyboardType
+            )
+        }
+        val canAdd = input.isNotBlank()
+        Box(
+            Modifier.clip(AppShape.md)
+                .background(if (canAdd) AppTheme.colors.primary else AppTheme.colors.surfaceMuted)
+                .clickable(enabled = canAdd) { onAdd(input) }
+                .padding(horizontal = AppSpace.s20, vertical = AppSpace.s12),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "추가", style = AppType.label, fontWeight = FontWeight.Bold,
+                color = if (canAdd) AppTheme.colors.textOnPrimary else AppTheme.colors.textSub
             )
         }
     }

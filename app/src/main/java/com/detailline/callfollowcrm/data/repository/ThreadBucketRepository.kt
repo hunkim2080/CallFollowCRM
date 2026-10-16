@@ -5,6 +5,7 @@ import com.detailline.callfollowcrm.data.local.dao.ThreadBucketDao
 import com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity
 import com.detailline.callfollowcrm.domain.inbox.BucketPolicy
 import com.detailline.callfollowcrm.domain.inbox.InboxClassifier
+import com.detailline.callfollowcrm.domain.inbox.SpamKeywordMatch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import com.detailline.callfollowcrm.util.PhoneKey
@@ -13,7 +14,11 @@ import com.detailline.callfollowcrm.util.PhoneKey
  * 상담함/문자함 분류 저장소 — 로컬 1차 분류 적용 + 사장님 수동 이동. (2026-07-11 사장님)
  *   기본(행 없음)=상담함. GENERAL 행만 "문자함으로 뺀 대화" 를 뜻한다.
  */
-class ThreadBucketRepository(private val dao: ThreadBucketDao) {
+class ThreadBucketRepository(
+    private val dao: ThreadBucketDao,
+    /** 🔤 「이 단어가 있으면」 낱말(AppPreferences.spamKeywords). 생성자로 받아 **부르는 곳 3곳이 다 같은 셈**을 지난다. */
+    private val spamKeywords: () -> Set<String> = { emptySet() }
+) {
 
     /** suffix → 분류행. HomeViewModel 이 GENERAL suffix 집합으로 상담함/문자함 가른다. */
     fun observeBuckets(): Flow<Map<String, ThreadBucketEntity>> =
@@ -41,7 +46,13 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
     ): InboxClassifier.Verdict {
         val suffix = suffixOf(phone)
         if (suffix.isBlank()) return InboxClassifier.Verdict.UNSURE
-        val verdict = InboxClassifier.classify(body, phone, isSavedCustomer, hasOwnerReply)
+        var verdict = InboxClassifier.classify(body, phone, isSavedCustomer, hasOwnerReply)
+        // 🔤 「이 단어가 있으면」(2026-10-16 사장님) — 로컬이 애매(UNSURE)할 때만 사장님 낱말을 본다.
+        //   저장 고객·답장한 번호는 classify 가 이미 CONSULT 라 여기 안 온다(단골 보호). hit() 도 한 번 더 지킨다.
+        //   걸리면 서버(Haiku)엔 안 묻는다(UNSURE 가 아니니) — 0원.
+        val keywordHit = if (verdict == InboxClassifier.Verdict.UNSURE)
+            SpamKeywordMatch.hit(body, spamKeywords(), isSavedCustomer, hasOwnerReply) else null
+        if (keywordHit != null) verdict = InboxClassifier.Verdict.GENERAL
         // OWNER 가 이미 상담함으로 고정한 번호면 GENERAL 로 안 내려가야(효과 없음) — 표시용 verdict 는 CONSULT 로.
         if (verdict == InboxClassifier.Verdict.UNSURE) return verdict
 
@@ -51,8 +62,12 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
             else InboxClassifier.Verdict.CONSULT
         }
         val bucket = if (verdict == InboxClassifier.Verdict.GENERAL) BucketPolicy.GENERAL else BucketPolicy.CONSULT
-        val reason = if (verdict == InboxClassifier.Verdict.GENERAL)
-            InboxClassifier.generalReason(body, phone) else null
+        val reason = when {
+            keywordHit != null -> REASON_KEYWORD   // 문자함 [광고] 칸에 들어간다(isAdReason)
+            verdict == InboxClassifier.Verdict.GENERAL -> InboxClassifier.generalReason(body, phone)
+            else -> null
+        }
+        if (keywordHit != null) Log.i(TAG, "classify $suffix 낱말 걸림: $keywordHit")
 
         when (val action = BucketPolicy.decide(
             existing = existing,
@@ -185,5 +200,9 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
         private const val TAG = "ThreadBucket"
         /** 👥 지인 표시 — 이 글자 하나로 문자함 [지인] 칸이 갈린다. 바꾸면 **옛 표시가 안 걸린다.** */
         const val REASON_FRIEND = "지인"
+        /** 🔤 사장님 낱말에 걸려 문자함으로 내린 것 — 문자함 [광고] 칸에 같이 선다. */
+        const val REASON_KEYWORD = "광고(단어)"
+        /** 문자함 [광고] 칸에 설 사유인가 — 로컬 광고 판정(InboxClassifier.generalReason "광고")과 사장님 낱말. HomeViewModel 이 쓴다. */
+        fun isAdReason(reason: String?): Boolean = reason == "광고" || reason == REASON_KEYWORD
     }
 }

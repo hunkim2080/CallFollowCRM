@@ -144,7 +144,11 @@ class AppContainer(context: Context) {
     val recurringMessageRepository = com.detailline.callfollowcrm.data.repository.RecurringMessageRepository(db.recurringMessageDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
     // 상담함/문자함 분류(2026-07-11 사장님) — 기본 문자앱이 되며 고객/일반 문자 분리.
-    val threadBucketRepository = com.detailline.callfollowcrm.data.repository.ThreadBucketRepository(db.threadBucketDao())
+    //   🔤 「이 단어가 있으면」 낱말은 여기서 한 번 넘긴다 — 수신(Sms/Mms)·백필(Application) 세 길이 같은 셈을 지난다. (2026-10-16)
+    val threadBucketRepository = com.detailline.callfollowcrm.data.repository.ThreadBucketRepository(
+        db.threadBucketDao(),
+        spamKeywords = { preferences.spamKeywords }
+    )
     // 상담함/문자함 Phase 2 (2026-10-15) — 로컬이 애매(UNSURE)한 **수신 1건**만 서버(Haiku)에 묻는다.
     //   부르는 자리는 ThreadServerClassifier.refineIfUnsure 한 곳(SmsReceiver·MmsDownloadedReceiver). 스캔/백필은 안 부른다(비용).
     val threadClassifyServerRepository =
