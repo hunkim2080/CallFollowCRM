@@ -434,6 +434,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 보류 손님 판정·풀림·안부 넛지(3주) | `domain/customer/OnHold.kt` (`CustomerEntity.isOnHold` 가 이걸 부름) | 화면에서 `onHoldAt != null` 직접, 날짜 잡힐 때 화면마다 `onHoldAt = null`, 「3주」 숫자 직접 |
 | 협업 요청 고르기·취소 판단 | `domain/collab/CollabRequestSelection.kt` | 시트에서 `reqKeys.any { it !in selected }` 를 직접 |
 | 협업 배정 한 줄(건별 days 파싱·판단·떠돌이·이 건에 붙이기·건 날짜 집합) | `domain/collab/CollabAssignmentLine.kt` — `forJob(raw, customerId, jobDayStart)` · `unassigned` · `assignDays` · `daysOfJob` | `collabAssignments` 문자열을 화면에서 직접 `split("|")`, 날짜 없는 줄을 대표 건 날짜로 폴백(2026-10-15: 1차 협업이 2차 카드로 갔다), `(0 until scheduledWorkDays).map{…}` 손계산 |
+| 공유받은 현장 **업체별 → 달별** 묶기(번호+이름으로 가르기·빈 이름은 뒤 4자리·서버 §B 합계 보강·완료 일당 합) | `domain/collab/CollabPartnerGroups.kt` — `group(sites)` · `merge(local, serverPartners)` · `byMonth(sites)` · `displayName` (달 경계는 `SharedSiteRepository.ymOf`) | 화면에서 `groupBy { ownerPhone }` 직접, 서버 §B 를 그대로 목록으로(2026-10-16: 해시줄눈·하우스픽·태그줄눈이 「사장님」 한 줄로 뭉쳤다 — §B 는 번호로만 묶고 이름은 가입자 명부), `openPartner.sites.forEach` 평면 나열 |
 | 협업 진행 알림 **한 번만**(FCM·폴링이 같은 이벤트를 각각 들고 와도) | `NotificationHelper.showCollabEvent` 문 하나 + 그 안의 게이트(셈은 `domain/collab/CollabNotifyDedup.kt`, 기억은 `prefs.collabNotifiedKeys`) | 협업 진행 채널(`CHANNEL_COLLAB_DEPARTED` 등)로 `showProtoPush` 직접, 부르는 쪽에서 「본 이벤트」를 따로 기억(2026-10-15: FCM 과 폴링이 각자 기억해 센터에 두 줄씩) |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
 | 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |

@@ -71,6 +71,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
+import com.detailline.callfollowcrm.domain.collab.CollabPartnerGroups
 import com.detailline.callfollowcrm.presentation.component.CollabCommentSection
 import com.detailline.callfollowcrm.ai.siteDisplayName
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -139,7 +140,8 @@ fun SharedSiteScreen(
     // 1차 분리(2026-06-18 사장님): "received" 공유받은 현장 | "shared" 내가 공유한 현장.
     //   협업 수락/진행 알림(주인 A)으로 들어오면 initialTab="shared" → 내가 공유한 현장부터. (2026-06-20 사장님)
     var topMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(if (initialTab == "shared") "shared" else "received") }
-    var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("date") } // "date" 현장순 | "biz" 업체별
+    // 기본은 업체별 — "업체별로 먼저 보이고 그다음 월별로. 현장순은 잘 안 볼 것 같다." (2026-10-16 사장님)
+    var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("biz") } // "biz" 업체별 | "date" 현장순
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
     val trashed by viewModel.trashed.collectAsState()
@@ -199,21 +201,11 @@ fun SharedSiteScreen(
     val myActiveShared = remember(mySharedSites) {
         mySharedSites.filter { it.status !in gone }.sortedByDescending { it.scheduledAtMs }
     }
-    // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
+    // 업체별: 받은 현장을 **번호+이름**으로 묶고(공유에 적힌 상호가 이름), 서버 §B 는 합계 보강에만.
+    //   전엔 서버 §B 가 있으면 그걸 그대로 썼는데, §B 는 번호로만 묶고 이름은 가입자 명부라
+    //   해시줄눈·하우스픽·태그줄눈이 「사장님」 한 줄로 뭉쳤다. 셈은 CollabPartnerGroups 한 곳. (2026-10-16 사장님)
     val partnerGroups = remember(acceptedSites, serverPartners) {
-        if (serverPartners.isNotEmpty()) serverPartners.map { p ->
-            val key = PhoneKey.of(p.ownerPhone).ifBlank { p.ownerName }
-            PartnerGroup(
-                key = key,
-                name = p.ownerName,
-                count = p.count,
-                recentMs = p.lastAtMs,
-                wageSum = p.totalWage,
-                sites = acceptedSites.filter { PhoneKey.of(it.ownerPhone) == key }
-                    .sortedByDescending { it.scheduledAtMs }
-            )
-        }.sortedByDescending { it.recentMs }
-        else groupByPartner(acceptedSites)
+        CollabPartnerGroups.merge(CollabPartnerGroups.group(acceptedSites), serverPartners)
     }
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
     BackHandler(enabled = selected != null || selectedMine != null || bizPartner != null || showTrash) {
@@ -655,8 +647,8 @@ private fun ListArea(
     hasPending: Boolean = false,
     listView: String,
     onListView: (String) -> Unit,
-    partnerGroups: List<PartnerGroup>,
-    openPartner: PartnerGroup?,
+    partnerGroups: List<CollabPartnerGroups.Group>,
+    openPartner: CollabPartnerGroups.Group?,
     onPickPartner: (String) -> Unit,
     onOpen: (SharedSiteRepository.SharedSite) -> Unit,
     onTrash: (SharedSiteRepository.SharedSite) -> Unit
@@ -721,9 +713,27 @@ private fun ListArea(
             Spacer(Modifier.height(6.dp))
             Text("금액은 나와 이 사장님 사이 일당만 보여요. 완료된 현장 기준이에요.",
                 fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
-            openPartner.sites.forEach { site ->
-                SiteRow(site, onClick = { onOpen(site) })
-                Spacer(Modifier.height(9.dp))
+            // 달별로 — 「2026년 10월 · 3곳 · 받은 일당 45만원」 머리 + 그 달 현장. 최신 달이 위. (2026-10-16 사장님 "월별로 보여야지")
+            CollabPartnerGroups.byMonth(openPartner.sites).forEach { month ->
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 2.dp, top = 4.dp, bottom = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordViewModel.monthLabel(month.ym),
+                        style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${month.count}곳" + (if (month.wageSum > 0) " · 받은 일당 ${month.wageSum}만원" else ""),
+                        style = AppType.caption, fontWeight = FontWeight.Medium, color = TossTextTertiary
+                    )
+                }
+                month.sites.forEach { site ->
+                    SiteRow(site, onClick = { onOpen(site) })
+                    Spacer(Modifier.height(9.dp))
+                }
+                Spacer(Modifier.height(4.dp))
             }
             // 서버 전체이력 합계 > 지금 열 수 있는 현장 → 과거 현장은 합계에만 포함.
             if (openPartner.count > openPartner.sites.size) {
@@ -758,7 +768,7 @@ private fun ListArea(
                     PartnerRow(g, onClick = { onPickPartner(g.key) })
                     Spacer(Modifier.height(9.dp))
                 }
-                Text("업체를 누르면 그 사장님과 한 현장이 전부 나와요.",
+                Text("업체를 누르면 그 사장님과 한 현장이 달별로 나와요.",
                     fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
             }
@@ -1034,7 +1044,7 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Uni
 
 /** 업체별 행 — 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
 @Composable
-private fun PartnerRow(g: PartnerGroup, onClick: () -> Unit) {
+private fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
             .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
@@ -1060,29 +1070,7 @@ private fun PartnerRow(g: PartnerGroup, onClick: () -> Unit) {
     }
 }
 
-/** 협업 현장을 사장님(주인 번호)별로 묶은 그룹. 받은 일당 = 완료된 현장의 일당 합계(로드된 현장 기준). */
-private data class PartnerGroup(
-    val key: String,
-    val name: String,
-    val count: Int,
-    val recentMs: Long,
-    val wageSum: Int,
-    val sites: List<SharedSiteRepository.SharedSite>
-)
-
-private fun groupByPartner(sites: List<SharedSiteRepository.SharedSite>): List<PartnerGroup> =
-    sites.groupBy { s -> PhoneKey.of(s.ownerPhone).ifBlank { s.ownerName } }
-        .map { (key, list) ->
-            PartnerGroup(
-                key = key,
-                name = list.first().ownerName,
-                count = list.size,
-                recentMs = list.maxOf { maxOf(it.scheduledAtMs, it.createdAtMs) },
-                wageSum = list.filter { it.progress == SharedSiteRepository.Progress.COMPLETED }.sumOf { it.dailyWage ?: 0 },
-                sites = list.sortedByDescending { it.scheduledAtMs }
-            )
-        }
-        .sortedByDescending { it.recentMs }
+// 업체별 묶기(PartnerGroup·groupByPartner)는 domain/collab/CollabPartnerGroups 로 옮겼다 — 셈은 거기 한 곳. (2026-10-16)
 
 
 /** 휴지통 — 밀어서 정리한 협업 현장. '되살리기'로 복구(기록 보존). */

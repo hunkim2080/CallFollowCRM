@@ -109,14 +109,14 @@ internal val ProtoBlue = LightColors.primary
 
 internal val ProtoSuccess = LightColors.done
 
-/** 현장순 / 업체별 세그먼트 (프로토 .seg). */
+/** 업체별 / 현장순 세그먼트 (프로토 .seg). 업체별이 앞·기본 — 현장순은 보조. (2026-10-16 사장님) */
 @Composable
 internal fun SegTabs(current: String, onSelect: (String) -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surfaceMuted).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf("date" to "현장순", "biz" to "업체별").forEach { (key, label) ->
+        listOf("biz" to "업체별", "date" to "현장순").forEach { (key, label) ->
             val on = current == key
             Box(
                 Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
