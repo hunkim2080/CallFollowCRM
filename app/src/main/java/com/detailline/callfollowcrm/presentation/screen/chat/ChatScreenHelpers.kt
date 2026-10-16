@@ -320,13 +320,8 @@ internal fun playMmsVideo(context: android.content.Context, partUri: android.net
     }
 }
 
-/** 본문에서 첫 URL 추출 — 스킴 없으면 https:// 보정해 반환. 없으면 null. */
-internal fun firstUrlIn(body: String): String? {
-    val m = android.util.Patterns.WEB_URL.matcher(body)
-    if (!m.find()) return null
-    val raw = m.group()
-    return if (raw.startsWith("http://", true) || raw.startsWith("https://", true)) raw else "https://$raw"
-}
+/** 본문에서 첫 URL 추출 — **진짜 URL만**(util/MessageUrl 한 곳, 한글+마침표 오인 방지). 없으면 null. (2026-10-16 사장님) */
+internal fun firstUrlIn(body: String): String? = com.detailline.callfollowcrm.util.MessageUrl.first(body)
 
 /**
  * 본문 속 URL·전화번호·날짜를 밑줄+색으로 표시하고 위치별 annotation(tag=URL/PHONE/DATE)을 단 AnnotatedString.

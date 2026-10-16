@@ -2980,11 +2980,10 @@ private sealed interface LinkTapAction {
 private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): AnnotatedString {
     data class Span(val start: Int, val end: Int, val tag: String, val value: String)
     val spans = ArrayList<Span>()
-    val um = android.util.Patterns.WEB_URL.matcher(body)
-    while (um.find()) {
-        val raw = um.group()
-        val url = if (raw.startsWith("http://", true) || raw.startsWith("https://", true)) raw else "https://$raw"
-        spans.add(Span(um.start(), um.end(), "URL", url))
+    // 🔗 **진짜 URL만** — 한 곳(util/MessageUrl). 안드로이드 Patterns.WEB_URL 은 "명성입니다.변함없는성원"
+    //   같은 한글+마침표도 주소로 잡아 스팸 문장이 파란 링크가 됐다. (2026-10-16 사장님)
+    for (h in com.detailline.callfollowcrm.util.MessageUrl.find(body)) {
+        spans.add(Span(h.start, h.end, "URL", h.url))
     }
     com.detailline.callfollowcrm.util.MessageEntities.detect(body, baseMs).forEach { h ->
         when (h.type) {

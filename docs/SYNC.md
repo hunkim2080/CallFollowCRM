@@ -14459,3 +14459,8 @@ Fable 🧹3. 사장님 "고고"
 - 숫자: ① 옛 표기 0곳(신규 — `onHoldAt != null` 직접 판정 화면 0곳) ② 새 공용 1개(OnHold, 쓰는 곳 6파일) + 조각 3파일(HomeOnHoldParts·CustomerHoldDialog·CustomerHoldFlow) ③ dup 가드 규칙 추가 안 함(막을 옛 모양이 없는 신규) ④ §12 표 1줄·PROTOTYPES.md 1줄 ⑤ 테스트 **1115건 통과**(OnHoldTest 11 + InboxChipMembersTest 4 신규) · BUILD=0 가드 7종(brand · dup 13/13 · size 35253/기준선 안 · style 2610/2610 · rules 공용 32 · save 0 · compose) · health 2026-10-16 줄.
 - 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(전과 같음). 빌드·테스트로 대신. 사장님 폰 다음 내부테스트: 계약금 받은 손님 고객상세 → ⋯더보기 → 「일정 보류」 → 이유 적고 「보류할게요」 → 상담함에 「보류 1」 칩 → 카드 [일정 잡기] → 날짜 창 → 날짜 저장 → 「시공 대기」로 이동·「보류」 칩 사라짐. 3주 지난 보류 손님이 있으면 띠.
 - 다음 액션: (android) 사장님이 폰에서 보류 카드·띠 모양 보고 조정. ScheduleScreen.kt 미승인 변경은 **안 건드림·커밋 안 함**. (server) 없음 — 앱 로컬만.
+
+## 2026-10-16 19:20 · android
+문자 본문의 한글+마침표가 가짜 URL 링크 되던 것 — 진짜 URL만 링크. (사장님 "마침표 있다고 인터넷으로 연결")
+- 변경(UI): linkifyBody·firstUrlIn 이 android.util.Patterns.WEB_URL 을 써서 "명성입니다.변함없는성원" 같은 한글+마침표를 주소로 오인 → 파란 링크 → 눌러 브라우저 열림(가짜 링크 위험). 새 공용 util/MessageUrl(진짜 URL만: http(s)·www.·아스키호스트+알려진 TLD) 한 곳으로 두 곳 통일. 전화·날짜·주소 링크는 그대로. 테스트 7케이스(스팸 문장 링크 안 됨 + 진짜 URL은 됨).
+- 폰 확인: 못 봄(서명). 빌드·가드 7개·시험 통과.
