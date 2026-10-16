@@ -28,6 +28,8 @@ object ServerClassifyGate {
     enum class Decision {
         /** 물어본다. */
         ASK,
+        /** 사장님이 「AI 자동 거르기」 를 껐다(AppPreferences.aiSpamFilterEnabled) — 0원. (2026-10-16) */
+        SKIP_FILTER_OFF,
         /** 로컬이 이미 확정(CONSULT/GENERAL) — 0원. */
         SKIP_LOCAL_DECIDED,
         /** 이미 바구니 행이 있다(서버가 답했거나 사장님 고정) — 다시 안 묻는다. */
@@ -48,6 +50,7 @@ object ServerClassifyGate {
      * @param ownerMarkedNonCustomer 사장님이 「고객 아님」 으로 찍은 번호인가(AppPreferences.isNonCustomer)
      * @param messages         서버에 보낼 메시지(시간순). 사장님이 보낸 줄이 있으면 = 답장 이력.
      * @param lastAskedAt      이 번호를 마지막으로 물어본 시각(ms, 없으면 null)
+     * @param filterEnabled    「AI 자동 거르기」 스위치(AppPreferences.aiSpamFilterEnabled). 꺼져 있으면 무조건 안 묻는다.
      */
     fun decide(
         local: InboxClassifier.Verdict,
@@ -57,8 +60,10 @@ object ServerClassifyGate {
         ownerMarkedNonCustomer: Boolean,
         messages: List<Msg>,
         lastAskedAt: Long?,
-        now: Long
+        now: Long,
+        filterEnabled: Boolean = true
     ): Decision {
+        if (!filterEnabled) return Decision.SKIP_FILTER_OFF
         if (local != InboxClassifier.Verdict.UNSURE) return Decision.SKIP_LOCAL_DECIDED
         if (existing != null) return Decision.SKIP_ALREADY_BUCKETED
         if (isSavedCustomer || hasOwnerReply || ownerMarkedNonCustomer) return Decision.SKIP_KNOWN_ANSWER

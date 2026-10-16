@@ -14415,3 +14415,15 @@ Fable 🧹3. 사장님 "고고"
 - 변경(UI): StatsScreen 「내 기록」을 HorizontalPager 로 감쌈 — 마지막 페이지=이번 달(미래로 못 넘어감, canGoNext 와 같은 규칙). 월 내용(지도 경로 km 등)이 무거워 양옆 동시 라이브는 S9 부담 → **놓는 순간**(settledPage) 그 달이 채워지고 넘기는 중엔 옆 달은 달 이름+스피너(MyRecordMonthLoading). 화살표(‹ ›)도 같은 페이저를 움직임(단일 소스). VM 에 setRecordMonthAbsolute(절대 월) 추가. size 기준선 +StatsScreen(스와이프 래핑은 그 화면 소속). 
 - 폰 확인: 못 봄(테스트폰 서명). 빌드·가드 7개·시험 1088 통과.
 - 참고: 옆 달이 '놓는 순간' 채워지는 방식(라이브 3개월 동시 렌더 아님) — 사장님이 더 매끄럽게 원하면 buildMyRecord 를 백그라운드로 빼는 후속 필요.
+
+## 2026-10-16 · android (Fable)
+스팸 설정 **세 군데를 더보기 「스팸·광고 거르기」 한 화면으로** — 복제 아니라 이동(§12). (사장님 "스팸 항목이 왜 나뉘어져 있니", 프로토 `artifact/Xy86m2QdTsetr3pLvd8KKi` 「가」)
+- 변경(UI): 새 `presentation/screen/spam/SpamHubScreen.kt` — ① AI 자동 거르기(스위치) ② 광고·스팸 번호 앞자리(칩 ✕ 삭제 + 직접입력 「예: 070」+추가) ③ 차단한 번호(「풀기」) + 바닥 「지인 번호는 더보기 그대로」. 더보기 줄 「스팸 차단 번호」 → **「스팸·광고 거르기」**(라우트 `SPAM_HUB`, 옛 `SPAM_LIST` 삭제). 「자동으로 챙기기」 안 **앞자리 섹션 110줄 들어냄**(SettingsScreen 2722→2612). 「받은 문자 알림」·「AI 답변 준비」·「지인 번호」 그대로.
+- 변경(공용): 밀어서 찍은 번호 줄(아이콘·번호·이름·풀기/해제 + unmark·지인 바구니 풀기·토스트)은 새 `SpamPhoneRows.kt` **한 곳** — 허브 ③ 과 지인 목록(SpamListScreen, 이제 지인 전용)이 같이 씀. 두 파일 다 **손으로 적은 값 0**(AppType/AppShape/AppTheme 토큰만).
+- 변경(데이터): `AppPreferences.aiSpamFilterEnabled`(기본 true). `ServerClassifyGate.decide(…, filterEnabled)` 맨 앞 가드 → `Decision.SKIP_FILTER_OFF`(서버 안 묻음, 0원). `ThreadServerClassifier` 생성자 `filterEnabled` 람다, AppContainer 에서 pref 연결. `spamPrefixes` 저장 칸은 그대로라 읽는 쪽 8곳(SmsReceiver·Mms·AutoReply·CallState·HomeVM·NewLeadsVM·Application·IncomingCallOverlay) 안 바뀜.
+- 프로토와 다르게 간 곳: ⓐ 옛 「추천 앞자리 · 눌러서 추가」 칩 줄은 프로토에 없어 **뺌**(기본값이 추천 전부라 평소엔 안 보이던 줄). ⓑ 프로토 ③ 의 「사유」 줄(부동산 분양 광고 등)은 데이터(SpamPhoneEntity)에 사유 칸이 없어 **이름이 있으면 그 자리에**, 없으면 번호만. ⓒ 차단 번호 0건일 때 프로토엔 없는 「스팸으로 등록한 번호가 없어요」 한 줄 넣음. ⓓ 제목은 다른 화면처럼 TopAppBar(AppType.title) — 프로토 22px 와 3px 차이.
+- §12-B 재검: 앞자리 편집(`prefs.spamPrefixes =`) **1파일**(SpamHubScreen) · `SPAM_LIST`/`onOpenSpamList`/`kind = "spam"` 0곳 · 「스팸 차단」「등록된 앞자리」「추천 앞자리」 화면 문구 0곳 · 번호 줄 그리는 곳 1곳(SpamPhoneRows, 부르는 곳 2) · 테스트 중복 이름 0.
+- §12-K 표시·소비 지점(바꾼 것 4 · 둬도 됨 9): 바꿈 = 더보기 줄·자동으로 챙기기·SpamListScreen(지인 전용)·AppNavHost 라우트. 둬도 됨 = spamPrefixes 읽는 8곳 + 홈 새로고침 때 prefs 재읽기(HomeViewModel 263, 허브에서 고쳐도 전처럼 반영).
+- 숫자: 테스트 1090건 통과(ServerClassifyGateTest +2: OFF→SKIP_FILTER_OFF, OFF 가 로컬 확정보다 앞섬) · BUILD=0 가드 7종(brand·dup 13/13·size 35187(−100)·style 2610(−23)·rules 공용 30·save 0·compose) · 기준선 style/size 갱신(줄였음) · health 2026-10-16 줄.
+- 폰 확인: **못 봄** — S9+ 테스트폰 서명 불일치(전과 같음). 빌드·테스트로 대신. 사장님 폰 다음 내부테스트: 더보기 → 「스팸·광고 거르기」 한 줄, 「자동으로 챙기기」 에서 앞자리 칸 사라짐, AI 스위치 끄면 logcat `ThreadServerClassify` 에 `SKIP_FILTER_OFF`.
+- 다음 액션: (android) 사장님이 폰에서 「풀기」 테두리 버튼·칩 모양 보고 조정. ScheduleScreen.kt 미승인 변경은 **안 건드림·커밋 안 함**. (server) 없음.

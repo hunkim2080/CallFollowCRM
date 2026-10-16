@@ -725,7 +725,7 @@ fun AppNavHost(
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
                 onOpenPrinciples = { navController.navigate(Destinations.PRINCIPLES) },
-                onOpenSpamList = { navController.navigate(Destinations.SPAM_LIST) },
+                onOpenSpamHub = { navController.navigate(Destinations.SPAM_HUB) },
                 onOpenPersonalList = { navController.navigate(Destinations.PERSONAL_LIST) },
                 onOpenSoundSettings = { navController.navigate(Destinations.SOUND_SETTINGS) },
                 onOpenExpo = { navController.navigate(Destinations.EXPO) },
@@ -771,16 +771,17 @@ fun AppNavHost(
             )
         }
 
-        // 더보기 → 스팸 차단 번호 / 사생활 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님)
-        composable(Destinations.SPAM_LIST) {
-            com.detailline.callfollowcrm.presentation.screen.spam.SpamListScreen(
-                container = container, kind = "spam",
+        // 더보기 → 스팸·광고 거르기 — AI 자동 거르기·번호 앞자리·차단한 번호(풀기) 한 화면. (2026-10-16 사장님)
+        composable(Destinations.SPAM_HUB) {
+            com.detailline.callfollowcrm.presentation.screen.spam.SpamHubScreen(
+                container = container,
                 onBack = { navController.popBackStack() }
             )
         }
+        // 더보기 → 지인 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님) — 스팸이 아니라 여기 그대로.
         composable(Destinations.PERSONAL_LIST) {
             com.detailline.callfollowcrm.presentation.screen.spam.SpamListScreen(
-                container = container, kind = "personal",
+                container = container,
                 onBack = { navController.popBackStack() }
             )
         }

@@ -102,8 +102,8 @@ object Destinations {
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
     const val PRINCIPLES = "principles"
-    /** 더보기 → 스팸 차단 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님) */
-    const val SPAM_LIST = "spam_list"
+    /** 더보기 → 스팸·광고 거르기 — AI 자동 거르기·번호 앞자리·차단한 번호 한 화면. (2026-10-16 사장님) */
+    const val SPAM_HUB = "spam_hub"
     /** 더보기 → 사생활 번호 목록(업무폰=개인폰 겸용 — 링고 제외). (2026-06-23 사장님) */
     const val PERSONAL_LIST = "personal_list"
 

@@ -368,6 +368,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_AI_REPLY_PREP, true)
         set(value) = prefs.edit().putBoolean(KEY_AI_REPLY_PREP, value).apply()
 
+    /**
+     * AI 자동 거르기 on/off — 기본 ON. (2026-10-16 사장님 "스팸 항목이 왜 나뉘어져 있니" → 「스팸·광고 거르기」 한 화면)
+     *   ON: 로컬이 애매(UNSURE)한 수신 문자 1건을 서버(Haiku)에 물어 광고면 문자함으로 내린다.
+     *   OFF: 서버에 아예 안 묻는다(0원) — ServerClassifyGate.decide 가 SKIP_FILTER_OFF 로 돌려보낸다.
+     *   ※ 번호 앞자리(spamPrefixes)·밀어서 찍은 스팸(spam_phones)은 이 스위치와 무관하게 그대로 걸러진다.
+     */
+    var aiSpamFilterEnabled: Boolean
+        get() = prefs.getBoolean("ai_spam_filter_enabled", true)
+        set(value) = prefs.edit().putBoolean("ai_spam_filter_enabled", value).apply()
+
     // ── '이 사람 고객 아님' (2026-07-18 사장님) — 협업사장·거래처·지인 등을 고객 상담으로 오인하는 AI 방지 ──
     //   '고객 아님' 표시된 번호는 고객상담 AI(페르소나·추천답변)를 안 만든다. 통화요약 같은 중립 기능은 유지.
     //   기본 = 고객(안전). 모르는 새 번호가 한 번 오간 뒤 대화방 조용한 줄로 물어 본다.

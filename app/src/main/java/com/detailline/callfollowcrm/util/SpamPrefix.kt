@@ -8,7 +8,7 @@ package com.detailline.callfollowcrm.util
  */
 object SpamPrefix {
 
-    /** 추천 앞자리 — 설정에서 칩으로 빠르게 추가. */
+    /** 추천 앞자리 — 안 건드린 사용자의 기본값(AppPreferences.spamPrefixes). 편집은 「스팸·광고 거르기」(SpamHubScreen) 한 곳. */
     val SUGGESTED = listOf("070", "0507", "050", "02", "031", "032", "033", "041", "051", "053", "062", "064")
 
     /** phone 이 등록된 스팸 앞자리 중 하나로 시작하면 true. */

@@ -28,7 +28,9 @@ class ThreadServerClassifier(
     private val threadBucketRepository: ThreadBucketRepository,
     private val server: ThreadClassifyServerRepository,
     /** 사장님이 「고객 아님」 으로 찍은 번호인가 — AppPreferences.isNonCustomer. */
-    private val ownerMarkedNonCustomer: (String) -> Boolean
+    private val ownerMarkedNonCustomer: (String) -> Boolean,
+    /** 「AI 자동 거르기」 스위치 — AppPreferences.aiSpamFilterEnabled. 꺼져 있으면 서버에 아예 안 묻는다. (2026-10-16) */
+    private val filterEnabled: () -> Boolean = { true }
 ) {
     /** suffix → 마지막으로 물어본 시각. 앱 수명 동안만(재시작하면 비움 — 서버 캐시가 같은 내용은 0원으로 막는다). */
     private val lastAskedAt = ConcurrentHashMap<String, Long>()
@@ -66,7 +68,8 @@ class ThreadServerClassifier(
             ownerMarkedNonCustomer = runCatching { ownerMarkedNonCustomer(phone) }.getOrDefault(false),
             messages = messages,
             lastAskedAt = lastAskedAt[suffix],
-            now = now
+            now = now,
+            filterEnabled = runCatching { filterEnabled() }.getOrDefault(true)
         )
         if (decision != ServerClassifyGate.Decision.ASK) {
             Log.d(TAG, "${LogRedact.phone(phone)} 서버 안 물음: $decision")

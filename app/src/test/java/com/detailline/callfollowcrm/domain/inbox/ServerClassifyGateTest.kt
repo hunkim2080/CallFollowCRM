@@ -19,11 +19,20 @@ class ServerClassifyGateTest {
         replied: Boolean = false,
         nonCustomer: Boolean = false,
         messages: List<Msg> = cust,
-        lastAskedAt: Long? = null
-    ) = ServerClassifyGate.decide(local, existing, saved, replied, nonCustomer, messages, lastAskedAt, now)
+        lastAskedAt: Long? = null,
+        filterOn: Boolean = true
+    ) = ServerClassifyGate.decide(local, existing, saved, replied, nonCustomer, messages, lastAskedAt, now, filterOn)
 
     @Test fun `애매하고 행 없고 신호 없으면 묻는다`() {
         assertEquals(Decision.ASK, decide())
+    }
+
+    @Test fun `AI 자동 거르기를 끄면 묻을 만한 문자여도 안 묻는다 — 0원`() {
+        assertEquals(Decision.SKIP_FILTER_OFF, decide(filterOn = false))
+    }
+
+    @Test fun `끔이 다른 모든 이유보다 앞선다 — 로컬 확정이어도 FILTER_OFF 로 돌려보낸다`() {
+        assertEquals(Decision.SKIP_FILTER_OFF, decide(local = InboxClassifier.Verdict.CONSULT, filterOn = false))
     }
 
     @Test fun `로컬이 CONSULT 또는 GENERAL 로 확정이면 안 묻는다 — 0원`() {

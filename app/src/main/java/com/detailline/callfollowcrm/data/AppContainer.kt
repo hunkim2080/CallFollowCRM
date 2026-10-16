@@ -153,7 +153,8 @@ class AppContainer(context: Context) {
         smsRepository = smsRepository,
         threadBucketRepository = threadBucketRepository,
         server = threadClassifyServerRepository,
-        ownerMarkedNonCustomer = { preferences.isNonCustomer(it) }
+        ownerMarkedNonCustomer = { preferences.isNonCustomer(it) },
+        filterEnabled = { preferences.aiSpamFilterEnabled }   // 「스팸·광고 거르기」 화면의 AI 스위치
     )
     // 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 저장 (DB v17).
     val suggestionEventRepository = com.detailline.callfollowcrm.data.repository.SuggestionEventRepository(db.suggestionEventDao())
