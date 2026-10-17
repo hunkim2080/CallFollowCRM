@@ -991,7 +991,7 @@ private fun MySharedArea(
             )
             sites.forEach { site ->
                 MySharedSwipeBox(onDelete = { onDelete(site) }) {
-                    MySharedRow(site, onOpen = { onOpen(site) })
+                    MySharedDetailRow(site, onClick = { onOpen(site) })
                 }
                 Spacer(Modifier.height(9.dp))
             }
@@ -1003,45 +1003,6 @@ private fun MySharedArea(
 }
 
 
-/** 내가 공유한 현장 1건 — 현장명 + 누구랑 + 날짜 + 상태. 탭 → 오너 상세(댓글). (2026-07-01 사장님) */
-@Composable
-private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp)).clickable { onOpen() }.padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
-        }
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(siteDisplayName(site), fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(6.dp))
-                val (stTxt, stBg, stFg) = collabStatusTag(site)
-                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                    Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
-                }
-                site.dailyWage?.let { Spacer(Modifier.width(5.dp)); WagePill(it) }
-            }
-            Spacer(Modifier.height(3.dp))
-            // 누구랑 — 사장님 핵심 요청. partner_name(서버) 있으면 이름, 없으면 상태 안내.
-            val who = site.partnerName?.let { "$it 사장님과 함께" }
-                ?: if (site.status == "pending") "함께할 사장님 수락 대기 중" else "함께하는 사장님과"
-            Text(who, fontSize = 12.5.sp, color = Color(0xFF6B4FD8), fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            val sub = buildString {
-                append(dayLabel(site.scheduledAtMs))
-                timeText(site)?.let { append(" · "); append(it) }
-                site.workSummary?.let { append(" · "); append(it) }
-            }
-            Text(sub, fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-        }
-    }
-}
 
 /** 업체별 행 — 색+글자 동그라미 · 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
 @Composable

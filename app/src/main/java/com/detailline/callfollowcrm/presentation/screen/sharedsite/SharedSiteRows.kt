@@ -54,9 +54,6 @@ internal fun PartnerDetailSiteRow(site: SharedSiteRepository.SharedSite, onClick
         val two = AddressExtractor.twoLine(site.addr)
         if (two.first.isNotBlank()) two else siteDisplayName(site) to null
     }
-    val hasDate = site.scheduledAtMs > 0L
-    val dayText = if (hasDate) SimpleDateFormat("M.d", Locale.KOREA).format(Date(site.scheduledAtMs)) else "미정"
-    val dowText = if (hasDate) SimpleDateFormat("E", Locale.KOREA).format(Date(site.scheduledAtMs)).take(1) else ""
     val (stTxt, stBg0, stFg0) = collabStatusTag(site)
     val c = AppTheme.colors
     val (stBg, stFg) = when (stTxt) {
@@ -70,13 +67,7 @@ internal fun PartnerDetailSiteRow(site: SharedSiteRepository.SharedSite, onClick
             .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 날짜 기둥 — 고정폭. 숫자는 tabular 로 줄맞춤. "10.14" 같은 두 자리 날짜가 안 잘리게 넉넉히. (2026-10-17 사장님 "날짜가 잘려서")
-        Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(dayText, style = AppType.headline.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, softWrap = false)
-            if (dowText.isNotBlank()) {
-                Text(dowText, style = AppType.caption, fontWeight = FontWeight.Medium, color = c.textHint)
-            }
-        }
+        DatePillar(site.scheduledAtMs)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(line1, style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -94,6 +85,53 @@ internal fun PartnerDetailSiteRow(site: SharedSiteRepository.SharedSite, onClick
                 Spacer(Modifier.height(4.dp))
                 Text("${it}만", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text)
             }
+        }
+    }
+}
+
+/** 날짜 기둥 — [PartnerDetailSiteRow]·[MySharedDetailRow] 공용. "10.14" 두 자리도 안 잘리게 56dp. (2026-10-17 사장님 "날짜가 잘려서") */
+@Composable
+private fun DatePillar(scheduledAtMs: Long) {
+    val c = AppTheme.colors
+    val hasDate = scheduledAtMs > 0L
+    val dayText = if (hasDate) SimpleDateFormat("M.d", Locale.KOREA).format(Date(scheduledAtMs)) else "미정"
+    val dowText = if (hasDate) SimpleDateFormat("E", Locale.KOREA).format(Date(scheduledAtMs)).take(1) else ""
+    Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(dayText, style = AppType.headline.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, softWrap = false)
+        if (dowText.isNotBlank()) {
+            Text(dowText, style = AppType.caption, fontWeight = FontWeight.Medium, color = c.textHint)
+        }
+    }
+}
+
+/**
+ * 「내가 공유한 현장」 한 줄 — 공유받은 쪽과 **같은 날짜 기둥**. 손잡기 아이콘·출근시간 없음(§12-D 복붙 금지, 날짜 기둥 재사용).
+ *   [ M.d ]  현장명(진하게)              [상태]
+ *   [ 요일 ]  누구랑(보라)
+ *   (2026-10-17 사장님 "내가 공유한 현장도 정리")
+ */
+@Composable
+internal fun MySharedDetailRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {
+    val c = AppTheme.colors
+    val (stTxt, stBg, stFg) = collabStatusTag(site)
+    val who = site.partnerName?.let { "$it 사장님과 함께" }
+        ?: if (site.status == "pending") "수락 대기 중" else "함께하는 사장님과"
+    Row(
+        Modifier.fillMaxWidth().clip(AppShape.md).background(c.surface)
+            .border(1.dp, c.surfaceMuted, AppShape.md)
+            .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DatePillar(site.scheduledAtMs)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(siteDisplayName(site), style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(2.dp))
+            Text(who, style = AppType.caption, fontWeight = FontWeight.Bold, color = CollabPurple, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.clip(AppShape.pill).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
+            Text(stTxt, style = AppType.micro, color = stFg)
         }
     }
 }
