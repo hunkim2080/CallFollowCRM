@@ -6081,7 +6081,7 @@ _AUTH_PROTECT_PREFIXES = (
     "/api/shared/respond", "/api/shared/cancel", "/api/shared/end", "/api/shared/comment",
     "/api/team/", "/api/quote/submissions", "/api/quote/issue",
     "/api/intake-form/status", "/api/intake-form/list", "/api/intake-form/issue",
-    "/api/site-photos", "/api/labor/history",
+    "/api/site-photo", "/api/labor/history",   # site-photo(s): owner-upload 까지 커버 (2026-10-17 보안 — 익명 업로드 401)
     # 🔒 보안감사 2026-10-05 (페이블) — 빠져 있던 민감 경로. AUTH_ENFORCE=1 이라 즉시 효력.
     #   app-backup = 번호만으로 앱 통째 다운로드(크라운 주얼) · shared/monthly = 월 수입/지출 유출.
     #   앱은 둘 다 Net.builder 로 Bearer 동봉 → 안 깨짐. 익명 401 · 교차소유 403.
