@@ -2533,11 +2533,13 @@ private fun InboxChips(
         verticalAlignment = Alignment.CenterVertically
     ) {
         item { ChipPill("전체", null, selected == "all") { onSelect("all") } }
-        // 📥 답장 안 함 — 내가 아직 답 안 한 손님만(상담만, 스팸·광고 안 들어옴). 0이면 흐리게(다 챙긴 느낌).
-        //   전체 바로 옆 = 제일 중요한 할 일. **대기 카드를 없애고 이 칩이 그 자리를 대신한다.** (2026-10-13 사장님)
-        item {
-            val p = counts["unhandled"] ?: 0
-            ChipPill("답장 안 함", p.takeIf { it > 0 }, selected == "pending", dim = p == 0) { onSelect("pending") }
+        // 📥 답장 안 함 — 내가 아직 답 안 한 손님만(상담만, 스팸·광고 안 들어옴). 전체 바로 옆 = 제일 중요한 할 일.
+        //   **다 챙겨 0이면 이 칩도 숨긴다** — 다른 칩과 같은 규칙(비면 숨김). 단 지금 보고 있으면 유지. (2026-10-17 사장님 "답장 안 한 고객 없는데 왜?")
+        if ((counts["unhandled"] ?: 0) > 0 || selected == "pending") {
+            item {
+                val p = counts["unhandled"] ?: 0
+                ChipPill("답장 안 함", p.takeIf { it > 0 }, selected == "pending", dim = p == 0) { onSelect("pending") }
+            }
         }
         // 📦 **지금 손님이 있는 칩만** 보인다 — 비면 사라진다. (2026-10-16 사장님 "잔금 기다리는 사람 없는데 왜 이 칩이?")
         //   단 **지금 보고 있는 칩**은 비어도 남긴다(내가 그 칸에 서 있는데 칩이 사라지면 헷갈림 — 떠나면 사라짐).
