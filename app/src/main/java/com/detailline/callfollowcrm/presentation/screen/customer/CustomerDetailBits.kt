@@ -8,7 +8,6 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description

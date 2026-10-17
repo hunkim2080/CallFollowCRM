@@ -1,6 +1,5 @@
 package com.detailline.callfollowcrm.presentation.screen.sharedsite
 
-import androidx.compose.material.icons.filled.Handshake
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors

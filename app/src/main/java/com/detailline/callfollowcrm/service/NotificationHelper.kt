@@ -783,7 +783,7 @@ object NotificationHelper {
                 ACCENT_PURPLE
             )
             "accepted" -> Triple(
-                "협업 수락 🤝",
+                "협업 수락 👥",
                 "${partnerName}님이 '${title}' 협업을 수락했어요 — 함께 가요!",
                 ACCENT_PURPLE
             )
@@ -1187,7 +1187,7 @@ object NotificationHelper {
             append(msg)
             if (!note.isNullOrBlank()) append("\n$note")
         }
-        // 🏷️ 제목 말머리 — 협업은 🤝. 알림 펼쳤을 때 종류가 한눈에. (2026-10-13 사장님)
+        // 🏷️ 제목 말머리 — 협업은 👥. 알림 펼쳤을 때 종류가 한눈에. (2026-10-13 사장님 · 2026-10-17 손잡기 → 사람들)
         val shownTitle = withTitleEmoji(typeForChannel(channelId), title)
         val builder = NotificationCompat.Builder(context, resolveChannel(context, channelId))
             .setSmallIcon(smallIconFor(channelId))   // 상태바 아이콘 종류별(협업=사람·접수서=문서…). (2026-10-13)
@@ -1211,7 +1211,7 @@ object NotificationHelper {
         //   문자·문의·부재중·접수서·통화요약·브리핑·정기문자는 상담함/다른 탭에 **이미 보여서** 여기 쌓으면 두 번 본다.
         //   알림센터의 값어치 = "상담함에선 안 보이는 협업 현장 소식(도착·댓글·사진·일정변경·입금·해제)"만 한눈에.
         if (logToCenter && typeForChannel(channelId) == "collab") {
-            // 센터엔 🤝 아이콘 칩이 이미 있으니 제목은 이모지 없이(원본). 푸시 제목만 🤝 를 붙인다.
+            // 센터엔 👥 아이콘 칩이 이미 있으니 제목은 이모지 없이(원본). 푸시 제목만 👥 를 붙인다.
             NotificationLog.record(
                 type = "collab", title = title, body = msg,
                 navTarget = navTarget, navPhone = navPhone, navCustomerId = navCustomerId, navShareId = navShareId,
@@ -1246,11 +1246,12 @@ object NotificationHelper {
         else -> R.drawable.ic_notification   // 앱 소식·리마인더·브리핑 = 기본 말풍선+AI(브랜드)
     }
 
-    /** 제목 말머리 이모지 — 알림 펼쳤을 때 종류가 한눈에(🤝협업·💬문자·📞부재중·📋접수서). (2026-10-13 사장님)
+    /** 제목 말머리 이모지 — 알림 펼쳤을 때 종류가 한눈에(👥협업·💬문자·📞부재중·📋접수서). (2026-10-13 사장님)
      *   상태바 아이콘은 안드로이드가 흑백 하나로만 그려서, 종류 구분은 이 **제목 이모지**가 맡는다.
-     *   ⚠️ 2026-06-03 "OneUI 에서 이모지가 엉뚱하게" 지적이 있었음 — 사장님 실기 확인 후 이상하면 뺀다. */
+     *   ⚠️ 2026-06-03 "OneUI 에서 이모지가 엉뚱하게" 지적이 있었음 — 사장님 실기 확인 후 이상하면 뺀다.
+     *   협업은 손잡기 → 사람들(2026-10-17, 앱 안 협업 표식과 같은 글자). 되돌리려면 아래 한 글자만. */
     private fun titleEmoji(type: String): String = when (type) {
-        "collab" -> "🤝"
+        "collab" -> "👥"
         "new_inquiry", "reply", "general_sms" -> "💬"
         "missed_call" -> "📞"
         "intake" -> "📋"
@@ -1458,7 +1459,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 제목 말머리 💬 — 협업(🤝)·부재중(📞)과 한눈에 구분. (2026-10-13 사장님)
+        // 제목 말머리 💬 — 협업(👥)·부재중(📞)과 한눈에 구분. (2026-10-13 사장님)
         //   ⚠️ 2026-06-03 "OneUI 이모지 렌더 이상" 지적이 있었음 — 사장님 실기 확인 후 이상하면 뺀다.
         val who = displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)
         val title = if (isNewCustomer) "💬 새 문의 · $who" else "💬 $who · 새 문자"

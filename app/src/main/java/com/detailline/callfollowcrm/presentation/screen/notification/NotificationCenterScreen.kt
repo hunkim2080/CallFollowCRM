@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.AppNotificationEntity
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -78,7 +80,13 @@ fun NotificationCenterScreen(
         if (items.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🤝", fontSize = 40.sp)
+                    // 민낯 이모지 대신 협업 빈 화면과 같은 얼굴 — 둥근 타일 + 사람들 아이콘. (2026-10-17)
+                    Box(
+                        Modifier.size(46.dp).clip(AppShape.md).background(AppTheme.colors.primaryBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Groups, null, tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp))
+                    }
                     Spacer(Modifier.height(10.dp))
                     Text("협업 현장 소식이 여기 쌓여요", style = AppType.body, color = AppTheme.colors.textSub)
                     Spacer(Modifier.height(3.dp))
@@ -170,6 +178,6 @@ private fun iconOf(type: String): String = when {
     type == "daily_brief" -> "📊"
     type == "install_d1" -> "🏗️"
     type == "call_summary" -> "🎧"
-    type.startsWith("collab") -> "🤝"
+    type.startsWith("collab") -> "👥"   // 협업 표식 = 사람들. 푸시 제목 말머리(NotificationHelper.titleEmoji)와 같은 글자. (2026-10-17)
     else -> "🔔"
 }

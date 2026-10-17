@@ -32,11 +32,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PersonAddAlt1
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -932,7 +933,9 @@ internal fun JobDetailCard(
                         CdUndoChip(
                             if (jobCollab.isEmpty()) "협업 부르기"
                             else jobCollab.joinToString(", ") { it.name.ifBlank { "협업 사장님" } },
-                            danger = false, filled = true, icon = Icons.Filled.Handshake,
+                            // 「부르기」 동작 = 사람+ · 이미 부른 사람 표식 = 사람들. 손잡기는 둘 다 안 읽힌다. (2026-10-17 사장님)
+                            danger = false, filled = true,
+                            icon = if (jobCollab.isEmpty()) Icons.Filled.PersonAddAlt1 else Icons.Filled.Groups,
                             tint = if (jobCollab.isEmpty()) null else AppTheme.colors.categoryText
                         ) {
                             if (jobCollab.isEmpty()) showJobCollabShare.value = true

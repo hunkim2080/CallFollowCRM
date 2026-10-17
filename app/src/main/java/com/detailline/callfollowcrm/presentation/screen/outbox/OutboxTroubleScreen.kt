@@ -188,7 +188,7 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 private fun emojiOf(kind: OutboxKind?): String = when (kind) {
     OutboxKind.COLLAB_ADDRESS -> "🏠"
     OutboxKind.COLLAB_RESCHEDULE -> "📅"
-    OutboxKind.COLLAB_END -> "🤝"
+    OutboxKind.COLLAB_END -> "👥"
     OutboxKind.COLLAB_PROGRESS -> "🚚"
     OutboxKind.COLLAB_COMMENT -> "💬"
     OutboxKind.SITE_PHOTO -> "📷"

@@ -8,7 +8,7 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Add
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
@@ -922,7 +922,7 @@ internal fun CollabOrphanCard(
     if (orphans.isNotEmpty()) TossCard(onClick = open) {
         Column {
             CdFoldRow(
-                Icons.Filled.Handshake, "어느 건인지 모르는 협업", orphans.size, expanded,
+                Icons.Filled.Groups, "어느 건인지 모르는 협업", orphans.size, expanded,
                 emptyAction = if (datedJobs.isEmpty()) null else "건 고르기"
             ) { expanded = !expanded }
             if (expanded) {
@@ -942,7 +942,8 @@ internal fun CollabOrphanCard(
                             datedJobs.forEach { (nth, j, dayStart) ->
                                 CdUndoChip(
                                     "${nth}차 " + DateTimeUtils.formatDateLabel(dayStart) + "에 붙이기",
-                                    danger = false, filled = true, icon = Icons.Filled.Handshake
+                                    // 이미 있는 협업 줄을 건에 「붙이는」 표식 — 새로 부르는 게 아니라 사람들(Groups). (2026-10-17)
+                                    danger = false, filled = true, icon = Icons.Filled.Groups
                                 ) {
                                     container.preferences.collabAssignments =
                                         com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.assignDays(

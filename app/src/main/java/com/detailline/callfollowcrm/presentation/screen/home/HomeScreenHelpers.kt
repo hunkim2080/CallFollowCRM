@@ -1,7 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.home
 
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.sharedsite
 
-import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Person
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
@@ -715,20 +716,8 @@ private fun ListArea(
                 fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
             // 달별로 — 「2026년 10월 · 3곳 · 받은 일당 45만원」 머리 + 그 달 현장. 최신 달이 위. (2026-10-16 사장님 "월별로 보여야지")
             CollabPartnerGroups.byMonth(openPartner.sites).forEach { month ->
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 2.dp, top = 4.dp, bottom = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordViewModel.monthLabel(month.ym),
-                        style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "${month.count}곳" + (if (month.wageSum > 0) " · 받은 일당 ${month.wageSum}만원" else ""),
-                        style = AppType.caption, fontWeight = FontWeight.Medium, color = TossTextTertiary
-                    )
-                }
+                // 달 머리줄은 SharedSiteRows.kt 의 CollabMonthHeader 한 곳 — 「내가 공유한 현장」과 같은 얼굴.
+                CollabMonthHeader(month.ym, "${month.count}곳" + (if (month.wageSum > 0) " · 받은 일당 ${month.wageSum}만원" else ""))
                 month.sites.forEach { site ->
                     // 업체 내역 줄 = 날짜 기둥 + 단지명/도로명 2줄 + 상태·일당 (프로토 확정 2026-10-17). 손잡기·업체명·출근시간 없음 — 이미 그 업체 화면.
                     SiteRow(site, onClick = { onOpen(site) }, mode = SiteRowMode.PartnerDetail)
@@ -989,11 +978,16 @@ private fun MySharedArea(
                 "내가 다른 사장님께 공유한 현장이에요. 누가 함께하는지·어디까지 진행됐는지 한눈에 보여요.",
                 fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
             )
-            sites.forEach { site ->
-                MySharedSwipeBox(onDelete = { onDelete(site) }) {
-                    MySharedDetailRow(site, onClick = { onOpen(site) })
+            // 달별로 — 공유받은 업체 내역과 **같은 달 머리**(「2026년 10월 ……… N곳」). 묶기는 CollabPartnerGroups.byMonth 재사용, 최신 달이 위. (2026-10-17 사장님)
+            CollabPartnerGroups.byMonth(sites).forEach { month ->
+                CollabMonthHeader(month.ym, "${month.count}곳")
+                month.sites.forEach { site ->
+                    MySharedSwipeBox(onDelete = { onDelete(site) }) {
+                        MySharedDetailRow(site, onClick = { onOpen(site) })
+                    }
+                    Spacer(Modifier.height(9.dp))
                 }
-                Spacer(Modifier.height(9.dp))
+                Spacer(Modifier.height(4.dp))
             }
             Text("누르면 현장 상세·한마디, 밀면 '삭제'로 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
                 fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1020,7 +1014,8 @@ private fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit) {
         val initial = com.detailline.callfollowcrm.domain.ui.AvatarInitial.brand(g.name)
         Box(Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape).background(avBg), contentAlignment = Alignment.Center) {
             if (initial.isBlank()) {
-                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = avFg, modifier = Modifier.size(18.dp))
+                // 글자를 못 뽑는 이름(기호뿐 등) — 「사람」 아이콘으로. 업체 하나를 가리키는 자리라 손잡기(협업 표식)가 아니다. (2026-10-17)
+                Icon(Icons.Filled.Person, null, tint = avFg, modifier = Modifier.size(18.dp))
             } else {
                 Text(initial, style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = avFg)
             }
@@ -1079,53 +1074,8 @@ private fun TrashView(
     }
 }
 
-/** 현장 한 줄 — 같은 줄을 [SiteRowMode] 로 가른다(모드 설명은 SharedSiteRows.kt). 복사해서 두 벌 만들지 않는다(§12-D). */
-@Composable
-private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit, mode: SiteRowMode = SiteRowMode.Feed) {
-    when (mode) {
-        SiteRowMode.Feed -> FeedSiteRow(site, onClick)
-        SiteRowMode.PartnerDetail -> PartnerDetailSiteRow(site, onClick)
-    }
-}
-
-/** [SiteRowMode.Feed] — 현장순 목록 한 줄. 전과 같은 모양. */
-@Composable
-private fun FeedSiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
-            .clickable { onClick() }.padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
-        }
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(siteDisplayName(site), fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(6.dp))
-                val (stTxt, stBg, stFg) = collabStatusTag(site)
-                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                    Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
-                }
-                site.dailyWage?.let { Spacer(Modifier.width(5.dp)); WagePill(it) }
-            }
-            val sub = buildString {
-                append(site.ownerName)
-                append(" · "); append(dayLabel(site.scheduledAtMs))   // 날짜 없어 헷갈린다는 사장님 보고 → 날짜 추가 (2026-06-23)
-                site.workSummary?.let { append(" · "); append(it) }
-                timeText(site)?.let { append(" · "); append(it) }
-            }
-            Text(sub, fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-        }
-        Text("›", fontSize = 18.sp, color = TossTextTertiary)
-    }
-}
-
-// PartnerDetail 모드 줄(PartnerDetailSiteRow)·SiteRowMode 는 같은 패키지 SharedSiteRows.kt — 이 파일은 더 키우지 않는다(size_guard).
+// 현장 줄(SiteRow · 현장순 Feed · 업체 내역 PartnerDetail · 내가 공유한 MyShared)과 달 머리줄은 같은 패키지 SharedSiteRows.kt —
+//   틀은 CollabPillarRow 한 곳. 이 파일은 더 키우지 않는다(size_guard).
 
 @Composable
 private fun DetailBody(
@@ -1708,12 +1658,6 @@ private fun CollabPayoutAccountSection(
     }
 }
 
-@Composable private fun WagePill(wage: Int) {
-    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurpleSoft).padding(horizontal = 9.dp, vertical = 3.dp)) {
-        Text("일당 ${wage}만", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
-    }
-}
-
 /**
  * 빈 화면 카드.
  *
@@ -1745,10 +1689,8 @@ private fun CollabPayoutAccountSection(
                 Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.primaryBg),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Filled.Handshake, null,
-                    tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp)
-                )
+                // 협업 「표식」은 사람들(Groups) — 손잡기는 뜻이 안 읽힌다. (2026-10-17 사장님)
+                Icon(Icons.Filled.Groups, null, tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp))
             }
             Spacer(Modifier.height(12.dp))
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)

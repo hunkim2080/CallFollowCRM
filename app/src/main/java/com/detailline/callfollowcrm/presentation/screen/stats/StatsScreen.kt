@@ -1347,8 +1347,8 @@ private fun MyRecordRows(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        // 🤝 협업은 번호 대신 손 표시 — 현장 번호는 **내 현장**의 차례다.
-                        if (r.collab) "🤝" else (r.no ?: "—"),
+                        // 🤝 협업은 번호 대신 사람들 표시 — 현장 번호는 **내 현장**의 차례다.
+                        if (r.collab) "👥" else (r.no ?: "—"),
                         style = AppType.label, fontWeight = FontWeight.Black,
                         color = if (r.upcoming) TossTextTertiary else AppTheme.colors.primaryText
                     )

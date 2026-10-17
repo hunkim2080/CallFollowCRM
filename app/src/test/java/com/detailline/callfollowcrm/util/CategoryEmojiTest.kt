@@ -18,7 +18,7 @@ class CategoryEmojiTest {
     private val 분류없음 = "📂"   // 📂
     private val 완료 = "✅"             // ✅
     private val 대기 = "🔨"       // 🔨
-    private val 업체 = "🤝"       // 🤝
+    private val 업체 = "🏢"       // 🏢 (2026-10-17 손잡기 → 건물)
     private val 택배 = "📦"       // 📦
     private val 지인 = "👥"       // 👥
     private val 수리 = "🔧"       // 🔧

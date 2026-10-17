@@ -17,7 +17,7 @@ object CategoryEmoji {
         listOf("미분류", "분류 안") to "\uD83D\uDCC2",              // 📂
         listOf("완료", "끝", "마감") to "\u2705",                    // ✅
         listOf("대기", "예정", "잡힘") to "\uD83D\uDD28",           // 🔨
-        listOf("업체", "거래", "사장", "협력", "파트너") to "\uD83E\uDD1D", // 🤝
+        listOf("업체", "거래", "사장", "협력", "파트너") to "🏢", // 🏢 거래처 = 건물. 손잡기는 뜻이 안 읽혀서 바꿈 (2026-10-17)
         listOf("택배", "배송", "발송") to "\uD83D\uDCE6",           // 📦
         listOf("일당", "인부", "알바", "아르바이트") to "\uD83D\uDC77", // 👷
         listOf("친구", "지인", "소개", "추천") to "\uD83D\uDC65",    // 👥
@@ -42,7 +42,7 @@ object CategoryEmoji {
     fun candidatesFor(name: String): List<String> {
         val first = forName(name)
         val common = listOf(
-            "\uD83C\uDFF7", "\uD83D\uDC65", "\uD83E\uDD1D", "\u2B50",
+            "\uD83C\uDFF7", "\uD83D\uDC65", "\uD83C\uDFE2", "\u2B50",
             "\uD83D\uDD28", "\u2705", "\uD83D\uDCB0", "\uD83D\uDCC2"
         )
         return (listOf(first) + common.filterNot { it == first }).take(6)

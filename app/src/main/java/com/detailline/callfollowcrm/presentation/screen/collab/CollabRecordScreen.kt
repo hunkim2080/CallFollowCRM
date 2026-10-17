@@ -29,7 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -355,7 +355,7 @@ private fun EmptyState(showReceived: Boolean, hasMonths: Boolean) {
                 Modifier.size(46.dp).clip(AppShape.md).background(AppTheme.colors.primaryBg),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Handshake, null, tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp))
+                Icon(Icons.Filled.Groups, null, tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp))
             }
             Text(
                 when {

@@ -43,6 +43,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Groups
+import com.detailline.callfollowcrm.presentation.theme.AppShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -315,7 +317,13 @@ fun NotebookContent(
                 if (sites.isEmpty()) {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🤝", fontSize = 42.sp)
+                            // 민낯 이모지(폰마다 다르게 그려짐) 대신 협업 빈 화면과 같은 얼굴 — 둥근 타일 + 사람들 아이콘. (2026-10-17)
+                            Box(
+                                Modifier.size(46.dp).clip(AppShape.md).background(AppTheme.colors.primaryBg),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.Groups, null, tint = AppTheme.colors.primary, modifier = Modifier.size(23.dp))
+                            }
                             Spacer(Modifier.height(8.dp))
                             Text("아직 함께한 현장 기록이 없어요", color = TossTextSecondary, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(4.dp))

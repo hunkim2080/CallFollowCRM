@@ -1,7 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.home
 
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -2366,7 +2366,7 @@ private fun TodayBand(
                     BandShell(
                         bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,
                         subFg = AppTheme.colors.textSub,
-                        icon = "", iconVector = Icons.Default.Handshake,
+                        icon = "", iconVector = Icons.Default.Groups,
                         border = AppTheme.colors.categoryBg,
                         iconBg = Color.White, iconTint = AppTheme.colors.category,
                         line1 = "오늘 협업" +
@@ -2417,7 +2417,7 @@ private fun TodayBand(
                     BandShell(
                         bg = AppTheme.colors.categoryBg, fg = AppTheme.colors.category,
                         subFg = AppTheme.colors.textSub,
-                        icon = "", iconVector = Icons.Default.Handshake,
+                        icon = "", iconVector = Icons.Default.Groups,
                         border = AppTheme.colors.categoryBg,
                         iconBg = Color.White, iconTint = AppTheme.colors.category,
                         line1 = "협업 · " + DateTimeUtils.formatScheduledDate(upCollab.scheduledAtMs) +
