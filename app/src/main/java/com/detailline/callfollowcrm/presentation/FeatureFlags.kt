@@ -10,4 +10,11 @@ object FeatureFlags {
      *   TeamRepository·TeamScreen 등 백엔드/화면 코드는 그대로 살아있음.
      */
     const val SHOW_TEAM_MEMBERS = false
+
+    /**
+     * 박람회 모드(ExpoScreen) 노출 여부. false = 숨김. (2026-10-17 사장님: 코드는 남겨두고 숨김)
+     *   true 로 바꾸면 부활 — 더보기 '일이 생기면'에 「박람회」 줄이 다시 나온다.
+     *   ExpoScreen·ExpoRepository·nav(Destinations.EXPO) 는 그대로 살아있음.
+     */
+    const val SHOW_EXPO = false
 }

@@ -600,9 +600,11 @@ fun SettingsScreen(
                 SettingsGroup("일이 생기면") {
                     LockRow(Icons.Filled.Group, AppTheme.colors.categoryBg, AppTheme.colors.category, "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", first = true, onClick = onOpenCollabSites)
-                    // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
-                    LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
-                        "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
+                    // 박람회 — 숨김(코드·nav 는 살려둠). FeatureFlags.SHOW_EXPO=true 면 부활. (2026-10-17 사장님 "코드는 남겨두고 숨김처리")
+                    if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_EXPO) {
+                        LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
+                            "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
+                    }
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
                         "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
                     LockRow(Icons.Filled.Payments, AppTheme.colors.doneBg, AppTheme.colors.done, "협업 기록",
