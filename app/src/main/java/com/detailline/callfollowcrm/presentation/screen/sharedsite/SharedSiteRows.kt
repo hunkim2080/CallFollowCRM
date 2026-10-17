@@ -70,9 +70,9 @@ internal fun PartnerDetailSiteRow(site: SharedSiteRepository.SharedSite, onClick
             .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 날짜 기둥 — 고정폭. 숫자는 tabular(AppType.title 에 걸려 있다)로 줄맞춤.
-        Column(Modifier.width(46.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(dayText, style = AppType.headline.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1)
+        // 날짜 기둥 — 고정폭. 숫자는 tabular 로 줄맞춤. "10.14" 같은 두 자리 날짜가 안 잘리게 넉넉히. (2026-10-17 사장님 "날짜가 잘려서")
+        Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(dayText, style = AppType.headline.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, softWrap = false)
             if (dowText.isNotBlank()) {
                 Text(dowText, style = AppType.caption, fontWeight = FontWeight.Medium, color = c.textHint)
             }

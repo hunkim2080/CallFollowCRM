@@ -235,10 +235,26 @@ class AddressExtractorTest {
         assertEquals("705동 1203호", b)
     }
 
-    @Test fun `twoLine - 단지명 없는 동호수는 통째로 1줄`() {
+    @Test fun `twoLine - 단지명 없어도 동호수는 2줄로 내린다 (도로명+동호수)`() {
+        // 2026-10-17 사장님: "서울 서초구 서초대로 50 122동 220호" 가 "…"로 잘렸다. 단지명(브랜드) 없어도 동호수는 아래로.
+        val (a, b) = AddressExtractor.twoLine("서울 서초구 서초대로 50 122동 220호")
+        assertEquals("서울 서초구 서초대로 50", a)
+        assertEquals("122동 220호", b)
+    }
+
+    @Test fun `twoLine - 단지명 없는 실제 주소들도 도로명+동호수로 갈린다`() {
+        val c1 = AddressExtractor.twoLine("서울 동대문구 이문로 150 206동 801호")
+        assertEquals("서울 동대문구 이문로 150", c1.first); assertEquals("206동 801호", c1.second)
+        val c2 = AddressExtractor.twoLine("서울 서초구 남부순환로335길 13 305동 1201호")
+        assertEquals("서울 서초구 남부순환로335길 13", c2.first); assertEquals("305동 1201호", c2.second)
+        val c3 = AddressExtractor.twoLine("충남 천안시 동남구 천안대로 888 101동 1001호")
+        assertEquals("충남 천안시 동남구 천안대로 888", c3.first); assertEquals("101동 1001호", c3.second)
+    }
+
+    @Test fun `twoLine - 호수만 있는 짧은 주소도 동호수는 아래로`() {
         val (a, b) = AddressExtractor.twoLine("강남구 역삼동 502호")
-        assertEquals("강남구 역삼동 502호", a)
-        assertNull(b)
+        assertEquals("강남구 역삼동", a)
+        assertEquals("502호", b)
     }
 
     @Test fun `twoLine - 빈 값·문장 꼬리는 안 깨진다`() {

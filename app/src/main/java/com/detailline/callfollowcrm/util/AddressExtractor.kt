@@ -90,7 +90,12 @@ object AddressExtractor {
             complex = tokens.drop(lastAdmin + 1).joinToString(" ")
         }
         val name = complex.trim().trim('(', ')', ',').trim()
-        if (name.isBlank()) return s to null
+        if (name.isBlank()) {
+            // 단지명(브랜드)이 없다. 하지만 끝에 동·호수가 있으면 그걸 2번째 줄로 내린다 —
+            //   "서울 서초구 서초대로 50 122동 220호" → ("서울 서초구 서초대로 50", "122동 220호").
+            //   (전엔 통째로 1번째 줄에 넣어 "…"로 잘렸다. 2026-10-17 사장님 "날짜가/주소가 잘려서")
+            return if (!unit.isNullOrBlank()) head to unit else s to null
+        }
         val second = listOfNotNull(road.takeIf { it.isNotBlank() }, unit?.takeIf { it.isNotBlank() })
             .joinToString(" · ")
         return name to second.ifBlank { null }

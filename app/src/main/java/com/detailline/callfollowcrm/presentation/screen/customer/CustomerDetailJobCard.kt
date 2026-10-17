@@ -247,6 +247,11 @@ internal fun JobDetailCard(
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
+                        } else if (job != null) {
+                            // 📍 주소 없을 때 넣을 자리 — 없으면 문자 주소가 엉뚱한 2차로 샌다. (2026-10-17 사장님 "주소 넣는 공간이 없지?")
+                            Text("＋ 현장 주소 넣기", style = AppType.body, fontWeight = FontWeight.Bold, color = TossBlue,
+                                modifier = Modifier.clickable { host.onEditAddress(jobId) }.padding(vertical = 10.dp))
+                            Spacer(Modifier.height(10.dp))
                         }
                         // 화면을 둘로 가르지 않는다 — 표가 이미 "아직 예약 안 됨" 같은 빈 값을 말할 줄 안다.
                         //   전엔 예약·금액이 하나도 없으면 버튼만 있는 **딴 화면**이 떴다. (2026-09-22 사장님)
