@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,9 +81,11 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group) {
     val options = remember(partner.sites) { SettlementStatement.pickableMonths(partner.sites) }
     val doneCount = remember(options) { options.sumOf { it.count } }
 
-    Row(
-        Modifier.fillMaxWidth().clip(AppShape.md).background(c.surface)
-            .border(1.dp, c.surfaceMuted, AppShape.md)
+    // 꽉 찬 보라 버튼 — 이 화면 톤(협업)에 맞춘 진짜 '액션' 버튼. (2026-10-17 사장님 "버튼이 앱이랑 달라 보인다")
+    val canMake = !busy && doneCount > 0
+    Box(
+        Modifier.fillMaxWidth().clip(AppShape.md)
+            .background(if (canMake) CollabPurple else c.surfaceMuted)
             .clickable(enabled = !busy) {
                 if (busy) return@clickable   // 연타 막기 — 두 번 만들지 않는다
                 if (doneCount == 0) {
@@ -91,23 +94,30 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group) {
                 }
                 picking = true
             }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(if (busy) "정산서 만드는 중…" else "정산서 이미지로 저장·공유",
-                style = AppType.label, fontWeight = FontWeight.ExtraBold, color = if (busy) c.textHint else c.text)
-            Text(
-                when {
-                    doneCount == 0 -> "완료된 현장이 생기면 만들 수 있어요"
-                    options.size > 1 -> "완료된 현장 ${doneCount}건 · 뽑을 달을 골라요"
-                    else -> "완료된 현장 ${doneCount}건 · ${options.first().label}"
-                },
-                style = AppType.caption, color = c.textHint
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Icon(
+                Icons.Filled.Description, null,
+                tint = if (canMake) androidx.compose.ui.graphics.Color.White else c.textHint,
+                modifier = Modifier.size(18.dp)
             )
+            Spacer(Modifier.width(8.dp))
+            Text(if (busy) "정산서 만드는 중…" else "정산서 이미지 저장·공유",
+                style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                color = if (canMake) androidx.compose.ui.graphics.Color.White else c.textHint)
         }
-        Text("›", style = AppType.headline, fontWeight = FontWeight.Bold, color = c.textHint)
     }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        when {
+            doneCount == 0 -> "완료된 현장이 생기면 만들 수 있어요"
+            options.size > 1 -> "완료된 현장 ${doneCount}건 · 뽑을 달을 골라요"
+            else -> "완료된 현장 ${doneCount}건 · ${options.first().label}"
+        },
+        style = AppType.caption, color = c.textHint, modifier = Modifier.padding(start = 2.dp)
+    )
 
     if (picking) {
         SettlementMonthPickDialog(
