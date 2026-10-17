@@ -141,6 +141,18 @@ class SharedSiteRepository(
             val d = java.time.Instant.ofEpochMilli(ms).atZone(KST).toLocalDate()
             return "%04d-%02d".format(d.year, d.monthValue)
         }
+
+        /**
+         * "2026-07" → "2026년 7월". 빈값·모양이 다르면 "".
+         *   [ymOf] 가 만든 달 글자를 사람 말로 — 달 묶기와 달 이름이 **같은 자리**에 산다.
+         *   (2026-10-17: `CollabRecordViewModel.monthLabel` 에 있던 것을 여기로 — 정산서(domain)가 화면 쪽을 못 부르니. 옛 이름은 이걸 부른다)
+         */
+        fun monthLabel(ym: String): String {
+            val parts = ym.split("-")
+            if (parts.size != 2) return ""
+            val y = parts[0]; val m = parts[1].toIntOrNull() ?: return ""
+            return "${y}년 ${m}월"
+        }
     }
 
     data class InviteResult(

@@ -118,13 +118,8 @@ class CollabRecordViewModel(private val container: AppContainer) : ViewModel() {
             return "${d.monthValue}/${d.dayOfMonth}($dow)"
         }
 
-        /** "2026-07" → "2026년 7월". 빈값이면 "". */
-        fun monthLabel(ym: String): String {
-            val parts = ym.split("-")
-            if (parts.size != 2) return ""
-            val y = parts[0]; val m = parts[1].toIntOrNull() ?: return ""
-            return "${y}년 ${m}월"
-        }
+        /** "2026-07" → "2026년 7월". 🧬 셈은 [SharedSiteRepository.monthLabel] **한 곳** — [ymOf] 와 같은 자리. 여기선 부르기만. */
+        fun monthLabel(ym: String): String = SharedSiteRepository.monthLabel(ym)
 
         /**
          * 로컬 폴백 집계(순수함수 — 단위테스트 대상). withMe=받은(수입), byMe=준(지출).

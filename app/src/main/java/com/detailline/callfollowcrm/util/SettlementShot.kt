@@ -65,26 +65,22 @@ object SettlementShot {
     private const val PAGE_LINE = 34f         // 「i / N」
 
     private val dayFmt = SimpleDateFormat("M.dd", Locale.KOREA)
-    private val periodFmt = SimpleDateFormat("yyyy.MM.dd", Locale.KOREA)
     private val issueFmt = SimpleDateFormat("yyyy. M. d.", Locale.KOREA)
 
     /**
-     * 파일 이름 — 「정산서_해시줄눈_20261017」, 여러 장이면 「정산서_해시줄눈_20261017_1-2」. 사진첩에서 찾기 쉽게.
-     * 한 장이면 꼬리를 안 붙인다(전과 같은 이름).
+     * 파일 이름 — 「정산서_해시줄눈_202610」(한 달) / 「정산서_해시줄눈_202608-202610」(여러 달), 여러 장이면 뒤에 「_1-2」.
+     * 기간 꼬리는 [SettlementStatement.Doc.periodTag] 한 곳(고른 달 기준). 달이 없으면(빈 서류) 발행일 yyyyMMdd.
+     * 한 장이면 장 꼬리를 안 붙인다.
      */
     fun fileName(doc: SettlementStatement.Doc, page: Int = 1, total: Int = 1): String {
         val safe = doc.partnerName.replace(Regex("[\\\\/:*?\"<>|\\s]+"), "_").take(20).ifBlank { "업체" }
-        val base = "정산서_" + safe + "_" + SimpleDateFormat("yyyyMMdd", Locale.KOREA).format(Date(doc.issuedAtMs))
+        val tag = doc.periodTag ?: SimpleDateFormat("yyyyMMdd", Locale.KOREA).format(Date(doc.issuedAtMs))
+        val base = "정산서_" + safe + "_" + tag
         return if (total > 1) "${base}_${page}-${total}" else base
     }
 
-    /** 기간 글자 — 「2026.09.03 ~ 2026.10.14」, 하루면 한 날짜, 없으면 「-」. */
-    fun periodText(doc: SettlementStatement.Doc): String {
-        val a = doc.fromMs ?: return "-"
-        val b = doc.toMs ?: a
-        val s = periodFmt.format(Date(a)); val e = periodFmt.format(Date(b))
-        return if (s == e) s else "$s ~ $e"
-    }
+    /** 기간 글자 — 고른 달 기준([SettlementStatement.Doc.period]): 「2026년 10월」 / 「2026.08 – 2026.10」, 없으면 「-」. */
+    fun periodText(doc: SettlementStatement.Doc): String = doc.period ?: "-"
 
     private fun rowHeight(line: SettlementStatement.Line): Float =
         if (line.siteSub.isNullOrBlank()) ROW_1LINE else ROW_2LINE

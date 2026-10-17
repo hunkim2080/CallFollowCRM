@@ -92,6 +92,8 @@ class SettlementStatementTest {
         assertEquals(0L, d.totalWon)
         assertNull(d.fromMs)
         assertNull(d.toMs)
+        assertNull(d.period)
+        assertTrue(d.months.isEmpty())
     }
 
     // ── 장 나누기 (2026-10-17 "A4처럼") ─────────────────────────
@@ -150,6 +152,91 @@ class SettlementStatementTest {
         val p = SettlementStatement.paginate(lines(7), perPage = 3)
         assertEquals(listOf(3, 3, 1), p.map { it.lines.size })
         assertEquals(3, p.last().total)
+    }
+
+    // ── 달 고르기 (2026-10-17 "어느 달 뽑을지") ─────────────────────
+
+    private val 석달 = listOf(
+        site("a", at(2026, 10, 3)),                    // 10월 완료 25
+        site("b", at(2026, 10, 20), wage = 30),        // 10월 완료 30
+        site("c", at(2026, 9, 14), wage = 40),         // 9월 완료 40
+        site("d", at(2026, 9, 25), done = false),      // 9월 예정 ✘
+        site("e", at(2026, 8, 2), wage = 20),          // 8월 완료 20
+        site("f", at(2026, 7, 9), done = false),       // 7월 예정만 ✘ → 고를 수 없는 달
+        site("g", at(2026, 6, 1), wage = null)         // 6월 완료지만 일당 없음 ✘ → 고를 수 없는 달
+    )
+
+    @Test
+    fun `고를 수 있는 달 - 완료 건 있는 달만, 최신이 위, 숫자는 달 머리(byMonth)와 같다`() {
+        val opts = SettlementStatement.pickableMonths(석달)
+        assertEquals(listOf("2026-10", "2026-09", "2026-08"), opts.map { it.ym })
+        assertEquals(listOf(2, 1, 1), opts.map { it.count })
+        assertEquals(listOf(55, 40, 20), opts.map { it.wageMan })
+        val byMonth = CollabPartnerGroups.byMonth(석달).associateBy { it.ym }
+        opts.forEach { assertEquals("달 머리의 받은 일당과 같은 규칙", byMonth.getValue(it.ym).wageSum, it.wageMan) }
+        assertEquals("2026년 10월", opts[0].label)
+    }
+
+    @Test
+    fun `기본 선택은 가장 최근 달 하나`() {
+        assertEquals(setOf("2026-10"), SettlementStatement.defaultPick(SettlementStatement.pickableMonths(석달)))
+        assertEquals(emptySet<String>(), SettlementStatement.defaultPick(emptyList()))
+    }
+
+    @Test
+    fun `한 달만 고르면 그 달 완료 건만 - 기간은 「2026년 10월」`() {
+        val d = SettlementStatement.of("해시줄눈", 석달, "디테일라인", "", "", at(2026, 10, 17), months = setOf("2026-10"))
+        assertEquals(2, d.count)
+        assertEquals(550_000L, d.totalWon)
+        assertEquals(listOf("2026-10"), d.months)
+        assertEquals("2026년 10월", d.period)
+        assertEquals("202610", d.periodTag)
+    }
+
+    @Test
+    fun `여러 달 고르면 그 달들만 - 기간은 min~max 양 끝 달`() {
+        val d = SettlementStatement.of("해시줄눈", 석달, "디테일라인", "", "", at(2026, 10, 17), months = setOf("2026-10", "2026-08"))
+        assertEquals(3, d.count)                                      // 9월은 안 골랐으니 빠진다
+        assertEquals(750_000L, d.totalWon)
+        assertEquals(listOf(at(2026, 8, 2), at(2026, 10, 3), at(2026, 10, 20)), d.lines.map { it.dateMs })
+        assertEquals("2026.08 – 2026.10", d.period)                   // 사이 달이 비어도 양 끝만
+        assertEquals("202608-202610", d.periodTag)
+    }
+
+    @Test
+    fun `달을 안 주면(null) 전체 - 기간은 줄이 있는 달들로`() {
+        val d = SettlementStatement.of("해시줄눈", 석달, "디테일라인", "", "", at(2026, 10, 17))
+        assertEquals(4, d.count)
+        assertEquals(listOf("2026-08", "2026-09", "2026-10"), d.months)   // 7월·6월은 완료 건이 없어 기간에 안 들어간다
+        assertEquals("2026.08 – 2026.10", d.period)
+    }
+
+    @Test
+    fun `빈 선택이면 줄 0 - 기간 null, 파일 꼬리 null`() {
+        val d = SettlementStatement.of("해시줄눈", 석달, "디테일라인", "", "", at(2026, 10, 17), months = emptySet())
+        assertTrue(d.isEmpty)
+        assertEquals(0L, d.totalWon)
+        assertNull(d.period)
+        assertNull(d.periodTag)
+    }
+
+    @Test
+    fun `기간 글자 - 한 달·여러 달·연 걸침·빈 값`() {
+        assertEquals("2026년 10월", SettlementStatement.periodLabel(setOf("2026-10")))
+        assertEquals("2026.08 – 2026.10", SettlementStatement.periodLabel(listOf("2026-10", "2026-08", "2026-09")))
+        assertEquals("2025.12 – 2026.01", SettlementStatement.periodLabel(setOf("2026-01", "2025-12")))
+        assertNull(SettlementStatement.periodLabel(emptySet()))
+        assertNull(SettlementStatement.periodLabel(listOf("", " ")))
+        assertEquals("202512-202601", SettlementStatement.periodFileTag(setOf("2026-01", "2025-12")))
+        assertEquals("202601", SettlementStatement.periodFileTag(setOf("2026-01")))
+    }
+
+    @Test
+    fun `달 이름은 ymOf와 같은 자리 SharedSiteRepository - 한 벌`() {
+        assertEquals("2026년 7월", SharedSiteRepository.monthLabel("2026-07"))
+        assertEquals("", SharedSiteRepository.monthLabel(""))
+        assertEquals("", SharedSiteRepository.monthLabel("2026-xx"))
+        assertEquals(SharedSiteRepository.monthLabel(SharedSiteRepository.ymOf(at(2026, 10, 3))), "2026년 10월")
     }
 
     @Test
