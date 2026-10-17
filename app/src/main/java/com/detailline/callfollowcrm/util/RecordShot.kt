@@ -751,16 +751,35 @@ object RecordShot {
      * 다른 앱으로 보내기(인스타·카톡 등). 견적서 발행과 **같은 길**(cacheDir/shared + FileProvider).
      * @return 공유 창을 띄웠으면 true. false 면 부르는 쪽이 **화면에 말한다**(§13① — 조용히 삼키지 않는다).
      */
-    fun share(ctx: Context, bmp: Bitmap, name: String): Boolean =
+    fun share(ctx: Context, bmp: Bitmap, name: String): Boolean = shareAll(ctx, listOf(bmp), listOf(name))
+
+    /**
+     * 그림 **여러 장을 한 번에** 다른 앱으로(정산서가 두 장 이상일 때). 한 장이면 [share] 와 같은 길(ACTION_SEND),
+     * 여러 장이면 ACTION_SEND_MULTIPLE — 카톡·메일은 여러 장을 한 번에 받는다. (2026-10-17 사장님 "A4처럼 나누기")
+     *   파일 이름은 장마다 달라야 한다(같으면 덮어써서 마지막 장만 간다).
+     *   ClipData 에도 URI 를 넣는다 — 일부 OEM 이 EXTRA_STREAM 대신 ClipData 로 읽기 권한을 본다(SmsIntentHelper 와 같은 처방).
+     * @return 공유 창을 띄웠으면 true. false 면 부르는 쪽이 **화면에 말한다**(§13①).
+     */
+    fun shareAll(ctx: Context, bmps: List<Bitmap>, names: List<String>): Boolean =
         runCatching {
+            require(bmps.isNotEmpty() && bmps.size == names.size) { "bmps/names mismatch" }
+            require(names.toSet().size == names.size) { "duplicate names — pages would overwrite each other" }
             val dir = File(ctx.cacheDir, "shared").apply { mkdirs() }
-            val f = File(dir, "$name.png")
-            FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", f)
-            val send = Intent(Intent.ACTION_SEND).apply {
+            val uris = bmps.indices.map { i ->
+                val f = File(dir, "${names[i]}.png")
+                FileOutputStream(f).use { bmps[i].compress(Bitmap.CompressFormat.PNG, 100, it) }
+                FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", f)
+            }
+            val send = if (uris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_STREAM, uris.first()) }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply { putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris)) }
+            }.apply {
                 type = "image/png"
-                putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = android.content.ClipData.newRawUri("images", uris.first()).apply {
+                    uris.drop(1).forEach { addItem(android.content.ClipData.Item(it)) }
+                }
             }
             ctx.startActivity(Intent.createChooser(send, "어디에 올릴까요?").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

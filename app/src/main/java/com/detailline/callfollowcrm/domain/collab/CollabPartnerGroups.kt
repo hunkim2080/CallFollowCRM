@@ -32,7 +32,13 @@ object CollabPartnerGroups {
     /** 서버·로컬 양쪽이 이름을 못 채웠을 때 들어오는 빈 이름. */
     const val NAMELESS = "사장님"
 
-    /** 업체 한 줄 — [key] 는 번호 열쇠 + 이름(화면 상태로 들고 다니는 문자열). */
+    /** 「내가 공유한 현장」에서 아직 아무도 수락 안 한 현장들의 묶음 이름([groupByPartner]). */
+    const val PENDING = "수락 대기"
+
+    /**
+     * 업체 한 줄 — [key] 는 번호 열쇠 + 이름(화면 상태로 들고 다니는 문자열).
+     * [pending] = 「수락 대기」 묶음(내가 공유한 현장에서 상대가 아직 없는 것) — 아바타에 글자 대신 시계를 그린다.
+     */
     data class Group(
         val key: String,
         val phoneKey: String,
@@ -40,7 +46,8 @@ object CollabPartnerGroups {
         val count: Int,
         val recentMs: Long,
         val wageSum: Int,
-        val sites: List<SharedSite>
+        val sites: List<SharedSite>,
+        val pending: Boolean = false
     )
 
     /** 한 업체 안의 한 달 — [ym] 은 "yyyy-MM". */
@@ -82,6 +89,33 @@ object CollabPartnerGroups {
                 )
             }
             .sortedByDescending { it.recentMs }
+
+    /**
+     * 「내가 공유한 현장」(by-me) → **내가 부른 사장님별**. (2026-10-17 사장님 "공유받은과 짝 맞추기")
+     *
+     *   [group] 과 **뜻이 다르다**(§12-I): 공유받은 현장엔 주인 번호가 있지만, 내가 공유한 현장엔 상대 번호가 없고
+     *   **상대 상호(`partnerName`)만** 있다(수락 전엔 null). 그래서 이름으로만 가른다.
+     *   · 이름이 비면(아직 수락 전) **「수락 대기」 한 묶음**([PENDING], `pending=true`) — 맨 위. 기다리는 게 제일 급한 일이다.
+     *   · 나머지는 최근 현장이 위([group] 과 같은 순서).
+     *   · [Group.wageSum] 은 여기서도 완료 건의 일당 합(내가 **준** 일당) — 화면이 「받은 일당」이라 적으면 안 된다.
+     */
+    fun groupByPartner(sites: List<SharedSite>): List<Group> {
+        val groups = sites.groupBy { it.partnerName?.trim().orEmpty() }
+            .map { (name, list) ->
+                val pending = name.isEmpty()
+                Group(
+                    key = if (pending) "pending|" else "partner|$name",
+                    phoneKey = "",
+                    name = if (pending) PENDING else name,
+                    count = list.size,
+                    recentMs = list.maxOf { maxOf(it.scheduledAtMs, it.createdAtMs) },
+                    wageSum = wageOf(list),
+                    sites = list.sortedByDescending { it.scheduledAtMs },
+                    pending = pending
+                )
+            }
+        return groups.sortedWith(compareByDescending<Group> { it.pending }.thenByDescending { it.recentMs })
+    }
 
     /**
      * 서버 §B 합계로 보강한다. 로컬 업체 목록은 **그대로 두고**, 번호가 딱 한 업체에만 맞을 때만 그 업체의

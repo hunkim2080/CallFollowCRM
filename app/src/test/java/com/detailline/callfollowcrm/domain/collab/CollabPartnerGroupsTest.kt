@@ -148,6 +148,60 @@ class CollabPartnerGroupsTest {
         assertEquals(listOf("c", "b"), months.first().sites.map { it.shareId })   // 달 안도 최신이 위
     }
 
+    // ── 내가 공유한 현장 → 내가 부른 사장님별 (이름만 있다) ─────────
+
+    private fun mine(id: String, partner: String?, ms: Long, wage: Int? = 10, done: Boolean = true, status: String = "accepted") =
+        SharedSite(
+            shareId = id, ownerPhone = "010-0000-0000", ownerName = "나", partnerName = partner, title = "현장 $id", addr = null,
+            scheduledAtMs = ms, timeLabel = null, workSummary = null, dailyWage = wage, memo = null,
+            status = status,
+            progress = if (done) SharedSiteRepository.Progress.COMPLETED else SharedSiteRepository.Progress.ASSIGNED,
+            createdAtMs = ms - 86_400_000L
+        )
+
+    @Test
+    fun `내가 공유한 현장은 상대 상호로 묶인다 - 번호가 없어도`() {
+        val g = CollabPartnerGroups.groupByPartner(listOf(
+            mine("a", "해시줄눈", at(2026, 10, 5)),
+            mine("b", " 하우스픽 ", at(2026, 10, 3)),
+            mine("c", "해시줄눈", at(2026, 9, 20))
+        ))
+        assertEquals(listOf("해시줄눈", "하우스픽"), g.map { it.name })   // 최근 현장이 위, 이름은 trim
+        assertEquals(listOf(2, 1), g.map { it.count })
+        assertEquals(listOf(false, false), g.map { it.pending })
+        assertTrue("열쇠가 달라야 드릴다운이 따로 열린다", g.map { it.key }.toSet().size == 2)
+    }
+
+    @Test
+    fun `수락 전(상호 없음)은 「수락 대기」 한 묶음으로 맨 위`() {
+        val g = CollabPartnerGroups.groupByPartner(listOf(
+            mine("a", "해시줄눈", at(2026, 10, 20)),
+            mine("b", null, at(2026, 10, 3), status = "pending"),
+            mine("c", "", at(2026, 9, 1), status = "pending")
+        ))
+        assertEquals(listOf(CollabPartnerGroups.PENDING, "해시줄눈"), g.map { it.name })
+        assertTrue(g.first().pending)
+        assertEquals(2, g.first().count)
+        assertEquals(listOf("b", "c"), g.first().sites.map { it.shareId })   // 묶음 안도 최신이 위
+    }
+
+    @Test
+    fun `최근 날짜와 현장 수 - 시공일과 만든 날 중 큰 쪽`() {
+        val g = CollabPartnerGroups.groupByPartner(listOf(
+            mine("a", "해시줄눈", at(2026, 10, 5)),
+            mine("b", "해시줄눈", at(2026, 10, 14), done = false)
+        ))
+        assertEquals(1, g.size)
+        assertEquals(2, g.single().count)
+        assertEquals(at(2026, 10, 14), g.single().recentMs)
+        assertEquals(10, g.single().wageSum)   // 완료된 것만 — 화면은 이걸 「받은 일당」이라 적지 않는다
+    }
+
+    @Test
+    fun `내가 공유한 현장이 없으면 빈 목록`() {
+        assertTrue(CollabPartnerGroups.groupByPartner(emptyList()).isEmpty())
+    }
+
     @Test
     fun `자정 근처는 서울 시간으로 달을 가른다`() {
         // 9/30 23:30 KST 는 UTC 로는 9/30 14:30 — 어느 쪽이든 9월. 10/1 00:30 KST 는 UTC 로 9/30 15:30 인데 10월이어야 한다.

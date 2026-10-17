@@ -144,6 +144,9 @@ fun SharedSiteScreen(
     // 기본은 업체별 — "업체별로 먼저 보이고 그다음 월별로. 현장순은 잘 안 볼 것 같다." (2026-10-16 사장님)
     var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("biz") } // "biz" 업체별 | "date" 현장순
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
+    // 「내가 공유한 현장」도 같은 틀 — [업체별]/[현장순] + 업체 드릴다운. 공유받은 쪽 상태와 **따로** 든다. (2026-10-17 사장님 "짝 맞추기")
+    var myListView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("biz") }
+    var myPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }   // 내가 부른 사장님 key
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
     val trashed by viewModel.trashed.collectAsState()
     // 협업 빼기 확인 대상 — 수락된(진행중) 건은 "그만두기"(상대 알림+양쪽 빠짐), 완료된 건 "정리"(내 목록만). null=닫힘. (2026-06-20 사장님)
@@ -209,12 +212,16 @@ fun SharedSiteScreen(
         CollabPartnerGroups.merge(CollabPartnerGroups.group(acceptedSites), serverPartners)
     }
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
-    BackHandler(enabled = selected != null || selectedMine != null || bizPartner != null || showTrash) {
+    // 내가 공유한 현장 → 내가 부른 사장님별(상호로만 — 상대 번호가 없다). 셈은 CollabPartnerGroups.groupByPartner 한 곳.
+    val myPartnerGroups = remember(myActiveShared) { CollabPartnerGroups.groupByPartner(myActiveShared) }
+    val openMyPartner = if (topMode == "shared") myPartnerGroups.firstOrNull { it.key == myPartner } else null
+    BackHandler(enabled = selected != null || selectedMine != null || bizPartner != null || myPartner != null || showTrash) {
         when {
             // 딥링크로 연 상세면 목록 말고 화면 자체를 닫아 호출처(일정)로. (2026-07-08 사장님)
             (selected != null || selectedMine != null) && openedViaDeepLink -> { openedViaDeepLink = false; onBack() }
             selected != null || selectedMine != null -> selectedId = null
             showTrash -> showTrash = false
+            topMode == "shared" -> myPartner = null
             else -> bizPartner = null
         }
     }
@@ -262,6 +269,7 @@ fun SharedSiteScreen(
                             selectedMine != null -> siteDisplayName(selectedMine)
                             showTrash -> "휴지통"
                             openPartner != null -> openPartner.name
+                            openMyPartner != null -> openMyPartner.name
                             else -> "협업 현장"
                         },
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
@@ -273,6 +281,7 @@ fun SharedSiteScreen(
                             (selected != null || selectedMine != null) && openedViaDeepLink -> { openedViaDeepLink = false; onBack() }
                             selected != null || selectedMine != null -> selectedId = null
                             showTrash -> showTrash = false
+                            openMyPartner != null -> myPartner = null
                             bizPartner != null -> bizPartner = null
                             else -> onBack()
                         }
@@ -282,7 +291,7 @@ fun SharedSiteScreen(
                 },
                 actions = {
                     // 휴지통 들어가기 — 메인 목록에서 휴지통에 뭔가 있을 때만.
-                    if (selected == null && selectedMine == null && !showTrash && bizPartner == null && trashedSites.isNotEmpty()) {
+                    if (selected == null && selectedMine == null && !showTrash && bizPartner == null && openMyPartner == null && trashedSites.isNotEmpty()) {
                         IconButton(onClick = { showTrash = true }) {
                             Icon(Icons.Outlined.Delete, "휴지통", tint = TossTextSecondary)
                             Text("${trashedSites.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold,
@@ -297,7 +306,7 @@ fun SharedSiteScreen(
         // 목록/상세/휴지통/탭/업체드릴다운이 스크롤 상태 하나를 공유 → 뷰 바뀔 때 이전 위치가 남아 '중간부터' 보이던 버그.
         //   뷰 정체성(아래 상태들)이 바뀌면 맨 위로. (2026-08-03 사장님 — 더보기 서브탭과 같은 부류)
         val scrollState = rememberScrollState()
-        LaunchedEffect(selectedId, topMode, bizPartner, showTrash, listView) { scrollState.scrollTo(0) }
+        LaunchedEffect(selectedId, topMode, bizPartner, myPartner, showTrash, listView, myListView) { scrollState.scrollTo(0) }
         Column(
             Modifier
                 .padding(inner)
@@ -317,16 +326,22 @@ fun SharedSiteScreen(
                     onOpen = { selectedId = it.shareId }
                 )
             } else if (selected == null && selectedMine == null) {
-                // 1차 분리: [공유받은 현장] [내가 공유한 현장]. 업체별 드릴다운(openPartner) 중엔 숨김. (2026-06-18 사장님)
-                if (openPartner == null) {
-                    CollabTopTabs(topMode, onSelect = { topMode = it; bizPartner = null })
+                // 1차 분리: [공유받은 현장] [내가 공유한 현장]. 업체별 드릴다운(openPartner · openMyPartner) 중엔 숨김. (2026-06-18 사장님)
+                if (openPartner == null && openMyPartner == null) {
+                    CollabTopTabs(topMode, onSelect = { topMode = it; bizPartner = null; myPartner = null })
                     Spacer(Modifier.height(12.dp))
                 }
                 if (topMode == "shared") {
+                    // 공유받은 쪽과 같은 틀(업체별/현장순 + 업체 드릴다운) — SharedSiteMyShared.kt. (2026-10-17 사장님)
                     MySharedArea(
                         sites = myActiveShared,
                         loading = loading,
                         noBizPhone = viewModel.noBizPhone,
+                        listView = myListView,
+                        onListView = { myListView = it; myPartner = null },
+                        partnerGroups = myPartnerGroups,
+                        openPartner = openMyPartner,
+                        onPickPartner = { myPartner = it },
                         onOpen = { selectedId = it.shareId },
                         onDelete = { confirmCancelMine = it }
                     )
@@ -959,96 +974,8 @@ private fun PendingInbox(
         fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, top = 1.dp))
 }
 
-/**
- * 내가(A) 공유한 현장 모음 — 현장명 · 날짜 · 🤝 누구랑(상대방) · 진행상태. 서버 by-me. (2026-06-18 사장님)
- *   "누구랑"(partnerName)·진행상태는 상대가 수락하면 서버가 채움. 서버 미구현/실패면 빈 목록 안내.
- */
-@Composable
-private fun MySharedArea(
-    sites: List<SharedSiteRepository.SharedSite>,
-    loading: Boolean,
-    noBizPhone: Boolean,
-    onOpen: (SharedSiteRepository.SharedSite) -> Unit,
-    onDelete: (SharedSiteRepository.SharedSite) -> Unit
-) {
-    when {
-        noBizPhone -> EmptyCard(
-            "먼저 사업자 전화를 등록해주세요",
-            "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면, 내 현장을 다른 사장님께 공유할 수 있어요."
-        )
-        sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
-        sites.isEmpty() -> EmptyCard(
-            "내가 공유한 현장이 없어요",
-            "고객 화면의 '협업 현장으로 공유', 일정 화면의 '전문가 배정'에서 부르면, 그 현장을 함께할 사장님과 여기에 모여요."
-        )
-        else -> {
-            Text(
-                "내가 다른 사장님께 공유한 현장이에요. 누가 함께하는지·어디까지 진행됐는지 한눈에 보여요.",
-                fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
-            )
-            // 달별로 — 공유받은 업체 내역과 **같은 달 머리**(「2026년 10월 ……… N곳」). 묶기는 CollabPartnerGroups.byMonth 재사용, 최신 달이 위. (2026-10-17 사장님)
-            //   달 머리를 누르면 접힘/펼침 — 기본은 최근 달만 펼침. 판단은 업체 내역과 같은 MonthFold 한 곳. (2026-10-17 사장님)
-            val months = remember(sites) { CollabPartnerGroups.byMonth(sites) }
-            val fold = rememberMonthFold(months)
-            months.forEach { month ->
-                val open = fold.isOpen(month.ym)
-                CollabMonthHeader(month.ym, "${month.count}곳", open = open, onToggle = { fold.toggle(month.ym) })
-                if (open) month.sites.forEach { site ->
-                    MySharedSwipeBox(onDelete = { onDelete(site) }) {
-                        MySharedDetailRow(site, onClick = { onOpen(site) })
-                    }
-                    Spacer(Modifier.height(9.dp))
-                }
-                Spacer(Modifier.height(4.dp))
-            }
-            Text("누르면 현장 상세·한마디, 밀면 '삭제'로 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
-                fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
-        }
-    }
-}
-
-
-
-/** 업체별 행 — 색+글자 동그라미 · 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
-@Composable
-private fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
-            .clickable { onClick() }.padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 🎨 손잡기 아이콘 대신 **색 동그라미 + 브랜드 첫 글자** (프로토 확정 2026-10-17) — 업체가 한눈에 갈린다.
-        //   글자 = 상호의 브랜드 부분 첫 글자(「김사장, 하우스픽」이면 「하」), 색 = 이름 해시로 늘 같은 색.
-        //   셈은 AvatarInitial(domain/ui)·색표는 AvatarTints.PALETTE(component) **한 곳** — 팀·연락처·검색과 같은 5색.
-        val (avBg, avFg) = com.detailline.callfollowcrm.presentation.component.AvatarTints.forName(g.name)
-        val initial = com.detailline.callfollowcrm.domain.ui.AvatarInitial.brand(g.name)
-        Box(Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape).background(avBg), contentAlignment = Alignment.Center) {
-            if (initial.isBlank()) {
-                // 글자를 못 뽑는 이름(기호뿐 등) — 「사람」 아이콘으로. 업체 하나를 가리키는 자리라 손잡기(협업 표식)가 아니다. (2026-10-17)
-                Icon(Icons.Filled.Person, null, tint = avFg, modifier = Modifier.size(18.dp))
-            } else {
-                Text(initial, style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = avFg)
-            }
-        }
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Text(g.name, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(2.dp))
-            Text("함께한 현장 ${g.count}곳" + (if (g.recentMs > 0L) " · 최근 ${SimpleDateFormat("MM.dd", Locale.KOREA).format(Date(g.recentMs))}" else ""),
-                fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text("${g.wageSum}만원", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CollabPurple)
-            Text("받은 일당", fontSize = 11.sp, color = TossTextTertiary)
-        }
-        Spacer(Modifier.width(8.dp))
-        Text("›", fontSize = 18.sp, color = TossTextTertiary)
-    }
-}
-
-// 업체별 묶기(PartnerGroup·groupByPartner)는 domain/collab/CollabPartnerGroups 로 옮겼다 — 셈은 거기 한 곳. (2026-10-16)
+// 「내가 공유한 현장」(MySharedArea — 업체별/현장순·업체 드릴다운)과 업체별 행(PartnerRow)은 같은 패키지 SharedSiteMyShared.kt —
+//   공유받은·내가 공유한 둘이 같은 PartnerRow 를 쓴다. 업체별 묶기는 domain/collab/CollabPartnerGroups 한 곳. (2026-10-17)
 
 
 /** 휴지통 — 밀어서 정리한 협업 현장. '되살리기'로 복구(기록 보존). */
@@ -1679,7 +1606,7 @@ private fun CollabPayoutAccountSection(
  * @param tall 진짜 '아무것도 없음' 이면 화면 가운데로 내린다. 불러오는 중 같은 잠깐짜리는 그대로 위에.
  * @param action 있으면 아래에 할 일 한 줄.
  */
-@Composable private fun EmptyCard(
+@Composable internal fun EmptyCard(
     title: String,
     sub: String,
     tall: Boolean = false,

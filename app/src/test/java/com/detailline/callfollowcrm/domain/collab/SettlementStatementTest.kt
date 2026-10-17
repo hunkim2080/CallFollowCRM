@@ -94,6 +94,64 @@ class SettlementStatementTest {
         assertNull(d.toMs)
     }
 
+    // ── 장 나누기 (2026-10-17 "A4처럼") ─────────────────────────
+
+    private fun lines(n: Int) = (1..n).map { i ->
+        SettlementStatement.Line(dateMs = at(2026, 9, 1) + i * 86_400_000L, site = "현장 $i", siteSub = null, wageWon = 250_000L)
+    }
+
+    @Test
+    fun `18줄은 한 장`() {
+        val p = SettlementStatement.paginate(lines(18))
+        assertEquals(1, p.size)
+        assertEquals(18, p[0].lines.size)
+        assertEquals(1, p[0].index); assertEquals(1, p[0].total)
+        assertTrue("한 장이면 그 장이 마지막 — 합계가 들어간다", p[0].isLast)
+    }
+
+    @Test
+    fun `19줄은 두 장 - 둘째 장에 1줄, 합계는 둘째 장에만`() {
+        val p = SettlementStatement.paginate(lines(19))
+        assertEquals(2, p.size)
+        assertEquals(listOf(18, 1), p.map { it.lines.size })
+        assertEquals(listOf(1, 2), p.map { it.index })
+        assertEquals(listOf(2, 2), p.map { it.total })
+        assertEquals(listOf(false, true), p.map { it.isLast })
+        assertEquals("현장 19", p[1].lines.single().site)
+    }
+
+    @Test
+    fun `36줄은 딱 두 장 - 빈 셋째 장이 생기지 않는다`() {
+        val p = SettlementStatement.paginate(lines(36))
+        assertEquals(2, p.size)
+        assertEquals(listOf(18, 18), p.map { it.lines.size })
+        assertTrue(p.last().isLast)
+    }
+
+    @Test
+    fun `빈 목록도 한 장 - 빈 서류지만 서류다`() {
+        val p = SettlementStatement.paginate(emptyList())
+        assertEquals(1, p.size)
+        assertTrue(p[0].lines.isEmpty())
+        assertTrue(p[0].isLast)
+        assertEquals(1, p[0].total)
+    }
+
+    @Test
+    fun `Doc의 pages는 paginate와 같은 규칙 - 줄 순서가 보존된다`() {
+        val d = doc((1..20).map { i -> site("s$i", at(2026, 9, 1) + i * 86_400_000L) })
+        val p = d.pages
+        assertEquals(2, p.size)
+        assertEquals(d.lines, p.flatMap { it.lines })
+    }
+
+    @Test
+    fun `장 크기를 바꾸면 그대로 따라간다`() {
+        val p = SettlementStatement.paginate(lines(7), perPage = 3)
+        assertEquals(listOf(3, 3, 1), p.map { it.lines.size })
+        assertEquals(3, p.last().total)
+    }
+
     @Test
     fun `발행인 - 상호는 trim, 대표자·번호 그대로`() {
         val d = doc(emptyList())
