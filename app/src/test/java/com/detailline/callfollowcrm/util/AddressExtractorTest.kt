@@ -27,6 +27,19 @@ class AddressExtractorTest {
         assertEquals("부산 해운대구 우동", r)
     }
 
+    // ---------- 패턴 2b: 시 + 동 + 단지명(띄어쓴 두 낱말) + 동호수 (2026-10-17 사장님 실기) ----------
+
+    @Test
+    fun `안양시 박달동 한라 비발디 105동 1704호 - 시까지 통째로, 밑줄도 시부터`() {
+        val body = "입금했습니다\n안양시 박달동 한라 비발디 105동 1704호"
+        val f = AddressExtractor.findOne(body)
+        assertNotNull("주소 추출 실패", f)
+        // 전엔 '박달동'부터 잡혀 '안양시'가 링크 밖이었다 — 그 앞을 누르면 아무 일도 안 났다.
+        assertEquals("안양시 박달동 한라 비발디 105동 1704호", f!!.text)
+        assertEquals(body.indexOf("안양시"), f.start)
+        assertEquals(body.length, f.end)
+    }
+
     // ---------- 패턴 2: 시군구만 + 동호수 합치기 (#6 통점) ----------
 
     @Test

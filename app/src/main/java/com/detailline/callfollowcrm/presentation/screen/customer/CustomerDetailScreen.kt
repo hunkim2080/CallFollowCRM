@@ -1665,7 +1665,8 @@ fun CustomerDetailScreen(
             onDismissRequest = { deletePastJobConfirm = null },
             containerColor = Color.White,
             title = { Text("이 건을 지울까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
-            text = { Text("취소했거나 비어 있는 지난 건이에요. 완전히 지워집니다.", color = TossTextSecondary) },
+            // 날짜·금액이 없는 건만 여기 온다(JobDeleteRule) — 취소한 건·빈 건·주소만 든 날짜 미정 건. (2026-10-17)
+            text = { Text("날짜도 금액도 없는 건이에요. 완전히 지워집니다.", color = TossTextSecondary) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deletePastJob(j.id)

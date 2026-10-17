@@ -294,4 +294,22 @@ class SettlementCalcTest {
         assertEquals(300_000, SettlementCalc.receivedInRange(c, 500L, 1_500L))    // 계약금(1000)만
         assertEquals(700_000, SettlementCalc.receivedInRange(c, 1_500L, 2_500L))  // 잔금(2000)만
     }
+
+    // ── 잔금 도장 ↔ 완료일 (2026-09-18 확정 · 2026-10-17 되돌리기 대칭) ──
+
+    @Test fun `잔금 받으면 완료가 자동 - 이미 완료일이 있으면 존중`() {
+        assertEquals(5_000L, SettlementCalc.workCompletedAfterBalance(paidAt = 5_000L, currentCompletedAt = null, currentBalancePaidAt = null))
+        assertEquals(3_000L, SettlementCalc.workCompletedAfterBalance(paidAt = 5_000L, currentCompletedAt = 3_000L, currentBalancePaidAt = null))
+    }
+
+    @Test fun `완납 취소 - 잔금과 같은 순간에 자동으로 찍힌 완료는 같이 풀린다`() {
+        // 2026-10-17 사장님 실기: 「예약금 확인」 한 탭이 55만 완납 + 완료를 같이 찍었다 → 완납 취소로 둘 다 돌아와야 한다.
+        assertEquals(null, SettlementCalc.workCompletedAfterBalance(paidAt = null, currentCompletedAt = 5_000L, currentBalancePaidAt = 5_000L))
+    }
+
+    @Test fun `완납 취소 - 사장님이 따로 누른 완료(시각 다름)는 그대로`() {
+        assertEquals(3_000L, SettlementCalc.workCompletedAfterBalance(paidAt = null, currentCompletedAt = 3_000L, currentBalancePaidAt = 5_000L))
+        assertEquals(3_000L, SettlementCalc.workCompletedAfterBalance(paidAt = null, currentCompletedAt = 3_000L, currentBalancePaidAt = null))
+        assertEquals(null, SettlementCalc.workCompletedAfterBalance(paidAt = null, currentCompletedAt = null, currentBalancePaidAt = null))
+    }
 }

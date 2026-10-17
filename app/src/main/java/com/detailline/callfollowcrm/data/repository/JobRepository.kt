@@ -341,8 +341,8 @@ class JobRepository(
      */
     suspend fun deleteJob(jobId: Long, now: Long): Boolean {
         val j = jobDao.findById(jobId) ?: return false
-        val hasMoney = (j.totalAmount ?: 0L) > 0L || (j.depositAmount ?: 0L) > 0L || (j.balanceAmount ?: 0L) > 0L
-        if (hasMoney || j.scheduledWorkDate != null) return false   // 🛡️ 살아있는 건은 안 지운다
+        // 🛡️ 살아있는 건은 안 지운다 — 규칙은 JobDeleteRule 한 곳(카드의 「이 건 지우기」 칩과 같은 자). (2026-10-17)
+        if (!com.detailline.callfollowcrm.domain.job.JobDeleteRule.canDelete(j)) return false
         jobDao.deleteById(jobId)
         recomputeMirror(j.customerId, now)
         return true
@@ -440,7 +440,9 @@ class JobRepository(
         //   원인: 「완료」를 **두 가지 뜻**으로 재고 있었다 —
         //     딱지는 「시공일 지났고 잔금 받음」, 목록은 「[완료] 버튼을 눌렀나」.
         //   돈을 다 받았는데 시공을 안 했을 리가 없다 → 여기서 **같이 찍어** 뜻을 하나로 만든다.
-        val alsoComplete = balancePaidAt != null && j.workCompletedAt == null
+        //   규칙은 SettlementCalc.workCompletedAfterBalance 한 곳 — 잔금 도장(setBalancePaid)·고객 카드와 같은 자. (2026-10-17)
+        val done = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+            .workCompletedAfterBalance(balancePaidAt, j.workCompletedAt, j.balancePaidAt)
         jobDao.update(
             j.copy(
                 totalAmount = totalAmount,
@@ -448,11 +450,11 @@ class JobRepository(
                 depositPaidAt = depositPaidAt,
                 balanceAmount = balanceAmount,
                 balancePaidAt = balancePaidAt,
-                workCompletedAt = if (alsoComplete) (balancePaidAt) else j.workCompletedAt,
+                workCompletedAt = done,
                 updatedAt = now
             )
         )
-        if (alsoComplete) renumberRecords(now)   // 현장 번호도 같이 붙어야 맞는다
+        if (done != j.workCompletedAt) renumberRecords(now)   // 현장 번호도 같이 붙거나 떨어져야 맞는다
         recomputeMirror(j.customerId, now)   // 🔒 도장 기계 한 대 — 건 돈을 고치면 고객 카드(요약)도 같이. (2026-10-13)
     }
 
@@ -558,10 +560,10 @@ class JobRepository(
         val filled = if (at != null && j.balanceAmount == null) {
             ((j.totalAmount ?: 0L) - (j.depositAmount ?: 0L)).coerceAtLeast(0L).takeIf { it > 0L }
         } else j.balanceAmount
-        // **잔금을 받으면 그 건은 마무리.** (2026-09-18 사장님 확정 · 프로토)
-        //   "잔금 받으면 완료 처리는 자동." 이미 완료일이 있으면 존중(안 덮음).
-        //   되돌릴 땐(at=null) 완료는 안 건드린다 — 시공 완료는 따로 되돌리는 자리가 있다.
-        val done = if (at != null) (j.workCompletedAt ?: at) else j.workCompletedAt
+        // **잔금을 받으면 그 건은 마무리.** (2026-09-18 사장님 확정 · 프로토) 되돌릴 땐 잔금과 같이 자동으로 찍힌 완료만 같이 푼다.
+        //   규칙은 SettlementCalc.workCompletedAfterBalance 한 곳(고객 카드 경로·돈 고치기와 같은 자). (2026-10-17)
+        val done = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+            .workCompletedAfterBalance(at, j.workCompletedAt, j.balancePaidAt)
         jobDao.update(j.copy(balancePaidAt = at, balanceAmount = filled, workCompletedAt = done, updatedAt = now))
         // 잔금을 받아 **자동으로 완료**된 건도 번호를 받아야 한다. 전엔 여기만 빠져서 번호가 안 붙었다.
         renumberRecords(now)

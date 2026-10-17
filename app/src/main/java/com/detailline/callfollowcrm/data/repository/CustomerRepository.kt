@@ -333,9 +333,10 @@ class CustomerRepository(
         val undoAutoDeposit = paidAt == null && c.depositPaidAt != null && c.depositPaidAt == c.balancePaidAt
         c.copy(
             balancePaidAt = paidAt,
-            // **잔금을 받으면 마무리.** (2026-09-18 사장님 확정)
-            //   이미 완료일이 있으면 존중. 되돌릴 땐 완료를 건드리지 않는다.
-            workCompletedAt = if (paidAt != null) (c.workCompletedAt ?: paidAt) else c.workCompletedAt,
+            // **잔금을 받으면 마무리.** (2026-09-18 사장님 확정) 되돌릴 땐 잔금과 같이 자동으로 찍힌 완료만 같이 푼다.
+            //   규칙은 SettlementCalc.workCompletedAfterBalance 한 곳(건 경로와 같은 자). (2026-10-17)
+            workCompletedAt = com.detailline.callfollowcrm.domain.settlement.SettlementCalc
+                .workCompletedAfterBalance(paidAt, c.workCompletedAt, c.balancePaidAt),
             depositPaidAt = when {
                 alsoDeposit -> paidAt
                 undoAutoDeposit -> null

@@ -20,6 +20,18 @@ class MessageEntitiesTest {
         assertEquals("01012345678", p.phoneDigits)
     }
 
+    /** 2026-10-17 사장님 실기 — "입금했습니다" 다음 줄 주소가 **시부터** 파란 밑줄이어야 탭이 산다. */
+    @Test fun address_link_covers_city_prefix() {
+        val body = "입금했습니다\n안양시 박달동 한라 비발디 105동 1704호"
+        val hits = MessageEntities.detect(body, dayStart(2026, 10, 17))
+        val a = hits.first { it.type == MessageEntities.Type.ADDRESS }
+        assertEquals(body.indexOf("안양시"), a.start)
+        assertEquals(body.length, a.end)
+        assertEquals("안양시 박달동 한라 비발디 105동 1704호", a.raw)
+        // '입금했습니다' 는 날짜·전화가 아니다 — 엉뚱한 링크가 생기면 안 된다.
+        assertEquals(1, hits.size)
+    }
+
     @Test fun phone_representative_number() {
         val hits = MessageEntities.detect("1588-1234 로 문의주세요", dayStart(2026, 8, 5))
         assertTrue(hits.any { it.type == MessageEntities.Type.PHONE && it.phoneDigits == "15881234" })

@@ -69,13 +69,16 @@ class CustomerDetailViewModel(
         container.customerNoteRepository.remove(id)
     }
 
-    /** 🗑 취소/빈 '지난 건' 완전 삭제. 돈·날짜 있는 건은 repository 가 막는다(안전). (2026-10-06 사장님) */
+    /**
+     * 🗑 취소/빈 건 완전 삭제 — 주소만 든 날짜 미정 건(문자 주소로 잘못 생긴 2차)도. (2026-10-06 · 2026-10-17 사장님)
+     *   돈·날짜·받음 도장 있는 건은 repository 가 막는다(JobDeleteRule 한 곳).
+     */
     fun deletePastJob(jobId: Long) = viewModelScope.launch {
-        val ok = SaveGuard.run("지난 건 삭제", _toast) {
+        val ok = SaveGuard.run("건 삭제", _toast) {
             container.jobRepository.deleteJob(jobId, System.currentTimeMillis())
         }
         _toast.value = when (ok) {
-            true -> "지난 건을 지웠어요"
+            true -> "이 건을 지웠어요"
             false -> "금액·일정이 있는 건은 지울 수 없어요"
             else -> return@launch   // 저장 실패는 SaveGuard 가 이미 알림
         }

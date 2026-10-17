@@ -401,16 +401,21 @@ internal fun WorkDoneAskCard(
  *
  * 고객이 말한 금액이 **우리가 아는 잔금과 다르면** 그 사실을 같이 보여준다 —
  * 계약금만 보냈는데 잔금 전액을 받음으로 찍으면 돈이 틀어진다.
+ *
+ * 💵 **무엇을 찍을지는 [PaymentClaimAnswer] 한 곳이 정한다.** (2026-10-17 사장님 실기)
+ *   전엔 이 카드가 늘 「남은 잔금」을 물어서, 시공 전에 들어온 **예약금 10만**에 [네] 한 번으로
+ *   **65만 완납 + 완료**가 찍혔다. 이제 시공 전엔 계약금만 묻고, 잔금은 시공 뒤에만 묻는다.
  */
 @Composable
 internal fun PayClaimCard(
     saidAmountWon: Long?,
-    outstandingWon: Long,
+    stamp: com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.Stamp,
     onYes: () -> Unit,
     onNo: () -> Unit
 ) {
     val green = Color(0xFF0E9F62)
-    val mismatch = saidAmountWon != null && saidAmountWon != outstandingWon
+    val mismatch = com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.saidDiffers(saidAmountWon, stamp)
+    val isDeposit = stamp is com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.Stamp.Deposit
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -424,8 +429,9 @@ internal fun PayClaimCard(
         Spacer(Modifier.height(4.dp))
         Text(
             buildString {
-                append("남은 잔금 ")
-                append(payWonLabel(outstandingWon))
+                // 계약금이면 「계약금 N」, 잔금이면 「남은 잔금 N」 — 어느 돈인지 사장님이 보고 누른다.
+                append(if (isDeposit) "계약금 " else "남은 잔금 ")
+                append(payWonLabel(stamp.amountWon))
                 append(" 을 받음으로 표시할까요?")
                 if (mismatch) {
                     append("\n(고객은 ")

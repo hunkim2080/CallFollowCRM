@@ -371,7 +371,9 @@ internal fun JobDetailCard(
                                     } else {
                                         Spacer(Modifier.width(9.dp))
                                         // 계약금이 아직이면 계약금부터, 아니면 잔금(또는 전액) — 옛 세 버튼의 순서 그대로.
-                                        val paidLabel = if (depositWon > 0L && !depPaid) "계약금 받았어요" else "받았어요"
+                                        //   「잔금」을 글자로 적는다 — 「받았어요」만 있으면 예약금 들어온 걸 보고 눌러 **완납·완료**가 찍힌다.
+                                        //   (2026-10-17 사장님 실기: 계약금 받음 ≠ 잔금 완납)
+                                        val paidLabel = if (depositWon > 0L && !depPaid) "계약금 받았어요" else "잔금 받았어요"
                                         CdUndoChip(paidLabel, danger = false, filled = true) {
                                             when {
                                                 depositWon > 0L && !depPaid ->
@@ -879,7 +881,10 @@ internal fun JobDetailCard(
                     else -> "문서"
                 }
                 var intakeExpanded by remember(jobId) { mutableStateOf(false) }
-                val canDeleteJob = job != null && (jobCancelled(job) || jobBlank(job))
+                // 🗑 지울 수 있는 건 = 저장소(JobRepository.deleteJob)와 **같은 한 규칙**(JobDeleteRule). (2026-10-17 사장님 실기)
+                //   전엔 「취소/완전히 빈 건」만 칩을 보여줘, 문자 주소로 잘못 생긴 **주소만 든 날짜 미정 2차**는
+                //   저장소는 지울 수 있는데 카드엔 더보기조차 안 떴다 — "취소/삭제할 데가 안 보인다".
+                val canDeleteJob = job != null && com.detailline.callfollowcrm.domain.job.JobDeleteRule.canDelete(job)
                 // 🔧 A/S 잡을 수 있는 자리(고객 단위, 아직 A/S 안 잡힘). 시공 전이면 **대표 건 더보기** 안,
                 //   완납·완료한 건이면 **그 건 foot 에 바로** — 대표가 아니어도. (2026-10-15 사장님: 완납 손님이 A/S 신청, 대표 아닌 완납 건에서도 보이게)
                 val asCanBook = isPrimary && scheduled != null && c.asScheduledDate == null

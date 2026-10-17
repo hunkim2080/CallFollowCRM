@@ -457,6 +457,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |
 | 하단 시트 틀(스크림+카드+그랩+키보드/네비바 여백+스크롤) | `presentation/component/AppSheet.kt` | 시트마다 `Box(scrim)+Column+keyboardOrNavPadding+verticalScroll` 새로 (빠뜨리면 스크롤·키보드·네비바 버그) |
 | 고객 상세 **접힘 줄 머리**(아이콘 상자+제목+개수+›/▾, 비면 「＋ 적기」) | `CdFoldRow` (`presentation/screen/customer/CustomerDetailBits.kt`) — 고객 메모·현장 메모·팀원 메모·이 고객 문서 | 섹션마다 `Row + CdTitleIcon + Text + "▸"` 새로 (2026-10-15: 네 벌이 제각각이라 "정신없다"가 됐다) |
+| 「입금했습니다」 카드가 **어느 돈**(계약금/잔금)을 찍을지 — 시공 전엔 잔금 절대 X | `domain/payment/PaymentClaimAnswer.kt` (알아보기는 `PaymentClaimDetector`, 찍기는 `WorkCompletionManager`) | 카드에서 `outstanding` 을 곧장 「받음」으로 (2026-10-17: 예약금 10만 「네」 한 번에 65만 완납·완료) |
+| 어떤 건을 **완전히 지워도** 되나(날짜·돈·받음 도장 없음) | `domain/job/JobDeleteRule.kt` — `JobRepository.deleteJob` 과 건 카드 「이 건 지우기」 칩이 같이 씀 | 저장소·카드에서 각자 `hasMoney || date != null` / `jobBlank` 판단 (2026-10-17: 주소만 든 2차를 지울 데가 없었다) |
 | 상담함/문자함 **서버 정정**(애매한 수신 1건만 Haiku 에 묻기 — 비용 가드 포함) | `ThreadServerClassifier.refineIfUnsure()` (`data/repository/ThreadServerClassifier.kt`) — 「물어볼까」는 `ServerClassifyGate` (`domain/inbox/ServerClassifyGate.kt`), 서버 호출은 `ThreadClassifyServerRepository` (`ai/ThreadClassifyServerRepository.kt`) | 수신 경로·스캔·백필에서 서버 주소를 직접 부르기 (2026-10-15: 통화요약 신규설치 burst 와 같은 사고 방지) |
 
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).

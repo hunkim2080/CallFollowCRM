@@ -1172,14 +1172,35 @@ fun ChatScreen(
                     // 받을 돈이 없으면 물어볼 이유가 없다(이미 완납이거나 금액 미입력).
                     if (settle.outstanding <= 0L) null
                     else com.detailline.callfollowcrm.domain.payment.PaymentClaimDetector
-                        .detect(last.body)?.let { claim -> Triple(last.dateMs, claim, settle.outstanding) }
+                        .detect(last.body)?.let { claim ->
+                            // 💵 **어느 돈인지**는 PaymentClaimAnswer 한 곳이 정한다 — 시공 전엔 계약금만, 잔금은 시공 뒤에만.
+                            //   (2026-10-17 사장님 실기: 예약금 10만 "입금했습니다" 에 [네] 한 번으로 65만 완납·완료가 찍혔다)
+                            //   물을 게 없으면(시공 전인데 계약금 이미 받음 등) 카드를 안 띄운다.
+                            com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.decide(
+                                saidAmountWon = claim.amountWon,
+                                outstandingWon = settle.outstanding,
+                                depositWon = settle.depositAmount,
+                                depositPaid = settle.depositPaid,
+                                balancePaid = settle.balancePaid,
+                                scheduledWorkDate = cc.scheduledWorkDate,
+                                scheduledWorkDays = cc.scheduledWorkDays,
+                                workCompletedAt = cc.workCompletedAt,
+                                todayStartMs = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                            )?.let { stamp -> Triple(last.dateMs, claim, stamp) }
+                        }
                 }
             }
-            payClaim?.let { (msgMs, claim, outstanding) ->
+            payClaim?.let { (msgMs, claim, stamp) ->
                 PayClaimCard(
                     saidAmountWon = claim.amountWon,
-                    outstandingWon = outstanding,
-                    onYes = { viewModel.markBalancePaid(); viewModel.dismissPayClaim(msgMs) },
+                    stamp = stamp,
+                    onYes = {
+                        when (stamp) {
+                            is com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.Stamp.Deposit -> viewModel.markDepositPaid()
+                            is com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.Stamp.Balance -> viewModel.markBalancePaid()
+                        }
+                        viewModel.dismissPayClaim(msgMs)
+                    },
                     onNo = { viewModel.dismissPayClaim(msgMs) }
                 )
             }

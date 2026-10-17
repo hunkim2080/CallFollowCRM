@@ -105,6 +105,21 @@ object SettlementCalc {
     fun depositPaidAfterSave(depositWon: Long?, currentPaidAt: Long?, now: Long): Long? =
         if ((depositWon ?: 0L) > 0L) currentPaidAt ?: now else null
 
+    /**
+     * ✅ **잔금 도장을 찍거나 풀 때 완료일은 어떻게 되나** — 한 곳. (2026-09-18 사장님 확정 · 2026-10-17 되돌리기 대칭)
+     *   · 받음(paidAt≠null): **잔금을 받으면 그 건은 마무리** — 완료일이 없으면 잔금 받은 시각으로. 이미 있으면 존중.
+     *   · 되돌림(paidAt=null): 완료일이 **잔금과 같은 순간에 자동으로 찍힌 것**(두 시각이 같다)이면 같이 푼다 —
+     *     안 풀면 「예약금 확인」 한 탭이 남긴 완료가 완납 취소 뒤에도 남아 미수 독촉·내 기록 번호가 틀린다(2026-10-17 사장님 실기).
+     *     사장님이 따로 누른 완료(시각 다름)는 그대로 — 그건 그분 뜻이다.
+     *   세 군데(건 잔금 도장·건 돈 고치기·고객 카드 잔금 도장)가 전부 이걸 쓴다 — 두 벌 금지(§12).
+     */
+    fun workCompletedAfterBalance(paidAt: Long?, currentCompletedAt: Long?, currentBalancePaidAt: Long?): Long? =
+        when {
+            paidAt != null -> currentCompletedAt ?: paidAt
+            currentCompletedAt != null && currentCompletedAt == currentBalancePaidAt -> null
+            else -> currentCompletedAt
+        }
+
     /** 건에 돈이 하나라도 적혔나(총액·계약금·잔금). 「완료 · 금액 미입력」 표시 판단(Q1). 규칙은 [rowOf] 의 total. */
     fun hasMoney(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean = rowOf(j).total > 0L
 
