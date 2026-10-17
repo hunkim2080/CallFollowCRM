@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +25,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
 import com.detailline.callfollowcrm.ai.siteDisplayName
+import com.detailline.callfollowcrm.domain.collab.CollabPartnerGroups
+import com.detailline.callfollowcrm.domain.collab.MonthFold
 import com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordViewModel
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
@@ -200,17 +204,38 @@ private fun DatePillar(scheduledAtMs: Long) {
 }
 
 /**
- * 달 머리줄 **한 곳** — 「2026년 10월 ……… N곳(· 받은 일당 N만원)」. 업체 내역·내가 공유한 현장이 같이 쓴다.
+ * 달 머리줄 **한 곳** — 「2026년 10월 ……… N곳(· 받은 일당 N만원) ▾」. 업체 내역·내가 공유한 현장이 같이 쓴다.
  *   달 이름은 [CollabRecordViewModel.monthLabel] 재사용(새로 안 셈). 묶기는 `CollabPartnerGroups.byMonth`.
+ *   **머리 전체가 탭 자리** — 누르면 그 달이 접힘/펼침(▾ 펼침 · ▸ 접힘). 판단은 [rememberMonthFold] → `MonthFold` 한 곳. (2026-10-17 사장님)
  */
 @Composable
-internal fun CollabMonthHeader(ym: String, right: String) {
+internal fun CollabMonthHeader(ym: String, right: String, open: Boolean, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 2.dp, top = 4.dp, bottom = 7.dp),
+        Modifier.fillMaxWidth().clip(AppShape.sm).clickable { onToggle() }
+            .padding(start = 2.dp, end = 2.dp, top = 8.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(CollabRecordViewModel.monthLabel(ym), style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
         Spacer(Modifier.weight(1f))
         Text(right, style = AppType.caption, fontWeight = FontWeight.Medium, color = TossTextTertiary)
+        Spacer(Modifier.width(6.dp))
+        Text(if (open) "▾" else "▸", style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextTertiary)
     }
+}
+
+/**
+ * 📅 달 접기 상태 — 화면이 들고 다니는 건 「뒤집은 달」 집합 하나. 판단·뒤집기는 `MonthFold`(순수) 한 곳.
+ *   `latestYm` 은 매 컴포지션에 새로 받는다 — 데이터가 새로 와서 최근 달이 바뀌면 그 달이 저절로 펼쳐진다.
+ */
+internal class MonthFoldState(private val latestYm: String?, private val toggled: MutableState<Set<String>>) {
+    fun isOpen(ym: String): Boolean = MonthFold.isOpen(ym, latestYm, toggled.value)
+    fun toggle(ym: String) { toggled.value = MonthFold.toggle(toggled.value, ym) }
+}
+
+/** 두 화면(업체 내역 · 내가 공유한 현장)이 같이 부른다 — 기본값은 **가장 최근 달만 펼침.** */
+@Composable
+internal fun rememberMonthFold(months: List<CollabPartnerGroups.Month>): MonthFoldState {
+    val toggled = remember { mutableStateOf(emptySet<String>()) }
+    val latest = remember(months) { MonthFold.latestOf(months.map { it.ym }) }
+    return MonthFoldState(latest, toggled)
 }

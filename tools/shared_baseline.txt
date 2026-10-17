@@ -1,22 +1,22 @@
 # 지금 「공용」인 파일들 — 새로 생기면 CLAUDE.md §12 표에 한 줄 적어야 빌드가 통과한다.
 # 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
 # 줄 모양: <파일이름> <쓰는 파일 수> <경로>
-# 총 35개 (3곳 이상에서 쓰이는 것)
+# 총 37개 (3곳 이상에서 쓰이는 것)
 DateTimeUtils 83 util/DateTimeUtils.kt
 PhoneNumberFormatter 47 util/PhoneNumberFormatter.kt
 PhoneKey 44 util/PhoneKey.kt
 SettlementCalc 23 domain/settlement/SettlementCalc.kt
-AddressExtractor 18 util/AddressExtractor.kt
-MoneyFormatter 12 util/MoneyFormatter.kt
+AddressExtractor 19 util/AddressExtractor.kt
+MoneyFormatter 13 util/MoneyFormatter.kt
 SmsSender 12 util/SmsSender.kt
 PermissionHelper 10 util/PermissionHelper.kt
 PhoneDialer 10 util/PhoneDialer.kt
 RegionName 10 util/RegionName.kt
+AvatarInitial 9 domain/ui/AvatarInitial.kt
+AvatarTints 9 presentation/component/AvatarTints.kt
 LogRedact 9 util/LogRedact.kt
 SmsIntentHelper 9 util/SmsIntentHelper.kt
 SpamPrefix 9 util/SpamPrefix.kt
-AvatarInitial 8 domain/ui/AvatarInitial.kt
-AvatarTints 8 presentation/component/AvatarTints.kt
 SaveGuard 8 presentation/util/SaveGuard.kt
 DefaultSmsAppHelper 8 util/DefaultSmsAppHelper.kt
 NavApp 7 util/NavApp.kt
@@ -26,11 +26,13 @@ InboxClassifier 5 domain/inbox/InboxClassifier.kt
 RepresentativeJob 5 domain/job/RepresentativeJob.kt
 OutboxRules 5 domain/outbox/OutboxRules.kt
 MapGeo 5 util/MapGeo.kt
+CollabPartnerGroups 4 domain/collab/CollabPartnerGroups.kt
 SpamKeywordMatch 4 domain/inbox/SpamKeywordMatch.kt
 OutboxWording 4 presentation/util/OutboxWording.kt
 CallLogHelper 4 util/CallLogHelper.kt
 ContactNameResolver 4 util/ContactNameResolver.kt
 DataBackup 4 util/DataBackup.kt
+RecordShot 4 util/RecordShot.kt
 CollabDayCheck 3 domain/collab/CollabDayCheck.kt
 BucketPolicy 3 domain/inbox/BucketPolicy.kt
 DefiniteAd 3 domain/inbox/DefiniteAd.kt

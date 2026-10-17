@@ -217,11 +217,12 @@ object RecordShot {
         c.restore()
     }
 
-    private fun font(ctx: Context, id: Int): Typeface? = runCatching {
+    // font · paint · fit 은 **정산서(SettlementShot)도 같이 쓴다** — 글자 그리는 도구를 두 벌 두지 않으려고 internal. (2026-10-17)
+    internal fun font(ctx: Context, id: Int): Typeface? = runCatching {
         ResourcesCompat.getFont(ctx, id)
     }.getOrNull()
 
-    private fun paint(tf: Typeface?, sizePx: Float, color: Int, align: Paint.Align = Paint.Align.LEFT) =
+    internal fun paint(tf: Typeface?, sizePx: Float, color: Int, align: Paint.Align = Paint.Align.LEFT) =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = tf; textSize = sizePx; this.color = color; textAlign = align
         }
@@ -231,7 +232,7 @@ object RecordShot {
      *   사장님 상호가 "줄눈시공 탄성코트의 시작, 하우스픽" 처럼 길 수 있다.
      *   크기를 고정해두면 그림 밖으로 넘친다(2026-09-24 미리보기에서 확인).
      */
-    private fun fit(p: Paint, text: String, maxW: Float, from: Float, min: Float): Paint {
+    internal fun fit(p: Paint, text: String, maxW: Float, from: Float, min: Float): Paint {
         var sz = from
         p.textSize = sz
         while (sz > min && p.measureText(text) > maxW) {
@@ -746,8 +747,11 @@ object RecordShot {
             }.getOrNull()
         }
 
-    /** 다른 앱으로 보내기(인스타·카톡 등). 견적서 발행과 **같은 길**(cacheDir/shared + FileProvider). */
-    fun share(ctx: Context, bmp: Bitmap, name: String) {
+    /**
+     * 다른 앱으로 보내기(인스타·카톡 등). 견적서 발행과 **같은 길**(cacheDir/shared + FileProvider).
+     * @return 공유 창을 띄웠으면 true. false 면 부르는 쪽이 **화면에 말한다**(§13① — 조용히 삼키지 않는다).
+     */
+    fun share(ctx: Context, bmp: Bitmap, name: String): Boolean =
         runCatching {
             val dir = File(ctx.cacheDir, "shared").apply { mkdirs() }
             val f = File(dir, "$name.png")
@@ -761,6 +765,5 @@ object RecordShot {
             ctx.startActivity(Intent.createChooser(send, "어디에 올릴까요?").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             })
-        }
-    }
+        }.isSuccess
 }

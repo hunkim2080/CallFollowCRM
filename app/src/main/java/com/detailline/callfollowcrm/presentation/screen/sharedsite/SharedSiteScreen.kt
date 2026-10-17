@@ -714,11 +714,19 @@ private fun ListArea(
             Spacer(Modifier.height(6.dp))
             Text("금액은 나와 이 사장님 사이 일당만 보여요. 완료된 현장 기준이에요.",
                 fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+            // 🧾 정산서 한 장 — 완료 건만 모아 이미지로(갤러리 저장·공유). 버튼·미리보기는 SharedSiteSettlement.kt. (2026-10-17 사장님)
+            SettlementStatementButton(openPartner)
+            Spacer(Modifier.height(10.dp))
             // 달별로 — 「2026년 10월 · 3곳 · 받은 일당 45만원」 머리 + 그 달 현장. 최신 달이 위. (2026-10-16 사장님 "월별로 보여야지")
-            CollabPartnerGroups.byMonth(openPartner.sites).forEach { month ->
+            //   달 머리를 누르면 접힘/펼침 — 기본은 최근 달만 펼침(달이 쌓여도 머리만 쭉). 판단은 MonthFold 한 곳. (2026-10-17 사장님)
+            val months = remember(openPartner.sites) { CollabPartnerGroups.byMonth(openPartner.sites) }
+            val fold = rememberMonthFold(months)
+            months.forEach { month ->
                 // 달 머리줄은 SharedSiteRows.kt 의 CollabMonthHeader 한 곳 — 「내가 공유한 현장」과 같은 얼굴.
-                CollabMonthHeader(month.ym, "${month.count}곳" + (if (month.wageSum > 0) " · 받은 일당 ${month.wageSum}만원" else ""))
-                month.sites.forEach { site ->
+                val open = fold.isOpen(month.ym)
+                CollabMonthHeader(month.ym, "${month.count}곳" + (if (month.wageSum > 0) " · 받은 일당 ${month.wageSum}만원" else ""),
+                    open = open, onToggle = { fold.toggle(month.ym) })
+                if (open) month.sites.forEach { site ->
                     // 업체 내역 줄 = 날짜 기둥 + 단지명/도로명 2줄 + 상태·일당 (프로토 확정 2026-10-17). 손잡기·업체명·출근시간 없음 — 이미 그 업체 화면.
                     SiteRow(site, onClick = { onOpen(site) }, mode = SiteRowMode.PartnerDetail)
                     Spacer(Modifier.height(9.dp))
@@ -979,9 +987,13 @@ private fun MySharedArea(
                 fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
             )
             // 달별로 — 공유받은 업체 내역과 **같은 달 머리**(「2026년 10월 ……… N곳」). 묶기는 CollabPartnerGroups.byMonth 재사용, 최신 달이 위. (2026-10-17 사장님)
-            CollabPartnerGroups.byMonth(sites).forEach { month ->
-                CollabMonthHeader(month.ym, "${month.count}곳")
-                month.sites.forEach { site ->
+            //   달 머리를 누르면 접힘/펼침 — 기본은 최근 달만 펼침. 판단은 업체 내역과 같은 MonthFold 한 곳. (2026-10-17 사장님)
+            val months = remember(sites) { CollabPartnerGroups.byMonth(sites) }
+            val fold = rememberMonthFold(months)
+            months.forEach { month ->
+                val open = fold.isOpen(month.ym)
+                CollabMonthHeader(month.ym, "${month.count}곳", open = open, onToggle = { fold.toggle(month.ym) })
+                if (open) month.sites.forEach { site ->
                     MySharedSwipeBox(onDelete = { onDelete(site) }) {
                         MySharedDetailRow(site, onClick = { onOpen(site) })
                     }
