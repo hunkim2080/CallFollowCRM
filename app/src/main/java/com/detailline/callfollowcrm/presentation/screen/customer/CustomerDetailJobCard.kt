@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Handshake
@@ -179,6 +180,11 @@ internal fun JobDetailCard(
     // 머리에 날짜가 있고 눌러 고칠 수 있으면(진행 중인 건) 몸통의 「시공 예약」 줄은 안 그린다 — 같은 말 두 번 X.
     //   접힌 건(완료)은 머리 날짜가 펼침 손잡이라 몸통 줄로 고친다. 날짜 없는 건은 몸통 줄이 「눌러서 설정」 입구.
     val headHasDate = job != null && !folded && scheduled != null
+    // 🗑 지울 수 있는 건 = 저장소(JobRepository.deleteJob)와 **같은 한 규칙**(JobDeleteRule). (2026-10-17 사장님 실기)
+    //   전엔 「취소/완전히 빈 건」만 칩을 보여줘, 문자 주소로 잘못 생긴 **주소만 든 날짜 미정 2차**는
+    //   저장소는 지울 수 있는데 카드엔 더보기조차 안 떴다 — "취소/삭제할 데가 안 보인다".
+    //   트리거는 **카드 우측상단 X** 한 곳(사장님 "더보기 말고 X") — 진짜 건(날짜·돈·받음 중 하나라도)엔 안 뜬다.
+    val canDeleteJob = job != null && com.detailline.callfollowcrm.domain.job.JobDeleteRule.canDelete(job)
 
     TossCard(onClick = if (folded && !expanded) ({ expanded = true }) else null) {
         Column {
@@ -191,7 +197,8 @@ internal fun JobDetailCard(
                             jobId, job.scheduledWorkDate,
                             job.scheduledWorkDays.coerceAtLeast(1), job.scheduledWorkMinutes
                         )
-                    }
+                    },
+                    onDelete = if (canDeleteJob) ({ host.onDeleteJob(job) }) else null
                 )
             } else {
                 // 건이 없는 고객만 옛 「일정 · 정산」 머리 그대로.
@@ -844,7 +851,7 @@ internal fun JobDetailCard(
             // ── ④ foot — 프로토 `.foot`: **작은 회색 한 줄**에 선택사항을 모은다. (2026-10-15 사장님 "협업 줄이 너무 큰 느낌" / Fable §2 ④)
             //   [총 N · 계약금 N]  [🤝 협업]  [접수서 N장]  [⋯ 더보기]
             //   협업·접수서는 전용 줄(구분선 + 캐럿)을 없애고 여기로 — 부를 수도 안 부를 수도 있는 건 작게.
-            //   자주 안 쓰는 일(A/S·취소·사진 골라 지우기·이 건 지우기)은 ⋯ 더보기 안 — 평소엔 안 보인다.
+            //   자주 안 쓰는 일(A/S·취소·사진 골라 지우기)은 ⋯ 더보기 안 — 평소엔 안 보인다. (빈 건 지우기는 머리 X. 2026-10-17)
             //   넘치면 다음 줄로(FlowRow). 저장·해제·삭제 경로는 전과 같다(CollabAfterCard / IssuedDocList / 확인창).
             run {
                 val hasDate = cShown.scheduledWorkDate != null
@@ -881,10 +888,7 @@ internal fun JobDetailCard(
                     else -> "문서"
                 }
                 var intakeExpanded by remember(jobId) { mutableStateOf(false) }
-                // 🗑 지울 수 있는 건 = 저장소(JobRepository.deleteJob)와 **같은 한 규칙**(JobDeleteRule). (2026-10-17 사장님 실기)
-                //   전엔 「취소/완전히 빈 건」만 칩을 보여줘, 문자 주소로 잘못 생긴 **주소만 든 날짜 미정 2차**는
-                //   저장소는 지울 수 있는데 카드엔 더보기조차 안 떴다 — "취소/삭제할 데가 안 보인다".
-                val canDeleteJob = job != null && com.detailline.callfollowcrm.domain.job.JobDeleteRule.canDelete(job)
+                // (「이 건 지우기」는 카드 머리 우측상단 X 로 갔다 — 판정 canDeleteJob 은 위 한 곳. 2026-10-17 사장님)
                 // 🔧 A/S 잡을 수 있는 자리(고객 단위, 아직 A/S 안 잡힘). 시공 전이면 **대표 건 더보기** 안,
                 //   완납·완료한 건이면 **그 건 foot 에 바로** — 대표가 아니어도. (2026-10-15 사장님: 완납 손님이 A/S 신청, 대표 아닌 완납 건에서도 보이게)
                 val asCanBook = isPrimary && scheduled != null && c.asScheduledDate == null
@@ -895,7 +899,7 @@ internal fun JobDetailCard(
                 // ⋯ 더보기는 **안에 칩이 하나라도 있을 때만** — 아래 펼침 블록의 조건과 같은 식. (완납 취소는 잔금 줄로 갔다. 2026-10-15)
                 val showMore = (asCanBook && !asReadyHere) || holdCanMark ||
                     (isPrimary && c.asPendingAt == null) ||
-                    (scheduled != null && !allPaid) || canDeleteJob || (photoTotal > 0 && !pickMode)
+                    (scheduled != null && !allPaid) || (photoTotal > 0 && !pickMode)
                 var moreActionsExpanded by remember(jobId) { mutableStateOf(false) }
 
                 CdCardDivider()
@@ -943,7 +947,7 @@ internal fun JobDetailCard(
                     if (asReadyHere) {
                         CdUndoChip("A/S 잡기", danger = false, filled = true, icon = Icons.Filled.Build) { host.onAsPicker() }
                     }
-                    // ⋯ 더보기 — A/S·취소·사진 골라 지우기·이 건 지우기. 자주 안 쓰니 평소엔 접어둔다. (2026-10-15 사장님 "버튼이 너무 많다")
+                    // ⋯ 더보기 — A/S·취소·사진 골라 지우기. 자주 안 쓰니 평소엔 접어둔다. (2026-10-15 사장님 "버튼이 너무 많다")
                     if (showMore) {
                         CdUndoChip(
                             if (moreActionsExpanded) "닫기" else "더보기",
@@ -1048,11 +1052,7 @@ internal fun JobDetailCard(
                         if (photoTotal > 0 && !pickMode) {
                             CdUndoChip("사진 골라 지우기", danger = false) { pickMode = true; moreActionsExpanded = false }
                         }
-                        // 🗑 취소·빈 건만 지울 수 있다 — 옛 '지난 건' 목록에 있던 삭제 경로 그대로(확인창은 화면단 — host.onDeleteJob).
-                        if (canDeleteJob) {
-                            val jobToDelete = job
-                            CdUndoChip("이 건 지우기", danger = true) { host.onDeleteJob(jobToDelete) }
-                        }
+                        // (빈 건 지우기는 카드 머리 X — 여기 두 벌로 두지 않는다. 2026-10-17)
                     }
                 }
 
@@ -1083,7 +1083,9 @@ private fun JobCardHead(
     folded: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit,
-    onEditDate: () -> Unit
+    onEditDate: () -> Unit,
+    /** 🗑 우측상단 조용한 회색 X — **지울 수 있는 빈 건(JobDeleteRule)일 때만** 넘어온다. null 이면 안 그린다. (2026-10-17 사장님 "더보기 말고 X") */
+    onDelete: (() -> Unit)? = null
 ) {
     val cancelled = jobCancelled(job)
     // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
@@ -1167,6 +1169,18 @@ private fun JobCardHead(
                 Icons.Default.KeyboardArrowDown, if (expanded) "접기" else "펼치기", tint = TossTextTertiary,
                 modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = if (expanded) 180f else 0f }
             )
+        }
+        // 🗑 잘못 생긴 빈 건(날짜·돈·받음 도장 전부 없음)만 — 작고 회색이라 내용과 안 싸운다. 누르면 기존 확인창 → deletePastJob.
+        if (onDelete != null) {
+            Spacer(Modifier.width(4.dp))
+            Box(
+                Modifier.size(24.dp).clip(CircleShape).clickable(onClick = onDelete),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                androidx.compose.material3.Icon(
+                    Icons.Default.Close, "이 건 지우기", tint = TossTextTertiary, modifier = Modifier.size(14.dp)
+                )
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 # 화면 코드에 손으로 적은 값(색·글자크기·모서리) 개수 — 늘어나면 빌드 실패.
 # 다시 적기: gradlew styleBaselineUpdate   (줄었을 때만 하세요)
 # theme/ 와 screen/expo/(박람회)는 세지 않습니다.
-# 총 2610곳 / 75파일
+# 총 2597곳 / 75파일
 component/AccountInput.kt 10
 component/AddressSearchDialog.kt 4
 component/CallSummaryConsentDialog.kt 9
@@ -43,7 +43,7 @@ screen/home/HomeScreenCards.kt 121
 screen/home/MessageBoxSection.kt 14
 screen/login/LoginScreen.kt 33
 screen/newleads/NewLeadsScreen.kt 45
-screen/notebook/NotebookScreen.kt 49
+screen/notebook/NotebookScreen.kt 46
 screen/notification/NotificationCenterScreen.kt 9
 screen/onboarding/OnboardingPermissionScreen.kt 2
 screen/onboarding/OnboardingScreen.kt 98
@@ -57,22 +57,22 @@ screen/recurring/RecurringMessagesScreen.kt 14
 screen/reminder/ScheduleReminderScreen.kt 6
 screen/report/ReportScreen.kt 37
 screen/schedule/ScheduleAddScreen.kt 61
-screen/schedule/ScheduleParts.kt 43
+screen/schedule/ScheduleParts.kt 40
 screen/schedule/ScheduleScreen.kt 66
-screen/search/SearchScreen.kt 49
+screen/search/SearchScreen.kt 46
 screen/settings/SettingsCards.kt 54
 screen/settings/SettingsScreen.kt 169
 screen/settings/SoundSettingsScreen.kt 13
 screen/settlement/CashFlowSection.kt 26
 screen/settlement/SettlementScreen.kt 51
 screen/sharedsite/SharedSiteParts.kt 5
-screen/sharedsite/SharedSiteScreen.kt 238
+screen/sharedsite/SharedSiteScreen.kt 237
 screen/signup/SignupScreen.kt 30
 screen/spam/SpamListScreen.kt 3
 screen/stats/StatsScreen.kt 55
 screen/stats/VisitedScreen.kt 13
 screen/stylelearning/StyleLearningScreen.kt 44
-screen/team/TeamScreen.kt 48
+screen/team/TeamScreen.kt 45
 screen/template/TemplateDiscoverScreen.kt 14
 screen/template/TemplateEditScreen.kt 3
 screen/template/TemplateListScreen.kt 12

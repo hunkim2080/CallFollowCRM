@@ -1,7 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.notebook
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -425,13 +424,7 @@ private fun PhraseSheet(
     )
 }
 
-private val AV_TINTS = listOf(
-    LightColors.primaryBg to LightColors.primary,
-    LightColors.doneBg to Color(0xFF12B886),
-    Color(0xFFFFF1E6) to Color(0xFFFB8C00),
-    LightColors.categoryBg to LightColors.category,
-    LightColors.unpaidBg to LightColors.unpaid,
-)
+// 아바타 5색은 presentation/component/AvatarTints.PALETTE **한 곳**(여기 있던 사본은 주황이 섞인 조금 다른 벌이었다). (2026-10-17 일곱 벌 합침)
 
 @Composable
 private fun ContactCard(
@@ -443,7 +436,7 @@ private fun ContactCard(
 ) {
     val context = LocalContext.current
     val isWorker = c.kind == NotebookContactEntity.KIND_WORKER
-    val tint = AV_TINTS[((c.id % AV_TINTS.size).toInt() + AV_TINTS.size) % AV_TINTS.size]
+    val tint = com.detailline.callfollowcrm.presentation.component.AvatarTints.at(c.id)
     TossCard {
         Column {
             // 프로토 wk-head — 아바타 + 이름·분류·번호·현장 + 단가. 일당은 헤더 탭 = 협업 이력 페이지. (2026-07-10 사장님)
@@ -452,7 +445,7 @@ private fun ContactCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(tint.first), contentAlignment = Alignment.Center) {
-                    Text(c.name.take(1), color = tint.second, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Text(com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(c.name).ifBlank { "?" }, color = tint.second, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                 }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {

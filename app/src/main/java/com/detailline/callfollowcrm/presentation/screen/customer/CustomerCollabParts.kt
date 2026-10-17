@@ -706,7 +706,7 @@ internal fun CollabShareSheet(
                                 ) {
                                     if (on) Icon(Icons.Default.Check, null, tint = Color.White,
                                         modifier = Modifier.size(16.dp))
-                                    else Text(w.name.take(1), fontSize = 13.sp,
+                                    else Text(com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(w.name).ifBlank { "?" }, fontSize = 13.sp,
                                         fontWeight = FontWeight.Black, color = AppTheme.colors.category)
                                 }
                                 Spacer(Modifier.width(11.dp))

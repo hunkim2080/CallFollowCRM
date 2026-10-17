@@ -131,7 +131,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -167,7 +166,6 @@ import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppSize
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppType
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
 import androidx.compose.ui.tooling.preview.Preview
 import com.detailline.callfollowcrm.util.DateTimeUtils
@@ -396,19 +394,10 @@ internal fun dialHome(context: android.content.Context, phone: String) {
     com.detailline.callfollowcrm.util.PhoneDialer.open(context, phone)
 }
 
-/**
- * 아바타 원 — **한 색.** (2026-09-20 사장님)
- *   전엔 다섯 색이 번갈아 붙어 김=파랑, 박=초록 … 처럼 보였다. 그런데 그 색에는 **뜻이 없다**
- *   (이름 순서일 뿐). 색은 **상태에만** 쓴다 — 완료는 초록, 미수는 빨강처럼.
- *   사람마다 색이 다르면 그 규칙이 흐려진다.
- *   ⚠️ 목록은 리스트가 5색을 돌려 쓰던 자리라 한 칸짜리로 남겨 둔다(호출부 그대로).
- */
-internal val AV_TINTS = listOf(
-    LightColors.primaryBg to LightColors.primaryText,
-)
+// 아바타 색표는 presentation/component/AvatarTints **한 곳**(손님 = SINGLE 한 색 — 2026-09-20 사장님 "색은 상태에만"). 여기 있던 한 칸짜리 사본은 지움. (2026-10-17)
 
 /**
- * 📥 상담함 아이콘에 켜는 **상태 불** — 색은 상태에만 쓴다(2026-09-20 사장님, 위 [AV_TINTS] 주석). (2026-10-15 사장님 "아이콘 색으로 빠른 눈대중")
+ * 📥 상담함 아이콘에 켜는 **상태 불** — 색은 상태에만 쓴다(2026-09-20 사장님, AvatarTints.SINGLE 주석). (2026-10-15 사장님 "아이콘 색으로 빠른 눈대중")
  *   NONE = 상담함 밖 호출부(예: 오늘 일정)용 — 옛 한 색 그대로. 상담함 줄은 아래 [inboxAvatarStatus] 로 늘 하나를 받는다.
  */
 enum class InboxAvatarStatus { NONE, URGENT, WAITING, UNREAD, SCHEDULED, QUIET }

@@ -4,7 +4,6 @@ import androidx.compose.material.icons.filled.Person
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.withStyle
@@ -737,12 +736,9 @@ private fun EmptyMini(filter: SettleFilter) {
     com.detailline.callfollowcrm.presentation.component.MascotEmptyState(speech = msg)
 }
 
-/* ─────────────── 아바타 (프로토 AV_TINTS) ─────────────── */
+/* ─────────────── 아바타 ─────────────── */
 
-/** 아바타는 **한 색** — 상담함·고객정보와 같게. 색은 상태에만 쓴다. (2026-09-20 사장님) */
-private val AV_TINTS = listOf(
-    LightColors.primaryBg to LightColors.primaryText,
-)
+// 아바타는 **한 색** — 상담함·고객정보와 같게(2026-09-20 사장님). 색표는 AvatarTints.SINGLE, 글자는 AvatarInitial **한 곳**. (2026-10-17 일곱 벌 합침)
 
 @Composable
 private fun Avatar(name: String?, index: Int, small: Boolean = false) {
@@ -760,8 +756,9 @@ private fun Avatar(name: String?, index: Int, small: Boolean = false) {
         }
         return
     }
-    val (bg, fg) = AV_TINTS[index % AV_TINTS.size]
-    val initial = name.replace(Regex("[\\s()]"), "").take(1)
+    val single = com.detailline.callfollowcrm.presentation.component.AvatarTints.SINGLE
+    val (bg, fg) = single[index % single.size]
+    val initial = com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(name).ifBlank { "?" }
     Box(Modifier.size(sz).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
         Text(initial, fontSize = if (small) 14.sp else 16.sp, fontWeight = FontWeight.ExtraBold, color = fg)
     }

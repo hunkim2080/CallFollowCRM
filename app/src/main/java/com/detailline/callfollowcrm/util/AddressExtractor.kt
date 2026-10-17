@@ -57,6 +57,56 @@ object AddressExtractor {
         return s
     }
 
+    /**
+     * 주소를 **두 줄**로 — (1번째 줄 = 단지명 / 없으면 도로명 전체, 2번째 줄 = 도로명 · 동호수 / 단지명 없으면 null).
+     *   협업 「업체 내역」 줄에서만 쓴다(2026-10-17 사장님 프로토). 다른 화면의 제목은 [siteLabel]·[roughSite] 그대로.
+     *
+     *   "인천 연수구 컨벤시아대로 42번길 7, 더샵 센트럴시티 101동 1203호" → ("더샵 센트럴시티", "인천 연수구 컨벤시아대로 42번길 7 · 101동 1203호")
+     *   "안양시 박달동 한라 비발디 105동 1704호"                            → ("한라 비발디", "안양시 박달동 · 105동 1704호")
+     *   "서울 서대문구 응암로 28"                                            → ("서울 서대문구 응암로 28", null)
+     *
+     *   단지명 찾기: ① 쉼표가 있으면 마지막 쉼표 뒤 ② 없으면 **마지막 행정·도로 토큰**(…시/군/구/동/읍/면/로/길·번지 숫자) **뒤의 낱말들**.
+     *   아파트 없는 주소는 (전체, null) 로 **자연스럽게 내려간다** — 빈 「·」 나 깨진 조각은 안 나온다.
+     */
+    fun twoLine(raw: String?): Pair<String, String?> {
+        val s = tidyAddress(raw)
+        if (s.isBlank()) return "" to null
+        // ① 끝에 붙은 동호수 떼기 — "101동 1203호" · "1203호" · "101동". 숫자 없는 행정동(천호동)은 안 뗀다.
+        val tail = TWO_LINE_TAIL_RX.find(s)
+        val unit = tail?.groupValues?.get(1)?.replace(Regex("\\s+"), " ")?.trim()
+        val head = (if (tail != null) s.substring(0, tail.range.first) else s).trim().trimEnd(',').trim()
+        if (head.isBlank()) return s to null
+        // ② 단지명 — 쉼표 뒤가 있으면 그것, 없으면 마지막 행정·도로 토큰 뒤.
+        val road: String
+        val complex: String
+        val lastComma = head.lastIndexOf(',')
+        if (lastComma >= 0 && head.substring(lastComma + 1).isNotBlank()) {
+            road = head.substring(0, lastComma).trim()
+            complex = head.substring(lastComma + 1).trim()
+        } else {
+            val tokens = head.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val lastAdmin = tokens.indexOfLast { TWO_LINE_ADMIN_TOKEN_RX.matches(it.trim(',')) }
+            road = tokens.take(lastAdmin + 1).joinToString(" ")
+            complex = tokens.drop(lastAdmin + 1).joinToString(" ")
+        }
+        val name = complex.trim().trim('(', ')', ',').trim()
+        if (name.isBlank()) return s to null
+        val second = listOfNotNull(road.takeIf { it.isNotBlank() }, unit?.takeIf { it.isNotBlank() })
+            .joinToString(" · ")
+        return name to second.ifBlank { null }
+    }
+
+    /** [twoLine] 의 끝 동호수 — "101동 1203호" / "1203호" / "101동" 가 **맨 끝**에 있을 때만. */
+    private val TWO_LINE_TAIL_RX = Regex("\\s*제?\\s*(\\d{1,4}동(?:\\s*\\d{1,5}호)?|\\d{1,5}호)\\s*$")
+
+    /**
+     * [twoLine] 의 행정·도로 토큰 — 시/군/구/동/읍/면/로/길/대로 로 끝나거나, 번지·건물번호 숫자(42번길·7·398-3·12번지).
+     *   ⚠️ '리' 는 일부러 뺐다 — "마곡엠밸리" 같은 단지명이 행정 토큰으로 먹힌다. 시골 「○○리 123」은 번지 숫자가 대신 끊어 준다.
+     */
+    private val TWO_LINE_ADMIN_TOKEN_RX = Regex(
+        "(?:[가-힣\\d]{1,15}(?:시|군|구|동|읍|면|대로|로|길)|\\d{1,5}(?:-\\d{1,5})?(?:번지|번길)?|\\d{1,4}[가-힣]?길)"
+    )
+
     /** 광역시·특별시 짧은 이름 — roughSite 가 "구"를 우선 쓸지 판단. */
     private val METRO_CITIES = listOf("서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종")
     /**

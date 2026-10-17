@@ -5,7 +5,6 @@ import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.material.icons.filled.AutoAwesome
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
@@ -572,13 +571,8 @@ internal fun AssignBtn(label: String, filled: Boolean, onClick: () -> Unit) {
     )
 }
 
-internal val ASSIGN_TINTS = listOf(
-    Color(0xFFE6EFFF) to LightColors.primary,
-    LightColors.doneBg to Color(0xFF16A765),
-    LightColors.unpaidBg to LightColors.unpaid,
-    LightColors.categoryBg to LightColors.category,
-    LightColors.cautionBg to Color(0xFFE0920C),
-)
+// 협업 배정 칩 5색 — 프로토 avatarHtml 과 같은 팔레트. 색표는 AvatarTints.PALETTE **한 곳**, 이 이름은 부르는 곳(ScheduleScreen)을 안 건드리려고 둔 입구. (2026-10-17 일곱 벌 합침)
+internal val ASSIGN_TINTS = com.detailline.callfollowcrm.presentation.component.AvatarTints.PALETTE
 
 /** "5월 29일 (금)" — 프로토 cal-day-label 포맷 (연도 없음). */
 internal fun koreanMonthDay(ms: Long): String =

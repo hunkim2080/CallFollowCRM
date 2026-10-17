@@ -2,7 +2,6 @@ package com.detailline.callfollowcrm.presentation.screen.customers
 
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -228,10 +227,12 @@ private fun CustomerRow(c: CustomerEntity, status: String, category: com.detaill
         verticalAlignment = Alignment.CenterVertically
     ) {
         // .avatar — 읽을 글자가 있으면 파란 원+글자, 없으면(번호만·이모지 이름) 회색+사람 아이콘
-        val initial = if (hasName) avatarInitial(title) else ""
+        // 글자·색은 공용 한 곳(AvatarInitial · AvatarTints.SINGLE) — 2026-10-17 일곱 벌을 합침.
+        val initial = if (hasName) com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(title) else ""
+        val tint = com.detailline.callfollowcrm.presentation.component.AvatarTints.SINGLE[0]
         Box(
             Modifier.size(44.dp).background(
-                if (initial.isNotEmpty()) AV_TINTS[0].first else TossGrayBg,
+                if (initial.isNotEmpty()) tint.first else TossGrayBg,
                 CircleShape
             ),
             contentAlignment = Alignment.Center
@@ -240,7 +241,7 @@ private fun CustomerRow(c: CustomerEntity, status: String, category: com.detaill
                 Text(
                     initial,
                     fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
-                    color = AV_TINTS[0].second
+                    color = tint.second
                 )
             } else {
                 Icon(Icons.Default.Person, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
@@ -295,29 +296,11 @@ private fun CategoryTagChip(cat: com.detailline.callfollowcrm.data.local.entity.
 // 🚫 「미전환」 뺀다. 딱지를 안 붙이니 걸러볼 것도 없다. (2026-09-27 사장님 "없어도 될 태그인듯")
 private val CUST_STATUSES = listOf("전체", "신규", "예약", "시공확인", "잔금미수", "완료")
 
-/**
- * 아바타는 **한 색.** (2026-09-21 사장님)
- *   전엔 다섯 색이 번갈아 붙어 가=주황, 무=파랑 … 처럼 보였는데 그 색엔 **뜻이 없다**(id 나머지일 뿐).
- *   색은 **상태에만** 쓴다 — 완료는 초록, 미수는 빨강처럼. 상담함·고객정보·정산과 같은 규칙.
- *   ⚠️ 한 칸짜리로 두는 이유: 호출부가 `AV_TINTS[id % size]` 로 쓰고 있어 그대로 둬도 동작한다.
- */
-private val AV_TINTS = listOf(
-    LightColors.primaryBg to LightColors.primaryText
-)
+// 아바타는 **한 색**(2026-09-21 사장님 "색은 상태에만") — 색표는 AvatarTints.SINGLE, 글자(이모지 건너뛰기)는 AvatarInitial.of **한 곳**. (2026-10-17 일곱 벌 합침)
 
 // custTag 색표 삭제 — StatusTag 와 함께 쓰는 곳이 없어졌다.
 //   색은 공용 CustomerStatusTag.statusColors 한 곳에서만 정한다. (2026-09-27)
 
-/**
- * 아바타 글자 — 공백·괄호를 지운 뒤 **읽을 수 있는 첫 글자**.
- *   이름이 이모지로 시작하면(💖사랑하는 …) 전엔 첫 글자를 못 읽어 **?** 가 떴다. (2026-09-21 사장님)
- *   이모지·기호는 건너뛰고 한글/영문/숫자를 찾는다. 그래도 없으면 빈 값 → 호출부가 사람 아이콘을 그린다.
- */
-private fun avatarInitial(name: String): String {
-    val cleaned = name.replace(Regex("[\\s()]"), "")
-    val ch = cleaned.firstOrNull { it.isLetterOrDigit() }
-    return ch?.toString() ?: ""
-}
 // 🕛 오늘 0시 셈은 **DateTimeUtils 한 곳**. (2026-10-03)
 private fun startOfToday(): Long {
     return DateTimeUtils.startOfDay(System.currentTimeMillis())

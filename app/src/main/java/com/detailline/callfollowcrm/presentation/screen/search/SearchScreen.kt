@@ -2,7 +2,6 @@ package com.detailline.callfollowcrm.presentation.screen.search
 
 import androidx.compose.material.icons.filled.Place
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.clickable
@@ -312,7 +311,8 @@ fun SearchScreen(
 private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) {
     val hasName = r.name?.isNotBlank() == true
     val title = r.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(r.phone)
-    val tintIdx = (((r.customerId ?: r.phone.hashCode().toLong()) % AV_TINTS.size + AV_TINTS.size) % AV_TINTS.size).toInt()
+    // 색표·글자는 공용 한 곳(AvatarTints.PALETTE · AvatarInitial) — 2026-10-17 일곱 벌을 합침.
+    val tint = com.detailline.callfollowcrm.presentation.component.AvatarTints.at(r.customerId ?: r.phone.hashCode().toLong())
     Row(
         Modifier
             .fillMaxWidth()
@@ -322,14 +322,14 @@ private fun SearchRow(r: SearchResult, query: String = "", onClick: () -> Unit) 
     ) {
         Box(
             Modifier.size(44.dp).background(
-                if (hasName) AV_TINTS[tintIdx].first else TossGrayBg, CircleShape
+                if (hasName) tint.first else TossGrayBg, CircleShape
             ),
             contentAlignment = Alignment.Center
         ) {
             if (hasName) {
                 Text(
-                    title.replace(Regex("[\\s()]"), "").firstOrNull()?.toString() ?: "?",
-                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = AV_TINTS[tintIdx].second
+                    com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(title).ifBlank { "?" },
+                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = tint.second
                 )
             } else {
                 Icon(Icons.Filled.Person, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
@@ -522,14 +522,7 @@ private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
     }
 }
 
-// 프로토 avatarHtml 틴트 5색 [bg, fg].
-private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to LightColors.primary,
-    LightColors.doneBg to Color(0xFF16A765),
-    LightColors.unpaidBg to LightColors.unpaid,
-    LightColors.categoryBg to LightColors.category,
-    LightColors.cautionBg to Color(0xFFE0920C)
-)
+// 프로토 avatarHtml 틴트 5색은 presentation/component/AvatarTints.PALETTE **한 곳**. (2026-10-17 일곱 벌 합침)
 
 @Composable
 private fun CenterHint(text: String) {

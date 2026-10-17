@@ -196,4 +196,66 @@ class AddressExtractorTest {
         val r = AddressExtractor.extractOne("3동 101호로 와주세요")
         assertTrue(r == null || r!!.contains("호"))
     }
+
+    // ---------- twoLine: 협업 「업체 내역」 줄 — 1줄 단지명 / 2줄 도로명 · 동호수 (2026-10-17 사장님 프로토) ----------
+
+    @Test fun `twoLine - 도로명, 단지명 동호수 (쉼표) → 단지명 위, 도로명 · 동호수 아래`() {
+        val (a, b) = AddressExtractor.twoLine("인천 연수구 컨벤시아대로 42번길 7, 더샵 센트럴시티 101동 1203호")
+        assertEquals("더샵 센트럴시티", a)
+        assertEquals("인천 연수구 컨벤시아대로 42번길 7 · 101동 1203호", b)
+    }
+
+    @Test fun `twoLine - 아파트 없는 도로명은 (전체, null) 로 내려간다`() {
+        val (a, b) = AddressExtractor.twoLine("서울 서대문구 응암로 28")
+        assertEquals("서울 서대문구 응암로 28", a)
+        assertNull(b)
+    }
+
+    @Test fun `twoLine - 시 동 띄어 쓴 단지명 동호수 (쉼표 없음)`() {
+        val (a, b) = AddressExtractor.twoLine("안양시 박달동 한라 비발디 105동 1704호")
+        assertEquals("한라 비발디", a)
+        assertEquals("안양시 박달동 · 105동 1704호", b)
+    }
+
+    @Test fun `twoLine - 구 동 붙여 쓴 단지명 동호수`() {
+        val (a, b) = AddressExtractor.twoLine("강동구 천호동 래미안강동팰리스 101동 1502호")
+        assertEquals("래미안강동팰리스", a)
+        assertEquals("강동구 천호동 · 101동 1502호", b)
+    }
+
+    @Test fun `twoLine - 괄호 단지명은 괄호를 벗긴다`() {
+        val (a, b) = AddressExtractor.twoLine("경기 수원시 장안구 대평로39번길 8 (꽃뫼노을마을 대동아파트)")
+        assertEquals("꽃뫼노을마을 대동아파트", a)
+        assertEquals("경기 수원시 장안구 대평로39번길 8", b)
+    }
+
+    @Test fun `twoLine - 단지명만 있고 지역 없으면 (단지명, 동호수)`() {
+        val (a, b) = AddressExtractor.twoLine("마곡엠밸리 7단지 705동 1203호")
+        assertEquals("마곡엠밸리 7단지", a)
+        assertEquals("705동 1203호", b)
+    }
+
+    @Test fun `twoLine - 단지명 없는 동호수는 통째로 1줄`() {
+        val (a, b) = AddressExtractor.twoLine("강남구 역삼동 502호")
+        assertEquals("강남구 역삼동 502호", a)
+        assertNull(b)
+    }
+
+    @Test fun `twoLine - 빈 값·문장 꼬리는 안 깨진다`() {
+        assertEquals("" to null, AddressExtractor.twoLine(null))
+        assertEquals("" to null, AddressExtractor.twoLine("   "))
+        val (a, b) = AddressExtractor.twoLine("경기 시흥시 가마길 2 입니다")
+        assertEquals("경기 시흥시 가마길 2", a)
+        assertNull(b)
+    }
+
+    @Test fun `twoLine - 2줄에 빈 「·」 가 절대 안 나온다`() {
+        for (raw in listOf("힐스테이트 1502호", "인천 연수구, 더샵 센트럴시티", "송파구 잠실엘스 101동 1503호", "학의동 632-32")) {
+            val (a, b) = AddressExtractor.twoLine(raw)
+            assertTrue("1줄 비면 안 됨: $raw", a.isNotBlank())
+            if (b != null) {
+                assertTrue("빈 조각: $raw → $b", !b.startsWith("·") && !b.endsWith("·") && !b.contains("·  ·"))
+            }
+        }
+    }
 }

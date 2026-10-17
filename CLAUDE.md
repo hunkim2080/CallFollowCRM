@@ -347,8 +347,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 19가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw`
+**`dup_guard` 가 지금 막는 20가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -439,6 +439,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
 | 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |
 | 주소 뽑기 | `util/AddressExtractor.kt` | 화면에서 정규식 |
+| 주소 **두 줄**(1줄 단지명 / 2줄 도로명 · 동호수, 단지 없으면 (전체, null)) — 협업 업체 내역 줄 **에서만** | `AddressExtractor.twoLine(addr)` (`util/AddressExtractor.kt`) | 화면에서 쉼표·동호수 직접 자르기, 다른 화면 제목을 이걸로 바꾸기(`siteLabel`·`roughSite` 그대로) |
+| 이름 동그라미(아바타) **글자·색** — 글자 = 이모지 건너뛴 첫 글자 / 업체는 쉼표 뒤 브랜드 첫 글자, 색 = 손님 한 색(SINGLE) / 사람·업체 가르기 5색(PALETTE, 이름 해시) | `domain/ui/AvatarInitial.kt` (`of`·`brand`·`tintIndex`) + `presentation/component/AvatarTints.kt` (`SINGLE`·`PALETTE`·`forName`·`at`) — 상담함·고객·검색·팀·정산·연락처·협업 업체 7곳이 부름 | 화면마다 `private val AV_TINTS`, `name.take(1)`·`first()` 직접 (2026-10-17: 일곱 벌이라 「색은 상태에만」이 세 화면에만 먹었다) |
 | 상담함/문자함 가르기 | `domain/inbox/InboxClassifier.kt` · `BucketPolicy.kt` | 화면에서 직접 판단 |
 | 「확실한 광고」 판정 — 알림 안 울리기(앞자리·뻔한 본문·적어둔 단어 중 하나 + 저장 고객 아님 + **인증·입금·택배면 절대 아님**) | `domain/inbox/DefiniteAd.kt` (`reason`/`isDefiniteAd`, 보호 낱말은 `util/AdHeuristics.kt` 의 `isProtectedNotice`) — 수신 알림 3곳(SmsReceiver·Application MMS 폴링·MmsDownloadedReceiver)이 부름 | 알림 자리에서 `SpamPrefix.isSpam`·`isLikelyAd`·`SpamKeywordMatch` 를 직접 조합 (2026-10-16: 인증문자를 끄면 로그인·결제를 못 한다) |
 | 「이 단어가 있으면」 낱말 맞추기·낱말 정리(trim·빈 값) | `domain/inbox/SpamKeywordMatch.kt` — `hit(body, keywords, saved, replied)` 는 **저장 고객·답장한 번호를 안 가린다**. 거는 자리는 `ThreadBucketRepository.classifyLocal` 한 곳, 저장은 `AppPreferences.spamKeywords` | 화면·수신기에서 `body.contains(keyword)` 직접, 낱말 trim 을 따로 |

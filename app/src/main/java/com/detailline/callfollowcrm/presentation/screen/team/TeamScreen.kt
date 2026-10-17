@@ -3,7 +3,6 @@
 package com.detailline.callfollowcrm.presentation.screen.team
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
-import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Intent
 import android.provider.ContactsContract
@@ -641,26 +640,20 @@ private fun AddMemberOverlay(
 /** 프로토 avatarHtml — 이니셜 아바타. */
 @Composable
 private fun Avatar(name: String, tintIndex: Int) {
-    val (bg, fg) = AV_TINTS[((tintIndex % AV_TINTS.size) + AV_TINTS.size) % AV_TINTS.size]
+    // 색표·글자는 공용 한 곳(AvatarTints.PALETTE · AvatarInitial) — 2026-10-17 일곱 벌을 합침.
+    val (bg, fg) = com.detailline.callfollowcrm.presentation.component.AvatarTints.at(tintIndex.toLong())
     Box(
         Modifier.size(44.dp).clip(RoundedCornerShape(50)).background(bg),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            name.replace(Regex("[\\s()]"), "").take(1).ifBlank { "?" },
+            com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(name).ifBlank { "?" },
             fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = fg
         )
     }
 }
 
-// 프로토 AV_TINTS [bg, fg] 5색.
-private val AV_TINTS = listOf(
-    Color(0xFFE6EFFF) to LightColors.primary,
-    LightColors.doneBg to Color(0xFF16A765),
-    LightColors.unpaidBg to LightColors.unpaid,
-    LightColors.categoryBg to LightColors.category,
-    LightColors.cautionBg to Color(0xFFE0920C),
-)
+// 프로토 avatarHtml 5색은 presentation/component/AvatarTints.PALETTE **한 곳**.
 
 /** 점선 테두리 modifier (프로토 .invite dashed border). */
 private fun Modifier.dashedBorder(width: androidx.compose.ui.unit.Dp, color: Color, radius: androidx.compose.ui.unit.Dp) =

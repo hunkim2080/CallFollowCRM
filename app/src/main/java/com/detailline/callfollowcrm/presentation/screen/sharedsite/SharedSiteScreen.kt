@@ -730,7 +730,8 @@ private fun ListArea(
                     )
                 }
                 month.sites.forEach { site ->
-                    SiteRow(site, onClick = { onOpen(site) })
+                    // 업체 내역 줄 = 날짜 기둥 + 단지명/도로명 2줄 + 상태·일당 (프로토 확정 2026-10-17). 손잡기·업체명·출근시간 없음 — 이미 그 업체 화면.
+                    SiteRow(site, onClick = { onOpen(site) }, mode = SiteRowMode.PartnerDetail)
                     Spacer(Modifier.height(9.dp))
                 }
                 Spacer(Modifier.height(4.dp))
@@ -1042,7 +1043,7 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Uni
     }
 }
 
-/** 업체별 행 — 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
+/** 업체별 행 — 색+글자 동그라미 · 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
 @Composable
 private fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit) {
     Row(
@@ -1051,8 +1052,17 @@ private fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit) {
             .clickable { onClick() }.padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
+        // 🎨 손잡기 아이콘 대신 **색 동그라미 + 브랜드 첫 글자** (프로토 확정 2026-10-17) — 업체가 한눈에 갈린다.
+        //   글자 = 상호의 브랜드 부분 첫 글자(「김사장, 하우스픽」이면 「하」), 색 = 이름 해시로 늘 같은 색.
+        //   셈은 AvatarInitial(domain/ui)·색표는 AvatarTints.PALETTE(component) **한 곳** — 팀·연락처·검색과 같은 5색.
+        val (avBg, avFg) = com.detailline.callfollowcrm.presentation.component.AvatarTints.forName(g.name)
+        val initial = com.detailline.callfollowcrm.domain.ui.AvatarInitial.brand(g.name)
+        Box(Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape).background(avBg), contentAlignment = Alignment.Center) {
+            if (initial.isBlank()) {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Handshake, null, tint = avFg, modifier = Modifier.size(18.dp))
+            } else {
+                Text(initial, style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = avFg)
+            }
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
@@ -1108,8 +1118,18 @@ private fun TrashView(
     }
 }
 
+/** 현장 한 줄 — 같은 줄을 [SiteRowMode] 로 가른다(모드 설명은 SharedSiteRows.kt). 복사해서 두 벌 만들지 않는다(§12-D). */
 @Composable
-private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {
+private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit, mode: SiteRowMode = SiteRowMode.Feed) {
+    when (mode) {
+        SiteRowMode.Feed -> FeedSiteRow(site, onClick)
+        SiteRowMode.PartnerDetail -> PartnerDetailSiteRow(site, onClick)
+    }
+}
+
+/** [SiteRowMode.Feed] — 현장순 목록 한 줄. 전과 같은 모양. */
+@Composable
+private fun FeedSiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
             .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(14.dp))
@@ -1143,6 +1163,8 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
         Text("›", fontSize = 18.sp, color = TossTextTertiary)
     }
 }
+
+// PartnerDetail 모드 줄(PartnerDetailSiteRow)·SiteRowMode 는 같은 패키지 SharedSiteRows.kt — 이 파일은 더 키우지 않는다(size_guard).
 
 @Composable
 private fun DetailBody(
@@ -1825,7 +1847,7 @@ private fun CollabPayoutAccountSection(
  *     출발·도착까지 찍은 건 그대로 둔다 — 거기서 멈춘 것을 보여주는 게 더 정확하다.
  */
 @Composable
-private fun collabStatusTag(
+internal fun collabStatusTag(
     site: SharedSiteRepository.SharedSite
 ): Triple<String, Color, Color> = when {
     // 끝난 건 끝난 것 — 날이 지났든 말든 「완료」가 맨 위다.

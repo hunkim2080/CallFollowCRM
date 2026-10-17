@@ -248,6 +248,16 @@ val dupRules = listOf(
         regex = Regex("""api/thread/classify"""),
         instead = "container.threadServerClassifier.refineIfUnsure(...) (data/repository/ThreadServerClassifier.kt) — 서버 호출은 ai/ThreadClassifyServerRepository.kt 한 곳",
         homes = listOf("/ai/ThreadClassifyServerRepository.kt")
+    ),
+
+    // 🎨 아바타 색표 — `AV_TINTS` 가 **일곱 파일**에 각각 있었다(한 색 3벌 · 5색 3벌 · 주황 섞인 5색 1벌). (2026-10-17 협업 업체 동그라미 만들며 셈)
+    //   같은 이름인데 값이 달라 "색은 상태에만"(2026-09-20)이 세 화면에만 먹었다. 이제 AvatarTints.SINGLE / .PALETTE 한 곳.
+    //   글자(이모지 건너뛰기·브랜드 첫 글자) 셈은 domain/ui/AvatarInitial.
+    DupRule(
+        id = "avatar-tints",
+        regex = Regex("""val\s+\w*_TINTS\s*=\s*listOf|fun\s+avatarInitial\s*\("""),
+        instead = "AvatarTints.SINGLE / .PALETTE / .forName(name) (presentation/component/AvatarTints.kt) · 글자는 AvatarInitial.of / .brand (domain/ui/AvatarInitial.kt)",
+        homes = listOf("/component/AvatarTints.kt", "/domain/ui/AvatarInitial.kt")
     )
 )
 
