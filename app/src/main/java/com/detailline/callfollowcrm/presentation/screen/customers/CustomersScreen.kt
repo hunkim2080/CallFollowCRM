@@ -56,9 +56,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.MoneyFormatter
 import com.detailline.callfollowcrm.presentation.component.DONE_STATUSES
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
 
 /**
  * 고객 관리 목록 화면 (프로토 s-customers / renderCustomers) — 전체 고객.
@@ -327,7 +325,7 @@ private fun customerStatus(c: CustomerEntity, today0: Long, now: Long): String =
 private fun customerSubLine(c: CustomerEntity, status: String): String {
     val parts = mutableListOf<String>()
     c.scheduledWorkDate?.let {
-        val d = SimpleDateFormat("M/d", Locale.KOREA).format(it)
+        val d = DateTimeUtils.formatMonthDay(it)
         parts += if (status in DONE_STATUSES) "$d 시공 완료" else "시공 $d"
     }
     // 정산 공용계산(SettlementCalc)의 non-stale 잔금 사용 — raw balanceAmount 는 총액 수정 후 옛 값이 남아 틀릴 수 있음. (2026-07-30 버그감사)

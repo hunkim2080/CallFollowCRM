@@ -19,9 +19,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
 import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
@@ -607,9 +605,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
             }.timeInMillis
         } else baseMs
-        val timeLabel = startHour.takeIf { it in 0..23 }?.let {
-            val ampm = if (it < 12) "오전" else "오후"; val h12 = if (it % 12 == 0) 12 else it % 12; "$ampm ${h12}시"
-        }
+        val timeLabel = startHour.takeIf { it in 0..23 }?.let { DateTimeUtils.timeLabel(it) }
         viewModelScope.launch {
             // 입력받은 주소는 고객에도 저장 — 다음부턴 자동, 데이터 보존(사장님을 버그리포터로 X). (2026-06-20)
             if (!addressOverride.isNullOrBlank() && addressOverride.trim() != customer.address) {
@@ -762,7 +758,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val sStart = DateTimeUtils.startOfDay(sched)
             val isToday = sStart == todayStart
             TeamRepository.SnapshotItem(
-                whenLabel = if (isToday) "오늘" else SimpleDateFormat("M/d", Locale.KOREA).format(java.util.Date(sStart)),
+                whenLabel = if (isToday) "오늘" else DateTimeUtils.formatMonthDay(sStart),
                 customerLabel = c.name?.takeIf { it.isNotBlank() } ?: "현장",
                 customerPhone = c.phoneNumber.takeIf { it.isNotBlank() },
                 time = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) },

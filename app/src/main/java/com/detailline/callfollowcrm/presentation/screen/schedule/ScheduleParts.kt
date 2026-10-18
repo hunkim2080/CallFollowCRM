@@ -579,7 +579,8 @@ internal fun koreanMonthDay(ms: Long): String =
 /** 달력 칸 지역명 글자 크기 — 46dp 칸에 2~3글자가 들어가는 한계값. 여기 한 곳에서만 정한다. */
 internal val CAL_REGION_TEXT_SP = 8.5.sp
 
-/** "방금 · 35건" / "오후 2:10 · 35건" / "어제 · 35건" — 버튼 밑 한 줄. (2026-09-15 사장님) */
+/** "방금 · 35건" / "오후 2시 10분 · 35건" / "10/8 · 35건" — 버튼 밑 한 줄. (2026-09-15 사장님)
+ *  시각·날짜 글자는 공용 한 곳(DateTimeUtils) — 2026-10-18 UX 감사에서 「오후 2:10」 꼴을 앱 표준 「오후 2시 10분」으로. */
 internal fun lastSyncLabel(atMs: Long, count: Int): String {
     // 아직 한 번도 안 올렸으면 시각이 없다 — "방금" 이라고 거짓말하지 않는다. (2026-09-16)
     if (atMs <= 0L) return "아직"
@@ -588,8 +589,8 @@ internal fun lastSyncLabel(atMs: Long, count: Int): String {
         diff < 60_000L -> "방금"
         diff < 60 * 60_000L -> "${diff / 60_000L}분 전"
         DateTimeUtils.startOfDay(atMs) == DateTimeUtils.startOfDay(System.currentTimeMillis()) ->
-            java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREA).format(java.util.Date(atMs))
-        else -> java.text.SimpleDateFormat("M/d", java.util.Locale.KOREA).format(java.util.Date(atMs))
+            DateTimeUtils.timeLabel(atMs)
+        else -> DateTimeUtils.formatMonthDay(atMs)
     }
     return if (count > 0) "$when_ · ${count}건" else when_
 }

@@ -10,8 +10,13 @@ object DateTimeUtils {
     private val dateTimeFormat by lazy { SimpleDateFormat("M/d HH:mm", Locale.getDefault()) }
     private val dateTimeFormatWithYear by lazy { SimpleDateFormat("yyyy.M.d HH:mm", Locale.getDefault()) }
     private val fullFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
-    private val dateOnly by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
     private val koreanDate by lazy { SimpleDateFormat("yyyy년 M월 d일 (E)", Locale.KOREAN) }
+    /**
+     * 📅 **짧은 날짜 「10/8」 — 앱 표준은 슬래시.** (2026-10-18 UX 감사 — 협업 화면만 「10.8」·「10.08」 점이었다)
+     *   같은 날짜가 홈·고객·일정은 「10/8」, 협업 현장은 「10.8」로 달라 **같은 앱이 아닌 것처럼** 보였다.
+     *   화면에서 `SimpleDateFormat` 을 새로 만들지 말고 [formatMonthDay] 를 쓴다 — dup_guard `short-date-raw` 가 막는다.
+     *   요일까지 붙는 「10/8(수)」 는 [formatDateLabel] / [formatShortKoreanDate] — 다른 뜻.
+     */
     private val monthDayShort by lazy { SimpleDateFormat("M/d", Locale.KOREAN) }
     private val shortDate by lazy { SimpleDateFormat("M/d(E)", Locale.KOREAN) }
     private val shortDateWithYear by lazy { SimpleDateFormat("yyyy.M.d(E)", Locale.KOREAN) }
@@ -32,7 +37,8 @@ object DateTimeUtils {
     }
     fun formatTime(epoch: Long): String = timeFormat.format(Date(epoch))
     fun formatFull(epoch: Long): String = fullFormat.format(Date(epoch))
-    fun formatDateOnly(epoch: Long): String = dateOnly.format(Date(epoch))
+    /** 「10/8」 — [formatMonthDay] 의 옛 입구(부르는 곳 9). 셈은 한 곳. */
+    fun formatDateOnly(epoch: Long): String = formatMonthDay(epoch)
     fun formatKoreanDate(epoch: Long): String = koreanDate.format(Date(epoch))
 
     /**
@@ -48,7 +54,7 @@ object DateTimeUtils {
         else shortDateWithYear.format(Date(epoch))
     }
 
-    /** "9/17" 같은 짧은 날짜 — 기간 꼬리표에서 끝나는 날 표시용. */
+    /** 「10/8」 짧은 날짜 — 목록 줄·딱지·날짜 기둥·기간 꼬리표 등 **연도·요일 없이 날짜만** 적는 자리 전부. */
     fun formatMonthDay(epoch: Long): String = monthDayShort.format(Date(epoch))
 
     private val monthDayKor by lazy { SimpleDateFormat("M월 d일", Locale.KOREAN) }
@@ -85,17 +91,30 @@ object DateTimeUtils {
     /** 하루 = 86,400,000 ms (한국은 DST 없음 → 안전). 시공 기간(여러 날) 계산에 사용. */
     const val DAY_MS: Long = 24L * 60 * 60 * 1000
 
-    /** 시공 시작 시각(자정부터 분, 0~1439)을 "오전 9시" / "오후 1시 30분" 으로. */
-    fun formatWorkMinutes(minutes: Int): String {
-        val h = minutes / 60
-        val m = minutes % 60
-        val ap = if (h < 12) "오전" else "오후"
-        val h12 = (h % 12).let { if (it == 0) 12 else it }
+    /**
+     * 🕐 **시각 글자 한 곳** — 정각 「오전 9시」, 분 있으면 「오후 1시 30분」. 자정 「오전 12시」, 정오 「오후 12시」.
+     *   (2026-10-18 UX 감사) 같은 셈이 8곳에 복붙돼 있었고 모양도 둘이었다 — 「오전 9시」와 `a h:mm` 의 「오전 9:00」.
+     *   출근 시간 칩·예약 발송 안내·조용한 시간·백업 시각·협업 시각·박람회 접수 시각이 **전부 이걸** 쓴다.
+     *   dup_guard `time-label-raw` 가 옛 표기(오전/오후 직접 조립 · `a h:mm`)를 막는다.
+     *   ⚠️ 예외 하나: 예약 시각 시트의 「🕐 오전 9:00」 칩은 프로토(56gF4zzg STEP 2) 글자 그대로(§0) — 기준선에 적어 둠.
+     */
+    fun timeLabel(hour: Int, minute: Int = 0): String {
+        val ap = if (hour < 12) "오전" else "오후"
+        val h12 = (hour % 12).let { if (it == 0) 12 else it }
         return buildString {
             append(ap); append(' '); append(h12); append('시')
-            if (m > 0) { append(' '); append(m); append('분') }
+            if (minute > 0) { append(' '); append(minute); append('분') }
         }
     }
+
+    /** epoch ms → 「오후 2시 10분」 (기기 시간대). */
+    fun timeLabel(epochMs: Long): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
+        return timeLabel(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+    }
+
+    /** 시공 시작 시각(자정부터 분, 0~1439) → [timeLabel]. 옛 입구(부르는 곳 30+) — 셈은 한 곳. */
+    fun formatWorkMinutes(minutes: Int): String = timeLabel(minutes / 60, minutes % 60)
 
     /** 입력 시각을 그날 00:00 자정 epoch 로 정규화. 시공 예약 저장에 사용. */
     fun startOfDay(epoch: Long): Long {

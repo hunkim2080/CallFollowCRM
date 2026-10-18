@@ -268,6 +268,27 @@ val dupRules = listOf(
         regex = Regex(""""%,d|NumberFormat\.getNumberInstance"""),
         instead = "MoneyFormatter.won / .manwonShort / .manwonShortOrWon / .manwonOrWon / .grouped (util/MoneyFormatter.kt)",
         homes = listOf("/util/MoneyFormatter.kt")
+    ),
+
+    // 📅 짧은 날짜 「10/8」 — 앱은 슬래시인데 **협업 화면 3곳만 점**(「10.8」·「10.08」)이었다. (2026-10-18 UX 감사)
+    //   같은 날짜가 화면마다 다른 글자면 같은 앱이 아닌 것처럼 보인다. 이제 DateTimeUtils.formatMonthDay 한 곳.
+    //   (요일 붙는 「10/8(수)」·「M/d HH:mm」 은 다른 뜻이라 안 잡는다 — 닫는 따옴표까지 정확히 짧은 날짜만)
+    //   Calendar 로 「${MONTH+1}/${DAY}」 손조립도 같은 셈 — 기준선에 남긴 둘: ScheduleScreen(미커밋 변경 중) · ExpoScreen dateKo(요일 붙임 → formatDateLabel 후보).
+    DupRule(
+        id = "short-date-raw",
+        regex = Regex("""SimpleDateFormat\(\s*"(M/d|M\.d|MM\.dd|MM/dd)"\s*[,)]|MONTH\)\s*\+\s*1\}/\$\{"""),
+        instead = "DateTimeUtils.formatMonthDay(ms) (util/DateTimeUtils.kt)",
+        homes = listOf("/util/DateTimeUtils.kt")
+    ),
+
+    // 🕐 시각 글자 「오전 9시」·「오후 1시 30분」 — 같은 셈이 **8곳**에 복붙돼 있었고 모양도 둘(「오전 9:00」 꼴). (2026-10-18 UX 감사)
+    //   이제 DateTimeUtils.timeLabel(hour, minute) / timeLabel(ms) 한 곳. formatWorkMinutes · CollabDayCheck.timeLabel 은 입구.
+    //   기준선에 남긴 둘: ScheduleScreen(미커밋 변경 중 — 다음 정리 때) · ScheduleTimeSheet(프로토 56gF4zzg 의 「오전 9:00」 칩 그대로, §0).
+    DupRule(
+        id = "time-label-raw",
+        regex = Regex(""""오전"\s*else\s*"오후"|SimpleDateFormat\(\s*"a h:mm""""),
+        instead = "DateTimeUtils.timeLabel(hour, minute) / .timeLabel(ms) (util/DateTimeUtils.kt)",
+        homes = listOf("/util/DateTimeUtils.kt")
     )
 )
 

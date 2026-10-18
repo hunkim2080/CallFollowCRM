@@ -143,6 +143,53 @@ class DateTimeUtilsTest {
         assertTrue(!DateTimeUtils.formatDayRange(d, 0).contains("~"))
     }
 
+    // ---------- timeLabel (시각 글자 한 곳 — 2026-10-18 UX 감사) ----------
+
+    @Test fun `정각이면 분 없이 — 오전 9시`() {
+        assertEquals("오전 9시", DateTimeUtils.timeLabel(9))
+        assertEquals("오전 9시", DateTimeUtils.timeLabel(9, 0))
+    }
+
+    @Test fun `분이 있으면 N시 M분 — 오후 1시 30분`() {
+        assertEquals("오후 1시 30분", DateTimeUtils.timeLabel(13, 30))
+        assertEquals("오후 2시 10분", DateTimeUtils.timeLabel(14, 10))
+    }
+
+    @Test fun `오전 오후 가르기 — 11시는 오전, 12시부터 오후`() {
+        assertEquals("오전 11시", DateTimeUtils.timeLabel(11))
+        assertEquals("오후 12시", DateTimeUtils.timeLabel(12))
+        assertEquals("오후 11시 59분", DateTimeUtils.timeLabel(23, 59))
+    }
+
+    @Test fun `자정은 오전 12시, 정오는 오후 12시`() {
+        assertEquals("오전 12시", DateTimeUtils.timeLabel(0))
+        assertEquals("오후 12시", DateTimeUtils.timeLabel(12))
+        assertEquals("오전 12시 5분", DateTimeUtils.timeLabel(0, 5))
+    }
+
+    @Test fun `epoch 로 넣어도 같은 글자`() {
+        assertEquals("오후 2시 10분", DateTimeUtils.timeLabel(epochAt(2026, 10, 8, 14, 10)))
+        assertEquals("오전 9시", DateTimeUtils.timeLabel(epochAt(2026, 10, 8, 9, 0)))
+    }
+
+    @Test fun `formatWorkMinutes 는 timeLabel 의 입구 — 같은 글자`() {
+        assertEquals(DateTimeUtils.timeLabel(9), DateTimeUtils.formatWorkMinutes(9 * 60))
+        assertEquals(DateTimeUtils.timeLabel(13, 30), DateTimeUtils.formatWorkMinutes(13 * 60 + 30))
+    }
+
+    // ---------- formatMonthDay (짧은 날짜 「10/8」 — 앱 표준 슬래시) ----------
+
+    @Test fun `짧은 날짜는 슬래시 — 10 slash 8`() {
+        assertEquals("10/8", DateTimeUtils.formatMonthDay(epochAt(2026, 10, 8, 9, 0)))
+        assertEquals("1/5", DateTimeUtils.formatMonthDay(epochAt(2027, 1, 5, 0, 0)))
+        assertEquals("12/31", DateTimeUtils.formatMonthDay(epochAt(2026, 12, 31, 23, 59)))
+    }
+
+    @Test fun `formatDateOnly 는 formatMonthDay 의 입구 — 같은 글자`() {
+        val d = epochAt(2026, 10, 8, 9, 0)
+        assertEquals(DateTimeUtils.formatMonthDay(d), DateTimeUtils.formatDateOnly(d))
+    }
+
     // ---------- 헬퍼 ----------
 
     /**

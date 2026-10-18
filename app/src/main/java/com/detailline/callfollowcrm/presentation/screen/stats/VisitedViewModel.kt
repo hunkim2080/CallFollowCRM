@@ -155,8 +155,8 @@ class VisitedViewModel(container: AppContainer, private val monthDelta: Int = 0)
         )
     }
 
-    private fun dateMd(ms: Long): String = Calendar.getInstance().apply { timeInMillis = ms }
-        .let { "${it.get(Calendar.MONTH) + 1}/${it.get(Calendar.DAY_OF_MONTH)}" }
+    // 짧은 날짜 「10/8」 는 공용 한 곳 (2026-10-18 UX 감사).
+    private fun dateMd(ms: Long): String = DateTimeUtils.formatMonthDay(ms)
 
     // 📅 달 경계 셈은 **DateTimeUtils 한 곳**. 중간 다리도 없애고 바로 부른다. (2026-10-03)
 

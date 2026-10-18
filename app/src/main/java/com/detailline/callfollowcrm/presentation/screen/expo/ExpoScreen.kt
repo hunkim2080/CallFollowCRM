@@ -2323,18 +2323,12 @@ private fun finalizeErrorText(e: Throwable): String {
     }
 }
 
-private fun hhmm(ms: Long): String {
-    if (ms <= 0L) return "-"
-    val c = java.util.Calendar.getInstance().apply { timeInMillis = ms }
-    val h = c.get(java.util.Calendar.HOUR_OF_DAY); val m = c.get(java.util.Calendar.MINUTE)
-    return "%s %d:%02d".format(if (h < 12) "오전" else "오후", ((h + 11) % 12) + 1, m)
-}
+// 시각·날짜 글자는 공용 한 곳(DateTimeUtils) — 2026-10-18 UX 감사. 없으면 「-」 는 그대로.
+private fun hhmm(ms: Long): String =
+    if (ms <= 0L) "-" else com.detailline.callfollowcrm.util.DateTimeUtils.timeLabel(ms)
 
-private fun dateShort(ms: Long): String {
-    if (ms <= 0L) return "-"
-    val c = java.util.Calendar.getInstance().apply { timeInMillis = ms }
-    return "${c.get(java.util.Calendar.MONTH) + 1}/${c.get(java.util.Calendar.DAY_OF_MONTH)}"
-}
+private fun dateShort(ms: Long): String =
+    if (ms <= 0L) "-" else com.detailline.callfollowcrm.util.DateTimeUtils.formatMonthDay(ms)
 
 private fun openUrl(ctx: android.content.Context, url: String) {
     if (url.isBlank()) return

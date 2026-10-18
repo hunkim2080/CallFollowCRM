@@ -3227,7 +3227,7 @@ private fun recentTimeLabel(ms: Long): String {
         0 -> "오늘"
         1 -> "어제"
         in 2..6 -> "${days}일 전"
-        else -> RECENT_MD_FORMAT.format(java.util.Date(ms))
+        else -> DateTimeUtils.formatMonthDay(ms)
     }
 }
 

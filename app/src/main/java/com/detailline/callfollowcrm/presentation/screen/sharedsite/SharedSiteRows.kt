@@ -34,6 +34,7 @@ import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.AddressExtractor
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -188,12 +189,13 @@ internal fun MySharedDetailRow(site: SharedSiteRepository.SharedSite, onClick: (
     )
 }
 
-/** 날짜 기둥 — [CollabPillarRow] 전용. "10.14" 두 자리도 안 잘리게 56dp. (2026-10-17 사장님 "날짜가 잘려서") */
+/** 날짜 기둥 — [CollabPillarRow] 전용. "10/14" 두 자리도 안 잘리게 56dp. (2026-10-17 사장님 "날짜가 잘려서")
+ *  날짜 글자는 앱 표준 「10/8」 공용 한 곳 — 2026-10-18 UX 감사에서 협업만 점(「10.8」)이라 통일. 요일은 그대로 밑에. */
 @Composable
 private fun DatePillar(scheduledAtMs: Long) {
     val c = AppTheme.colors
     val hasDate = scheduledAtMs > 0L
-    val dayText = if (hasDate) SimpleDateFormat("M.d", Locale.KOREA).format(Date(scheduledAtMs)) else "미정"
+    val dayText = if (hasDate) DateTimeUtils.formatMonthDay(scheduledAtMs) else "미정"
     val dowText = if (hasDate) SimpleDateFormat("E", Locale.KOREA).format(Date(scheduledAtMs)).take(1) else ""
     Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(dayText, style = AppType.headline.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, softWrap = false)

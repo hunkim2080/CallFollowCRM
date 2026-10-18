@@ -97,14 +97,10 @@ object CollabDayCheck {
         return Result(Kind.SAME_DAY, first.place, timeLabel(first.minutes))
     }
 
-    /** 자정부터 분 → 「오후 2시」·「오전 9시 30분」. null 이면 null. */
+    /** 자정부터 분 → 「오후 2시」·「오전 9시 30분」. null·범위 밖이면 null. 글자 셈은 공용 [DateTimeUtils.timeLabel] 한 곳. */
     fun timeLabel(minutes: Int?): String? {
         val m = minutes ?: return null
         if (m !in 0..(24 * 60)) return null
-        val h = m / 60
-        val mm = m % 60
-        val ampm = if (h < 12) "오전" else "오후"
-        val h12 = if (h % 12 == 0) 12 else h % 12
-        return if (mm == 0) "$ampm ${h12}시" else "$ampm ${h12}시 ${mm}분"
+        return DateTimeUtils.timeLabel(m / 60, m % 60)
     }
 }

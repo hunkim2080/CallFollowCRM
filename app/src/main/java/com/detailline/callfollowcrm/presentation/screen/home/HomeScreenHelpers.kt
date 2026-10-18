@@ -286,8 +286,7 @@ internal fun relativeDayWord(epoch: Long, now: Long = System.currentTimeMillis()
     val today = DateTimeUtils.startOfDay(now)
     val target = DateTimeUtils.startOfDay(epoch)
     val diff = ((target - today) / DateTimeUtils.DAY_MS).toInt()
-    val cal = java.util.Calendar.getInstance().apply { timeInMillis = target }
-    val md = "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+    val md = DateTimeUtils.formatMonthDay(target)   // 짧은 날짜는 공용 한 곳 (2026-10-18)
     return when (diff) {
         1 -> "내일($md)"
         2 -> "모레($md)"
@@ -428,6 +427,3 @@ internal fun inboxAvatarStatus(
         else -> InboxAvatarStatus.QUIET
     }
 }
-
-/** 최근 대화 줄에서 쓰는 날짜 포맷 — 줄마다 새로 만들면 낭비라 하나만 둔다. (2026-09-15) */
-internal val RECENT_MD_FORMAT = java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN)

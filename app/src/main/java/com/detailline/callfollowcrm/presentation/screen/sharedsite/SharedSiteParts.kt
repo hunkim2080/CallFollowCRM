@@ -77,10 +77,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 import com.detailline.callfollowcrm.util.PhoneKey
 import com.detailline.callfollowcrm.presentation.theme.AppShape
@@ -177,7 +174,8 @@ internal fun dayLabel(ms: Long): String {
     return when {
         diff == 0 -> "오늘"
         diff == 1 -> "내일"
-        else -> SimpleDateFormat("M.d", Locale.KOREA).format(Date(ms))
+        // 짧은 날짜는 앱 표준 「10/8」 — 공용 한 곳(2026-10-18 UX 감사: 협업만 점이었다).
+        else -> DateTimeUtils.formatMonthDay(ms)
     }
 }
 
@@ -187,9 +185,7 @@ internal fun timeOf(ms: Long): String? {
     val cal = Calendar.getInstance().apply { timeInMillis = ms }
     val h = cal.get(Calendar.HOUR_OF_DAY); val m = cal.get(Calendar.MINUTE)
     if (h == 0 && m == 0) return null
-    val ampm = if (h < 12) "오전" else "오후"
-    val h12 = if (h % 12 == 0) 12 else h % 12
-    return "$ampm ${h12}시" + (if (m > 0) " ${m}분" else "")
+    return DateTimeUtils.timeLabel(h, m)
 }
 
 @Composable

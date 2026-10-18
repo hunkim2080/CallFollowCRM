@@ -534,11 +534,8 @@ internal fun CollabShareSheet(
         return (fromList + listOfNotNull(manual)).distinctBy { PhoneKey.of(it) }
     }
 
-    fun hourLabel(h: Int): String {
-        val ampm = if (h < 12) "오전" else "오후"
-        val h12 = if (h % 12 == 0) 12 else h % 12
-        return "$ampm ${h12}시"
-    }
+    // 시각 글자는 공용 한 곳 — 2026-10-18 UX 감사(8곳 복붙 → DateTimeUtils.timeLabel).
+    fun hourLabel(h: Int): String = DateTimeUtils.timeLabel(h)
 
     val dateLabel = remember(scheduledAtMs) {
         if (scheduledAtMs == null || scheduledAtMs <= 0L) "날짜 미정"

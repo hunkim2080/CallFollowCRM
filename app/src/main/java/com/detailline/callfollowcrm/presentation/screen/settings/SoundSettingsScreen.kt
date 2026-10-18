@@ -254,12 +254,8 @@ private fun QuietTimeRow(label: String, value: String, onClick: () -> Unit) {
     }
 }
 
-/** 0~23시 → "오전/오후 N시". */
-private fun quietHourLabel(h: Int): String {
-    val ampm = if (h < 12) "오전" else "오후"
-    val hh = if (h % 12 == 0) 12 else h % 12
-    return "$ampm ${hh}시"
-}
+/** 0~23시 → "오전/오후 N시". 셈은 공용 한 곳(DateTimeUtils.timeLabel) — 2026-10-18 UX 감사. */
+private fun quietHourLabel(h: Int): String = com.detailline.callfollowcrm.util.DateTimeUtils.timeLabel(h)
 
 @Composable
 private fun SoundRow(label: String, selected: Boolean, onClick: () -> Unit) {

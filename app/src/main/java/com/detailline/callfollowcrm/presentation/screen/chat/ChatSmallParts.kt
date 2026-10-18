@@ -639,16 +639,13 @@ private fun scheduledSendLabel(ms: Long): String {
     // 오늘 0시는 공용 한 곳에서(두 벌 금지 §12).
     val today0 = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
     val target0 = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(ms)
-    val t = java.util.Calendar.getInstance().apply { timeInMillis = ms }
     val days = ((target0 - today0) / com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS).toInt()
     val dayStr = when (days) {
         0 -> "오늘"; 1 -> "내일"; 2 -> "모레"
-        else -> "${t.get(java.util.Calendar.MONTH) + 1}/${t.get(java.util.Calendar.DAY_OF_MONTH)}"
+        else -> com.detailline.callfollowcrm.util.DateTimeUtils.formatMonthDay(ms)
     }
-    val h = t.get(java.util.Calendar.HOUR_OF_DAY); val mi = t.get(java.util.Calendar.MINUTE)
-    val ampm = if (h < 12) "오전" else "오후"
-    val h12 = when { h == 0 -> 12; h > 12 -> h - 12; else -> h }
-    val timeStr = if (mi == 0) "$ampm ${h12}시" else "$ampm ${h12}시 ${mi}분"
+    // 시각 글자는 공용 한 곳(「오전 9시」/「오전 9시 30분」) — 2026-10-18 UX 감사.
+    val timeStr = com.detailline.callfollowcrm.util.DateTimeUtils.timeLabel(ms)
     return "$dayStr $timeStr 발송 예정"
 }
 

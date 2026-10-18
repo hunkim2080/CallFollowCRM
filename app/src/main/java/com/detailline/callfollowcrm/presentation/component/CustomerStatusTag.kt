@@ -194,9 +194,7 @@ fun CustomerTags(
 /** 칩 안에서 갈리는 값 — 없으면 null(그럼 평소 상태 뱃지). */
 private fun filterTagLabel(c: CustomerEntity, filter: String): String? = when (filter) {
     // 언제 끝났나. 오른쪽 시각은 '마지막 문자' 라 이 답을 못 한다.
-    "done" -> c.doneAtMs?.let {
-        java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN).format(java.util.Date(it)) + " 끝"
-    }
+    "done" -> c.doneAtMs?.let { DateTimeUtils.formatMonthDay(it) + " 끝" }
     // 얼마가 남았나.
     "owe" -> {
         // 잔금은 **정산 단일 출처**(SettlementCalc) — stale balanceAmount 안 쓴다. (2026-10-07)

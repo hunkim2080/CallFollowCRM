@@ -35,9 +35,7 @@ import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.detailline.callfollowcrm.util.DateTimeUtils
 
 /**
  * 🤝 **「내가 공유한 현장」** — 공유받은 현장과 **같은 틀**: [업체별] / [현장순] 세그먼트 + 업체 드릴다운(달별·월 접기). (2026-10-17 사장님 "짝 맞추기")
@@ -192,7 +190,7 @@ internal fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit, showW
             Spacer(Modifier.height(2.dp))
             Text(
                 (if (g.pending) "기다리는 현장 ${g.count}곳" else "함께한 현장 ${g.count}곳") +
-                    (if (g.recentMs > 0L) " · 최근 ${SimpleDateFormat("MM.dd", Locale.KOREA).format(Date(g.recentMs))}" else ""),
+                    (if (g.recentMs > 0L) " · 최근 ${DateTimeUtils.formatMonthDay(g.recentMs)}" else ""),
                 style = AppType.caption, color = TossTextTertiary, fontWeight = FontWeight.Medium
             )
         }

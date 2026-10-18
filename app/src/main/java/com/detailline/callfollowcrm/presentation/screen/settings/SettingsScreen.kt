@@ -1118,9 +1118,8 @@ private fun AutoSmsSection(
     var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
     // 광고·스팸 번호 앞자리는 여기 없다 — 더보기 「스팸·광고 거르기」(SpamHubScreen) 로 옮겼다. (2026-10-16)
 
-    fun hourLabel(h: Int): String = when {
-        h == 0 -> "오전 12시"; h < 12 -> "오전 ${h}시"; h == 12 -> "오후 12시"; else -> "오후 ${h - 12}시"
-    }
+    // 시각 글자는 공용 한 곳 — 2026-10-18 UX 감사(8곳 복붙 → DateTimeUtils.timeLabel).
+    fun hourLabel(h: Int): String = com.detailline.callfollowcrm.util.DateTimeUtils.timeLabel(h)
 
     Text("전화·시공으로 바쁠 때 고객을 놓치지 않게 자동으로 챙겨요.",
         fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
@@ -1850,7 +1849,8 @@ private fun DataBackupSection(
                 day == 1L -> "어제"
                 else -> java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA).format(d)
             }
-            val timePart = java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREA).format(d)
+            // 시각은 공용 「오전 9시 5분」 꼴 — 2026-10-18 UX 감사(「오전 9:05」 꼴 섞여 있던 것 통일).
+            val timePart = com.detailline.callfollowcrm.util.DateTimeUtils.timeLabel(lastBackupAt)
             "$datePart $timePart"
         }
     }
