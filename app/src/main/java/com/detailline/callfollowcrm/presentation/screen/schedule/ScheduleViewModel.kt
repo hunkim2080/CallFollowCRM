@@ -371,6 +371,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      *   status 는 서버상 계속 "pending" 이라 구분 안 됨 → createdAtMs 로 시각 판정. 만료건은 배지에서 제거(요청 중 아님).
      *   (2026-07-10 사장님: 만료된 요청이 계속 "요청 중"으로 떠서.) ⚠️ init 위에 선언(초기화 순서 NPE 방지). */
     private var expiredPendingShareIds: Set<String> = emptySet()
+    /** by-me 의 shareId → **상대가 등록한 상호**(`partner_name`, 수락하면 서버가 채움). 배지는 이걸 앞에, 내 이름표를 괄호로
+     *   보인다 — 셈은 `CollabDisplayName.merge` 한 곳(A안, 2026-10-18 사장님). 원본 이름(`collabAssignments`·명부)은 안 바꾼다.
+     *   ⚠️ 위의 셋과 같은 이유로 init 위에 선언(초기화 순서 NPE 방지). 비어 있으면(미로딩) 내 이름표 그대로. */
+    private var partnerNameByShareId: Map<String, String> = emptyMap()
 
     init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
 
@@ -397,6 +401,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }.map { it.shareId }.toSet()
             // 표시용 dead set 갱신 + 즉시 재필터 (prefs 정리와 무관하게 배지에서 바로 빠지게).
             deadCollabShareIds = dead
+            // 수락한 상대의 진짜 상호 — 배지 「상호(내 이름표)」 용. 상호가 없는(미수락·서버 미구현) 줄은 안 담는다.
+            partnerNameByShareId = sites.mapNotNull { s ->
+                s.partnerName?.trim()?.takeIf { it.isNotBlank() }?.let { s.shareId to it }
+            }.toMap()
             // 🔗 협업은 '그 건(날짜)'에 붙는다 — 빈 days 를 서버 공유의 날짜로 백필해, 고객 전체로 퍼지던 걸 막는다.
             //   (2026-10-09 사장님: 1차/2차 협업자 섞임) + 거절/종료(dead) 건은 한 번에 제거.
             val dateByShare = sites.filter { it.scheduledAtMs > 0L }
@@ -437,7 +445,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }
             // 구버전 기록(shareId 없음)=기존 표시 유지(accepted=true, 회귀 방지). 그 외엔 pending 인 것만 미수락. (2026-07-09)
             val accepted = shareId.isEmpty() || shareId !in pendingCollabShareIds
-            if (!dup) list.add(CollabAssign(phone, name, accepted, days))
+            // 🤝 보이는 이름 = 수락 후엔 「상대 상호(내 이름표)」, 그 전엔 내 이름표 — 셈은 CollabDisplayName 한 곳(A안).
+            //   원본 줄의 name 은 그대로(위의 dup 판단·rename 은 원본 기준).
+            val shown = com.detailline.callfollowcrm.domain.collab.CollabDisplayName.merge(
+                name, partnerNameByShareId[shareId], accepted
+            )
+            if (!dup) list.add(CollabAssign(phone, shown, accepted, days))
         }
         _collabAssignByCustomer.value = map
     }
@@ -608,9 +621,15 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val timeLabel = startHour.takeIf { it in 0..23 }?.let { DateTimeUtils.timeLabel(it) }
         viewModelScope.launch {
             // 입력받은 주소는 고객에도 저장 — 다음부턴 자동, 데이터 보존(사장님을 버그리포터로 X). (2026-06-20)
+            //   §13①: 사장님이 적은 주소라 실패를 삼키지 않는다 — 초대는 그대로 보내되, 토스트 끝에 한 줄 붙인다.
+            //   (SaveGuard 의 문구는 「다시 눌러주세요」인데 여기서 다시 누르면 중복요청 가드에 막히니 안내는 따로 적는다)
+            val addrTell = MutableStateFlow<String?>(null)
             if (!addressOverride.isNullOrBlank() && addressOverride.trim() != customer.address) {
-                runCatching { container.customerRepository.updateAddress(customer.id, addressOverride.trim()) }
+                com.detailline.callfollowcrm.presentation.util.SaveGuard.run("현장 주소", addrTell) {
+                    container.customerRepository.updateAddress(customer.id, addressOverride.trim())
+                }
             }
+            val addrNote = if (addrTell.value != null) "\n현장 주소는 고객에 저장하지 못했어요 — 고객 상세에서 다시 적어주세요" else ""
             container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = title,
                 addr = addr, scheduledAtMs = effectiveMs,
@@ -632,13 +651,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 if (startHour in 0..23) container.preferences.lastCollabStartHour = startHour  // 다음 요청 때 미리 선택
                 loadCollabAssignments()
                 if (r.deduped) {
-                    _toast.value = "이미 이 현장으로 협업 중인 사장님이에요 (새 알림은 안 가요)"
+                    _toast.value = "이미 이 현장으로 협업 중인 사장님이에요 (새 알림은 안 가요)" + addrNote
                 } else if (r.route == "link" && !r.url.isNullOrBlank()) {
                     onLink(partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}")
+                    if (addrNote.isNotEmpty()) _toast.value = addrNote.trim()
                 } else {
-                    _toast.value = "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요"
+                    _toast.value = "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요" + addrNote
                 }
-            }.onFailure { _toast.value = "공유하지 못했어요 — 잠시 후 다시 해주세요" }
+            }.onFailure { _toast.value = "공유하지 못했어요 — 잠시 후 다시 해주세요" + addrNote }
         }
     }
 
