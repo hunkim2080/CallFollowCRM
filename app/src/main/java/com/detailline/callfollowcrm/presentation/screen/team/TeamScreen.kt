@@ -93,7 +93,6 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
-import com.detailline.callfollowcrm.presentation.theme.TossPurple
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
@@ -171,7 +170,8 @@ fun TeamScreen(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF8B6CFF), TossPurple)))
+                    // 보라 그라데이션은 세 카드(팀·설정·말투학습) 모두 category → categoryText 한 쌍. (2026-10-18)
+                    .background(Brush.linearGradient(listOf(AppTheme.colors.category, AppTheme.colors.categoryText)))
                     .padding(18.dp)
             ) {
                 Text("팀원과 함께 일해요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)

@@ -293,7 +293,7 @@ internal fun CollabAfterCard(
             Text("$partnerName", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, maxLines = 1)
             Spacer(Modifier.weight(1f))
             Box(Modifier.clip(RoundedCornerShape(999.dp)).background(if (completed) AppTheme.colors.doneBg else purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                Text(if (completed) "협업 완료" else "협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else Color(0xFF6B4FD8))
+                Text(if (completed) "협업 완료" else "협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else AppTheme.colors.categoryText)
             }
         }
         wage?.let {

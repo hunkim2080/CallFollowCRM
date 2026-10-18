@@ -53,6 +53,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -111,12 +112,11 @@ fun TemplateListScreen(
             if (templates.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📝", fontSize = 40.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text("아직 템플릿이 없어요", style = MaterialTheme.typography.titleMedium, color = TossTextPrimary)
-                        Spacer(Modifier.height(4.dp))
-                        Text("위 + 버튼으로 새 템플릿을 만들어보세요",
-                            style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
+                        // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 문구는 그대로. (2026-10-18)
+                        MascotEmptyState(
+                            speech = "아직 템플릿이 없어요",
+                            sub = "위 + 버튼으로 새 템플릿을 만들어보세요"
+                        )
                         Spacer(Modifier.height(20.dp))
                         // 그동안 자주 보낸 문자를 자동으로 찾아 채우기 유도. (2026-07-02)
                         androidx.compose.material3.Surface(

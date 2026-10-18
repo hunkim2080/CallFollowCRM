@@ -2196,7 +2196,7 @@ private fun ToneLearnProtoSection(
     // ── tone-hero (보라 그라데이션) ──
     Column(
         Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp))
-            .background(Brush.linearGradient(listOf(AppTheme.colors.category, Color(0xFF5B3FE0))))
+            .background(Brush.linearGradient(listOf(AppTheme.colors.category, AppTheme.colors.categoryText)))
             .padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -39,6 +39,7 @@ import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -71,13 +72,11 @@ fun EstimateFollowupScreen(
     ) { inner ->
         if (rows.isEmpty()) {
             Box(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("✅", fontSize = 36.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("답 기다리는 견적이 없어요", color = TossTextSecondary, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(2.dp))
-                    Text("채팅에서 견적을 보내면 며칠 뒤 여기서 챙겨드려요", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
-                }
+                // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 문구는 그대로. (2026-10-18)
+                MascotEmptyState(
+                    speech = "답 기다리는 견적이 없어요",
+                    sub = "채팅에서 견적을 보내면 며칠 뒤 여기서 챙겨드려요"
+                )
             }
         } else {
             LazyColumn(

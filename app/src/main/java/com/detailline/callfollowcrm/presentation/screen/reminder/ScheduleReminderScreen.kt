@@ -42,6 +42,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -74,13 +75,11 @@ fun ScheduleReminderScreen(
     ) { inner ->
         if (rows.isEmpty()) {
             Box(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("✅", fontSize = 36.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("지금 보낼 시공 안내가 없어요", color = TossTextSecondary, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(2.dp))
-                    Text("내일·오늘 시공이 잡히면 여기서 안내 문자를 보낼 수 있어요", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
-                }
+                // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 문구는 그대로. (2026-10-18)
+                MascotEmptyState(
+                    speech = "지금 보낼 시공 안내가 없어요",
+                    sub = "내일·오늘 시공이 잡히면 여기서 안내 문자를 보낼 수 있어요"
+                )
             }
         } else {
             LazyColumn(

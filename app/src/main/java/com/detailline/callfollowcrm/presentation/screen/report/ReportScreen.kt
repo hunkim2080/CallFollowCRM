@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.report
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -189,8 +190,8 @@ fun ReportScreen(
                         Column {
                             Text("문의 ${s.inboundCount}건 → 시공 ${s.jobs}건", fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium)
                             Spacer(Modifier.height(6.dp))
-                            Text("전환율 ${s.conversionPct ?: 0}%", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold,
-                                color = TossSuccess, letterSpacing = (-0.5).sp)
+                            // 화면의 대표 숫자 = hero(30) 한 단계. 32·34·36 으로 갈리던 것을 모음. (2026-10-18)
+                            Text("전환율 ${s.conversionPct ?: 0}%", style = AppType.hero, color = TossSuccess)
                         }
                     }
                 }
@@ -255,7 +256,7 @@ private fun BigStat(caption: String, value: String, valueColor: Color, desc: Str
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).padding(18.dp)) {
         Text(caption, fontSize = 12.5.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
-        Text(value, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = valueColor, letterSpacing = (-0.6).sp)
+        Text(value, style = AppType.hero, color = valueColor)
         Spacer(Modifier.height(6.dp))
         Text(desc, fontSize = 12.5.sp, color = descColor, fontWeight = FontWeight.Medium, lineHeight = 18.sp)
     }

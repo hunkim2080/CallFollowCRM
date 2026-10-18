@@ -717,7 +717,7 @@ private fun ListArea(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CollabPurpleSoft)
                     .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(16.dp)).padding(15.dp)
             ) {
-                Text("${openPartner.name}과 함께한 현장", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+                Text("${openPartner.name}과 함께한 현장", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText)
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("함께한 현장 ${openPartner.count}곳", fontSize = 12.5.sp, color = Color(0xFF5A4A7A), fontWeight = FontWeight.Medium)
@@ -812,7 +812,7 @@ private fun PendingInbox(
 ) {
     // 헤더: 🤝 새 협업 요청 [N] · 응답 기다려요
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 2.dp, bottom = 9.dp)) {
-        Text("새 협업 요청 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+        Text("새 협업 요청 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText)
         Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurple).padding(horizontal = 7.dp, vertical = 1.dp)) {
             Text("${sites.size}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
         }
@@ -935,7 +935,7 @@ private fun PendingInbox(
                     Text(
                         site.dailyWage?.let { "${it}만원" } ?: "미정",
                         fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
-                        color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
+                        color = if (site.dailyWage != null) AppTheme.colors.categoryText else TossTextTertiary
                     )
                 }
             }
@@ -1085,7 +1085,7 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(14.dp)
         ) {
-            Text("${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Text("${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText)
             Spacer(Modifier.height(4.dp))
             // "이 현장" 대신 실제 현장명(주소) + 날짜를 보여줌(사장님 요청 2026-06-18·06-20).
             Text("${siteDisplayName(site)} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
@@ -1100,7 +1100,7 @@ private fun DetailBody(
                 Text(
                     site.dailyWage?.let { "${it}만원" } ?: "미정",
                     fontSize = 18.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
+                    color = if (site.dailyWage != null) AppTheme.colors.categoryText else TossTextTertiary
                 )
             }
             site.timeLabel?.takeIf { it.isNotBlank() }?.let {
@@ -1471,7 +1471,7 @@ private fun PhotoGrid(
 }
 @Composable private fun PillStrong(text: String) {
     Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
-        Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.categoryText)
     }
 }
 /**

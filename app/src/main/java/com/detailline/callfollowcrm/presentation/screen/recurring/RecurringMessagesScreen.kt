@@ -61,6 +61,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -136,13 +137,11 @@ fun RecurringMessagesScreen(
             if (rules.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🔁", fontSize = 34.sp)
-                            Spacer(Modifier.height(8.dp))
-                            Text("아직 정기문자 규칙이 없어요", color = TossTextSecondary, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.height(2.dp))
-                            Text("예: 시공 30일 후 점검 안부", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
-                        }
+                        // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 문구는 그대로. (2026-10-18)
+                        MascotEmptyState(
+                            speech = "아직 정기문자 규칙이 없어요",
+                            sub = "예: 시공 30일 후 점검 안부"
+                        )
                     }
                 }
             } else {

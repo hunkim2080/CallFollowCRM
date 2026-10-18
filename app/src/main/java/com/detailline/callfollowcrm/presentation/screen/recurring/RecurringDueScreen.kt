@@ -40,6 +40,7 @@ import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -73,13 +74,11 @@ fun RecurringDueScreen(
     ) { inner ->
         if (items.isEmpty()) {
             Box(Modifier.padding(inner).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("✅", fontSize = 36.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("지금 보낼 정기문자가 없어요", color = TossTextSecondary, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(2.dp))
-                    Text("규칙은 설정 → 정기문자 에서 관리해요", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
-                }
+                // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 문구는 그대로. (2026-10-18)
+                MascotEmptyState(
+                    speech = "지금 보낼 정기문자가 없어요",
+                    sub = "규칙은 설정 → 정기문자 에서 관리해요"
+                )
             }
         } else {
             LazyColumn(

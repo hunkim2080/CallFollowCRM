@@ -1,13 +1,13 @@
 # 화면 코드에 손으로 적은 값(색·글자크기·모서리) 개수 — 늘어나면 빌드 실패.
 # 다시 적기: gradlew styleBaselineUpdate   (줄었을 때만 하세요)
 # theme/ 와 screen/expo/(박람회)는 세지 않습니다.
-# 총 2566곳 / 75파일
+# 총 2481곳 / 75파일
 component/AccountInput.kt 10
 component/AddressSearchDialog.kt 4
 component/CallSummaryConsentDialog.kt 9
 component/Celebration.kt 2
 component/CollabCommentSection.kt 17
-component/CustomerStatusTag.kt 9
+component/CustomerStatusTag.kt 8
 component/InlineDiagPrompt.kt 3
 component/MakneTips.kt 19
 component/Mascot.kt 6
@@ -21,7 +21,7 @@ screen/aimessage/AiMessageScreen.kt 2
 screen/brief/ClosingBriefScreen.kt 43
 screen/business/BusinessInfoScreen.kt 27
 screen/callsummary/CallSummaryScreen.kt 17
-screen/chat/ChatAskCards.kt 35
+screen/chat/ChatAskCards.kt 34
 screen/chat/ChatEstimateSheet.kt 3
 screen/chat/ChatScreen.kt 264
 screen/chat/ChatScreenHelpers.kt 2
@@ -31,15 +31,15 @@ screen/chat/MyScheduleSheet.kt 7
 screen/chat/QuoteDocScreen.kt 55
 screen/collab/CollabRecordScreen.kt 34
 screen/consent/ConsentScreen.kt 13
-screen/customer/CustomerCollabParts.kt 49
+screen/customer/CustomerCollabParts.kt 48
 screen/customer/CustomerDetailBits.kt 45
 screen/customer/CustomerDetailJobCard.kt 50
 screen/customer/CustomerDetailScreen.kt 109
 screen/customers/CustomersScreen.kt 17
-screen/estimate/EstimateFollowupScreen.kt 6
+screen/estimate/EstimateFollowupScreen.kt 5
 screen/followup/FollowUpScreen.kt 3
 screen/home/HomeScreen.kt 79
-screen/home/HomeScreenCards.kt 121
+screen/home/HomeScreenCards.kt 60
 screen/home/MessageBoxSection.kt 14
 screen/login/LoginScreen.kt 33
 screen/newleads/NewLeadsScreen.kt 45
@@ -50,30 +50,30 @@ screen/onboarding/OnboardingScreen.kt 98
 screen/onboarding/OnboardingSetupScreen.kt 50
 screen/outbox/OutboxTroubleScreen.kt 17
 screen/pricing/PricingExtractScreen.kt 22
-screen/pricing/PricingItemsScreen.kt 27
+screen/pricing/PricingItemsScreen.kt 26
 screen/principle/PrincipleManageScreen.kt 14
-screen/recurring/RecurringDueScreen.kt 6
-screen/recurring/RecurringMessagesScreen.kt 14
-screen/reminder/ScheduleReminderScreen.kt 6
-screen/report/ReportScreen.kt 37
+screen/recurring/RecurringDueScreen.kt 5
+screen/recurring/RecurringMessagesScreen.kt 13
+screen/reminder/ScheduleReminderScreen.kt 5
+screen/report/ReportScreen.kt 35
 screen/schedule/ScheduleAddScreen.kt 61
 screen/schedule/ScheduleParts.kt 40
 screen/schedule/ScheduleScreen.kt 66
 screen/search/SearchScreen.kt 46
 screen/settings/SettingsCards.kt 54
-screen/settings/SettingsScreen.kt 169
+screen/settings/SettingsScreen.kt 168
 screen/settings/SoundSettingsScreen.kt 13
 screen/settlement/CashFlowSection.kt 26
-screen/settlement/SettlementScreen.kt 51
+screen/settlement/SettlementScreen.kt 50
 screen/sharedsite/SharedSiteParts.kt 5
-screen/sharedsite/SharedSiteScreen.kt 208
+screen/sharedsite/SharedSiteScreen.kt 202
 screen/signup/SignupScreen.kt 30
 screen/spam/SpamListScreen.kt 3
 screen/stats/StatsScreen.kt 55
 screen/stats/VisitedScreen.kt 13
-screen/stylelearning/StyleLearningScreen.kt 44
-screen/team/TeamScreen.kt 45
-screen/template/TemplateDiscoverScreen.kt 14
+screen/stylelearning/StyleLearningScreen.kt 42
+screen/team/TeamScreen.kt 44
+screen/template/TemplateDiscoverScreen.kt 12
 screen/template/TemplateEditScreen.kt 3
-screen/template/TemplateListScreen.kt 12
+screen/template/TemplateListScreen.kt 11
 screen/trade/TradeSelectScreen.kt 6

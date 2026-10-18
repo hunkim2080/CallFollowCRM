@@ -462,6 +462,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 인터넷 복구 듣기 | `util/NetworkWatch.kt` | 화면마다 `ConnectivityManager` 새로 |
 | 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |
 | 하단 시트 틀(스크림+카드+그랩+키보드/네비바 여백+스크롤) | `presentation/component/AppSheet.kt` | 시트마다 `Box(scrim)+Column+keyboardOrNavPadding+verticalScroll` 새로 (빠뜨리면 스크롤·키보드·네비바 버그) |
+| 빈 화면(막내 + 파란 말풍선 제목 + 회색 부제) | `MascotEmptyState(speech, sub)` (`presentation/component/MascotEmptyState.kt`) — 홈 `WaitingEmptyMascot` 도 이걸 부른다 | 화면마다 `Text("✅"/"📝"/"💰", fontSize = 36.sp)` 이모지 글리프 + 글자 두 줄 새로(폰마다 다르게 그려진다 — 2026-10-18: 7화면이 제각각이었다), 말풍선 코드 복사 |
 | 고객 상세 **접힘 줄 머리**(아이콘 상자+제목+개수+›/▾, 비면 「＋ 적기」) | `CdFoldRow` (`presentation/screen/customer/CustomerDetailBits.kt`) — 고객 메모·현장 메모·팀원 메모·이 고객 문서 | 섹션마다 `Row + CdTitleIcon + Text + "▸"` 새로 (2026-10-15: 네 벌이 제각각이라 "정신없다"가 됐다) |
 | 협업 현장 **날짜 기둥 줄 틀**(M.d/요일 기둥 + 1줄 진하게 + 2줄 연하게 + 상태 딱지 + 「N만」) 과 **달 머리줄**(「2026년 10월 ……… N곳」) | `CollabPillarRow` · `CollabMonthHeader` (`presentation/screen/sharedsite/SharedSiteRows.kt`) — 현장순 `FeedSiteRow` · 업체 내역 `PartnerDetailSiteRow` · 내가 공유한 `MySharedDetailRow` 셋이 같은 틀, 가라앉힌 상태색은 `collabStatusTagQuiet` | 줄마다 `Row + DatePillar + Column + 딱지` 새로, 달 머리 Row 를 화면 안에 또 (2026-10-17: 날짜 기둥이 두 벌이고 현장순은 옛 모양이었다) |
 | 「입금했습니다」 카드가 **어느 돈**(계약금/잔금)을 찍을지 — 시공 전엔 잔금 절대 X | `domain/payment/PaymentClaimAnswer.kt` (알아보기는 `PaymentClaimDetector`, 찍기는 `WorkCompletionManager`) | 카드에서 `outstanding` 을 곧장 「받음」으로 (2026-10-17: 예약금 10만 「네」 한 번에 65만 완납·완료) |

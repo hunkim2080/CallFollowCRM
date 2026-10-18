@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -87,11 +88,10 @@ fun TemplateDiscoverScreen(
                     Text("문자에서 자주 보낸 문구를 찾는 중…", color = TossTextSecondary, fontSize = 15.sp)
                 }
                 TemplateDiscoverViewModel.Phase.EMPTY -> Center {
-                    Text("📝", fontSize = 40.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "여러 번 보낸 문자가 아직 없어요.\n템플릿은 직접 만들 수도 있어요.",
-                        color = TossTextSecondary, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 22.sp
+                    // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 두 줄 문구를 말풍선/부제로 나눠 담았다(글자 그대로). (2026-10-18)
+                    MascotEmptyState(
+                        speech = "여러 번 보낸 문자가 아직 없어요.",
+                        sub = "템플릿은 직접 만들 수도 있어요."
                     )
                     Spacer(Modifier.height(22.dp))
                     Button(

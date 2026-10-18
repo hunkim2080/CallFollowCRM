@@ -79,6 +79,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.component.MascotEmptyState
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -215,18 +216,10 @@ fun PricingItemsScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("💰", fontSize = 40.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "등록된 가격표가 없어요",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TossTextPrimary
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "+ 버튼으로 항목을 추가하세요",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextTertiary
+                    // 빈 화면은 공용 막내 틀 — 이모지는 폰마다 다르게 그려진다. 문구는 그대로. (2026-10-18)
+                    MascotEmptyState(
+                        speech = "등록된 가격표가 없어요",
+                        sub = "+ 버튼으로 항목을 추가하세요"
                     )
                     Spacer(Modifier.height(20.dp))
                     // 빈 표 = 신규 사장님 이탈 지점 → 문자에서 자동으로 채우기 유도. (2026-07-02)

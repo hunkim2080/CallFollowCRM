@@ -298,10 +298,10 @@ private fun SettleTopCard(
         // lbl + amt + prev
         Text(top.recvLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.6f))
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)) {
+            // 화면에 하나뿐인 핵심 숫자 = hero(30). 36 이던 것을 통계·학습 카드와 같은 단계로. (2026-10-18)
             Text(
                 MoneyFormatter.grouped(top.receivedManwon),
-                fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
-                letterSpacing = (-1.0).sp
+                style = AppType.hero, color = Color.White
             )
             Text("만원", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White,
                 modifier = Modifier.padding(start = 2.dp, bottom = 5.dp))

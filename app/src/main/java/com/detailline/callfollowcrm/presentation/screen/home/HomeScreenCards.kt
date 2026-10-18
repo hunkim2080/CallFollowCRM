@@ -198,8 +198,8 @@ internal fun CompletedHeroJobCard(
     Row(
         Modifier
             .fillMaxWidth()
-            .tossCardShadow(RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
+            .tossCardShadow(AppShape.lg)
+            .clip(AppShape.lg)
             .background(AppTheme.colors.bg)
             .clickable { onOpenCustomer(c.id) }
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -265,8 +265,8 @@ internal fun BandShell(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 62.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .then(if (border != null) Modifier.border(1.dp, border, RoundedCornerShape(14.dp)) else Modifier)
+            .clip(AppShape.lg)
+            .then(if (border != null) Modifier.border(1.dp, border, AppShape.lg) else Modifier)
             .background(bg)
             .clickable { onTap() },
         verticalAlignment = Alignment.CenterVertically
@@ -276,7 +276,7 @@ internal fun BandShell(
         //   → 둥근 작은 칸에 담는다. 앱의 다른 아이콘들과 같은 모양이라 '그림'으로 읽힌다.
         Box(
             Modifier.padding(start = 11.dp).size(34.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(AppShape.md)
                 .background(iconBg ?: if (border != null) TossGrayBg else Color(0x24FFFFFF)),
             contentAlignment = Alignment.Center
         ) {
@@ -303,7 +303,7 @@ internal fun BandShell(
                 style = AppType.micro,
                 modifier = Modifier
                     .padding(end = 11.dp)
-                    .clip(RoundedCornerShape(9.dp))
+                    .clip(AppShape.sm)
                     .background(if (border != null) TossGrayBg else Color(0x29FFFFFF))
                     .clickable { onAction() }
                     .padding(horizontal = 10.dp, vertical = 7.dp)
@@ -323,7 +323,7 @@ internal fun BandShell(
 internal fun BoxSubChip(label: String, count: Int, on: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(AppShape.pill)
             // ⚠️ 고른 것도 **진한 파랑을 안 쓴다.** 위 칩 줄과 똑같이 칠했더니
             //   파란 알약이 두 줄로 겹쳐 **칩 줄이 두 줄인 것처럼** 보였다. (2026-09-20 실기)
             //   여긴 한 단 아래니까 연한 파랑으로 — '안쪽 갈래' 로 읽힌다.
@@ -360,14 +360,14 @@ internal fun ChipPill(
     //   칩이 아니라 그냥 글자로 보인다. 흰 바탕 + 얇은 테두리라야 "누를 수 있는 것"으로 읽힌다.
     Row(
         Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(AppShape.pill)
             .background(if (on) TossBlue else Color.White)
             .then(
                 when {
                     on -> Modifier
                     // 0 인 칩은 테두리까지 연하게 — 글자색만 바꿨더니 **차이가 안 보였다.** (2026-09-20 실기)
-                    dim -> Modifier.border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(999.dp))
-                    else -> Modifier.border(1.dp, TossDivider, RoundedCornerShape(999.dp))
+                    dim -> Modifier.border(1.dp, AppTheme.colors.surfaceMuted, AppShape.pill)
+                    else -> Modifier.border(1.dp, TossDivider, AppShape.pill)
                 }
             )
             .clickable { onClick() }
@@ -410,10 +410,10 @@ internal fun CollabUpcomingCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .tossCardShadow(RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
+            .tossCardShadow(AppShape.lg)
+            .clip(AppShape.lg)
             .background(Color.White)
-            .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
+            .border(1.dp, Color(0xFFE7E0FB), AppShape.lg)
             .padding(16.dp)
     ) {
         // 헤더 — 누르면 협업 현장 전체 목록. (각 줄은 그 현장 상세로 따로 들어감) (2026-06-21 사장님)
@@ -422,7 +422,7 @@ internal fun CollabUpcomingCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(purpleSoft),
+                Modifier.size(34.dp).clip(AppShape.md).background(purpleSoft),
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Filled.Groups, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp)) }
             Spacer(Modifier.width(10.dp))
@@ -446,7 +446,7 @@ internal fun CollabUpcomingCard(
             ) {
                 Text(
                     word, color = purple, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(purpleSoft).padding(horizontal = 7.dp, vertical = 2.dp)
+                    modifier = Modifier.clip(AppShape.sm).background(purpleSoft).padding(horizontal = 7.dp, vertical = 2.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -470,8 +470,8 @@ internal fun CollabSettleCard(
     onPaid: () -> Unit
 ) {
     Column(
-        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White)
-            .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
+        Modifier.fillMaxWidth().tossCardShadow(AppShape.lg).clip(AppShape.lg).background(Color.White)
+            .border(1.dp, Color(0xFFE7E0FB), AppShape.lg)
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -487,7 +487,7 @@ internal fun CollabSettleCard(
             Text(
                 "현장 보기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.category,
                 // 딱지는 둥근 네모(8). 알약은 누르는 것의 모양. (2026-09-20 사장님)
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.categoryBg)
+                modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.categoryBg)
                     .clickable { onOpen() }.padding(horizontal = 11.dp, vertical = 6.dp)
             )
         }
@@ -500,7 +500,7 @@ internal fun CollabSettleCard(
         }
         Spacer(Modifier.height(12.dp))
         // 정산 박스 — 금액 + 계좌
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)) {
+        Column(Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(13.dp)) {
             up.dailyWage?.let { wage ->
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("보낼 금액", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
@@ -527,17 +527,32 @@ internal fun CollabSettleCard(
         }
         Spacer(Modifier.height(11.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossGrayBg)
-                    .clickable { onCopy() }.padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("계좌 복사", color = TossTextSecondary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold) }
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
-                    .clickable { onPaid() }.padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("입금했어요", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold) }
+            HomeCardButton("계좌 복사", primary = false, Modifier.weight(1f)) { onCopy() }
+            HomeCardButton("입금했어요", primary = true, Modifier.weight(1f)) { onPaid() }
         }
+    }
+}
+
+/**
+ * 카드 안 행동 버튼 — 파랑(주 행동) / 회색(보조). (2026-10-18 디자인 감사 ⑤)
+ *   홈 카드 네 곳이 각자 모서리 11·12, 높이 12~14, 글자 13.5~15 로 손제작하던 걸 **한 모양**으로.
+ *   모서리 `AppShape.md` · 색 `primary`/`bg` · 글자 `AppType.headline`. 짝 버튼은 `Modifier.weight(1f)` 로 나눈다.
+ *   (화면 폭을 채우는 큰 CTA 는 `TossPrimaryButton` — 이건 카드 **안**의 작은 버튼이다)
+ */
+@Composable
+internal fun HomeCardButton(label: String, primary: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(AppShape.md)
+            .background(if (primary) AppTheme.colors.primary else AppTheme.colors.bg)
+            .clickable { onClick() }
+            .padding(vertical = AppSpace.s12),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label, style = AppType.headline,
+            color = if (primary) AppTheme.colors.textOnPrimary else AppTheme.colors.textSub
+        )
     }
 }
 
@@ -545,7 +560,7 @@ internal fun CollabSettleCard(
 internal fun HeroBtn(label: String, icon: ImageVector, light: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(13.dp))
+            .clip(AppShape.md)
             .background(if (light) Color.White else Color.White.copy(alpha = 0.12f))
             .clickable { onClick() }
             .padding(vertical = 12.dp),
@@ -618,17 +633,9 @@ internal fun CompletionDialog(
                 // ── 1단계: 잔금 다 받았는지 확인 ──
                 Text("잔금 ${won}원은 다 받으셨어요?", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Spacer(Modifier.height(14.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlue)
-                        .clickable { onCompletePaid(name) }.padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("네, 다 받았어요", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+                HomeCardButton("네, 다 받았어요", primary = true, Modifier.fillMaxWidth()) { onCompletePaid(name) }
                 Spacer(Modifier.height(8.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                        .clickable { askedNo = true }.padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("아니요, 아직이요", color = TossTextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+                HomeCardButton("아니요, 아직이요", primary = false, Modifier.fillMaxWidth()) { askedNo = true }
             } else {
                 // ── 2단계: 안내 문자(자유 수정) + 발송/완료 ──
                 Text(
@@ -637,7 +644,7 @@ internal fun CompletionDialog(
                 )
                 Spacer(Modifier.height(6.dp))
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg).padding(13.dp)
                 ) {
                     androidx.compose.foundation.text.BasicTextField(
                         value = msg,
@@ -649,17 +656,10 @@ internal fun CompletionDialog(
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                            .clickable { onComplete(name) }.padding(vertical = 13.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text("문자 없이 완료", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                    Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
-                            .clickable { onSend(customer.phoneNumber, name, msg, if (hasBal) "잔금 요청" else "후기 요청") }
-                            .padding(vertical = 13.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text("문자 보내기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    HomeCardButton("문자 없이 완료", primary = false, Modifier.weight(1f)) { onComplete(name) }
+                    HomeCardButton("문자 보내기", primary = true, Modifier.weight(1f)) {
+                        onSend(customer.phoneNumber, name, msg, if (hasBal) "잔금 요청" else "후기 요청")
+                    }
                 }
             }
         }
@@ -688,8 +688,8 @@ internal fun RemindCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .tossCardShadow(RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
+            .tossCardShadow(AppShape.lg)
+            .clip(AppShape.lg)
             .background(Color.White),
         verticalAlignment = Alignment.Top
     ) {
@@ -722,7 +722,7 @@ internal fun RemindCard(
                 Modifier
                     .fillMaxWidth()
                     .padding(top = 10.dp, bottom = 12.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(AppShape.md)
                     .background(TossGrayBg)
                     .combinedClickable(onClick = {}, onLongClick = { editing = true })
                     .padding(12.dp)
@@ -741,7 +741,7 @@ internal fun RemindCard(
                         )
                         Box(
                             Modifier.align(Alignment.End).padding(top = 8.dp)
-                                .clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+                                .clip(AppShape.pill).background(TossBlueSoft)
                                 .clickable { editing = false; kb?.hide() }
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) { Text("수정 완료", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
@@ -757,16 +757,10 @@ internal fun RemindCard(
             }
             // remind-btns
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                        .clickable { onSkip() }.padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("건너뛰기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
-                        .clickable { editing = false; kb?.hide(); onSend(draft) }.padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("문자 보낼까요?", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                HomeCardButton("건너뛰기", primary = false, Modifier.weight(1f)) { onSkip() }
+                HomeCardButton("문자 보낼까요?", primary = true, Modifier.weight(1f)) {
+                    editing = false; kb?.hide(); onSend(draft)
+                }
             }
         }
     }
@@ -792,10 +786,10 @@ internal fun InboxAlert(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .tossCardShadow(RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .tossCardShadow(AppShape.lg)
+            .clip(AppShape.lg)
             .background(Color.White)
-            .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+            .border(1.dp, TossDivider, AppShape.lg)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -805,7 +799,7 @@ internal fun InboxAlert(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(accentTint),
+                Modifier.size(38.dp).clip(AppShape.md).background(accentTint),
                 contentAlignment = Alignment.Center
             ) { Icon(icon, null, tint = accent, modifier = Modifier.size(19.dp)) }
             Spacer(Modifier.width(11.dp))
@@ -815,7 +809,7 @@ internal fun InboxAlert(
                     if (!tagText.isNullOrEmpty()) {
                         Spacer(Modifier.width(6.dp))
                         Box(
-                            Modifier.clip(RoundedCornerShape(8.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp)
+                            Modifier.clip(AppShape.sm).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp)
                         ) { Text(tagText, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = tagFg) }
                     }
                 }
@@ -824,7 +818,7 @@ internal fun InboxAlert(
             }
             Spacer(Modifier.width(8.dp))
             Box(
-                Modifier.clip(RoundedCornerShape(12.dp)).background(accentTint).padding(horizontal = 13.dp, vertical = 7.dp)
+                Modifier.clip(AppShape.md).background(accentTint).padding(horizontal = 13.dp, vertical = 7.dp)
             ) { Text(goLabel, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accent) }
         }
     }
@@ -846,7 +840,7 @@ internal fun InlineActionButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AppShape.md)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
@@ -873,7 +867,7 @@ internal fun DismissSwipeBox(onDismiss: () -> Unit, content: @Composable () -> U
         onAction = onDismiss,
         label = "정리",
         containerColor = TossBlue,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        shape = AppShape.md
     ) { content() }
 }
 
@@ -937,9 +931,9 @@ internal fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
         modifier = Modifier
             .background(
                 Brush.linearGradient(listOf(AppTheme.colors.primaryBg, AppTheme.colors.categoryBg)),
-                RoundedCornerShape(999.dp)
+                AppShape.pill
             )
-            .border(1.dp, Color(0xFFE0E7FB), RoundedCornerShape(999.dp))
+            .border(1.dp, Color(0xFFE0E7FB), AppShape.pill)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -971,16 +965,16 @@ internal fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .tossCardShadow(RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+            .tossCardShadow(AppShape.lg)
+            .clip(AppShape.lg)
+            .background(Color.White, AppShape.lg)
+            .border(1.dp, TossDivider, AppShape.lg)
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(36.dp).background(TossBlueSoft, RoundedCornerShape(11.dp)),
+            Modifier.size(36.dp).background(TossBlueSoft, AppShape.md),
             contentAlignment = Alignment.Center
         ) {
             Text("+", color = TossBlue, fontSize = 21.sp, fontWeight = FontWeight.Bold)
@@ -995,7 +989,7 @@ internal fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit)
             Text("새 번호 기준 · 어제 ${yesterdayNew}통", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
         }
         Box(
-            Modifier.background(deltaBg, RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 5.dp)
+            Modifier.background(deltaBg, AppShape.pill).padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
             Text(deltaText, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = deltaFg)
         }
@@ -1066,54 +1060,23 @@ internal fun Avatar(
     }
 }
 
-/** 프로토 renderWaiting 빈 상태(.empty-mascot) — 막내 + 말풍선(em-speech) + 보조문구(em-sub). */
+/**
+ * 프로토 renderWaiting 빈 상태(.empty-mascot) — 막내 + 말풍선(em-speech) + 보조문구(em-sub).
+ *   그리는 건 공용 `MascotEmptyState` 한 곳(이 모양을 부품화한 것이 그것이다 — 여기 또 한 벌이 남아 있었다. 2026-10-18 §12).
+ *   공용이 안쪽 24 를 두르므로 바깥 여백은 top 6 · bottom 16 → 합쳐서 전과 같은 30 · 40.
+ */
 @Composable
 internal fun WaitingEmptyMascot(newUser: Boolean = false) {
     Box(
-        Modifier.fillMaxWidth().padding(top = 30.dp, bottom = 40.dp),
+        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 80.dp)
-            Spacer(Modifier.height(10.dp))
-            // .em-speech — 파란 pill + 위쪽 삼각 꼬리(::after 11x11 rotate45 top:-6).
-            //   배경 var(--blue-tint) #EEF4FF / 글자 var(--blue-dark) #1B64DA / weight 800 / 14sp.
-            //   padding 10x16, border-radius 14.
-            Box(contentAlignment = Alignment.TopCenter) {
-                // 삼각 꼬리: 11dp 정사각 45° → 윗절반만 pill 위로 노출. 같은 색이라 ▲ 만 보임.
-                Box(
-                    Modifier
-                        .offset(y = (-5).dp)
-                        .size(11.dp)
-                        .rotate(45f)
-                        .background(TossBlueSoft)
-                )
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(TossBlueSoft)
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        // 완전 신규(대화 이력 0)에게 "다 끝냈어요"는 앞뒤가 안 맞음 → 환영 문구로 분기. 기존 문구(프로토)는 그대로.
-                        // 👏 👋 도 뺐다 — 폰마다 다르게 그려진다(앱 전체 규칙). (2026-09-22 사장님)
-                        if (newUser) "사장님, 오늘도 잘 부탁드려요" else "사장님, 오늘 상담 다 끝냈어요",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = TossBlueDark
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            // .em-sub — 12.5sp / weight 600 / color t3 (#9AA3AF) / margin-top 12.
-            Text(
-                "새 문의가 오면 막내가 바로 알려드릴게요",
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TossTextTertiary,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
+        com.detailline.callfollowcrm.presentation.component.MascotEmptyState(
+            // 완전 신규(대화 이력 0)에게 "다 끝냈어요"는 앞뒤가 안 맞음 → 환영 문구로 분기. 기존 문구(프로토)는 그대로.
+            // 👏 👋 도 뺐다 — 폰마다 다르게 그려진다(앱 전체 규칙). (2026-09-22 사장님)
+            speech = if (newUser) "사장님, 오늘도 잘 부탁드려요" else "사장님, 오늘 상담 다 끝냈어요",
+            sub = "새 문의가 오면 막내가 바로 알려드릴게요"
+        )
     }
 }
 

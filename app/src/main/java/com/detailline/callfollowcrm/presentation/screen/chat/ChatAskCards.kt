@@ -324,8 +324,10 @@ internal fun WorkDoneAskCard(
     /** 그날 안 갔다 — **아무것도 안 찍는다.** */
     onNotYet: () -> Unit
 ) {
-    val purple = Color(0xFF6B4FBB)
-    val days = ((DateTimeUtils.startOfDay(System.currentTimeMillis()) - workLastDayMs)
+    // 협업·일당과 같은 「분류 보라」 — 글자는 categoryText, 채움은 category. (2026-10-18 보라 4종 → 토큰)
+    val purple = AppTheme.colors.categoryText
+    val purpleFill = AppTheme.colors.category
+    val days =((DateTimeUtils.startOfDay(System.currentTimeMillis()) - workLastDayMs)
         / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(1)
     val dayLabel = java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
         .format(java.util.Date(workLastDayMs))
@@ -358,7 +360,7 @@ internal fun WorkDoneAskCard(
             Text(
                 if (asksMoney) "네, 다 받았어요" else "네, 끝났어요",
                 fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(purple)
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(purpleFill)
                     .clickable(onClick = if (asksMoney) onDoneAndPaid else onDoneOnly)
                     .padding(horizontal = 14.dp, vertical = 9.dp)
             )

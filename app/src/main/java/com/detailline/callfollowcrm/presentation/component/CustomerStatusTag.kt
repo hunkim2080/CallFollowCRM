@@ -115,8 +115,8 @@ fun CustomerStatusTag(status: String) {
 //     같은 뜻이면 같은 모양이어야 한다 → 이 파일이 유일한 출처다. 화면에서 색을 적지 말 것.
 // ══════════════════════════════════════════════════════════════════════
 
-/** 분류 태그 색 — 사장님이 만든 묶음(일당 등). 한 곳에서만 정한다. */
-private val CATEGORY_FG = Color(0xFF6D5AE6)
+/** 분류 태그 색 — 사장님이 만든 묶음(일당 등). 한 곳에서만 정한다 = 디자인 시스템 `categoryText`(2026-10-18 보라 4종 → 토큰 1). */
+private val CATEGORY_FG = LightColors.categoryText
 private val CATEGORY_BG = LightColors.categoryBg
 
 /**

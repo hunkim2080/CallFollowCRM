@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.screen.stylelearning
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.AutoAwesome
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -98,14 +99,14 @@ fun StyleLearningScreen(
             // ── tone-hero ──
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(Purple, Color(0xFF5B43C9)))).padding(20.dp)
+                    .background(Brush.linearGradient(listOf(Purple, LightColors.categoryText))).padding(20.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("🐣", fontSize = 30.sp)
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text("${state.sampleCount}", fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text("${state.sampleCount}", style = AppType.hero, color = Color.White)
                             Text(" 개 학습", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f),
                                 modifier = Modifier.padding(bottom = 6.dp))
                         }
