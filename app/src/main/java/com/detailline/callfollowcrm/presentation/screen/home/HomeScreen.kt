@@ -57,9 +57,9 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -479,7 +479,7 @@ fun HomeScreen(
     // 💬 ViewModel 이 보낸 한마디 → 스낵바. 고객 상세가 쓰는 그 방식 그대로. (2026-10-02)
     val vmToast by viewModel.toast.collectAsState()
     LaunchedEffect(vmToast) {
-        vmToast?.let { msg -> snackbarHostState.showSnackbar(msg); viewModel.consumeToast() }
+        vmToast?.let { msg -> snackbarHostState.showBrief(msg); viewModel.consumeToast() }
     }
 
     // 오늘 시공 히어로 [완료] → 프로토 openComplete 팝업 (시공 완료 · 고생하셨습니다).
@@ -636,7 +636,7 @@ fun HomeScreen(
             }
         },
         // 프로토 상담함엔 수동 입력 FAB 없음 — 2026-06-02 사장님 요청으로 제거.
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { AppSnackbarHost(snackbarHostState) }
     ) { inner ->
         Column(
             Modifier
@@ -724,10 +724,9 @@ fun HomeScreen(
                                 //   백 개를 한 번에 비우는 일이라 **되돌리기**도 같이 준다.
                                 val n = viewModel.markAllRead(boxNow)
                                 if (n > 0) scope.launch {
-                                    val r = snackbarHostState.showSnackbar(
+                                    val r = snackbarHostState.showBrief(
                                         "${n}개를 읽음으로 바꿨어요",
-                                        actionLabel = "되돌리기",
-                                        duration = SnackbarDuration.Short
+                                        actionLabel = "되돌리기"
                                     )
                                     if (r == SnackbarResult.ActionPerformed) viewModel.undoMarkAllRead()
                                 }
@@ -1251,9 +1250,8 @@ fun HomeScreen(
                                         if (wage > 0L) {
                                             viewModel.recordLaborPayment(up.partnerName, wage, up.eventId)
                                             scope.launch {
-                                                snackbarHostState.showSnackbar(
-                                                    "정산에 일당 지급을 기록했어요",
-                                                    duration = SnackbarDuration.Short
+                                                snackbarHostState.showBrief(
+                                                    "정산에 일당 지급을 기록했어요"
                                                 )
                                             }
                                         } else {
@@ -1310,10 +1308,10 @@ fun HomeScreen(
                                     }
                                     if (ok) {
                                         viewModel.markReminderSent(rem.item)
-                                        snackbarHostState.showSnackbar("${rem.name} 님께 보냈어요", duration = SnackbarDuration.Short)
+                                        snackbarHostState.showBrief("${rem.name} 님께 보냈어요")
                                     } else {
                                         onOpenChat(rem.item.phone, rem.item.customerId)
-                                        snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
+                                        snackbarHostState.showBrief("문자 권한이 없어요 — 채팅에서 보내주세요")
                                     }
                                 }
                             }
@@ -1446,10 +1444,9 @@ fun HomeScreen(
                                     onLongClick = {
                                         viewModel.markBalanceReceived(due.customerId, due.jobId)
                                         scope.launch {
-                                            val r = snackbarHostState.showSnackbar(
+                                            val r = snackbarHostState.showBrief(
                                                 message = "${due.name} 잔금 받음 처리",
-                                                actionLabel = "되돌리기",
-                                                duration = SnackbarDuration.Short
+                                                actionLabel = "되돌리기"
                                             )
                                             if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId, due.jobId)
                                         }
@@ -1599,7 +1596,7 @@ fun HomeScreen(
                                                     onFirst = {
                                                         viewModel.markSpam(rItem.record.phoneNumber, rName, "spam")
                                                         scope.launch {
-                                                            val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                            val r = snackbarHostState.showBrief("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기")
                                                             if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
                                                         }
                                                     },
@@ -1607,7 +1604,7 @@ fun HomeScreen(
                                                         // 👥 지인으로 통일 (2026-10-02 사장님)
                                                         viewModel.moveToFriend(rItem.record.phoneNumber, rName)
                                                         scope.launch {
-                                                            val r = snackbarHostState.showSnackbar("지인으로 옮겼어요 — 문자함 [지인] 에 있어요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                            val r = snackbarHostState.showBrief("지인으로 옮겼어요 — 문자함 [지인] 에 있어요", actionLabel = "되돌리기")
                                                             if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
                                                         }
                                                     },
@@ -1641,9 +1638,9 @@ fun HomeScreen(
                                                                 {
                                                                     viewModel.dismissUnconfirmed(rItem.record.phoneNumber)
                                                                     scope.launch {
-                                                                        val r = snackbarHostState.showSnackbar(
+                                                                        val r = snackbarHostState.showBrief(
                                                                             "확인했어요 — 답장 안 함 목록에서 빠져요(고객·대화는 그대로)",
-                                                                            actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                                                                            actionLabel = "되돌리기"
                                                                         )
                                                                         if (r == SnackbarResult.ActionPerformed) viewModel.undoDismissUnconfirmed(rItem.record.phoneNumber)
                                                                     }
@@ -1704,9 +1701,9 @@ fun HomeScreen(
                         completeTarget = null
                         viewModel.markJobCompleted(cid)   // 완료 반영 → todayJobs 에서 제외 → 히어로 갱신
                         scope.launch {
-                            val res = snackbarHostState.showSnackbar(
+                            val res = snackbarHostState.showBrief(
                                 "$name 시공을 완료 처리했어요",
-                                actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                                actionLabel = "되돌리기"
                             )
                             if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompleted(cid)
                         }
@@ -1716,9 +1713,9 @@ fun HomeScreen(
                         completeTarget = null
                         viewModel.markJobCompletedBalancePaid(cid)   // 완료 + 잔금 완납 처리(고객상세 '잔금 받음', 미수금에서 빠짐)
                         scope.launch {
-                            val res = snackbarHostState.showSnackbar(
+                            val res = snackbarHostState.showBrief(
                                 "$name 완료 · 잔금까지 다 받음 처리했어요",
-                                actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                                actionLabel = "되돌리기"
                             )
                             if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompleted(cid)
                         }
@@ -1731,8 +1728,8 @@ fun HomeScreen(
                             val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, body)   // 발송 IO — 메인 멈칫 방지
                             }
-                            if (ok) snackbarHostState.showSnackbar("$name 님께 $kind 발송 · 완료 처리", duration = SnackbarDuration.Short)
-                            else snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
+                            if (ok) snackbarHostState.showBrief("$name 님께 $kind 발송 · 완료 처리")
+                            else snackbarHostState.showBrief("문자 권한이 없어요 — 채팅에서 보내주세요")
                         }
                     }
                 )
@@ -1772,7 +1769,7 @@ fun HomeScreen(
                             viewModel.recordLaborPayment(up.partnerName, manwon.toLongOrNull() ?: 0L, up.eventId)
                             payTarget = null
                             scope.launch {
-                                snackbarHostState.showSnackbar("정산에 일당 지급을 기록했어요", duration = SnackbarDuration.Short)
+                                snackbarHostState.showBrief("정산에 일당 지급을 기록했어요")
                             }
                         }) { Text("기록", color = TossBlue, fontWeight = FontWeight.Bold) }
                     },
@@ -1802,9 +1799,8 @@ fun HomeScreen(
                                         pinTarget = null
                                         val nowPinned = viewModel.togglePin(phone)
                                         scope.launch {
-                                            snackbarHostState.showSnackbar(
-                                                if (nowPinned) "맨 위에 고정했어요" else "고정을 해제했어요",
-                                                duration = SnackbarDuration.Short
+                                            snackbarHostState.showBrief(
+                                                if (nowPinned) "맨 위에 고정했어요" else "고정을 해제했어요"
                                             )
                                         }
                                     }
@@ -1905,28 +1901,28 @@ fun HomeScreen(
                     onOpen = { phone -> onOpenChat(phone, null) },
                     onMoveToConsult = { phone ->
                         viewModel.moveToConsult(phone)
-                        scope.launch { snackbarHostState.showSnackbar("상담함으로 옮겼어요") }
+                        scope.launch { snackbarHostState.showBrief("상담함으로 옮겼어요") }
                     },
                     onMoveToSpam = { phone, name ->
                         viewModel.markSpam(phone, name)
-                        scope.launch { snackbarHostState.showSnackbar("스팸으로 옮겼어요") }
+                        scope.launch { snackbarHostState.showBrief("스팸으로 옮겼어요") }
                     },
                     // 📦📢👥 틀린 라벨 고치기 — 그 번호를 기억해 다음부터 자동. (2026-10-14 사장님)
                     onMoveToParcel = { phone, name ->
                         viewModel.moveToParcel(phone, name)
-                        scope.launch { snackbarHostState.showSnackbar("택배로 옮겼어요 — 이 번호는 앞으로 택배로 와요") }
+                        scope.launch { snackbarHostState.showBrief("택배로 옮겼어요 — 이 번호는 앞으로 택배로 와요") }
                     },
                     onMoveToAd = { phone, name ->
                         viewModel.moveToAd(phone, name)
-                        scope.launch { snackbarHostState.showSnackbar("광고로 옮겼어요 — 이 번호는 앞으로 광고로 와요") }
+                        scope.launch { snackbarHostState.showBrief("광고로 옮겼어요 — 이 번호는 앞으로 광고로 와요") }
                     },
                     onMoveToFriend = { phone, name ->
                         viewModel.moveToFriend(phone, name)
-                        scope.launch { snackbarHostState.showSnackbar("지인으로 옮겼어요 — 문자함 [지인] 에 있어요") }
+                        scope.launch { snackbarHostState.showBrief("지인으로 옮겼어요 — 문자함 [지인] 에 있어요") }
                     },
                     onTogglePin = { phone ->
                         val nowPinned = viewModel.togglePin(phone)
-                        scope.launch { snackbarHostState.showSnackbar(if (nowPinned) "맨 위에 고정했어요" else "고정을 해제했어요") }
+                        scope.launch { snackbarHostState.showBrief(if (nowPinned) "맨 위에 고정했어요" else "고정을 해제했어요") }
                     },
                     modifier = Modifier.weight(1f)
                 )

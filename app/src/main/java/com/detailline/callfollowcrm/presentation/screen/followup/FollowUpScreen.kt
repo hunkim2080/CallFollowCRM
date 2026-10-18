@@ -44,8 +44,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -144,7 +145,7 @@ fun FollowUpScreen(
 
     LaunchedEffect(toast) {
         toast?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showBrief(it)
             viewModel.consumeToast()
         }
     }
@@ -194,7 +195,7 @@ fun FollowUpScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { AppSnackbarHost(snackbar) },
         bottomBar = {
             // 하단 고정 CTA — 두 단계 위계.
             // 1차(파란 fill): 문자 보내기 = 메인 흐름

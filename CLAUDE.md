@@ -342,13 +342,13 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (21가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (24가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 23가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw`
+**`dup_guard` 가 지금 막는 24가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -462,6 +462,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 인터넷 복구 듣기 | `util/NetworkWatch.kt` | 화면마다 `ConnectivityManager` 새로 |
 | 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |
 | 하단 시트 틀(스크림+카드+그랩+키보드/네비바 여백+스크롤) | `presentation/component/AppSheet.kt` | 시트마다 `Box(scrim)+Column+keyboardOrNavPadding+verticalScroll` 새로 (빠뜨리면 스크롤·키보드·네비바 버그) |
+| 확인 띠(스낵바) — 짧게(확인 1.5초·실패/되돌리기 3초)·작은 알약·탭하면 닫힘 | `AppSnackbarHost(state)` + `state.showBrief(msg[, "되돌리기"])` (`presentation/util/AppSnackbar.kt`, 몇 초인지는 `domain/ui/SnackbarTiming.kt`) | `SnackbarHost(state)` 직접, `showSnackbar(…, duration = Short)` 직접 (2026-10-19: 큰 검정 띠가 4초 동안 바닥을 가려 다음 동작을 막았다). 일정 화면은 M 정리 뒤 |
 | 빈 화면(막내 + 파란 말풍선 제목 + 회색 부제) | `MascotEmptyState(speech, sub)` (`presentation/component/MascotEmptyState.kt`) — 홈 `WaitingEmptyMascot` 도 이걸 부른다 | 화면마다 `Text("✅"/"📝"/"💰", fontSize = 36.sp)` 이모지 글리프 + 글자 두 줄 새로(폰마다 다르게 그려진다 — 2026-10-18: 7화면이 제각각이었다), 말풍선 코드 복사 |
 | 고객 상세 **접힘 줄 머리**(아이콘 상자+제목+개수+›/▾, 비면 「＋ 적기」) | `CdFoldRow` (`presentation/screen/customer/CustomerDetailBits.kt`) — 고객 메모·현장 메모·팀원 메모·이 고객 문서 | 섹션마다 `Row + CdTitleIcon + Text + "▸"` 새로 (2026-10-15: 네 벌이 제각각이라 "정신없다"가 됐다) |
 | 협업 현장 **날짜 기둥 줄 틀**(M.d/요일 기둥 + 1줄 진하게 + 2줄 연하게 + 상태 딱지 + 「N만」) 과 **달 머리줄**(「2026년 10월 ……… N곳」) | `CollabPillarRow` · `CollabMonthHeader` (`presentation/screen/sharedsite/SharedSiteRows.kt`) — 현장순 `FeedSiteRow` · 업체 내역 `PartnerDetailSiteRow` · 내가 공유한 `MySharedDetailRow` 셋이 같은 틀, 가라앉힌 상태색은 `collabStatusTagQuiet` | 줄마다 `Row + DatePillar + Column + 딱지` 새로, 달 머리 Row 를 화면 안에 또 (2026-10-17: 날짜 기둥이 두 벌이고 현장순은 옛 모양이었다) |

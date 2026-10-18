@@ -44,8 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -126,14 +127,14 @@ fun TeamScreen(
 
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(toast) {
-        toast?.let { snackbar.showSnackbar(it); viewModel.consumeToast() }
+        toast?.let { snackbar.showBrief(it); viewModel.consumeToast() }
     }
 
     // Box 로 감싸 시트를 액티비티 윈도우 안 오버레이로 → adjustResize 가 키보드 처리(채팅 입력창과 동일).
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { AppSnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = { Text("인원 관리", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -207,7 +208,7 @@ fun TeamScreen(
                 onClick = {
                     val target = members.firstOrNull()
                     if (target == null) {
-                        scope.launch { snackbar.showSnackbar("팀원을 먼저 추가해주세요") }
+                        scope.launch { snackbar.showBrief("팀원을 먼저 추가해주세요") }
                     } else {
                         viewModel.previewLink(target) { url -> openUrl(context, url) }
                     }
@@ -241,7 +242,7 @@ fun TeamScreen(
                         onRemove = {
                             viewModel.remove(m) { undo ->
                                 scope.launch {
-                                    val r = snackbar.showSnackbar(
+                                    val r = snackbar.showBrief(
                                         message = "${m.name} 제외 · 링크 차단됨",
                                         actionLabel = "되돌리기"
                                     )

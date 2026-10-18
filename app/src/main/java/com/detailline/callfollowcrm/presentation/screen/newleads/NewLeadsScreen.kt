@@ -69,9 +69,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -118,7 +118,7 @@ fun NewLeadsScreen(
 
     Scaffold(
         containerColor = TossGrayBg,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("신규 고객 · 날짜별", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -196,9 +196,9 @@ fun NewLeadsScreen(
                         LeadSwipeBox(modifier = Modifier.padding(bottom = 9.dp), onDismiss = {
                             viewModel.dismissAsSpam(lead.phone)
                             scope.launch {
-                                val r = snackbarHostState.showSnackbar(
+                                val r = snackbarHostState.showBrief(
                                     "광고/스팸으로 정리했어요 — 신규 집계에서 빠져요",
-                                    actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                                    actionLabel = "되돌리기"
                                 )
                                 if (r == SnackbarResult.ActionPerformed) viewModel.undoDismiss(lead.phone)
                             }

@@ -115,8 +115,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -629,7 +630,7 @@ fun ChatScreen(
 
     LaunchedEffect(toast) {
         toast?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showBrief(it)
             viewModel.consumeToast()
         }
     }
@@ -640,7 +641,7 @@ fun ChatScreen(
     LaunchedEffect(resummarized) {
         val done = resummarized ?: return@LaunchedEffect
         if (done == PhoneKey.of(viewModel.phoneNumber)) {
-            snackbar.showSnackbar("요약을 새로 했어요")
+            snackbar.showBrief("요약을 새로 했어요")
         }
         com.detailline.callfollowcrm.recording.CallSummaryProgress.consumeDone()
     }
@@ -696,7 +697,7 @@ fun ChatScreen(
         contentWindowInsets = keyboardClearance,
         snackbarHost = {
             val d = androidx.compose.ui.platform.LocalDensity.current
-            SnackbarHost(
+            AppSnackbarHost(
                 snackbar,
                 modifier = Modifier.padding(bottom = with(d) { composerHeightPx.toDp() })
             )

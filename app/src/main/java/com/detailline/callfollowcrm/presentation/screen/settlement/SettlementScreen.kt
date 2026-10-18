@@ -47,8 +47,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -112,7 +113,7 @@ fun SettlementScreen(
     val snackbar = remember { SnackbarHostState() }
     val toast by viewModel.toast.collectAsState()
     LaunchedEffect(toast) {
-        toast?.let { snackbar.showSnackbar(it); viewModel.consumeToast() }
+        toast?.let { snackbar.showBrief(it); viewModel.consumeToast() }
     }
 
     // 잔금/전액 "확인" 누를 때 완납 확인 (오탭 방지).
@@ -126,7 +127,7 @@ fun SettlementScreen(
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { AppSnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),

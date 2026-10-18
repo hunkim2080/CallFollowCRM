@@ -89,8 +89,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -260,7 +261,7 @@ fun CustomerDetailScreen(
     // ViewModel 측 toast (인라인 발송 결과 등) → 스낵바로 노출
     LaunchedEffect(toast) {
         toast?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showBrief(it)
             viewModel.consumeToast()
         }
     }
@@ -329,7 +330,7 @@ fun CustomerDetailScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { AppSnackbarHost(snackbar) }
         // 하단 고정 "💬 문자 보내기" 버튼 제거 — 프로토 openCustomer 엔 없음(맨 아래 "지난 문자 보기"
         //   링크만). 2026-06-04 사장님 결정 "프로토대로".
     ) { inner ->

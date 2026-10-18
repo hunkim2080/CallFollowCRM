@@ -2,6 +2,8 @@ package com.detailline.callfollowcrm.presentation.screen.stats
 
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -115,7 +117,7 @@ fun StatsScreen(
     val saveFail by viewModel.toast.collectAsState()
     LaunchedEffect(saveFail) {
         saveFail?.let { msg ->
-            snackbar.showSnackbar(msg)
+            snackbar.showBrief(msg)
             viewModel.clearToast()
         }
     }
@@ -136,7 +138,7 @@ fun StatsScreen(
 
     Scaffold(
         containerColor = TossGrayBg,
-        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
+        snackbarHost = { AppSnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
@@ -224,10 +226,9 @@ fun StatsScreen(
                         onComplete = { r ->
                             viewModel.completeRecordJob(r.jobId, r.customerId)
                             scope.launch {
-                                val res = snackbar.showSnackbar(
+                                val res = snackbar.showBrief(
                                     (r.town ?: "이 현장") + " 완료로 표시했어요",
-                                    actionLabel = "되돌리기",
-                                    duration = androidx.compose.material3.SnackbarDuration.Short
+                                    actionLabel = "되돌리기"
                                 )
                                 if (res == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                                     viewModel.undoRecordJob(r.jobId, r.customerId)

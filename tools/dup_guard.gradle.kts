@@ -289,6 +289,16 @@ val dupRules = listOf(
         regex = Regex(""""오전"\s*else\s*"오후"|SimpleDateFormat\(\s*"a h:mm""""),
         instead = "DateTimeUtils.timeLabel(hour, minute) / .timeLabel(ms) (util/DateTimeUtils.kt)",
         homes = listOf("/util/DateTimeUtils.kt")
+    ),
+
+    // 🍞 확인 띠(스낵바) — 화면 9곳이 Material 기본 띠(큰 검정 띠 · 4초)를 각자 띄웠다. (2026-10-19 사장님 "화면을 가리고 4초나")
+    //   이제 presentation/util/AppSnackbar.kt 한 벌: `AppSnackbarHost(state)` + `state.showBrief(msg)`(확인 1.5초 · 실패/되돌리기 3초 · 탭=닫기).
+    //   기준선에 남긴 하나: ScheduleScreen(미커밋 변경 중 — M 정리 뒤 같이 바꾼다).
+    DupRule(
+        id = "snackbar-raw",
+        regex = Regex("""\bSnackbarHost\(|\.showSnackbar\("""),
+        instead = "AppSnackbarHost(state) / state.showBrief(msg[, actionLabel]) (presentation/util/AppSnackbar.kt)",
+        homes = listOf("/presentation/util/AppSnackbar.kt")
     )
 )
 
