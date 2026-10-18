@@ -57,6 +57,9 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
+    // withMe/byMe 가 한 번이라도 성공했나 — 실패·느림을 "없음"과 구분(빈 창 오해 방지). (2026-10-19 사장님)
+    private val _loadedOnce = MutableStateFlow(false)
+    val loadedOnce = _loadedOnce.asStateFlow()
 
     /** 현재 연 협업 현장의 증거 사진(§F). 상세 열 때 loadPhotos. */
     private val _photos = MutableStateFlow<List<SharedSiteRepository.SharedPhoto>>(emptyList())
@@ -143,7 +146,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         _loading.value = true
         viewModelScope.launch {
             // ⚠️ 실패(오프라인)면 **지금 목록을 유지**한다 — 빈 목록으로 덮으면 서 있는 현장이 사라진다(Fable #2).
-            val list = repo.withMe(myPhone).getOrNull() ?: _sites.value
+            val withMeR = repo.withMe(myPhone)
+            val list = withMeR.getOrNull() ?: _sites.value
             _sites.value = list
             // 수락 유효시간(12h) 앵커: 화면을 직접 열어 본 시각도 기록(폴링 전이라도) — 서버 created_at_ms 폴백.
             container.preferences.syncCollabInviteFirstSeen(
@@ -152,7 +156,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
             )
             // 업체별 집계(§B)·내가 공유한 현장 — 실패하면 지금 값 유지(오프라인에 안 비운다).
             _partners.value = repo.partners(myPhone).getOrNull() ?: _partners.value
-            _mySharedSites.value = repo.byMe(myPhone).getOrNull() ?: _mySharedSites.value
+            val byMeR = repo.byMe(myPhone)
+            _mySharedSites.value = byMeR.getOrNull() ?: _mySharedSites.value
+            // 하나라도 서버에서 성공적으로 받아왔으면 "불러온 적 있음" — 이제부터 빈 건 진짜 0건.
+            if (withMeR.isSuccess || byMeR.isSuccess) _loadedOnce.value = true
             _loading.value = false
         }
     }

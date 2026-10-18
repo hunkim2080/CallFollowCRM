@@ -53,6 +53,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 internal fun MySharedArea(
     sites: List<SharedSiteRepository.SharedSite>,
     loading: Boolean,
+    loadedOnce: Boolean,
     noBizPhone: Boolean,
     listView: String,
     onListView: (String) -> Unit,
@@ -69,6 +70,11 @@ internal fun MySharedArea(
             "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면, 내 현장을 다른 사장님께 공유할 수 있어요."
         )
         sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
+        // 🔌 한 번도 못 받아왔는데 비어 있으면 = "없음" 아니라 "못 불러옴". (2026-10-19 사장님: 둘 다 빈 창)
+        sites.isEmpty() && !loadedOnce -> EmptyCard(
+            "불러오는 중…",
+            "연결이 느려요 — 아래로 당겨 새로고침 해보세요."
+        )
         sites.isEmpty() -> EmptyCard(
             "내가 공유한 현장이 없어요",
             "고객 화면의 '협업 현장으로 공유', 일정 화면의 '전문가 배정'에서 부르면, 그 현장을 함께할 사장님과 여기에 모여요."

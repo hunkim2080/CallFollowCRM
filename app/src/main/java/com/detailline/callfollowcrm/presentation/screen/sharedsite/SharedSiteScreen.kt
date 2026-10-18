@@ -104,6 +104,7 @@ fun SharedSiteScreen(
     // 🤝 내 시공 일정 — 협업 요청 카드가 「그날 되나?」를 말하는 데 쓴다. (2026-09-30 사장님)
     val myJobs by viewModel.myJobs.collectAsState()
     val loading by viewModel.loading.collectAsState()
+    val loadedOnce by viewModel.loadedOnce.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val photos by viewModel.photos.collectAsState()
     val photoBusy by viewModel.photoBusy.collectAsState()
@@ -336,6 +337,7 @@ fun SharedSiteScreen(
                     MySharedArea(
                         sites = myActiveShared,
                         loading = loading,
+                        loadedOnce = loadedOnce,
                         noBizPhone = viewModel.noBizPhone,
                         listView = myListView,
                         onListView = { myListView = it; myPartner = null },
@@ -375,6 +377,7 @@ fun SharedSiteScreen(
                     ListArea(
                         sites = acceptedSites,
                         loading = loading,
+                        loadedOnce = loadedOnce,
                         noBizPhone = viewModel.noBizPhone,
                         hasPending = pendingSites.isNotEmpty(),
                         listView = listView,
@@ -659,6 +662,7 @@ fun SharedSiteScreen(
 private fun ListArea(
     sites: List<SharedSiteRepository.SharedSite>,
     loading: Boolean,
+    loadedOnce: Boolean,
     noBizPhone: Boolean,
     hasPending: Boolean = false,
     listView: String,
@@ -703,6 +707,12 @@ private fun ListArea(
             fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+        )
+        // 🔌 한 번도 서버에서 못 받아왔는데 비어 있으면 = "없음"이 아니라 "못 불러옴"(느림/오프라인). (2026-10-19 사장님: 둘 다 빈 창)
+        sites.isEmpty() && !loadedOnce -> EmptyCard(
+            "불러오는 중…",
+            "연결이 느려요 — 아래로 당겨 새로고침 해보세요.",
+            tall = true
         )
         sites.isEmpty() -> EmptyCard(
             "아직 공유받은 현장이 없어요",
