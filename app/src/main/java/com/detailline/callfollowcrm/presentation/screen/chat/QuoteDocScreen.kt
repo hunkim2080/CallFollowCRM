@@ -58,7 +58,6 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import java.io.File
 import java.io.FileOutputStream
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -83,7 +82,8 @@ data class QuoteDocData(
 
 private val SealRed = Color(0xFFD6342C)
 
-private fun won(n: Long): String = NumberFormat.getNumberInstance(Locale.KOREA).format(n)
+/** 숫자만 콤마(「원」은 부르는 쪽이 붙인다) — 글자는 MoneyFormatter 한 곳. */
+private fun won(n: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.grouped(n)
 
 private fun findActivity(ctx: Context): Activity? {
     var c = ctx

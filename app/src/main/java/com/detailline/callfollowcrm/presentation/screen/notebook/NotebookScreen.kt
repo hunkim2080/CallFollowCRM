@@ -335,7 +335,7 @@ fun NotebookContent(
                     Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("함께한 현장 ${sites.size}회", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                         Spacer(Modifier.weight(1f))
-                        Text("일당 합계 ${totalWage / 10_000L}만원", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError)
+                        Text("일당 합계 ${MoneyFormatter.manwonShort(totalWage)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError)
                     }
                     LazyColumn(
                         Modifier.fillMaxSize(),
@@ -490,7 +490,7 @@ private fun ContactCard(
                     Column(horizontalAlignment = Alignment.End) {
                         Text(if (c.wageType == NotebookContactEntity.WAGE_HOURLY) "시급" else "일당",
                             style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
-                        Text("${c.wage!! / 10_000L}만원", style = MaterialTheme.typography.titleMedium,
+                        Text(MoneyFormatter.manwonShort(c.wage!!), style = MaterialTheme.typography.titleMedium,
                             color = TossTextPrimary, fontWeight = FontWeight.ExtraBold)
                     }
                 }

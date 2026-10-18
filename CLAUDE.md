@@ -342,13 +342,13 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (18가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (21가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 20가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints`
+**`dup_guard` 가 지금 막는 21가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -422,7 +422,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 전화번호 보여주기 | `util/PhoneNumberFormatter.kt` | 하이픈 직접 끼우기 |
 | 오늘 0시·날짜 경계 | `util/DateTimeUtils.startOfDay(ms)` | `set(HOUR_OF_DAY, 0)` |
 | 달의 시작·달 넘기기 | `util/DateTimeUtils.startOfMonth(ms)` / `.shiftMonth(anchor, delta)` | `set(DAY_OF_MONTH, 1)`, `monthStartOf`·`monthAnchor(Of)`·`shiftMonth(Ms)` 를 화면마다 새로 |
-| 돈 보여주기 | `util/MoneyFormatter.kt` | `String.format("%,d")` 직접 |
+| 돈 보여주기(콤마·만 단위 **내림**·정확히) | `util/MoneyFormatter.kt` — `won`(「1,200,000원」) · `manwonShort`(내림 「37만원」, 좁은 자리) · `manwonShortOrWon`(만 미만은 원) · `manwonOrWon`(정확히, 손님이 읽는 글) · `grouped`(숫자만 콤마) · `manOf`(원→만 수) | `String.format("%,d")`·`NumberFormat` 직접, `won / 10_000` 을 화면에서, `Math.round` 로 만 단위(2026-10-18: 두 곳만 반올림이라 375,000원이 홈 「37만」·달력 「38만」) |
+| 「완료」(작업 끝)·「완납」(돈까지) 판정 — 목록 딱지·건 카드·검색·`CustomerEntity.isWorkDone` 이 같은 자 | `domain/job/Completion.kt` — `Completion.stageOf(c/j)` → `CompletionStage.IN_PROGRESS/DONE/PAID_OFF`(`.label` 「진행 중/완료/완납」) · `Completion.isDone` · 끝난 상태 글자 묶음은 `DONE_STATUSES`(`presentation/component/CustomerStatusTag.kt`) | 화면에서 `workCompletedAt != null`·`balancePaidAt != null` 로 직접 판정, 「완료」를 돈까지 받은 뜻으로 쓰기(2026-10-18: 목록은 「완료 = 돈까지」, 카드는 「완료 = 작업만」이라 한 손님이 카드엔 완료·목록엔 잔금미수) |
 | 사진 크게 보기·돌리기 | `presentation/component/PhotoViewer.kt` | 화면마다 Dialog 새로 만들기 |
 | 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest` 직접 |
 | 전화 걸기 | `util/PhoneDialer.kt` | `"tel:" ` URI 직접 |

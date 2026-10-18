@@ -50,6 +50,38 @@ class MoneyFormatterTest {
         assertEquals("120만", MoneyFormatter.manwonShort(1_200_000, "만"))
     }
 
+    @Test
+    fun `만 단위 수에도 천 단위 콤마 — 1,250만원`() {
+        // manwonOrWon 과 같은 모양. 전엔 「1250만원」/「1,250만원」이 화면마다 갈렸다. (2026-10-18)
+        assertEquals("1,250만원", MoneyFormatter.manwonShort(12_500_000))
+        assertEquals("1,250만", MoneyFormatter.manwonShort(12_505_000, "만"))
+    }
+
+    @Test
+    fun `원 → 만(수) 도 내림 한 곳`() {
+        assertEquals(37L, MoneyFormatter.manOf(375_000))
+        assertEquals(0L, MoneyFormatter.manOf(9_999))
+    }
+
+    // ── 줄여 적되 만 미만은 원 — 딱지·요약 한 줄 ─────────────────────
+
+    @Test
+    fun `딱지용 — 만 이상은 내림, 만 미만은 원 그대로`() {
+        // 전엔 일정 달력 딱지만 반올림이라 375,000원이 홈은 「37만」, 달력은 「38만」이었다. (2026-10-18)
+        assertEquals("37만", MoneyFormatter.manwonShortOrWon(375_000, "만"))
+        assertEquals("1,250만", MoneyFormatter.manwonShortOrWon(12_500_000, "만"))
+        assertEquals("9,000원", MoneyFormatter.manwonShortOrWon(9_000, "만"))
+        assertEquals("0원", MoneyFormatter.manwonShortOrWon(0))
+        assertEquals("37만원", MoneyFormatter.manwonShortOrWon(375_000))
+    }
+
+    @Test
+    fun `숫자만 콤마 — 단위는 부르는 쪽이 붙인다`() {
+        assertEquals("1,200,000", MoneyFormatter.grouped(1_200_000L))
+        assertEquals("999", MoneyFormatter.grouped(999))
+        assertEquals("0", MoneyFormatter.grouped(0L))
+    }
+
     // ── 정확히 적기 — 손님이 읽는 글 ─────────────────────────────────
 
     @Test

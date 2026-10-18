@@ -391,7 +391,7 @@ internal fun IssuedDocSegment(
             doc.itemsText?.takeIf { it.isNotBlank() }?.let { append(it) }
             if (doc.totalWon > 0L) {
                 if (isNotEmpty()) append(" · ")
-                append("${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(doc.totalWon)}원")
+                append(com.detailline.callfollowcrm.util.MoneyFormatter.won(doc.totalWon))
             }
         }
         if (summary.isNotBlank()) {

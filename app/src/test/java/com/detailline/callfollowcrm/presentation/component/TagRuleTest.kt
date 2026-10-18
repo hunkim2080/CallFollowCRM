@@ -133,7 +133,8 @@ class TagRuleTest {
         assertEquals("잔금미수", customerStatusOf(customer(
             workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, completedAt = now
         ), today0, now))
-        assertEquals("완료", customerStatusOf(customer(
+        // 돈까지 받았으면 「완납」 — 「완료」 칩이 완료·완납 둘 다 모은다(DONE_STATUSES). (2026-10-18)
+        assertEquals("완납", customerStatusOf(customer(
             workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now
         ), today0, now))
     }
@@ -142,7 +143,9 @@ class TagRuleTest {
     fun `고객관리 칩에 없는 상태를 만들지 않는다`() {
         // 칩 목록: 전체·신규·예약·시공확인·잔금미수·완료. 계산이 그 밖의 말을 내놓으면
         //   어느 칩에도 안 잡히는 **유령 고객**이 생긴다. 빈 글자만 예외(딱지 없음).
-        val chips = setOf("신규", "예약", "시공확인", "잔금미수", "완료", "")
+        //   「완납」은 「완료」 칩이 같이 모은다 — DONE_STATUSES 한 곳.
+        val chips = setOf("신규", "예약", "시공확인", "잔금미수", "") + DONE_STATUSES
+        assertTrue("완납" in DONE_STATUSES)
         val cases = listOf(
             customer(createdAt = now),
             customer(createdAt = now - 30 * DAY),

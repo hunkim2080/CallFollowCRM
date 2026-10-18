@@ -165,7 +165,7 @@ fun VisitedScreen(
                     // 걸러서 볼 땐 **보이는 줄만** 더한다 — 곳 수는 걸러졌는데 금액만 전체면 거짓말이 된다.
                     val won = if (only == null) state.revenueManwon
                     else state.visitedRows.sumOf { it.amountManwon }
-                    append("다녀온 ${state.visitedCount}곳 · 매출 합계 ${"%,d".format(won)}만원")
+                    append("다녀온 ${state.visitedCount}곳 · 매출 합계 ${com.detailline.callfollowcrm.util.MoneyFormatter.grouped(won)}만원")
                     if (state.upcomingCount > 0) append("  ·  다녀올 ${state.upcomingCount}곳")
                 }
                 Text(sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextInfo,

@@ -383,9 +383,8 @@ internal fun inboxChipLabel(chip: String): String = when (chip) {
     "today" -> "오늘 신규"; "wait" -> "시공 대기"; "owe" -> "잔금 대기"; "onhold" -> "보류"; "done" -> "종료 고객"; else -> chip
 }
 
-/** "540,000원" 은 딱지에 넣기엔 길다 → "54만원". 딱 떨어지지 않으면 원래대로. */
-internal fun shortWon(won: Long): String =
-    if (won >= 10_000L && won % 10_000L == 0L) "${won / 10_000L}만원" else MoneyFormatter.won(won)
+/** "540,000원" 은 딱지에 넣기엔 길다 → "54만원". 딱 떨어지지 않으면 원래대로. 글자는 MoneyFormatter 한 곳. */
+internal fun shortWon(won: Long): String = MoneyFormatter.manwonOrWon(won)
 
 internal fun dialHome(context: android.content.Context, phone: String) {
     // ☎️ 전화 거는 자리는 **한 곳**이다 — 거는 번호를 기억해 두어야

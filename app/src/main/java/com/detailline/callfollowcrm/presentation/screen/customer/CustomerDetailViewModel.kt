@@ -716,7 +716,7 @@ class CustomerDetailViewModel(
 
     /** 만원 라벨 ("8만원"). 0 이하면 null. */
     private fun wonLabel(won: Long?): String? =
-        (won ?: 0L).takeIf { it > 0 }?.let { "${it / 10000L}만원" }
+        (won ?: 0L).takeIf { it > 0 }?.let { com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(it) }
 
     /** 시공일정 라벨 "7/3(금) 오전 8시" (시간 없으면 날짜만). null = 일정 없음. */
     private fun scheduleLabel(date: Long?, minutes: Int?): String? {

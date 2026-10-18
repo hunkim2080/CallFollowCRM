@@ -687,7 +687,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 잔금 요청 문자 본문 — 이름 + 미수액. (계좌는 prefs 미보유 → 금액만, 완료 흐름과 동일) */
     private fun balanceRequestBody(name: String?, outstandingWon: Long): String {
         val who = name ?: "고객"
-        return "${who}님 안녕하세요 😊 지난 시공 잔금 ${"%,d".format(outstandingWon)}원 입금 부탁드립니다. 감사합니다!"
+        return "${who}님 안녕하세요 😊 지난 시공 잔금 ${com.detailline.callfollowcrm.util.MoneyFormatter.won(outstandingWon)} 입금 부탁드립니다. 감사합니다!"
     }
 
     /** 오늘 5km 진입한 고객 ID — 지오펜스가 적립한 "arrival:{id}:{오늘자정}" 키에서 파싱. ts=현재 '오늘 0시'(반응형). */

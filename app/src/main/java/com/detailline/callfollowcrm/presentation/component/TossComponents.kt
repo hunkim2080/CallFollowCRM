@@ -439,7 +439,7 @@ val ThousandsCommaTransformation = androidx.compose.ui.text.input.VisualTransfor
     val number = raw.toLongOrNull() ?: return@VisualTransformation androidx.compose.ui.text.input.TransformedText(
         text, androidx.compose.ui.text.input.OffsetMapping.Identity
     )
-    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(number)
+    val formatted = com.detailline.callfollowcrm.util.MoneyFormatter.grouped(number)
     androidx.compose.ui.text.input.TransformedText(
         androidx.compose.ui.text.AnnotatedString(formatted),
         object : androidx.compose.ui.text.input.OffsetMapping {
@@ -462,7 +462,7 @@ val ThousandsCommaEditTransformation = androidx.compose.ui.text.input.VisualTran
             text, androidx.compose.ui.text.input.OffsetMapping.Identity
         )
     }
-    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(number)
+    val formatted = com.detailline.callfollowcrm.util.MoneyFormatter.grouped(number)
     // 원본(숫자만) index ↔ 포맷(콤마 포함) index 를 정확히 매핑 → 커서가 중간으로 이동 가능.
     val o2t = IntArray(raw.length + 1)
     var oi = 0

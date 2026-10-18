@@ -273,9 +273,7 @@ object RecordReel {
         val target = digits.toLongOrNull() ?: return text
         val now = Math.round(target * p.coerceIn(0f, 1f).toDouble())
         val head = text.takeWhile { !it.isDigit() }
-        val body = if (text.contains(',')) {
-            java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(now)
-        } else now.toString()
+        val body = if (text.contains(',')) MoneyFormatter.grouped(now) else now.toString()
         return head + body
     }
 

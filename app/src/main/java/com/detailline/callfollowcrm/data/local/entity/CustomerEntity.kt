@@ -100,8 +100,10 @@ data class CustomerEntity(
      * '시공 완료' 판정 — 완료처리([workCompletedAt])가 됐거나 **잔금([balancePaidAt])을 받았으면** 완료.
      * 사장님 지시(2026-08-18): "잔금 받으면 = 완료" 통일. 앱 고객목록(CustomersScreen)이 이미 쓰는 기준과 동일.
      * Room 은 생성자 밖 계산 프로퍼티를 컬럼으로 안 만든다 → DB 마이그레이션 불필요(안전).
+     * 🔒 규칙은 **`domain/job/Completion` 한 곳** — 건 카드·검색·목록 딱지와 같은 자. (2026-10-18)
+     *   (돈이 하나도 없는 카드의 잔금 도장은 완료로 안 친다 — 0원 완납은 없다. 거기 적힘)
      */
-    val isWorkDone: Boolean get() = workCompletedAt != null || balancePaidAt != null
+    val isWorkDone: Boolean get() = com.detailline.callfollowcrm.domain.job.Completion.isDone(this)
 
     /** 완료로 볼 시각 — 완료처리 시각 우선, 없으면 잔금 받은 시각. 정렬·날짜 귀속용. */
     val doneAtMs: Long? get() = workCompletedAt ?: balancePaidAt

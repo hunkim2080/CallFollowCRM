@@ -4683,7 +4683,7 @@ private fun EstimateBuilderDialog(
             val qty = selectedQty[item.id] ?: 0
             if (qty <= 0) return@mapNotNull null
             val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
-            val spec = if (isPyeong) "${item.price / 10_000L}만원/평 × ${qty}평" else "1식"
+            val spec = if (isPyeong) "${com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(item.price)}/평 × ${qty}평" else "1식"
             val amount0 = if (isPyeong) item.price * qty else item.price
             // 🏷️ 고객 문서에도 **빼기로** 담는다 — 앱에선 빠지는데 문서엔 더해지면 안 된다.
             val amount = com.detailline.callfollowcrm.domain.quote.QuoteMoney.signed(item.title, amount0)
@@ -5082,7 +5082,7 @@ private fun EstimateBuilderDialog(
                         )
                     } else {
                         Text(
-                            "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (합계의 ${depVal.ifBlank { "0" }}%)",
+                            "계약금 ${com.detailline.callfollowcrm.util.MoneyFormatter.won(depW)} (합계의 ${depVal.ifBlank { "0" }}%)",
                             fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 2.dp)
                         )
@@ -5097,7 +5097,7 @@ private fun EstimateBuilderDialog(
                     val depW = (depVal.toIntOrNull() ?: 0) * 10_000L
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (정액)",
+                        "계약금 ${com.detailline.callfollowcrm.util.MoneyFormatter.won(depW)} (정액)",
                         fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 2.dp)
                     )

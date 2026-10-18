@@ -483,8 +483,7 @@ private fun MyRecordMap(
                 if (rec.towns.isNotEmpty()) append(" · 동네 ").append(rec.towns.size).append("개")
                 if (rec.monthSalesManwon > 0) {
                     append(" · 매출 ")
-                    append(java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                        .format(rec.monthSalesManwon)).append("만")
+                    append(com.detailline.callfollowcrm.util.MoneyFormatter.grouped(rec.monthSalesManwon)).append("만")
                 }
             },
             style = AppType.caption, color = TossTextTertiary,
@@ -1210,8 +1209,7 @@ private fun bigPicks(rec: MyRecordState): List<BigPick> = buildList {
     //   고르게 한 건데, 정작 고를 '돈' 이 없으면 말이 안 된다. (2026-09-25)
     if (rec.monthSalesManwon > 0) add(
         BigPick(
-            java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                .format(rec.monthSalesManwon),
+            com.detailline.callfollowcrm.util.MoneyFormatter.grouped(rec.monthSalesManwon),
             "만원", "번 돈", "이번 달 번 돈"
             // 💰 **그 동네에서 번 돈만큼** 오른다 — 200만원짜리는 100만원짜리보다 두 배 뛴다.
         ) { it.amountManwon.toFloat() }
@@ -1393,8 +1391,7 @@ private fun MyRecordRows(
                             // 얼마짜리 일이었는지. 안 적은 건 조용히 뺀다.
                             if (r.amountManwon > 0) {
                                 append(" · ")
-                                append(java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                                    .format(r.amountManwon)).append("만")
+                                append(com.detailline.callfollowcrm.util.MoneyFormatter.grouped(r.amountManwon)).append("만")
                             }
                         },
                         style = AppType.caption, color = TossTextTertiary, maxLines = 1

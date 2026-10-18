@@ -4,10 +4,19 @@ package com.detailline.callfollowcrm.util
  * 금액 표시 — 사장님이 한눈에 읽도록 천 단위 콤마 + "원".
  *   1200000 → "1,200,000원"
  */
+/**
+ * 🔒 **돈 글자는 전부 여기서 나온다.** (2026-10-18 — 흩어진 직접 포맷 25곳을 거둬들임)
+ *   화면·VM 에서 `"%,d"` · `NumberFormat.getNumberInstance` · `won / 10_000` 을 직접 적지 않는다 —
+ *   `dup_guard` 의 `money-format-raw` 규칙이 막는다. 같은 셈이 파일마다 있으면 **한쪽만 고쳐진다**
+ *   (2026-10-18 실제: 만 단위를 두 곳은 반올림, 나머지는 내림 — 375,000원이 홈은 37만, 일정은 38만).
+ */
 object MoneyFormatter {
-    fun won(amount: Long): String = "%,d원".format(amount)
+    fun won(amount: Long): String = grouped(amount) + "원"
 
     private const val MAN = 10_000L
+
+    /** 원 → 만(내림). 숫자가 필요한 자리(상태값·정산 요약 Int)용. 글자가 필요하면 [manwonShort]. */
+    fun manOf(won: Long): Long = won / MAN
 
     /**
      * 💰 **만 단위로 줄여 적기 — 내림.** (2026-09-28 사장님 결정)
@@ -21,9 +30,18 @@ object MoneyFormatter {
      *   손님이 읽는 글(견적서·잔금 안내·문자)에는 [manwonOrWon] 을 쓴다.
      *   거기서 내림하면 그건 줄여 적는 게 아니라 **금액을 틀리게 적는 것**이다.
      *
+     *   만 단위 수에도 천 단위 콤마 — 「1,250만원」. [manwonOrWon] 과 같은 모양. (2026-10-18)
+     *
      * @param suffix 뒤에 붙일 말. 자리가 더 좁으면 "만" 만 쓰기도 한다.
      */
-    fun manwonShort(won: Long, suffix: String = "만원"): String = "${won / MAN}$suffix"
+    fun manwonShort(won: Long, suffix: String = "만원"): String = grouped(manOf(won)) + suffix
+
+    /**
+     * 줄여 적되 **만원이 안 되면 원 그대로** — 「37만원」 / 「9,000원」. 딱지·요약 한 줄용(「0만원」 방지).
+     *   내림 규칙은 [manwonShort] 와 같다. 손님이 읽는 글엔 [manwonOrWon].
+     */
+    fun manwonShortOrWon(won: Long, suffix: String = "만원"): String =
+        if (won >= MAN) manwonShort(won, suffix) else won(won)
 
     /**
      * 💰 **정확히 적기.** 만 단위로 딱 떨어지면 「95만원」, 아니면 「1,234,500원」.
@@ -31,7 +49,11 @@ object MoneyFormatter {
      *   만원이 안 되는 금액(9,000원)도 그대로 원으로 적는다 — 「0만원」은 말이 안 된다.
      */
     fun manwonOrWon(won: Long): String =
-        if (won >= MAN && won % MAN == 0L) "%,d만원".format(won / MAN) else won(won)
+        if (won >= MAN && won % MAN == 0L) manwonShort(won) else won(won)
+
+    /** 천 단위 콤마만 — 「1,200,000」. 단위는 부르는 쪽이 붙인다(「₩」·「원」·「만원」). */
+    fun grouped(n: Long): String = "%,d".format(n)
+    fun grouped(n: Int): String = grouped(n.toLong())
 
     /**
      * 입력칸용 천 단위 콤마 — 숫자만 추려 그룹핑. "원"/단위는 안 붙임.
@@ -40,6 +62,6 @@ object MoneyFormatter {
     fun grouped(raw: String): String {
         val digits = raw.filter { it.isDigit() }.trimStart('0')
         if (digits.isEmpty()) return if (raw.any { it.isDigit() }) "0" else ""
-        return "%,d".format(digits.toLong())
+        return grouped(digits.toLong())
     }
 }

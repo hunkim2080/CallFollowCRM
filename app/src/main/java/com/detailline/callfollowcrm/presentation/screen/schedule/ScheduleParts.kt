@@ -525,14 +525,12 @@ internal fun DayAddButton(label: String, onClick: () -> Unit) {
     }
 }
 
-/** 원 → 딱지용 짧은 금액. "120만" / "1,250만" (만원 미만은 원 그대로). */
+/**
+ * 원 → 딱지용 짧은 금액. "120만" / "1,250만" (만원 미만은 원 그대로).
+ *   **내림** — 셈은 MoneyFormatter 한 곳. 전엔 여기만 반올림이라 375,000원이 홈은 「37만」, 달력은 「38만」이었다. (2026-10-18)
+ */
 internal fun manwonTag(won: Long): String =
-    if (won >= 10_000L) {
-        java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-            .format(Math.round(won / 10_000.0)) + "만"
-    } else {
-        java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(won) + "원"
-    }
+    com.detailline.callfollowcrm.util.MoneyFormatter.manwonShortOrWon(won, "만")
 
 /** [길찾기] 파랑 채움 / [전화] 회색 채움. 둘 다 둥근 네모 — 알약은 '고르는 칩'에만. */
 @Composable

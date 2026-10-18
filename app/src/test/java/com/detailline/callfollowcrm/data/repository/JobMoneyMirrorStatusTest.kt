@@ -74,7 +74,8 @@ class JobMoneyMirrorStatusTest {
 
         val card = lastCustomerUpdate(customerDao)
         assertEquals("고객 카드에 잔금 받음이 찍혀야 한다", now, card.balancePaidAt)
-        assertEquals("배지(상담함·챗)도 완료여야 한다 — '잔금미수'로 남으면 버그", "완료", customerStatusOf(card, today, now))
+        // 돈까지 받았으니 「완납」 — 「완료」≠「완납」 (2026-10-18 사장님 용어 확정). '잔금미수'로 남으면 버그.
+        assertEquals("배지(상담함·챗)도 완납이어야 한다 — '잔금미수'로 남으면 버그", "완납", customerStatusOf(card, today, now))
     }
 
     @Test

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import com.detailline.callfollowcrm.util.PhoneKey
+import com.detailline.callfollowcrm.util.MoneyFormatter
 
 /**
  * 검색 (2026-06-01 전면 리뉴얼, 프로토 s-search) — 이름·전화번호·**대화 전체 내용** 검색.
@@ -81,7 +82,8 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                     name = c.name?.takeIf { it.isNotBlank() },
                     address = addr,
                     dayMs = j.scheduledWorkDate ?: j.workCompletedAt,
-                    money = moneyLabel(j.totalAmount, j.balanceAmount, j.balancePaidAt, j.workCompletedAt)
+                    money = moneyLabel(j.workCompletedAt, j.balancePaidAt,
+                        com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j))
                 )
             )
         }
@@ -98,7 +100,8 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                     name = c.name?.takeIf { it.isNotBlank() },
                     address = addr,
                     dayMs = c.scheduledWorkDate ?: c.workCompletedAt,
-                    money = moneyLabel(c.totalAmount, c.balanceAmount, c.balancePaidAt, c.workCompletedAt)
+                    money = moneyLabel(c.workCompletedAt, c.balancePaidAt,
+                        com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c))
                 )
             )
         }
@@ -126,7 +129,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             val c = byId[j.customerId] ?: continue
             covered.add(c.id)
             out.add(hitOf(c, j.address ?: c.address, j.scheduledWorkDate ?: j.workCompletedAt,
-                "미수 ${row.outstanding / 10000}만"))
+                "미수 " + MoneyFormatter.manwonShort(row.outstanding)))
         }
         // 건이 없는 옛 손님 — 고객 카드로.
         for (c in customers) {
@@ -135,7 +138,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
             if (row.outstanding <= 0L) continue
             out.add(hitOf(c, c.address, c.scheduledWorkDate ?: c.workCompletedAt,
-                "미수 ${row.outstanding / 10000}만"))
+                "미수 " + MoneyFormatter.manwonShort(row.outstanding)))
         }
         out.sortedByDescending { it.dayMs ?: 0L }.take(40)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -161,8 +164,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             if (!inMonth(day)) continue
             val c = byId[j.customerId] ?: continue
             val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
-            out.add(hitOf(c, j.address ?: c.address, day,
-                moneyLabel(j.totalAmount, row.outstanding, j.balancePaidAt, j.workCompletedAt)))
+            out.add(hitOf(c, j.address ?: c.address, day, moneyLabel(j.workCompletedAt, j.balancePaidAt, row)))
         }
         out.sortedByDescending { it.dayMs ?: 0L }.take(40)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -179,14 +181,23 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         money = money
     )
 
-    /** 현장 한 줄 오른쪽에 붙는 돈 상태 — 완납 / 잔금 N만 / N만원 / (없으면 null). */
-    private fun moneyLabel(total: Long?, balance: Long?, balancePaidAt: Long?, doneAt: Long?): String? {
-        val man = { won: Long -> "${won / 10000}만" }
+    /**
+     * 현장 한 줄 오른쪽에 붙는 돈 상태 — 완납 / 잔금 N만원 / N만원 / 완료 / (없으면 null).
+     *   완납·완료 판정은 `domain/job/Completion` 한 곳(목록 딱지·건 카드와 같은 자) — 「완료」= 작업 끝, 「완납」= 돈까지.
+     *   금액은 내림(MoneyFormatter) · 꼬리는 다른 화면과 같은 「만원」. 잔금은 저장된 balanceAmount(총액 고친 뒤 옛 값이
+     *   남는다)가 아니라 SettlementCalc 의 outstanding — 다른 검색 줄(미수 찾기)과 같은 자. (2026-10-18)
+     *   건이든 고객 카드든 같은 세 값(완료 도장·잔금 도장·정산 줄)으로 판정한다.
+     */
+    private fun moneyLabel(
+        workCompletedAt: Long?, balancePaidAt: Long?,
+        row: com.detailline.callfollowcrm.domain.settlement.SettleRow
+    ): String? {
+        val stage = com.detailline.callfollowcrm.domain.job.Completion.stageOf(workCompletedAt, balancePaidAt, row)
         return when {
-            balancePaidAt != null -> "완납"
-            (balance ?: 0L) > 0L -> "잔금 " + man(balance!!)
-            (total ?: 0L) > 0L -> man(total!!) + "원"
-            doneAt != null -> "완료"
+            stage == com.detailline.callfollowcrm.domain.job.CompletionStage.PAID_OFF -> stage.label
+            row.outstanding > 0L -> "잔금 " + MoneyFormatter.manwonShort(row.outstanding)
+            row.total > 0L -> MoneyFormatter.manwonShort(row.total)
+            stage.isDone -> stage.label
             else -> null
         }
     }

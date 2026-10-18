@@ -383,10 +383,11 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
             }
             // 프로토 cc-in/inp/out/outp — 만원 금액 (확정/예정, 색). 날짜는 가운데(동그라미), 돈은 왼쪽 — 일정 탭과 같음.
             val a = cell.agg
-            if (a.inDone > 0) CashAmt("+${man(a.inDone)}", CashIn)
-            if (a.inPlan > 0) CashAmt("+${man(a.inPlan)}", CashInPlan)
-            if (a.outDone > 0) CashAmt("−${man(a.outDone)}", CashOut)
-            if (a.outPlan > 0) CashAmt("−${man(a.outPlan)}", CashOutPlan)
+            //   만 단위는 **내림**(MoneyFormatter 한 곳) — 전엔 여기만 반올림이라 다른 화면과 숫자가 달랐다. (2026-10-18)
+            if (a.inDone > 0) CashAmt("+" + MoneyFormatter.manwonShort(a.inDone, ""), CashIn)
+            if (a.inPlan > 0) CashAmt("+" + MoneyFormatter.manwonShort(a.inPlan, ""), CashInPlan)
+            if (a.outDone > 0) CashAmt("−" + MoneyFormatter.manwonShort(a.outDone, ""), CashOut)
+            if (a.outPlan > 0) CashAmt("−" + MoneyFormatter.manwonShort(a.outPlan, ""), CashOutPlan)
         }
     }
 }
@@ -397,9 +398,6 @@ private fun CashAmt(text: String, color: Color) {
         maxLines = 1, overflow = TextOverflow.Ellipsis,  // 큰글씨서 달력 돈 하드클립(잘려서 안 보임) 방지. (2026-08-11 접근성 감사)
         modifier = Modifier.padding(top = 1.dp, start = 3.dp))
 }
-
-/** 원 → 만원(반올림) 문자열 (달력 셀·순이익 단위 표시용). */
-private fun man(won: Long): String = Math.round(won / 10000.0).toString()
 
 @Composable
 private fun CashLegend() {
@@ -470,7 +468,7 @@ private fun CashItemRow(
                 // 단위는 **만원**으로 통일 — 같은 화면에 605만원 / +205 / +1,300,000원 이 섞여 있었다.
                 //   만 단위로 안 떨어지는 돈(자재비 3만 7천원 등)은 원 그대로 적는다.
                 Text(
-                    (if (item.isIncome) "+" else "−") + manwonOrWon(item.amount) +
+                    (if (item.isIncome) "+" else "−") + MoneyFormatter.manwonOrWon(item.amount) +
                         (if (item.isDone) "" else " (예정)"),
                     style = MaterialTheme.typography.titleSmall, color = amtColor, fontWeight = FontWeight.Bold
                 )
@@ -624,11 +622,9 @@ private fun ToggleHalf(label: String, selected: Boolean, color: Color, onClick: 
 }
 
 
-/** 만 단위로 떨어지면 "130만원", 아니면 "37,000원". 화면 단위를 만원으로 모으기 위한 것. (2026-09-20 사장님) */
-private fun manwonOrWon(won: Long): String =
-    if (won != 0L && won % 10_000L == 0L) "%,d만원".format(won / 10_000L) else MoneyFormatter.won(won)
-
-private fun signedManwon(v: Long): String = (if (v >= 0) "+" else "−") + man(kotlin.math.abs(v)) + "만원"
+/** 순이익 한 줄 「+37만원」/「−12만원」 — 만 단위 내림(MoneyFormatter 한 곳). 만 단위로 떨어지는 금액 표기는 MoneyFormatter.manwonOrWon. */
+private fun signedManwon(v: Long): String =
+    (if (v >= 0) "+" else "−") + MoneyFormatter.manwonShort(kotlin.math.abs(v))
 
 // ── 달력 데이터 ──────────────────────────────────────────────
 private data class CashCell(

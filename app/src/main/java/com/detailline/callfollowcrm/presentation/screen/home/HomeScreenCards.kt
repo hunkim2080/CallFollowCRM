@@ -578,17 +578,17 @@ internal fun CompletionDialog(
     val sRow = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(customer)
     val bal = sRow.outstanding
     val hasBal = bal > 0L
-    val won = "%,d".format(bal)
+    val won = MoneyFormatter.won(bal)   // 「1,200,000원」 — 손님이 읽는 문자라 한 푼도 안 깎는다
     val reviewMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊 만족스러우셨다면 후기 한 줄 부탁드려요! 또 필요하시면 언제든 연락주세요 :)"
-    val balanceMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊\n잔금은 ${won}원입니다.\n맡겨주셔서 대단히 감사합니다!"
+    val balanceMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊\n잔금은 ${won}입니다.\n맡겨주셔서 대단히 감사합니다!"
 
     // 완료 흐름(2026-06-15 사장님): 잔금 남았으면 먼저 "다 받았나요?" → 네=완납 처리 / 아니요=안내문자 단계.
     //   잔금 없으면 바로 후기 문자 단계. 문자는 자유롭게 수정 가능(BasicTextField + ForceDialogResize 로 키보드 정상).
     var askedNo by remember { mutableStateOf(false) }                 // hasBal 에서 "아니요" → 문자 단계
     var msg by remember { mutableStateOf(if (hasBal) balanceMsg else reviewMsg) }
     val subtitle = when {
-        hasBal && !askedNo -> "$name · 잔금 ${won}원"
-        hasBal -> "$name · 잔금 ${won}원 미수"
+        hasBal && !askedNo -> "$name · 잔금 $won"
+        hasBal -> "$name · 잔금 $won 미수"
         else -> "$name · 정산 완료"
     }
 

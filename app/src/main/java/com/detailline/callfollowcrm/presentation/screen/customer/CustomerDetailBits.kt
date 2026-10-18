@@ -219,7 +219,7 @@ internal fun IntakeReviewDialog(
                     Text("· 견적 내용 : $it", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
                 }
                 if (doc.totalWon > 0L) {
-                    Text("· 금액 : ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(doc.totalWon)}원",
+                    Text("· 금액 : ${com.detailline.callfollowcrm.util.MoneyFormatter.won(doc.totalWon)}",
                         fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
                 }
                 doc.memo?.takeIf { it.isNotBlank() }?.let {
@@ -424,7 +424,7 @@ internal val ThousandsSeparatorTransformation = androidx.compose.ui.text.input.V
     val raw = text.text
     if (raw.isEmpty()) return@VisualTransformation androidx.compose.ui.text.input.TransformedText(text, androidx.compose.ui.text.input.OffsetMapping.Identity)
     val number = raw.toLongOrNull() ?: return@VisualTransformation androidx.compose.ui.text.input.TransformedText(text, androidx.compose.ui.text.input.OffsetMapping.Identity)
-    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(number)
+    val formatted = com.detailline.callfollowcrm.util.MoneyFormatter.grouped(number)
     androidx.compose.ui.text.input.TransformedText(
         androidx.compose.ui.text.AnnotatedString(formatted),
         object : androidx.compose.ui.text.input.OffsetMapping {
@@ -656,8 +656,11 @@ internal fun AddressEditDialog(
  *     이제 완납(isPaidOff = 총액>0 이고 다 받음)·잔금(총액−계약금)을 정산과 같은 셈으로 본다.
  */
 internal fun jobClosed(j: com.detailline.callfollowcrm.data.local.entity.JobEntity): Boolean {
+    // 끝났나·완납이냐는 `domain/job/Completion` 한 곳. 「마무리(접힘)」= 완납이거나, 완료인데 남은 잔금이 없음. (2026-10-18)
     val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(j)
-    return settle.isPaidOff || (j.workCompletedAt != null && settle.balanceAmount <= 0L)
+    val stage = com.detailline.callfollowcrm.domain.job.Completion.stageOf(j.workCompletedAt, j.balancePaidAt, settle)
+    return stage == com.detailline.callfollowcrm.domain.job.CompletionStage.PAID_OFF ||
+        (stage == com.detailline.callfollowcrm.domain.job.CompletionStage.DONE && settle.balanceAmount <= 0L)
 }
 
 /**
@@ -813,8 +816,7 @@ internal fun IssuedDocRow(
                 if (doc.totalWon > 0L) {
                     Text(" · ", fontSize = 14.sp, color = TossTextTertiary)
                     Text(
-                        java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA)
-                            .format(doc.totalWon) + "원",
+                        com.detailline.callfollowcrm.util.MoneyFormatter.won(doc.totalWon),
                         fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue
                     )
                 }

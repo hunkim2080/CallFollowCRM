@@ -1949,8 +1949,8 @@ internal fun manwonLabel(won: Long): String =
 @Composable
 private fun AmountChangeReasonDialog(oldWon: Long, newWon: Long, onRecord: (String) -> Unit, onSkip: () -> Unit) {
     var reason by remember { mutableStateOf("") }
-    val arrow = if (oldWon > 0L) "${oldWon / 10000L}만원  →  ${newWon / 10000L}만원"
-                else "${newWon / 10000L}만원으로 정함"
+    val arrow = if (oldWon > 0L) "${manwonLabel(oldWon)}  →  ${manwonLabel(newWon)}"
+                else "${manwonLabel(newWon)}으로 정함"
     androidx.compose.ui.window.Dialog(onDismissRequest = onSkip) {   // 바깥/뒤로 = 그냥 넘어가기(이력은 남김)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
@@ -2362,7 +2362,7 @@ private fun PaymentInlineEditor(
 }
 
 /** 천단위 콤마 포맷. ViewModel/UI 양쪽 헬퍼. */
-private fun formatThousands(n: Long): String = "%,d".format(n)
+private fun formatThousands(n: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.grouped(n)
 
 /** 가산 칩 — 현재 금액 텍스트에 amount 만큼 더해 새 텍스트 반환. */
 private fun addToAmount(delta: Long, current: String, set: (String) -> Unit) {

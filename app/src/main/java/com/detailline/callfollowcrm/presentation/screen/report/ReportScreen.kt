@@ -51,11 +51,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val Warn = LightColors.caution
-private fun manwon(won: Long): String {
-    if (won <= 0L) return "0원"
-    val man = won / 10_000L
-    return if (man >= 1) "%,d만원".format(man) else "%,d원".format(won)
-}
+/** 「120만원」(내림) / 만원이 안 되면 「9,000원」 — 셈은 MoneyFormatter 한 곳. (2026-10-18) */
+private fun manwon(won: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.manwonShortOrWon(won)
 
 /**
  * 상세 리포트 — 번 돈 → 못 받은 돈+누가 → 추천 채택률 → 상황별 → 전환 → 활동 → 종류/지역 → 개선.

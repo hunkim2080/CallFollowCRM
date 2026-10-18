@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.MoneyFormatter
 import com.detailline.callfollowcrm.domain.settlement.CashFlowCalc
 import com.detailline.callfollowcrm.domain.settlement.CashItem
 import com.detailline.callfollowcrm.domain.settlement.SettleRow
@@ -157,11 +158,11 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         // 한 소식을 세 줄로 말하던 것을 **한 줄**로. 이모지도 뺀다. (2026-09-20 사장님)
         //   전: "🎉 목표 500만원 달성!" + "목표 초과 +105만원 · 최고예요 👑" + "🎉 목표 달성! 남은 10일은…"
         if (reached) {
-            m2Top = "목표 ${comma(goalManwon)}만원 달성"
-            m2Next = "${manwon(received - goalWon)}만원 더 벌었어요"
+            m2Top = "목표 ${MoneyFormatter.grouped(goalManwon)}만원 달성"
+            m2Next = "${MoneyFormatter.manwonShort(received - goalWon)} 더 벌었어요"
         } else {
-            m2Top = "이번 달 목표 ${comma(goalManwon)}만원"
-            m2Next = "${manwon(goalWon - received)}만원 남았어요 · $fillPct%"
+            m2Top = "이번 달 목표 ${MoneyFormatter.grouped(goalManwon)}만원"
+            m2Next = "${MoneyFormatter.manwonShort(goalWon - received)} 남았어요 · $fillPct%"
         }
 
         // 페이스 (이번 달만): 시간 진행률 vs 목표 진행률
@@ -188,7 +189,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         return SettleTopState(
             monthLabel = monthLabelOf(anchor),
             isLiveMonth = isLive,
-            receivedManwon = manwon(received),
+            receivedManwon = MoneyFormatter.manOf(received).toInt(),
             recvLabel = if (isLive) "이번 달 받은 돈" else "받은 돈",
             prevPct = prevPct,
             goalReached = reached,
@@ -198,7 +199,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
             paceText = paceText,
             paceAhead = paceAhead,
             daysLeft = daysLeft,
-            outstandingManwon = manwon(st.outstandingTotal),
+            outstandingManwon = MoneyFormatter.manOf(st.outstandingTotal).toInt(),
             outstandingCount = st.outstandingCount,
             canGoNext = anchor < liveAnchor
         )
@@ -309,9 +310,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
 private fun monthLabelOf(anchorMs: Long): String = Calendar.getInstance().apply { timeInMillis = anchorMs }
     .let { "${it.get(Calendar.YEAR)}년 ${it.get(Calendar.MONTH) + 1}월" }
 
-/** 원 → 만원(반올림 내림) 정수. 프로토 amt 가 만원 단위. */
-private fun manwon(won: Long): Int = (won / 10_000L).toInt()
-private fun comma(n: Int): String = "%,d".format(n)
+// 원 → 만원 정수·콤마는 MoneyFormatter.manOf / .grouped 한 곳. (2026-10-18)
 
 enum class SettleFilter(val label: String) {
     ALL("전체"), OUTSTANDING("미수"), PAID_OFF("완납")

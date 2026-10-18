@@ -443,12 +443,5 @@ internal fun estDaysBetween(startMs: Long?, endMs: Long?): Int {
     return n
 }
 
-/** 원 단위를 "40만원" / "1,500,000원" 형식으로. */
-internal fun formatWon(amount: Long): String {
-    if (amount == 0L) return "0원"
-    return if (amount >= 10_000L && amount % 10_000L == 0L) {
-        "${amount / 10_000L}만원"
-    } else {
-        "${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(amount)}원"
-    }
-}
+/** 원 단위를 "40만원" / "1,500,000원" 형식으로. 글자는 MoneyFormatter 한 곳 — 여긴 입구만. (2026-10-18) */
+internal fun formatWon(amount: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(amount)

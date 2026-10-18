@@ -54,6 +54,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.util.MoneyFormatter
+import com.detailline.callfollowcrm.presentation.component.DONE_STATUSES
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -82,7 +84,7 @@ fun CustomersScreen(
     // 필터 적용 + 정렬. 예약/완료는 시공일 순(사장님 요청 2026-06-04):
     //   예약 = 가까운 시공 먼저(오름차순), 완료 = 최근 완료 먼저(내림차순). 그 외는 기존 이름순(ViewModel).
     val list = remember(filter, withStatus) {
-        val filtered = if (filter == "전체") withStatus else withStatus.filter { it.second == filter }
+        val filtered = if (filter == "전체") withStatus else withStatus.filter { chipMatches(it.second, filter) }
         when (filter) {
             "예약" -> filtered.sortedBy { it.first.scheduledWorkDate ?: Long.MAX_VALUE }
             "완료" -> filtered.sortedByDescending { it.first.scheduledWorkDate ?: Long.MIN_VALUE }
@@ -117,7 +119,7 @@ fun CustomersScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(CUST_STATUSES) { s ->
-                    val cnt = if (s == "전체") withStatus.size else withStatus.count { it.second == s }
+                    val cnt = if (s == "전체") withStatus.size else withStatus.count { chipMatches(it.second, s) }
                     CfChip(s, cnt, filter == s) { filter = s }
                 }
             }
@@ -143,7 +145,7 @@ fun CustomersScreen(
                     Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp).fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.cautionBg).padding(14.dp)
                 ) {
-                    Text("아직 ${total / 10000}만원 못 받았어요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB5470A))
+                    Text("아직 ${MoneyFormatter.manwonShort(total)} 못 받았어요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB5470A))
                     Text("시공 끝났는데 잔금 안 준 고객 ${list.size}명", fontSize = 12.sp, color = TossTextSecondary, modifier = Modifier.padding(top = 3.dp))
                 }
             }
@@ -296,6 +298,13 @@ private fun CategoryTagChip(cat: com.detailline.callfollowcrm.data.local.entity.
 // 🚫 「미전환」 뺀다. 딱지를 안 붙이니 걸러볼 것도 없다. (2026-09-27 사장님 "없어도 될 태그인듯")
 private val CUST_STATUSES = listOf("전체", "신규", "예약", "시공확인", "잔금미수", "완료")
 
+/**
+ * 칩 ↔ 상태 맞추기. 「완료」 칩은 **끝난 손님 전부**(완료 + 완납) — 완납은 완료의 부분집합이라 따로 칩을 안 만든다.
+ *   글자 묶음은 공용 [DONE_STATUSES] 한 곳(딱지·한 줄 요약과 같은 자). (2026-10-18 완료/완납 용어 분리)
+ */
+private fun chipMatches(status: String, chip: String): Boolean =
+    if (chip == "완료") status in DONE_STATUSES else status == chip
+
 // 아바타는 **한 색**(2026-09-21 사장님 "색은 상태에만") — 색표는 AvatarTints.SINGLE, 글자(이모지 건너뛰기)는 AvatarInitial.of **한 곳**. (2026-10-17 일곱 벌 합침)
 
 // custTag 색표 삭제 — StatusTag 와 함께 쓰는 곳이 없어졌다.
@@ -319,11 +328,12 @@ private fun customerSubLine(c: CustomerEntity, status: String): String {
     val parts = mutableListOf<String>()
     c.scheduledWorkDate?.let {
         val d = SimpleDateFormat("M/d", Locale.KOREA).format(it)
-        parts += if (status == "완료") "$d 시공 완료" else "시공 $d"
+        parts += if (status in DONE_STATUSES) "$d 시공 완료" else "시공 $d"
     }
     // 정산 공용계산(SettlementCalc)의 non-stale 잔금 사용 — raw balanceAmount 는 총액 수정 후 옛 값이 남아 틀릴 수 있음. (2026-07-30 버그감사)
+    //   글자는 「잔금 N만원 미수」 — 다른 화면(정산·검색·리포트)과 같은 「만원」 꼬리. 내림은 MoneyFormatter 한 곳. (2026-10-18)
     val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
-    if (c.balancePaidAt == null && row.balanceAmount > 0L) parts += "잔금 ${row.balanceAmount / 10000}만 미수"
+    if (!row.balancePaid && row.balanceAmount > 0L) parts += "잔금 ${MoneyFormatter.manwonShort(row.balanceAmount)} 미수"
     if (parts.isEmpty() && c.memo.isNotBlank()) parts += c.memo
     if (parts.isEmpty()) parts += PhoneNumberFormatter.format(c.phoneNumber)
     return parts.joinToString(" · ")

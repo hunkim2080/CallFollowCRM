@@ -71,7 +71,7 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
         val parts = buildList {
             if (newCount > 0) add("새 문의 ${newCount}건")
             if (completedCount > 0) add("시공 ${completedCount}곳 마무리")
-            if (paidSum > 0) add("${formatMoney(paidSum)}원 입금")
+            if (paidSum > 0) add("${formatMoney(paidSum)} 입금")
         }
         val achievementLine = if (parts.isNotEmpty()) "오늘 ${parts.joinToString(", ")}." else null
 
@@ -81,7 +81,7 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
         val progressLabel = when {
             goalWon <= 0 -> null
             goalReached -> "이번 달 목표를 넘었어요! 🎉"
-            else -> "목표까지 ${formatMoney(goalWon - monthPaidSum)}원 남았어요"
+            else -> "목표까지 ${formatMoney(goalWon - monthPaidSum)} 남았어요"
         }
 
         // 내일 시공 (주소 + 받을 돈 강화).
@@ -111,7 +111,7 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
         val outstandingExample = outstandingRows.maxByOrNull { doneAtOf(it) ?: 0L }?.let { r ->
             val c = custById[r.customerId]
             val nm = c?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c?.phoneNumber.orEmpty())
-            "$nm ${formatMoney(r.calc.outstanding)}원"
+            "$nm ${formatMoney(r.calc.outstanding)}"
         }
 
         return ClosingBriefState(
@@ -120,31 +120,27 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
             newCount = newCount,
             completedCount = completedCount,
             depositCount = depositCount,
-            paidSumLabel = if (paidSum > 0L) "약 ${formatMoney(paidSum)}원" else null,
-            monthPaidLabel = "${formatMoney(monthPaidSum)}원",
-            goalLabel = if (goalWon > 0) "${formatMoney(goalWon)}원" else "",
+            paidSumLabel = if (paidSum > 0L) "약 ${formatMoney(paidSum)}" else null,
+            monthPaidLabel = formatMoney(monthPaidSum),
+            goalLabel = if (goalWon > 0) formatMoney(goalWon) else "",
             progressFraction = progress.coerceIn(0f, 1f),
             progressPct = (progress * 100).toInt(),
             progressLabel = progressLabel,
-            todayContribLabel = if (paidSum > 0L) "오늘 +${formatMoney(paidSum)}원" else null,
+            todayContribLabel = if (paidSum > 0L) "오늘 +${formatMoney(paidSum)}" else null,
             jobs = jobs,
             outstandingCount = outstandingRows.size,
-            outstandingSumLabel = if (outstandingSum > 0L) "${formatMoney(outstandingSum)}원" else null,
+            outstandingSumLabel = if (outstandingSum > 0L) formatMoney(outstandingSum) else null,
             outstandingExample = outstandingExample,
             loaded = true
         )
     }
 
     /**
-     * 브리핑 한 줄 — 뒤에 "원"을 따로 붙이는 자리라 여기선 숫자만 만든다.
-     *   1,200,000 → "120만", 5,000 → "5,000". 규칙은 MoneyFormatter 한 곳에. (2026-09-28)
+     * 브리핑 한 줄 — 1,200,000 → "120만원", 5,000 → "5,000원". 정확히 적는다(브리핑은 사장님이 읽는 장부 숫자).
+     *   규칙·글자 전부 MoneyFormatter 한 곳. 전엔 여기서 숫자만 만들고 부르는 쪽이 「원」을 붙였는데,
+     *   한 곳(내일 「받을 돈」)이 안 붙여 「받을 돈 120만」으로 단위가 빠졌다. (2026-10-18)
      */
-    private fun formatMoney(won: Long): String =
-        if (won >= 10_000 && won % 10_000 == 0L) {
-            com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(won, "만")
-        } else {
-            "%,d".format(won)
-        }
+    private fun formatMoney(won: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)
 }
 
 data class BriefJob(

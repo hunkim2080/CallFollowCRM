@@ -50,10 +50,6 @@ object QuoteMoney {
     fun total(lines: List<Pair<String, Long>>): Long =
         lines.sumOf { (title, won) -> signed(title, won) }.coerceAtLeast(0L)
 
-    /** 원 → "40만원" / "1,500,000원". 0 은 "0원"(합계 자리에 쓴다 — 거긴 서비스가 아니다). */
-    fun money(won: Long): String {
-        if (won == 0L) return "0원"
-        return if (won >= 10_000L && won % 10_000L == 0L) "${won / 10_000L}만원"
-        else java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(won) + "원"
-    }
+    /** 원 → "40만원" / "1,500,000원". 0 은 "0원"(합계 자리에 쓴다 — 거긴 서비스가 아니다). 글자는 MoneyFormatter 한 곳. */
+    fun money(won: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)
 }

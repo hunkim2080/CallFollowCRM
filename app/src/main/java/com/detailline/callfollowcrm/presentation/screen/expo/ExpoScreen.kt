@@ -2262,7 +2262,7 @@ private fun InputDialog(
     )
 }
 
-private fun won(amount: Long): String = "%,d원".format(amount)
+private fun won(amount: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.won(amount)
 
 /** 표시용 전화번호 하이픈 (가독성). 빈 값/알 수 없는 형식이면 그대로. */
 private fun ph(raw: String): String = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)

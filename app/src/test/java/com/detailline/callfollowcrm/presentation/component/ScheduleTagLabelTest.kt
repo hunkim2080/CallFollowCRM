@@ -71,10 +71,17 @@ class ScheduleTagLabelTest {
     }
 
     @Test
-    fun `잔금까지 받았으면 완료`() {
-        assertEquals("완료", label(customer(
+    fun `잔금까지 받았으면 완납`() {
+        // 「완료」≠「완납」 (2026-10-18 사장님): 작업 끝 = 완료, 돈까지 = 완납. 전엔 둘 다 「완료」였다.
+        assertEquals("완납", label(customer(
             workDate = today0 - DAY, total = 1_000_000L, deposit = 200_000L, balancePaidAt = now
         )))
+    }
+
+    @Test
+    fun `완료했는데 돈을 안 적었으면 완료`() {
+        // 돈 정보가 없으니 완납이라 할 수 없다 — 작업만 끝난 「완료」. 건 카드의 「완료 · 금액 미입력」과 같은 뜻.
+        assertEquals("완료", label(customer(workDate = today0 - DAY, completedAt = now)))
     }
 
     @Test

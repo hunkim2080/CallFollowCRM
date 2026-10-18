@@ -442,7 +442,7 @@ object IncomingCallOverlay {
     }
 
     private fun wonText(won: Long): String =
-        if (won >= 10_000L && won % 10_000L == 0L) "${won / 10_000L}만원" else "%,d원".format(won)
+        com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(won)   // 글자는 한 곳 (2026-10-18)
 
     private fun monthDay(epoch: Long): String {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = epoch }

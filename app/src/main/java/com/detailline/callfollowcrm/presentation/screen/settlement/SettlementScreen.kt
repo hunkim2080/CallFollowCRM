@@ -83,6 +83,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.util.MoneyFormatter
 import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 /**
@@ -202,7 +203,7 @@ fun SettlementScreen(
             text = {
                 Text(
                     "${item.name ?: PhoneNumberFormatter.format(item.phone)} 님 잔금까지 받은 걸로 " +
-                        "체크하면 완납 처리돼요. (총 ${manwonText(item.calc.total)})"
+                        "체크하면 완납 처리돼요. (총 ${MoneyFormatter.manwonShort(item.calc.total)})"
                 )
             },
             confirmButton = {
@@ -229,7 +230,7 @@ fun SettlementScreen(
             text = {
                 Text(
                     "${item.name ?: PhoneNumberFormatter.format(item.phone)} 님 계약금을 받은 걸로 " +
-                        "체크할까요? (계약금 ${manwonText(item.calc.depositAmount)})"
+                        "체크할까요? (계약금 ${MoneyFormatter.manwonShort(item.calc.depositAmount)})"
                 )
             },
             confirmButton = {
@@ -298,7 +299,7 @@ private fun SettleTopCard(
         Text(top.recvLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.6f))
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)) {
             Text(
-                top.receivedManwon.toCommaString(),
+                MoneyFormatter.grouped(top.receivedManwon),
                 fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
                 letterSpacing = (-1.0).sp
             )
@@ -405,7 +406,7 @@ private fun SettleTopCard(
                 buildAnnotatedString {
                     append("전체 아직 받을 돈 ")
                     withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = Color.White)) {
-                        append("${top.outstandingManwon.toCommaString()}만원")
+                        append("${MoneyFormatter.grouped(top.outstandingManwon)}만원")
                     }
                     append(" · 미수 ")
                     withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = Color.White)) {
@@ -626,7 +627,7 @@ private fun PayBlock(
     val hasDeposit = c.depositAmount > 0L
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("총 ${manwonText(c.total)}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp)
+            Text("총 ${MoneyFormatter.manwonShort(c.total)}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp)
             Spacer(Modifier.height(4.dp))
             // pay-stat
             // 같은 상태를 "남음"/"미수" 로 다르게 쓰던 것을 **한 가지 말**로. 단위도 "만" -> "만원".
@@ -634,10 +635,10 @@ private fun PayBlock(
             when {
                 c.isPaidOff -> Text("전액 완납", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
                 hasDeposit && !c.depositPaid -> PayStat(
-                    "계약금 ${manwon(c.depositAmount)}만원 안 받음 · ", "잔금 ${manwon(c.balanceAmount)}만원 남음")
+                    "계약금 ${MoneyFormatter.manwonShort(c.depositAmount)} 안 받음 · ", "잔금 ${MoneyFormatter.manwonShort(c.balanceAmount)} 남음")
                 hasDeposit -> PayStat(
-                    "계약금 ${manwon(c.depositAmount)}만원 받음 · ", "잔금 ${manwon(c.balanceAmount)}만원 남음")
-                else -> PayStat("계약금 없음 · ", "전액 ${manwon(c.total)}만원 남음")
+                    "계약금 ${MoneyFormatter.manwonShort(c.depositAmount)} 받음 · ", "잔금 ${MoneyFormatter.manwonShort(c.balanceAmount)} 남음")
+                else -> PayStat("계약금 없음 · ", "전액 ${MoneyFormatter.manwonShort(c.total)} 남음")
             }
         }
         Spacer(Modifier.width(12.dp))
@@ -711,7 +712,7 @@ private fun SettleDoneRow(item: SettleItem, index: Int) {
         )
         Spacer(Modifier.weight(1f))
         item.calc.let {
-            Text("${manwon(it.total)}만원", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,
+            Text(MoneyFormatter.manwonShort(it.total), fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(end = 10.dp))
         }
         Row(
@@ -829,10 +830,8 @@ private fun GoalEditSheet(
 }
 
 /* ─────────────── 포맷 헬퍼 ─────────────── */
+// 돈 글자(만 단위 내림·콤마)는 전부 MoneyFormatter 한 곳 — 여기 따로 두지 않는다. (2026-10-18)
 
-private fun manwon(won: Long): Int = (won / 10_000L).toInt()
-private fun manwonText(won: Long): String = "%,d만원".format(manwon(won))
-private fun Int.toCommaString(): String = "%,d".format(this)
 // 목표 힌트: fillPct 와 받은돈으로 역산하기 어려우니 m2Top 문자열에서 숫자 추출.
 private fun goalManwonHint(top: SettleTopState): Int =
     Regex("([0-9,]+)만원").find(top.m2Top)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull() ?: 500

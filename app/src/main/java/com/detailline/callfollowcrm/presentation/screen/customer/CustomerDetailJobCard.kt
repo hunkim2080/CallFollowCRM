@@ -1098,7 +1098,9 @@ private fun JobCardHead(
     val cancelled = jobCancelled(job)
     // 완료된 건만 '완료'. 앞으로 잡힌 건은 D-day 로 — 예정인데 '완료'라고 쓰면 거짓말이다. (2026-09-17)
     //   잔금까지 받아 마무리된 건(jobClosed)도 접히니 같은 '완료' 옷.
-    val done = job.workCompletedAt != null || jobClosed(job)
+    //   끝났나는 `domain/job/Completion` 한 곳(목록 딱지·검색과 같은 자). 딱지 글자는 그대로 「완료」= 작업 끝 —
+    //   돈까지 받았는지는 접힌 줄의 「· 완납」(프로토 .fold-sum)이 말한다. (2026-10-18 완료/완납 용어 분리)
+    val done = com.detailline.callfollowcrm.domain.job.Completion.isDone(job)
     // 「완료 · 금액 미입력」 — 돈이 하나도 없는데 완료만 찍힌 건은 딱지에서 바로 보이게. (2026-10-15 사장님 결정 Q1)
     //   전엔 몸통 「아직 입력 안 함」과 머리 「완료」가 따로 떠서 버그처럼 보였다. 완료 규칙은 그대로, **표시만**.
     //   판단은 SettlementCalc.hasMoney(건) 한 곳(총액·계약금·잔금 전부 없음).

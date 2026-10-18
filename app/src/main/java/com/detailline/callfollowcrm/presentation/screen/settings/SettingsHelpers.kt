@@ -156,9 +156,7 @@ import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 //  (Fable 점검 ✋ — 큰 화면을 통째로 쪼개는 건 위험하니 **잎부터** 떼어낸다)
 // ======================================================================
 
-internal fun formatThousands(n: Long): String =
-    if (n < 1000) n.toString()
-    else "%,d".format(n)
+internal fun formatThousands(n: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.grouped(n)
 
 internal fun formatThousands(n: Int): String = formatThousands(n.toLong())
 

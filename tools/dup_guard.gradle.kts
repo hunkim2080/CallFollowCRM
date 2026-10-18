@@ -258,6 +258,16 @@ val dupRules = listOf(
         regex = Regex("""val\s+\w*_TINTS\s*=\s*listOf|fun\s+avatarInitial\s*\("""),
         instead = "AvatarTints.SINGLE / .PALETTE / .forName(name) (presentation/component/AvatarTints.kt) · 글자는 AvatarInitial.of / .brand (domain/ui/AvatarInitial.kt)",
         homes = listOf("/component/AvatarTints.kt", "/domain/ui/AvatarInitial.kt")
+    ),
+
+    // 💰 돈 글자(콤마·만 단위) — 직접 포맷이 **25곳**에 흩어져 있었다(`"%,d"` 8 · `NumberFormat` 15 · 반올림 2). (2026-10-18 UX 감사)
+    //   같은 셈이 파일마다 있으니 두 곳만 반올림이 돼 375,000원이 홈은 「37만」, 일정 달력은 「38만」이었다.
+    //   이제 MoneyFormatter 한 곳 — won / manwonShort(내림) / manwonShortOrWon / manwonOrWon(정확히) / grouped.
+    DupRule(
+        id = "money-format-raw",
+        regex = Regex(""""%,d|NumberFormat\.getNumberInstance"""),
+        instead = "MoneyFormatter.won / .manwonShort / .manwonShortOrWon / .manwonOrWon / .grouped (util/MoneyFormatter.kt)",
+        homes = listOf("/util/MoneyFormatter.kt")
     )
 )
 

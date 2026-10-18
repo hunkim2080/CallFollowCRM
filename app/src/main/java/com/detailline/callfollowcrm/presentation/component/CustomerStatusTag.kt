@@ -30,8 +30,18 @@ fun startOfTodayMs(): Long {
 }
 
 /**
- * 상태 계산 (단일 출처) — 미래 시공일=예약 · 시공 지남/완료처리/잔금받음 중 잔금 안받음=잔금미수·다받음=완료 ·
+ * 「끝난 손님」으로 치는 상태 글자 — 고객관리 「완료」 칩·한 줄 요약이 **같은 두 글자**를 본다.
+ *   완납은 완료의 부분집합(작업도 끝, 돈도 끝). (2026-10-18)
+ */
+val DONE_STATUSES: Set<String> = setOf("완료", "완납")
+
+/**
+ * 상태 계산 (단일 출처) — 미래 시공일=예약 · 끝난 손님은 잔금 안받음=잔금미수 · 다받음=**완납** · 돈 없음=완료 ·
  *   그 외 **오늘 생긴 손님만**=신규, 그 밖은 딱지 없음. (2026-09-27 사장님)
+ *
+ *   「완료」≠「완납」 (2026-10-18 사장님 용어 확정): 작업 끝 = 완료, 잔금까지 받음 = 완납.
+ *     전엔 여기서만 「완료 = 돈까지 받음」이라 건 카드(「완료」= 작업 끝)와 같은 손님이 딴소리를 했다.
+ *     끝났나·완납이냐는 `domain/job/Completion` 한 곳이 정한다.
  */
 fun customerStatusOf(
     c: CustomerEntity,
@@ -43,10 +53,15 @@ fun customerStatusOf(
     // 🔴 **시공완료가 찍혀야 미수다.** (2026-09-20 사장님 · SettlementCalc.overdueDays 와 같은 규칙)
     //   전엔 예약일만 지나도(wd<today0) 「잔금미수」로 띄웠다 → 잔금 대기 칩(완료 필요)과 엇갈렸다(두 벌).
     //   예약일만 지났고 완료 표시가 없는 건은 미수가 아니라 「시공확인」 — 끝났는지부터 확인(돈 독촉 금지).
-    val reallyDone = c.workCompletedAt != null || c.balancePaidAt != null
-    val bal = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).balanceAmount
-    if (reallyDone) {
-        return if (c.balancePaidAt == null && bal > 0L) "잔금미수" else "완료"
+    val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
+    val stage = com.detailline.callfollowcrm.domain.job.Completion.stageOf(c.workCompletedAt, c.balancePaidAt, settle)
+    val bal = settle.balanceAmount
+    if (stage.isDone) {
+        return when {
+            stage == com.detailline.callfollowcrm.domain.job.CompletionStage.PAID_OFF -> "완납"
+            !settle.balancePaid && bal > 0L -> "잔금미수"
+            else -> "완료"
+        }
     }
     if (wd != null && wd < today0) {
         // 완료 찍으면(카드 '아직 못 받았어요') 잔금미수로 바뀌어 잔금 대기 칩에 뜬다.
@@ -65,7 +80,7 @@ fun customerStatusOf(
 
 /** 상태별 딱지 색 (fg, bg). CustomersScreen custTag 와 동일 팔레트. */
 private fun statusColors(s: String): Pair<Color, Color> = when (s) {
-    "완료" -> Color(0xFF0E9F56) to LightColors.doneBg   // green
+    "완료", "완납" -> Color(0xFF0E9F56) to LightColors.doneBg   // green (완납 = 완료 + 돈까지, 같은 초록)
     "신규", "시공확인" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber (봐야 할 것 — 오늘 온 손님 / 완료 확인)
     "미전환" -> LightColors.textHint to LightColors.bg // gray
     "잔금미수" -> Color(0xFFE0620D) to LightColors.cautionBg // orange (돈 받을 것)
@@ -214,7 +229,7 @@ private fun PlainTag(label: String) {
 /**
  * 날짜 태그에 쓸 **표시 문구**. 계산은 [customerStatusOf] 하나만 쓴다(고객관리 필터와 같은 값).
  *   '예약'만 날짜를 보태 더 친절하게 바꾼다 — "예약" 보다 "시공 D-3" 이 훨씬 쓸모 있다.
- *   나머지(잔금미수·완료·신규·미전환)는 그대로.
+ *   나머지(잔금미수·완료·완납·신규)는 그대로.
  *   ⚠️ [customerStatusOf] 의 **반환값은 절대 바꾸지 말 것** — 고객관리 화면이 그 글자로 필터링한다.
  */
 fun scheduleTagLabel(

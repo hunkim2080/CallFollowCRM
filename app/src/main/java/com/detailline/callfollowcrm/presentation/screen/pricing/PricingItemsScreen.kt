@@ -836,11 +836,5 @@ private fun CategoryChip(
     }
 }
 
-private fun formatWonShort(amount: Long): String {
-    if (amount == 0L) return "0원"
-    return if (amount >= 10_000L && amount % 10_000L == 0L) {
-        "${amount / 10_000L}만원"
-    } else {
-        "${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(amount)}원"
-    }
-}
+/** "40만원" / "1,500,000원" — 글자는 MoneyFormatter 한 곳, 여긴 입구만. (2026-10-18) */
+private fun formatWonShort(amount: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(amount)
