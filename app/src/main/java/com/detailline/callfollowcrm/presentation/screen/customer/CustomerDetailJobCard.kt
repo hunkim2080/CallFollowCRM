@@ -362,12 +362,14 @@ internal fun JobDetailCard(
                                 Modifier.fillMaxWidth().padding(vertical = 9.dp),
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, color = TossTextSecondary)
+                                // lineHeight=글자크기 — 테마 기본 줄간격(24sp)을 물면 글자가 상자 안에서 떠서
+                                //   옆 「전액 완납」·「완납 취소」와 눈높이가 어긋난다. 셋 다 글자에 딱 맞춰 가운데로. (2026-10-19 사장님)
+                                Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, lineHeight = 13.sp, color = TossTextSecondary)
                                 Spacer(Modifier.weight(1f))
                                 if (!hasAmount) {
                                     // 프로토 "아직 입력 안 함 ＋" — 탭하면 총금액 입력(옛 [총금액 입력] 버튼과 같은 창).
                                     Text(
-                                        "아직 입력 안 함 ＋", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                                        "아직 입력 안 함 ＋", fontSize = 14.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                                         modifier = Modifier.clip(RoundedCornerShape(8.dp))
                                             .clickable { host.onEditAmount(editJobId, "total") }
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -375,7 +377,7 @@ internal fun JobDetailCard(
                                 } else {
                                     Text(
                                         if (allPaid) "전액 완납" else manwonLabel(balanceWon) + " 남음",
-                                        fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
+                                        fontSize = 18.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
                                         color = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.unpaidText
                                     )
                                     if (allPaid) {
