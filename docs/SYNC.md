@@ -14700,3 +14700,12 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: **못 봄**(빌드·시험 EXIT=0, 가드 7종 통과). ⚠️ 정렬은 2번째 시도 — 폰 재확인 필요. User Consent 동의창 실동작도 신규가입 시 확인 필요.
 - 배포: Play 내부테스트 성공(2462).
 - 다음 액션: (android) 폰에서 ⓐ 잔금 줄 가운데 ⓑ 가입 시 동의창 한 번 탭 자동입력 확인. (server) 없음 — SMS 본문 코드 위치 최적화는 선택(별도).
+
+## 2026-10-20 08:40 · android
+잔금 줄 '중앙 느낌' — 값 글자 크기 통일(18→14). 내부테스트 2464.
+- 3번째 시도에 근본 원인 확정: 세로 위치가 아니라 **글자 크기 차이**(라벨 13 vs 「전액 완납」 18). 크기 다른 둘을 CenterVertically 하면 작은 라벨 밑선이 위로 떠 "중앙 아님"으로 보인다. (1차 lineHeight·2차 includeFontPadding 은 크기차를 못 없애 헛돎 — includeFontPadding=false(CdTightText)는 남겨둠, 해롭진 않음)
+- 변경: `CustomerDetailJobCard` 잔금 값 `fontSize 18→14`(윗줄 CdKv 값과 동일), `lineHeight 18→14`, letterSpacing 제거. 강조는 색(doneText/unpaidText)·ExtraBold 유지. 사장님이 2안 중 "윗줄과 같은 크기로 통일" 택함. 1200줄 유지.
+- 표시 지점: 잔금 큰 값은 이 한 곳(JobCard, 대표+추가 건 공용). 정산 "전액 완납"(13sp 별도)은 무관.
+- 폰 확인: **못 봄**(빌드·시험 EXIT=0, 가드 7종). 사장님 폰 재확인.
+- 배포: Play 내부테스트 성공(2464).
+- 다음 액션: (android) 폰에서 잔금 줄 눈높이 확인. (server) 없음.
