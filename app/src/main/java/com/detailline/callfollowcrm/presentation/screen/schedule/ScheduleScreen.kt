@@ -438,10 +438,19 @@ fun ScheduleScreen(
                             selectedDayMs = todayStart
                             val target = SCHEDULE_PAGER_CENTER + monthsBetween(baseAnchor, DateTimeUtils.startOfMonth(System.currentTimeMillis()))
                             pagerScope.launch { pagerState.animateScrollToPage(target) }
-                        },
-                        showMoney = showMoney,
-                        onToggleMoney = { showMoney = !showMoney; navPrefs.scheduleShowMoney = showMoney }
+                        }
                     )
+                    // 💰 「금액」 토글 — 달 이름 바로 아래 오른쪽. 글자 + 진짜 on/off 스위치(처음 쓰는 사람도 알아보게).
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CalMoneyToggle(
+                            on = showMoney,
+                            onToggle = { showMoney = !showMoney; navPrefs.scheduleShowMoney = showMoney }
+                        )
+                    }
                     // cal-card — 흰 카드 안에 요일 헤더 + 6주 그리드 (프로토 .cal-card)
                     //   프로토 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원 — 흰카드(#FFF)와 페이지(#F4F5F7)가
                     //   거의 같은 색이라 그림자 없으면 카드가 안 떠서 달력 전체가 '회색 뿌옇게' 보임(사장님 지적 2026-08-01).
@@ -466,7 +475,11 @@ fun ScheduleScreen(
                             verticalAlignment = Alignment.Top
                         ) { page ->
                             val anchor = DateTimeUtils.shiftMonth(baseAnchor, page - SCHEDULE_PAGER_CENTER)
-                            val monthCells = buildCalendarCells(anchor, state.all, simpleEvents, todayStart, showMoney)
+                            // 입력이 실제로 바뀔 때만 한 달치를 다시 센다 — 토글/재구성마다 42칸을 새로 그려
+                            //   S9 에서 번쩍이던 것 방지. (2026-10-19)
+                            val monthCells = remember(anchor, state.all, simpleEvents, todayStart, showMoney) {
+                                buildCalendarCells(anchor, state.all, simpleEvents, todayStart, showMoney)
+                            }
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 repeat(6) { week ->
                                     CalendarWeekRow(
@@ -950,12 +963,10 @@ private fun MonthHeader(
     anchorMs: Long,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    onTapToday: () -> Unit,
-    /** 달력 머리 오른쪽 끝 「금액」 토글 — 켜면 날짜 칸이 「동대문 [65]」. 기본 꺼둠·기억(prefs). (2026-10-19 사장님 프로토) */
-    showMoney: Boolean = false,
-    onToggleMoney: () -> Unit = {}
+    onTapToday: () -> Unit
 ) {
-    // cal-head — 가운데 정렬 + 원형 흰 nav 버튼 (프로토 .cal-head). 토글은 같은 줄 **오른쪽 끝**에 겹쳐 둔다(가운데 정렬 유지).
+    // cal-head — 가운데 정렬 + 원형 흰 nav 버튼 (프로토 .cal-head). 「금액」 토글은 이 줄에 넣지 않는다 —
+    //   스위치가 커서 S9 좁은 화면에선 가운데 묶음(‹ 2026년 10월 ›)과 겹친다. 바로 아래 오른쪽 한 줄에 둔다(아래 CalMoneyToggle).
     Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp)) {
         Row(
             modifier = Modifier.align(Alignment.Center),
@@ -972,7 +983,6 @@ private fun MonthHeader(
             )
             CalNav(Icons.Default.ChevronRight, "다음 달", onNext)
         }
-        CalMoneyToggle(showMoney, onToggleMoney, Modifier.align(Alignment.CenterEnd))
     }
 }
 

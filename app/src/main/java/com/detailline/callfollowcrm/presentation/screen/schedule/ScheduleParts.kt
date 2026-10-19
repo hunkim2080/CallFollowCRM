@@ -21,7 +21,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -689,30 +688,32 @@ internal fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?, mon
 }
 
 /**
- * 달력 머리 오른쪽 끝 「금액」 토글 칩 — 켬=진파랑 채움(primary/흰 글자) · 끔=흰 칩+또렷한 회색 테두리(textHint).
- *   달력 머리는 **회색 바탕**이라 끔 상태를 회색 칩으로 두면 묻혀 안 보였다(2026-10-19 사장님: "버튼이 안 보였어").
- *   그래서 끔도 **흰 바탕+테두리**로 또렷이, 켬은 **진파랑 채움**으로 한눈에.
- *   **기본 꺼둠**(남이 폰 볼 때 금액 안 보이게), 켠 상태는 `AppPreferences.scheduleShowMoney` 에 기억. (2026-10-19 사장님 프로토)
+ * 「금액」 토글 — **글자 「금액」 + 진짜 on/off 스위치**(앱 전체가 쓰는 Material3 Switch, 켬=파랑).
+ *   처음 쓰는 사람도 "켜고 끄는 거구나" 를 한눈에 알게(2026-10-19 사장님: 회색 칩은 안 보였고, "금액" 글자만으론
+ *   처음 쓰는 사람이 뭔지 모른다 → 스위치로). 달 이름 바로 아래 오른쪽 한 줄에 둔다 — 월 헤더 가운데 묶음과
+ *   S9 좁은 화면에서 겹치지 않게.
+ *   **기본 꺼둠**(남이 폰 볼 때 금액 안 보이게), 켠 상태는 `AppPreferences.scheduleShowMoney` 에 기억.
  */
 @Composable
 internal fun CalMoneyToggle(on: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
+    Row(
         modifier = modifier
-            // 보이는 알약은 작지만 누르는 영역은 바깥 여백까지.
+            // 글자 자리를 눌러도 토글되게(스위치는 자기 영역에서 따로 받는다).
             .clip(AppShape.pill)
             .clickable(role = Role.Switch, onClick = onToggle)
-            .padding(AppSpace.s4)
+            .padding(start = AppSpace.s8),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             "금액",
             style = AppType.label,
             fontWeight = FontWeight.Bold,
-            color = if (on) AppTheme.colors.textOnPrimary else AppTheme.colors.textSub,
-            modifier = Modifier
-                .clip(AppShape.pill)
-                .background(if (on) AppTheme.colors.primary else AppTheme.colors.surface)
-                .then(if (on) Modifier else Modifier.border(1.dp, AppTheme.colors.textHint, AppShape.pill))
-                .padding(horizontal = AppSpace.s12, vertical = AppSpace.s4)
+            color = if (on) AppTheme.colors.primaryText else AppTheme.colors.textSub
+        )
+        Spacer(Modifier.width(AppSpace.s4))
+        androidx.compose.material3.Switch(
+            checked = on,
+            onCheckedChange = { onToggle() }
         )
     }
 }
