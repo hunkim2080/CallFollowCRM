@@ -14689,3 +14689,14 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: **못 봄** — 빌드·시험 EXIT=0, 가드 7종 통과(dup 17/17 · size 35130(여유 40줄 내) · style 2449/2449 · rules 40 · save 0 · compose). S9 겹침은 자체 계산으로 피했으나 폰 재확인 필요.
 - 배포: Play 내부테스트 성공(2458).
 - 다음 액션: (android) 사장님 폰에서 ⓐ 스위치 보임·누름 ⓑ 번쩍임 사라졌는지(남으면 다른 원인) ⓒ 긴 지역+금액 칸 말줄임 확인. (server) 없음.
+
+## 2026-10-19 22:02 · android
+가입 2단계 자동입력(SMS User Consent)+키보드 / 잔금 줄 세로정렬 진짜 고침. 내부테스트 2462.
+- 배경: 인증번호만 받고(auth_codes 54건·verified 0 — 성공 시 행 삭제 구조라 "남아있다=미완") 2단계 미완 다수. 서버 조회로 010-8725-9627 가 멤버/대기 둘 다 아님 확인(버그 아님). 가입이 첫 화면이라 READ_SMS 전 → 기존 자동읽기가 신규 설치자엔 사실상 안 먹음.
+- 변경(앱만, 서버/배포 영향 0):
+  - `SignupViewModel`: `submitAutoCode(code)` 공용 추가(READ_SMS 자동읽기 + User Consent 한 길). 기존 startSmsAutoRead 가 이걸 부름.
+  - `SignupScreen.CodePhase`: SMS User Consent(play-services-auth 21.2.0 기존) — DisposableEffect 로 startSmsUserConsent(null) + SMS_RETRIEVED 수신기(RECEIVER_EXPORTED+SEND_PERMISSION) → 동의 런처 결과에서 6자리 파싱 → submitAutoCode. 권한 불필요. 코드칸 keyboard NumberPassword→Number(붙여넣기 추천 뜨게).
+  - `CustomerDetailBits`: 공용 `CdTightText`(includeFontPadding=false). JobCard 「잔금/금액」 라벨·「전액 완납」 값에 적용 — 1차 lineHeight 고침이 헛돈 이유=컴포즈 단일행 trim, 진짜 원인은 한글 includeFontPadding. JobCard 1200줄 유지.
+- 폰 확인: **못 봄**(빌드·시험 EXIT=0, 가드 7종 통과). ⚠️ 정렬은 2번째 시도 — 폰 재확인 필요. User Consent 동의창 실동작도 신규가입 시 확인 필요.
+- 배포: Play 내부테스트 성공(2462).
+- 다음 액션: (android) 폰에서 ⓐ 잔금 줄 가운데 ⓑ 가입 시 동의창 한 번 탭 자동입력 확인. (server) 없음 — SMS 본문 코드 위치 최적화는 선택(별도).
