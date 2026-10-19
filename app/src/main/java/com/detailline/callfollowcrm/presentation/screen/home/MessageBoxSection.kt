@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -249,7 +250,7 @@ private fun GeneralRow(
                     if (t.isAd) {
                         Spacer(Modifier.size(6.dp))
                         Box(Modifier.clip(RoundedCornerShape(5.dp)).background(TossGrayBg).padding(horizontal = 5.dp, vertical = 1.dp)) {
-                            Text("광고", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                            Text("광고", style = AppType.micro, color = TossTextTertiary)
                         }
                     }
                 }

@@ -579,12 +579,13 @@ fun HomeScreen(
                         ) {
                             Text(
                                 if (notiCount > 99) "99" else "$notiCount",
-                                color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
                                 // 숫자가 딱지 원 중앙에 오게 — 폰트 기본 여백(includeFontPadding)이
                                 //   글자를 아래로 밀어 "2" 바닥이 잘렸다(사장님 지적). 여백 끄고 줄높이 글자크기에 맞춤.
+                                //   크기는 가장 작은 글자 토큰(micro 10.5, 전엔 9). (2026-10-19 가독성 하한)
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                lineHeight = 9.sp,
-                                style = androidx.compose.ui.text.TextStyle(
+                                style = AppType.micro.copy(
+                                    lineHeight = AppType.micro.fontSize,
                                     platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)
                                 )
                             )

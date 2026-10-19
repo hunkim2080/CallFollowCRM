@@ -71,7 +71,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
@@ -117,7 +116,9 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import com.detailline.callfollowcrm.presentation.util.AppSnackbarHost
 import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
+import com.detailline.callfollowcrm.presentation.util.showBrief
 import com.detailline.callfollowcrm.util.PhoneKey
 
 // 월 전환 Pager 풀 — 가운데(기준달) ± 1200달(±100년). 충분히 넓어 끝에 닿을 일 없음.
@@ -316,7 +317,7 @@ fun ScheduleScreen(
 
     Scaffold(
         containerColor = TossGrayBg,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         topBar = {
             // 프로토 일정 앱바 — "일정" + 오늘 날짜 + 우측 [+] (openAddSchedule). 프로토엔 FAB 없음.
             val todayLabel = remember {
@@ -555,11 +556,7 @@ fun ScheduleScreen(
                             onDelete = {
                                 viewModel.unschedule(c)
                                 uiScope.launch {
-                                    val r = snackbarHostState.showSnackbar(
-                                        message = "일정에서 뺐어요 (고객·기록은 그대로)",
-                                        actionLabel = "되돌리기",
-                                        duration = androidx.compose.material3.SnackbarDuration.Short
-                                    )
+                                    val r = snackbarHostState.showBrief("일정에서 뺐어요 (고객·기록은 그대로)", "되돌리기")
                                     if (r == SnackbarResult.ActionPerformed) viewModel.restoreSchedule(c.id, originalDate)
                                 }
                             }
@@ -600,11 +597,7 @@ fun ScheduleScreen(
                                 if (site.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED) {
                                     viewModel.hideCollab(site.shareId)
                                     uiScope.launch {
-                                        val r = snackbarHostState.showSnackbar(
-                                            message = "끝난 협업을 숨겼어요",
-                                            actionLabel = "되돌리기",
-                                            duration = androidx.compose.material3.SnackbarDuration.Short
-                                        )
+                                        val r = snackbarHostState.showBrief("끝난 협업을 숨겼어요", "되돌리기")
                                         if (r == SnackbarResult.ActionPerformed) viewModel.unhideCollab(site.shareId)
                                     }
                                 } else {

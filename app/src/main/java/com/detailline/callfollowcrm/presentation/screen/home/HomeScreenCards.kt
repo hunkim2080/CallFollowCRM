@@ -413,7 +413,6 @@ internal fun CollabUpcomingCard(
             .tossCardShadow(AppShape.lg)
             .clip(AppShape.lg)
             .background(Color.White)
-            .border(1.dp, Color(0xFFE7E0FB), AppShape.lg)
             .padding(16.dp)
     ) {
         // 헤더 — 누르면 협업 현장 전체 목록. (각 줄은 그 현장 상세로 따로 들어감) (2026-06-21 사장님)
@@ -471,7 +470,6 @@ internal fun CollabSettleCard(
 ) {
     Column(
         Modifier.fillMaxWidth().tossCardShadow(AppShape.lg).clip(AppShape.lg).background(Color.White)
-            .border(1.dp, Color(0xFFE7E0FB), AppShape.lg)
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.theme.LightColors
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -78,8 +80,10 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.MoneyFormatter
 import java.util.Calendar
 
-// 4색 (프로토 renderCashCal 기준)
-private val CashIn = Color(0xFF1B64DA)    // 들어온 (확정 수입) 진파랑
+// 4색 (프로토 renderCashCal 기준). 확정 수입 진파랑은 토큰 primaryText 와 값이 같아 토큰(2026-10-19).
+//   나머지 셋(연파랑 #86AEEE · 빨강 #E0344F · 연빨강 #F0A0B0)은 토큰과 눈에 띄게 달라 **사장님 결정 전엔 그대로**
+//   (빨강 → unpaidText #CF2450 가 후보).
+private val CashIn = LightColors.primaryText   // 들어온 (확정 수입) 진파랑 #1B64DA
 private val CashInPlan = Color(0xFF86AEEE) // 들어올 (예정 수입) 연파랑
 private val CashOut = Color(0xFFE0344F)    // 나간 (확정 지출) 빨강
 private val CashOutPlan = Color(0xFFF0A0B0) // 나갈 (예정 지출) 연빨강
@@ -394,7 +398,8 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
 
 @Composable
 private fun CashAmt(text: String, color: Color) {
-    Text(text, color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold,
+    // 읽어야 하는 돈 — 가장 작은 글자 토큰(micro 10.5, 전엔 9.5). (2026-10-19 가독성 하한)
+    Text(text, color = color, style = AppType.micro,
         maxLines = 1, overflow = TextOverflow.Ellipsis,  // 큰글씨서 달력 돈 하드클립(잘려서 안 보임) 방지. (2026-08-11 접근성 감사)
         modifier = Modifier.padding(top = 1.dp, start = 3.dp))
 }

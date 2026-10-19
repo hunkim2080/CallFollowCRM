@@ -34,8 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.navigation.Destinations
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
@@ -130,9 +130,8 @@ private fun RingTabItem(
                     Text(
                         badgeLabel,
                         color = Color.White,
-                        fontSize = 9.sp,
-                        lineHeight = 9.sp,
-                        fontWeight = FontWeight.Bold,
+                        // 가장 작은 글자 토큰(micro 10.5, 전엔 9). 줄 높이는 글자와 같게(위 주석). (2026-10-19 가독성 하한)
+                        style = AppType.micro.copy(lineHeight = AppType.micro.fontSize),
                         maxLines = 1
                     )
                 }
@@ -142,8 +141,10 @@ private fun RingTabItem(
         Text(
             tab.label,
             color = tint,
-            fontSize = 12.sp,   // 10.5→12 어르신 가독성(하단 탭 라벨이 흐리게 작던 것). 2026-07-30
-            fontWeight = FontWeight.SemiBold
+            // 10.5→12 어르신 가독성(하단 탭 라벨이 흐리게 작던 것). 2026-07-30
+            //   → 토큰 label(12.5) 로, 굵기는 전처럼 SemiBold(label 의 ExtraBold 는 탭 다섯 개가 무거워 보인다). 2026-10-19
+            //   ⚠️ 디자인 시스템 micro(10.5) 주석의 「탭바 이름」과 어긋남 — 사장님이 12 로 올리신 게 먼저라 작게 안 돌림.
+            style = AppType.label.copy(fontWeight = FontWeight.SemiBold)
         )
     }
 }

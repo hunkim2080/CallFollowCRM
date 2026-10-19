@@ -237,7 +237,7 @@ private fun ColumnScope.StepScaffold(
         Box(
             Modifier.fillMaxWidth().clickable { onLater() }.padding(vertical = 14.dp),
             contentAlignment = Alignment.Center
-        ) { Text(laterText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B95A1)) }
+        ) { Text(laterText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.textHint) }
     } else {
         Spacer(Modifier.height(16.dp))
     }
@@ -291,13 +291,13 @@ private fun ColumnScope.RecMethodPicker(onPick: (String) -> Unit, onLater: () ->
         fontSize = 15.sp, color = Sub, lineHeight = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
     )
     Spacer(Modifier.height(24.dp))
-    Text("어떤 걸로 녹음하세요?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1), modifier = Modifier.fillMaxWidth())
+    Text("어떤 걸로 녹음하세요?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.textHint, modifier = Modifier.fillMaxWidth())
     MethodCard("🅣", "에이닷 전화", "에이닷 앱으로 녹음") { onPick("adot") }
     MethodCard("📞", "삼성 전화", "갤럭시 기본 녹음") { onPick("samsung") }
     MethodCard("🤔", "잘 모르겠어요", "둘 다 알려드릴게요") { onPick("samsung") }
     Spacer(Modifier.weight(1f))
     Box(Modifier.fillMaxWidth().clickable { onLater() }.padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-        Text("나중에 할게요", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B95A1))
+        Text("나중에 할게요", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.textHint)
     }
 }
 
@@ -318,7 +318,7 @@ private fun MethodCard(emoji: String, t1: String, t2: String, onClick: () -> Uni
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(t1, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Ink)
-            Text(t2, fontSize = 12.5.sp, color = Color(0xFF8B95A1))
+            Text(t2, fontSize = 12.5.sp, color = AppTheme.colors.textHint)
         }
         Text("›", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFFC4CCD4))
     }
@@ -374,7 +374,7 @@ private fun ColumnScope.RecGuide(
     Box(
         Modifier.fillMaxWidth().clickable(enabled = !scanning) { onRescan() }.padding(vertical = 13.dp),
         contentAlignment = Alignment.Center
-    ) { Text(if (scanning) "찾는 중…" else "다 켰어요 · 다시 찾기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1)) }
+    ) { Text(if (scanning) "찾는 중…" else "다 켰어요 · 다시 찾기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.textHint) }
     // 켜고 다시 찾아도 계속 0개 = 우리가 못 잡는 것 → 원인(파일없음/파서미스+가린 파일명) 자동 진단. (2026-07-29 사장님)
     if (showDiag) {
         val ctx = LocalContext.current

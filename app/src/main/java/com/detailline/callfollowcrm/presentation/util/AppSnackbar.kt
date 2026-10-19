@@ -45,7 +45,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * ❌ 화면에서 `SnackbarHost(state)` 를 직접 쓰거나 `showSnackbar(…, duration = Short)` 를 직접 부르지 않는다 —
  *    그러면 그 화면만 또 4초짜리 큰 띠가 된다(두 벌). 빌드의 `dup_guard: snackbar-raw` 가 막는다.
  *
- * ⚠️ 일정 화면(ScheduleScreen)은 2026-10-19 현재 미커밋 변경 중이라 **아직 옛 모양**이다 — M 정리 뒤 같이 바꾼다.
+ * 2026-10-19: 9화면 전부 이 한 벌(일정 화면까지). 옛 표기는 이 파일 밖 0곳.
  */
 @Composable
 fun AppSnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {

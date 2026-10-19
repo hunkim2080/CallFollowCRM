@@ -1,7 +1,7 @@
 # 같은 걸 두 벌 만든 곳 — 늘어나면 빌드 실패. (2026-09-28)
 # 다시 적기: gradlew dupBaselineUpdate   (합쳐서 줄였을 때만 하세요)
 # 줄 모양: <규칙>|<파일> <개수>
-# 총 20곳 / 14줄
+# 총 17곳 / 13줄
 collab-rep-fallback|presentation/screen/schedule/ScheduleScreen.kt 2
 day-start|presentation/screen/stats/StatsViewModel.kt 1
 dialog-white|presentation/screen/chat/ChatScreen.kt 2
@@ -13,6 +13,5 @@ month-start|presentation/screen/stats/StatsViewModel.kt 1
 rep-job|service/IncomingCallOverlay.kt 1
 short-date-raw|presentation/screen/expo/ExpoScreen.kt 1
 short-date-raw|presentation/screen/schedule/ScheduleScreen.kt 1
-snackbar-raw|presentation/screen/schedule/ScheduleScreen.kt 3
 time-label-raw|presentation/component/ScheduleTimeSheet.kt 1
 time-label-raw|presentation/screen/schedule/ScheduleScreen.kt 1

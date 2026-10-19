@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.search
 
 import androidx.compose.material.icons.filled.Place
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.clickable
@@ -517,7 +518,7 @@ private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
             Modifier.padding(end = 6.dp).background(chip.second, RoundedCornerShape(8.dp))
                 .padding(horizontal = 6.dp, vertical = 1.dp)
         ) {
-            Text(chip.first, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = chip.third, maxLines = 1)
+            Text(chip.first, style = AppType.micro, color = chip.third, maxLines = 1)
         }
     }
 }

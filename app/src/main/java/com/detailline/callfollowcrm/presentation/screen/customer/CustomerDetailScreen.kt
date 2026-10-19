@@ -1168,11 +1168,11 @@ fun CustomerDetailScreen(
             // 1건일 때의 **조용한 입구** — 프로토 `.more-job` (artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
             //   "1건일 때 큰 '새 시공' 버튼을 두면 보통 손님 화면이 또 어수선해져요.
             //    그래서 맨 아래 '지난 문자 보기' 위에 작은 글씨로 뒀어요."
-            //   프로토 값: 회색(#8B95A1) · 14sp · 밑줄 · 높이 44 · 가운데.
+            //   프로토 값: 회색(옛 #8B95A1 → 램프 textHint) · 14sp · 밑줄 · 높이 44 · 가운데.
             if (detailTab == 0 && !showJobBar && c.scheduledWorkDate != null) {
                 Text(
                     "＋ 시공 하나 더 잡기",
-                    color = Color(0xFF8B95A1),
+                    color = AppTheme.colors.textHint,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,

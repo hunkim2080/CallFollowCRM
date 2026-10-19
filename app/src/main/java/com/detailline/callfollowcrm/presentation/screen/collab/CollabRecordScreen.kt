@@ -63,10 +63,13 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
+// 받은=초록 · 준=빨강 · 예정=주황. 면(Bg)은 토큰. 글자는 토큰과 값이 가까운 것만 토큰(2026-10-19) —
+//   RedDeep #D5325C → unpaidText(#CF2450, 거의 같음). GreenDeep #0F9B5C(doneText #08803C 보다 밝음) ·
+//   WaitFg #E08600(caution #F6A609 보다 진함)은 눈에 띄게 달라 **사장님 결정 전엔 그대로**.
 private val GreenBg = LightColors.doneBg
 private val GreenDeep = Color(0xFF0F9B5C)
 private val RedBg = LightColors.unpaidBg
-private val RedDeep = Color(0xFFD5325C)
+private val RedDeep = LightColors.unpaidText
 private val WaitBg = LightColors.cautionBg
 private val WaitFg = Color(0xFFE08600)
 

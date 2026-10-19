@@ -33,9 +33,10 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
 
 private val CommentPurple = LightColors.category
-private val CTextPrimary = Color(0xFF191F28)
-private val CTextSecondary = Color(0xFF4E5968)
-private val CTextTertiary = Color(0xFF8B95A1)
+// 글자 3단은 디자인 시스템 램프(text·textSub·textHint) — 옛 회색(#191F28·#4E5968·#8B95A1)은 2026-10-19 통일.
+private val CTextPrimary = LightColors.text
+private val CTextSecondary = LightColors.textSub
+private val CTextTertiary = LightColors.textHint
 
 /**
  * 협업 현장 한 줄 댓글 — 협업 사장끼리 현장 논의(팀원 코멘트 스타일). (2026-07-01 사장님)

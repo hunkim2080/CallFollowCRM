@@ -638,8 +638,7 @@ internal fun JobDetailCard(
                                                             .clip(AppShape.pill).background(TossBlue)
                                                             .padding(horizontal = 7.dp, vertical = 2.dp)
                                                     ) {
-                                                        Text("대표", fontSize = 9.sp,
-                                                            fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                                        Text("대표", style = AppType.micro, color = Color.White)
                                                     }
                                                 }
                                             }
@@ -672,10 +671,7 @@ internal fun JobDetailCard(
                                                         .background(if (cell.isOwner) Color.Black.copy(alpha = 0.5f) else TossBlue)
                                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                                 ) {
-                                                    Text(
-                                                        cell.uploaderName, fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold, color = Color.White
-                                                    )
+                                                    Text(cell.uploaderName, style = AppType.micro, color = Color.White)
                                                 }
                                             }
                                             else -> picked = false
