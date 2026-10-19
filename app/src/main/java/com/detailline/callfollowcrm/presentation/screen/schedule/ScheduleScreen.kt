@@ -177,6 +177,16 @@ fun ScheduleScreen(
             onDismissRequest = { showCalSheet = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            // 🧷 삼성(S23U) Dialog 네비바 가림 — Compose Dialog 는 기본이 **창을 시스템바 위에** 올려
+            //   WindowInsets.navigationBars 를 0 으로 준다. 그래서 바닥 버튼이 3버튼 네비바에 짤렸다.
+            //   창을 edge-to-edge 로 열면 인셋이 **진짜 값**(48dp 등)으로 와, bottomBarClearance 가 정확히 띄운다.
+            //   (2026-10-12 resNavPx fallback 로는 부족 → 2026-10-14 사장님 "아직도 그래")
+            val dialogView = androidx.compose.ui.platform.LocalView.current
+            androidx.compose.runtime.SideEffect {
+                ((dialogView.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window)?.let {
+                    androidx.core.view.WindowCompat.setDecorFitsSystemWindows(it, false)
+                }
+            }
             CalendarSyncSheet(
                 accountEmail = calendarAccountEmail,
                 syncedAtMs = calendarSyncedAtMs,
