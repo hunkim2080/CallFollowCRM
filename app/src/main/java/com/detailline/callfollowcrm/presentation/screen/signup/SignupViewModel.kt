@@ -66,6 +66,18 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
     fun consumeError() { _state.update { it.copy(error = null) } }
     fun consumeInfo() { _state.update { it.copy(info = null) } }
 
+    /**
+     * 자동으로 받은 6자리 — 입력칸에 채우고 바로 검증.
+     *   **문자 자동읽기(READ_SMS)** 와 **SMS User Consent(권한 없이 한 번 탭)** 둘 다 이 한 곳으로. (2026-10-19 사장님)
+     */
+    fun submitAutoCode(code: String) {
+        val c = code.filter { it.isDigit() }.take(6)
+        if (c.length != 6 || _state.value.loading || _state.value.phase != Phase.CODE) return
+        if (_state.value.code == c) return
+        _state.update { it.copy(code = c, info = "인증번호를 자동으로 입력했어요") }
+        verify()
+    }
+
     val phoneOk: Boolean get() = isValidKoreanMobile(_state.value.phone)
 
     /**
@@ -216,8 +228,7 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
                 if (_state.value.phase != Phase.CODE) return@launch
                 val code = withContext(Dispatchers.IO) { readCodeFromInbox(container.appContext, sinceMs) }
                 if (code != null && _state.value.code != code) {
-                    _state.update { it.copy(code = code, info = "인증번호를 자동으로 입력했어요") }
-                    verify()
+                    submitAutoCode(code)
                     return@launch
                 }
             }

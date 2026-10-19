@@ -363,7 +363,7 @@ internal fun JobDetailCard(
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
                                 // lineHeight=글자크기 — 테마 줄간격(24sp)을 물면 글자가 떠서 옆 값·버튼과 눈높이 어긋남. 셋 다 딱 맞춤. (2026-10-19 사장님)
-                                Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, lineHeight = 13.sp, color = TossTextSecondary)
+                                Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, lineHeight = 13.sp, color = TossTextSecondary, style = CdTightText)
                                 Spacer(Modifier.weight(1f))
                                 if (!hasAmount) {
                                     // 「시공 예약」과 같은 모양 — 값 + 오른쪽 회색 네모 ＋ 상자(CdAddBox 공용). 전엔 글자 옆 ＋ 라 윗줄과 달랐다. (2026-10-19 사장님)
@@ -384,7 +384,7 @@ internal fun JobDetailCard(
                                     Text(
                                         if (allPaid) "전액 완납" else manwonLabel(balanceWon) + " 남음",
                                         fontSize = 18.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
-                                        color = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.unpaidText
+                                        color = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.unpaidText, style = CdTightText
                                     )
                                     if (allPaid) {
                                         Spacer(Modifier.width(9.dp))

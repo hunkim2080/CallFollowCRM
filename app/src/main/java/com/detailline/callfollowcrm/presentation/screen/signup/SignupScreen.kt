@@ -259,6 +259,45 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
 private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupViewModel, s: SignupViewModel.UiState) {
     // 안내창 여닫이 — 아래 「문자가 안 와요」 와 **못 갔다고 알려주는 상자** 둘 다 이걸 연다.
     var helpOpen by remember { mutableStateOf(false) }
+
+    // ① SMS User Consent — 문자 오면 "이 문자 한 통만 읽을까요?" **한 번 탭**으로 코드 자동 입력.
+    //   READ_SMS 권한이 **필요 없어** 갓 설치한 신규 사용자도 바로 됨(가입이 첫 화면이라 권한이 아직 없다).
+    //   기존 READ_SMS 자동읽기·손입력은 그대로 — 이건 위에 얹는 길. (2026-10-19 사장님)
+    val consentCtx = LocalContext.current
+    val consentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        if (res.resultCode == android.app.Activity.RESULT_OK) {
+            val msg = res.data?.getStringExtra(com.google.android.gms.auth.api.phone.SmsRetriever.EXTRA_SMS_MESSAGE)
+            Regex("(\\d{6})").find(msg ?: "")?.groupValues?.get(1)?.let { vm.submitAutoCode(it) }
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
+                if (intent?.action != com.google.android.gms.auth.api.phone.SmsRetriever.SMS_RETRIEVED_ACTION) return
+                val extras = intent.extras ?: return
+                @Suppress("DEPRECATION")
+                val status = extras.getParcelable<com.google.android.gms.common.api.Status>(
+                    com.google.android.gms.auth.api.phone.SmsRetriever.EXTRA_STATUS) ?: return
+                if (status.statusCode == com.google.android.gms.common.api.CommonStatusCodes.SUCCESS) {
+                    @Suppress("DEPRECATION")
+                    val consentIntent = extras.getParcelable<android.content.Intent>(
+                        com.google.android.gms.auth.api.phone.SmsRetriever.EXTRA_CONSENT_INTENT)
+                    consentIntent?.let { runCatching { consentLauncher.launch(it) } }
+                }
+            }
+        }
+        runCatching { com.google.android.gms.auth.api.phone.SmsRetriever.getClient(consentCtx).startSmsUserConsent(null) }
+        androidx.core.content.ContextCompat.registerReceiver(
+            consentCtx, receiver,
+            android.content.IntentFilter(com.google.android.gms.auth.api.phone.SmsRetriever.SMS_RETRIEVED_ACTION),
+            com.google.android.gms.auth.api.phone.SmsRetriever.SEND_PERMISSION, null,
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+        )
+        onDispose { runCatching { consentCtx.unregisterReceiver(receiver) } }
+    }
+
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -288,7 +327,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupV
                 ),
                 singleLine = true,
                 cursorBrush = SolidColor(Blue),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                // ② 일반 숫자 키보드 — 비번형(NumberPassword)은 폰이 주는 「인증번호 붙여넣기」 추천을 가린다. (2026-10-19 사장님)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
                 decorationBox = { inner ->
                     if (s.code.isEmpty()) {

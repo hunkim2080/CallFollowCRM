@@ -413,6 +413,15 @@ internal fun CdKv(
  * 줄 오른쪽 끝 **회색 네모 상자 안 아이콘**(26dp) — 「시공 예약」(CdKv)과 「금액」 줄의 ＋가
  *   같은 모양이도록 한 곳에. 전엔 금액 줄만 글자 옆 ＋ 였다. (2026-10-19 사장님: ＋ 모양 통일)
  */
+/**
+ * 글자 세로 가운데 맞춤용 — 한글은 기본 `includeFontPadding=true` 라 글자가 상자 안에서 위로 떠,
+ *   크기가 다른 글자들을 한 줄에 CenterVertically 로 놓으면 눈높이가 어긋난다(특히 큰 「전액 완납」 18sp).
+ *   이 비대칭 여백을 꺼서 글자를 실제 글리프 기준으로 가운데에. (2026-10-19 사장님 "잔금 정렬")
+ */
+internal val CdTightText = androidx.compose.ui.text.TextStyle(
+    platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)
+)
+
 @Composable
 internal fun CdAddBox(icon: androidx.compose.ui.graphics.vector.ImageVector) {
     androidx.compose.foundation.layout.Box(
