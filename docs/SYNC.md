@@ -14672,3 +14672,11 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: **못 봄** — 빌드·시험으로 대신(`assembleRelease + testReleaseUnitTest` EXIT=0, 가드 7종 통과, dup 17/17·size 35120/35120·style 2449/2449·rules 40·save 0). 사장님이 Play 업데이트 후 문자에서 눈으로 확인 예정.
 - 배포: Play 내부테스트 성공. 1차 업로드는 구글 Play API 일시 장애(`service unavailable`)로 실패 → 업로드 단계만 rerun 하여 성공(빌드는 그대로).
 - 다음 액션: (android) 없음. (server) 없음.
+
+## 2026-10-19 14:16 · android
+일정 달력 「금액」 토글이 **안 보이던 것 고침**(디자인) — 내부테스트 2456.
+- 원인: 달력 머리(월 헤더)는 회색 바탕(`TossGrayBg #F4F5F7`)인데 끔 상태 칩이 `surfaceMuted #EEF0F3` 라 회색끼리 묻혀 사장님 눈에 토글이 안 보였다("버튼이 안 보였어, 디자인"). 코드는 2453에 멀쩡히 있었음(태그 조상 확인). 순수 가시성 문제.
+- 변경: `CalMoneyToggle`(`presentation/screen/schedule/ScheduleParts.kt`) 색만 — 끔=`surface`(흰)+`textHint #9AA3AF` 1dp 테두리+`textSub` Bold 글자 · 켬=`primary #3182F6` 채움+`textOnPrimary`(흰) 글자. `border` import 추가. 셈·위치·토글 기억(scheduleShowMoney)·소비 지점 전부 그대로(건드린 건 칩 1곳).
+- 폰 확인: **못 봄** — 빌드·시험(`assembleRelease + testReleaseUnitTest` EXIT=0, 가드 7종 통과: dup 17/17·size 35120/35120·style 2449/2449·rules 40·save 0). 자리 계산상 S9(360dp)에서 『›』와 안 겹침(양옆 ~71dp > 칩 ~58dp) — 폰에서 재확인 필요.
+- 배포: Play 내부테스트 성공(2456).
+- 다음 액션: (android) 폰에서 토글 보이는지·『›』 겹침·칸 폭(긴 지역+금액 말줄임) 확인 후 결정. (server) 없음.
