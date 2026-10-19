@@ -362,18 +362,24 @@ internal fun JobDetailCard(
                                 Modifier.fillMaxWidth().padding(vertical = 9.dp),
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                // lineHeight=글자크기 — 테마 기본 줄간격(24sp)을 물면 글자가 상자 안에서 떠서
-                                //   옆 「전액 완납」·「완납 취소」와 눈높이가 어긋난다. 셋 다 글자에 딱 맞춰 가운데로. (2026-10-19 사장님)
+                                // lineHeight=글자크기 — 테마 줄간격(24sp)을 물면 글자가 떠서 옆 값·버튼과 눈높이 어긋남. 셋 다 딱 맞춤. (2026-10-19 사장님)
                                 Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, lineHeight = 13.sp, color = TossTextSecondary)
                                 Spacer(Modifier.weight(1f))
                                 if (!hasAmount) {
-                                    // 프로토 "아직 입력 안 함 ＋" — 탭하면 총금액 입력(옛 [총금액 입력] 버튼과 같은 창).
-                                    Text(
-                                        "아직 입력 안 함 ＋", fontSize = 14.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                    // 「시공 예약」과 같은 모양 — 값 + 오른쪽 회색 네모 ＋ 상자(CdAddBox 공용). 전엔 글자 옆 ＋ 라 윗줄과 달랐다. (2026-10-19 사장님)
+                                    androidx.compose.foundation.layout.Row(
+                                        Modifier.clip(RoundedCornerShape(8.dp))
                                             .clickable { host.onEditAmount(editJobId, "total") }
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
+                                            .padding(vertical = 2.dp),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "아직 입력 안 함", fontSize = 14.sp, lineHeight = 14.sp,
+                                            fontWeight = FontWeight.Bold, color = TossTextTertiary
+                                        )
+                                        Spacer(Modifier.width(9.dp))
+                                        CdAddBox(Icons.Default.Add)
+                                    }
                                 } else {
                                     Text(
                                         if (allPaid) "전액 완납" else manwonLabel(balanceWon) + " 남음",

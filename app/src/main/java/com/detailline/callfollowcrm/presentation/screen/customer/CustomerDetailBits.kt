@@ -400,18 +400,27 @@ internal fun CdKv(
             )
             if (trailing != null) {
                 Spacer(Modifier.width(9.dp))
-                androidx.compose.foundation.layout.Box(
-                    Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.surfaceMuted),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
-                ) {
-                    androidx.compose.material3.Icon(
-                        trailing, null, tint = AppTheme.colors.textSub, modifier = Modifier.size(13.dp)
-                    )
-                }
+                CdAddBox(trailing)
             }
         }
         if (divider) androidx.compose.foundation.layout.Box(
             Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line)
+        )
+    }
+}
+
+/**
+ * 줄 오른쪽 끝 **회색 네모 상자 안 아이콘**(26dp) — 「시공 예약」(CdKv)과 「금액」 줄의 ＋가
+ *   같은 모양이도록 한 곳에. 전엔 금액 줄만 글자 옆 ＋ 였다. (2026-10-19 사장님: ＋ 모양 통일)
+ */
+@Composable
+internal fun CdAddBox(icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    androidx.compose.foundation.layout.Box(
+        Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(AppTheme.colors.surfaceMuted),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        androidx.compose.material3.Icon(
+            icon, null, tint = AppTheme.colors.textSub, modifier = Modifier.size(13.dp)
         )
     }
 }
