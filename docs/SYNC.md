@@ -14680,3 +14680,12 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: **못 봄** — 빌드·시험(`assembleRelease + testReleaseUnitTest` EXIT=0, 가드 7종 통과: dup 17/17·size 35120/35120·style 2449/2449·rules 40·save 0). 자리 계산상 S9(360dp)에서 『›』와 안 겹침(양옆 ~71dp > 칩 ~58dp) — 폰에서 재확인 필요.
 - 배포: Play 내부테스트 성공(2456).
 - 다음 액션: (android) 폰에서 토글 보이는지·『›』 겹침·칸 폭(긴 지역+금액 말줄임) 확인 후 결정. (server) 없음.
+
+## 2026-10-19 17:50 · android
+일정 달력 「금액」 토글 → **진짜 on/off 스위치 + 글자**로(처음 쓰는 사람 알아보게) + 번쩍임 완화. 내부테스트 2458.
+- 원인(사장님 2건): ① "금액" 글자만으론 처음 쓰는 사람이 뭔지 모른다 ② 켤 때 디졸브처럼 번쩍(= 일부러 넣은 애니 없음, 토글마다 42칸 통째 재계산 jank).
+- 변경(모두 일정 화면 로컬): `CalMoneyToggle`(`ScheduleParts.kt`) = 회색/흰 칩 → `Row(Text("금액") + Material3 Switch(기본 파랑))`. 앱 전체가 Switch 직접 쓰는 방식과 동일(공용 래퍼 없음). `MonthHeader` 에서 토글 빼냄(스위치가 커서 S9 가운데 묶음과 겹침) → 달 머리 **바로 아래 오른쪽 한 줄**(`Arrangement.End`). `buildCalendarCells` 를 `remember(anchor,state.all,simpleEvents,todayStart,showMoney)` 로 감싸 바뀔 때만 재계산.
+- 셈·토글 기억(scheduleShowMoney)·소비 지점(CalRegionBar money)·위치 로직 전부 그대로. 안 쓰게 된 `border` import 제거.
+- 폰 확인: **못 봄** — 빌드·시험 EXIT=0, 가드 7종 통과(dup 17/17 · size 35130(여유 40줄 내) · style 2449/2449 · rules 40 · save 0 · compose). S9 겹침은 자체 계산으로 피했으나 폰 재확인 필요.
+- 배포: Play 내부테스트 성공(2458).
+- 다음 액션: (android) 사장님 폰에서 ⓐ 스위치 보임·누름 ⓑ 번쩍임 사라졌는지(남으면 다른 원인) ⓒ 긴 지역+금액 칸 말줄임 확인. (server) 없음.
