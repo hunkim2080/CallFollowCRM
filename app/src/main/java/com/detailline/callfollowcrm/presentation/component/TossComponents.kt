@@ -62,7 +62,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
  *   이 파일은 40파일이 쓰는 공용이라, 아래 숫자를 바꾸면 그 화면이 전부 바뀐다.
  *   그래서 토큰과 **같은 값**(8·12·여백)만 토큰으로 바꿨고, **다른 값은 여기 한 줄씩**에 두었다 —
  *   사장님이 맞추기로 하면 이 줄 하나만 고치면 된다(화면마다 흩어져 있지 않다).
- *     · 카드 모서리 18  ↔ `AppShape.lg` 16   (DesignSystem 은 「16·18 → 16」 이라 적었다)
+ *     · 카드 모서리 ✅ 16 통일 완료 (2026-10-19 사장님 — TossCardShape = AppShape.lg)
  *     · 버튼 모서리 14  ↔ `AppShape.md` 12
  *     · 버튼 높이  56  ↔ `AppSize.buttonH` 52
  *     · 버튼 글자  17sp SemiBold ↔ `AppType` 에 17 없음(headline 15 · title 19)
@@ -70,7 +70,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
  *     · 칩·딱지·라벨·입력 글자 14·12·15sp ↔ `AppType` 에 같은 굵기·크기 없음
  */
 /** 카드 모서리 — 프로토 `.card { radius: 18 }`. TossCard 와 tossCardShadow 가 같이 쓴다(두 벌 금지). */
-private val TossCardShape = RoundedCornerShape(18.dp)
+private val TossCardShape = AppShape.lg   // 16 통일 — 모든 카드 둥글기 일치 (2026-10-19 사장님 "16통일")
 /** 큰 버튼 모서리 — 주 버튼·보조 버튼이 같이 쓴다. */
 private val TossButtonShape = RoundedCornerShape(14.dp)
 
