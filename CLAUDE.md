@@ -458,6 +458,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 완료 찍기·잔금 받음 도장(카드+건 같이) | `data/repository/WorkCompletionManager.kt` — `setCompleted` / `setBalancePaid(customerId, at, jobId)` | 화면마다 따로, `customerRepository.updateBalancePaidAt` 직접(2026-10-15: 카드에만 찍혀 건은 「금액 미입력」+「완료」로 보였다) |
 | 로그에 번호 가리기 | `util/LogRedact.kt` | 번호를 그대로 로그 |
 | 대화 화면 조각 | `presentation/screen/chat/` 의 `ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts` | ChatScreen.kt 안에 또 쌓기 |
+| 토스 카드·큰 버튼·칩·딱지·폼 입력칸(흰 카드+그림자+18 모서리, 56 높이 버튼, 알약 칩, 8 모서리 딱지, 회색 입력칸) | `presentation/component/TossComponents.kt` — `TossCard` · `tossCardShadow` · `TossPrimaryButton`/`TossSecondaryButton` · `TossChip` · `TossBadge` · `SheetTextField` · `SheetFieldLabel`. **토큰과 다른 값(18·14·56·17sp·38)은 이 파일 머리 주석 한 곳**에 있다 — 맞추기로 하면 거기 한 줄 | 화면에서 `shadow(4.dp, 18)+background(White, 18)` 카드 틀을 손으로 새로, 파란 56 버튼 손제작(2026-10-18: 홈 밖 20파일 24곳 남음), 입력칸 `clip+background+border(1.5)` 손조립 |
 | 서버로 보내는 명령(협업·사진, 오프라인 보관·재시도) | `data/outbox/Outbox.kt` (셈은 `domain/outbox/OutboxRules.kt`, 보내기는 `data/outbox/handlers/`) | 화면·매니저에서 `runCatching { sharedSiteRepository.reschedule/updateAddress/endCollab/cancel }` · `serverRepo.uploadOwnerPhoto` 직접 |
 | 인터넷 복구 듣기 | `util/NetworkWatch.kt` | 화면마다 `ConnectivityManager` 새로 |
 | 우체통이 사장님께 하는 말 | `presentation/util/OutboxWording.kt` | 화면마다 「연결되면 보내요」·「N일째」 문구 새로 |

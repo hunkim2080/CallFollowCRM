@@ -115,6 +115,16 @@ val Pretendard = FontFamily(   // 입력칸(BasicTextField) 등에서 명시적�
     Font(R.font.pretendard_extrabold, FontWeight.ExtraBold)
 )
 
+/**
+ * 🎨 **M3 기본 글자 눈금 — `AppType` 과 다른 옛 눈금이다.** (2026-10-19 디자인 감사 2단계 #11)
+ *   `style` 을 안 적은 M3 컴포넌트(AlertDialog 제목·본문, Button 글자, TextField 글자 …)와
+ *   `MaterialTheme.typography.X` 를 직접 쓰는 **29파일 174곳**(bodySmall 37 · bodyMedium 36 · labelSmall 34 ·
+ *   titleMedium 17 · labelMedium 17 · titleLarge 10 · titleSmall 9 · bodyLarge 5 · labelLarge 4 ·
+ *   headlineSmall 3 · headlineMedium 2)이 이 눈금을 따라간다.
+ *   `AppType` 와 **같은 값이 하나도 없어서**(가장 가까운 짝: bodySmall 13/Normal/lh18 ↔ `AppType.body` 13/Normal/lh19 ·
+ *   headlineSmall 20 ↔ `title` 19 · headlineLarge 24 ↔ `display` 23 · labelSmall 12 Medium ↔ `label` 12.5 ExtraBold)
+ *   **값은 안 건드렸다** — 맞추면 174곳 + M3 기본 글자가 한 번에 바뀐다. 사장님 결정 뒤 이 자리에서만 고친다.
+ */
 private val TossTypography = Typography(
     displayLarge = TextStyle(fontFamily = Pretendard, fontSize = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
     displayMedium = TextStyle(fontFamily = Pretendard, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp),
@@ -132,12 +142,21 @@ private val TossTypography = Typography(
     labelSmall = TextStyle(fontFamily = Pretendard, fontSize = 12.sp, fontWeight = FontWeight.Medium)
 )
 
+/**
+ * 🎨 **M3 기본 모서리 — `shape` 를 안 적은 M3 컴포넌트가 따라가는 값.** (2026-10-19 디자인 감사 2단계 #11)
+ *   토큰과 **같은 값인 두 칸만** 토큰을 그대로 가리킨다(보이는 변화 0):
+ *     extraSmall 8  = `AppShape.sm`  ← OutlinedTextField 51곳 · DropdownMenu 4곳
+ *     extraLarge 24 = `AppShape.xl`  ← AlertDialog 90곳 · ModalBottomSheet 9곳 · DatePickerDialog 5곳
+ *   나머지 셋은 토큰과 2dp 씩 다르다 — **사장님 결정 전엔 그대로 둔다.** (앱 코드에서 이 셋을 읽는
+ *   M3 컴포넌트는 §12-B 로 세니 **0곳** — Card·Chip·FAB·Drawer 를 안 쓴다. 맞춰도 보이는 변화는 없을 것으로 봄)
+ *     small  10 ↔ `AppShape.sm` 8   ·  medium 14 ↔ `AppShape.md` 12   ·  large 18 ↔ `AppShape.lg` 16
+ */
 private val TossShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
+    extraSmall = AppShape.sm,
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(14.dp),
     large = RoundedCornerShape(18.dp),
-    extraLarge = RoundedCornerShape(24.dp)
+    extraLarge = AppShape.xl
 )
 
 /**

@@ -45,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.Pretendard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
@@ -54,6 +56,23 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+
+/**
+ * 🎨 **토큰과 값이 다른 것 — 한 곳에만 적어 둔다.** (2026-10-19 디자인 감사 2단계)
+ *   이 파일은 40파일이 쓰는 공용이라, 아래 숫자를 바꾸면 그 화면이 전부 바뀐다.
+ *   그래서 토큰과 **같은 값**(8·12·여백)만 토큰으로 바꿨고, **다른 값은 여기 한 줄씩**에 두었다 —
+ *   사장님이 맞추기로 하면 이 줄 하나만 고치면 된다(화면마다 흩어져 있지 않다).
+ *     · 카드 모서리 18  ↔ `AppShape.lg` 16   (DesignSystem 은 「16·18 → 16」 이라 적었다)
+ *     · 버튼 모서리 14  ↔ `AppShape.md` 12
+ *     · 버튼 높이  56  ↔ `AppSize.buttonH` 52
+ *     · 버튼 글자  17sp SemiBold ↔ `AppType` 에 17 없음(headline 15 · title 19)
+ *     · 칩 높이   38  ↔ `AppSize.chipH` 40
+ *     · 칩·딱지·라벨·입력 글자 14·12·15sp ↔ `AppType` 에 같은 굵기·크기 없음
+ */
+/** 카드 모서리 — 프로토 `.card { radius: 18 }`. TossCard 와 tossCardShadow 가 같이 쓴다(두 벌 금지). */
+private val TossCardShape = RoundedCornerShape(18.dp)
+/** 큰 버튼 모서리 — 주 버튼·보조 버튼이 같이 쓴다. */
+private val TossButtonShape = RoundedCornerShape(14.dp)
 
 /** Toss 스타일 큰 메인 버튼: 56dp 높이, full width, 굵은 글씨. */
 @Composable
@@ -69,7 +88,7 @@ fun TossPrimaryButton(
         enabled = enabled,
         modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale(interaction),  // height→heightIn: 큰글씨서 라벨 2줄 잘림 방지(1x 외형 동일). (2026-08-11 접근성 감사)
         interactionSource = interaction,
-        shape = RoundedCornerShape(14.dp),
+        shape = TossButtonShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = TossBlue,
             contentColor = Color.White,
@@ -99,7 +118,7 @@ fun TossSecondaryButton(
         enabled = enabled,
         modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale(interaction),  // height→heightIn: 큰글씨서 라벨 2줄 잘림 방지(1x 외형 동일). (2026-08-11 접근성 감사)
         interactionSource = interaction,
-        shape = RoundedCornerShape(14.dp),
+        shape = TossButtonShape,
         border = BorderStroke(1.dp, TossDivider),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.White,
@@ -154,7 +173,7 @@ fun Modifier.pressScale(
  *   흰카드(#FFF)가 페이지(#F4F5F7)와 거의 같은 색이라 그림자 없으면 안 떠서 밋밋함. (2026-08-02 사장님)
  */
 fun Modifier.tossCardShadow(
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(18.dp)
+    shape: androidx.compose.ui.graphics.Shape = TossCardShape
 ): Modifier = this.shadow(
     elevation = 4.dp,
     shape = shape,
@@ -166,24 +185,18 @@ fun Modifier.tossCardShadow(
 @Composable
 fun TossCard(
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(16.dp),
+    contentPadding: PaddingValues = PaddingValues(AppSpace.s16),
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
-    // 프로토 카드 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원 — 흰카드(#FFF)가 페이지(#F4F5F7)와
-    //   거의 같은 색이라 그림자 없으면 안 떠서 밋밋·뿌옇게 보임. 은은한 네이비 그림자로 카드가 뜸. (2026-08-02 사장님)
+    // 그림자는 tossCardShadow 한 곳(프로토 box-shadow 복원 — 흰카드가 페이지와 거의 같은 색이라 그림자 없으면 안 뜸).
     //   + 누르면 살짝 줄었다 튀어 돌아옴(쏙). 회색 물결(ripple) 대신 scale 로 깔끔하게. (2026-08-02 사장님)
     val base = modifier
         .fillMaxWidth()
         .then(if (onClick != null) Modifier.pressScale(interaction) else Modifier)
-        .shadow(
-            elevation = 4.dp,
-            shape = RoundedCornerShape(18.dp),
-            spotColor = Color(0xFF111827),
-            ambientColor = Color(0xFF111827)
-        )
-        .background(Color.White, RoundedCornerShape(18.dp))
+        .tossCardShadow(TossCardShape)
+        .background(Color.White, TossCardShape)
     val clickable = if (onClick != null)
         base.clickable(interactionSource = interaction, indication = null, onClick = onClick)
     else base
@@ -200,7 +213,7 @@ fun TossStatCard(
     modifier: Modifier = Modifier,
     valueColor: Color = TossTextPrimary
 ) {
-    TossCard(modifier = modifier, contentPadding = PaddingValues(20.dp)) {
+    TossCard(modifier = modifier, contentPadding = PaddingValues(AppSpace.s20)) {
         Column {
             Text(
                 label,
@@ -237,7 +250,7 @@ fun TossChip(
         border = BorderStroke(1.dp, border)
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = AppSpace.s16),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -260,7 +273,7 @@ fun TossBadge(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = AppShape.sm,
         color = background
     ) {
         Text(
@@ -268,7 +281,7 @@ fun TossBadge(
             color = color,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            modifier = Modifier.padding(horizontal = AppSpace.s8, vertical = 3.dp)
         )
     }
 }
@@ -290,16 +303,16 @@ fun SheetFieldLabel(text: String) {
     Text(
         // 폼 라벨은 t3→t2(더 진하게) — 어르신 가독. placeholder(빈칸 안내)는 흐린 채로 유지. (2026-08-12 접근성 감사)
         text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-        modifier = Modifier.padding(start = 2.dp, top = 4.dp, bottom = 7.dp)
+        modifier = Modifier.padding(start = AppSpace.s2, top = AppSpace.s4, bottom = 7.dp)
     )
 }
 
-/** 프로토 .sheet-input 박스 modifier (공용). */
+/** 프로토 .sheet-input 박스 modifier (공용) — 입력칸 두 벌(TextFieldValue 판·String 판)이 같이 쓴다. */
 private fun Modifier.sheetInputBox(minHeightDp: Int): Modifier = this
     .fillMaxWidth()
-    .clip(RoundedCornerShape(12.dp))
+    .clip(AppShape.md)
     .background(TossGrayBg)
-    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+    .border(1.5.dp, TossDivider, AppShape.md)
     .let { if (minHeightDp > 0) it.heightIn(min = minHeightDp.dp) else it }
     .padding(horizontal = 14.dp, vertical = 13.dp)
 
@@ -384,13 +397,7 @@ fun SheetTextField(
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
         androidx.compose.ui.text.input.VisualTransformation.None
 ) {
-    val boxMod = modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(12.dp))
-        .background(TossGrayBg)
-        .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
-        .let { if (minHeightDp > 0) it.heightIn(min = minHeightDp.dp) else it }
-        .padding(horizontal = 14.dp, vertical = 13.dp)
+    val boxMod = modifier.sheetInputBox(minHeightDp)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
