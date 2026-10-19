@@ -381,10 +381,10 @@ internal fun JobDetailCard(
                                         CdAddBox(Icons.Default.Add)
                                     }
                                 } else {
+                                    // 값 크기=윗줄 CdKv 값(14)과 같게 — 라벨(13)과 눈높이 맞아 한 줄로. 전엔 18이라 작은 라벨이 위로 떠 "중앙 아님"이 났다. 강조는 색·굵기. (2026-10-20 사장님)
                                     Text(
                                         if (allPaid) "전액 완납" else manwonLabel(balanceWon) + " 남음",
-                                        fontSize = 18.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
-                                        color = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.unpaidText, style = CdTightText
+                                        fontSize = 14.sp, lineHeight = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (allPaid) AppTheme.colors.doneText else AppTheme.colors.unpaidText, style = CdTightText
                                     )
                                     if (allPaid) {
                                         Spacer(Modifier.width(9.dp))
