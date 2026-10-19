@@ -14665,3 +14665,10 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 덤으로 본 것(범위 밖, 안 고침): `/ 10_000L` 손계산이 아직 **14곳**(Chat 4 · Stats 3 · Visited 2 · CustomerDetailAmountDialog · Notebook · Pricing · ScheduleScreen 일당 · ReminderWorker) — `money-format-raw` 규칙은 `"%,d"`·`NumberFormat` 만 막고 나누기는 안 막는다. 합치려면 별도 작업.
 - 폰 확인: **못 봄** — 빌드·시험으로 대신. ⚠️ **확신 못 하는 지점**: ⓐ **칸 폭** — 띠 글자 8.5sp 에 「동대문 [1,250]」 9자는 46dp 칸에 안 들어가 말줄임(…)이 날 수 있음(두 자리 「[65]」 는 들어갈 듯). 긴 지역명(「동대문」 3자 + 「[100]」)도 경계. 폰에서 보고 **글자 줄이기/지역 2자 자르기** 결정 필요 ⓑ 칩 자리 — 머리 줄 가운데 묶음(‹ 2026년 10월 ›) 오른쪽 여유 ~58dp 에 「금액」 칩 ~50dp 가 겹치지 않는지 S9(360dp) 에서 확인 ⓒ 지난 시공(회색 띠) 위에도 금액이 파란색 — 프로토가 「primary」 라 그대로, 회색 띠 위에서 튀면 `CalRegionBar` 한 줄 ⓓ 협업 띠에 일당을 붙일지(지금은 안 붙임) ⓔ 접근성: 칩이 `Role.Switch` 만, 켬/끔 말 안 함.
 - 다음 액션: (android) 사장님 폰 확인 후 ⓐ~ⓓ 결정 · **앱 전체 프로토 `artifact/32c88330` 일정 화면에 「금액」 칩+「지역 [금액]」 반영**(지금은 세션 프로토만) · `/ 10_000L` 14곳 → `MoneyFormatter.manOf` 수렴은 별도. (server) 없음 — 앱 로컬만.
+
+## 2026-10-19 13:35 · android
+문자 본문 **한글 도메인 링크 고침** + 일정 금액 토글과 묶어 내부테스트 업로드(versionCode 2453).
+- 변경: `util/MessageUrl.kt` 정규식 — 스킴 있는 URL 을 `https?://[^\s가-힣]+` → `https?://\S+` 로. `https://스마트홈인테리어.eable.kr` 처럼 **스킴 뒤 한글 IDN 도메인**이 통째로 링크됨(전엔 한글에서 끊겨 `.eable.kr` 만 걸림). 스킴 없는 경우(아스키 호스트+알려진 TLD)는 **그대로** — 한글 문장+마침표 오인은 여전히 안 걸림. `MessageUrlTest` +2케이스(한글도메인), 총 8케이스. 공용 1곳(`MessageUrl`)만 수정 — 두 벌 없음.
+- 폰 확인: **못 봄** — 빌드·시험으로 대신(`assembleRelease + testReleaseUnitTest` EXIT=0, 가드 7종 통과, dup 17/17·size 35120/35120·style 2449/2449·rules 40·save 0). 사장님이 Play 업데이트 후 문자에서 눈으로 확인 예정.
+- 배포: Play 내부테스트 성공. 1차 업로드는 구글 Play API 일시 장애(`service unavailable`)로 실패 → 업로드 단계만 rerun 하여 성공(빌드는 그대로).
+- 다음 액션: (android) 없음. (server) 없음.
