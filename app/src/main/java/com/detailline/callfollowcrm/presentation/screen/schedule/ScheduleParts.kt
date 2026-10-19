@@ -21,6 +21,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -688,7 +689,9 @@ internal fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?, mon
 }
 
 /**
- * 달력 머리 오른쪽 끝 「금액」 토글 칩 — 끔=회색(surfaceMuted/textSub) · 켬=primary(primaryBg/primaryText).
+ * 달력 머리 오른쪽 끝 「금액」 토글 칩 — 켬=진파랑 채움(primary/흰 글자) · 끔=흰 칩+또렷한 회색 테두리(textHint).
+ *   달력 머리는 **회색 바탕**이라 끔 상태를 회색 칩으로 두면 묻혀 안 보였다(2026-10-19 사장님: "버튼이 안 보였어").
+ *   그래서 끔도 **흰 바탕+테두리**로 또렷이, 켬은 **진파랑 채움**으로 한눈에.
  *   **기본 꺼둠**(남이 폰 볼 때 금액 안 보이게), 켠 상태는 `AppPreferences.scheduleShowMoney` 에 기억. (2026-10-19 사장님 프로토)
  */
 @Composable
@@ -703,10 +706,12 @@ internal fun CalMoneyToggle(on: Boolean, onToggle: () -> Unit, modifier: Modifie
         Text(
             "금액",
             style = AppType.label,
-            color = if (on) AppTheme.colors.primaryText else AppTheme.colors.textSub,
+            fontWeight = FontWeight.Bold,
+            color = if (on) AppTheme.colors.textOnPrimary else AppTheme.colors.textSub,
             modifier = Modifier
                 .clip(AppShape.pill)
-                .background(if (on) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
+                .background(if (on) AppTheme.colors.primary else AppTheme.colors.surface)
+                .then(if (on) Modifier else Modifier.border(1.dp, AppTheme.colors.textHint, AppShape.pill))
                 .padding(horizontal = AppSpace.s12, vertical = AppSpace.s4)
         )
     }
