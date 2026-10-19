@@ -244,6 +244,8 @@ fun ScheduleScreen(
     var navDialogAddr by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<String?>(null)
     }
+    // 💰 달력 「금액」 토글 — 기본 꺼둠, 켠 상태는 prefs 한 곳(scheduleShowMoney)에 기억. 셈은 CalendarMoneyLabel.
+    var showMoney by remember { mutableStateOf(navPrefs.scheduleShowMoney) }
     fun launchNavigationForAddr(addr: String?) {
         val navApp = com.detailline.callfollowcrm.util.NavApp.fromKey(navPrefs.defaultNavAppKey)
         if (navApp == null) navDialogAddr = addr
@@ -436,7 +438,9 @@ fun ScheduleScreen(
                             selectedDayMs = todayStart
                             val target = SCHEDULE_PAGER_CENTER + monthsBetween(baseAnchor, DateTimeUtils.startOfMonth(System.currentTimeMillis()))
                             pagerScope.launch { pagerState.animateScrollToPage(target) }
-                        }
+                        },
+                        showMoney = showMoney,
+                        onToggleMoney = { showMoney = !showMoney; navPrefs.scheduleShowMoney = showMoney }
                     )
                     // cal-card — 흰 카드 안에 요일 헤더 + 6주 그리드 (프로토 .cal-card)
                     //   프로토 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원 — 흰카드(#FFF)와 페이지(#F4F5F7)가
@@ -462,7 +466,7 @@ fun ScheduleScreen(
                             verticalAlignment = Alignment.Top
                         ) { page ->
                             val anchor = DateTimeUtils.shiftMonth(baseAnchor, page - SCHEDULE_PAGER_CENTER)
-                            val monthCells = buildCalendarCells(anchor, state.all, simpleEvents, todayStart)
+                            val monthCells = buildCalendarCells(anchor, state.all, simpleEvents, todayStart, showMoney)
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 repeat(6) { week ->
                                     CalendarWeekRow(
@@ -946,24 +950,29 @@ private fun MonthHeader(
     anchorMs: Long,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    onTapToday: () -> Unit
+    onTapToday: () -> Unit,
+    /** 달력 머리 오른쪽 끝 「금액」 토글 — 켜면 날짜 칸이 「동대문 [65]」. 기본 꺼둠·기억(prefs). (2026-10-19 사장님 프로토) */
+    showMoney: Boolean = false,
+    onToggleMoney: () -> Unit = {}
 ) {
-    // cal-head — 가운데 정렬 + 원형 흰 nav 버튼 (프로토 .cal-head)
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CalNav(Icons.Default.ChevronLeft, "이전 달", onPrev)
-        Text(
-            DateTimeUtils.formatMonthHeader(anchorMs),
-            modifier = Modifier.padding(horizontal = 20.dp).clickable { onTapToday() },
-            fontSize = 18.sp,
-            color = TossTextPrimary,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.36).sp
-        )
-        CalNav(Icons.Default.ChevronRight, "다음 달", onNext)
+    // cal-head — 가운데 정렬 + 원형 흰 nav 버튼 (프로토 .cal-head). 토글은 같은 줄 **오른쪽 끝**에 겹쳐 둔다(가운데 정렬 유지).
+    Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp)) {
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CalNav(Icons.Default.ChevronLeft, "이전 달", onPrev)
+            Text(
+                DateTimeUtils.formatMonthHeader(anchorMs),
+                modifier = Modifier.padding(horizontal = 20.dp).clickable { onTapToday() },
+                fontSize = 18.sp,
+                color = TossTextPrimary,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.36).sp
+            )
+            CalNav(Icons.Default.ChevronRight, "다음 달", onNext)
+        }
+        CalMoneyToggle(showMoney, onToggleMoney, Modifier.align(Alignment.CenterEnd))
     }
 }
 
@@ -1094,7 +1103,8 @@ private fun CalendarDay(
                                         bar.past -> TossTextSecondary
                                         else -> AppTheme.colors.doneText
                                     }
-                                    CalRegionBar(bar.seg, bg, fg, bar.label)
+                                    // 「금액」 토글 켬이면 bar.money(「65」/「–」)가 와서 「동대문 [65]」. 끔이면 null = 전과 같다.
+                                    CalRegionBar(bar.seg, bg, fg, bar.label, bar.money)
                                 } else {
                                     // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 띠가 가로로 이어지게.
                                     Box(Modifier.fillMaxWidth().height(13.dp))
@@ -1104,71 +1114,6 @@ private fun CalendarDay(
                     }
                 }
             }
-        }
-    }
-}
-
-/** 응답 대기 협업 막대 — 주황 + 은은한 깜빡임(알파 0.3↔1.0). "뭐지?" 하고 눈길 가서 탭하게. (2026-07-08 사장님)
- *   pending 칸에서만 렌더 → 애니메이션도 그 칸만 (전체 42칸 부하 없음). */
-@Composable
-private fun PendingCalBar(label: String) {
-    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pendingCollabPulse")
-    val alpha by pulse.animateFloat(
-        // 연한 바탕이라 0.3 까지 내리면 아예 안 보인다. 0.45 부터.
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(750),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "pendingCollabAlpha"
-    )
-    CalRegionBar(BarSeg.SINGLE, AppTheme.colors.cautionBg.copy(alpha = alpha), AppTheme.colors.cautionText, label)
-}
-
-/** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
-@Composable
-private fun CalBar(seg: BarSeg, color: Color) {
-    val shape = calBarShape(seg)
-    if (seg == BarSeg.SINGLE) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(Modifier.width(16.dp).height(4.dp).clip(shape).background(color))
-        }
-    } else {
-        Box(Modifier.fillMaxWidth().height(4.dp).clip(shape).background(color))
-    }
-}
-
-/**
- * 달력 칸 띠 한 줄 — **색=종류, 글자=어디**. (2026-09-22 사장님 "지역명 정도")
- *   연한 바탕 + 진한 글자. 진한 띠가 세 줄 쌓이면 달력이 답답해지고 글자도 덜 읽힌다(레퍼런스).
- *   여러 날 시공은 첫날에만 글자가 오고(label != null) 이어지는 날은 같은 높이 빈 띠라
- *   막대가 가로로 끊기지 않는다.
- */
-@Composable
-private fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?) {
-    val shape = calBarShape(seg)
-    // 여러 날 일정은 **이어 붙는 쪽 여백을 0**으로 둬서 칸과 칸 사이 틈 없이 하나의 띠로 흐르게.
-    //   붙지 않는 쪽(START 왼쪽·END 오른쪽·SINGLE 양쪽)은 1dp 여백 → 다른 날 일정과 안 붙는다. (2026-10-08 사장님)
-    val startPad = if (seg == BarSeg.MID || seg == BarSeg.END) 0.dp else 1.dp
-    val endPad = if (seg == BarSeg.MID || seg == BarSeg.START) 0.dp else 1.dp
-    Box(
-        Modifier.fillMaxWidth().padding(start = startPad, end = endPad)
-            .height(13.dp).clip(shape).background(bg),
-        // 띠 안 글자는 가운데. 시공·A/S·협업·요청·간단 전부 이 공용 한 곳으로 정렬된다. (2026-10-08 사장님)
-        contentAlignment = Alignment.Center
-    ) {
-        if (!label.isNullOrBlank()) {
-            Text(
-                label,
-                color = fg,
-                fontSize = CAL_REGION_TEXT_SP,
-                lineHeight = CAL_REGION_TEXT_SP,   // 테마 lineHeight(24sp)를 물려받으면 띠 안에서 글자가 잘린다
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 3.dp)
-            )
         }
     }
 }
@@ -1392,14 +1337,7 @@ private fun AssignAvatars(members: List<com.detailline.callfollowcrm.data.local.
 
 // 📅 달력 격자 모델·셈(CAL_MAX_LANE·BarSeg·BarKind·DayBar·CalendarCell·buildCalendarCells)은
 //   ScheduleCalendarGrid.kt 로 옮겼다(같은 패키지 internal). 여기선 그리기만. (2026-10-08, §12-F)
-
-/** 달력 막대 모서리 — 여러 날 시공이 가로로 이어져 보이게 끝만 둥글린다. CalBar/CalRegionBar 공용. */
-private fun calBarShape(seg: BarSeg) = when (seg) {
-    BarSeg.SINGLE -> RoundedCornerShape(3.dp)
-    BarSeg.START -> RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp)
-    BarSeg.END -> RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
-    BarSeg.MID -> RoundedCornerShape(0.dp)
-}
+//   띠 그리기(CalRegionBar·PendingCalBar·calBarShape)와 「금액」 토글 칩(CalMoneyToggle)은 ScheduleParts.kt. (2026-10-19)
 
 
 /**

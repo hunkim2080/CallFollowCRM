@@ -2,7 +2,14 @@ package com.detailline.callfollowcrm.presentation.screen.schedule
 
 import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.domain.schedule.CalendarMoneyLabel
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.filled.AutoAwesome
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -601,6 +608,109 @@ internal fun lastSyncLabel(atMs: Long, count: Int): String {
  */
 internal fun laneKeyOf(c: CustomerEntity): String =
     "${c.id}-${c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: 0L}"
+
+// ─────────────────────────────────────────────────────────────
+// 🍃 달력 칸 띠 그리기 — ScheduleScreen 에서 잎으로 떼어냄(같은 패키지 internal, §12-F). (2026-10-19)
+//   CalRegionBar(시공·A/S·협업·간단 공용 띠) · PendingCalBar(요청 깜빡임) · calBarShape · CalMoneyToggle.
+//   죽어 있던 CalBar(4dp 점 막대, 부르는 곳 0)는 옮기지 않고 지웠다.
+// ─────────────────────────────────────────────────────────────
+
+/** 달력 막대 모서리 — 여러 날 시공이 가로로 이어져 보이게 끝만 둥글린다. CalRegionBar 공용. */
+internal fun calBarShape(seg: BarSeg) = when (seg) {
+    BarSeg.SINGLE -> RoundedCornerShape(3.dp)
+    BarSeg.START -> RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp)
+    BarSeg.END -> RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
+    BarSeg.MID -> RoundedCornerShape(0.dp)
+}
+
+/** 응답 대기 협업 막대 — 주황 + 은은한 깜빡임(알파 0.45↔1.0). "뭐지?" 하고 눈길 가서 탭하게. (2026-07-08 사장님)
+ *   pending 칸에서만 렌더 → 애니메이션도 그 칸만 (전체 42칸 부하 없음). */
+@Composable
+internal fun PendingCalBar(label: String) {
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pendingCollabPulse")
+    val alpha by pulse.animateFloat(
+        // 연한 바탕이라 0.3 까지 내리면 아예 안 보인다. 0.45 부터.
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(750),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pendingCollabAlpha"
+    )
+    CalRegionBar(BarSeg.SINGLE, AppTheme.colors.cautionBg.copy(alpha = alpha), AppTheme.colors.cautionText, label)
+}
+
+/**
+ * 달력 칸 띠 한 줄 — **색=종류, 글자=어디**. (2026-09-22 사장님 "지역명 정도")
+ *   연한 바탕 + 진한 글자. 진한 띠가 세 줄 쌓이면 달력이 답답해지고 글자도 덜 읽힌다(레퍼런스).
+ *   여러 날 시공은 첫날에만 글자가 오고(label != null) 이어지는 날은 같은 높이 빈 띠라
+ *   막대가 가로로 끊기지 않는다.
+ *
+ *   💰 [money] — 달력 머리 「금액」 토글 켬일 때 시공 띠에 오는 「65」/「–」(`CalendarMoneyLabel.moneyOf`).
+ *   「동대문 [65]」: 지역은 띠 글자색 그대로, **괄호·「–」는 연한 회색(textHint), 금액은 primary 계열**.
+ *   null(끔·A/S·협업·요청·간단)이면 전과 완전히 같다. (2026-10-19 사장님 프로토)
+ */
+@Composable
+internal fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?, money: String? = null) {
+    val shape = calBarShape(seg)
+    // 여러 날 일정은 **이어 붙는 쪽 여백을 0**으로 둬서 칸과 칸 사이 틈 없이 하나의 띠로 흐르게.
+    //   붙지 않는 쪽(START 왼쪽·END 오른쪽·SINGLE 양쪽)은 1dp 여백 → 다른 날 일정과 안 붙는다. (2026-10-08 사장님)
+    val startPad = if (seg == BarSeg.MID || seg == BarSeg.END) 0.dp else 1.dp
+    val endPad = if (seg == BarSeg.MID || seg == BarSeg.START) 0.dp else 1.dp
+    Box(
+        Modifier.fillMaxWidth().padding(start = startPad, end = endPad)
+            .height(13.dp).clip(shape).background(bg),
+        // 띠 안 글자는 가운데. 시공·A/S·협업·요청·간단 전부 이 공용 한 곳으로 정렬된다. (2026-10-08 사장님)
+        contentAlignment = Alignment.Center
+    ) {
+        if (!label.isNullOrBlank() || money != null) {
+            val faint = AppTheme.colors.textHint
+            val moneyColor = if (money == CalendarMoneyLabel.NONE) faint else AppTheme.colors.primaryText
+            val text = if (money == null) AnnotatedString(label.orEmpty()) else buildAnnotatedString {
+                if (!label.isNullOrBlank()) append("$label ")
+                withStyle(SpanStyle(color = faint)) { append("[") }
+                withStyle(SpanStyle(color = moneyColor)) { append(money) }
+                withStyle(SpanStyle(color = faint)) { append("]") }
+            }
+            Text(
+                text,
+                color = fg,
+                fontSize = CAL_REGION_TEXT_SP,
+                lineHeight = CAL_REGION_TEXT_SP,   // 테마 lineHeight(24sp)를 물려받으면 띠 안에서 글자가 잘린다
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 3.dp)
+            )
+        }
+    }
+}
+
+/**
+ * 달력 머리 오른쪽 끝 「금액」 토글 칩 — 끔=회색(surfaceMuted/textSub) · 켬=primary(primaryBg/primaryText).
+ *   **기본 꺼둠**(남이 폰 볼 때 금액 안 보이게), 켠 상태는 `AppPreferences.scheduleShowMoney` 에 기억. (2026-10-19 사장님 프로토)
+ */
+@Composable
+internal fun CalMoneyToggle(on: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            // 보이는 알약은 작지만 누르는 영역은 바깥 여백까지.
+            .clip(AppShape.pill)
+            .clickable(role = Role.Switch, onClick = onToggle)
+            .padding(AppSpace.s4)
+    ) {
+        Text(
+            "금액",
+            style = AppType.label,
+            color = if (on) AppTheme.colors.primaryText else AppTheme.colors.textSub,
+            modifier = Modifier
+                .clip(AppShape.pill)
+                .background(if (on) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
+                .padding(horizontal = AppSpace.s12, vertical = AppSpace.s4)
+        )
+    }
+}
 
 /**
  * 이 시공이 dayStart 날을 포함하는가 — 여러 날 시공(scheduledWorkDays) 고려.

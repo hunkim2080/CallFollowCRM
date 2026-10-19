@@ -196,6 +196,13 @@ class AppPreferences(context: Context) {
     var googleCalendarConnected: Boolean
         get() = prefs.getBoolean("google_calendar_connected", false)
         set(value) = prefs.edit().putBoolean("google_calendar_connected", value).apply()
+    /**
+     * 일정 달력 「금액」 토글 — 켜면 날짜 칸 띠가 「동대문 [65]」(만원). **기본 꺼둠**(남이 폰 볼 때 금액 안 보이게).
+     *   켠 상태를 기억한다. 셈은 `domain/schedule/CalendarMoneyLabel`. (2026-10-19 사장님 프로토)
+     */
+    var scheduleShowMoney: Boolean
+        get() = prefs.getBoolean("schedule_show_money", false)
+        set(value) = prefs.edit().putBoolean("schedule_show_money", value).apply()
     /** 막내 비서 현재 단계(0~9, 10레벨마다). 앱 시작 시 Mascot 변신 복원용. (2026-06-14) */
     var agentTier: Int
         get() = prefs.getInt("agent_tier", 0)

@@ -56,8 +56,8 @@ screen/recurring/RecurringMessagesScreen.kt 13
 screen/reminder/ScheduleReminderScreen.kt 5
 screen/report/ReportScreen.kt 35
 screen/schedule/ScheduleAddScreen.kt 61
-screen/schedule/ScheduleParts.kt 40
-screen/schedule/ScheduleScreen.kt 66
+screen/schedule/ScheduleParts.kt 42
+screen/schedule/ScheduleScreen.kt 64
 screen/search/SearchScreen.kt 45
 screen/settings/SettingsCards.kt 54
 screen/settings/SettingsScreen.kt 168

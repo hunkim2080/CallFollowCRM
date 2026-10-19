@@ -21,7 +21,12 @@ internal data class DayBar(
     val past: Boolean,
     /** 칸에 적을 **지역명**(시공) 또는 **제목**(간단). 여러 날은 **첫날만** 채운다(날마다 반복하면 지저분). */
     val label: String? = null,
-    val kind: BarKind = BarKind.SCHEDULE
+    val kind: BarKind = BarKind.SCHEDULE,
+    /**
+     * 「금액」 토글 켬일 때 시공 띠에 붙는 금액 글자 — 「65」(만원) 또는 「–」(아직 안 적음). 끔이면 null = 지금 모양.
+     *   label 과 같은 날(첫날)에만. 셈은 `CalendarMoneyLabel.moneyOf` 한 곳. (2026-10-19 사장님 프로토)
+     */
+    val money: String? = null
 )
 
 internal data class CalendarCell(
@@ -61,7 +66,9 @@ internal fun buildCalendarCells(
     monthAnchor: Long,
     schedules: List<CustomerEntity>,
     simples: List<com.detailline.callfollowcrm.data.local.entity.SimpleEventEntity>,
-    todayStart: Long
+    todayStart: Long,
+    /** 달력 머리 「금액」 토글 — 켜면 시공 띠 첫날에 「[65]」/「[–]」 를 붙인다(`DayBar.money`). 기본 꺼둠. */
+    showMoney: Boolean = false
 ): List<CalendarCell> {
     val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }
     val targetMonth = cal.get(Calendar.MONTH)
@@ -112,13 +119,17 @@ internal fun buildCalendarCells(
                 dayStart == e -> BarSeg.END
                 else -> BarSeg.MID
             }
+            val firstDay = seg == BarSeg.SINGLE || seg == BarSeg.START
             DayBar(
                 lane = (laneMap[laneKeyOf(c)] ?: 0).coerceAtMost(CAL_MAX_LANE),
                 seg = seg,
                 past = dayStart < todayStart,
                 // 글자는 첫날에만. 홈 띠에서 "동대문" 뽑을 때 쓰는 그 함수를 그대로 쓴다.
-                label = if (seg == BarSeg.SINGLE || seg == BarSeg.START)
-                    com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address) else null
+                label = if (firstDay) com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address) else null,
+                // 금액도 첫날에만 — 그 건 총액(rowOf 가 jobs 에서 채운 totalAmount). 줄마다 각각, 합치지 않는다.
+                money = if (firstDay)
+                    com.detailline.callfollowcrm.domain.schedule.CalendarMoneyLabel.moneyOf(c.totalAmount, showMoney)
+                else null
             )
         }
         // 간단 일정 띠 — 시공과 같은 lane 공간을 나눠 쓴다. 여러 날이면 START/MID/END 로 이어지고 첫날에 제목. (v64)
