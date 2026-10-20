@@ -71,11 +71,43 @@ object AddressExtractor {
     fun twoLine(raw: String?): Pair<String, String?> {
         val s = tidyAddress(raw)
         if (s.isBlank()) return "" to null
+        val p = parse3(s)
+        if (p.road.isBlank() && p.name.isBlank()) return s to null   // head 비었음(동호수뿐) → 통째 1줄
+        if (p.name.isBlank()) {
+            // 단지명(브랜드)이 없다. 끝에 동·호수가 있으면 그걸 2번째 줄로 — "…서초대로 50 122동 220호" → (…50, 122동 220호).
+            return if (!p.unit.isNullOrBlank()) p.road to p.unit else s to null
+        }
+        val second = listOfNotNull(p.road.takeIf { it.isNotBlank() }, p.unit?.takeIf { it.isNotBlank() })
+            .joinToString(" · ")
+        return p.name to second.ifBlank { null }
+    }
+
+    /**
+     * 주소를 가독성 있게 **두 줄**로 — (1줄 = 지역·도로명, 2줄 = 단지명 + 동호수). [twoLine] 과 **순서 반대**(저건 단지명이 위).
+     *   고객 상세 '건 카드' 주소에서. (2026-10-20 사장님 "디테일 살려 문단 나눔, 가독성")
+     *   "경기 수원시 권선구 망포로 14 (수원 하늘채 더퍼스트2단지) 224동 101호"
+     *     → ("경기 수원시 권선구 망포로 14", "수원 하늘채 더퍼스트2단지 224동 101호")
+     *   단지·동호수 없으면 (전체, null) 로 한 줄. 지역 없는 단지명만이면 (단지명, 동호수).
+     */
+    fun roadThenBuilding(raw: String?): Pair<String, String?> {
+        val s = tidyAddress(raw)
+        if (s.isBlank()) return "" to null
+        val p = parse3(s)
+        if (p.road.isBlank() && p.name.isBlank()) return s to null
+        if (p.road.isBlank()) return p.name to p.unit?.takeIf { it.isNotBlank() }
+        val second = listOfNotNull(p.name.takeIf { it.isNotBlank() }, p.unit?.takeIf { it.isNotBlank() })
+            .joinToString(" ")
+        return p.road to second.ifBlank { null }
+    }
+
+    /** [twoLine]·[roadThenBuilding] 공통 파싱 — 도로명/행정 부분·단지(건물)명·동호수로 쪼갠다. **한 곳(§12).** */
+    private data class AddrParts3(val road: String, val name: String, val unit: String?)
+    private fun parse3(s: String): AddrParts3 {
         // ① 끝에 붙은 동호수 떼기 — "101동 1203호" · "1203호" · "101동". 숫자 없는 행정동(천호동)은 안 뗀다.
         val tail = TWO_LINE_TAIL_RX.find(s)
         val unit = tail?.groupValues?.get(1)?.replace(Regex("\\s+"), " ")?.trim()
         val head = (if (tail != null) s.substring(0, tail.range.first) else s).trim().trimEnd(',').trim()
-        if (head.isBlank()) return s to null
+        if (head.isBlank()) return AddrParts3("", "", unit)
         // ② 단지명 — 쉼표 뒤가 있으면 그것, 없으면 마지막 행정·도로 토큰 뒤.
         val road: String
         val complex: String
@@ -89,16 +121,7 @@ object AddressExtractor {
             road = tokens.take(lastAdmin + 1).joinToString(" ")
             complex = tokens.drop(lastAdmin + 1).joinToString(" ")
         }
-        val name = complex.trim().trim('(', ')', ',').trim()
-        if (name.isBlank()) {
-            // 단지명(브랜드)이 없다. 하지만 끝에 동·호수가 있으면 그걸 2번째 줄로 내린다 —
-            //   "서울 서초구 서초대로 50 122동 220호" → ("서울 서초구 서초대로 50", "122동 220호").
-            //   (전엔 통째로 1번째 줄에 넣어 "…"로 잘렸다. 2026-10-17 사장님 "날짜가/주소가 잘려서")
-            return if (!unit.isNullOrBlank()) head to unit else s to null
-        }
-        val second = listOfNotNull(road.takeIf { it.isNotBlank() }, unit?.takeIf { it.isNotBlank() })
-            .joinToString(" · ")
-        return name to second.ifBlank { null }
+        return AddrParts3(road, complex.trim().trim('(', ')', ',').trim(), unit)
     }
 
     /** [twoLine] 의 끝 동호수 — "101동 1203호" / "1203호" / "101동" 가 **맨 끝**에 있을 때만. */

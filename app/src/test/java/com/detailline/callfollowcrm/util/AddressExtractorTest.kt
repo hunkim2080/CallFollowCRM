@@ -265,6 +265,43 @@ class AddressExtractorTest {
         assertNull(b)
     }
 
+    // ---------- roadThenBuilding: 고객 건 카드 — 1줄 도로명 / 2줄 단지명·동호수 (twoLine 과 순서 반대) (2026-10-20 사장님) ----------
+
+    @Test fun `roadThenBuilding - 괄호 단지명 + 동호수 (사장님 실제)`() {
+        val (a, b) = AddressExtractor.roadThenBuilding("경기 수원시 권선구 망포로 14 (수원 하늘채 더퍼스트2단지) 224동 101호")
+        assertEquals("경기 수원시 권선구 망포로 14", a)
+        assertEquals("수원 하늘채 더퍼스트2단지 224동 101호", b)
+    }
+
+    @Test fun `roadThenBuilding - 쉼표 단지명`() {
+        val (a, b) = AddressExtractor.roadThenBuilding("인천 연수구 컨벤시아대로 42번길 7, 더샵 센트럴시티 101동 1203호")
+        assertEquals("인천 연수구 컨벤시아대로 42번길 7", a)
+        assertEquals("더샵 센트럴시티 101동 1203호", b)
+    }
+
+    @Test fun `roadThenBuilding - 단지명 없는 도로명은 한 줄`() {
+        val (a, b) = AddressExtractor.roadThenBuilding("서울 서대문구 응암로 28")
+        assertEquals("서울 서대문구 응암로 28", a)
+        assertNull(b)
+    }
+
+    @Test fun `roadThenBuilding - 단지명 없이 동호수만 있으면 2줄로`() {
+        val (a, b) = AddressExtractor.roadThenBuilding("서울 서초구 서초대로 50 122동 220호")
+        assertEquals("서울 서초구 서초대로 50", a)
+        assertEquals("122동 220호", b)
+    }
+
+    @Test fun `roadThenBuilding - 지역 없는 단지명만 (단지명, 동호수)`() {
+        val (a, b) = AddressExtractor.roadThenBuilding("마곡엠밸리 7단지 705동 1203호")
+        assertEquals("마곡엠밸리 7단지", a)
+        assertEquals("705동 1203호", b)
+    }
+
+    @Test fun `roadThenBuilding - 빈 값은 안 깨진다`() {
+        assertEquals("" to null, AddressExtractor.roadThenBuilding(null))
+        assertEquals("" to null, AddressExtractor.roadThenBuilding("   "))
+    }
+
     @Test fun `twoLine - 2줄에 빈 「·」 가 절대 안 나온다`() {
         for (raw in listOf("힐스테이트 1502호", "인천 연수구, 더샵 센트럴시티", "송파구 잠실엘스 101동 1503호", "학의동 632-32")) {
             val (a, b) = AddressExtractor.twoLine(raw)

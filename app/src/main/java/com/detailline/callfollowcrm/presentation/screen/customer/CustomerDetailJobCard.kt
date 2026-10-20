@@ -222,10 +222,12 @@ internal fun JobDetailCard(
                                     modifier = Modifier.padding(top = 3.dp).size(14.dp)
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text(
-                                    displayAddr, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                // 📍 가독성 — 1줄 도로명 / 2줄 단지명·동호수로 문단 나눔(AddressExtractor.roadThenBuilding). 복사·길찾기는 전체(displayAddr) 그대로. (2026-10-20 사장님)
+                                val (addrLine1, addrLine2) = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(displayAddr)
+                                Column(Modifier.weight(1f)) {
+                                    Text(addrLine1, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)
+                                    if (addrLine2 != null) Text(addrLine2, style = AppType.body, fontWeight = FontWeight.SemiBold, color = TossTextSecondary)
+                                }
                                 Spacer(Modifier.width(6.dp))
                                 Text("복사", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
                                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { ctx.copyToClip("주소", displayAddr) }.padding(horizontal = 8.dp, vertical = 4.dp))
