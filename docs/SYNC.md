@@ -14738,3 +14738,13 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 배포: **서버 라이브 반영 완료**(GOTCHAS §3: scp 확인→base64 패치→py_compile OK→백업 main.py.bak-20261020-2144→swap→kickstart→**smoke 10/10 ✅**). repo 도 push(한 곳 패치라 live=repo at that spot). 앱 Play 2471 업로드 중.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종, 만료 테스트 5). 사장님 폰에서 협업 칩 상태 확인.
 - 다음 액션: (android) 폰에서 수락 대기중/N시간/만료됨 확인. 「다시 부르기」 직접 버튼은 요청 시 추가. (server) 없음.
+
+## 2026-10-20 22:31 · android
+상담함 「안내 떴는데 칩 없음」 버그 — 칩 visibility 를 안내와 같은 조건으로. 내부테스트 2473.
+- 사장님: 「시공 대기」 안내는 떴는데 칩이 없음(답 다 한 시공대기 손님이라).
+- 원인(§12-K): 안내=`inboxChipMembers`(손님 있나), 칩 render=`counts`(답 안 한 수>0). today·wait 는 counts 가 pending-gated → 다 답하면 칩만 사라짐. 2026-10-16 "빈 칩 숨기기"를 `counts>0`로 구현한 게 "손님 있나"의 틀린 대용이었다.
+- 변경: `InboxChips` 죽은 `seen` 인자 → `hasMember`(=chipHasMember=inboxChipMembers) 로 교체, workShown 을 `counts>0` → `hasMember` 로. 숫자(badge)는 그대로 counts(답 안 한 것)→0이면 흐리게. whoShown(종료 고객)은 상시 숨김 유지 + inboxChipFirstNote 에서 "done" 제거(칩 없으면 안내도 X).
+- 전 칩 점검: wait·today 고침 / owe·onhold 원래 일치 / done 안내도 끔 / pending(답장안함) 안내없어 무관.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 시공 대기 칩 확인.
+- 배포: Play 2473. (협업 24h 만료 2471 폰에서 「23시간 남음」 정상 확인됨.)
+- 다음 액션: (android) 폰에서 시공 대기 칩 확인. (server) 없음.
