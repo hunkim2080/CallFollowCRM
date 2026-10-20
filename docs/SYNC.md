@@ -14728,3 +14728,13 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: 못 봄(빌드·시험). 사장님 폰 재확인.
 - 배포: Play 내부테스트 성공(2468).
 - 다음 액션: (android) 폰에서 주소 두 줄 확인. 광고 오분류 건은 사장님이 키워드 확인 중(낱말 없으면 서버 AI 규칙 손볼 예정). (server) 없음.
+
+## 2026-10-20 21:45 · android (+ server)
+협업 요청 24시간 만료 — 칩에 「수락 대기중·N시간 남음」/「만료됨」(앱) + 24h 지난 수락 서버가 막음. 앱 2471 + 서버 라이브.
+- 사장님: 24h 만료, 만료되면 「만료됨 · 다시 부르기」(자동취소 X).
+- 공용 `domain/collab/CollabInviteExpiry`(TTL 24h · isExpired · remainingHours, 순수+테스트 5). **서버와 같은 24h — 주석으로 서로 가리킴**(§13②).
+- 앱: `CustomerDetailViewModel.collabPendingCreatedAt`(shareId→createdAtMs, by-me status=pending 로드) → `JobCardHost` → 협업 칩이 createdAtMs 로 「수락 대기중 (N시간 남음)」 → 24h 「만료됨」(시계·cautionText). 여럿이면 「만료 N곳」. loadCollabPending 은 init + onCollabRefresh.
+- 서버: `/api/shared/respond` SELECT 에 created_at_ms 추가 + `req.accept && now-created >= 24h → 409 "요청이 만료됐어요"`. 거절은 언제든. (지난-날짜 막기 바로 옆)
+- 배포: **서버 라이브 반영 완료**(GOTCHAS §3: scp 확인→base64 패치→py_compile OK→백업 main.py.bak-20261020-2144→swap→kickstart→**smoke 10/10 ✅**). repo 도 push(한 곳 패치라 live=repo at that spot). 앱 Play 2471 업로드 중.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종, 만료 테스트 5). 사장님 폰에서 협업 칩 상태 확인.
+- 다음 액션: (android) 폰에서 수락 대기중/N시간/만료됨 확인. 「다시 부르기」 직접 버튼은 요청 시 추가. (server) 없음.
