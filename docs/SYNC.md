@@ -14718,3 +14718,13 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: **못 봄**(빌드·시험 EXIT=0, 가드 7종). 사장님 폰 재확인 — 이게 맞는 원인인지 눈으로.
 - 배포: Play 내부테스트 성공(2466).
 - 다음 액션: (android) 폰에서 잔금/금액 줄 선-선 중앙 확인. (server) 없음.
+
+## 2026-10-20 20:42 · android
+고객 건 카드 주소 두 줄(가독성) — 1줄 도로명 / 2줄 단지명·동호수. 내부테스트 2468.
+- 사장님 "디테일 살려 문단 나눔, 가독성". 기존 twoLine(단지명 먼저)과 순서 반대.
+- 변경: `AddressExtractor.roadThenBuilding(raw)` 추가 + 파싱을 공용 `parse3`(private)로 빼 twoLine 과 한 곳 공유(§12). `CustomerDetailJobCard` 주소 단일 Text → Column 두 줄(1줄 14sp Bold primary / 2줄 AppType.body SemiBold textSecondary). 복사·길찾기는 전체 displayAddr 그대로.
+- 표시 지점(§12-K): 건 카드 주소 이 한 곳만 두 줄로. 협업 rows=twoLine(그대로), 채팅 파란밑줄=findOne(그대로), roughSite/siteLabel 그대로.
+- 테스트: AddressExtractorTest +6(사장님 실제 "경기 수원시 권선구 망포로 14 (수원 하늘채 더퍼스트2단지) 224동 101호" 포함) · twoLine 7케이스 회귀 0. 빌드 EXIT=0, 가드 7종(style 2449/2449 — line2를 AppType.body 토큰으로, raw sp 안 늘림).
+- 폰 확인: 못 봄(빌드·시험). 사장님 폰 재확인.
+- 배포: Play 내부테스트 성공(2468).
+- 다음 액션: (android) 폰에서 주소 두 줄 확인. 광고 오분류 건은 사장님이 키워드 확인 중(낱말 없으면 서버 AI 규칙 손볼 예정). (server) 없음.
