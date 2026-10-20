@@ -229,7 +229,7 @@ fun CustomerDetailScreen(
     // 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 전화 알게 되면 가져옴.
     val teamPhotos by viewModel.teamPhotos.collectAsState()
     val teamNotes by viewModel.teamNotes.collectAsState()
-    val collabPendingShareIds by viewModel.collabPendingShareIds.collectAsState()
+    val collabPendingCreatedAt by viewModel.collabPendingCreatedAt.collectAsState()
     androidx.compose.runtime.LaunchedEffect(customer?.phoneNumber) {
         if (!customer?.phoneNumber.isNullOrBlank()) {
             viewModel.refreshTeamPhotos()
@@ -1004,7 +1004,7 @@ fun CustomerDetailScreen(
                 earliestJobId = earliestJobId, showNth = showJobBar,
                 issuedDocs = issuedDocs, intakeByToken = intakeByToken,
                 collabRefresh = collabRefresh, onCollabRefresh = { collabRefresh++; viewModel.loadCollabPending() },
-                collabPendingShareIds = collabPendingShareIds,
+                collabPendingCreatedAt = collabPendingCreatedAt,
                 onEditDate = { jid, start, days, minutes ->
                     // 🔴 **그 건**을 고친다 — 돈처럼 날짜도 건별로. jid null(아직 건 없음)이면 창이 고객(대표) 경로로 폴백. (2026-10-14)
                     dateEditJobId = jid; dateEditStart = start; dateEditDays = days; dateEditMinutes = minutes

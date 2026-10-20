@@ -113,8 +113,8 @@ internal class JobCardHost(
     /** 협업 기록(prefs)은 비반응형 — 공유·해제 뒤 이 값이 바뀌어야 다시 읽는다. */
     val collabRefresh: Int,
     val onCollabRefresh: () -> Unit,
-    /** 🤝 아직 상대가 **수락 안 한** 협업 shareId 집합(서버 by-me pending) — 칩이 「수락 대기중」을 바로 보여준다. (2026-10-20 사장님) */
-    val collabPendingShareIds: Set<String>,
+    /** 🤝 아직 상대가 **수락 안 한** 협업 — shareId → 공유 시각(서버 by-me pending). 칩이 「수락 대기중·N시간 남음」/「만료됨」. (2026-10-20 사장님) */
+    val collabPendingCreatedAt: Map<String, Long>,
     /** 날짜 고치기 창 — (jobId, 지금 예약일, 기간, 시간). jobId null = 고객(대표) 경로. */
     val onEditDate: (jobId: Long?, start: Long?, days: Int, minutes: Int?) -> Unit,
     /** 금액 창 — (jobId, "total" | "deposit"). */
@@ -939,31 +939,37 @@ internal fun JobDetailCard(
                     }
                     // 🤝 협업 — 없으면 「협업 부르기」, 있으면 이름. **아직 수락 전이면 시계+주황 「수락 대기중」**(클릭 없이 바로). (2026-10-20 사장님)
                     if (hasDate) {
-                        // 이 건 협업 사장 중 상대가 아직 수락 안 한 수(서버 by-me pending). shareId 로 맞춘다.
-                        val collabPending = jobCollab.count { it.shareId.isNotBlank() && it.shareId in host.collabPendingShareIds }
+                        // 이 건 협업 사장 중 상대가 아직 수락 안 한 것(서버 by-me pending). shareId→공유시각으로 만료까지 판단.
+                        val nowMs = System.currentTimeMillis()
+                        val pendingAts = jobCollab.mapNotNull { host.collabPendingCreatedAt[it.shareId.ifBlank { "" }] }
+                        val expiredN = pendingAts.count { com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.isExpired(it, nowMs) }
+                        val waitingAts = pendingAts.filterNot { com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.isExpired(it, nowMs) }
+                        // 남은 시간 = 가장 급한(제일 적게 남은) 것. 여럿이면 그걸 보여준다.
+                        val minLeftH = waitingAts.minOfOrNull { com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.remainingHours(it, nowMs) }
                         val collabNames = jobCollab.joinToString(", ") { it.name.ifBlank { "협업 사장님" } }
                         CdUndoChip(
                             when {
                                 jobCollab.isEmpty() -> "협업 부르기"
-                                collabPending == jobCollab.size -> "$collabNames · 수락 대기중"
-                                collabPending > 0 -> "$collabNames · ${collabPending}곳 대기중"
-                                else -> collabNames
+                                expiredN > 0 && waitingAts.isEmpty() -> "$collabNames · 만료됨"              // 다 만료
+                                expiredN > 0 -> "$collabNames · 만료 ${expiredN}곳"                        // 일부 만료
+                                minLeftH != null -> "$collabNames · 수락 대기중 (${minLeftH}시간 남음)"      // 대기중 + 남은 시간
+                                else -> collabNames                                                        // 다 수락됨
                             },
-                            // 「부르기」=사람+ · 수락 대기=시계(주황) · 수락됨=사람들(보라). (2026-10-17 · 2026-10-20 사장님)
+                            // 「부르기」=사람+ · 수락 대기/만료=시계(주황) · 수락됨=사람들(보라). (2026-10-17 · 2026-10-20 사장님)
                             danger = false, filled = true,
                             icon = when {
                                 jobCollab.isEmpty() -> Icons.Filled.PersonAddAlt1
-                                collabPending > 0 -> Icons.Filled.Schedule
+                                pendingAts.isNotEmpty() -> Icons.Filled.Schedule
                                 else -> Icons.Filled.Groups
                             },
                             tint = when {
                                 jobCollab.isEmpty() -> null
-                                collabPending > 0 -> AppTheme.colors.cautionText
+                                pendingAts.isNotEmpty() -> AppTheme.colors.cautionText
                                 else -> AppTheme.colors.categoryText
                             }
                         ) {
                             if (jobCollab.isEmpty()) showJobCollabShare.value = true
-                            else collabExpanded = !collabExpanded
+                            else collabExpanded = !collabExpanded   // 펼치면 해제·다시 부르기(만료된 건 다시 부르기)
                         }
                     }
                     // 📋 접수서 — 발행된 게 있을 때만, 파랑(프로토 `.lk`). 탭 → 아래 펼침(보기 전용).

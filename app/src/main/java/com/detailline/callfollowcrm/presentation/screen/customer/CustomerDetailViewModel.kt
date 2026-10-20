@@ -107,18 +107,19 @@ class CustomerDetailViewModel(
         container.sitePhotoRepository.observe(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // 🤝 협업 **수락 대기중**인 shareId 집합 — by-me 공유현장에서 상대가 아직 수락 안 한 것(status=="pending").
-    //   협업 칩이 "수락 대기중"을 **클릭 없이** 보여주는 데 쓴다(사장님 2026-10-20). 수락되면(accepted) 빠진다.
-    //   init + 협업 바뀔 때(loadCollabPending) 다시 읽는다. 서버 실패면 그대로(빈 집합 = 아무 말 안 함 = 오해 방지).
-    private val _collabPendingShareIds = MutableStateFlow<Set<String>>(emptySet())
-    val collabPendingShareIds = _collabPendingShareIds.asStateFlow()
+    // 🤝 협업 **수락 대기중**인 요청 — shareId → 공유 시각(createdAtMs). by-me 에서 상대가 아직 수락 안 한 것(status=="pending").
+    //   협업 칩이 **클릭 없이** 「수락 대기중 · N시간 남음」/「만료됨」을 보여주는 데 쓴다(만료 셈은 CollabInviteExpiry). (사장님 2026-10-20)
+    //   수락되면(accepted) 빠진다. init + 협업 바뀔 때(loadCollabPending) 다시 읽는다. 서버 실패면 그대로(빈 = 아무 말 안 함).
+    private val _collabPendingCreatedAt = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val collabPendingCreatedAt = _collabPendingCreatedAt.asStateFlow()
 
     fun loadCollabPending() = viewModelScope.launch {
         val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
         if (myPhone.isBlank()) return@launch
         container.sharedSiteRepository.byMe(myPhone).onSuccess { sites ->
-            _collabPendingShareIds.value =
-                sites.filter { it.status == "pending" }.map { it.shareId }.filter { it.isNotBlank() }.toSet()
+            _collabPendingCreatedAt.value = sites
+                .filter { it.status == "pending" && it.shareId.isNotBlank() }
+                .associate { it.shareId to it.createdAtMs }
         }
     }
 
