@@ -14748,3 +14748,12 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 시공 대기 칩 확인.
 - 배포: Play 2473. (협업 24h 만료 2471 폰에서 「23시간 남음」 정상 확인됨.)
 - 다음 액션: (android) 폰에서 시공 대기 칩 확인. (server) 없음.
+
+## 2026-10-20 23:10 · android
+입력칸 키보드 가림 — 사장님 제보(SpamHub) + 전체 검수. 내부테스트 2475·2476.
+- SpamHub(번호 앞자리): keyboardPadding 이 verticalScroll **안쪽**이라 뷰포트 안 줄어 입력칸 가림(창 안 줄는 S23U류). → keyboardPadding 을 verticalScroll **바깥**으로. (2475)
+- 전체 검수(Explore, presentation/ 전수): 같은 역순 버그 AiMessageScreen·TemplateEditScreen 2곳 더 발견 → 바깥으로. StatsScreen StartPointDialog(출발지 입력 AlertDialog) ForceDialogResize() 누락 → 추가. (2476)
+- 검수 결과: 역순(verticalScroll 뒤 keyboardPadding) 버그는 위 3곳 외 **0곳** · raw imePadding **0곳** · 입력 다이얼로그는 모두 ForceDialogResize 사용(이 1곳만 누락이었음). OnboardingScreen ProfileStep 은 입력칸이 스크롤 상단이라 안전(확인·무변경).
+- 올바른 패턴: 스크롤 화면은 `keyboardPadding()` 을 `verticalScroll()` **앞**에. 입력 다이얼로그는 `ForceDialogResize()`.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 번호 앞자리 입력 확인.
+- 다음 액션: (android) 폰에서 SpamHub 앞자리 입력 시 키보드 위로 자동 스크롤되는지 확인. (server) 없음.
