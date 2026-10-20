@@ -691,7 +691,7 @@ fun HomeScreen(
                     },
                     counts = inboxChipCounts,
                     generalBadge = generalUnread,
-                    seen = chipsSeen
+                    hasMember = chipHasMember
                 )
             }
             // 📦 칩이 처음 생겼을 때 그 밑에 딱 한 번 안내. (2026-10-08 사장님)
@@ -2491,8 +2491,9 @@ private fun InboxChips(
     onSelect: (String) -> Unit,
     counts: Map<String, Int>,
     generalBadge: Int,
-    /** 📦 한 번이라도 생긴 적 있는 칩 키 — 이 안의 것만 보여준다(전체·문자함·A/S 는 예외). (2026-10-08 사장님) */
-    seen: Set<String>
+    /** 📦 **지금 손님이 있는** 칩 키(inboxChipMembers) — 이 안의 것만 보여준다. **안내(배너)와 같은 조건**이라
+     *   「안내 떴는데 칩이 없다」가 안 생긴다. 숫자(counts)는 답 안 한 것만이라 다 답하면 0(흐리게)이지만 칩은 유지. (2026-10-20 사장님) */
+    hasMember: Set<String>
 ) {
     // 시공 대기 = **예약은 잡혔고 아직 안 끝난** 손님. (2026-09-20 사장님)
     //   예약일이 지났는데 완료 표시가 없는 건도 여기 담긴다 — 안 그러면 어디에도 안 떠서 잊어버린다.
@@ -2541,13 +2542,16 @@ private fun InboxChips(
         // 📦 **지금 손님이 있는 칩만** 보인다 — 비면 사라진다. (2026-10-16 사장님 "잔금 기다리는 사람 없는데 왜 이 칩이?")
         //   단 **지금 보고 있는 칩**은 비어도 남긴다(내가 그 칸에 서 있는데 칩이 사라지면 헷갈림 — 떠나면 사라짐).
         //   (전엔 "한 번 생기면 흐리게 유지"였는데, 사장님이 빈 칩이 더 거슬린다고 숨기기로.)
-        val workShown = work.filter { (counts[it.first] ?: 0) > 0 || selected == it.first }
+        // 📦 **손님이 있는 칩만** 보인다(비면 사라짐) — 안내(inboxChipMembers)와 **같은 조건**이라 어긋나지 않는다.
+        //   숫자는 답 안 한 것만(counts)이라 다 답하면 0(흐리게)이지만 칩은 남는다. 지금 보는 칩도 비면 유지. (2026-10-20 사장님)
+        val workShown = work.filter { hasMember.contains(it.first) || selected == it.first }
         items(workShown.size) { i ->
             val (k, label) = workShown[i]
             val c = counts[k] ?: 0
             // 지금 보는 칩이라 0인데 남은 경우만 흐리게(누르는 건 살려둠).
             ChipPill(label, c.takeIf { it > 0 }, selected == k, dim = c == 0) { onSelect(k) }
         }
+        // 종료 고객은 지금처럼 **평소 숨김**(완료 손님은 거의 늘 있어 칩이 상시 떠 클러터). 누르는 중일 때만. (2026-10-20)
         val whoShown = who.filter { (counts[it.first] ?: 0) > 0 || selected == it.first }
         // 할 일 / 사람 찾기 사이 — 얇은 금 (종료 고객이 보일 때만)
         if (whoShown.isNotEmpty()) {

@@ -373,7 +373,7 @@ internal fun inboxChipFirstNote(chip: String): String? = when (chip) {
     "owe" -> "시공은 끝났는데 잔금을 아직 못 받은 고객이 여기 모여요"
     // ⏸️ 프로토 `.note` 그대로 (artifact/D4EwQSrXk4TFPzc9gjW6Cs)
     "onhold" -> "계약은 됐는데 날짜는 미룬 손님이 여기 모여요"
-    "done" -> "잔금까지 다 받아 끝난 고객이 여기 모여요"
+    // "done"(종료 고객)은 칩을 평소 숨기므로(InboxChips whoShown) 안내도 안 한다 — 안 그러면 「안내 떴는데 칩 없음」. (2026-10-20 사장님)
     else -> null
 }
 
