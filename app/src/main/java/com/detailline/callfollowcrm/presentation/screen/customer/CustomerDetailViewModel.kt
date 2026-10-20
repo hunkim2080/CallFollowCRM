@@ -107,6 +107,21 @@ class CustomerDetailViewModel(
         container.sitePhotoRepository.observe(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 🤝 협업 **수락 대기중**인 shareId 집합 — by-me 공유현장에서 상대가 아직 수락 안 한 것(status=="pending").
+    //   협업 칩이 "수락 대기중"을 **클릭 없이** 보여주는 데 쓴다(사장님 2026-10-20). 수락되면(accepted) 빠진다.
+    //   init + 협업 바뀔 때(loadCollabPending) 다시 읽는다. 서버 실패면 그대로(빈 집합 = 아무 말 안 함 = 오해 방지).
+    private val _collabPendingShareIds = MutableStateFlow<Set<String>>(emptySet())
+    val collabPendingShareIds = _collabPendingShareIds.asStateFlow()
+
+    fun loadCollabPending() = viewModelScope.launch {
+        val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
+        if (myPhone.isBlank()) return@launch
+        container.sharedSiteRepository.byMe(myPhone).onSuccess { sites ->
+            _collabPendingShareIds.value =
+                sites.filter { it.status == "pending" }.map { it.shareId }.filter { it.isNotBlank() }.toSet()
+        }
+    }
+
     // 발행 이력 — 이 고객에게 발행한 견적서/시공접수서. 2026-07-07 사장님.
     /**
      * 📋 **고객이 채운 접수서** — 토큰으로 카드와 이어 붙인다.
@@ -483,6 +498,7 @@ class CustomerDetailViewModel(
     val persona: kotlinx.coroutines.flow.StateFlow<com.detailline.callfollowcrm.ai.CustomerPersona?> = _persona
 
     init {
+        loadCollabPending()   // 협업 수락 대기중 shareId — 칩이 "수락 대기중"을 바로 보여주게.
         // customer 의 phone 이 들어오면 (보통 즉시) persona fetch. 서버 404 면 null 그대로.
         viewModelScope.launch {
             customer.collect { c ->

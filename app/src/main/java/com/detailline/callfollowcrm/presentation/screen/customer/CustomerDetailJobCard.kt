@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Navigation
@@ -112,6 +113,8 @@ internal class JobCardHost(
     /** 협업 기록(prefs)은 비반응형 — 공유·해제 뒤 이 값이 바뀌어야 다시 읽는다. */
     val collabRefresh: Int,
     val onCollabRefresh: () -> Unit,
+    /** 🤝 아직 상대가 **수락 안 한** 협업 shareId 집합(서버 by-me pending) — 칩이 「수락 대기중」을 바로 보여준다. (2026-10-20 사장님) */
+    val collabPendingShareIds: Set<String>,
     /** 날짜 고치기 창 — (jobId, 지금 예약일, 기간, 시간). jobId null = 고객(대표) 경로. */
     val onEditDate: (jobId: Long?, start: Long?, days: Int, minutes: Int?) -> Unit,
     /** 금액 창 — (jobId, "total" | "deposit"). */
@@ -934,15 +937,30 @@ internal fun JobDetailCard(
                             host.onEditAmount(editJobId, "deposit")
                         }
                     }
-                    // 🤝 협업 — 없으면 「협업 부르기」(탭 → 바로 부르기 시트), 있으면 보라 아이콘 + 이름(탭 → 펼침).
+                    // 🤝 협업 — 없으면 「협업 부르기」, 있으면 이름. **아직 수락 전이면 시계+주황 「수락 대기중」**(클릭 없이 바로). (2026-10-20 사장님)
                     if (hasDate) {
+                        // 이 건 협업 사장 중 상대가 아직 수락 안 한 수(서버 by-me pending). shareId 로 맞춘다.
+                        val collabPending = jobCollab.count { it.shareId.isNotBlank() && it.shareId in host.collabPendingShareIds }
+                        val collabNames = jobCollab.joinToString(", ") { it.name.ifBlank { "협업 사장님" } }
                         CdUndoChip(
-                            if (jobCollab.isEmpty()) "협업 부르기"
-                            else jobCollab.joinToString(", ") { it.name.ifBlank { "협업 사장님" } },
-                            // 「부르기」 동작 = 사람+ · 이미 부른 사람 표식 = 사람들. 손잡기는 둘 다 안 읽힌다. (2026-10-17 사장님)
+                            when {
+                                jobCollab.isEmpty() -> "협업 부르기"
+                                collabPending == jobCollab.size -> "$collabNames · 수락 대기중"
+                                collabPending > 0 -> "$collabNames · ${collabPending}곳 대기중"
+                                else -> collabNames
+                            },
+                            // 「부르기」=사람+ · 수락 대기=시계(주황) · 수락됨=사람들(보라). (2026-10-17 · 2026-10-20 사장님)
                             danger = false, filled = true,
-                            icon = if (jobCollab.isEmpty()) Icons.Filled.PersonAddAlt1 else Icons.Filled.Groups,
-                            tint = if (jobCollab.isEmpty()) null else AppTheme.colors.categoryText
+                            icon = when {
+                                jobCollab.isEmpty() -> Icons.Filled.PersonAddAlt1
+                                collabPending > 0 -> Icons.Filled.Schedule
+                                else -> Icons.Filled.Groups
+                            },
+                            tint = when {
+                                jobCollab.isEmpty() -> null
+                                collabPending > 0 -> AppTheme.colors.cautionText
+                                else -> AppTheme.colors.categoryText
+                            }
                         ) {
                             if (jobCollab.isEmpty()) showJobCollabShare.value = true
                             else collabExpanded = !collabExpanded
