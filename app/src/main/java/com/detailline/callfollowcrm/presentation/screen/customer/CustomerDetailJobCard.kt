@@ -359,10 +359,10 @@ internal fun JobDetailCard(
                                 )
                             }
                             androidx.compose.foundation.layout.Row(
-                                Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                                // 위 14 / 아래 0 → 위 선(딱붙음)에서 14dp, 아래 선(CdCardDivider 앞 14dp)에서 14dp = 선과 선 사이 정중앙. 전엔 9/9라 아래14 때문에 위로 치우침. (2026-10-20 사장님)
+                                Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 0.dp),
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                // lineHeight=글자크기 — 테마 줄간격(24sp)을 물면 글자가 떠서 옆 값·버튼과 눈높이 어긋남. 셋 다 딱 맞춤. (2026-10-19 사장님)
                                 Text(if (hasAmount) "잔금" else "금액", fontSize = 13.sp, lineHeight = 13.sp, color = TossTextSecondary, style = CdTightText)
                                 Spacer(Modifier.weight(1f))
                                 if (!hasAmount) {
