@@ -108,8 +108,12 @@ fun SpamHubScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                // ⌨️ keyboardPadding 을 **verticalScroll 바깥**에 둔다 — 스크롤 뷰포트를 키보드만큼 줄여,
+                //   맨 아래 입력칸(앞자리·단어)이 포커스되면 키보드 위로 자동 스크롤된다.
+                //   안쪽에 두면(전) 뷰포트가 안 줄어 "보인다"고 판단 → 키보드가 입력칸을 가렸다. (2026-10-20 사장님)
+                //   잘 도는(창이 줄는) 폰은 keyboardPadding 이 0 이라 영향 없음.
                 .keyboardPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = AppSpace.s16)
         ) {
             Text(
