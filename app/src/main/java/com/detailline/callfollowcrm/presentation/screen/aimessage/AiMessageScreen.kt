@@ -73,8 +73,9 @@ fun AiMessageScreen(
             Modifier
                 .padding(inner)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                // ⌨️ keyboardPadding 은 verticalScroll **바깥** — 뷰포트를 키보드만큼 줄여 입력칸이 위로 자동 스크롤. (2026-10-20 사장님)
                 .keyboardPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {

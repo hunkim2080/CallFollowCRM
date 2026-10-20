@@ -156,8 +156,9 @@ fun TemplateEditScreen(
                 .padding(inner)
                 .fillMaxSize()
                 .background(TossGrayBg)
-                .verticalScroll(rememberScrollState())
+                // ⌨️ keyboardPadding 은 verticalScroll **바깥** — 뷰포트를 키보드만큼 줄여 입력칸이 위로 자동 스크롤. (2026-10-20 사장님)
                 .keyboardPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

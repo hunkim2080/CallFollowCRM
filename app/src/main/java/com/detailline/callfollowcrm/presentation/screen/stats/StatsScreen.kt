@@ -1769,6 +1769,8 @@ private fun StartPointDialog(
         title = { Text("어디서 출발하세요?", style = AppType.headline, color = TossTextPrimary) },
         text = {
             Column {
+                // ⌨️ 입력 다이얼로그는 창을 키보드만큼 줄여 입력칸이 안 가리게 — 다른 입력 다이얼로그와 같은 관례. (2026-10-20 검수)
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
                     "아침에 나서는 자리예요. 지도가 여기서부터 길을 그려요." +
                         "\n비우고 저장하면 사업자 주소를 씁니다.",
