@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.HomeWork
 import androidx.compose.material.icons.filled.Navigation
@@ -815,9 +816,11 @@ internal fun InboxAlert(
                 Text(sub, fontSize = 12.sp, color = TossTextSecondary, maxLines = 2)
             }
             Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier.clip(AppShape.md).background(accentTint).padding(horizontal = 13.dp, vertical = 7.dp)
-            ) { Text(goLabel, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accent) }
+            // go = **글자 + 화살표**(색 박스 아님) — 보라 채움이 토스블루 홈에서 튀어서. 카드 전체가 이미 탭됨. (2026-10-21 사장님)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(goLabel, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accent)
+                Icon(Icons.Default.ChevronRight, null, tint = accent, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
