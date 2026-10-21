@@ -2857,8 +2857,10 @@ private fun ChatBubble(
         highlightBody(linkifyBody(body, linkColor, timeMs), highlight, isCurrentMatch)
     }
     // 본문 텍스트 탭 지점 → annotation(전화/날짜/URL) 조회용. 롱프레스·pressScale 은 그대로 둔다.
-    var bubbleLayout by remember(styledBody) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
-    var lastTextDown by remember(styledBody) { mutableStateOf<Offset?>(null) }
+    //   ⚠️ 키는 styledBody 가 아니라 body 로 — 검색 형광펜(highlight)만 바뀌어도 styledBody 가 새 인스턴스가 돼
+    //   bubbleLayout 이 null 로 리셋되면 그 찰나 탭이 먹통이었다. 글자 수·배치는 highlight 와 무관하니 body 로 충분. (2026-10-21 사장님)
+    var bubbleLayout by remember(body) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    var lastTextDown by remember(body) { mutableStateOf<Offset?>(null) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom,
@@ -2893,11 +2895,16 @@ private fun ChatBubble(
                     interactionSource = bubbleInteraction,
                     indication = null,
                     onClick = {
-                        // 탭 지점의 annotation(전화/날짜/주소/URL) 조회. 없으면 기존 동작(첫 URL 열기).
+                        // 탭 지점의 annotation(전화/날짜/주소/URL) 조회.
                         val pos = lastTextDown; lastTextDown = null
                         val ann = if (pos != null) bubbleLayout?.let { lr ->
                             val off = lr.getOffsetForPosition(pos)
-                            styledBody.getStringAnnotations(off, off).firstOrNull()
+                            // 🔵 가장자리(글자 바로 뒤 빈칸·구두점)를 눌러도 잡히게 off 둘레를 함께 본다.
+                            //   getOffsetForPosition 이 가까운 글자 경계로 스냅해 한 칸 빗나가면 링크를 놓쳐,
+                            //   같은 "살짝 빗나간 탭"이 URL 있으면 엉뚱하게 열리고 없으면 먹통이었다. (2026-10-21 사장님)
+                            listOf(off, off - 1, off + 1)
+                                .filter { it in 0..styledBody.length }
+                                .firstNotNullOfOrNull { p -> styledBody.getStringAnnotations(p, p).firstOrNull() }
                         } else null
                         when (ann?.tag) {
                             "URL" -> runCatching { uriHandler.openUri(ann.item) }
@@ -2905,7 +2912,13 @@ private fun ChatBubble(
                             //   2026-09-16: 주소(ADDR)를 밑줄까지만 그리고 여기에 안 넣어서, 눌러도 아무 일도
                             //   안 일어났다(else 로 빠져 URL 열기 시도 → URL 이 없으니 무반응). 빌드·테스트는 다 통과했다.
                             "PHONE", "DATE", "ADDR" -> onTapEntity(ann.tag, ann.item)
-                            else -> firstUrl?.let { runCatching { uriHandler.openUri(it) } }
+                            else -> {
+                                // 진짜 빗맞음 — **링크가 URL 하나뿐인 문자(접수서 등)에서만** 첫 URL 을 연다.
+                                //   전화·날짜·주소가 섞인 문자면 엉뚱한 URL 이 열리던 버그라 아무 것도 안 한다. (2026-10-21 사장님)
+                                val onlyUrls = styledBody.getStringAnnotations(0, styledBody.length)
+                                    .let { it.isNotEmpty() && it.all { a -> a.tag == "URL" } }
+                                if (onlyUrls) firstUrl?.let { runCatching { uriHandler.openUri(it) } }
+                            }
                         }
                     },
                     onLongClick = onLongPress
@@ -3708,7 +3721,10 @@ private fun Composer(
                             // 2026-08-24 사장님: 무한 스피너(모래시계) → '보통 걸리는 시간(≈4.5s)'만큼 차오르는 링.
                             //   진짜 %는 AI 서버가 안 줘서 시간기반 추정 — ease-out 으로 92%까지만(느려도 거짓 100% X).
                             //   다 되면 결과가 입력칸에 떠서 완료가 명확. 자리·크기는 스피너와 동일(UI 안 해침).
+                            // 2026-10-21 사장님: 렉 걸려 4.5s 를 넘기면 92%에 '멈춘 것처럼' 보였다 →
+                            //   추정이 끝났는데 응답이 아직이면 **무한 회전**으로 바꿔 '아직 하는 중'을 보인다.
                             val prog = remember { androidx.compose.animation.core.Animatable(0f) }
+                            val estimateDone = remember { androidx.compose.runtime.mutableStateOf(false) }
                             LaunchedEffect(Unit) {
                                 prog.animateTo(
                                     targetValue = 0.92f,
@@ -3717,13 +3733,23 @@ private fun Composer(
                                         easing = androidx.compose.animation.core.EaseOutCubic
                                     )
                                 )
+                                estimateDone.value = true
                             }
-                            CircularProgressIndicator(
-                                progress = prog.value,
-                                color = TossBlue,
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(19.dp)
-                            )
+                            if (estimateDone.value) {
+                                // 추정 끝 + 응답 아직 → 돌아가는 스피너(멈춤 아님을 보임)
+                                CircularProgressIndicator(
+                                    color = TossBlue,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            } else {
+                                CircularProgressIndicator(
+                                    progress = prog.value,
+                                    color = TossBlue,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
                         } else {
                             Icon(Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue, modifier = Modifier.size(19.dp))
                         }

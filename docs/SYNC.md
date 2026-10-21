@@ -14802,3 +14802,12 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 영향: 수신 알림만. UI·API·DB 모델 변화 없음.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 사진문자 수신 시 1회만 울리는지 확인 필요.
 - 다음 액션: (android) 폰에서 사진문자 1회 알림 확인. (server) 없음.
+
+## 2026-10-21 · android
+대화 화면 3건 — ①다듬기 게이지 멈춤 ②접수서 일정등록 확인표시 ③파란글씨 클릭 들쭉날쭉.
+- ① 다듬기 게이지: 4.5s 시간추정 링이 렉 걸리면 92%에 얼어붙어 '멈춤'처럼 보임 → 추정 끝나고 응답이 아직이면 **무한회전 스피너로 전환**. (ChatScreen.kt composer)
+- ② 접수서 「일정 등록됨」 확인표시: 자동등록은 원래 되는데(IntakeSyncManager, 조건부) 카드에 안 보여 사장님이 겁냄. 결과를 **IntakeEventEntity.scheduleState**(공용 `domain/intake/IntakeScheduleState` REGISTERED/KEPT/NONE)에 저장 → 채팅 접수 카드에 딱지(✅넣음/⚠️기존지킴/날짜없음). **DB v68→v69** (ALTER intake_events ADD scheduleState TEXT, 마이그 68_69). 공용 41→42, §12 표 +1줄.
+- ③ 파란글씨(주소·날짜·전화) 탭: 가장자리 빗나가면 엉뚱한 URL 열리거나 먹통 → off 둘레(±1) 함께 보기 + 못 찾으면 **URL 하나뿐일 때만** 첫 URL 열기(전화/날짜 섞인 문자는 아무것도 안 함). 검색 중 null 리셋은 remember 키 styledBody→body 로. (ChatScreen.kt ChatBubble)
+- 변경: DB 스키마 69.json 추가. UI/모델 영향은 접수 카드·대화 말풍선 탭.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). **③은 터치라 폰에서 꼭 눌러봐야** 함. ②는 다음 접수서 들어올 때 카드 딱지 확인.
+- 다음 액션: (android) 폰 확인 — 파란글씨 탭·접수 카드 딱지·다듬기 렉 시 스피너. (server) 없음.

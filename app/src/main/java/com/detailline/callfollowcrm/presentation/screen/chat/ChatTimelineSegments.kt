@@ -259,6 +259,37 @@ internal fun IntakeSegment(
                 )
             }
         }
+        // 📅 일정 등록 **결과** — "넣었다 / 기존 걸 지켰다 / 날짜 없음"을 또렷이. (2026-10-21 사장님: 등록됐는지 안 보여 겁남)
+        //   이모지(📅✅) 금지 — 폰마다 그림이 다르다. 앱이 그리는 아이콘. (2026-09-20)
+        //   판정·저장은 ai/IntakeSyncManager, 글자(wire)는 domain/intake/IntakeScheduleState 한 곳. (§12)
+        com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.ofOrNull(event.scheduleState)?.let { st ->
+            val (sIcon, sFg, sBg) = when (st) {
+                com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.REGISTERED ->
+                    Triple(Icons.Filled.CheckCircle, AppTheme.colors.doneText, AppTheme.colors.doneBg)
+                com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.KEPT ->
+                    Triple(Icons.Filled.CalendarMonth, AppTheme.colors.cautionText, AppTheme.colors.cautionBg)
+                com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.NONE ->
+                    Triple(Icons.Filled.CalendarMonth, AppTheme.colors.textSub, AppTheme.colors.surfaceMuted)
+            }
+            val sLabel = when (st) {
+                com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.REGISTERED ->
+                    event.dateLabel?.let { "$it 일정에 넣었어요" } ?: "일정에 넣었어요"
+                com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.KEPT ->
+                    "이미 잡아둔 일정이 있어요 · 눌러서 확인"
+                com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.NONE ->
+                    "날짜는 아직 — 눌러서 일정 잡기"
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clip(AppShape.sm).background(sBg)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Icon(sIcon, contentDescription = null, tint = sFg, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(sLabel, style = AppType.label, color = sFg)
+            }
+        }
         // 사장님이 직접 확인 → 고객에게 "확인했어요" 문자 발송(확인 후 발송 원칙). 보내면 '확인함'으로 잠김(1회). (2026-06-28 사장님)
         val confirmedAt = event.confirmedAt
         Spacer(Modifier.height(10.dp))

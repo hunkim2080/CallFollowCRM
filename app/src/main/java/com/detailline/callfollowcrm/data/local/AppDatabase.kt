@@ -71,7 +71,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ScheduledSmsEntity::class,
         com.detailline.callfollowcrm.data.local.entity.AppNotificationEntity::class
     ],
-    version = 68,
+    version = 69,
     // 🗄️ **DB 모양을 파일로 내보낸다.** (2026-10-02 Fable 점검 🔥2)
     //   전엔 false 였다 — 그래서 **지금 DB 가 어떤 모양인지 git 에 아무 기록이 없었다.**
     //   2026-09-17 에 마이그레이션 INSERT 가 NOT NULL 칸을 빼먹어 **새로 깐 폰에서 앱이
@@ -1238,6 +1238,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v68 -> v69: intake_events 에 scheduleState 컬럼 추가.
+         *   접수서가 들어왔을 때 시공일을 일정에 '넣었는지/기존 걸 지켰는지/날짜가 없었는지' 를
+         *   채팅 접수 카드에 또렷이 보이려고 그 결과를 저장한다. (2026-10-21 사장님: "일정 등록됐는지 안 보여 겁난다")
+         *   nullable TEXT 기본 null — 옛 행은 null(=안 보임)로 안전.
+         */
+        private val MIGRATION_68_69 = object : Migration(68, 69) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE intake_events ADD COLUMN scheduleState TEXT")
+            }
+        }
+
         private val MIGRATION_59_60 = object : Migration(59, 60) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 runCatching {
@@ -1382,7 +1394,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58,
                     MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62,
                     MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67,
-                    MIGRATION_67_68
+                    MIGRATION_67_68, MIGRATION_68_69
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

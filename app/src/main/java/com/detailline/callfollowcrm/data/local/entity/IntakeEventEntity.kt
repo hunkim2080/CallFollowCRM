@@ -38,5 +38,10 @@ data class IntakeEventEntity(
     /** 사장님이 '확인했어요' 눌러 고객에게 확인 문자를 보낸 시각. null = 아직 안 보냄. (2026-06-28) */
     val confirmedAt: Long? = null,
     /** 고객이 접수서에 남긴 메모(현관 비번·요청사항 등). 서버 payload.memo. 접수 카드에 표시. (2026-09-02 사장님) */
-    val customerMemo: String? = null
+    val customerMemo: String? = null,
+    /**
+     * 접수서가 들어왔을 때 **시공일을 일정에 넣은 결과** — 채팅 접수 카드에 또렷이 보이려 저장. (2026-10-21 사장님)
+     *   값은 `IntakeScheduleState.wire` ("applied"/"kept"/"none"). null = 옛 행(표시 안 함).
+     */
+    val scheduleState: String? = null
 )

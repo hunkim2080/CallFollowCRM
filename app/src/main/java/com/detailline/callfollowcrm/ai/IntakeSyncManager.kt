@@ -175,6 +175,16 @@ class IntakeSyncManager(private val container: AppContainer) {
                 val dateLabel = workMs?.let {
                     SimpleDateFormat("M/d(E)", Locale.KOREA).format(java.util.Date(it))
                 }
+                // 📅 시공일을 일정에 넣은 **결과** — 채팅 접수 카드에 또렷이 보이려 저장. (2026-10-21 사장님)
+                //   applied 에 "시공일"이 있으면 넣은 것 / 이미 같은 날로 잡혀 있어도 등록된 것 / 다른 날짜면 지킨 것 / 날짜 없으면 NONE.
+                val scheduleState = when {
+                    workMs == null -> com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.NONE
+                    "시공일" in applied -> com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.REGISTERED
+                    c.scheduledWorkDate != null &&
+                        DateTimeUtils.startOfDay(c.scheduledWorkDate!!) == DateTimeUtils.startOfDay(workMs) ->
+                        com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.REGISTERED
+                    else -> com.detailline.callfollowcrm.domain.intake.IntakeScheduleState.KEPT
+                }
 
                 // 채팅 타임라인 카드용 이벤트 기록 — token unique IGNORE → 중복 방지.
                 runCatching {
@@ -190,7 +200,8 @@ class IntakeSyncManager(private val container: AppContainer) {
                             totalManwon = s.total.takeIf { it > 0 },
                             itemsText = s.estimateItems.joinToString(", ").takeIf { it.isNotBlank() },
                             customerMemo = s.memo?.takeIf { it.isNotBlank() },
-                            createdAt = System.currentTimeMillis()
+                            createdAt = System.currentTimeMillis(),
+                            scheduleState = scheduleState.wire
                         )
                     )
                 }
