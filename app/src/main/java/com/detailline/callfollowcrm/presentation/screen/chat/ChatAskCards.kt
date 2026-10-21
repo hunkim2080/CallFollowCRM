@@ -283,10 +283,11 @@ internal fun TradeAskCard(
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             guesses.forEach { t ->
+                // 색 채움 → 연한 파랑 칩(담백, 여럿이 한꺼번에 안 튀게). (2026-10-21 사장님 "투박한 버튼 정리")
                 Text(
                     t,
-                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlue)
+                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
                         .clickable { onPick(t) }.padding(horizontal = 14.dp, vertical = 8.dp)
                 )
             }

@@ -2579,13 +2579,9 @@ private fun CallSegment(
                         Text("통화 녹음을 연결하면 요약까지 해드려요",
                             color = TossTextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
                         Spacer(Modifier.height(8.dp))
-                        Box(
-                            Modifier.clip(RoundedCornerShape(9.dp)).background(TossBlue)
-                                .clickable { onConnectRecording() }.padding(horizontal = 14.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("연결 설정하러 가기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
-                        }
+                        // 색 채움 박스 → 글자+화살표(담백). (2026-10-21 사장님 "투박한 버튼 정리")
+                        Text("연결 설정하러 가기 ›", color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.clip(RoundedCornerShape(9.dp)).clickable { onConnectRecording() }.padding(vertical = 4.dp))
                     }
                 }
                 // 🈳 **요약이 안 되는 통화는 왜 안 되는지를 적는다.** (2026-09-27 사장님)

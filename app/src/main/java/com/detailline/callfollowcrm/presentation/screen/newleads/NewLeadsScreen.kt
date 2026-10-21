@@ -342,13 +342,14 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
             } else if (lead.replied) {
                 Text("답장함", color = TossTextTertiary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
             } else {
+                // 색 채움 → 글자형(담백). (2026-10-21 사장님 "투박한 버튼 정리")
                 Text(
                     "재연락",
-                    color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                    color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp)).background(TossBlue)
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable { onReContact() }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
         }

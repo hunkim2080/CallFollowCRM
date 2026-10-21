@@ -595,14 +595,14 @@ internal fun WebViewerSection(container: AppContainer) {
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("si0in.kr/web", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue, modifier = Modifier.weight(1f))
-                    Box(
-                        Modifier.clip(RoundedCornerShape(9.dp)).background(TossBlue)
+                    // 색 채움 박스 → 글자형(고객상세 「복사」와 통일). (2026-10-21 사장님 "투박한 버튼 정리")
+                    Text("복사", color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.clip(RoundedCornerShape(9.dp))
                             .clickable {
                                 val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                 cm.setPrimaryClip(android.content.ClipData.newPlainText("시공막내 웹 주소", "si0in.kr/web"))
                                 toast("주소 복사했어요 — PC 주소창에 붙여넣기 하세요")
-                            }.padding(horizontal = 12.dp, vertical = 7.dp)
-                    ) { Text("복사", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold) }
+                            }.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
                 Spacer(Modifier.height(4.dp))
                 Text("주소를 치면 화면에 QR이 떠요.", fontSize = 11.5.sp, color = TossTextTertiary)

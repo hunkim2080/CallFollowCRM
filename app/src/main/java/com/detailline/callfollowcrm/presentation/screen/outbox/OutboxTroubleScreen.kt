@@ -165,10 +165,11 @@ private fun TroubleRow(
         // 죽은 것만 버튼 — 미뤄진(재시도 중) 건은 알아서 가니까 버튼 없음.
         if (dead) {
             Row(Modifier.padding(start = 39.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 색 채움 → 연한 파랑 칩(담백, 회색 '그만 보내기'와 쌍). (2026-10-21 사장님 "투박한 버튼 정리")
                 Box(
-                    Modifier.clip(RoundedCornerShape(11.dp)).background(TossBlue).clickable(onClick = onRetry)
+                    Modifier.clip(RoundedCornerShape(11.dp)).background(TossBlueSoft).clickable(onClick = onRetry)
                         .padding(horizontal = 14.dp, vertical = 9.dp)
-                ) { Text("다시 보내기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.Bold) }
+                ) { Text("다시 보내기", color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.Bold) }
                 Box(
                     Modifier.clip(RoundedCornerShape(11.dp)).background(TossGrayBg).clickable(onClick = onDismiss)
                         .padding(horizontal = 14.dp, vertical = 9.dp)
