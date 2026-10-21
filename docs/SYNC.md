@@ -14795,3 +14795,10 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰 확인.
 - 배포: Play 2484.
 - 다음 액션: (android) 폰에서 해당 화면 확인. (server) 없음.
+
+## 2026-10-21 · android
+MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알리기 전에 「이미 읽음/이미 알림」을 안 봐서, 사장님이 삼성 기본앱으로 먼저 본 사진문자를 다운로드 완료 시점(몇 초 뒤)에 또 울렸다.
+- 변경: MmsDownloadedReceiver.runMmsHook — showIncomingSms 호출 전에 수신함 행(IncomingMms)을 한 번 쿼리해 ①이미 알림(notifiedMmsIds) ②이미 읽음(read) 이면 알림 skip. 폴링(CallFollowCrmApplication)과 같은 dedup 을 ②경로에도 넣음. 기록 창 80→500(폴링과 같은 값 — 80 은 작아 밤에 밀려나 재알림되던 것).
+- 영향: 수신 알림만. UI·API·DB 모델 변화 없음.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 사진문자 수신 시 1회만 울리는지 확인 필요.
+- 다음 액션: (android) 폰에서 사진문자 1회 알림 확인. (server) 없음.

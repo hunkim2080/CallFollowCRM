@@ -207,23 +207,38 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         Log.i(TAG, "MMS hook — sender=${LogRedact.phone(sender)} img=$imageCount vid=$videoCount body.len=${rawBody.length}")
 
         // 1) 알림 (SmsReceiver 와 같은 채널/빌더).
+        //   ⚠️ **이미 읽었거나 이미 알린 MMS 면 뒤늦은 알림 skip.** (2026-10-21 사장님: 사진문자 확인했는데 몇 초 뒤 또 울림)
+        //   MMS 는 2단계(신호→다운로드)라, 다운로드 감지 시점엔 이미 삼성 기본앱으로 보고 읽었을 수 있다.
+        //   폴링(notifyNewInboxMms)은 읽음·notifiedMmsIds 를 보는데 **여기(②)만 안 봐서** 한 번 더 울렸다.
         if (container.preferences.incomingSmsNotifyEnabled) {
+            val prefs = container.preferences
+            val sameNum = PhoneKey.of(sender)
+            // 이 MMS 에 해당하는 수신함 행(들) — mmsId·읽음 판단 + 기록에 **한 번만** 쿼리해 같이 쓴다.
+            val rows = runCatching {
+                container.smsRepository.queryInboxMmsSince(receivedAtMs - 3_000L, limit = 5)
+                    .filter { it.dateMs <= receivedAtMs + 3_000L && PhoneKey.of(it.sender) == sameNum }
+            }.getOrDefault(emptyList())
+            val ids = rows.map { it.mmsId.toString() }
+            val alreadyNotified = ids.any { it in prefs.notifiedMmsIds }
+            val alreadyRead = rows.any { it.read }
+
             val customerForNotif = runCatching { runBlocking { container.customerRepository.findByPhone(sender) } }.getOrNull()
             val categoryLabel = customerForNotif?.categoryId?.let { cid ->
                 runCatching { runBlocking { container.categoryRepository.findById(cid)?.name } }.getOrNull()
             }
-            // 🔕 「광고·스팸은 알림 안 울리기」(기본 OFF) — 확실한 광고(DefiniteAd 한 곳)면 알림만 건너뛴다.
-            //   아래 '알렸다는 기록'은 그대로 남긴다 — 폴링(notifyNewInboxMms)이 같은 문자를 다시 보지 않게. (2026-10-16 사장님 A안)
+            // 🔕 「광고·스팸은 알림 안 울리기」(기본 OFF) — 확실한 광고(DefiniteAd 한 곳)면 알림만 건너뛴다. 기록은 남김.
             val silentReason = if (container.preferences.adSilentPush) {
                 com.detailline.callfollowcrm.domain.inbox.DefiniteAd.reason(
                     body = displayBody, address = sender, isSavedCustomer = customerForNotif != null,
                     spamPrefixes = container.preferences.spamPrefixes, spamKeywords = container.preferences.spamKeywords
                 )
             } else null
-            if (silentReason != null) {
-                Log.i(TAG, "알림 안 울림(광고·$silentReason) — ${LogRedact.phone(sender)}")
-            } else {
-                NotificationHelper.showIncomingSms(
+            when {
+                alreadyNotified || alreadyRead ->
+                    Log.i(TAG, "뒤늦은 알림 skip (이미 ${if (alreadyRead) "읽음" else "알림"}) — ${LogRedact.phone(sender)}")
+                silentReason != null ->
+                    Log.i(TAG, "알림 안 울림(광고·$silentReason) — ${LogRedact.phone(sender)}")
+                else -> NotificationHelper.showIncomingSms(
                     context = app,
                     phone = sender,
                     displayName = customerForNotif?.name,
@@ -233,26 +248,10 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
                     customerId = customerForNotif?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
                 )
             }
-            // 🔴 여기서 알렸다는 걸 **기록**해야 한다. (2026-09-15 사장님: "시간 지나고 또 신규문자 왔다고 2번 울려")
-            //   MMS 알림 경로가 둘이다 — ① 다운로드 완료(여기, 즉시) ② 주기 폴링(notifyNewInboxMms).
-            //   ①이 기록을 안 남기니 ②가 같은 문자를 '새 문자'로 보고 한 번 더 울렸다.
-            //   → 방금 알린 그 문자의 mmsId 를 notifiedMmsIds 에 넣고 마커도 전진시킨다.
+            // 🔴 알렸든 skip 했든 **기록** — 폴링이 같은 문자를 '새 문자'로 또 울리지 않게. 창 500(폴링과 같은 값 — 80 은 작아 밤에 밀려나 재알림). (2026-10-05 · 2026-10-21)
             runCatching {
-                val prefs = container.preferences
-                val sameNum = PhoneKey.of(sender)
-                val ids = container.smsRepository
-                    .queryInboxMmsSince(receivedAtMs - 3_000L, limit = 5)
-                    .filter {
-                        it.dateMs <= receivedAtMs + 3_000L &&
-                            PhoneKey.of(it.sender) == sameNum
-                    }
-                    .map { it.mmsId.toString() }
-                if (ids.isNotEmpty()) {
-                    prefs.notifiedMmsIds = (prefs.notifiedMmsIds + ids).toList().takeLast(80).toSet()
-                }
-                if (prefs.lastNotifiedMmsMs in 1 until receivedAtMs) {
-                    prefs.lastNotifiedMmsMs = receivedAtMs
-                }
+                if (ids.isNotEmpty()) prefs.notifiedMmsIds = (prefs.notifiedMmsIds + ids).toList().takeLast(500).toSet()
+                if (prefs.lastNotifiedMmsMs in 1 until receivedAtMs) prefs.lastNotifiedMmsMs = receivedAtMs
                 Log.i(TAG, "알림 기록 — mmsIds=${ids.size} marker→$receivedAtMs")
             }
         }
