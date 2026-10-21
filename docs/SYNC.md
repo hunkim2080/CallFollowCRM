@@ -14811,3 +14811,16 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: DB 스키마 69.json 추가. UI/모델 영향은 접수 카드·대화 말풍선 탭.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). **③은 터치라 폰에서 꼭 눌러봐야** 함. ②는 다음 접수서 들어올 때 카드 딱지 확인.
 - 다음 액션: (android) 폰 확인 — 파란글씨 탭·접수 카드 딱지·다듬기 렉 시 스피너. (server) 없음.
+
+## 2026-10-21 · android
+감사에서 나온 '디테일 놓침' 7건 수정(사장님 "7개 다 고쳐").
+- ① 정산 손입력 현금 4함수(add/toggle/setAmount/delete manualCash): SaveGuard식 runCatching+실패토스트 — 저장 터지면 앱 꺼지던 것(§13①). (SettlementViewModel)
+- ② 말투학습 "분석 중 60%": 서버 느리면 60%에 얼어붙음 → AnimatedDots(무한점)로. (StyleLearningScreen)
+- ③ 협업 수락/거절 연타: respondingShareIds 가드 — 왕복 중 또 누르면 수락 POST·pushNow 2번 나가던 것(§13③). (SharedSiteViewModel)
+- ④ 고객정보 협업카드: 상대 진행 첫 로드 실패/지연 시 '수락 전' 단정 않고 '불러오는 중/못 불러옴' 표시(firstCollabLoadDone·collabLoadFailed). (CustomerCollabParts)
+- ⑤ 검색 최근검색 X: 14dp+겹침 → clip+clickable+padding 으로 히트영역 ~26dp(지우려다 검색 돌아가던 것). (SearchScreen)
+- ⑥ 견적 직접추가 삭제 X: 20dp → ~32dp 히트영역. (ChatScreen)
+- ⑦ **[동작 변화]** 우체통 띠 노출 임계 STALE_MS 24h→3h — 못 보낸 게 하루씩 안 보이던 것. OutboxAgeTest 같이 수정. (OutboxRules)
+- 변경: DB 영향 없음. UI = 정산·학습·협업카드·검색·견적·홈띠. ⑦은 band/trouble 목록 노출 시점만 당김(정상 발송은 수초라 안 걸림).
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). ⑤⑥ 터치·④ 협업카드·⑦ 띠 임계는 폰 확인 권장.
+- 다음 액션: (android) 폰 확인. (server) 없음.

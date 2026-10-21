@@ -5024,8 +5024,10 @@ private fun EstimateBuilderDialog(
                         }
                         Icon(
                             Icons.Default.Close, "지우기", tint = TossTextTertiary,
+                            // clickable 뒤 패딩으로 히트영역 ~32dp — 20dp 라 옆 입력칸과 붙어 자주 씹히던 것. (2026-10-21 사장님)
                             modifier = Modifier.padding(start = 8.dp)
-                                .clickable { customItems.removeAt(idx) }.size(20.dp)
+                                .clip(CircleShape).clickable { customItems.removeAt(idx) }
+                                .padding(6.dp).size(20.dp)
                         )
                     }
                 }

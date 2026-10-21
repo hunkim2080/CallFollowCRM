@@ -71,7 +71,7 @@ object OutboxRules {
         0L, 30_000L, 120_000L, 600_000L, 1_800_000L, 3_600_000L, 10_800_000L
     )
 
-    const val STALE_MS = 24L * 3600_000           // 하루 넘게 못 보내면 사장님께 보인다
+    const val STALE_MS = 3L * 3600_000            // 3시간 넘게 못 보내면 사장님께 띠로 보인다 (2026-10-21: 24h→3h, 하루씩 안 보이던 것)
     const val MAX_AGE_MS = 7L * 24 * 3600_000     // 이레 넘으면 dead(「일주일째 못 보냈어요」)
     const val MAX_ROWS_PER_ROUND = 50             // 한 번에 보낼 상한(배터리·타임아웃) §11
     const val DEAD_KEEP_MS = 30L * 24 * 3600_000  // dead 는 30일 뒤 자동 삭제

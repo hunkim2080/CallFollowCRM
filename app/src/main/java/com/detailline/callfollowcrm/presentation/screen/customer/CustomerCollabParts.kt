@@ -188,12 +188,15 @@ internal fun CollabAfterCard(
     var resolvedSid by remember(shareId, siteTitle) { mutableStateOf(shareId) }
     var comments by remember(shareId, siteTitle) { mutableStateOf(emptyList<com.detailline.callfollowcrm.ai.SharedSiteRepository.SiteComment>()) }
     var commentBusy by remember { mutableStateOf(false) }
+    // 상대 진행 **첫 로드** 상태 — 느리거나 실패하면 '수락 전'으로 단정하지 않는다. (2026-10-21 사장님: 느리면 '배정/수락대기'에 멈춘 듯)
+    var firstCollabLoadDone by remember(shareId, siteTitle) { mutableStateOf(false) }
+    var collabLoadFailed by remember(shareId, siteTitle) { mutableStateOf(false) }
     val commentScope = rememberCoroutineScope()
     androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName, shareId) {
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length >= 9) {
             var sid = shareId
-            container.sharedSiteRepository.ownerEvents(owner).onSuccess { events ->
+            container.sharedSiteRepository.ownerEvents(owner).onFailure { collabLoadFailed = true }.onSuccess { events ->
                 // 진행 매칭은 shareId(고유키) 우선 — 제목/상대이름 문자열 일치는 깨지기 쉬움.
                 //   버그: 초대 때 굳은 title(그때 주소) vs 지금 주소로 다시 만든 siteTitle 이 다르거나,
                 //   로컬 상대이름("디테일라인 사장")과 서버 partner_name("디테일라인")이 달라 이벤트가 하나도
@@ -209,7 +212,7 @@ internal fun CollabAfterCard(
             // 증거사진 조회(§F) — A 는 보기만(프로토 a-after).
             if (sid.isNotBlank()) container.sharedSiteRepository.photos(sid, owner).onSuccess { photos = it }
             // 수락 여부(by-me status) — shareId 우선, 없으면 제목+상대이름 매칭.
-            container.sharedSiteRepository.byMe(owner).onSuccess { mySites ->
+            container.sharedSiteRepository.byMe(owner).onFailure { collabLoadFailed = true }.onSuccess { mySites ->
                 val m = (if (sid.isNotBlank()) mySites.firstOrNull { it.shareId == sid } else null)
                     ?: mySites.firstOrNull { it.title == siteTitle && (partnerName == "협업 사장님" || it.partnerName == partnerName) }
                 if (m != null) status = m.status
@@ -219,6 +222,7 @@ internal fun CollabAfterCard(
                 container.sharedSiteRepository, container.outbox, sid, owner, comments
             )
         }
+        firstCollabLoadDone = true   // 첫 로드 끝(번호 짧아 스킵한 경우도 포함) — 이후엔 '수락 전' 단정 OK
     }
     // 자동 새로고침(폴링) — 카톡처럼 상대 댓글이 저절로 올라오게. 화면 열려있는 동안 4초 간격. (2026-07-01 사장님)
     androidx.compose.runtime.LaunchedEffect(resolvedSid) {
@@ -246,21 +250,30 @@ internal fun CollabAfterCard(
             Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
                 .border(1.dp, Color(0xFFF0E4C8), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
+            // 상대 진행을 아직 못 불러왔으면 '수락 전'으로 단정하지 않는다 — 느린 네트워크에 '멈춘 듯' 보이던 것. (2026-10-21 사장님)
+            val pillText = when { !firstCollabLoadDone -> "불러오는 중"; collabLoadFailed -> "확인 필요"; else -> "수락 대기중" }
+            val bodyText = when {
+                !firstCollabLoadDone -> "상대 사장님 진행을 불러오고 있어요…"
+                collabLoadFailed -> "진행을 못 불러왔어요 — 잠시 후 다시 열어주세요."
+                else -> "아직 상대 사장님이 수락 전이에요. 수락하면 진행·사진이 여기 바로 떠요."
+            }
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("${partnerName} 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.weight(1f))
                 Box(Modifier.clip(RoundedCornerShape(999.dp)).background(AppTheme.colors.cautionBg).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Text("수락 대기중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+                    Text(pillText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("아직 상대 사장님이 수락 전이에요. 수락하면 진행·사진이 여기 바로 떠요.",
-                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
-            Spacer(Modifier.height(10.dp))
-            Text("요청 취소", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { confirmRelease = true }.padding(vertical = 10.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(bodyText, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+            // '요청 취소'는 **진짜 수락 전**일 때만 — 불러오는 중/실패엔 상태가 불확실하니 숨긴다.
+            if (firstCollabLoadDone && !collabLoadFailed) {
+                Spacer(Modifier.height(10.dp))
+                Text("요청 취소", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { confirmRelease = true }.padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
         }
         if (confirmRelease) {
             androidx.compose.material3.AlertDialog(

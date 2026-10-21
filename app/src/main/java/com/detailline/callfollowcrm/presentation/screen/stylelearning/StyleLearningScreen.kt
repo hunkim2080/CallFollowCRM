@@ -165,8 +165,14 @@ fun StyleLearningScreen(
                             .padding(vertical = 13.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(if (state.loading) "분석 중… ${state.progress}%" else "지금 학습하기",
-                            color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        // 분석 중엔 **무한 점**("분석 중…") — 숫자 %는 서버가 느리면 60%에 얼어붙어 '멈춘 듯' 보였다. (2026-10-21 사장님)
+                        if (state.loading) {
+                            com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
+                                "분석 중", color = Color.White, fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text("지금 학습하기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

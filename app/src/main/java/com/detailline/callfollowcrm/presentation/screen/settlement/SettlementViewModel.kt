@@ -238,23 +238,35 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
             CashFlowCalc.buildItems(cs, ms, crew, today, jobs)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 💵 손입력 현금(수입·지출)도 **사장님이 적은 것** — 저장이 터지면 조용히 넘기지 않고 화면에 말한다. (2026-10-21 §13①)
+    //   아래 setDepositPaid/setBalancePaid 와 **같은 벌**(runCatching+토스트)로. 안 감싸면 예외가 viewModelScope 로 전파돼 앱이 꺼졌다.
     fun addManualCash(dayMs: Long, amount: Long, isIncome: Boolean, isDone: Boolean, label: String) =
         viewModelScope.launch {
             withContext(NonCancellable) {
-                container.manualCashRepository.add(dayMs, amount, isIncome, isDone, label)
+                runCatching { container.manualCashRepository.add(dayMs, amount, isIncome, isDone, label) }
+                    .onFailure { _toast.value = "저장에 실패했어요 — 다시 시도해주세요" }
             }
         }
 
     fun toggleManualDone(id: Long, done: Boolean) = viewModelScope.launch {
-        withContext(NonCancellable) { container.manualCashRepository.setDone(id, done) }
+        withContext(NonCancellable) {
+            runCatching { container.manualCashRepository.setDone(id, done) }
+                .onFailure { _toast.value = "저장에 실패했어요 — 다시 시도해주세요" }
+        }
     }
 
     fun setManualAmount(id: Long, amount: Long) = viewModelScope.launch {
-        withContext(NonCancellable) { container.manualCashRepository.setAmount(id, amount) }
+        withContext(NonCancellable) {
+            runCatching { container.manualCashRepository.setAmount(id, amount) }
+                .onFailure { _toast.value = "저장에 실패했어요 — 다시 시도해주세요" }
+        }
     }
 
     fun deleteManualCash(id: Long) = viewModelScope.launch {
-        withContext(NonCancellable) { container.manualCashRepository.delete(id) }
+        withContext(NonCancellable) {
+            runCatching { container.manualCashRepository.delete(id) }
+                .onFailure { _toast.value = "저장에 실패했어요 — 다시 시도해주세요" }
+        }
     }
 
     fun setFilter(f: SettleFilter) { filter.value = f }

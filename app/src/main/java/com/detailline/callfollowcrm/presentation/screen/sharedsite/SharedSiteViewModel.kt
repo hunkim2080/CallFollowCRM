@@ -220,21 +220,29 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         container.preferences.bizName.takeIf { it.isNotBlank() }
             ?: container.preferences.bizOwner
 
+    // 수락/거절 진행 중인 shareId — 연타 가드. 왕복(네트워크) 중 또 누르면 수락 POST·pushNow 가 2번 나갔다. (2026-10-21 §13③)
+    private val respondingShareIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     fun respond(site: SharedSiteRepository.SharedSite, accept: Boolean, reason: String? = null) {
+        if (!respondingShareIds.add(site.shareId)) return   // 이미 처리 중 → 연타 무시
         viewModelScope.launch {
-            repo.respond(site.shareId, myPhone, accept, partnerName = myBizName(), reason = reason)
-                .onSuccess {
-                    _toast.value = if (accept) "협업 현장에 들어왔어요" else "거절했어요"
-                    // 수락/거절 즉시 상담함 카드·뱃지·알림에서 제거(다음 폴 안 기다리게). (2026-06-14 버그)
-                    container.collabEventCenter.markResponded(container.appContext, site.shareId)
-                    load()
-                    // 본폰 미러도 즉시 갱신 — 수락한 협업 현장은 곧 내 일정이니까. (2026-07-15 사장님)
-                    //   미러 자동전송은 '내 고객/현금 변경'만 구독해서 협업 수락엔 안 걸린다
-                    //   → 안 찔러주면 ReminderWorker(~3h) 올 때까지 본폰에 안 뜸.
-                    //   force=true: 해시가 같아도 무조건 보냄(협업만 바뀐 경우 skip 방지).
-                    runCatching { container.mirrorSyncManager.pushNow(force = true) }
-                }
-                .onFailure { _toast.value = "처리 못했어요 — 잠시 후 다시" }
+            try {
+                repo.respond(site.shareId, myPhone, accept, partnerName = myBizName(), reason = reason)
+                    .onSuccess {
+                        _toast.value = if (accept) "협업 현장에 들어왔어요" else "거절했어요"
+                        // 수락/거절 즉시 상담함 카드·뱃지·알림에서 제거(다음 폴 안 기다리게). (2026-06-14 버그)
+                        container.collabEventCenter.markResponded(container.appContext, site.shareId)
+                        load()
+                        // 본폰 미러도 즉시 갱신 — 수락한 협업 현장은 곧 내 일정이니까. (2026-07-15 사장님)
+                        //   미러 자동전송은 '내 고객/현금 변경'만 구독해서 협업 수락엔 안 걸린다
+                        //   → 안 찔러주면 ReminderWorker(~3h) 올 때까지 본폰에 안 뜸.
+                        //   force=true: 해시가 같아도 무조건 보냄(협업만 바뀐 경우 skip 방지).
+                        runCatching { container.mirrorSyncManager.pushNow(force = true) }
+                    }
+                    .onFailure { _toast.value = "처리 못했어요 — 잠시 후 다시" }
+            } finally {
+                respondingShareIds.remove(site.shareId)
+            }
         }
     }
 

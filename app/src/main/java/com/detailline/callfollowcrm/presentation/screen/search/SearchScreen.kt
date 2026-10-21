@@ -162,7 +162,10 @@ fun SearchScreen(
                                 Spacer(Modifier.size(5.dp))
                                 Icon(
                                     Icons.Filled.Close, "지우기", tint = TossTextTertiary,
-                                    modifier = Modifier.size(14.dp).clickable { viewModel.dropRecent(word) }
+                                    // clickable 뒤에 패딩을 둬 **히트영역을 ~26dp 로** — 14dp 타깃이라 빗나가면 바깥 칩이 먹어
+                                    //   '지우려다 그 검색이 돌아가던' 것. 아이콘 그림은 14dp 유지. (2026-10-21 사장님)
+                                    modifier = Modifier.clip(CircleShape).clickable { viewModel.dropRecent(word) }
+                                        .padding(6.dp).size(14.dp)
                                 )
                             }
                         }
