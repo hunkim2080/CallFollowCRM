@@ -370,6 +370,7 @@ private fun MyRecordMap(
     if (startEditOpen) {
         StartPointDialog(
             current = rec.startAddr,
+            bizAddr = rec.bizAddr,
             onDismiss = { startEditOpen = false },
             onSave = { startEditOpen = false; onSetStart(it) }
         )
@@ -1748,49 +1749,75 @@ private fun WtRow(t: StatTypeRow, max: Int) {
 }
 
 /**
- * 🏠 출발지 정하기. (2026-09-27 사장님)
+ * 🏠 출발지 정하기. (2026-09-27 · 주소검색으로 교체 2026-10-22 사장님)
  *   기본값은 **사업자 주소** — 이미 적어 두신 것이라 대부분 그냥 두시면 된다.
- *   집에서 나가는 분만 여기서 한 번 고친다. 비우고 저장하면 사업자 주소로 되돌아간다.
+ *   ⚠️ 손으로 적으면 동네사전에 안 맞아 "동네를 못 찾았어요"가 떴다 → 고객상세와 **같은 카카오 주소 검색**
+ *   (AddressSearchDialog)으로 정규화된 주소를 받는다. 사업자 주소가 없어도 여기서 제대로 정할 수 있다.
+ *   '기본(사업자) 주소로 되돌리기' = 빈 값 저장 → 폴백. 사업자 주소가 없으면 그 버튼은 숨긴다.
  */
 @Composable
 private fun StartPointDialog(
     current: String,
+    bizAddr: String,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
-    var text by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(
-            androidx.compose.ui.text.input.TextFieldValue(current)
+    var picked by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var searchOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    if (searchOpen) {
+        com.detailline.callfollowcrm.presentation.component.AddressSearchDialog(
+            onPicked = { picked = it; searchOpen = false },
+            onDismiss = { searchOpen = false }
         )
     }
+
     androidx.compose.material3.AlertDialog(
         tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("어디서 출발하세요?", style = AppType.headline, color = TossTextPrimary) },
         text = {
             Column {
-                // ⌨️ 입력 다이얼로그는 창을 키보드만큼 줄여 입력칸이 안 가리게 — 다른 입력 다이얼로그와 같은 관례. (2026-10-20 검수)
-                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
-                    "아침에 나서는 자리예요. 지도가 여기서부터 길을 그려요." +
-                        "\n비우고 저장하면 사업자 주소를 씁니다.",
+                    "아침에 나서는 자리예요. 지도가 여기서부터 길을 그려요.",
                     style = AppType.body, color = TossTextSecondary
                 )
                 Spacer(Modifier.height(AppSpace.s12))
-                androidx.compose.material3.OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = false,
-                    placeholder = {
-                        Text("예) 경기 화성시 병점동", style = AppType.body, color = TossTextTertiary)
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                // 지금 정해진(또는 방금 고른) 출발지.
+                val shown = picked.ifBlank { current }
+                Text(
+                    if (shown.isBlank()) "아직 정한 곳이 없어요" else shown,
+                    style = AppType.label,
+                    color = if (shown.isBlank()) TossTextTertiary else TossTextPrimary
                 )
+                Spacer(Modifier.height(AppSpace.s12))
+                // 🔍 고객 주소와 같은 카카오 검색 — 손으로 적으면 동네를 못 찾던 것. (2026-10-22 사장님)
+                Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md)
+                        .border(1.dp, TossBlue, AppShape.md)
+                        .clickable { searchOpen = true }
+                        .padding(vertical = AppSpace.s12),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("주소 찾기", style = AppType.label, color = TossBlue)
+                }
+                // 사업자 주소가 있을 때만 — 비우면 그걸로 되돌아간다(폴백).
+                if (bizAddr.isNotBlank()) {
+                    Spacer(Modifier.height(AppSpace.s8))
+                    Text(
+                        "기본(사업자) 주소로 되돌리기",
+                        style = AppType.label, color = TossTextSecondary,
+                        modifier = Modifier.clickable { onSave("") }
+                    )
+                }
             }
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { onSave(text.text.trim()) }) {
-                Text("저장", style = AppType.label, color = TossBlue)
+            androidx.compose.material3.TextButton(
+                onClick = { onSave(picked) },
+                enabled = picked.isNotBlank()   // 새로 골랐을 때만 저장(안 고르면 취소로 닫기)
+            ) {
+                Text("저장", style = AppType.label, color = if (picked.isNotBlank()) TossBlue else TossTextTertiary)
             }
         },
         dismissButton = {

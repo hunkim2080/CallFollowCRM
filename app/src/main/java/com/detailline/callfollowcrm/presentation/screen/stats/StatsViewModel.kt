@@ -443,6 +443,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             dots = dots,
             startAddr = startAddr,
             startTown = startSpot?.name ?: "",
+            bizAddr = container.preferences.bizAddr,
             monthLabel = java.text.SimpleDateFormat("yyyy년 M월", java.util.Locale.KOREA)
                 .format(java.util.Date(monthStart)),
             canGoNext = monthDelta < 0,
@@ -696,6 +697,8 @@ data class MyRecordState(
     val startAddr: String = "",
     /** 그 주소의 동네 이름("화성 병점동"). 빈 값 = 주소를 못 알아봄 → 화면이 그렇게 말한다. */
     val startTown: String = "",
+    /** 🏢 사업자 주소. 출발지 '기본 주소로 되돌리기' 버튼 노출·폴백 판단용(빈 값이면 되돌릴 데가 없음). (2026-10-22 사장님) */
+    val bizAddr: String = "",
     /** 보고 있는 달 — "2026년 9월". */
     val monthLabel: String = "",
     /** 다음 달로 넘어갈 수 있나(이번 달이면 false — 안 온 달은 볼 게 없다). */
