@@ -1432,6 +1432,26 @@ object NotificationHelper {
             RegexOption.IGNORE_CASE
         ).find(body)?.groupValues?.getOrNull(1)
 
+    /**
+     * 인증번호(OTP)가 있으면 알림에 **「NNN 복사」 액션**을 단다 — 상담함·문자함 **한 곳**(§12).
+     *   OTP 는 보통 인터넷전화(02·070)라 문자함/스팸으로 오니 showGeneralSms 에도 꼭 있어야 한다. (2026-10-21 사장님)
+     */
+    private fun addOtpCopyAction(context: Context, builder: NotificationCompat.Builder, phone: String, body: String) {
+        val code = detectOtpCode(body) ?: return
+        val copyIntent = Intent(context, CopyToClipboardReceiver::class.java).apply {
+            action = CopyToClipboardReceiver.ACTION_COPY
+            putExtra(CopyToClipboardReceiver.EXTRA_TEXT, code)
+            putExtra(CopyToClipboardReceiver.EXTRA_LABEL, "인증번호")
+        }
+        val copyPending = PendingIntent.getBroadcast(
+            context, ("copy" + phone + code).hashCode(), copyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.addAction(
+            NotificationCompat.Action.Builder(R.drawable.ic_notification, "$code 복사", copyPending).build()
+        )
+    }
+
     fun showIncomingSms(
         context: Context,
         phone: String,
@@ -1514,21 +1534,8 @@ object NotificationHelper {
         // 알림엔 추천 칩 없음(깔끔). 빠른 답장(RemoteInput) 하나만 — 추천은 탭해서 문자방에서.
         builder.addAction(replyAction)
 
-        // 인증번호(OTP) 감지 시 '복사' 액션 추가 — 은행·택배 인증번호 원탭 복사. (2026-09-01 사장님)
-        detectOtpCode(body)?.let { code ->
-            val copyIntent = Intent(context, CopyToClipboardReceiver::class.java).apply {
-                action = CopyToClipboardReceiver.ACTION_COPY
-                putExtra(CopyToClipboardReceiver.EXTRA_TEXT, code)
-                putExtra(CopyToClipboardReceiver.EXTRA_LABEL, "인증번호")
-            }
-            val copyPending = PendingIntent.getBroadcast(
-                context, ("copy" + phone + code).hashCode(), copyIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            builder.addAction(
-                NotificationCompat.Action.Builder(R.drawable.ic_notification, "$code 복사", copyPending).build()
-            )
-        }
+        // 인증번호(OTP) 감지 시 '복사' 액션 추가 — 은행·택배 인증번호 원탭 복사(공용 §12). (2026-09-01 사장님)
+        addOtpCopyAction(context, builder, phone, body)
 
         runCatching {
             NotificationManagerCompat.from(context)
@@ -1574,6 +1581,8 @@ object NotificationHelper {
             // 기본 소리는 나되 헤드업 팝업은 없게 — DEFAULT. (조용(LOW)·setSilent 제거. 2026-10-08 사장님)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+        // 🔢 인증번호(OTP) 복사 — OTP 는 보통 인터넷전화라 **문자함/스팸으로 온다.** 상담함과 같은 공용. (2026-10-21 사장님)
+        addOtpCopyAction(context, builder, phone, body)
         runCatching {
             NotificationManagerCompat.from(context).notify(smsNotificationId(phone), builder.build())
         }
