@@ -14757,3 +14757,13 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 올바른 패턴: 스크롤 화면은 `keyboardPadding()` 을 `verticalScroll()` **앞**에. 입력 다이얼로그는 `ForceDialogResize()`.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 번호 앞자리 입력 확인.
 - 다음 액션: (android) 폰에서 SpamHub 앞자리 입력 시 키보드 위로 자동 스크롤되는지 확인. (server) 없음.
+
+## 2026-10-21 09:57 · android
+인증번호(OTP) 복사 버튼 — 문자함/스팸 알림에도. 내부테스트 2478.
+- 사장님: 인증번호 문자함/스팸으로 빠지면 알람도 안 오나 + 삼성처럼 자동 복사 가능한가.
+  - Q1: 알람은 옴(isProtectedNotice 로 인증·은행·택배는 DefiniteAd 가 절대 안 끔). 분류≠알람 — 확인.
+  - Q2: OTP 복사 액션이 showIncomingSms(상담함)엔 있었는데 showGeneralSms(문자함/스팸)엔 없었다. OTP(02·070 인터넷전화)는 대부분 문자함/스팸으로 가 이 경로라 정작 필요한 데 없었다(§12-K 한쪽만).
+- 변경: NotificationHelper 에 공용 `addOtpCopyAction(context,builder,phone,body)` 추출(detectOtpCode+CopyToClipboardReceiver) → showIncomingSms(기존 인라인 대체) + showGeneralSms(신규)가 같이 씀. 리시버 기존 등록 재사용(manifest 382).
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 인증문자 올 때 「NNN 복사」 버튼 확인.
+- 배포: Play 2478.
+- 다음 액션: (android) 폰에서 OTP 알림 복사 버튼 확인. (server) 없음.
