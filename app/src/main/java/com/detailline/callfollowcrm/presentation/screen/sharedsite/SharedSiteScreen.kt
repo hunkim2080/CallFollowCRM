@@ -803,7 +803,7 @@ private fun ListArea(
 /**
  * 응답 안 한 협업 요청 inbox — 공유받은 현장 맨 위. 푸시를 놓쳐도 여기서 바로 수락/거절. (2026-06-18 사장님)
  *   17·24일 사건(요청을 다시 볼 곳이 없어 묻힘) 해결. 카드 본문 탭 = 상세, [수락]/[거절] = 바로 응답.
- *   12h 만료(acceptExpired)면 수락 막고 "지났어요" + 거절은 '지우기'로.
+ *   24h 만료(acceptExpired)면 수락 막고 "지났어요" + 거절은 '지우기'로.
  */
 @Composable
 private fun PendingInbox(
@@ -1119,7 +1119,7 @@ private fun DetailBody(
             }
             Spacer(Modifier.height(10.dp))
             if (acceptExpired) {
-                // 수락 유효시간(12h) 경과 — 수락 막고 "지났어요" 안내. 거절(지우기)만 열어둠.
+                // 수락 유효시간(24h) 경과 — 수락 막고 "지났어요" 안내. 거절(지우기)만 열어둠.
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                         .background(AppTheme.colors.unpaidBg).border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(10.dp))
@@ -1128,7 +1128,7 @@ private fun DetailBody(
                     Text("⏰ 수락 시간이 지났어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = com.detailline.callfollowcrm.presentation.theme.TossError)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "보낸 지 12시간이 지나 만료됐어요. 함께 하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
+                        "보낸 지 ${com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_HOURS}시간이 지나 만료됐어요. 함께 하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
                         fontSize = 12.sp, color = Color(0xFF8A4B43), lineHeight = 17.sp
                     )
                 }
@@ -1147,7 +1147,7 @@ private fun DetailBody(
                         .background(if (acceptExpired) Color(0xFFE2E6EC) else CollabPurple)
                         .clickable {
                             if (acceptExpired) {
-                                android.widget.Toast.makeText(ctx, "수락 시간이 지났어요 — 12시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(ctx, "수락 시간이 지났어요 — ${com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_HOURS}시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
                             } else onRespond(true)
                         }
                         .padding(vertical = 13.dp),

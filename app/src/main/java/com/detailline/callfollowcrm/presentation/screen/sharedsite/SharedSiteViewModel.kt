@@ -149,7 +149,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
             val withMeR = repo.withMe(myPhone)
             val list = withMeR.getOrNull() ?: _sites.value
             _sites.value = list
-            // 수락 유효시간(12h) 앵커: 화면을 직접 열어 본 시각도 기록(폴링 전이라도) — 서버 created_at_ms 폴백.
+            // 수락 유효시간(24h) 앵커: 화면을 직접 열어 본 시각도 기록(폴링 전이라도) — 서버 created_at_ms 폴백.
             container.preferences.syncCollabInviteFirstSeen(
                 list.filter { it.status == "pending" }.map { it.shareId }.toSet(),
                 System.currentTimeMillis()
@@ -165,7 +165,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * 받은 협업 요청의 수락 유효시간(12h)이 지났는지. true 면 더는 수락 불가(화면이 "지났어요" 안내).
+     * 받은 협업 요청의 수락 유효시간(24h)이 지났는지. true 면 더는 수락 불가(화면이 "지났어요" 안내).
      *   앵커 = 서버 created_at_ms(>0) 우선, 없으면 로컬 첫 관측 시각. 둘 다 0이면 만료 처리 안 함(안전).
      */
     fun acceptExpired(site: SharedSiteRepository.SharedSite): Boolean {
@@ -198,7 +198,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         dayPassed(site) ->
             "시공 날짜가 지났어요 — ${site.ownerName}께 날짜를 다시 잡아 보내달라고 하세요."
         acceptExpired(site) ->
-            "수락 시간이 지났어요 (12시간 경과) — 함께하려면 ${site.ownerName}께 다시 보내달라고 하세요."
+            "수락 시간이 지났어요 (${com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_HOURS}시간 경과) — 함께하려면 ${site.ownerName}께 다시 보내달라고 하세요."
         else -> null
     }
 
@@ -386,8 +386,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     companion object {
-        /** 협업 요청 수락 유효시간 — 12시간. 그 이후엔 수락 불가("수락 시간이 지났어요"). (2026-06-14 사장님) */
-        const val ACCEPT_VALID_MS = 12L * 60 * 60 * 1000
+        /** 협업 요청 수락 유효시간 — **셈은 `CollabInviteExpiry.TTL_MS` 한 곳**(이건 별칭). 그 이후엔 수락 불가. (2026-06-14 · 2026-10-21 통일) */
+        const val ACCEPT_VALID_MS = com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_MS
         /** 받은 협업 요청 완전 만료 — 48시간. 그 이후엔 inbox 에서 카드 자체가 사라짐. (2026-07-09 사장님) */
         const val REQUEST_EXPIRE_MS = 48L * 60 * 60 * 1000
     }

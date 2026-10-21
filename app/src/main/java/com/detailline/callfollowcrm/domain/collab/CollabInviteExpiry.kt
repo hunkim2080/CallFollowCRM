@@ -12,8 +12,12 @@ package com.detailline.callfollowcrm.domain.collab
  */
 object CollabInviteExpiry {
 
-    /** 공유 후 이 시간이 지나면 만료. 서버와 **같은 값**이어야 한다. */
-    const val TTL_MS: Long = 24L * 60 * 60 * 1000
+    /** 공유 후 **이 시간(시)** 이 지나면 만료 — 문구("N시간")도 이 숫자를 쓴다(한 곳). */
+    const val TTL_HOURS: Int = 24
+
+    /** 공유 후 이 시간이 지나면 만료. 서버(`_SHARE_TTL_MS`)와 **같은 값**이어야 한다.
+     *   ⚠️ 협업 수락 유효시간은 **여기 하나**다 — 옛 `ACCEPT_VALID_MS`·`COLLAB_ACCEPT_MS` 는 이걸 가리키는 별칭일 뿐. */
+    const val TTL_MS: Long = TTL_HOURS * 60L * 60 * 1000
 
     /** 아직 수락 전인 요청이 만료됐나 — 공유 시각(createdAtMs)으로 판단. createdAtMs 0/음수면 모름 → 안 만료. */
     fun isExpired(createdAtMs: Long, now: Long): Boolean =
