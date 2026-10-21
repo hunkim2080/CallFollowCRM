@@ -14767,3 +14767,13 @@ feat(일정): 달력 금액 토글 — 켜면 날짜에 지역 [금액] (배포 
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 사장님 폰에서 인증문자 올 때 「NNN 복사」 버튼 확인.
 - 배포: Play 2478.
 - 다음 액션: (android) 폰에서 OTP 알림 복사 버튼 확인. (server) 없음.
+
+## 2026-10-21 11:15 · android
+협업 요청 만료 시간 24시간으로 통일. 내부테스트 2480.
+- 사장님: "어디는 24시간 어디는 12시간… 통일" → 24h. (칩 24h vs 상대 수락 화면/배지 12h 어긋남)
+- 원인(§12): 어제 CollabInviteExpiry(24h) 만들 때 원래 있던 ACCEPT_VALID_MS(12h, 2026-06-14)를 못 보고 또 만듦(두 벌). 만들기 전 안 셈.
+- 변경: `SharedSiteViewModel.ACCEPT_VALID_MS`·`ScheduleViewModel.COLLAB_ACCEPT_MS` 를 `CollabInviteExpiry.TTL_MS` **별칭**으로. 문구 「12시간」→ `TTL_HOURS`(24). CollabInviteExpiry 에 `TTL_HOURS=24` 추가(TTL_MS=TTL_HOURS*...). 주석 12h→24h. CollabDayCheck 는 과거 서술이라 둠.
+- §12: 공용 표에 CollabInviteExpiry 한 줄 추가 + rulesBaselineUpdate(공용 40→41). 빌드 EXIT=0 가드 7종.
+- 폰 확인: 못 봄(빌드·시험). 사장님 폰에서 칩·상대 수락 화면 둘 다 24h 인지.
+- 배포: Play 2480.
+- 미해결(사장님 확인 대기): 접수 알림 SMS(희망일·전화번호 하이픈) — "[하우스픽] 새 견적 접수" SMS·"새 예약 확인" 슬랙은 **하우스픽(2080) 별도 시스템**이라 이 repo 에 코드 없음(grep 0). 사장님이 그 시스템 위치 알려주거나, 시공막내 자체 접수서에 넣을지 결정 대기.
