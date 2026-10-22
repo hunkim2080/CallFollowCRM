@@ -14909,3 +14909,9 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 대화 상단바 고객명이 위로 쏠려 보이던 것 — 세로 중앙정렬.
 - 변경: ChatScreen TopAppBar title Column 에 Modifier.fillMaxHeight() + verticalArrangement = Arrangement.Center. 이름+번호 2줄을 앱바 세로 중앙에. (net 0줄)
 - 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 상단바 이름이 가운데로 오는지 폰에서 확인.
+
+## 2026-10-22 · android
+예약 발송 말풍선 디자인 개선 — 점선 와이어프레임 느낌 제거.
+- 왜(사장님): 긴 글 전체를 주황 점선으로 감싸 미완성/와이어프레임처럼 보임.
+- 변경: ScheduledPendingBubble — 점선 테두리(drawBehind dashPathEffect) 제거 → 연한 주황 버블(cautionBg) + 상단 '🕐 …발송 예정' 헤더(버블 안) + 밑에 '예약 취소'. fontSize 리터럴 일부 AppType 토큰으로(style 2449→2446). (ChatSmallParts)
+- 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 예약 말풍선이 깔끔한지 폰에서.

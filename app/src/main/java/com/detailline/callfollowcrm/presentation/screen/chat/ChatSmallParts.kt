@@ -650,8 +650,8 @@ private fun scheduledSendLabel(ms: Long): String {
 }
 
 /**
- * 🕐 예약 '발송 대기' 말풍선 — 아직 안 보낸 **회색 말풍선(주황 점선)** + 발송 예정 시간 + [예약 취소].
- *   보낸 문자처럼 **우측 정렬**, 보낸(파랑)·받은(흰색)과 색으로 구분. (2026-10-05 사장님, 프로토 33Vh3bnV)
+ * 🕐 예약 '발송 대기' 말풍선 — **연한 주황 버블 + 상단 '🕐 …발송 예정' 헤더**, 밑에 [예약 취소]. (2026-10-22 사장님: 점선이 미완성 느낌)
+ *   보낸 문자처럼 **우측 정렬**, 보낸(파랑)·받은(흰색)과 **색(주황 틴트)**으로 구분. (2026-10-05 · 프로토 33Vh3bnV)
  *   시각이 되면 ScheduledSmsSender 가 보내고 평범한 파랑 말풍선으로 바뀐다.
  */
 @Composable
@@ -661,48 +661,35 @@ internal fun ScheduledPendingBubble(
     photoCount: Int,
     onCancel: () -> Unit
 ) {
-    val amber = AppTheme.colors.caution
+    val ty = com.detailline.callfollowcrm.presentation.theme.AppType
     val shape = RoundedCornerShape(topStart = 19.dp, topEnd = 19.dp, bottomStart = 19.dp, bottomEnd = 6.dp)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.End
-    ) {
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Schedule, contentDescription = null, tint = amber, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(3.dp))
-                Text(scheduledSendLabel(sendAtMs), color = AppTheme.colors.cautionText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(
+                Modifier.widthIn(max = 280.dp).clip(shape)
+                    .background(AppTheme.colors.cautionBg)
+                    .padding(horizontal = 14.dp, vertical = 11.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    // 상단 헤더 — 언제 보내지는지. 버블 안에 두어 '예약된 한 덩어리'로 보이게.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Schedule, contentDescription = null,
+                            tint = AppTheme.colors.cautionText, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(scheduledSendLabel(sendAtMs), color = AppTheme.colors.cautionText,
+                            style = ty.caption, fontWeight = FontWeight.Bold)
+                    }
+                    if (photoCount > 0) {
+                        Text("[사진 ${photoCount}장]", color = AppTheme.colors.textSub, style = ty.body, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (body.isNotBlank()) {
+                        Text(body, color = AppTheme.colors.text, fontSize = 14.sp)
+                    }
+                }
             }
             Box(
-                Modifier.clip(AppShape.sm).clickable { onCancel() }
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) { Text("예약 취소", color = AppTheme.colors.unpaid, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
-        }
-        Spacer(Modifier.width(6.dp))
-        Box(
-            Modifier.widthIn(max = 280.dp)
-                .clip(shape).background(TossGrayBg)
-                .drawBehind {
-                    val outline = shape.createOutline(size, layoutDirection, this)
-                    val p = Path()
-                    when (outline) {
-                        is Outline.Rounded -> p.addRoundRect(outline.roundRect)
-                        is Outline.Rectangle -> p.addRect(outline.rect)
-                        is Outline.Generic -> p.addPath(outline.path)
-                    }
-                    drawPath(p, amber, style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 7f))))
-                }
-                .padding(horizontal = 14.dp, vertical = 11.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (photoCount > 0) {
-                    Text("[사진 ${photoCount}장]", color = AppTheme.colors.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-                if (body.isNotBlank()) {
-                    Text(body, color = AppTheme.colors.text, fontSize = 14.sp)
-                }
-            }
+                Modifier.clip(AppShape.sm).clickable { onCancel() }.padding(horizontal = 8.dp, vertical = 3.dp)
+            ) { Text("예약 취소", color = AppTheme.colors.unpaid, style = ty.caption, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
