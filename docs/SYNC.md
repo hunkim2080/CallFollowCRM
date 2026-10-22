@@ -14904,3 +14904,8 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 범위: v1 = SMS 텍스트 실패(세션). MMS 는 기존 폴백(다이얼로그·FAM_MMS_FAIL) 유지. 영속(DB)·MMS 는 다음.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 신호 끊고 문자 보내 실패 말풍선·다시 보내기 동작 확인.
 - 다음 액션: (android) 폰 확인. (server) 없음.
+
+## 2026-10-22 · android
+대화 상단바 고객명이 위로 쏠려 보이던 것 — 세로 중앙정렬.
+- 변경: ChatScreen TopAppBar title Column 에 Modifier.fillMaxHeight() + verticalArrangement = Arrangement.Center. 이름+번호 2줄을 앱바 세로 중앙에. (net 0줄)
+- 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 상단바 이름이 가운데로 오는지 폰에서 확인.

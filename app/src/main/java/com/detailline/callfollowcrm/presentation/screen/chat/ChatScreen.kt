@@ -704,7 +704,7 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.Center) {   // 이름+번호를 앱바 세로 중앙에(위로 쏠림 fix, 2026-10-22)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 displayName,
