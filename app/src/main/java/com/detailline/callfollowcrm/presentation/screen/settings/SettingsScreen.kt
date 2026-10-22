@@ -551,6 +551,8 @@ fun SettingsScreen(
         //   서브탭이 '중간부터' 보이는 버그(자동문자 등 모든 서브탭). → 메뉴/서브 스크롤 분리 + 서브 진입 시 맨 위로. (2026-08-02 사장님)
         val menuScroll = rememberScrollState()
         val subScroll = rememberScrollState()
+        // 🔝 더보기 탭 재탭 → 맨 위로. (2026-10-22 사장님)
+        com.detailline.callfollowcrm.presentation.util.TabReselectScrollTop(com.detailline.callfollowcrm.presentation.navigation.Destinations.SETTINGS) { menuScroll.animateScrollTo(0) }
         LaunchedEffect(subPage) { if (subPage != null) subScroll.scrollTo(0) }
         // 기본 문자 앱이면 '채팅+ 끄기' 안내는 불필요(기본앱 되면 채팅+가 꺼짐) → 그 항목 숨김. (2026-08-02 사장님)
         val isDefaultSmsApp = remember { com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context) }

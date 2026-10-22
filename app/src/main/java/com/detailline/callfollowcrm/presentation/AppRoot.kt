@@ -243,6 +243,10 @@ fun AppRoot(container: AppContainer) {
                                 if (route == Destinations.HOME) {
                                     container.inboxResetFilter.value = System.currentTimeMillis()
                                 }
+                                // 🔝 이미 그 탭인데 또 누르면 → 그 화면 목록을 맨 위로(아이폰식). (2026-10-22 사장님)
+                                if (alreadyOnRootTab) {
+                                    container.tabReselect.value = System.currentTimeMillis() to route
+                                }
                                 if (!alreadyOnRootTab) {
                                     val startId = navController.graph.findStartDestination().id
                                     // 2026-06-10 사장님 통점 "상세화면(고객상세 등)에서 하단 탭이 안 눌림":

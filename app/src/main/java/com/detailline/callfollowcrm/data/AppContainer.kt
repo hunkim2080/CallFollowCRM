@@ -339,6 +339,12 @@ class AppContainer(context: Context) {
      */
     val inboxResetFilter = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
+    /**
+     * 🔝 **이미 그 탭인데 또 누르면** 그 화면 목록을 맨 위로(아이폰식 탭바). (route, tick) — route 로 엉뚱한 탭 반응 방지. (2026-10-22 사장님)
+     *   각 탭 화면이 LaunchedEffect 로 구독해 animateScrollToItem(0). 신호 패턴은 inboxResetFilter 와 같다.
+     */
+    val tabReselect = kotlinx.coroutines.flow.MutableStateFlow(0L to "")
+
     /** FCM 토큰 서버 등록 — 즉시 푸시(2026-06-12). docs/SERVER_HANDOFF_fcm_push.md */
     val pushRegisterRepository by lazy {
         com.detailline.callfollowcrm.ai.PushRegisterRepository()

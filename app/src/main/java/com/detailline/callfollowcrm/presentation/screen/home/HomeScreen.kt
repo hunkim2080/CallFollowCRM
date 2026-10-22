@@ -497,6 +497,8 @@ fun HomeScreen(
 
     // 목록 스크롤 위치 — **앱바가 알아야** 검색창을 접을 수 있어 Scaffold 밖으로 올렸다. (2026-09-19)
     val listState = rememberLazyListState()
+    // 🔝 상담함 탭 재탭 → 맨 위로. (2026-10-22 사장님)
+    com.detailline.callfollowcrm.presentation.util.TabReselectScrollTop(com.detailline.callfollowcrm.presentation.navigation.Destinations.HOME) { listState.animateScrollToItem(0) }
     /** 목록이 맨 위인가 — 검색창·칩 줄을 **내리면 접는** 기준. (사장님: "정리는 스크롤 자동 숨김으로") */
     val atTop by remember {
         derivedStateOf {

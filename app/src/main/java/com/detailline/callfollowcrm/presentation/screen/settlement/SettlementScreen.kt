@@ -142,7 +142,11 @@ fun SettlementScreen(
             )
         }
     ) { inner ->
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        // 🔝 정산 탭 재탭 → 맨 위로. (2026-10-22 사장님)
+        com.detailline.callfollowcrm.presentation.util.TabReselectScrollTop(com.detailline.callfollowcrm.presentation.navigation.Destinations.SETTLEMENT) { listState.animateScrollToItem(0) }
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()

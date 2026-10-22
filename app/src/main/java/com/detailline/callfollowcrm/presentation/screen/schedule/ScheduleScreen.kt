@@ -419,7 +419,11 @@ fun ScheduleScreen(
         //   스크롤 범위가 없어 LazyList 측정이 깨짐 → 세로스크롤·가로스와이프·셀탭이 전부 입력만 먹고
         //   안 움직이는 "투명막"이 됨. state 인자 자체를 빼서 정상본과 동일한 기본(0-index)로 둔다.
         //   그 날 일정은 selectedDayMs = initialDay 로 캘린더 아래에 이미 렌더되므로 자동 스크롤 불필요.
+        // 🔝 일정 탭 재탭 → 맨 위(캘린더)로. state 는 기본(0-index)만 — initialFirstVisibleItemIndex 금지(위 주석 투명막 버그). (2026-10-22 사장님)
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        com.detailline.callfollowcrm.presentation.util.TabReselectScrollTop(com.detailline.callfollowcrm.presentation.navigation.Destinations.SCHEDULE) { listState.animateScrollToItem(0) }
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
