@@ -42,6 +42,13 @@ class RingGoFcmService : FirebaseMessagingService() {
                     (applicationContext as? CallFollowCrmApplication)?.container?.preferences?.let { p ->
                         p.seenCollabInviteShareIds = p.seenCollabInviteShareIds + shareId
                     }
+                    // ▼ 홈 '받은 협업 요청' 카드를 **즉시** 갱신 — 폴링(60초) 안 기다리고 실시간으로. (2026-10-22 사장님)
+                    //   owner_event 가 poll() 을 부르는 것과 대칭. 위에서 seen 에 먼저 넣어 이중 알림은 안 난다(agent 확인).
+                    (applicationContext as? CallFollowCrmApplication)?.let { app ->
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                            runCatching { app.container.collabEventCenter.pollInvites(applicationContext) }
+                        }
+                    }
                 }
             }
             "collab_event" -> {

@@ -14874,3 +14874,10 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: NotificationHelper.showIncomingSms 머리 몇 줄 + 새 파일 SmsNotificationStyle.kt. ChatScreen 은 알약 호출 2줄(알약 정의는 ChatSmallParts).
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). ④ 위로 올려 새 문자 올 때 안 튀는지·알약 뜨는지, ③ 같은 사람 2통+ 알림 쌓이는지.
 - 다음 액션: (android) 폰 확인 + ① 실패·재전송, 주소 등록창 CU 오인/편집. (server) 주소검색 랭킹(아파트 우선) 검토 여지.
+
+## 2026-10-22 · android
+받은 협업 요청이 홈 카드에 실시간으로 안 뜨던 것 — FCM 즉시 갱신 추가.
+- 왜(사장님): 상대가 협업 요청 보내면 종(FCM 알림)은 즉시 뜨는데 홈 '받은 협업 요청' 카드는 폴링(60초)/앱복귀까지 안 떴다. 접수서·owner_event 는 FCM 에서 즉시 sync 하는데 collab_invite 만 알림만 띄우고 pollInvites 를 안 불렀다.
+- 변경: RingGoFcmService collab_invite 분기에 collabEventCenter.pollInvites(applicationContext) 즉시 호출 추가(seen 먼저 넣어 이중 알림 없음). owner_event 가 poll() 부르는 것과 대칭. 서버 변경 없음.
+- 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 상대가 협업 요청 보낼 때 홈 카드가 즉시 뜨는지.
+- 다음 액션: (android) 폰 확인 + 주소등록 CU(서버 랭킹·앱 편집), ① 보낸문자 실패·재전송. (server) 주소검색 아파트 우선 랭킹.
