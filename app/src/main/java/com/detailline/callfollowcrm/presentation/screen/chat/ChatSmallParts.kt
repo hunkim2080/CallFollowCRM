@@ -742,3 +742,26 @@ internal fun PartialCopyDialog(text: String, onClose: () -> Unit) {
         }
     }
 }
+
+/**
+ * 🔽 '새 메시지 ↓' 알약 — 위로 올려 옛 대화 보는 중 새 문자가 와도 **화면을 안 튀우고** 이 버튼만 띄운다.
+ *   탭하면 최신(맨 아래)으로. 카톡식. (2026-10-22 사장님)
+ */
+@Composable
+internal fun NewMessagesPill(visible: Boolean, onClick: () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(visible = visible) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(
+                "↓ 새 메시지",
+                style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                color = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier
+                    .padding(vertical = 4.dp)
+                    .clip(com.detailline.callfollowcrm.presentation.theme.AppShape.pill)
+                    .background(AppTheme.colors.primary)
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            )
+        }
+    }
+}

@@ -1416,6 +1416,7 @@ object NotificationHelper {
      */
     fun cancelIncomingSms(context: Context, phone: String) {
         runCatching { NotificationManagerCompat.from(context).cancel(smsNotificationId(phone)) }
+        SmsNotificationStyle.clear(phone)   // 🔔 읽었으면 쌓인 통수도 비운다(다음 묶음은 1부터)
     }
 
     /**
@@ -1528,6 +1529,9 @@ object NotificationHelper {
         // 알림은 '받은 메시지'만 깔끔하게. AI 추천 답변은 알림에 안 넣고 탭해서 들어간 문자방에서 본다.
         //   (2026-06-15 사장님: 알림창엔 추천이 안 보이는 게 더 깔끔. 수신 즉시 카톡처럼 헤드업.)
         val bigText = body
+        // 🔔 같은 사람 여러 통이면 알림에 **쌓아** 보인다(카톡식). 셈·버퍼는 SmsNotificationStyle 한 곳. 1통이면 null → 기존 BigText. (2026-10-22 사장님)
+        SmsNotificationStyle.record(phone, receivedAtMs, body)
+        val msgStyle = SmsNotificationStyle.styleOrNull(phone, "나", who)
 
         val smsChannel = if (isNewCustomer) CHANNEL_INCOMING_SMS_NEW else CHANNEL_INCOMING_SMS
         val builder = NotificationCompat.Builder(context, resolveChannel(context, smsChannel))
@@ -1535,7 +1539,7 @@ object NotificationHelper {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII(번호·문자) 가림
             .setContentTitle(title)
             .setContentText(body.take(60))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setStyle(msgStyle ?: NotificationCompat.BigTextStyle().bigText(bigText))
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
             .setWhen(receivedAtMs)
@@ -1548,6 +1552,7 @@ object NotificationHelper {
 
         // 알림엔 추천 칩 없음(깔끔). 빠른 답장(RemoteInput) 하나만 — 추천은 탭해서 문자방에서.
         builder.addAction(replyAction)
+        if (msgStyle != null) builder.setNumber(SmsNotificationStyle.count(phone))   // 'N개' 뱃지(쌓였을 때만)
 
         // 인증번호(OTP) 감지 시 '복사' 액션 추가 — 은행·택배 인증번호 원탭 복사(공용 §12). (2026-09-01 사장님)
         addOtpCopyAction(context, builder, phone, body)

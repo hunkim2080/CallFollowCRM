@@ -822,14 +822,17 @@ fun ChatScreen(
             //   사장님이 위로 옛 메시지 보다가 새 메시지 와도 자동 점프 — 약간 거슬릴 수도 있지만
             //   "옛 메시지가 앞에 보이지 않게" 가 더 중요 (사장님 명시 우선순위).
             var prevTimelineSize by remember { mutableStateOf(0) }
+            // 🔽 위로 올려 옛 대화 보는 중 새 문자가 오면 **화면을 안 튀우고** 이것만 켠다 → '↓ 새 메시지' 알약. (2026-10-22 사장님)
+            var hasNewBelow by remember { mutableStateOf(false) }
             LaunchedEffect(timelineItems.size) {
                 if (timelineItems.isNotEmpty()) {
-                    // 새 메시지 도착(첫 로드 아님)이고 이미 최신 근처면 부드럽게 스크롤, 아니면 즉시(기존 동작). (2026-08-02 프로 느낌)
                     val grew = timelineItems.size > prevTimelineSize && prevTimelineSize > 0
-                    if (grew && listState.firstVisibleItemIndex <= 3) {
-                        listState.animateScrollToItem(0)
-                    } else {
-                        listState.scrollToItem(0)
+                    when {
+                        !grew -> listState.scrollToItem(0)                         // 첫 로드/번호 전환 → 최신으로
+                        listState.firstVisibleItemIndex <= 2 -> {                  // 이미 최신 근처 → 부드럽게 따라 내려감
+                            listState.animateScrollToItem(0); hasNewBelow = false
+                        }
+                        else -> hasNewBelow = true                                 // 옛 대화 보는 중 → 안 튀우고 알약만 (카톡식)
                     }
                 }
                 prevTimelineSize = timelineItems.size
@@ -849,7 +852,7 @@ fun ChatScreen(
                     //   해법 = "사용자가 실제로 스크롤 중(isScrollInProgress)"일 때만 숨김/표시 토글. 레이아웃 흔들림은 무시.
                     val scrolling = listState.isScrollInProgress
                     when {
-                        idx == 0 && off == 0 -> controlsVisible = true                                          // 맨 아래(최신) = 항상 표시
+                        idx == 0 && off == 0 -> { controlsVisible = true; hasNewBelow = false }                   // 맨 아래(최신) = 항상 표시 + 새 메시지 알약 끔
                         !scrolling -> {}                                                                        // 레이아웃 변화로 인한 offset 흔들림 무시
                         idx > prevIndex || (idx == prevIndex && off > prevOffset + 12) -> controlsVisible = false // 위로(옛 메시지) = 숨김
                         idx < prevIndex || (idx == prevIndex && off < prevOffset - 12) -> controlsVisible = true  // 아래로(최신) = 표시
@@ -1227,6 +1230,11 @@ fun ChatScreen(
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     )
                 }
+            }
+            // 🔽 옛 대화 보는 중 새 문자 오면 '↓ 새 메시지' — 탭하면 최신으로(화면은 안 튐). (2026-10-22 사장님)
+            NewMessagesPill(visible = hasNewBelow && !searchMode) {
+                scope.launch { runCatching { listState.animateScrollToItem(0) } }
+                hasNewBelow = false
             }
             Composer(
                 modifier = Modifier.onSizeChanged { composerHeightPx = it.height },

@@ -14866,3 +14866,11 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 효과: 열어 보는 스레드는 조용, 벗어나면 다시 알림. 다른 번호는 정상 알림. SMS·MMS 같은 id라 한 번에 적용.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 폰에서 대화 열어둔 채 그 사람 문자 받을 때 알림 안 뜨는지·다른 번호는 뜨는지.
 - 다음 액션: (android) 폰 확인. (server) 없음.
+
+## 2026-10-22 · android
+카톡 대비 메신저 UX — 사장님 선택 ③④ 구현(①=보낸문자 실패·재전송은 다음).
+- ④ 읽던 중 새 문자 오면 화면 강제점프 → **안 튀우고 '↓ 새 메시지' 알약**(ChatSmallParts.NewMessagesPill). 최신 근처면 따라 내려감, 위면 알약만. 맨 아래 닿으면 알약 꺼짐.
+- ③ 같은 사람 여러 통이면 알림에 **쌓아 보이기**(MessagingStyle "N개"). 셈·버퍼는 service/SmsNotificationStyle(공용, 2통↑일 때만). 읽으면(cancelIncomingSms) 비움.
+- 변경: NotificationHelper.showIncomingSms 머리 몇 줄 + 새 파일 SmsNotificationStyle.kt. ChatScreen 은 알약 호출 2줄(알약 정의는 ChatSmallParts).
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). ④ 위로 올려 새 문자 올 때 안 튀는지·알약 뜨는지, ③ 같은 사람 2통+ 알림 쌓이는지.
+- 다음 액션: (android) 폰 확인 + ① 실패·재전송, 주소 등록창 CU 오인/편집. (server) 주소검색 랭킹(아파트 우선) 검토 여지.
