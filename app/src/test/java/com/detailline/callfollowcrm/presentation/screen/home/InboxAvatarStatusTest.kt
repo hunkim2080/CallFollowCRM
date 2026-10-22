@@ -43,11 +43,25 @@ class InboxAvatarStatusTest {
         )
     }
 
-    @Test fun 완료된_일정은_초록아님_회색() {
+    @Test fun 미래예정있으면_과거완료여도_초록() {
+        // 반복 고객(1차 완료 + 2차 미래 예정) — 과거 완료로 isWorkDone=true 여도 **미래 예정이 있으면 시공대기(초록)**.
+        //   (2026-10-22 사장님: 수원 금아타일 D-4 가 시공대기에 없던 것 — 과거 완료가 미래 예정을 가림)
         assertEquals(
-            InboxAvatarStatus.QUIET,
+            InboxAvatarStatus.SCHEDULED,
             inboxAvatarStatus(unanswered = false, lastActivityMs = recent, nowMs = now, unread = false, scheduledWorkDate = future, isWorkDone = true)
         )
+    }
+
+    // 🔨 isWaitlistSchedule 경계값 — 미래면 무조건, 오늘이면 아직 안 끝났을 때만, 과거면 아님. (순수 함수, 시간무관)
+    @Test fun 시공대기_판정_경계값() {
+        val today = 1_000_000L
+        val day = 24L * 60 * 60 * 1000
+        assertEquals(true, isWaitlistSchedule(today + day, isWorkDone = true, todayStart = today))   // 미래+완료 → 대기(새 예정)
+        assertEquals(true, isWaitlistSchedule(today + day, isWorkDone = false, todayStart = today))  // 미래+미완 → 대기
+        assertEquals(true, isWaitlistSchedule(today, isWorkDone = false, todayStart = today))        // 오늘+미완 → 대기
+        assertEquals(false, isWaitlistSchedule(today, isWorkDone = true, todayStart = today))        // 오늘+완료 → 아님
+        assertEquals(false, isWaitlistSchedule(today - day, isWorkDone = false, todayStart = today)) // 과거 → 아님
+        assertEquals(false, isWaitlistSchedule(null, isWorkDone = false, todayStart = today))        // 없음 → 아님
     }
 
     @Test fun 할일없음_회색() {

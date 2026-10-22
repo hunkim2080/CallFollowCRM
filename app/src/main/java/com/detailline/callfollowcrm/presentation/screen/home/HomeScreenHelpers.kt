@@ -329,7 +329,7 @@ internal fun inboxChipMembers(all: List<HomeItem>, dueIds: Set<Long>, todayStart
     // 🔧 A/S 찍힌 손님·⏸️ 보류 손님은 다른 일 칩에서 빠진다 — 숫자(HomeScreen inboxChipCounts)·목록(chipItems)과 **같은 규칙**.
     fun aside(it: HomeItem) = it.customer?.asPendingAt != null || it.customer?.isOnHold == true
     if (all.any { it.isNewToday && !aside(it) }) add("today")
-    if (all.any { val c = it.customer; c != null && !aside(it) && (c.scheduledWorkDate ?: 0L) >= todayStart && !c.isWorkDone }) add("wait")
+    if (all.any { val c = it.customer; c != null && !aside(it) && isWaitlistSchedule(c.scheduledWorkDate, c.isWorkDone, todayStart) }) add("wait")
     if (all.any { it.customer?.id in dueIds && !aside(it) }) add("owe")
     if (all.any { it.customer?.isOnHold == true }) add("onhold")
     if (all.any { it.customer?.isWorkDone == true && it.customer?.asPendingAt == null }) add("done")
@@ -408,6 +408,17 @@ enum class InboxAvatarStatus { NONE, URGENT, WAITING, UNREAD, SCHEDULED, QUIET }
  *   · QUIET(회색) = 할 일 없음(기본)
  *   미답 여부는 [inboxUnanswered] 와 **같은 잣대**를 멤버십으로 받는다(칩·숫자와 한 목록). 날짜 경계는 [DateTimeUtils].
  */
+/**
+ * 🔨 **'시공대기'(앞으로 할 시공) 판정 — 칩·숫자·목록·아바타가 다 이걸 쓴다(§12).**
+ *   예정일이 **미래**면 무조건(그날 건이 아직 안 끝남), **오늘**이면 아직 안 끝났을 때만.
+ *   전엔 `>= today && !isWorkDone` 이라, **과거 1차 완료**로 isWorkDone=true 인 고객의 **새 2차 예정 건이 가려졌다**.
+ *   (2026-10-22 사장님: "수원 금아타일 D-4 인데 시공대기 칩에 없음" — 과거 완료가 미래 예정을 가림)
+ */
+internal fun isWaitlistSchedule(scheduledWorkDate: Long?, isWorkDone: Boolean, todayStart: Long): Boolean {
+    val d = scheduledWorkDate ?: 0L
+    return d >= todayStart && (d > todayStart || !isWorkDone)
+}
+
 internal fun inboxAvatarStatus(
     unanswered: Boolean,
     lastActivityMs: Long,
@@ -418,7 +429,7 @@ internal fun inboxAvatarStatus(
 ): InboxAvatarStatus {
     val oneDayAgo = nowMs - 24L * 60 * 60 * 1000
     val hasFutureSchedule =
-        (scheduledWorkDate ?: 0L) >= com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(nowMs) && !isWorkDone
+        isWaitlistSchedule(scheduledWorkDate, isWorkDone, com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(nowMs))
     return when {
         unanswered && lastActivityMs in 1 until oneDayAgo -> InboxAvatarStatus.URGENT
         unanswered -> InboxAvatarStatus.WAITING

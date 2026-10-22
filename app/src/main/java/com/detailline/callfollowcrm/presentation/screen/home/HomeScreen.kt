@@ -377,8 +377,7 @@ fun HomeScreen(
                 val c = it.customer
                 // 목록과 **같은 규칙**이어야 한다 — 숫자가 3인데 열면 5줄이면 둘 다 못 믿는다.
                 c != null && !aside(it) &&
-                    (c.scheduledWorkDate ?: 0L) >= chipTodayStart &&
-                    !c.isWorkDone && pending(it)
+                    isWaitlistSchedule(c.scheduledWorkDate, c.isWorkDone, chipTodayStart) && pending(it)
             },
             // 미수는 연락이 와서가 아니라 **받을 돈이 남아서** 할 일이다 — 건수 그대로.
             "owe" to all.count { it.customer?.id in dues && !aside(it) }
@@ -1356,7 +1355,7 @@ fun HomeScreen(
                     "wait" -> dedupItems.filter {
                         val c = it.customer
                         c != null && !aside(it) &&
-                            (c.scheduledWorkDate ?: 0L) >= todayStart0 && !c.isWorkDone
+                            isWaitlistSchedule(c.scheduledWorkDate, c.isWorkDone, todayStart0)
                     }
                     "owe" -> dedupItems.filter { it.customer?.id in dueIds && !aside(it) }
                     // 빨간 숫자가 가리키는 것 = 답 안 한 것. 칩이 없고 **탭 숫자로만** 들어온다.

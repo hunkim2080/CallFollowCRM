@@ -14921,3 +14921,10 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: AppContainer.tabReselect(route,tick) 신호 + AppRoot onSelect 에서 alreadyOnRootTab 이면 발사. 공용 presentation/util/TabReselectScrollTop(route){ scroll } 로 각 화면 한 줄. 상담함(HomeScreen listState)·더보기(menuScroll)·정산(listState hoist)·일정(listState hoist, initialIndex 금지 유지) 배선. 내 기록(Stats, HorizontalPager)은 다음.
 - 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 각 탭 머물다 다시 누르면 맨 위로 가는지.
 - 다음 액션: (android) 내기록 탭 재탭·AS 직접입구·고객상세 건 정렬·접수서 탭 디자인·보편UX(스와이프/당겨새로고침). (server) 없음.
+
+## 2026-10-22 · android
+시공대기 칩에 '예정 건 있는 고객'이 빠지던 것 — 과거 완료가 미래 예정을 가림.
+- 왜(사장님): 수원 금아타일(D-4, 2차 예정)이 시공대기 칩에 없음. 원인 = 필터가 `scheduledWorkDate>=today && !isWorkDone` 인데, 과거 1차 완료로 isWorkDone=true 라 미래 2차 예정이 가려짐(§13④ 고객카드가 한 건의 날짜+다른 건의 완료를 동시 미러).
+- 변경: 공용 isWaitlistSchedule(scheduledWorkDate, isWorkDone, todayStart) = `d>=today && (d>today || !isWorkDone)` — **미래 날짜면 무조건 대기**(그날 건 아직 안 끝남), 오늘이면 미완일 때만. 칩 노출·숫자·목록·아바타 4곳 전부 이걸 씀(§12-K). InboxAvatarStatusTest 갱신 + 경계값 테스트 추가.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 수원 금아타일이 시공대기 칩에 뜨는지.
+- 다음 액션: (android) ⒶⒷⒸ(건순서·AS입구·접수서탭). (server) 없음.
