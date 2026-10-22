@@ -15045,8 +15045,27 @@ class AddressResolveRequest(BaseModel):
     context_text: Optional[str] = None
 
 
+# 🏢 주소 검색(카카오 keyword) 결과 중 **아파트/건물을 먼저**, 편의점·음식점 같은 상업 POI 는 뒤로 — 그 자리 가게가 상위에 떠
+#   "알마타길 37" 이 아파트 대신 CU(편의점)로 잡히던 것. address.json 결과는 category 가 없어 전부 0점 → 원래 순서 유지(영향 없음). (2026-10-22 사장님)
+_ADDR_COMMERCIAL_CATS = {"CS2", "FD6", "CE7", "MT1", "AD5", "BK9", "HP8", "PM9", "OL7", "CT1", "AT4", "PK6", "AC5", "PO3", "SW8"}
+_ADDR_RESIDENTIAL_WORDS = ("아파트", "빌라", "오피스텔", "맨션", "주택", "타워", "e편한세상", "자이", "푸르지오", "래미안", "힐스테이트", "더샵", "아이파크")
+
+
+def _addr_place_score(d: dict) -> int:
+    name = d.get("place_name") or ""
+    cat = d.get("category_group_code") or ""
+    score = 0
+    if any(w in name for w in _ADDR_RESIDENTIAL_WORDS):
+        score += 10
+    if cat in _ADDR_COMMERCIAL_CATS:
+        score -= 10
+    elif cat:
+        score -= 1
+    return score
+
+
 async def _kakao_search(url: str, params: dict, query: str) -> Optional[dict]:
-    """카카오 로컬 GET — 첫 hit(dict) 반환. 실패/0건 시 None (status 이유도 로그)."""
+    """카카오 로컬 GET — 가장 알맞은 hit(dict) 반환(아파트/건물 우선). 실패/0건 시 None (status 이유도 로그)."""
     headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
     try:
         async with httpx.AsyncClient(timeout=KAKAO_TIMEOUT_SEC) as client:
@@ -15061,7 +15080,10 @@ async def _kakao_search(url: str, params: dict, query: str) -> Optional[dict]:
             print(f"[address-resolve] kakao status={resp.status_code}{why} ({kind}) query={query!r}")
             return None
         docs = resp.json().get("documents", [])
-        return docs[0] if docs else None
+        if not docs:
+            return None
+        # 아파트/건물 우선, 편의점·음식점 등 상업 POI 후순위. 동점이면 카카오 원래 순서 유지(sorted 안정). (2026-10-22 사장님)
+        return sorted(docs, key=lambda d: -_addr_place_score(d))[0]
     except Exception as e:
         print(f"[address-resolve] kakao error: {type(e).__name__}: {e} (query={query!r})")
         return None
