@@ -14928,3 +14928,11 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: 공용 isWaitlistSchedule(scheduledWorkDate, isWorkDone, todayStart) = `d>=today && (d>today || !isWorkDone)` — **미래 날짜면 무조건 대기**(그날 건 아직 안 끝남), 오늘이면 미완일 때만. 칩 노출·숫자·목록·아바타 4곳 전부 이걸 씀(§12-K). InboxAvatarStatusTest 갱신 + 경계값 테스트 추가.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 수원 금아타일이 시공대기 칩에 뜨는지.
 - 다음 액션: (android) ⒶⒷⒸ(건순서·AS입구·접수서탭). (server) 없음.
+
+## 2026-10-22 · android
+사장님 ⒶⒷⒸ.
+- Ⓐ 고객상세 건 순서: '최신 날짜부터(DESC)' → **가까운 일정부터(오름차순)** — 다음에 할 일(가까운 2차)이 먼 3차보다 위. 완료·취소는 맨 아래(최근 완료 위로). 라벨 '최신부터'→'가까운 일정부터'. (CustomerDetailScreen stackOrder)
+- Ⓑ AS 직접 입구: '시공 건' 머리 오른쪽에 'A/S 일정 잡기'(예약 있으면 '보기') → asPickerOpen=true(기존 피커 재사용). 완료 건 카드 펼칠 필요 없음. (CustomerDetailScreen)
+- Ⓒ 접수서 시트: 머리(제목·탭)와 스크롤 내용 사이 **구분선** 추가 — 경계 없어 스크롤 시 미완성처럼 보이던 것. 탭은 공용 AppTabs 그대로. (ChatScreen EstimateBuilderDialog, 옛 주석 줄여 size 확보)
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 건 순서·AS 버튼·접수서 구분선 확인.
+- 다음 액션: (android) 폰 확인 + 보편UX(스와이프·당겨새로고침·스켈레톤·햅틱)·내기록 탭재탭. (server) 없음.

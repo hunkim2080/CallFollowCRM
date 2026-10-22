@@ -4791,12 +4791,10 @@ private fun EstimateBuilderDialog(
                 selected = estModes.indexOf(mode).coerceAtLeast(0),
                 onSelect = { i -> mode = estModes[i] }
             )
-            // ── 여기서부터 스크롤. 제목·탭은 위에 **고정**한다. (2026-09-16 사장님)
-            //   "창에 내용을 올리는데 뭔가 디자인이 깨지는 느낌이랄까?"
-            //   전에는 시트 전체가 한 덩어리로 스크롤돼서, 항목을 내리면 제목과 탭이 같이 밀려 올라갔다.
-            //   → 어느 탭(문자 견적/시공접수서/견적서)에 있는지 알 수 없고,
-            //     시트 맨 위가 잘린 글자로 시작해 화면이 깨져 보였다.
-            //   최대 높이 = 시트 최대(640) - 머리(제목·탭 약 120).
+            // 머리(제목·탭)와 스크롤 내용 사이 **구분선** — 경계가 없어 스크롤 시 디자인이 깨져/미완성처럼 보이던 것. (2026-10-22 사장님)
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
+            // 여기서부터 스크롤 — 제목·탭은 위에 고정. 최대높이 = 시트(640) - 머리(≈120). (2026-09-16 사장님)
             Column(
                 Modifier
                     .heightIn(max = 520.dp)

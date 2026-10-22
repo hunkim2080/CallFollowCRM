@@ -1030,10 +1030,19 @@ fun CustomerDetailScreen(
             if (detailTab == 0 && showJobBar) {
                 // 시공 건 · 최신부터 — 프로토 `.slab` 라벨. 이모지 대신 **벡터**(안전모 쓴 사람 = 브랜드 「노란 안전모」,
                 //   마감 브리핑·일정 추가와 같은 아이콘 — 세 번째 벌 안 만듦 §12). (2026-10-15 사장님 #13)
-                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.material3.Icon(Icons.Filled.Engineering, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(5.dp))
-                    Text("시공 건 · 최신부터", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    Text("시공 건 · 가까운 일정부터", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    Spacer(Modifier.weight(1f))
+                    // 🛠️ A/S 일정 잡기 — 완료 건 카드를 **안 거치고** 바로. 예약 있으면 '보기'. (2026-10-22 사장님)
+                    Text(
+                        if (c.asScheduledDate != null) "A/S 예약 보기" else "A/S 일정 잡기",
+                        color = TossBlue, fontWeight = FontWeight.Bold,
+                        style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                        modifier = Modifier.clip(com.detailline.callfollowcrm.presentation.theme.AppShape.sm)
+                            .clickable { asPickerOpen = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
                 // ＋ 새 시공 잡기 — **건 카드들 위**(프로토 `.addnew`: 점선 + 연파랑 바탕). 한 줄 점선 버튼. (2026-10-15 사장님)
                 androidx.compose.foundation.layout.Box(
@@ -1073,16 +1082,17 @@ fun CustomerDetailScreen(
                     // 건이 하나도 없는 고객(상담 단계·옛 데이터) — 고객 카드(c) 값으로 카드 한 장(옛 editJobId=null 경로).
                     JobDetailCard(host = jobHost, job = null, teamPhotos = teamPhotos, teamNotes = teamNotes, isPrimary = true)
                 } else {
-                    // 차수는 **날짜순**(JobOrder — 날짜 없는 건은 맨 뒤, 동점은 먼저 만든 건). 화면엔 **최신(높은 차수)부터**.
-                    // 🔽 진행 중인 건이 위, **완료·취소한 건은 맨 아래로.** (2026-10-15 사장님 "진행한 시공건은 맨 아래로")
-                    //   partition 은 순서를 지키니 각 묶음 안에선 '최신부터'가 그대로 유지된다.
+                    // 차수는 **날짜순**(JobOrder — 날짜 없는 건은 맨 뒤, 동점은 먼저 만든 건).
+                    // 🔽 진행 중인 건은 **가까운 일정부터(오름차순)** — 다음에 할 일이 위. 완료·취소한 건은 맨 아래(접힘).
+                    //   (2026-10-22 사장님: 먼 3차보다 가까운 2차가 먼저 보여야. 전엔 '최신 날짜부터'라 반대였다)
+                    //   완료 묶음은 최근 완료가 위로(reversed). partition 은 순서를 지킨다.
                     val stackOrder = remember(allJobsForTabs) {
                         val seq = com.detailline.callfollowcrm.util.JobOrder.order(
                             allJobsForTabs.map { it.scheduledWorkDate to it.id }
                         )
-                        val newestFirst = allJobsForTabs.sortedBy { seq.indexOf(it.id) }.reversed()
-                        val (openJobs, closedJobs) = newestFirst.partition { !jobFolded(it) }
-                        openJobs + closedJobs
+                        val byDateAsc = allJobsForTabs.sortedBy { seq.indexOf(it.id) }   // 가까운(이른) 날짜부터
+                        val (openJobs, closedJobs) = byDateAsc.partition { !jobFolded(it) }
+                        openJobs + closedJobs.reversed()
                     }
                     stackOrder.forEach { j ->
                         // 건별 펼침 상태(메모·사진·협업·접수서·더보기·고르기)는 카드 안 remember — key 로 건마다 안정.
