@@ -61,6 +61,10 @@ class CallFollowCrmApplication : Application() {
     companion object {
         /** 앱이 포그라운드(화면에 보임)인지 — 백그라운드 폴링/헬스 ping 네트워크 낭비를 막는 게이트. (2026-08-11 성능감사 rank1·4) */
         @Volatile @JvmStatic var isForeground: Boolean = false
+
+        /** 🔔 지금 **열어서 보고 있는 대화**의 번호키(`PhoneKey.of`). 이 번호로 문자가 와도 알림을 안 울린다(카톡식) —
+         *   보고 있는데 푸시가 쌓이던 것. ChatScreen 이 ON_RESUME 에 넣고 ON_PAUSE/닫을 때 비운다. null=없음. (2026-10-22 사장님) */
+        @Volatile @JvmStatic var openChatPhoneKey: String? = null
     }
 
     /** 시작/정지된 액티비티 수로 포그라운드 여부 추적 — lifecycle-process 의존성 없이. */

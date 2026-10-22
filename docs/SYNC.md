@@ -14855,3 +14855,14 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: DB 없음. UI = 달력 협업 마커/카드, 정산 미수 탭·숫자, 상담함 칩 숫자, 우체통 목록. §12-K 표시지점 다 확인.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 달력 만료요청·정산 미수 수·자정 칩 확인 권장.
 - 다음 액션: (android) 폰 확인. (server) 없음.
+
+## 2026-10-22 · android
+보고 있는 대화는 알림 안 울리기 — "읽는 중인데 푸시가 쌓이던 것" 수정(카톡식).
+- 왜(사장님): ChatScreen 열어 보는 중에도 그 번호 새 문자가 오면 푸시 알림이 쌓임.
+- 변경:
+  - CallFollowCrmApplication.openChatPhoneKey(전역, PhoneKey) 추가 — isForeground 옆.
+  - presentation/util/OpenChatNotificationGate.kt(공용 Composable) — ON_RESUME 에 등록+그 번호 알림 치움, ON_PAUSE/닫기에 비움. ChatScreen 은 한 줄 호출(기존 2026-10-05 cancel LaunchedEffect 흡수 → ChatScreen 줄 수 오히려 감소).
+  - NotificationHelper.suppressedBecauseViewing(한 곳) — showIncomingSms·showGeneralSms 머리에서 호출, 포그라운드 + 그 번호면 안 울리고 cancel+return. 매칭키·id·cancel·foreground 전부 기존 재사용.
+- 효과: 열어 보는 스레드는 조용, 벗어나면 다시 알림. 다른 번호는 정상 알림. SMS·MMS 같은 id라 한 번에 적용.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 폰에서 대화 열어둔 채 그 사람 문자 받을 때 알림 안 뜨는지·다른 번호는 뜨는지.
+- 다음 액션: (android) 폰 확인. (server) 없음.

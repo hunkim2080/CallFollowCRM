@@ -1419,6 +1419,20 @@ object NotificationHelper {
     }
 
     /**
+     * 🔔 **지금 열어 보고 있는 대화**로 온 문자면 알림을 안 울리고(쌓인 것도 치움) true. (2026-10-22 사장님)
+     *   보고 있는데 푸시가 쌓이던 것 — 카톡·삼성문자처럼 '열린 스레드'는 조용히. 수신 알림 함수 **두 곳이 같이 쓴다**(§12).
+     *   매칭키는 smsNotificationId 와 같은 `PhoneKey.of`. 포그라운드 + 그 번호일 때만.
+     */
+    private fun suppressedBecauseViewing(context: Context, phone: String): Boolean {
+        val open = com.detailline.callfollowcrm.CallFollowCrmApplication.openChatPhoneKey ?: return false
+        if (!com.detailline.callfollowcrm.CallFollowCrmApplication.isForeground) return false
+        val digits = phone.filter { it.isDigit() }
+        if (digits.length < 4 || PhoneKey.of(digits) != open) return false
+        cancelIncomingSms(context, phone)   // 보는 중 — 혹시 떠 있던 알림도 치운다
+        return true
+    }
+
+    /**
      * 갤메시지 대체 풍부한 SMS 수신 알림. Step 1 — 기본 표시.
      *   - 헤더: 이름(있으면) 또는 포맷팅된 번호 + 카테고리
      *   - 본문: BigText 확장형
@@ -1465,6 +1479,7 @@ object NotificationHelper {
         customerId: Long? = null
     ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        if (suppressedBecauseViewing(context, phone)) return   // 🔔 지금 보고 있는 대화면 안 울림
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
@@ -1557,6 +1572,7 @@ object NotificationHelper {
         customerId: Long? = null   // 있으면 그 고객으로 정확히 열기 (번호 포맷 매칭 우회). (2026-08-11 알림 감사)
     ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        if (suppressedBecauseViewing(context, phone)) return   // 🔔 지금 보고 있는 대화면 안 울림
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
