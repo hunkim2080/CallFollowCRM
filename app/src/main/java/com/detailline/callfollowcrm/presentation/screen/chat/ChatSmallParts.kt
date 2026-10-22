@@ -765,3 +765,42 @@ internal fun NewMessagesPill(visible: Boolean, onClick: () -> Unit) {
         }
     }
 }
+
+/**
+ * 🔴 안 보내진 문자 말풍선 — 보낸 쪽(오른쪽)에 빨간 테두리 + "⚠️ 안 보내졌어요 · 다시 보내기 · 지우기". (2026-10-22 사장님)
+ *   토스트만으론 못 보낸 걸 놓치던 것. 재시도 성공하면 진짜 보낸 말풍선이 뜨고 이건 사라진다.
+ */
+@Composable
+internal fun FailedSendBubble(body: String, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    val red = AppTheme.colors.unpaid
+    val shp = com.detailline.callfollowcrm.presentation.theme.AppShape.lg
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.End) {
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.widthIn(max = 280.dp)) {
+            Box(
+                Modifier.clip(shp).background(androidx.compose.ui.graphics.Color.White)
+                    .border(1.5.dp, red, shp).padding(horizontal = 14.dp, vertical = 11.dp)
+            ) { Text(body, style = com.detailline.callfollowcrm.presentation.theme.AppType.body, color = AppTheme.colors.primaryText) }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("⚠️ 안 보내졌어요", style = com.detailline.callfollowcrm.presentation.theme.AppType.caption, color = red)
+                Spacer(Modifier.width(10.dp))
+                Text("다시 보내기", style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                    color = AppTheme.colors.primary, modifier = Modifier.clickable(onClick = onRetry))
+                Spacer(Modifier.width(12.dp))
+                Text("지우기", style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                    color = AppTheme.colors.textSub, modifier = Modifier.clickable(onClick = onDismiss))
+            }
+        }
+    }
+}
+
+/** 안 보내진 문자들을 대화(LazyColumn) 맨 아래 쪽에 실패 말풍선으로. (reverseLayout — scheduledPending 과 같은 패턴) */
+fun androidx.compose.foundation.lazy.LazyListScope.failedSendItems(
+    items: List<ChatViewModel.FailedSend>,
+    onRetry: (Long) -> Unit,
+    onDismiss: (Long) -> Unit
+) {
+    items(items, key = { "failed-${it.id}" }) { f ->
+        FailedSendBubble(body = f.body, onRetry = { onRetry(f.id) }, onDismiss = { onDismiss(f.id) })
+    }
+}

@@ -565,6 +565,22 @@ class ChatViewModel(
     private val _isSending = MutableStateFlow(false)
     val isSending = _isSending.asStateFlow()
 
+    // 🔴 보낸 문자 '실패' — 말풍선에 ⚠️ + '다시 보내기' 로 남긴다(토스트만으론 못 보낸 걸 모르던 것). (2026-10-22 사장님)
+    //   세션 메모리(v1) — 재시도 성공·지우기면 빠진다. 재시도 성공 시 진짜 보낸 말풍선이 그 자리에 뜬다.
+    data class FailedSend(val id: Long, val body: String, val timeMs: Long)
+    private val _failedSends = MutableStateFlow<List<FailedSend>>(emptyList())
+    val failedSends = _failedSends.asStateFlow()
+    private fun addFailedSend(body: String) {
+        val now = System.currentTimeMillis()
+        _failedSends.value = _failedSends.value + FailedSend(now, body, now)
+    }
+    fun dismissFailedSend(id: Long) { _failedSends.value = _failedSends.value.filterNot { it.id == id } }
+    fun retryFailedSend(context: Context, id: Long) {
+        val f = _failedSends.value.firstOrNull { it.id == id } ?: return
+        dismissFailedSend(id)   // 먼저 뺀다 — 또 실패하면 발송 경로가 다시 추가(중복 방지)
+        sendMessage(context, f.body) {}
+    }
+
     /**
      * 대화 요약 / 카드 요약 갱신 중 — 헤더에 spinner 표시.
      *   2026-05-27 사장님 보고 fix: aiSummary 가 옛 cache 면서 새 LLM 호출 중일 때
@@ -1085,7 +1101,10 @@ class ChatViewModel(
             //   보낸 말풍선이 그 자리에 바로 뜬다 — 그게 이미 증거다.
             //   그 위에 "보냈어요" 를 또 덮으면, 방금 보낸 내 문자를 가린다.
             //   실패는 그대로 크게 말한다 — 그건 화면이 안 알려주니까.
-            if (!ok) _toast.value = "문자를 못 보냈어요 — 신호 확인하고 다시 눌러주세요"
+            if (!ok) {
+                _toast.value = "문자를 못 보냈어요 — 신호 확인하고 다시 눌러주세요"
+                addFailedSend(trimmed)   // 🔴 말풍선에 ⚠️+'다시 보내기' 로 남긴다 (2026-10-22 사장님)
+            }
             onResult(ok)
             } finally {
                 _isSending.value = false

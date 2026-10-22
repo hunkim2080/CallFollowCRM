@@ -14896,3 +14896,11 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 라이브 배포: §3 한 곳 패치(base64 전송→py_compile→백업 main.py.bak-20261022-194740→교체→kickstart). smoke 10/10 통과. 검증: "알마타길 37" → place_name "대방1차e편한세상아파트"(전엔 CU 동작대방점). repo·라이브 둘 다 반영.
 - 폰 확인: 라이브 curl 로 확인함. 사장님 폰에서 다음 주소 등록 시 아파트로 잡히는지 확인 권장(+ 틀리면 '직접 검색'으로 교정 가능).
 - 다음 액션: (android) ① 보낸문자 실패·재전송. (server) 없음.
+
+## 2026-10-22 · android
+① 보낸 문자 실패·재전송 — 안 보내진 문자를 말풍선에 남긴다(카톡 대비 마지막 격차).
+- 왜(사장님): 중요한 문자(견적·잔금)가 실패해도 토스트 한 번뿐 → 못 보낸 걸 모름.
+- 변경: ChatViewModel.FailedSend(세션 메모리) + failedSends StateFlow. SMS 발송 실패 시 addFailedSend, 말풍선에 빨간 테두리 + "⚠️ 안 보내졌어요 · 다시 보내기 · 지우기". retryFailedSend(먼저 빼고 재전송 — 중복 방지), dismissFailedSend. UI 는 ChatSmallParts.FailedSendBubble + LazyListScope.failedSendItems(scheduledPending 과 같은 패턴). ChatScreen 은 수집+호출 2줄(낡은 스크롤 주석 줄여 size 확보).
+- 범위: v1 = SMS 텍스트 실패(세션). MMS 는 기존 폴백(다이얼로그·FAM_MMS_FAIL) 유지. 영속(DB)·MMS 는 다음.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 신호 끊고 문자 보내 실패 말풍선·다시 보내기 동작 확인.
+- 다음 액션: (android) 폰 확인. (server) 없음.

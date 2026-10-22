@@ -265,6 +265,7 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     // 🕐 이 번호의 예약 대기 문자 — 대화 맨 아래 회색 '발송 대기' 말풍선으로. (2026-10-05 사장님)
     val scheduledPending by viewModel.scheduledPending.collectAsState()
+    val failedSends by viewModel.failedSends.collectAsState()   // 🔴 안 보내진 문자(실패 말풍선) (2026-10-22)
     var scheduledCancelId by remember { mutableStateOf<Long?>(null) }
     // 🫧 쫀득 팝 — 화면 연 뒤에 '새로' 온 말풍선만 튄다(들어올 때 기존 건 안 튀게). 내 발송 + 내가 챗에 있을 때 온 수신. (2026-10-05 사장님)
     val screenOpenedAtMs = remember { System.currentTimeMillis() }
@@ -814,13 +815,8 @@ fun ChatScreen(
             // 상단 대화 요약 카드 렌더 제거 (2026-08-14 사장님: "안 보게 됨" → 삭제, 대화 공간 확보).
             //   목록 미리보기의 요약은 그대로. UnifiedSummaryCard/CollapsedSummaryHeader 정의는 보존(재활성 대비).
 
-            // 메시지 채팅 영역 — 풀 카톡 스타일. reverseLayout=true 라 newest 가 아래에 표시.
-            // 그래서 messages 도 dateMs DESC 그대로 넘기면 됨 (LazyColumn 이 뒤집어 렌더).
-            // listState 는 위(검색 점프용)로 끌어올림 — 여기선 재선언 안 함.
-            // 2026-05-25 사장님 피드백: 진입 시 가장 최신 메시지가 즉시 화면에 잡혀야 함.
-            //   메시지 첫 로드 + 새 메시지 도착 (size 변경) 시 items[0] (=최신) 로 강제 스크롤.
-            //   사장님이 위로 옛 메시지 보다가 새 메시지 와도 자동 점프 — 약간 거슬릴 수도 있지만
-            //   "옛 메시지가 앞에 보이지 않게" 가 더 중요 (사장님 명시 우선순위).
+            // 메시지 채팅 영역 — reverseLayout=true 라 newest 가 아래. messages 는 dateMs DESC 그대로(LazyColumn 이 뒤집어 렌더).
+            //   진입/첫 로드 시 최신으로. 새 문자는 ④ 스크롤 로직(위에 있으면 '↓ 새 메시지' 알약)으로. (2026-05-25 · 2026-10-22)
             var prevTimelineSize by remember { mutableStateOf(0) }
             // 🔽 위로 올려 옛 대화 보는 중 새 문자가 오면 **화면을 안 튀우고** 이것만 켠다 → '↓ 새 메시지' 알약. (2026-10-22 사장님)
             var hasNewBelow by remember { mutableStateOf(false) }
@@ -925,6 +921,8 @@ fun ChatScreen(
                         onCancel = { scheduledCancelId = row.id }
                     )
                 }
+                // 🔴 안 보내진 문자 — ⚠️+다시 보내기 말풍선(맨 아래 쪽). (2026-10-22 사장님)
+                failedSendItems(failedSends, onRetry = { viewModel.retryFailedSend(context, it) }, onDismiss = { viewModel.dismissFailedSend(it) })
                 if (timelineItems.isEmpty()) {
                     item {
                         Box(
