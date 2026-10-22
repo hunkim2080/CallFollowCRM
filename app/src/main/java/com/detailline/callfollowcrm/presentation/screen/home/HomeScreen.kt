@@ -330,6 +330,7 @@ fun HomeScreen(
     val teamUpdates by viewModel.teamUpdates.collectAsState()
     val collabUpdates by viewModel.collabUpdates.collectAsState()
     val pendingInvites by viewModel.pendingCollabInvites.collectAsState()
+    val inviteHoursLeft by viewModel.pendingInviteHoursLeft.collectAsState()
     val collabUpcoming by viewModel.collabUpcoming.collectAsState()
     // 띠가 쓸 '다음 협업' — 오늘 것 말고 앞으로 것 중 가장 빠른 하나. (2026-09-21 A안)
     val collabBandNext = remember(collabUpcoming) {
@@ -1205,7 +1206,8 @@ fun HomeScreen(
                             accentTint = AppTheme.colors.categoryBg,
                             icon = Icons.Default.Person,
                             title = "받은 협업 요청",
-                            tagText = "수락 대기",
+                            // 딱지에 남은 시간 — '없어지는 요청'임을 보여 빨리 누르게. 앵커 모르면 그냥 '수락 대기'. (2026-10-22 사장님)
+                            tagText = inviteHoursLeft[inv.shareId]?.let { "${it}시간 남음" } ?: "수락 대기",
                             tagBg = AppTheme.colors.categoryBg, tagFg = AppTheme.colors.category,
                             // 주소는 짧게 — 이름·주소·일당이 한 줄에 다 들어가게 roughSite(대충 어디)로 축약.
                             //   (siteDisplayName=siteLabel 은 도로명주소를 못 줄여 2줄로 길게 나오던 것 fix. 2026-07-08 사장님)

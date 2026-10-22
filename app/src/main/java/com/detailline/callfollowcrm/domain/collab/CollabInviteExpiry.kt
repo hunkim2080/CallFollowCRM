@@ -29,4 +29,22 @@ object CollabInviteExpiry {
         val left = createdAtMs + TTL_MS - now
         return if (left <= 0L) 0 else ((left + 3_599_999L) / 3_600_000L).toInt()
     }
+
+    // ── 앵커(서버 공유시각 or 로컬 첫 관측) 폴백까지 고려한 판정 — **받는 쪽 한 규칙** ──────────
+    //   받은 요청은 서버 createdAtMs 가 0 일 수 있어, 그때는 로컬 '첫 관측 시각'을 앵커로 쓴다.
+    //   홈 카드(CollabEventCenter)·협업 현장 상세(SharedSiteViewModel)가 **같은 규칙**을 쓰게 여기 하나. (2026-10-22 §12)
+
+    /** 앵커 = 서버 공유시각(>0) 우선, 없으면 첫 관측(firstSeenMs). 둘 다 0 이하면 0(모름 → 판단 보류, 안전). */
+    fun anchorOf(createdAtMs: Long, firstSeenMs: Long): Long =
+        createdAtMs.takeIf { it > 0L } ?: firstSeenMs.takeIf { it > 0L } ?: 0L
+
+    /** 앵커(서버 or 첫 관측) 기준 만료됐나. 앵커 0이면 false(안전). */
+    fun isExpiredWithAnchor(createdAtMs: Long, firstSeenMs: Long, now: Long): Boolean =
+        isExpired(anchorOf(createdAtMs, firstSeenMs), now)
+
+    /** 앵커 기준 남은 시간(시). 앵커 0이면 null(모름 → 화면이 그냥 '수락 대기'로). */
+    fun remainingHoursWithAnchor(createdAtMs: Long, firstSeenMs: Long, now: Long): Int? {
+        val a = anchorOf(createdAtMs, firstSeenMs)
+        return if (a <= 0L) null else remainingHours(a, now)
+    }
 }

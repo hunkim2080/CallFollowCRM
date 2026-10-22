@@ -537,6 +537,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.collabEventCenter.pendingInvites
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 받은 협업 요청별 '남은 시간(시)' — 홈 카드 딱지를 「N시간 남음」으로(없어지는 요청임을 보여 빨리 누르게). (2026-10-22 사장님)
+     *   앵커(서버 공유시각 or 첫 관측)는 상세와 같은 CollabInviteExpiry 규칙. 앵커 모르면 그 shareId 는 빠짐(→ 그냥 '수락 대기'). */
+    val pendingInviteHoursLeft: StateFlow<Map<String, Int>> =
+        container.collabEventCenter.pendingInvites
+            .map { list ->
+                val now = System.currentTimeMillis()
+                list.mapNotNull { s ->
+                    com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.remainingHoursWithAnchor(
+                        s.createdAtMs, container.preferences.collabInviteFirstSeenMs(s.shareId), now
+                    )?.let { s.shareId to it }
+                }.toMap()
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /**
      * 수락한 협업 현장 — 홈 상단 카드. 오늘·내일 것만 보여줌(모레+ 는 홈에서 빼고 '협업 현장' 탭에서만).
      *   (2026-06-21 사장님: 모레·먼 날짜까지 홈에 계속 떠서 "이게 왜 떠있지" 혼란 → D-1 안내처럼 임박한 것만.)

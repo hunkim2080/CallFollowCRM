@@ -130,16 +130,26 @@ class CollabEventCenter(
         val sites = sharedSiteRepository.withMe(owner).getOrNull() ?: return
         // 휴지통에 넣은 협업 현장은 상담함/홈 카드에서도 제외 — 화면에선 지웠는데 홈에 남던 버그. (2026-06-17 사장님)
         val trashed = preferences.trashedSharedSiteIds
-        val pending = sites.filter { it.status == "pending" && it.shareId !in trashed }
-        _pendingInvites.value = pending   // 상담함 "받은 협업 요청" 카드 — 응답하면 다음 폴에서 자동으로 빠짐
+        val now = System.currentTimeMillis()
+        val allPending = sites.filter { it.status == "pending" && it.shareId !in trashed }
+        // 🤝 **24h 만료된 요청은 홈 카드·하단 배지에서 뺀다** — 죽은 요청에 '수락하러 가기'가 뜨면 안 된다. (2026-10-22 사장님)
+        //   앵커(서버 공유시각 or 첫 관측)·만료 셈은 상세(acceptExpired)와 같은 CollabInviteExpiry 규칙(§12).
+        //   상세 '협업 현장'엔 48h 까지 '만료됨'으로 남는다(그 화면은 requestFullyExpired 로 제 경로에서 거름).
+        val pending = allPending.filter {
+            !com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.isExpiredWithAnchor(
+                it.createdAtMs, preferences.collabInviteFirstSeenMs(it.shareId), now
+            )
+        }
+        _pendingInvites.value = pending   // 상담함 "받은 협업 요청" 카드 — 응답/만료하면 다음 폴에서 자동으로 빠짐
         // 수락한 협업 중 오늘 이후(날짜 있는 것) = 내 '다음 일' → 홈 협업 카드.
         val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
         _acceptedUpcoming.value = sites
             .filter { it.status == "accepted" && it.scheduledAtMs >= todayStart && it.shareId !in trashed }
             .sortedBy { it.scheduledAtMs }
-        val pendingIds = pending.map { it.shareId }.toSet()
-        // 수락 유효시간(12h) 앵커: 처음 본 시각 기록(서버 created_at_ms 폴백). 응답해 사라진 건 정리.
-        preferences.syncCollabInviteFirstSeen(pendingIds, System.currentTimeMillis())
+        // 앵커·seen 은 **전체 pending(만료 포함)** 기준 — 만료돼도 firstSeen 앵커를 지우면 상세의 24~48h 판정이 깨진다.
+        val pendingIds = allPending.map { it.shareId }.toSet()
+        // 수락 유효시간(24h) 앵커: 처음 본 시각 기록(서버 created_at_ms 폴백). 응답해 사라진 건 정리.
+        preferences.syncCollabInviteFirstSeen(pendingIds, now)
 
         if (!preferences.collabInviteSeeded) {
             preferences.seenCollabInviteShareIds = pendingIds

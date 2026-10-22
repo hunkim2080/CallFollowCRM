@@ -170,10 +170,11 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
      */
     fun acceptExpired(site: SharedSiteRepository.SharedSite): Boolean {
         if (site.status != "pending") return false
-        val anchor = site.createdAtMs.takeIf { it > 0L }
-            ?: container.preferences.collabInviteFirstSeenMs(site.shareId)
-        if (anchor <= 0L) return false
-        return System.currentTimeMillis() - anchor >= ACCEPT_VALID_MS
+        // 앵커(서버 공유시각 or 첫 관측)·만료 셈은 CollabInviteExpiry 한 곳 — 홈 카드와 같은 규칙. (2026-10-22 §12)
+        return com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.isExpiredWithAnchor(
+            site.createdAtMs, container.preferences.collabInviteFirstSeenMs(site.shareId),
+            System.currentTimeMillis()
+        )
     }
 
     /**
@@ -209,8 +210,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
      */
     fun requestFullyExpired(site: SharedSiteRepository.SharedSite): Boolean {
         if (site.status != "pending") return false
-        val anchor = site.createdAtMs.takeIf { it > 0L }
-            ?: container.preferences.collabInviteFirstSeenMs(site.shareId)
+        // 앵커 규칙은 acceptExpired 와 같은 CollabInviteExpiry.anchorOf 로 — 임계(48h)만 여기 것. (2026-10-22 §12)
+        val anchor = com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.anchorOf(
+            site.createdAtMs, container.preferences.collabInviteFirstSeenMs(site.shareId)
+        )
         if (anchor <= 0L) return false
         return System.currentTimeMillis() - anchor >= REQUEST_EXPIRE_MS
     }

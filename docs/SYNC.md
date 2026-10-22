@@ -14832,3 +14832,14 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 효과: 정규화 도로명 → spotOf 매칭 성공률 ↑. 사업자 주소 없어도 제대로 설정 가능. "모든 주소칸=같은 부품" 규칙의 유일 예외 정리(두 벌 아님, 공용 재사용).
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 폰에서 출발지 '주소 찾기'→검색→저장→지도 경로 확인 권장.
 - 다음 액션: (android) 폰 확인. (server) 없음.
+
+## 2026-10-22 · android
+협업 요청 24h 만료를 **홈 상담함 카드·하단 배지에도** 반영(전엔 상세만 봤음) + 만료 전 급함 표시.
+- 왜(사장님): 만료됐는데 홈 카드가 계속 "수락 대기 · 수락하러 가기"로 떠서 눌러도 상세 가서야 "지났어요" 뜸(엇갈림). 그리고 '없어지는 요청' 급함 신호가 받는 쪽엔 없었음.
+- 변경:
+  - CollabEventCenter.pollInvites: 24h 만료분을 _pendingInvites 에서 제외 → 홈 카드 + AppRoot 배지(둘 다 pendingInvites 읽음) 자동 반영. firstSeen 앵커·seen 은 전체(allPending) 기준 유지(상세 24~48h 판정 보존).
+  - 홈 카드 딱지 "수락 대기" → "N시간 남음"(HomeViewModel.pendingInviteHoursLeft). 앵커 모르면 "수락 대기".
+  - CollabInviteExpiry: 앵커 폴백(createdAt>0 ? : firstSeen) 공용화 — anchorOf·isExpiredWithAnchor·remainingHoursWithAnchor. SharedSiteViewModel.acceptExpired/requestFullyExpired 가 이걸 쓰게 리팩(두 벌 제거). 테스트 +3.
+- 안 건드림: 상세 '협업 현장'(이미 "지났어요"+수락 막힘·48h까지 '만료됨' 유지), 보낸쪽 고객상세 칩(createdAt 직접). §12-K 표시지점 다 확인.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 폰에서 24h 지난 요청이 홈/배지에서 빠지는지·유효한 건 'N시간 남음' 뜨는지.
+- 다음 액션: (android) 폰 확인. (server) 없음(서버 24h 이미 반영됨).
