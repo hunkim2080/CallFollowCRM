@@ -14881,3 +14881,11 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: RingGoFcmService collab_invite 분기에 collabEventCenter.pollInvites(applicationContext) 즉시 호출 추가(seen 먼저 넣어 이중 알림 없음). owner_event 가 poll() 부르는 것과 대칭. 서버 변경 없음.
 - 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 상대가 협업 요청 보낼 때 홈 카드가 즉시 뜨는지.
 - 다음 액션: (android) 폰 확인 + 주소등록 CU(서버 랭킹·앱 편집), ① 보낸문자 실패·재전송. (server) 주소검색 아파트 우선 랭킹.
+
+## 2026-10-22 · android
+주소 등록창 '지도에서 찾은 주소' 직접 고치기 — CU(편의점) 오인 교정 가능하게.
+- 왜(사장님): 지도가 아파트 대신 "CU 동작대방점"을 잡았는데 그 칸을 못 고쳤다(읽기전용 카드 + 동/호수만 입력).
+- 변경: ChatScreen AddressRegisterSheet 에 "✏️ 주소가 틀렸나요? 직접 검색" 추가 — 고객상세와 같은 공용 AddressSearchDialog(다음 우편번호) 띄워 고른 주소를 manualBase 로. baseAddr 는 manualBase 최우선 → finalAddr 반영. (인라인, ChatScreen size 상한 내)
+- 남음: (서버) 카카오 결과를 아파트/건물 우선 랭킹(편의점 후순위)으로 — 애초에 바로 잡게. 라이브 서버라 사장님 고 받고 §3 핫픽스.
+- 폰 확인: 못 봄(빌드 EXIT=0, 가드 7종). 주소창에서 '직접 검색'으로 아파트 골라 등록되는지.
+- 다음 액션: (android) 폰 확인 + ① 보낸문자 실패·재전송. (server) 주소검색 아파트 우선 랭킹(사장님 고 대기).

@@ -4204,10 +4204,16 @@ private fun AddressRegisterSheet(
     }
     // 지도가 찾아준 주소를 쓸지, 문자에 적힌 그대로 쓸지 — 사장님이 고른다. 기본은 지도(정확해서).
     var useFound by remember(detected) { mutableStateOf(true) }
+    // ✏️ '직접 검색'으로 고친 주소(지도가 아파트 대신 CU 등 엉뚱한 걸 잡을 때). 있으면 베이스로. (2026-10-22 사장님)
+    var manualBase by remember(detected) { mutableStateOf<String?>(null) }
+    var addrSearchOpen by remember { mutableStateOf(false) }
     LaunchedEffect(detected) {
         found = onLookup()
         looking = false
     }
+    if (addrSearchOpen) com.detailline.callfollowcrm.presentation.component.AddressSearchDialog(
+        onPicked = { manualBase = it; useFound = true; addrSearchOpen = false }, onDismiss = { addrSearchOpen = false }
+    )
 
     // 고객이 준 형태를 따라간다 — 지번으로 줬으면 지번, 도로명으로 줬으면 도로명. (2026-09-16 사장님)
     //   사장님이 늘 보던 모양 그대로 저장돼야 헷갈리지 않는다.
@@ -4228,7 +4234,8 @@ private fun AddressRegisterSheet(
     val foundPlace = found?.placeName
         ?.trim()
         ?.takeIf { it.isNotBlank() && foundMain?.contains(it) != true }
-    val baseAddr = (if (useFound) listOfNotNull(foundMain, foundPlace).joinToString(" ").trim().ifBlank { null } else null)
+    val baseAddr = manualBase?.trim()?.ifBlank { null }   // 직접 고친 게 있으면 그걸 최우선
+        ?: (if (useFound) listOfNotNull(foundMain, foundPlace).joinToString(" ").trim().ifBlank { null } else null)
         ?: parts.base.ifBlank { detected }
     // 최종 주소 = 기준 주소 + 동 + 호 (빈 칸은 빠짐)
     val finalAddr = listOfNotNull(
@@ -4300,6 +4307,9 @@ private fun AddressRegisterSheet(
                 else -> Text("지도에서는 못 찾았어요 — 문자에 적힌 대로 등록돼요.",
                     fontSize = 12.sp, color = TossTextTertiary)
             }
+            Text(manualBase?.let { "✏️ 직접 고침 · $it  (다시 검색)" } ?: "✏️ 주소가 틀렸나요? 직접 검색",   // 고객상세와 같은 주소검색. (2026-10-22 사장님)
+                style = com.detailline.callfollowcrm.presentation.theme.AppType.label, color = TossBlue,
+                modifier = Modifier.clickable { addrSearchOpen = true }.padding(top = 8.dp, bottom = 2.dp))
 
             // ── 동 / 호수 ──
             Spacer(Modifier.height(16.dp))
