@@ -470,9 +470,20 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         if (ownerPhone.isBlank()) return
         viewModelScope.launch {
             container.sharedSiteRepository.withMe(ownerPhone).onSuccess { sites ->
-                allAcceptedCollab = sites.filter { it.status == "accepted" && it.scheduledAtMs > 0L }
+                // 🗑️ 휴지통(trashed)은 홈·상담함과 **같은 집합** — 달력도 빼야 한다(안 그러면 지운 협업이 달력엔 남음). (2026-10-22 §12-K)
+                val trashed = container.preferences.trashedSharedSiteIds
+                val now = System.currentTimeMillis()
+                allAcceptedCollab = sites.filter {
+                    it.status == "accepted" && it.scheduledAtMs > 0L && it.shareId !in trashed
+                }
                 // 응답 안 한 요청(pending) — 캘린더 주황 마커 + 선택 시 확인 카드. (2026-07-08 사장님)
-                val pending = sites.filter { it.status == "pending" && it.scheduledAtMs > 0L }
+                //   🤝 24h 만료분·휴지통은 제외 — 홈·배지·상세와 **한 규칙**(CollabInviteExpiry). 안 그러면 죽은 요청에 '수락/거절'이 떴다. (2026-10-22 사장님)
+                val pending = sites.filter {
+                    it.status == "pending" && it.scheduledAtMs > 0L && it.shareId !in trashed &&
+                        !com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.isExpiredWithAnchor(
+                            it.createdAtMs, container.preferences.collabInviteFirstSeenMs(it.shareId), now
+                        )
+                }
                 _pendingCollabSites.value = pending
                 _pendingCollabDayStarts.value = pending.map { DateTimeUtils.startOfDay(it.scheduledAtMs) }.toSet()
                 applyCollabFilter()

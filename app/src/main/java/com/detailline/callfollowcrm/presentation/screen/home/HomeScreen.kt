@@ -342,7 +342,9 @@ fun HomeScreen(
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val balanceDues by viewModel.balanceDues.collectAsState()
     // 🏷️ 칩에 붙는 숫자 — **할 일만** 센다. "시공 끝남" 이 40명이어도 빨갛게 쓰지 않는다(할 일이 아니니까).
-    val inboxChipCounts = remember(timeline, balanceDues, adAllowlist) {
+    //   ⏰ todayStart 를 remember 키에 넣는다 — 자정 넘겨도 숫자가 목록과 어긋나지 않게(목록은 매번 갱신). (2026-10-22 사장님)
+    val chipTodayStart by viewModel.todayStartFlow.collectAsState()
+    val inboxChipCounts = remember(timeline, balanceDues, adAllowlist, chipTodayStart) {
         val dues = balanceDues.mapNotNull { it.customerId }.toHashSet()
         val all = timeline.flatMap { g -> g.items }
             .distinctBy { PhoneKey.of(it.record.phoneNumber) }
@@ -375,7 +377,7 @@ fun HomeScreen(
                 val c = it.customer
                 // 목록과 **같은 규칙**이어야 한다 — 숫자가 3인데 열면 5줄이면 둘 다 못 믿는다.
                 c != null && !aside(it) &&
-                    (c.scheduledWorkDate ?: 0L) >= DateTimeUtils.startOfDay(System.currentTimeMillis()) &&
+                    (c.scheduledWorkDate ?: 0L) >= chipTodayStart &&
                     !c.isWorkDone && pending(it)
             },
             // 미수는 연락이 와서가 아니라 **받을 돈이 남아서** 할 일이다 — 건수 그대로.
@@ -1336,7 +1338,7 @@ fun HomeScreen(
                 // 🏷️ **칩으로 한 번 거른다.** 이 아래 '지금 답장 기다려요'·'최근 대화' 는 손 안 댄다 —
                 //   거른 목록을 그대로 받으니 렌더가 통째로 재사용된다. (2026-09-20)
                 val dueIds = balanceDues.mapNotNull { it.customerId }.toHashSet()
-                val todayStart0 = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                val todayStart0 = chipTodayStart   // 숫자(inboxChipCounts)와 **같은 경계** — 자정 넘김에도 숫자=목록. (2026-10-22)
                 // 🔧 AS 찍힌 손님·⏸️ 보류 손님은 다른 일 칩에서 빠진다 — 숫자와 **같은 규칙**.
                 fun aside(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
                     it.customer?.asPendingAt != null || it.customer?.isOnHold == true

@@ -18,17 +18,20 @@ import kotlinx.coroutines.launch
  */
 class OutboxTroubleViewModel(private val container: AppContainer) : ViewModel() {
 
+    // ⏰ 1분 tick — 화면을 열어 둔 채 STALE(3h) 임계를 넘겨도 홈 띠처럼 목록도 갱신되게. (2026-10-22 사장님: 띠≠목록 방지)
+    private val minuteTick = kotlinx.coroutines.flow.flow {
+        while (true) { emit(System.currentTimeMillis()); kotlinx.coroutines.delay(60_000) }
+    }
+
     val items: StateFlow<List<OutboxEntity>> =
-        container.outbox.observeTroubleRaw()
-            .map { rows ->
-                val owner = container.preferences.bizPhone.filter { it.isDigit() }
-                val now = System.currentTimeMillis()
-                rows.filter {
-                    OutboxRules.showsInBand(
-                        it.status == OutboxEntity.STATUS_DEAD, it.ownerPhone, it.createdAtMs, owner, now
-                    )
-                }
+        kotlinx.coroutines.flow.combine(container.outbox.observeTroubleRaw(), minuteTick) { rows, now ->
+            val owner = container.preferences.bizPhone.filter { it.isDigit() }
+            rows.filter {
+                OutboxRules.showsInBand(
+                    it.status == OutboxEntity.STATUS_DEAD, it.ownerPhone, it.createdAtMs, owner, now
+                )
             }
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 죽었든 미뤘든 지금 바로 다시 시도. */

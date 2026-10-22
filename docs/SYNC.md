@@ -14843,3 +14843,15 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 안 건드림: 상세 '협업 현장'(이미 "지났어요"+수락 막힘·48h까지 '만료됨' 유지), 보낸쪽 고객상세 칩(createdAt 직접). §12-K 표시지점 다 확인.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 폰에서 24h 지난 요청이 홈/배지에서 빠지는지·유효한 건 'N시간 남음' 뜨는지.
 - 다음 액션: (android) 폰 확인. (server) 없음(서버 24h 이미 반영됨).
+
+## 2026-10-22 · android
+표시 불일치 감사 5건 수정(§12-K · 사장님 "이런 비슷한 것들").
+- ① 달력(일정탭)이 만료된 협업 요청을 '수락/거절'로 띄우던 것 → ScheduleViewModel.loadCollab pending 필터에 CollabInviteExpiry.isExpiredWithAnchor 추가(홈·배지·상세와 한 규칙).
+- ② 휴지통 버린 협업이 달력엔 남던 것 → loadCollab accepted/pending 에 trashedSharedSiteIds 제외(홈과 같은 집합).
+- ③ 정산 '미수'가 시공 안 끝난 건까지 세던 것 → SettleItem.completed(Completion.isDone) 추가, OUTSTANDING 집계·필터를 `outstanding>0 && completed` 로(홈 미수카드·잔금미수 딱지와 통일).
+- ④ 상담함 칩 숫자가 자정 넘겨 목록과 어긋나던 것 → HomeViewModel.todayStartFlow public, inboxChipCounts remember 키에 포함 + 숫자·목록 둘 다 chipTodayStart 사용.
+- ⑤ 우체통 목록 화면 열어둔 채 3h 임계 통과 시 띠≠목록 → OutboxTroubleViewModel.items 에 1분 tick combine.
+- 안 함: ⑥ 리마인드 전용화면 ARRIVAL 누락(화면 도달 불가 잠복, 영향 없음).
+- 변경: DB 없음. UI = 달력 협업 마커/카드, 정산 미수 탭·숫자, 상담함 칩 숫자, 우체통 목록. §12-K 표시지점 다 확인.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 달력 만료요청·정산 미수 수·자정 칩 확인 권장.
+- 다음 액션: (android) 폰 확인. (server) 없음.

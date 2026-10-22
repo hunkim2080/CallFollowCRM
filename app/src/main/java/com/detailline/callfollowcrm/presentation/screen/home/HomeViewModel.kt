@@ -58,8 +58,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * '오늘 0시'를 _todayTick(ON_RESUME 마다 갱신)에서 파생 — 자정 넘어도·앱을 며칠 켜둬도 갱신된다.
      *   정적 todayStart 를 쓰던 홈 카드(리마인드·정기문자·견적회신·잔금·다음시공·collab·dismiss)들이 이걸 combine 해서 stale 방지.
      *   (2026-08-13 stale-day 전면수정 — todayNew KPI 에 이어 나머지 홈 카드도 반응형으로.)
+     *   public: 상담함 칩 숫자(HomeScreen inboxChipCounts)도 이 값을 remember 키로 써 자정 넘김 stale 방지. (2026-10-22)
      */
-    private val todayStartFlow: StateFlow<Long> = _todayTick
+    val todayStartFlow: StateFlow<Long> = _todayTick
         .map { DateTimeUtils.startOfDay(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), todayStart)
 

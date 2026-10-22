@@ -69,7 +69,10 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
                     phone = c.phoneNumber,
                     calc = row.calc,
                     scheduledWorkDate = row.scheduledWorkDate,
-                    address = j?.address?.takeIf { it.isNotBlank() } ?: c.address
+                    address = j?.address?.takeIf { it.isNotBlank() } ?: c.address,
+                    // 완료 판정은 Completion 한 곳 — 건이 있으면 그 건, 없으면 고객 카드 기준. (2026-10-22 §12)
+                    completed = j?.let { com.detailline.callfollowcrm.domain.job.Completion.isDone(it) }
+                        ?: com.detailline.callfollowcrm.domain.job.Completion.isDone(c)
                 )
             }
                     // 시공일 오름차순(낮은 날짜부터) — 사장님 요청 2026-06-04. 날짜 없으면 맨 뒤,
@@ -84,11 +87,12 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     val state: StateFlow<SettlementUiState> = combine(rows, filter) { all, f ->
         val outstandingTotal = all.sumOf { it.calc.outstanding }
         val receivedTotal = all.sumOf { it.calc.received }
-        val outstandingCount = all.count { it.calc.outstanding > 0 }
+        // 🔴 '미수' = **시공 끝났는데** 돈 남은 것. 홈 미수카드·'잔금미수' 딱지와 같은 잣대(완료 필수). 예약·계약금만 건은 '앞으로 할 것'이지 미수가 아님. (2026-10-22 사장님)
+        val outstandingCount = all.count { it.calc.outstanding > 0 && it.completed }
         val paidOffCount = all.count { it.calc.isPaidOff }
         val visible = when (f) {
             SettleFilter.ALL -> all
-            SettleFilter.OUTSTANDING -> all.filter { it.calc.outstanding > 0 }
+            SettleFilter.OUTSTANDING -> all.filter { it.calc.outstanding > 0 && it.completed }
             SettleFilter.PAID_OFF -> all.filter { it.calc.isPaidOff }
         }
         SettlementUiState(
@@ -336,7 +340,9 @@ data class SettleItem(
     val phone: String,
     val calc: SettleRow,
     val scheduledWorkDate: Long? = null,
-    val address: String? = null
+    val address: String? = null,
+    /** 🔴 **시공이 끝났나**(미수 판정용) — 판정은 Completion 한 곳. 안 끝난(예약·계약금만) 건은 '미수' 아님. (2026-10-22 사장님) */
+    val completed: Boolean = false
 )
 
 data class SettlementUiState(
