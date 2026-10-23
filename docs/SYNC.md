@@ -14996,3 +14996,12 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - **라이브 배포 완료** (GOTCHAS §3): 라이브 함수가 내 수정 전과 동일 확인 → patch -p2(dry-run OK) → py_compile OK → kickstart → **smoke 10/10**. 백업 `main.py.bak-spk-20261023-171934`.
 - 폰 확인: 못 봄. **새 통화(또는 기존 '다시 요약')**에서 수신/발신 기준 좌우가 덜 뒤집히는지. (기존 요약은 캐시라 그대로)
 - 다음 액션: (사장님) 통화 요약 테스트. 여전히 부족하면 🅑(목소리 지문) 재검토.
+
+## 2026-10-23 · android
+AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 잡기'가 안 뜨던 것** 수정. (사장님 "1차 완납자는 왜 안 보임?")
+- 원인: AS 버튼이 `showJobBar = otherJobs.isNotEmpty()`(=건 2개 이상)인 섹션에만 있었음 → 단일 건(간단 화면)은 AS 입구 없음. "완납이냐"가 아니라 "건이 2개냐"로 갈림.
+- 수정(CustomerDetailScreen 단일 건 화면): `Completion.isDone(c)`면 `A/S 일정 잡기 · ＋ 시공 하나 더 잡기` 나란히(🅐). AS 링크는 멀티 건 AS 버튼과 같은 AppType.label. 기존 asPickerOpen/asScheduledDate 그대로 재사용.
+- §12-K 표시 지점: AS 입구 2곳(멀티 건 헤더=그대로 · 단일 건=추가). asScheduledDate는 고객 단위라 양쪽 공유, 피커 공용.
+- 변경: UI만. 가드 7종 통과, EXIT=0.
+- 폰 확인: 못 봄. 1차 완납 고객 상세에서 'A/S 일정 잡기' 뜨고 눌러서 AS 날짜 잡히는지.
+- 다음 액션: (사장님) 폰 확인.

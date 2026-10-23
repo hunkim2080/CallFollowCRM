@@ -1182,17 +1182,25 @@ fun CustomerDetailScreen(
             //    그래서 맨 아래 '지난 문자 보기' 위에 작은 글씨로 뒀어요."
             //   프로토 값: 회색(옛 #8B95A1 → 램프 textHint) · 14sp · 밑줄 · 높이 44 · 가운데.
             if (detailTab == 0 && !showJobBar && c.scheduledWorkDate != null) {
-                Text(
-                    "＋ 시공 하나 더 잡기",
-                    color = AppTheme.colors.textHint,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                    modifier = Modifier.fillMaxWidth()
-                        .clickable { newJobStart = null; newJobDays = 1; newJobSheetOpen = true }
-                        .padding(vertical = 12.dp)
-                )
+                // 완료(완납 포함)된 단일 건이면 **A/S 일정 잡기**도 나란히 — AS 입구는 '건 2개'가 아니라
+                //   '완료된 시공'에 달려야 한다(1차 완납자가 AS 를 못 걸던 것). (2026-10-23 사장님)
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    if (com.detailline.callfollowcrm.domain.job.Completion.isDone(c)) {
+                        Text(if (c.asScheduledDate != null) "A/S 예약 보기" else "A/S 일정 잡기",
+                            color = TossBlue, fontWeight = FontWeight.Bold, style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                            modifier = Modifier.clickable { asPickerOpen = true }.padding(horizontal = 8.dp))
+                        Text("·", color = AppTheme.colors.textHint, style = com.detailline.callfollowcrm.presentation.theme.AppType.label)
+                    }
+                    Text("＋ 시공 하나 더 잡기",
+                        color = AppTheme.colors.textHint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        modifier = Modifier.clickable { newJobStart = null; newJobDays = 1; newJobSheetOpen = true }.padding(horizontal = 8.dp))
+                }
                 Spacer(Modifier.height(6.dp))
             }
 
