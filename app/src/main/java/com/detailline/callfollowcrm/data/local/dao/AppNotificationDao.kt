@@ -28,6 +28,11 @@ interface AppNotificationDao {
     @Query("UPDATE app_notifications SET readAt = :at WHERE readAt IS NULL")
     suspend fun markAllRead(at: Long)
 
+    /** 🤝 그 협업 현장(shareId)의 **안 읽은** 알림을 읽음으로 — 요청을 수락/거절하면 벨의 그 줄 불을 끈다.
+     *   (2026-10-23 사장님: "수락을 바로 눌렀는데 알림창엔 불이 들어와 있더라") */
+    @Query("UPDATE app_notifications SET readAt = :at WHERE navShareId = :shareId AND readAt IS NULL")
+    suspend fun markReadByShareId(shareId: String, at: Long)
+
     /** 협업만 남기는 1회 정리 — 센터가 '협업 현장 소식만'으로 바뀌어서 옛 문자·부재중 기록은 뺀다. (2026-10-13) */
     @Query("DELETE FROM app_notifications WHERE type NOT LIKE 'collab%'")
     suspend fun deleteNonCollab()

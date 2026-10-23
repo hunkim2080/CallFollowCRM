@@ -235,6 +235,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                         _toast.value = if (accept) "협업 현장에 들어왔어요" else "거절했어요"
                         // 수락/거절 즉시 상담함 카드·뱃지·알림에서 제거(다음 폴 안 기다리게). (2026-06-14 버그)
                         container.collabEventCenter.markResponded(container.appContext, site.shareId)
+                        // 🔔 벨(알림 센터)의 그 요청 줄도 읽음으로 — 수락/거절했으면 불이 꺼져야 한다. (2026-10-23 사장님)
+                        runCatching { container.appNotificationRepository.markReadByShareId(site.shareId) }
                         load()
                         // 본폰 미러도 즉시 갱신 — 수락한 협업 현장은 곧 내 일정이니까. (2026-07-15 사장님)
                         //   미러 자동전송은 '내 고객/현금 변경'만 구독해서 협업 수락엔 안 걸린다

@@ -26,6 +26,9 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
     /** [모두 읽기]. */
     suspend fun markAllRead() = dao.markAllRead(System.currentTimeMillis())
 
+    /** 🤝 그 협업 현장의 벨 알림을 읽음으로 — 요청을 수락/거절하면 그 줄 불을 끈다. (2026-10-23 사장님) */
+    suspend fun markReadByShareId(shareId: String) = dao.markReadByShareId(shareId, System.currentTimeMillis())
+
     /**
      * 🤝 협업 현장 **사진** 알림 — 같은 현장의 **안 읽은** 사진 알림이 최근(창 안)에 있으면
      *   새 줄을 만들지 않고 **「사진 N장」으로 개수만 올려** 한 줄로 묶는다. (2026-10-15 사장님:

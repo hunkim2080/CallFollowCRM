@@ -15037,3 +15037,11 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 가드 7종·테스트 통과, EXIT=0. style 그대로(토큰).
 - 폰 확인: 못 봄. 내 기록 맨 아래 "손님이 어디서 왔나" 카드 + 경로 탭 세부.
 - 다음 액션: (사장님) 폰 확인.
+
+## 2026-10-23 · android
+종알림 버그 — 협업 요청 **수락/거절해도 벨 불이 안 꺼짐**. (사장님 "수락 바로 눌렀는데 알림창엔 불이 들어와 있더라")
+- 원인: `respond` 성공 시 `markResponded`(상담함 카드·뱃지)만 처리하고 **벨 센터(AppNotification)는 안 건드림**.
+- 수정: `AppNotificationDao.markReadByShareId` + repo + `SharedSiteViewModel.respond` 성공 시 `markReadByShareId(shareId)`. 모든 수락/거절이 respond 하나로 가서 한 곳이면 됨. 스키마 변화 없음.
+- 가드 7종·빌드 EXIT=0.
+- 폰 확인: 못 봄. 협업 요청 수락→벨에서 그 줄 불 자동으로 꺼지는지.
+- 다음 액션: (사장님) 폰 확인 + 고객상세 레이아웃 통일 🅐/🅑/🅒 선택 대기.
