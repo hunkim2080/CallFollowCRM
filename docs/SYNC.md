@@ -14985,3 +14985,14 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - size_guard 또 걸림(+43) → 최근 주석 4줄 다듬어 복구(코드 그대로). 가드 7종 통과, EXIT=0.
 - 폰 확인: 못 봄. 대화 위로 스크롤 시 머리 밑에서 메시지가 스르륵 사라지는지.
 - 다음 액션: (사장님) 폰 확인. (android) 보편UX.
+
+## 2026-10-23 · android (+ server)
+🅐 화자분리 통째 뒤집힘 방지 — **전화 방향(direction)으로 '첫 발화' 화자를 앵커링**. (사장님 "구분이 안 됨")
+- 배경: STT(whisper/에이닷)는 화자 태그를 안 줌 → exaone/LLM이 글만 보고 나/손님 추측 → 통째 뒤집힘 잦음.
+- `server/main.py`: `_ollama_label_speakers(texts, direction)` · `_ollama_attribute_speakers(text, direction)` 에 direction 인자 + 프롬프트 앵커 추가.
+  - 수신 → 첫 발화 보통 '나'(사장님이 받음), 발신 → 첫 발화 보통 '손님'. (label은 **첫 배치에만**, 뒤 배치는 내용 단서)
+  - 내용 단서도 보강: 질문·문의=손님 / 가격·일정 제시·'사장님' 호칭=나.
+- 호출부(call-audio-summary 16723/16733)에서 `direction=direction` 전달. **엔드포인트가 이미 direction(Form) 받음 → 앱 변경 불필요.** /start 비동기 경로도 direction 흐름 확인(17025).
+- py_compile EXIT=0. **라이브 배포는 GOTCHAS §3 절차로 별도**(라이브는 git 아님·193커밋 뒤 → 함수 존재/일치 먼저 확인 후 surgical patch).
+- 폰 확인: 못 봄. 배포 후 수신/발신 통화에서 좌우가 덜 뒤집히는지.
+- 다음 액션: (server/android) 라이브 배포 + smoke. 안 되면 🅑(목소리 지문) 재검토.

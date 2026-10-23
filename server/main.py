@@ -14523,19 +14523,30 @@ def _parse_stt_json(raw: str, offset_ms: int = 0):
     return flat, segs
 
 
-async def _ollama_label_speakers(texts: list) -> list:
+async def _ollama_label_speakers(texts: list, direction: str = "incoming") -> list:
     """Whisper 세그먼트 텍스트 목록 → 각 화자(나/손님) 라벨 (exaone·best-effort).
 
     turn 재분할이 아니라 세그먼트 순서 유지 = 탭재생 start_ms 정렬과 맞음.
     실패/길이초과 → 전부 '?' (길이는 입력과 동일 보장).
+    direction(수신/발신)으로 '첫 발화' 화자를 못박아 좌우 통째 뒤집힘을 막는다. (2026-10-23 사장님 🅐)
     """
     n = len(texts or [])
     if n == 0:
         return []
-    sys_p = (
+    # 🔑 앵커 — 전화 방향으로 '맨 처음 말하는 쪽'을 못박는다(화자 통째 뒤집힘 방지).
+    #   수신=손님이 걸어 사장님이 받음 → 첫 발화는 보통 '나'("여보세요/네 OO입니다").
+    #   발신=사장님이 걸어 손님이 받음 → 첫 발화는 보통 '손님'. (첫 배치에만 — 뒤 배치는 내용 단서로)
+    _first = "손님" if (direction or "").strip() == "outgoing" else "나"
+    _dir_ko = "사장님이 건(발신)" if _first == "손님" else "손님이 걸어 사장님이 받은(수신)"
+    base_p = (
         "통화 자막 각 줄의 화자를 붙여라. '나'(업체 사장님)와 '손님'(고객) 둘뿐이다. "
+        "단서: 질문하거나 문의를 시작하면 '손님', 가격·일정을 제시하거나 '사장님' 호칭을 받으면 '나'. "
         "입력 줄 수와 정확히 같은 개수로, 각 줄 화자를 순서대로 '나' 또는 '손님' 으로만. "
         "지어내지 말고 라벨만. JSON {\"speakers\":[\"나\",\"손님\"]} 형식만 출력."
+    )
+    first_anchor = (
+        "이 통화는 %s 통화라 **맨 처음(1번) 말하는 줄은 보통 '%s'** 이다 — 기준점으로 삼아라. "
+        % (_dir_ko, _first)
     )
     # 긴 통화(발화 많음) 대비 — ~3000자 단위로 나눠 배치별 라벨링(전부 '?' 폴백 방지).
     # 배치 = 최대 30줄 또는 ~2000자 (너무 크면 exaone 이 뒷줄을 못 붙이고 '?' 흘림)
@@ -14555,13 +14566,14 @@ async def _ollama_label_speakers(texts: list) -> list:
     # gather 는 입력 순서 보존 → 세그먼트 순서(탭재생 start_ms 정렬) 그대로 유지.
     _sem = asyncio.Semaphore(3)
 
-    async def _label_batch(batch):
+    async def _label_batch(batch, is_first):
+        sys_b = (first_anchor + base_p) if is_first else base_p
         joined = "\n".join("%d. %s" % (j + 1, t) for j, t in enumerate(batch))
         labels = None
         try:
             async with _sem:
                 out = await call_ollama_json(
-                    system_prompt=sys_p, user_msg=joined,
+                    system_prompt=sys_b, user_msg=joined,
                     model=OLLAMA_CORRECT_MODEL, temperature=0.0, max_tokens=1024, timeout=120.0)
             sp = out.get("speakers") if isinstance(out, dict) else None
             if isinstance(sp, list):
@@ -14573,7 +14585,7 @@ async def _ollama_label_speakers(texts: list) -> list:
             for k in range(len(batch))
         ]
 
-    batch_results = await asyncio.gather(*[_label_batch(b) for b in batches])
+    batch_results = await asyncio.gather(*[_label_batch(b, i == 0) for i, b in enumerate(batches)])
     res = []
     for br in batch_results:
         for v in br:
@@ -14581,18 +14593,25 @@ async def _ollama_label_speakers(texts: list) -> list:
     return res
 
 
-async def _ollama_attribute_speakers(text: str) -> list:
+async def _ollama_attribute_speakers(text: str, direction: str = "incoming") -> list:
     """보정된 통화 transcript → 발화 순서대로 나누고 화자(나/손님) 추정 (로컬 exaone·best-effort).
 
     카톡식 말풍선(손님=좌·나=우)용. 지어내기 금지·뜻 유지. 실패/빈/긴통화 → [] (앱이 평문 폴백).
     android 판정(2026-08-14): exaone 화자추정 줄눈상담 2건 100% 정확(temp0).
+    direction(수신/발신)으로 '첫 발화' 화자를 못박아 통째 뒤집힘 방지. (2026-10-23 사장님 🅐)
     """
     text = (text or "").strip()
     if not text or len(text) > 4000:
         return []
+    _first = "손님" if (direction or "").strip() == "outgoing" else "나"
+    _dir_ko = "사장님이 건(발신)" if _first == "손님" else "손님이 걸어 사장님이 받은(수신)"
+    _anchor = ("이 통화는 %s 통화라 **맨 처음 말하는 쪽은 보통 '%s'** 이다 — 기준점으로 삼아라. "
+               % (_dir_ko, _first))
     sys_p = (
         "너는 한국어 통화 텍스트를 대화 순서대로 나누고 화자를 붙이는 도구다. "
         "통화는 '나'(업체 사장님)와 '손님'(고객) 둘 사이의 대화다. "
+        + _anchor +
+        "단서: 질문·문의 시작은 '손님', 가격·일정 제시나 '사장님' 호칭 받으면 '나'. "
         "각 발화를 순서대로 나누고 speaker 를 정확히 '나' 또는 '손님' 으로만 붙여라. "
         "없는 말을 지어내지 말고 있는 문장만 나눠라. 뜻·표현을 바꾸지 마라. "
         "JSON {\"segments\":[{\"speaker\":\"나\",\"text\":\"...\"}]} 만 출력."
@@ -16720,7 +16739,7 @@ async def call_audio_summary_endpoint(
         transcript_segments = []
         try:
             if whisper_segs:
-                _labels = await _ollama_label_speakers([s["text"] for s in whisper_segs])
+                _labels = await _ollama_label_speakers([s["text"] for s in whisper_segs], direction=direction)
                 transcript_segments = [
                     {
                         "start_ms": whisper_segs[i]["start_ms"],
@@ -16730,7 +16749,7 @@ async def call_audio_summary_endpoint(
                     for i in range(len(whisper_segs))
                 ]
             else:
-                transcript_segments = await _ollama_attribute_speakers(transcript)
+                transcript_segments = await _ollama_attribute_speakers(transcript, direction=direction)
         except Exception:
             transcript_segments = []
         if transcript_segments:
