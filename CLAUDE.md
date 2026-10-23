@@ -479,6 +479,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 달 글자 `yyyy-MM` ↔ 「2026년 7월」(달 묶기 `ymOf` 와 같은 자리) | `ai/SharedSiteRepository.ymOf(ms)` · `.monthLabel(ym)` (`CollabRecordViewModel.ymOf/monthLabel` 은 입구만) | 화면·domain 에서 `split("-")` 로 「N년 M월」 또 만들기 |
 | 제목 밑 설명글 — **첫 사용 때만** 보이고(제목 옆 ⓘ 로 다시) / 숨기면 안 되는 경고·안내는 **같은 모양으로 항상** | `presentation/component/FirstRunHint.kt` — `rememberFirstRunHint(key)` + 제목 옆 `HintInfoDot(state)` + `FirstRunHintText(state, text)`(첫사용) · `HelpText(text)`(항상). 글자 모양은 한 곳(11.5sp·textHint=TossTextTertiary), 본 적 있는 키는 `AppPreferences.hintSeen` 한 칸 | 화면마다 제목 밑 `Text(…, TossText*, 11~13sp)` 부제 직접(색·크기 제각각·상설 노출) — 2026-10-23 사장님 "설명글 계속 있어야하나, 첫 사용때만" |
 
+| 유입경로 모아보기 집계(접수서 "어디서 보셨어요?" 경로별 전체 누적 + 세부 키워드) | `domain/intake/InflowStats.kt` — `aggregate(labels)` → `InflowGroup`(경로·수·세부) · `total`. 라벨은 `IntakeFormRepository` 가 만든 "네이버 · 블로그 · '줄눈'"(경로 · 세부), 저장은 `IntakeEventEntity.inflowSource`, 내 기록 카드는 `StatsInflowCard` | 화면·VM 에서 유입경로 문자를 직접 `split`/`groupBy`, 세부 집계를 화면마다 새로 |
+
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).
 > 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**
 

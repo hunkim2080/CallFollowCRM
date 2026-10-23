@@ -107,6 +107,7 @@ fun StatsScreen(
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
     val rec by viewModel.myRecord.collectAsState()
+    val inflow by viewModel.inflowGroups.collectAsState()
     // 지금 보고 있는 달 — 눌러서 가는 화면이 **같은 달**을 보게 들고 간다. (2026-09-25 점검)
     val monthDelta by viewModel.recordMonthDelta.collectAsState()
 
@@ -256,6 +257,8 @@ fun StatsScreen(
                 )
             }
             item(key = "trend") { TrendSection(trend, onSelect = viewModel::setPeriod); Spacer(Modifier.height(18.dp)) }
+            // 🔎 유입경로 모아보기 — 접수서 "어디서 보셨어요?" 전체 누적. (2026-10-23 사장님)
+            if (inflow.isNotEmpty()) item(key = "inflow") { InflowCard(inflow) }
             // 🗑 걷어낸 것 (2026-09-24 사장님 "싹 갈아엎어야지"):
             //   · StatsHero(파란 "9월, 잘 하고 계세요") — 위 기록 카드와 같은 말을 두 번 했다
             //   · StatsMascot("이번 달도 옆에서 챙길게요") — 자리만 먹고 아무 정보가 없다

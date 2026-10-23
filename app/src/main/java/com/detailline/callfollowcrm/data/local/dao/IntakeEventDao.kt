@@ -28,6 +28,10 @@ interface IntakeEventDao {
     @Query("UPDATE intake_events SET inflowSource = :inflow WHERE token = :token AND (inflowSource IS NULL OR inflowSource = '')")
     suspend fun backfillInflow(token: String, inflow: String)
 
+    /** 유입경로 모아보기(내 기록)용 — 적힌 유입경로 라벨 전부. 경로별 집계는 InflowStats. (2026-10-23 사장님) */
+    @Query("SELECT inflowSource FROM intake_events WHERE inflowSource IS NOT NULL AND inflowSource != ''")
+    fun observeInflowSources(): Flow<List<String>>
+
     /** 이미 받아둔 접수서 token 전부 — 복원된 폰에서 '빠진 건'을 가려내는 데 쓴다. (2026-09-23) */
     @Query("SELECT token FROM intake_events")
     suspend fun allTokens(): List<String>

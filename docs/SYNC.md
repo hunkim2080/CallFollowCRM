@@ -15029,3 +15029,11 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 ## 2026-10-23 · android
 유입경로 **옛 접수서 1회 backfill** (사장님 "그동안 것 다 날아갔어?"). 서버 survey 원본은 그대로 → 다시 긁어 빈 inflowSource만 UPDATE(새 카드·알림·고객 X). IntakeSyncManager.backfillInflowOnce(1회 가드 prefs.intakeInflowBackfilled), syncAllOnce 에서 네트워크 되면 1회. 최근 50건 한도. 가드 7종·빌드 EXIT=0.
 - 다음 액션: (사장님) 폰에서 옛 접수서 카드에 유입경로 채워지는지.
+
+## 2026-10-23 · android
+유입경로 **모아보기** — 내 기록 맨 아래 카드. (사장님 "모아볼수있으면, 내기록, 전체누적, 플랫폼 누르면 세부 키워드")
+- 공용 `domain/intake/InflowStats.kt`(aggregate→경로별+세부, total · 순수+테스트 5). §12 표 등록(공용 43).
+- `IntakeEventDao.observeInflowSources` → `StatsViewModel.inflowGroups`(전체 누적) → `StatsInflowCard`(새 파일, 경로별 막대 + 탭하면 세부 펼침, 토큰 스타일).
+- 가드 7종·테스트 통과, EXIT=0. style 그대로(토큰).
+- 폰 확인: 못 봄. 내 기록 맨 아래 "손님이 어디서 왔나" 카드 + 경로 탭 세부.
+- 다음 액션: (사장님) 폰 확인.

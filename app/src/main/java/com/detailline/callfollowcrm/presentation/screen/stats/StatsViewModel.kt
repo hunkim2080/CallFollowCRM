@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
@@ -176,6 +177,12 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 buildMyRecord(cs, js, m, ph, co)
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
+
+    /** 🔎 유입경로 모아보기 — 접수서 "어디서 보셨어요?" **전체 누적**. 경로별 집계(InflowStats). (2026-10-23 사장님) */
+    val inflowGroups: StateFlow<List<com.detailline.callfollowcrm.domain.intake.InflowGroup>> =
+        container.intakeEventRepository.observeInflowSources()
+            .map { com.detailline.callfollowcrm.domain.intake.InflowStats.aggregate(it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val bizNameForRecord = container.preferences.bizName
     private val tradeForRecord = container.preferences.ownerTrades.firstOrNull().orEmpty()
