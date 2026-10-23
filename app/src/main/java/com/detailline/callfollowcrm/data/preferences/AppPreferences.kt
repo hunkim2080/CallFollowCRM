@@ -707,6 +707,11 @@ class AppPreferences(context: Context) {
     var makneGuideSeen: Set<String>
         get() = prefs.getStringSet("makne_guide_seen", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("makne_guide_seen", value).apply() }
+    /** 첫 사용 힌트(제목 밑 설명글)를 이미 본 화면 key — 화면/시트마다 처음 열 때 한 번만 뜬다.
+     *   제목 옆 ⓘ 로는 언제든 다시 볼 수 있다(이 집합과 무관). 공용: FirstRunHint.kt (§12 두 벌 금지). */
+    var hintSeen: Set<String>
+        get() = prefs.getStringSet("hint_seen", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("hint_seen", value).apply() }
     /** 팁별 노출 횟수 — "여러 번 봐도 안 누르면 은퇴"(피로도 방지)용. "key:count;key:count" 인코딩. (2026-07-05 사장님) */
     var makneTipImpressions: Map<String, Int>
         get() = (prefs.getString("makne_tip_impr", "") ?: "").split(";")

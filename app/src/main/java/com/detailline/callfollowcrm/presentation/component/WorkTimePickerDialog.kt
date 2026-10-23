@@ -92,12 +92,13 @@ fun WorkTimePickerDialog(
         Surface(shape = RoundedCornerShape(24.dp), color = Color.White, tonalElevation = 6.dp) {
             Column(Modifier.fillMaxWidth().padding(20.dp)) {
                 // ── 시공 시간 ── (기간은 날짜 범위선택에서 이미 정해져 옴. 칩 탭 = 기간과 함께 저장+닫힘)
-                Text("시공 시간", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                val wtHint = rememberFirstRunHint("work_time_sheet")
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("시공 시간", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    HintInfoDot(wtHint)
+                }
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "시간을 정하면 상담함·오늘 시공 카드가 시간순으로 쌓여요",
-                    fontSize = 12.5.sp, color = TossTextTertiary
-                )
+                FirstRunHintText(wtHint, "시간을 정하면 상담함·오늘 시공 카드가 시간순으로 쌓여요")
                 Spacer(Modifier.height(12.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

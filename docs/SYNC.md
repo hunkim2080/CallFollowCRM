@@ -14948,3 +14948,13 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
   - (약함 미처리: CallSummaryScreen/AiMessageScreen 스크롤 뷰포트 — 다음)
 - 협업현장 로딩: "불러오는 중…" 카드는 이미 있음(703·712). 스켈레톤(ShimmerTwoLines)로 바꾸면 더 '오는 중' 느낌 — 다음.
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 템플릿 저장·후속·견적발송·일정등록 버튼이 내비바 위로 뜨는지.
+
+## 2026-10-23 · android
+설명글(제목 밑 회색 부제) **첫 사용 때만** 보이게 + 모양 통일 — 공용 `FirstRunHint` 신설. (사장님: "설명글 계속 있어야하나, 첫 사용때만")
+- 공용 `presentation/component/FirstRunHint.kt`: `rememberFirstRunHint(key)`+제목 옆 `HintInfoDot`+`FirstRunHintText`(첫사용, 스르륵)·`HelpText`(항상). 글자 모양 한 곳(11.5sp·textHint). 본 키는 `AppPreferences.hintSeen`. §12 표 1줄 추가.
+- 첫사용 전환(주요 시트 9곳): 접수서(두 설명→help 하나로·제목 밑), 내시공일정, 통화요약받기, 시공시간, 고객그룹, 시공막내고르기, 목표매출, 팀원추가, 거절사유.
+- 모양 통일(경고·결과·제스처 유지=HelpText): ChatScreen 4곳(등록눌러야저장·막내이렇게답해요·입력창꾹수정삭제·여기서고치기), ChatAskCards 2곳(고객에게발송돼요·업종되묻기).
+- **안 바꾼 것(둬도 됨·보고)**: 빈화면 부제(MascotEmptyState — 접근성상 일부러 진하게), 설정 토글 설명, 섹션 부제(SectionSub 2종), BusinessInfo 필드 안내 — 상설이 맞는 자리라 유지. 원하면 2차로 스타일만 통일 가능.
+- 변경: UI만(도메인·DB·API 변화 없음). style 2449→2431(손값 18 줄), 공용 42개, 가드 7종 통과.
+- 폰 확인: 못 봄(assembleRelease EXIT=0, compile EXIT=0). 각 시트 처음 열 때 설명 뜨고→닫고 다시 열면 없음→제목 옆 ⓘ 누르면 다시 뜨는지.
+- 다음 액션: (사장님) Play 거부 해결=최신빌드 재제출 + Console 앱 액세스 마스터번호·코드 대조. (android) 설명글 2차(선택)·보편UX.

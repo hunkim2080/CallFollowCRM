@@ -1738,11 +1738,15 @@ private fun DeclineReasonSheet(
     var memo by remember { mutableStateOf("") }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
-            Text("거절 사유를 알려줄까요?", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            val rejHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("collab_reject_sheet")
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("거절 사유를 알려줄까요?", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(rejHint)
+            }
             Spacer(Modifier.height(5.dp))
-            Text(
-                "${ownerName.ifBlank { "요청한" }} 사장님께 전달돼요. 이유를 알면 서로 서운함이 없어요 🙂",
-                fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 18.sp
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(
+                rejHint,
+                "${ownerName.ifBlank { "요청한" }} 사장님께 전달돼요. 이유를 알면 서로 서운함이 없어요 🙂"
             )
             Spacer(Modifier.height(16.dp))
             if (!etcMode) {

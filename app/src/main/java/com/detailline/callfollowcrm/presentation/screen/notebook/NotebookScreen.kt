@@ -846,9 +846,13 @@ private fun SavedPeoplePicker(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
                     .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
             )
-            Text("시공막내에서 고르기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            val pickHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("notebook_pick_sheet")
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("시공막내에서 고르기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(pickHint)
+            }
             Spacer(Modifier.height(4.dp))
-            Text("저장해둔 사람 중에서 골라요. 이름이나 번호로 찾으세요.", fontSize = 13.sp, color = TossTextTertiary)
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(pickHint, "저장해둔 사람 중에서 골라요. 이름이나 번호로 찾으세요.")
             Spacer(Modifier.height(12.dp))
             com.detailline.callfollowcrm.presentation.component.SheetTextField(
                 q, { q = it }, placeholder = "이름 또는 번호"

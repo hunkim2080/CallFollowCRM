@@ -1742,11 +1742,15 @@ fun ChatScreen(
             Box(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
                     com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-                    Text("통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    val adotHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("adot_paste_sheet")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                        com.detailline.callfollowcrm.presentation.component.HintInfoDot(adotHint)
+                    }
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        "한 번만 폴더를 연결하면, 이후엔 통화 내용을 텍스트로 저장할 때마다 자동으로 들어와요.",
-                        fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 18.sp
+                    com.detailline.callfollowcrm.presentation.component.FirstRunHintText(
+                        adotHint,
+                        "한 번만 폴더를 연결하면, 이후엔 통화 내용을 텍스트로 저장할 때마다 자동으로 들어와요."
                     )
                     Spacer(Modifier.height(12.dp))
                     // 자동 받기 (권장) — Download/A.phone 폴더 한 번 연결.
@@ -3281,11 +3285,9 @@ private fun PrincipleDiscoveryCard(
         Spacer(Modifier.height(9.dp))
         Text(q, color = TossTextPrimary, fontSize = 14.5.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(7.dp))
-        Text(
-            // "(아니면 ❌ 눌러요)" 를 뺐다 — 버튼에 이미 [아니에요] 라고 적혀 있다. (2026-09-22 사장님)
-            "맞으면 앞으로 막내가 이렇게 답해요.",
-            color = TossTextTertiary, fontSize = 11.5.sp, lineHeight = 16.sp
-        )
+        // "(아니면 ❌ 눌러요)" 를 뺐다 — 버튼에 이미 [아니에요] 라고 적혀 있다. (2026-09-22 사장님)
+        // 설명글 통일(공용 HelpText — 11.5sp·흐린 회색). 2026-10-23
+        com.detailline.callfollowcrm.presentation.component.HelpText("맞으면 앞으로 막내가 이렇게 답해요.")
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -4019,10 +4021,7 @@ private fun TemplatePickerDialog(
             Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Spacer(Modifier.height(5.dp))
                 // 꾹 누르기는 모르면 못 찾는다 → 제목 밑에 조용히 한 줄. (2026-09-16 사장님 개편)
-                Text(
-                    "누르면 입력창에 들어가요 · 꾹 누르면 수정·삭제",
-                    color = TossTextTertiary, fontSize = 11.5.sp
-                )
+                com.detailline.callfollowcrm.presentation.component.HelpText("누르면 입력창에 들어가요 · 꾹 누르면 수정·삭제")
                 Spacer(Modifier.height(12.dp))
                 if (filtered.isEmpty()) {
                     Text(
@@ -4264,7 +4263,7 @@ private fun AddressRegisterSheet(
             Text("\uD83D\uDCCD 이 주소로 등록할까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
                 color = TossTextPrimary)
             Spacer(Modifier.height(3.dp))
-            Text("등록을 눌러야만 저장돼요.", fontSize = 12.sp, color = TossTextTertiary)
+            com.detailline.callfollowcrm.presentation.component.HelpText("등록을 눌러야만 저장돼요.")
 
             // ── 문자에 적힌 그대로 ──
             Spacer(Modifier.height(14.dp))
@@ -4467,7 +4466,7 @@ private fun SendConfirmDialog(
             )
             Spacer(Modifier.height(14.dp))
             if (body.isNotBlank()) {
-                Text("여기서 바로 고칠 수 있어요", fontSize = 11.sp, color = TossTextTertiary,
+                com.detailline.callfollowcrm.presentation.component.HelpText("여기서 바로 고칠 수 있어요",
                     modifier = Modifier.padding(bottom = 5.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
@@ -4762,26 +4761,26 @@ private fun EstimateBuilderDialog(
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)
         ) {
             SheetGrabber()
+            // 설명글(help)은 **처음 열 때만** 보이고, 제목 옆 ⓘ 로 다시 본다. (공용 FirstRunHint — 사장님 2026-10-23)
+            //   전엔 제목 밑 부제 + 구분선 밑 help 로 **두 줄**이라 어수선했다 → help 하나로 합침.
+            val estHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("estimate_sheet")
             // 🔴 제목이 늘 "견적 만들기" 였다. 그래서 [접수서 보내기] 를 눌러도
             //   접수서 탭에 와 있는데 **제목은 견적**이라 "왜 견적이 나오지?" 하게 됐다.
             //   (2026-09-23 사장님) → 제목이 **지금 탭을 따라간다.**
-            Text(
-                when (mode) {
-                    "accept" -> "접수서 보내기"
-                    "quote" -> "견적서 만들기"
-                    else -> "견적 만들기"
-                },
-                fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
-                color = TossTextPrimary, letterSpacing = (-0.4).sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    when (mode) {
+                        "accept" -> "접수서 보내기"
+                        "quote" -> "견적서 만들기"
+                        else -> "견적 만들기"
+                    },
+                    fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                    color = TossTextPrimary, letterSpacing = (-0.4).sp
+                )
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(estHint)
+            }
             Spacer(Modifier.height(4.dp))
-            Text(
-                when (mode) {
-                    "accept" -> "항목을 고르면, 고객이 링크에서 주소·날짜를 적어요"
-                    else -> "항목을 고르고, 어떻게 보낼지 정하세요"
-                },
-                fontSize = 13.sp, color = TossTextTertiary
-            )
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(estHint, help)
             Spacer(Modifier.height(12.dp))
             // 앱 어디서나 **같은 탭**. 여기만 혼자 다른 모양(회색 바탕+흰 알약)이었다. (2026-09-22 사장님)
             //   AppTabs = 고객 정보·정산·통계·협업이 쓰는 그 탭.
@@ -4802,8 +4801,7 @@ private fun EstimateBuilderDialog(
                     .verticalScroll(rememberScrollState())
             ) {
             Spacer(Modifier.height(9.dp))
-            Text(help, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 18.sp,
-                modifier = Modifier.padding(horizontal = 2.dp))
+            // (help 설명글은 제목 밑 첫사용 힌트로 올렸다 — 여기선 제거. 2026-10-23)
             // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력
             if (mode != "text") {
                 Spacer(Modifier.height(AppSpace.s24))

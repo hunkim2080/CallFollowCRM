@@ -106,12 +106,17 @@ fun MyScheduleSheet(
                 .padding(horizontal = 18.dp)
                 .bottomBarClearance(extra = 24.dp)  // 하단 내비바 가림 방지(M3 시트 인셋 0 버그). 2026-06-11
         ) {
-            Text("내 시공 일정", style = MaterialTheme.typography.titleLarge,
-                color = TossTextPrimary, fontWeight = FontWeight.Bold)
+            // 설명글은 처음 열 때만 — 제목 옆 ⓘ 로 다시 본다. (공용 FirstRunHint, 사장님 2026-10-23)
+            val schedHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("my_schedule_sheet")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("내 시공 일정", style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary, fontWeight = FontWeight.Bold)
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(schedHint)
+            }
             Spacer(Modifier.height(2.dp))
-            Text(
-                "점 있는 날을 누르면 바로 아래에 그 날 시공·주소가 떠요. 가까운 현장이면 같이 묶기 좋아요.",
-                style = MaterialTheme.typography.bodySmall, color = TossTextTertiary
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(
+                schedHint,
+                "점 있는 날을 누르면 바로 아래에 그 날 시공·주소가 떠요. 가까운 현장이면 같이 묶기 좋아요."
             )
             Spacer(Modifier.height(12.dp))
 

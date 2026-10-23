@@ -809,9 +809,13 @@ private fun GoalEditSheet(
                     .clip(RoundedCornerShape(2.dp))
                     .background(TossDivider)
             )
-            Text("이번 달 목표 매출", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            val goalHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("settlement_goal_sheet")
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("이번 달 목표 매출", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(goalHint)
+            }
             Spacer(Modifier.height(6.dp))
-            Text("직접 정한 목표로 진행률을 보여드려요.", fontSize = 13.sp, color = TossTextSecondary)
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(goalHint, "직접 정한 목표로 진행률을 보여드려요.")
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = text,

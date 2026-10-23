@@ -593,9 +593,13 @@ private fun AddMemberOverlay(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
                     .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
             )
-            Text("팀원 추가", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            val addMemberHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("team_add_member_sheet")
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("팀원 추가", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(addMemberHint)
+            }
             Spacer(Modifier.height(4.dp))
-            Text("배정하면 이 번호로 현장 링크가 가요 (앱 설치 안 해도 돼요).", fontSize = 13.sp, color = TossTextTertiary)
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(addMemberHint, "배정하면 이 번호로 현장 링크가 가요 (앱 설치 안 해도 돼요).")
             Spacer(Modifier.height(14.dp))
 
             Row(

@@ -203,7 +203,7 @@ internal fun EventNotifyConfirmDialog(body: String, onSend: () -> Unit, onDismis
         title = { Text("고객에게 보낼까요?", fontWeight = FontWeight.ExtraBold, color = TossTextPrimary) },
         text = {
             Column {
-                Text("아래 내용이 고객에게 문자로 발송돼요.", fontSize = 12.5.sp, color = TossTextTertiary)
+                com.detailline.callfollowcrm.presentation.component.HelpText("아래 내용이 고객에게 문자로 발송돼요.")
                 Spacer(Modifier.height(8.dp))
                 Surface(color = AppTheme.colors.bg, shape = RoundedCornerShape(12.dp)) {
                     Text(
@@ -273,10 +273,7 @@ internal fun TradeAskCard(
             )
         }
         Spacer(Modifier.height(3.dp))
-        Text(
-            "알려주시면 막내가 그 일에 맞게 답을 써요.",
-            fontSize = 11.5.sp, color = TossTextTertiary
-        )
+        com.detailline.callfollowcrm.presentation.component.HelpText("알려주시면 막내가 그 일에 맞게 답을 써요.")
         Spacer(Modifier.height(10.dp))
         androidx.compose.foundation.layout.FlowRow(
             horizontalArrangement = Arrangement.spacedBy(7.dp),

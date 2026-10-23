@@ -2428,9 +2428,13 @@ private fun CategoryPickerDialog(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)
         ) {
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-            Text("이 고객은 어디에 둘까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            val grpHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("customer_group_sheet")
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("이 고객은 어디에 둘까요?", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                com.detailline.callfollowcrm.presentation.component.HintInfoDot(grpHint)
+            }
             Spacer(Modifier.height(4.dp))
-            Text("나중에 묶어 보거나 찾을 때 써요", fontSize = 12.sp, color = TossTextTertiary)
+            com.detailline.callfollowcrm.presentation.component.FirstRunHintText(grpHint, "나중에 묶어 보거나 찾을 때 써요")
             Spacer(Modifier.height(14.dp))
 
             // 미분류 + 사장님 분류들. 2열 격자 — 홀수면 마지막 칸은 비운다(줄이 안 깨지게).
