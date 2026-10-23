@@ -218,6 +218,13 @@ class IntakeFormRepository(
                         val payload = itObj.optJSONObject("payload")
                         val survey = itObj.optJSONObject("survey")
                         fun JSONObject?.str(k: String) = this?.optString(k)?.takeIf { s -> s.isNotBlank() && s != "null" }
+                        // 유입경로("어디서 보셨어요?") — "네이버 블로그 · '줄눈'" 식 한 줄. survey = {source, category, keyword, etc} (2026-10-23 사장님)
+                        val inflow = survey.str("source")?.let { src ->
+                            val detail = if (src == "기타") survey.str("etc")
+                                else listOfNotNull(survey.str("category"), survey.str("keyword")?.let { kw -> "'$kw'" })
+                                    .joinToString(" · ").takeIf { it.isNotBlank() }
+                            if (detail != null) "$src · $detail" else src
+                        }
                         QuoteSubmission(
                             token = itObj.getString("token"),
                             customerName = itObj.optString("customerName"),
@@ -232,7 +239,7 @@ class IntakeFormRepository(
                             total = itObj.optInt("total"),
                             depositMode = itObj.optString("depositMode").takeIf { s -> s.isNotBlank() && s != "null" } ?: "none",
                             depositValue = itObj.optInt("depositValue"),
-                            source = survey.str("source"),
+                            source = inflow,
                             estimateItems = itObj.optJSONArray("estimate_items")?.let { arr ->
                                 (0 until arr.length()).mapNotNull { idx ->
                                     arr.optJSONObject(idx)?.optString("name")?.takeIf { nm -> nm.isNotBlank() && nm != "null" }

@@ -43,5 +43,8 @@ data class IntakeEventEntity(
      * 접수서가 들어왔을 때 **시공일을 일정에 넣은 결과** — 채팅 접수 카드에 또렷이 보이려 저장. (2026-10-21 사장님)
      *   값은 `IntakeScheduleState.wire` ("applied"/"kept"/"none"). null = 옛 행(표시 안 함).
      */
-    val scheduleState: String? = null
+    val scheduleState: String? = null,
+    /** 고객이 접수서에 적은 **유입경로**("어디서 보고 연락했나") — 읽기 좋은 한 줄("네이버 블로그 · '줄눈'").
+     *   서버 survey 에서 옴. null = 안 적었거나 옛 행. 접수 카드에 표시. (2026-10-23 사장님) */
+    val inflowSource: String? = null
 )

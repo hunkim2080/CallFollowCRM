@@ -1050,13 +1050,8 @@ internal fun JobDetailCard(
                         onRequestDelete = { host.onRequestDeleteDoc(it) },
                         onNewDoc = { host.onOpenChat() },
                     )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "$docKindLabel 다시 보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                            .clickable { host.onOpenChat() }.padding(vertical = 8.dp)
-                    )
+                    // 「접수서 다시 보내기」 풋터 제거 — 각 카드의 '새 접수서 보내기'/'링크 다시 보내기'와
+                    //   **같은 동작(onOpenChat)**이라 중복(버튼 두 개가 같은 일). (2026-10-23 사장님)
                 }
 
                 // ⋯ 더보기 펼침 — 📐 넘치면 다음 줄로. (2026-09-28 사장님 "디자인이.. 왜저래")

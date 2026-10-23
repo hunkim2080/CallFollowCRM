@@ -201,9 +201,12 @@ class IntakeSyncManager(private val container: AppContainer) {
                             itemsText = s.estimateItems.joinToString(", ").takeIf { it.isNotBlank() },
                             customerMemo = s.memo?.takeIf { it.isNotBlank() },
                             createdAt = System.currentTimeMillis(),
-                            scheduleState = scheduleState.wire
+                            scheduleState = scheduleState.wire,
+                            inflowSource = s.source   // 유입경로("어디서 보셨어요?") — 접수 카드에 표시. (2026-10-23 사장님)
                         )
                     )
+                    // 옛 행(저장 추가 전 제출)도 보이게 — 빈 inflowSource 채움(멱등).
+                    s.source?.let { container.intakeEventRepository.backfillInflow(s.token, it) }
                 }
 
                 if (notify) {

@@ -15016,3 +15016,12 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: 완료/돈 로직(핵심). 테스트 전체·가드 7종 통과, assembleRelease·testDebugUnitTest EXIT=0.
 - 폰 확인: 못 봄. ①미래 2차 완료 안 뜨나(재시작 치유) ②1차 끝내고 완료→1차에 ③못받은돈 제목=이름 ④1차완납 AS.
 - 다음 액션: (사장님) 폰 확인.
+
+## 2026-10-23 · android
+접수서 3종 (사장님 지적).
+- **① 유입경로 표시**: 고객이 접수서 "저희를 어디서 보셨어요?"에 답한 걸 앱이 **받아서 버렸다** → 저장+표시. `IntakeEventEntity.inflowSource`(DB v69→**v70**), `IntakeFormRepository`에서 survey(source/category/keyword/etc)를 "네이버 블로그 · '줄눈'" 한 줄로 파싱, `IntakeSyncManager`가 저장, **옛 제출분은 `backfillInflow`로 빈 것만 채움**(폴링 때), 고객상세 접수 카드에 「어디서 봤나: …」(CustomerDetailBits IssuedKv).
+- **② 버튼 중복**: 완료된 접수서에 '새 접수서 보내기'(카드) + '접수서 다시 보내기'(풋터)가 **둘 다 onOpenChat** = 같은 일 → 풋터 제거(CustomerDetailJobCard).
+- **③ 종알림에 접수서**: 벨 센터가 collab만 쌓던 걸 **collab+intake**로(NotificationHelper 게이트 1곳 + showIntakeSubmitted에 navTarget="intake"/navPhone 전달 → 탭하면 그 대화로). 센터 nav는 이미 intake 처리됨.
+- 변경: DB 마이그레이션 v70(ADD COLUMN, nullable 안전). 테스트 전체·가드 7종 통과, style 2417→2415.
+- 폰 확인: 못 봄. ①접수 카드에 유입경로(새 제출/재폴링) ②풋터 사라짐 ③접수서 제출 시 벨에 뜨고 탭→대화.
+- 다음 액션: (사장님) 폰 확인.

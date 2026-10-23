@@ -1207,13 +1207,13 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
-        // 🔔 알림 센터엔 **협업 관련만** 쌓는다. (2026-10-13 사장님)
-        //   문자·문의·부재중·접수서·통화요약·브리핑·정기문자는 상담함/다른 탭에 **이미 보여서** 여기 쌓으면 두 번 본다.
-        //   알림센터의 값어치 = "상담함에선 안 보이는 협업 현장 소식(도착·댓글·사진·일정변경·입금·해제)"만 한눈에.
-        if (logToCenter && typeForChannel(channelId) == "collab") {
-            // 센터엔 👥 아이콘 칩이 이미 있으니 제목은 이모지 없이(원본). 푸시 제목만 👥 를 붙인다.
+        // 🔔 알림 센터엔 **협업 + 시공접수서 제출**을 쌓는다. (2026-10-13 · 접수서 추가 2026-10-23 사장님)
+        //   접수서는 상담함에도 뜨지만 「손님이 접수서를 써냈다」는 꼭 챙겨야 할 소식이라 벨에서도 한눈에.
+        //   나머지(문자·문의·부재중·통화요약·브리핑·정기문자)는 상담함/다른 탭에 이미 보여서 여기 안 쌓는다.
+        val centerType = typeForChannel(channelId)
+        if (logToCenter && (centerType == "collab" || centerType == "intake")) {
             NotificationLog.record(
-                type = "collab", title = title, body = msg,
+                type = centerType, title = title, body = msg,
                 navTarget = navTarget, navPhone = navPhone, navCustomerId = navCustomerId, navShareId = navShareId,
             )
         }
@@ -1380,6 +1380,7 @@ object NotificationHelper {
             context, notifId, CHANNEL_INTAKE, ACCENT_PURPLE,
             title = "시공접수서 회신 도착",
             msg = msg,
+            navTarget = "intake", navPhone = phone,   // 🔔 벨 센터 탭 → 그 고객 대화로. (2026-10-23 사장님)
             // 📋 **안 한 일을 했다고 말하지 않는다.** (2026-09-28 페이블 지적)
             //   전엔 조건 없이 「주소·시공일이 자동 반영됐어요」였다. 그런데 카드에 이미 값이 있으면
             //   **아무것도 안 들어간다**(통화로 확정한 값을 보호하는 옳은 규칙). 단골은 늘 그 경우다.

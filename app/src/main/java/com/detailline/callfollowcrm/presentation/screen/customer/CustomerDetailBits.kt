@@ -860,6 +860,10 @@ internal fun IssuedDocRow(
             if (filled != null) IssuedKv("손님이 씀", stamp(filled.submittedAtMs), TossSuccess)
             else IssuedKv("손님이 씀", "아직", TossTextTertiary)
         }
+        // 🔎 유입경로 — 고객이 "저희를 어디서 보셨어요?" 에 답한 것. 마케팅에 중요. (2026-10-23 사장님)
+        if (!isQuote) filled?.inflowSource?.takeIf { it.isNotBlank() }?.let {
+            IssuedKv("어디서 봤나", it, TossTextPrimary)
+        }
 
         // 손님 메모만 남긴다 — 주소·시공일은 이 화면 위쪽에 이미 있고, 메모는 여기밖에 없다.
         filled?.customerMemo?.takeIf { it.isNotBlank() }?.let {
