@@ -1229,235 +1229,64 @@ fun CustomerDetailScreen(
     }   // Box(시트 오버레이 자리)
 
     if (datePickerOpen && customer != null) {
-        // 항공권식 기간 선택 — 시작일 → 끝날 탭하면 기간. 하루면 시작일만. (2026-08-01 사장님)
-        // DateRangePicker 는 밀리초를 UTC 로 해석 → 저장된 KST 자정을 그대로 주면 하루 일찍 보임. 로컬 오프셋 더해 보정. (2026-08-01)
-        val toUtcMidnight = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
-        // 「＋ 새 시공」으로 연 창은 **빈 달력**으로 시작한다. (2026-09-18 실기에서 발견)
-        //   전엔 지금 건 날짜가 미리 찍힌 채로 열려서, 다른 날을 누르면 그게 '끝날'이 되어
-        //   기간(10/6~10/20)이 잡혔다. 그대로 저장하면 시작일이 여전히 옛 날짜 → 같은 날 중복 가드에 걸려
-        //   "그 날짜엔 이미 시공이 있어요" 만 뜨고 **2차가 아예 안 만들어졌다.**
-        // 🔴 특정 건을 고치는 중이면 **그 건** 날짜로 미리 채운다 — 전엔 대표 건 날짜가 떠서 다른 날이 '끝날'로 잡혔다. (2026-10-14)
-        //   새 시공 시트에서 이미 고른 날짜가 있으면(「변경」) 그걸로 미리 채운다 — 처음이면 빈 달력.
+        // 🔴 특정 건을 고치는 중이면 **그 건** 날짜로 미리 채운다. 「＋ 새 시공」이면 빈 달력(새 날짜). (2026-10-14)
+        //   앱 공용 달력(WorkRangePickerDialog) — 전엔 여기만 Material3 범위선택이라 모양이 달랐다. (2026-10-24 통일)
         val initStart = if (addingNewJob) newJobStart else (dateEditJobId?.let { dateEditStart } ?: customer?.scheduledWorkDate)
         val initDays = if (addingNewJob) newJobDays.coerceAtLeast(1) else (if (dateEditJobId != null) dateEditDays else (customer?.scheduledWorkDays ?: 1)).coerceAtLeast(1)
-        val initEnd = initStart?.takeIf { initDays > 1 }?.let { it + (initDays - 1) * DateTimeUtils.DAY_MS }
-        val rangeState = androidx.compose.material3.rememberDateRangePickerState(
-            initialSelectedStartDateMillis = initStart?.let(toUtcMidnight),
-            initialSelectedEndDateMillis = initEnd?.let(toUtcMidnight)
-        )
-        Dialog(
-            onDismissRequest = { addingNewJob = false; datePickerOpen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize()
-                    // Dialog 는 별도 창이라 navigationBarsPadding 이 0 이다 → 창 바닥이 내비바 밑으로 들어간다.
-                    //   실측 2026-09-21: [예약 취소] 글씨 아래 절반이 내비바에 가렸다. (SystemBars.kt 헬퍼로 띄움)
-                    .bottomBarClearance(extra = 20.dp)
-                    .padding(horizontal = 12.dp, vertical = 20.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                    color = Color.White,
-                    tonalElevation = 0.dp,   // 6dp 면 흰 배경에 회색 톤이 덧입혀져 창이 칙칙해짐 → 0. (2026-08-02 사장님 '회색')
-                    shadowElevation = 12.dp,
-                    modifier = Modifier.fillMaxHeight(0.92f)
-                ) {
-                    Column {
-                        androidx.compose.material3.DateRangePicker(
-                            state = rangeState,
-                            modifier = Modifier.weight(1f),
-                            showModeToggle = false,
-                            // 기본 containerColor = 테마 surfaceContainerHigh(회색) → 창 전체가 회색으로 뜸. 흰색으로. (2026-08-02 사장님)
-                            colors = androidx.compose.material3.DatePickerDefaults.colors(
-                                containerColor = Color.White,
-                                selectedDayContainerColor = TossBlue,
-                                selectedDayContentColor = Color.White,
-                                todayDateBorderColor = TossBlue,
-                                todayContentColor = TossBlue,
-                                dayInSelectionRangeContainerColor = TossBlueSoft,
-                                dayInSelectionRangeContentColor = TossTextPrimary
-                            ),
-                            title = {
-                                Text(
-                                    // 새 건을 잡는 중이면 그렇다고 말해준다 — 지금 건을 고치는 걸로 오해하지 않게. (2026-09-18)
-                                    if (addingNewJob) "새 시공 — 시작일 → 끝날 (하루면 시작일만)"
-                                    else "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
-                                    fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
-                                )
-                            }
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            // 버튼 폭을 고정했더니 [예약 취소] 까지 한 줄에 안 들어가 **잘렸다**(2026-09-21 사장님).
-                            //   → 두 버튼은 **반반(weight)**, [예약 취소] 는 **아래 한 줄**로. 큰 글씨에서도 안 잘린다.
-                            androidx.compose.foundation.layout.Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                // 앱의 다른 창(금액 입력)과 같은 버튼 옷.
-                                com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
-                                    text = "취소",
-                                    onClick = { addingNewJob = false; datePickerOpen = false },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(Modifier.width(9.dp))
-                                com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
-                                    text = "저장",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        val start = rangeState.selectedStartDateMillis
-                                        if (start != null) {
-                                            val end = rangeState.selectedEndDateMillis
-                                            val days = if (end != null && end > start)
-                                                ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
-                                            if (addingNewJob) {
-                                                // 새 건 — 날짜는 시트로 돌려주기만. 저장은 시트의 [새 시공 등록](주소·총액과 함께). (2026-10-15)
-                                                newJobStart = start; newJobDays = days
-                                            } else {
-                                                // 날짜(시작) + 기간(며칠) 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
-                                                pendingWorkDays = days.coerceAtLeast(1)
-                                                val jid = dateEditJobId
-                                                if (jid != null) {
-                                                    // 🔴 **그 건**에 저장 — 2차를 보며 잡으면 2차에 들어간다. (2026-10-14 사장님)
-                                                    pendingCelebrate = dateEditStart == null
-                                                    viewModel.setJobSchedule(jid, start, days)
-                                                } else {
-                                                    // 폴백: 아직 건이 없으면 고객(대표) 경로.
-                                                    pendingCelebrate = customer?.scheduledWorkDate == null
-                                                    viewModel.updateScheduledWorkDate(start)
-                                                }
-                                                workTimePickerOpen = true
-                                            }
-                                        }
-                                        addingNewJob = false
-                                        datePickerOpen = false
-                                    }
-                                )
-                            }
-                            // 예약 취소(일정 비우기) — 되돌리는 일이라 **아래 한 줄**, 조용한 빨간 글씨.
-                            //   (2026-06-08 #6 · 자리 옮김 2026-09-21)
-                            // ⚠️ '새 시공 추가' 중엔 숨긴다 — 그 창에서 누르면 지금 추가하려던 게 아니라
-                            //    **원래 잡혀 있던 시공**이 지워진다. (2026-09-21 사장님 신고에서 발견)
-                            if (!addingNewJob && customer?.scheduledWorkDate != null) {
-                                Spacer(Modifier.height(4.dp))
-                                TextButton(
-                                    onClick = {
-                                        viewModel.updateScheduledWorkDate(null)
-                                        datePickerOpen = false
-                                        android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("예약 취소", color = TossError, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                }
-                            }
-                        }
+        com.detailline.callfollowcrm.presentation.component.WorkRangePickerDialog(
+            // 새 건을 잡는 중이면 그렇다고 말해준다 — 지금 건을 고치는 걸로 오해하지 않게. (2026-09-18)
+            title = if (addingNewJob) "새 시공 — 시작일 → 끝날 (하루면 시작일만)"
+                    else "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
+            initialStart = initStart,
+            initialDays = initDays,
+            // 예약 취소(일정 비우기) — '새 시공 추가' 중엔 숨긴다(원래 잡힌 시공이 지워짐). (2026-09-21)
+            clearText = if (!addingNewJob && customer?.scheduledWorkDate != null) "예약 취소" else null,
+            onClear = {
+                viewModel.updateScheduledWorkDate(null)
+                android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
+            },
+            onConfirm = { start, days ->
+                if (addingNewJob) {
+                    // 새 건 — 날짜는 시트로 돌려주기만. 저장은 시트의 [새 시공 등록]. (2026-10-15)
+                    newJobStart = start; newJobDays = days
+                } else {
+                    // 날짜(시작)+기간 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
+                    pendingWorkDays = days.coerceAtLeast(1)
+                    val jid = dateEditJobId
+                    if (jid != null) {
+                        // 🔴 **그 건**에 저장 — 2차를 보며 잡으면 2차에 들어간다. (2026-10-14 사장님)
+                        pendingCelebrate = dateEditStart == null
+                        viewModel.setJobSchedule(jid, start, days)
+                    } else {
+                        pendingCelebrate = customer?.scheduledWorkDate == null
+                        viewModel.updateScheduledWorkDate(start)
                     }
+                    workTimePickerOpen = true
                 }
-            }
-        }
+                addingNewJob = false
+            },
+            onDismiss = { addingNewJob = false; datePickerOpen = false }
+        )
     }
 
-    // A/S 예약(시공과 별개, 무료) — 항공권식 기간 범위선택. 시간 없음(A/S 는 날짜/기간만). (2026-08-01 사장님)
+    // A/S 예약(시공과 별개, 무료) — 공용 달력, A/S 는 **주황** 강조로 시공과 구분. (2026-08-01 · 통일 2026-10-24)
     if (asPickerOpen && customer != null) {
-        val toUtcMidnightAs = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
-        val asStart = customer?.asScheduledDate
-        val asDays = (customer?.asScheduledDays ?: 1).coerceAtLeast(1)
-        val asEnd = asStart?.takeIf { asDays > 1 }?.let { it + (asDays - 1) * DateTimeUtils.DAY_MS }
-        val asRangeState = androidx.compose.material3.rememberDateRangePickerState(
-            initialSelectedStartDateMillis = asStart?.let(toUtcMidnightAs),
-            initialSelectedEndDateMillis = asEnd?.let(toUtcMidnightAs)
+        com.detailline.callfollowcrm.presentation.component.WorkRangePickerDialog(
+            title = "A/S 예약 — 시작일 → 끝날 (하루면 시작일만) · 무료",
+            initialStart = customer?.asScheduledDate,
+            initialDays = (customer?.asScheduledDays ?: 1).coerceAtLeast(1),
+            // A/S 주황 강조(2026-08-02). 모양은 시공 달력과 같고 색만 다르다.
+            accent = Color(0xFFF5920B),
+            rangeBg = AppTheme.colors.cautionBg,
+            titleColor = Color(0xFFF5920B),
+            clearText = if (customer?.asScheduledDate != null) "A/S 취소" else null,
+            onClear = {
+                viewModel.updateAsSchedule(null, 1)
+                android.widget.Toast.makeText(context, "A/S 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
+            },
+            onConfirm = { start, days -> viewModel.updateAsSchedule(start, days.coerceAtLeast(1)) },
+            onDismiss = { asPickerOpen = false }
         )
-        Dialog(
-            onDismissRequest = { asPickerOpen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize()
-                    // Dialog 는 별도 창이라 navigationBarsPadding 이 0 이다 → 창 바닥이 내비바 밑으로 들어간다.
-                    //   실측 2026-09-21: [예약 취소] 글씨 아래 절반이 내비바에 가렸다. (SystemBars.kt 헬퍼로 띄움)
-                    .bottomBarClearance(extra = 20.dp)
-                    .padding(horizontal = 12.dp, vertical = 20.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                    color = Color.White, tonalElevation = 0.dp, shadowElevation = 12.dp,
-                    modifier = Modifier.fillMaxHeight(0.92f)
-                ) {
-                    Column {
-                        androidx.compose.material3.DateRangePicker(
-                            state = asRangeState,
-                            modifier = Modifier.weight(1f),
-                            showModeToggle = false,
-                            // 창 회색 제거 + A/S 주황 강조. (2026-08-02 사장님)
-                            colors = androidx.compose.material3.DatePickerDefaults.colors(
-                                containerColor = Color.White,
-                                selectedDayContainerColor = Color(0xFFF5920B),
-                                selectedDayContentColor = Color.White,
-                                todayDateBorderColor = Color(0xFFF5920B),
-                                todayContentColor = Color(0xFFF5920B),
-                                dayInSelectionRangeContainerColor = AppTheme.colors.cautionBg,
-                                dayInSelectionRangeContentColor = TossTextPrimary
-                            ),
-                            title = {
-                                Text(
-                                    "A/S 예약 — 시작일 → 끝날 (하루면 시작일만) · 무료",
-                                    fontSize = 13.sp, color = Color(0xFFF5920B), fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
-                                )
-                            }
-                        )
-                        androidx.compose.foundation.layout.Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            if (customer?.asScheduledDate != null) {
-                                TextButton(onClick = {
-                                    viewModel.updateAsSchedule(null, 1)
-                                    asPickerOpen = false
-                                    android.widget.Toast.makeText(context, "A/S 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
-                                }) { Text("A/S 취소", color = TossError, fontWeight = FontWeight.SemiBold) }
-                            } else {
-                                Spacer(Modifier.width(1.dp))
-                            }
-                            androidx.compose.foundation.layout.Row(
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                // 날짜 창 버튼 옷 통일 — 앱의 다른 창(금액 입력)과 같게. (2026-09-21 사장님)
-                                com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
-                                    text = "취소",
-                                    onClick = { asPickerOpen = false },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(Modifier.width(9.dp))
-                                com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
-                                    text = "저장",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        val start = asRangeState.selectedStartDateMillis
-                                        if (start != null) {
-                                            val end = asRangeState.selectedEndDateMillis
-                                            val days = if (end != null && end > start)
-                                                ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
-                                            viewModel.updateAsSchedule(start, days.coerceAtLeast(1))
-                                        }
-                                        asPickerOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     // 시공일 저장 직후 "시공 시간" 선택. 정하면(또는 닫으면) 첫 등록이면 축하. (2026-06-23 사장님)

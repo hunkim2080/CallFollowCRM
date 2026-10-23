@@ -251,12 +251,12 @@ fun ScheduleAddScreen(
                         modifier = Modifier.padding(start = 2.dp, bottom = 6.dp)
                     )
                 }
-                InlineMonthCalendar(
+                // 앱 공용 달력 — 전엔 여기만 회색 미니달력이라 모양이 달랐다. (2026-10-24 통일)
+                com.detailline.callfollowcrm.presentation.component.WorkRangeCalendar(
                     monthAnchor = monthAnchor,
-                    selectedDayMs = dayMs,
-                    rangeEndMs = if (workMode) dayMs else endDayMs,
-                    onShiftMonth = { monthAnchor = DateTimeUtils.shiftMonth(monthAnchor, it) },
-                    onSelect = { picked ->
+                    startMs = dayMs,
+                    endMs = if (workMode) dayMs else endDayMs,
+                    onPick = { picked ->
                         if (workMode) { dayMs = picked }
                         else if (!pickingEnd) { dayMs = picked; endDayMs = picked; pickingEnd = true }
                         else {
@@ -831,106 +831,7 @@ private fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** 프로토 시트 달력 nav — 흰색 둥근 사각 버튼. */
-@Composable
-private fun SheetCalNav(icon: androidx.compose.ui.graphics.vector.ImageVector, cd: String, onClick: () -> Unit) {
-    Box(
-        Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color.White).clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, cd, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
-    }
-}
-
-/** 프로토 .mini-cal — 인라인 월 달력(선택형). 회색 카드 + 월 nav + 6주 그리드. */
-@Composable
-private fun InlineMonthCalendar(
-    monthAnchor: Long,
-    selectedDayMs: Long,
-    onShiftMonth: (Int) -> Unit,
-    onSelect: (Long) -> Unit,
-    /** 범위 끝(간단 일정 여러 날). selectedDayMs 와 같으면 하루(범위 없음). (2026-10-08 사장님) */
-    rangeEndMs: Long = selectedDayMs
-) {
-    val todayStart = remember { DateTimeUtils.startOfDay(System.currentTimeMillis()) }
-    val cells = remember(monthAnchor) { buildSelectCells(monthAnchor, todayStart) }
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossGrayBg)
-            .padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 9.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            SheetCalNav(Icons.Default.ChevronLeft, "이전 달") { onShiftMonth(-1) }
-            Text(DateTimeUtils.formatMonthHeader(monthAnchor), modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium, color = TossTextPrimary,
-                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            SheetCalNav(Icons.Default.ChevronRight, "다음 달") { onShiftMonth(1) }
-        }
-        Row(Modifier.fillMaxWidth()) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, label ->
-                Text(label, modifier = Modifier.weight(1f).padding(vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary },
-                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            }
-        }
-        repeat(6) { week ->
-            Row(Modifier.fillMaxWidth()) {
-                cells.subList(week * 7, week * 7 + 7).forEach { cell ->
-                    val startDay = DateTimeUtils.startOfDay(selectedDayMs)
-                    val endDay = DateTimeUtils.startOfDay(rangeEndMs)
-                    val hasRange = endDay > startDay
-                    val isStart = hasRange && cell.dayStartMs == startDay
-                    val isEnd = hasRange && cell.dayStartMs == endDay
-                    val isSel = cell.dayStartMs == startDay || cell.dayStartMs == endDay   // 범위 양끝
-                    val inRange = cell.dayStartMs > startDay && cell.dayStartMs < endDay    // 사이 날
-                    val fg = when {
-                        isSel -> Color.White
-                        !cell.inMonth -> TossTextTertiary
-                        cell.dow == Calendar.SUNDAY -> TossError
-                        cell.dow == Calendar.SATURDAY -> TossBlue
-                        else -> TossTextPrimary
-                    }
-                    Box(
-                        Modifier.weight(1f).aspectRatio(1f).clickable { onSelect(cell.dayStartMs) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // 범위 띠 — 셀을 좌/우 반으로 나눠 이어 붙이면 구글처럼 **연속된 띠**가 된다.
-                        //   양끝 셀은 알(파란 동그라미) 바깥쪽 반만 띠로 채운다. (2026-10-08 사장님 "강조 약해")
-                        if (hasRange && (inRange || isStart || isEnd)) {
-                            val bandColor = TossBlue.copy(alpha = 0.16f)
-                            Row(Modifier.matchParentSize().padding(vertical = 4.dp)) {
-                                Box(
-                                    Modifier.weight(1f).fillMaxHeight()
-                                        .background(if (isStart) Color.Transparent else bandColor)
-                                )
-                                Box(
-                                    Modifier.weight(1f).fillMaxHeight()
-                                        .background(if (isEnd) Color.Transparent else bandColor)
-                                )
-                            }
-                        }
-                        Box(
-                            Modifier.fillMaxSize().padding(2.dp).clip(CircleShape)
-                                .background(
-                                    when {
-                                        isSel -> TossBlue
-                                        !hasRange && cell.isToday -> TossBlueSoft
-                                        else -> Color.Transparent
-                                    }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                cell.dom.toString(), color = fg, fontSize = 13.sp,
-                                fontWeight = if (cell.isToday || isSel) FontWeight.Bold else FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+// 시트 달력은 공용 WorkRangeCalendar 로 옮겼다(앱 전체 한 모양). (2026-10-24 통일)
 
 
 /** 새 거래처 추가 다이얼로그 (프로토 addPartner). */
@@ -965,32 +866,6 @@ private fun NewVendorDialog(
             }
         }
     }
-}
-
-// ── 인라인 달력 셀 ──
-private data class SelCell(val dayStartMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean)
-
-// 📅 달 경계 셈은 **DateTimeUtils 한 곳**. (2026-10-02 — 같은 셈이 글자 여섯 가지로 흩어져 있었다)
-
-
-private fun buildSelectCells(monthAnchor: Long, todayStart: Long): List<SelCell> {
-    val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }
-    val targetMonth = cal.get(Calendar.MONTH)
-    val firstDow = cal.get(Calendar.DAY_OF_WEEK)
-    cal.add(Calendar.DAY_OF_MONTH, -(firstDow - 1))
-    val cells = ArrayList<SelCell>(42)
-    repeat(42) {
-        val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
-        cells += SelCell(
-            dayStartMs = dayStart,
-            dom = cal.get(Calendar.DAY_OF_MONTH),
-            dow = cal.get(Calendar.DAY_OF_WEEK),
-            inMonth = cal.get(Calendar.MONTH) == targetMonth,
-            isToday = dayStart == todayStart
-        )
-        cal.add(Calendar.DAY_OF_MONTH, 1)
-    }
-    return cells
 }
 
 /** 시공 시작 시각 빠른 선택 (라벨 → 자정부터 분). */

@@ -1889,83 +1889,19 @@ fun ChatScreen(
     // AI 제안 박스의 [시공일 등록] 액션 — DatePicker → CustomerEntity.scheduledWorkDate.
     // 등록 후 자동으로 "계약금 안내문도 만들어드릴까요?" 다이얼로그 표시 (P3 통합 흐름).
     if (showDatePicker) {
-        // 항공권식 기간 선택 — 시작일 → 끝날 탭하면 기간. 하루면 시작일만. (2026-08-01 사장님)
-        //   DateRangePicker 는 UTC 해석 → KST 자정을 로컬 오프셋만큼 보정해 하루 밀림 방지.
-        val rangeState = androidx.compose.material3.rememberDateRangePickerState(
-            initialSelectedStartDateMillis = customer?.scheduledWorkDate?.let { it + java.util.TimeZone.getDefault().getOffset(it) }
+        // 앱 공용 달력(WorkRangePickerDialog) — 전엔 여기만 Material3 범위선택이라 모양이 달랐다. (2026-10-24 통일)
+        com.detailline.callfollowcrm.presentation.component.WorkRangePickerDialog(
+            title = "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
+            initialStart = customer?.scheduledWorkDate,
+            initialDays = (customer?.scheduledWorkDays ?: 1).coerceAtLeast(1),
+            confirmText = "등록",
+            onConfirm = { start, days ->
+                pendingWorkDays = days.coerceAtLeast(1)
+                viewModel.setScheduledWorkDate(start)
+                pendingScheduleTimeMs = start   // 날짜 등록 후 "시공 시간" 선택으로 이어감
+            },
+            onDismiss = { showDatePicker = false }
         )
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showDatePicker = false },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize()
-                    // Dialog 는 별도 창이라 navigationBarsPadding 이 0 이다 → 창 바닥이 내비바 밑으로 들어간다.
-                    //   실측 2026-09-21: [예약 취소] 글씨 아래 절반이 내비바에 가렸다. (SystemBars.kt 헬퍼로 띄움)
-                    .bottomBarClearance(extra = 20.dp)
-                    .padding(horizontal = 12.dp, vertical = 20.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                    color = Color.White, tonalElevation = 0.dp, shadowElevation = 12.dp,
-                    modifier = Modifier.fillMaxHeight(0.92f)
-                ) {
-                    androidx.compose.foundation.layout.Column {
-                        androidx.compose.material3.DateRangePicker(
-                            state = rangeState,
-                            modifier = Modifier.weight(1f),
-                            showModeToggle = false,
-                            // 기본 containerColor(테마 회색) → 흰색. 창 칙칙함 제거. (2026-08-02 사장님)
-                            colors = androidx.compose.material3.DatePickerDefaults.colors(
-                                containerColor = Color.White,
-                                selectedDayContainerColor = TossBlue,
-                                selectedDayContentColor = Color.White,
-                                todayDateBorderColor = TossBlue,
-                                todayContentColor = TossBlue,
-                                dayInSelectionRangeContainerColor = TossBlueSoft,
-                                dayInSelectionRangeContentColor = TossTextPrimary
-                            ),
-                            title = {
-                                Text(
-                                    "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
-                                    fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
-                                )
-                            }
-                        )
-                        androidx.compose.foundation.layout.Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            // 날짜 창 버튼 옷 통일 — 앱의 다른 창과 같게. (2026-09-21 사장님)
-                            com.detailline.callfollowcrm.presentation.component.TossSecondaryButton(
-                                text = "취소",
-                                onClick = { showDatePicker = false },
-                                modifier = Modifier.weight(1f)
-                            )
-                            Spacer(Modifier.width(9.dp))
-                            com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
-                                text = "등록",
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    val start = rangeState.selectedStartDateMillis
-                                    if (start != null) {
-                                        val end = rangeState.selectedEndDateMillis
-                                        val days = if (end != null && end > start)
-                                            ((end - start) / com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS).toInt() + 1 else 1
-                                        pendingWorkDays = days.coerceAtLeast(1)
-                                        viewModel.setScheduledWorkDate(start)
-                                        pendingScheduleTimeMs = start   // 날짜 등록 후 "시공 시간" 선택으로 이어감
-                                    }
-                                    showDatePicker = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 
     // 시공일 등록 직후 "시공 시간" 선택 — 정한 뒤 계약금 안내 제안으로 이어감. (2026-06-23 사장님)
@@ -4809,15 +4745,13 @@ private fun EstimateBuilderDialog(
                 Spacer(Modifier.height(AppSpace.s24))
                 EstLabelRow("시공일", estDateLabel(workDateMs, workEndMs), dim = workDateMs == null)
                 Spacer(Modifier.height(AppSpace.s12))
-                EstInlineCalendar(
-                    estCalMonth, workDateMs, workEndMs,
-                    onShiftMonth = { estCalMonth = DateTimeUtils.shiftMonth(estCalMonth, it) },
+                com.detailline.callfollowcrm.presentation.component.WorkRangeCalendar(
+                    monthAnchor = estCalMonth,
+                    startMs = workDateMs,
+                    endMs = workEndMs,
                     onPick = { day ->
-                        // 한 번 = 시작일, 그 뒤 **더 나중 날을 한 번 더** = 끝날. 그 외에는 다시 시작.
-                        //   (프로토는 마우스로 끄는 방식이지만, 폰에선 끄는 게 안 먹는다 — 두 번 누르기로 옮겼다.)
-                        val st0 = workDateMs
-                        if (st0 == null || workEndMs != null || day <= st0) { workDateMs = day; workEndMs = null }
-                        else workEndMs = day
+                        val (s, e) = com.detailline.callfollowcrm.domain.schedule.RangePick.tap(workDateMs, workEndMs, day)
+                        workDateMs = s; workEndMs = e
                     }
                 )
                 Spacer(Modifier.height(AppSpace.s8))
@@ -5486,130 +5420,7 @@ private fun EstSmallChip(label: String, selected: Boolean, onClick: () -> Unit) 
     }
 }
 
-private data class EstCell(val dayMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean, val isPast: Boolean)
-
-private const val EST_PAGER_CENTER = 1200
-private const val EST_PAGER_COUNT = 2400   // ±100개월
-
-
-private fun buildEstCells(anchor: Long): List<EstCell> {
-    val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
-    val cal = java.util.Calendar.getInstance().apply { timeInMillis = anchor }
-    val month = cal.get(java.util.Calendar.MONTH)
-    val firstDow = cal.get(java.util.Calendar.DAY_OF_WEEK)
-    cal.add(java.util.Calendar.DAY_OF_MONTH, -(firstDow - 1))
-    return (0 until 42).map {
-        val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
-        val cell = EstCell(
-            dayStart, cal.get(java.util.Calendar.DAY_OF_MONTH), cal.get(java.util.Calendar.DAY_OF_WEEK),
-            cal.get(java.util.Calendar.MONTH) == month, dayStart == today, dayStart < today
-        )
-        cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
-        cell
-    }
-}
-
-/**
- * 시공일 달력 — **일정 탭 달력의 축소판.** (2026-09-24 사장님)
- *   "우리 달력 디자인 일정에 나오는 그 달력이 이쁜데 그 달력 축소판이 깔끔하지 않을까?"
- *
- * 일정 탭(ScheduleScreen.CalendarDay)과 같은 인상으로 맞췄다 —
- *   흰 바탕 카드 · 일=빨강/토=파랑 · 날짜는 칸 **왼쪽 위 작은 원** 안에 · 오늘은 파란 원 ·
- *   고른 칸은 연한 파랑(primaryBg).
- * 다른 건 **칸 높이 하나뿐**이다. 일정 탭은 날짜 밑에 일정 막대가 들어가야 해서 62dp 인데,
- * 여기선 막대가 없으니 34dp 로 낮췄다. 그래서 축소판이다.
- *
- * 그리고 **기간**을 받는다 — 한 번 누르면 시작일, 더 나중 날을 한 번 더 누르면 끝날.
- * 며칠 걸리는 공사인지는 여기서 저절로 나오므로 '시공 기간' 칩은 없앴다.
- */
-@Composable
-private fun EstInlineCalendar(
-    monthAnchor: Long,
-    startMs: Long?,
-    endMs: Long?,
-    onShiftMonth: (Int) -> Unit,
-    onPick: (Long) -> Unit
-) {
-    // 월 전환 = HorizontalPager (일정 탭처럼 옆으로 쓸면 한 달씩). monthAnchor = 시작 월. (2026-06-30 사장님)
-    val base = remember { monthAnchor }
-    val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = EST_PAGER_CENTER) { EST_PAGER_COUNT }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val viewed by remember {
-        androidx.compose.runtime.derivedStateOf { DateTimeUtils.shiftMonth(base, pagerState.currentPage - EST_PAGER_CENTER) }
-    }
-    // 회색 상자가 아니라 **흰 카드** — 일정 탭 달력과 같은 바탕. (2026-09-24 사장님)
-    Column(
-        Modifier.fillMaxWidth().clip(AppShape.lg)
-            .background(Color.White)
-            .border(1.dp, TossDivider, AppShape.lg)
-            .padding(horizontal = 10.dp, vertical = AppSpace.s12)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White)
-                .clickable { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
-                contentAlignment = Alignment.Center) { Text("‹", fontSize = 16.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold) }
-            Text(DateTimeUtils.formatMonthHeader(viewed), modifier = Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 15.sp,
-                fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White)
-                .clickable { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
-                contentAlignment = Alignment.Center) { Text("›", fontSize = 16.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold) }
-        }
-        Row(Modifier.fillMaxWidth()) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
-                Text(d, modifier = Modifier.weight(1f).padding(vertical = 4.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 11.sp,
-                    color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary }, fontWeight = FontWeight.SemiBold)
-            }
-        }
-        val s0 = startMs?.let { DateTimeUtils.startOfDay(it) }
-        val e0 = endMs?.let { DateTimeUtils.startOfDay(it) }
-        androidx.compose.foundation.pager.HorizontalPager(state = pagerState, verticalAlignment = Alignment.Top) { page ->
-            val cells = buildEstCells(DateTimeUtils.shiftMonth(base, page - EST_PAGER_CENTER))
-            Column(Modifier.fillMaxWidth()) {
-                repeat(6) { w ->
-                    Row(Modifier.fillMaxWidth()) {
-                        cells.subList(w * 7, w * 7 + 7).forEach { cell ->
-                            // 고른 날 = 시작일, 끝날, 그리고 그 사이 모든 날. 셋 다 같은 연파랑 —
-                            //   프로토 .pick 과 같다. 기간이 '한 덩어리'로 보여야 며칠인지 눈에 들어온다.
-                            val picked = s0 != null && (
-                                cell.dayMs == s0 || (e0 != null && cell.dayMs > s0 && cell.dayMs <= e0)
-                            )
-                            val fg = when {
-                                cell.isToday -> Color.White
-                                picked -> TossBlue
-                                !cell.inMonth || cell.isPast -> TossTextTertiary
-                                cell.dow == java.util.Calendar.SUNDAY -> TossError
-                                cell.dow == java.util.Calendar.SATURDAY -> TossBlue
-                                else -> TossTextSecondary
-                            }
-                            Box(
-                                Modifier.weight(1f).height(34.dp).padding(horizontal = 1.dp)
-                                    .clip(AppShape.sm)
-                                    .background(if (picked) AppTheme.colors.primaryBg else Color.Transparent)
-                                    .clickable { onPick(cell.dayMs) }
-                            ) {
-                                // 날짜 = 칸 **왼쪽 위 작은 원** 안에. 오늘만 파란 원. (일정 탭과 같음)
-                                Box(
-                                    Modifier.padding(start = 3.dp, top = 4.dp).size(20.dp).clip(CircleShape)
-                                        .background(if (cell.isToday) TossBlue else Color.Transparent),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        cell.dom.toString(), color = fg,
-                                        fontSize = 11.sp,
-                                        lineHeight = 11.sp,   // 테마 lineHeight 물려받으면 원 안에서 글자가 내려앉는다
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+// 시공일 달력은 공용 WorkRangeCalendar 로 옮겼다(앱 전체 한 모양). (2026-10-24 통일)
 
 
 /** 시공일 라벨 — "9/16(수) · 당일" / "9/16(수)~9/18(금) · 3일" / "고르지 않음". */

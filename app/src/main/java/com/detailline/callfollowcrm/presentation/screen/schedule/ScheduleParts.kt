@@ -278,51 +278,15 @@ internal fun SimpleEventEditDialog(
     }
 
     if (datePickerOpen) {
-        // 등록 화면과 같은 방식 — 시작·끝을 찍어 기간을 정한다. (v64, 2026-10-08 사장님)
-        val toUtcMidnight = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
-        val fromUtc = { ms: Long -> DateTimeUtils.startOfDay(ms - java.util.TimeZone.getDefault().getOffset(ms)) }
-        val endMs = dayMs + (days.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
-        val rangeState = androidx.compose.material3.rememberDateRangePickerState(
-            initialSelectedStartDateMillis = toUtcMidnight(dayMs),
-            initialSelectedEndDateMillis = toUtcMidnight(endMs)
+        // 앱 공용 달력 — 전엔 여기만 Material3 범위선택이라 모양이 달랐다. (2026-10-24 통일)
+        com.detailline.callfollowcrm.presentation.component.WorkRangePickerDialog(
+            title = "날짜 — 시작일 → 끝날 (하루면 시작일만)",
+            initialStart = dayMs,
+            initialDays = days.coerceAtLeast(1),
+            confirmText = "확인",
+            onConfirm = { start, d -> dayMs = start; days = d.coerceAtLeast(1) },
+            onDismiss = { datePickerOpen = false }
         )
-        androidx.compose.material3.DatePickerDialog(
-            onDismissRequest = { datePickerOpen = false },
-            colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = Color.White),
-            tonalElevation = 0.dp,
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    val s = rangeState.selectedStartDateMillis
-                    if (s != null) {
-                        val startLocal = fromUtc(s)
-                        val endLocal = rangeState.selectedEndDateMillis?.let { fromUtc(it) } ?: startLocal
-                        dayMs = startLocal
-                        days = (((endLocal - startLocal) / DateTimeUtils.DAY_MS).toInt() + 1).coerceAtLeast(1)
-                    }
-                    datePickerOpen = false
-                }) { Text("확인", color = TossBlue, fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { datePickerOpen = false }) { Text("취소") }
-            }
-        ) {
-            androidx.compose.material3.DateRangePicker(
-                state = rangeState,
-                title = null,
-                headline = null,
-                showModeToggle = false,
-                colors = androidx.compose.material3.DatePickerDefaults.colors(
-                    containerColor = Color.White,
-                    selectedDayContainerColor = TossBlue,
-                    selectedDayContentColor = Color.White,
-                    dayInSelectionRangeContainerColor = TossBlue.copy(alpha = 0.18f),
-                    dayInSelectionRangeContentColor = TossTextPrimary,
-                    todayDateBorderColor = TossBlue,
-                    todayContentColor = TossBlue
-                ),
-                modifier = Modifier.heightIn(max = 520.dp)
-            )
-        }
     }
 }
 
