@@ -345,7 +345,7 @@ private fun HeaderCard(emoji: String, title: String, subtitle: String) {
     ) {
         Text("$emoji  $title", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
         Spacer(Modifier.height(6.dp))
-        Text(subtitle, fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
+        com.detailline.callfollowcrm.presentation.component.HelpText(subtitle)
     }
 }
 

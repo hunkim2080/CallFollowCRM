@@ -216,10 +216,7 @@ private fun QuietHoursSection(
             Column(Modifier.weight(1f)) {
                 Text("방해금지 시간", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Spacer(Modifier.height(3.dp))
-                Text(
-                    "이 시간엔 소리·진동 없이 조용히 알림만 와요. (놓치지 않아요)",
-                    fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 17.sp
-                )
+                com.detailline.callfollowcrm.presentation.component.HelpText("이 시간엔 소리·진동 없이 조용히 알림만 와요. (놓치지 않아요)")
             }
             Spacer(Modifier.width(10.dp))
             Switch(

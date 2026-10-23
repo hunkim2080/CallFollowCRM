@@ -1462,9 +1462,8 @@ fun HomeScreen(
                         }
                     }
                     item(key = "owe-hint") {
-                        Text(
-                            "줄을 누르면 잔금 요청 문자를 쓸 수 있어요 · 꾹 누르면 '받음' 처리", fontSize = 11.5.sp,
-                            color = TossTextTertiary,
+                        com.detailline.callfollowcrm.presentation.component.HelpText(
+                            "줄을 누르면 잔금 요청 문자를 쓸 수 있어요 · 꾹 누르면 '받음' 처리",
                             modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 2.dp)
                         )
                     }

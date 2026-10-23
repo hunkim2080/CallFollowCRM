@@ -625,7 +625,7 @@ private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismi
             com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
             Text("시공 기간", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
-            Text("며칠 동안 하나요?", fontSize = 12.sp, color = TossTextTertiary)
+            com.detailline.callfollowcrm.presentation.component.HelpText("며칠 동안 하나요?")
             Spacer(Modifier.height(12.dp))
             SheetTextField(txt, { txt = it.filter { c -> c.isDigit() }.take(3) }, placeholder = "예: 10",
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)

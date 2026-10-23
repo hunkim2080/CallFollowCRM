@@ -796,7 +796,7 @@ fun CustomerDetailScreen(
                     Text(displayAddr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
                     if (manualAddress == null) {
                         Spacer(Modifier.height(3.dp))
-                        Text("문자에서 자동 인식 · 눌러서 확정/수정", fontSize = 11.sp, color = TossTextTertiary)
+                        com.detailline.callfollowcrm.presentation.component.HelpText("문자에서 자동 인식 · 눌러서 확정/수정")
                     }
                     androidx.compose.foundation.layout.Box(
                         Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(13.dp))
@@ -1169,7 +1169,7 @@ fun CustomerDetailScreen(
                 Column(Modifier.weight(1f)) {
                     Text("블로그 후기 글 만들기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(2.dp))
-                    Text("대화+사진으로 포스팅 글 자동 작성", fontSize = 12.sp, color = TossTextTertiary)
+                    com.detailline.callfollowcrm.presentation.component.HelpText("대화+사진으로 포스팅 글 자동 작성")
                 }
                 Text(
                     "비즈니스", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,

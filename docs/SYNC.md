@@ -14958,3 +14958,12 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: UI만(도메인·DB·API 변화 없음). style 2449→2431(손값 18 줄), 공용 42개, 가드 7종 통과.
 - 폰 확인: 못 봄(assembleRelease EXIT=0, compile EXIT=0). 각 시트 처음 열 때 설명 뜨고→닫고 다시 열면 없음→제목 옆 ⓘ 누르면 다시 뜨는지.
 - 다음 액션: (사장님) Play 거부 해결=최신빌드 재제출 + Console 앱 액세스 마스터번호·코드 대조. (android) 설명글 2차(선택)·보편UX.
+
+## 2026-10-23 · android
+설명글 2차 — **남은 상설 부제도 모양 통일**(HelpText, 11.5sp·textHint). (사장님 "남은 것도 크기 통일")
+- 통일(항상 유지): 사업자정보 3·설정 토글 5·소리설정 1·일정추가(며칠)·홈(잔금 줄 안내)·고객상세 2(자동인식·블로그후기)·PricingExtract HeaderCard(2곳 렌더러).
+- 이미 표준이라 안 건드림: CustomerDetailBits 2·CustomerCollabParts·ScheduleScreen(이미 11.5 caption), Expo T3(11.5·textHint 동일).
+- 그대로 둠(다른 역할): 빈화면(MascotEmptyState 접근성 진하게)·섹션부제(SectionSub, 굵은 머리)·도움말 팝업·Expo 상태글(T2 강조).
+- 변경: UI만. style 2449→**2417**(손값 32 줄, 기준선 갱신). 가드 7종 통과, assembleRelease EXIT=0.
+- 폰 확인: 못 봄. (설명글은 이제 색·크기 다 같은 흐린 11.5)
+- 다음 액션: (사장님) 폰 확인 + Play 재제출. (android) 보편UX.

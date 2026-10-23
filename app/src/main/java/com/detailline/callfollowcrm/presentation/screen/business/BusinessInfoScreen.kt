@@ -252,9 +252,8 @@ fun BusinessInfoScreen(
                 Text("견적서·사업자 정보", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
                     color = TossTextPrimary, letterSpacing = (-0.4).sp)
                 Spacer(Modifier.height(4.dp))
-                // 프로토 sh-sub
-                Text("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.",
-                    fontSize = 12.5.sp, color = TossTextTertiary)
+                // 프로토 sh-sub (설명글 모양 통일 — 공용 HelpText. 2026-10-23)
+                com.detailline.callfollowcrm.presentation.component.HelpText("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.")
                 Spacer(Modifier.height(14.dp))
 
                 // 사업자등록증 사진으로 자동입력 — 직접 타이핑 줄이기(특히 어르신). (2026-08-05 사장님)
@@ -286,9 +285,8 @@ fun BusinessInfoScreen(
                     keyboardType = KeyboardType.Phone,
                     visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation
                 )
-                Text(
+                com.detailline.callfollowcrm.presentation.component.HelpText(
                     "견적서·접수서에 표시돼요. 개인 번호가 부담되면 대표(안내) 번호를 넣으세요. (로그인 번호는 안 바뀌어요)",
-                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
                     modifier = Modifier.padding(top = 5.dp, start = 2.dp)
                 )
                 // 직접 입력 대신 한 번 탭으로 내 폰 번호 불러오기.
@@ -353,7 +351,7 @@ fun BusinessInfoScreen(
                     Text("일", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                 }
                 Spacer(Modifier.height(7.dp))
-                Text("발행일로부터 이 기간까지 유효", fontSize = 12.sp, color = TossTextTertiary)
+                com.detailline.callfollowcrm.presentation.component.HelpText("발행일로부터 이 기간까지 유효")
                 Spacer(Modifier.height(20.dp))
             }
 

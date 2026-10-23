@@ -931,8 +931,7 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
                 Column(Modifier.weight(1f)) {
                     Text("통화 후 문자 보내기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(2.dp))
-                    Text("새 번호와 통화가 끝나면 ‘문자 보낼까요?’ 알림 → 3개 중 하나 누르면 바로 보내져요",
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
+                    com.detailline.callfollowcrm.presentation.component.HelpText("새 번호와 통화가 끝나면 ‘문자 보낼까요?’ 알림 → 3개 중 하나 누르면 바로 보내져요")
                 }
                 androidx.compose.material3.Switch(
                     checked = enabled,
@@ -1209,8 +1208,7 @@ private fun AutoSmsSection(
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text("통화가 끝나면 통화 녹음을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
-                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                    com.detailline.callfollowcrm.presentation.component.HelpText("통화가 끝나면 통화 녹음을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)")
                     if (autoSumOn && !consented) {
                         Spacer(Modifier.height(5.dp))
                         Text(
@@ -1270,8 +1268,7 @@ private fun AutoSmsSection(
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
                         Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                        Text("전화가 오면 손님 카드가 떠요 — 현장 주소·돈·지난 통화 요약·마지막 문자. 받은 뒤에도 통화 내내 남아요 (전화 화면은 안 가림 · 신규는 노란 띠)",
-                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                        com.detailline.callfollowcrm.presentation.component.HelpText("전화가 오면 손님 카드가 떠요 — 현장 주소·돈·지난 통화 요약·마지막 문자. 받은 뒤에도 통화 내내 남아요 (전화 화면은 안 가림 · 신규는 노란 띠)")
                     }
                     Spacer(Modifier.width(8.dp))
                     Switch(checked = callerCardOn, onCheckedChange = { want ->
@@ -1448,7 +1445,7 @@ private fun AutoSmsSection(
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("정기 문자 예약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("방역·점검·안부 — 각 고객 날짜 기준 주기 발송", fontSize = 12.sp, color = TossTextTertiary)
+                com.detailline.callfollowcrm.presentation.component.HelpText("방역·점검·안부 — 각 고객 날짜 기준 주기 발송")
             }
             Text("›", fontSize = 20.sp, color = TossTextTertiary)
         }
@@ -1465,7 +1462,7 @@ private fun AutoSmsSection(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("받은 문자 알림", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Text("고객 문자가 오면 알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)", fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                    com.detailline.callfollowcrm.presentation.component.HelpText("고객 문자가 오면 알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)")
                 }
                 Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
             }
