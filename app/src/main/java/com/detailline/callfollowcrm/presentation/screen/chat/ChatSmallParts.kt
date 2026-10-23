@@ -793,15 +793,17 @@ fun androidx.compose.foundation.lazy.LazyListScope.failedSendItems(
 }
 
 /** 스크롤 영역 **위쪽 페이드** — 내용이 구분선/머리 밑에서 칼같이 잘리지 않고 스르륵 사라지게.
- *   스크롤 Column 과 같은 Box 안(BoxScope)에서 부른다. 시트가 흰 바탕이라 흰색→투명. (2026-10-23 사장님 "언발란스") */
+ *   스크롤 Column/LazyColumn 과 같은 Box 안(BoxScope)에서 부른다.
+ *   `color` 는 **그 화면 배경색**이어야 자연스럽다 — 접수서 시트=흰색(기본), 대화 화면=TossGrayBg. (2026-10-23 사장님 "언발란스") */
 @Composable
-fun androidx.compose.foundation.layout.BoxScope.TopScrollFade(height: androidx.compose.ui.unit.Dp = 16.dp) {
+fun androidx.compose.foundation.layout.BoxScope.TopScrollFade(
+    height: androidx.compose.ui.unit.Dp = 16.dp,
+    color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White,
+) {
     Box(
         Modifier.align(androidx.compose.ui.Alignment.TopCenter).fillMaxWidth().height(height)
             .background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(androidx.compose.ui.graphics.Color.White, androidx.compose.ui.graphics.Color.White.copy(alpha = 0f))
-                )
+                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(color, color.copy(alpha = 0f)))
             )
     )
 }

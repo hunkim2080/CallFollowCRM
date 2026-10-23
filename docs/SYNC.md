@@ -14977,3 +14977,11 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: UI만. 가드 7종 통과, assembleRelease EXIT=0.
 - 폰 확인: 못 봄. 탭 회색 트랙·구분선 간격·스크롤 시 달력 윗부분 페이드 확인.
 - 다음 액션: (사장님) 폰 확인 → OK면 Play 재제출. (android) 보편UX.
+
+## 2026-10-23 · android
+대화 화면도 머리(주소·버튼) 밑 하드클립 → **같은 페이드** 적용 (사장님 "여기도 경계 마찬가지").
+- 공용 `TopScrollFade` 에 `color` 파라미터 추가(접수서=흰색 기본, 대화=TossGrayBg).
+- 대화 메시지 LazyColumn(903~1074)을 Box 로 감싸 위에 `TopScrollFade(color = TossGrayBg)`.
+- size_guard 또 걸림(+43) → 최근 주석 4줄 다듬어 복구(코드 그대로). 가드 7종 통과, EXIT=0.
+- 폰 확인: 못 봄. 대화 위로 스크롤 시 머리 밑에서 메시지가 스르륵 사라지는지.
+- 다음 액션: (사장님) 폰 확인. (android) 보편UX.

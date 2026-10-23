@@ -900,10 +900,10 @@ fun ChatScreen(
                     onClose = { searchMode = false; searchQuery = "" }
                 )
             }
+            androidx.compose.foundation.layout.Box(Modifier.weight(1f).fillMaxWidth()) {  // 메시지 위 페이드용 (2026-10-23 "경계 마찬가지")
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .padding(horizontal = 18.dp),
                 reverseLayout = true,
                 verticalArrangement = Arrangement.spacedBy(9.dp),
@@ -1072,6 +1072,8 @@ fun ChatScreen(
                     }
                 }
             }
+            TopScrollFade(color = TossGrayBg)   // 머리 밑 하드클립 방지(대화 배경색)
+            }   // ── Box(메시지 목록 + 위 페이드) 끝
 
             // 템플릿 알약 (가로 스크롤) — 탭하면 입력칸에 본문 채워짐. 즉시 전송 안 함.
             // 2026-05-24 시각 충돌 fix: 답변 추천 영역이 노출될 때 = 템플릿 알약 숨김.
@@ -4761,8 +4763,7 @@ private fun EstimateBuilderDialog(
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)
         ) {
             SheetGrabber()
-            // 설명글(help)은 **처음 열 때만** 보이고, 제목 옆 ⓘ 로 다시 본다. (공용 FirstRunHint — 사장님 2026-10-23)
-            //   전엔 제목 밑 부제 + 구분선 밑 help 로 **두 줄**이라 어수선했다 → help 하나로 합침.
+            // 설명글(help) 첫사용만 + ⓘ 재호출. 전엔 부제+help 두 줄이라 어수선 → help 하나로. (FirstRunHint 2026-10-23)
             val estHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("estimate_sheet")
             // 🔴 제목이 늘 "견적 만들기" 였다. 그래서 [접수서 보내기] 를 눌러도
             //   접수서 탭에 와 있는데 **제목은 견적**이라 "왜 견적이 나오지?" 하게 됐다.
@@ -4803,8 +4804,7 @@ private fun EstimateBuilderDialog(
                     .verticalScroll(rememberScrollState())
             ) {
             Spacer(Modifier.height(10.dp))
-            // (help 설명글은 제목 밑 첫사용 힌트로 올렸다 — 여기선 제거. 2026-10-23)
-            // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력
+            // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력 (help 는 제목 밑 첫사용으로 올림)
             if (mode != "text") {
                 Spacer(Modifier.height(AppSpace.s24))
                 EstLabelRow("시공일", estDateLabel(workDateMs, workEndMs), dim = workDateMs == null)
