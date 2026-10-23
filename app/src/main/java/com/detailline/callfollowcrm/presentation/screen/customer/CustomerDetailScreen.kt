@@ -1027,13 +1027,16 @@ fun CustomerDetailScreen(
                 onRequestDeleteDoc = { issuedDocToDelete = it },
                 onOpenChat = { onOpenChat(c.phoneNumber, c.id) }
             )
-            if (detailTab == 0 && showJobBar) {
+            // 🧩 고객상세는 **한 레이아웃**으로 — 1건이어도 2건처럼 '시공 건' 섹션(머리+AS+새 시공). (2026-10-23 사장님 🅐)
+            //   전엔 1건=간소(작은 '시공 하나 더' 링크)·2건+=전체라 화면이 둘이고 AS 자리도 달랐다.
+            if (detailTab == 0 && (showJobBar || c.scheduledWorkDate != null)) {
                 // 시공 건 · 최신부터 — 프로토 `.slab` 라벨. 이모지 대신 **벡터**(안전모 쓴 사람 = 브랜드 「노란 안전모」,
                 //   마감 브리핑·일정 추가와 같은 아이콘 — 세 번째 벌 안 만듦 §12). (2026-10-15 사장님 #13)
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.material3.Icon(Icons.Filled.Engineering, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(5.dp))
-                    Text("시공 건 · 가까운 일정부터", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    // '가까운 일정부터'는 건이 여럿일 때만 뜻이 있다 — 1건이면 '시공 건'만.
+                    Text("시공 건" + if (showJobBar) " · 가까운 일정부터" else "", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                     Spacer(Modifier.weight(1f))
                     // 🛠️ A/S 일정 잡기 — 완료 건 카드를 **안 거치고** 바로. 예약 있으면 '보기'. (2026-10-22 사장님)
                     Text(
@@ -1177,35 +1180,7 @@ fun CustomerDetailScreen(
                 )
             }
 
-            // 1건일 때의 **조용한 입구** — 프로토 `.more-job` (artifact/4ZvDfUfxDAQU8uNNvQQ1h1)
-            //   "1건일 때 큰 '새 시공' 버튼을 두면 보통 손님 화면이 또 어수선해져요.
-            //    그래서 맨 아래 '지난 문자 보기' 위에 작은 글씨로 뒀어요."
-            //   프로토 값: 회색(옛 #8B95A1 → 램프 textHint) · 14sp · 밑줄 · 높이 44 · 가운데.
-            if (detailTab == 0 && !showJobBar && c.scheduledWorkDate != null) {
-                // 완료(완납 포함)된 단일 건이면 **A/S 일정 잡기**도 나란히 — AS 입구는 '건 2개'가 아니라
-                //   '완료된 시공'에 달려야 한다(1차 완납자가 AS 를 못 걸던 것). (2026-10-23 사장님)
-                //   완료 도장이 고객 카드(c)가 아니라 **건(Job)에만** 찍혔을 수도 있어 둘 다 본다(§13④ split).
-                val asReady = com.detailline.callfollowcrm.domain.job.Completion.isDone(c) ||
-                    allJobsForTabs.any { com.detailline.callfollowcrm.domain.job.Completion.isDone(it) }
-                androidx.compose.foundation.layout.Row(
-                    Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    if (asReady) {
-                        Text(if (c.asScheduledDate != null) "A/S 예약 보기" else "A/S 일정 잡기",
-                            color = TossBlue, fontWeight = FontWeight.Bold, style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
-                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                            modifier = Modifier.clickable { asPickerOpen = true }.padding(horizontal = 8.dp))
-                        Text("·", color = AppTheme.colors.textHint, style = com.detailline.callfollowcrm.presentation.theme.AppType.label)
-                    }
-                    Text("＋ 시공 하나 더 잡기",
-                        color = AppTheme.colors.textHint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                        modifier = Modifier.clickable { newJobStart = null; newJobDays = 1; newJobSheetOpen = true }.padding(horizontal = 8.dp))
-                }
-                Spacer(Modifier.height(6.dp))
-            }
+            // (1건 전용 '시공 하나 더 잡기' 작은 링크 + 그 옆 AS 제거 — 위 '시공 건' 섹션(새 시공·AS)으로 통일. 2026-10-23 사장님 🅐)
 
             val lastMsgInteraction = remember { MutableInteractionSource() }
             androidx.compose.foundation.layout.Row(
