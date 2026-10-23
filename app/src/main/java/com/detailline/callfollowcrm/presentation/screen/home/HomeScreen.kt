@@ -3026,7 +3026,8 @@ private fun OweRow(
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    due.whereLabel ?: due.name, fontSize = 14.sp,
+                    // 제목 = 이름(>현장>번호). 현장은 아래 부제로. (2026-10-23 사장님)
+                    due.name, fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -3060,8 +3061,7 @@ private fun OweRow(
             // 📩 **마지막 문자** — 다른 줄과 똑같이. 없으면 이름/상태로 채운다.
             Spacer(Modifier.height(3.dp))
             Text(
-                lastBody ?: (if (due.whereLabel != null && due.whereLabel != due.name) due.name
-                    else "시공 끝남 · 잔금 남음"),
+                lastBody ?: (due.whereLabel ?: "시공 끝남 · 잔금 남음"),
                 fontSize = 13.sp, color = TossTextSecondary,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )

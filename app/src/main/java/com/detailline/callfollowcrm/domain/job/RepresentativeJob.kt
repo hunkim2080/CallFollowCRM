@@ -27,17 +27,37 @@ object RepresentativeJob {
         val scheduledWorkDate: Long?
     }
 
-    /**
-     * 대표 건을 고른다. **차례대로 들어온 목록**(시공일 오름차순)을 받는다.
-     *
-     * @param jobs     그 손님의 시공 건들 — 시공일 **오름차순**
-     * @param todayMs  오늘 0시 (`DateTimeUtils.startOfDay`)
-     * @return 대표 건. 건이 하나도 없으면 null
-     */
     fun <T : Dated> pick(jobs: List<T>, todayMs: Long): T? {
         if (jobs.isEmpty()) return null
         // 날짜가 없는 건(=아직 날짜를 안 잡음)은 0 으로 봐서 '지난 것' 쪽에 둔다.
         //   날짜를 안 잡은 건이 앞으로 올 시공보다 먼저 대표가 되면 안 된다.
         return jobs.firstOrNull { (it.scheduledWorkDate ?: 0L) >= todayMs } ?: jobs.last()
+    }
+
+    /** 완료/취소까지 아는 모습 — '완료 도장을 어느 건에 찍나' 셈용. */
+    interface Completable : Dated {
+        val workCompletedAt: Long?
+        val cancelledAt: Long?
+    }
+
+    /**
+     * 🔨 **완료 도장을 찍을(또는 되돌릴) 건**을 고른다 — [pick](대표=미래 우선)과 **다르다.**
+     *
+     *   완료는 "**방금 끝낸 건**"에 찍어야 한다. 그래서 **아직 완료 안 된(취소 아닌) 건 중,
+     *   오늘이거나 지난 날짜인 것 중 가장 최근**을 고른다(실제로 한 일). 없으면 대표 건([pick])으로 폴백.
+     *
+     *   되돌리기(`completing=false`)는 반대로 **이미 완료된** 과거/오늘 건을 집어 도장을 뗀다.
+     *
+     *   ⚠️ 전엔 완료도 [pick]을 썼다 → 1차(지난 날)를 끝내고 완료를 눌러도 도장이 **미래 2차**에 박혀
+     *   「미래 + 잔금 미수 + 완료」 모순이 났다(2026-10-23 사장님). 대표와 완료 대상은 다른 셈이다.
+     */
+    fun <T : Completable> pickToComplete(jobs: List<T>, todayMs: Long, completing: Boolean = true): T? {
+        if (jobs.isEmpty()) return null
+        val target = jobs.filter {
+            it.cancelledAt == null &&
+                (it.scheduledWorkDate ?: Long.MAX_VALUE) <= todayMs &&
+                (it.workCompletedAt == null) == completing
+        }.maxByOrNull { it.scheduledWorkDate ?: Long.MIN_VALUE }
+        return target ?: pick(jobs, todayMs)
     }
 }

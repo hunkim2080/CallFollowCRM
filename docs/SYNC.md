@@ -15005,3 +15005,14 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. 가드 7종 통과, EXIT=0.
 - 폰 확인: 못 봄. 1차 완납 고객 상세에서 'A/S 일정 잡기' 뜨고 눌러서 AS 날짜 잡히는지.
 - 다음 액션: (사장님) 폰 확인.
+
+## 2026-10-23 · android
+완료 버그(미래 건이 완료로 둔갑) + 파생(상담함 카드 제목=주소) 뿌리 수정. (사장님 "미래인데 완료 / 이름이 주소")
+- **뿌리**: `WorkCompletionManager.setCompleted` 가 완료를 **대표(미래 우선) 건**에 찍었다 → 1차(지난) 끝내고 완료 눌러도 도장이 미래 2차에 박혀 「미래+미수+완료」 모순.
+- 수정: `RepresentativeJob.pickToComplete(jobs, today, completing)` 신설(순수+테스트 6개) — 완료 대상 = **아직 완료 안 된(취소 아닌) 오늘/지난 건 중 최근**, 없으면 대표 폴백. 되돌리기는 완료된 과거 건. `JobEntity`→`Completable`. `JobRepository.completionTargetJobId`. setCompleted 가 이걸 씀.
+- **치유**: `JobRepository.healFutureFalseCompletions`(시작 시) — 미래+미수+완료 건 완료 도장 뗌(멱등). 기존 꼬인 데이터 자동 교정.
+- **파생(카드 제목)**: 상담함 "못 받은 돈" 카드 제목이 현장주소(잘림)였음 → **이름 > 현장 > 번호**(HomeViewModel.ui `name`, OweRow 제목=name·부제=현장).
+- **AS 입구**(별건): 1차 완납 단일 건도 'A/S 일정 잡기' — `isDone(c) || 건 중 완료`.
+- 변경: 완료/돈 로직(핵심). 테스트 전체·가드 7종 통과, assembleRelease·testDebugUnitTest EXIT=0.
+- 폰 확인: 못 봄. ①미래 2차 완료 안 뜨나(재시작 치유) ②1차 끝내고 완료→1차에 ③못받은돈 제목=이름 ④1차완납 AS.
+- 다음 액션: (사장님) 폰 확인.

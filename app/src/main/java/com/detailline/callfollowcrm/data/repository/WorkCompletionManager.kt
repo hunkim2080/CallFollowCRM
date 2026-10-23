@@ -36,8 +36,10 @@ class WorkCompletionManager(
      */
     suspend fun setCompleted(customerId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
         customerRepository.updateWorkCompletedAt(customerId, at)
-        // 건에도 같이 찍는다 — 고객 카드에만 찍으면 건 탭이 거짓말을 한다.
-        jobRepository.representativeJobId(customerId, now)
+        // 건에도 같이 찍는다 — 단 **대표(미래 우선) 건이 아니라 '방금 끝낸(오늘/지난) 건'**에.
+        //   전엔 representativeJobId 라 1차를 끝내도 도장이 미래 2차에 박혔다(완료+미수+미래 모순). (2026-10-23 사장님)
+        //   되돌리기(at=null)는 이미 완료된 과거 건을 집어 뗀다.
+        jobRepository.completionTargetJobId(customerId, now, completing = at != null)
             ?.let { jobRepository.setWorkCompleted(it, at, now) }
         onChanged()
     }

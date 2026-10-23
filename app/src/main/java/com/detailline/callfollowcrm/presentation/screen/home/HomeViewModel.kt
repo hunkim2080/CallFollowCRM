@@ -669,15 +669,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
             fun ui(c: CustomerEntity, jobId: Long?, days: Int, won: Long, addr: String?): HomeBalanceDueUi {
                 val realName = c.name?.takeIf { it.isNotBlank() }
-                // 카드엔 번호 대신 아주 짧은 현장("수원 대동아파트"). 없으면 이름, 그것도 없으면 잔금만. (사장님 2026-06-23)
+                // 제목 = **이름 > 현장 > 번호**. 전엔 현장이 이름을 이겨 "안양 한라비발디…"만 떠서
+                //   잘리고(이름도·주소도·연락처도 아닌 조각) 오해됐다. (사장님 2026-10-23 · 옛 2026-06-23 '번호 대신 현장' 보강)
                 val shortAddr = com.detailline.callfollowcrm.util.AddressExtractor.roughSite(addr)
                     .takeIf { it.isNotBlank() }
                 return HomeBalanceDueUi(
                     customerId = c.id,
                     jobId = jobId,
                     phone = c.phoneNumber,
-                    name = realName ?: PhoneNumberFormatter.format(c.phoneNumber),
-                    whereLabel = shortAddr ?: realName,
+                    name = realName ?: shortAddr ?: PhoneNumberFormatter.format(c.phoneNumber),
+                    whereLabel = shortAddr?.takeIf { realName != null },   // 부제용 현장 — 이름이 제목일 때만(제목=현장이면 중복 X)
                     outstandingWon = won,
                     daysSince = days,
                     body = balanceRequestBody(realName, won)

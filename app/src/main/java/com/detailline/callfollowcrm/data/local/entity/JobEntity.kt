@@ -34,7 +34,7 @@ data class JobEntity(
     val depositPaidAt: Long? = null,
     val balanceAmount: Long? = null,
     val balancePaidAt: Long? = null,
-    val workCompletedAt: Long? = null,
+    override val workCompletedAt: Long? = null,
     /** 이 건 전용 메모 — 고객 공통이 아니라 **현장마다** 따로. (v50, 2026-09-14 사장님) */
     val memo: String = "",
     /**
@@ -49,7 +49,7 @@ data class JobEntity(
      *   구별이 안 돼, 취소한 건이 탭에서 차수를 차지했다. 이 칸으로 둘을 가른다.
      *   다시 날짜를 잡으면 null 로 돌아간다(되살리기).
      */
-    val cancelledAt: Long? = null,
+    override val cancelledAt: Long? = null,
     /**
      * **현장 번호** — 001, 002 … 완료한 순서대로 붙는 일련번호. (v58, 2026-09-24 사장님)
      *   "이번 달 12집" 은 이번 달로 끝나지만 **번호는 끝이 없다.** 039, 040 이 계속 생긴다.
@@ -66,4 +66,4 @@ data class JobEntity(
     val recordNo: Int? = null,
     val createdAt: Long,
     val updatedAt: Long
-) : com.detailline.callfollowcrm.domain.job.RepresentativeJob.Dated
+) : com.detailline.callfollowcrm.domain.job.RepresentativeJob.Completable

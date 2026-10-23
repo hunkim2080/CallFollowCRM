@@ -579,6 +579,35 @@ class JobRepository(
         return com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)?.id
     }
 
+    /** 🔨 **완료 도장을 찍을(또는 되돌릴) 건** id — 대표(미래 우선)와 달리 **방금 끝낸(오늘/지난) 건**.
+     *   없으면 대표로 폴백. `completing=false` 면 이미 완료된 과거/오늘 건(되돌릴 대상)을 집는다. (2026-10-23 사장님) */
+    suspend fun completionTargetJobId(customerId: Long, now: Long = System.currentTimeMillis(), completing: Boolean = true): Long? {
+        val jobs = jobDao.scheduledByCustomerOnce(customerId)
+        if (jobs.isEmpty()) return null
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        return com.detailline.callfollowcrm.domain.job.RepresentativeJob.pickToComplete(jobs, today, completing)?.id
+    }
+
+    /** 🩹 **미래 건에 잘못 찍힌 완료 도장을 뗀다.** (2026-10-23 사장님 "미래인데 완료")
+     *   옛 버그(완료를 대표=미래 건에 찍던 것)로 **미래 + 잔금 미수 + 완료** 가 된 건만 고친다
+     *   — 미래 + 미납 = 아직 안 한 일이라 완료일 수 없다. 멱등(매 시작 돌려도 안전). 고친 고객 수 반환. */
+    suspend fun healFutureFalseCompletions(now: Long = System.currentTimeMillis()): Int {
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
+        val affected = mutableSetOf<Long>()
+        for (j in jobDao.allOnce()) {
+            val date = j.scheduledWorkDate ?: continue
+            if (date > today && j.workCompletedAt != null && j.balancePaidAt == null) {
+                jobDao.update(j.copy(workCompletedAt = null, updatedAt = now))
+                affected += j.customerId
+            }
+        }
+        if (affected.isNotEmpty()) {
+            renumberRecords(now)
+            affected.forEach { recomputeMirror(it, now) }
+        }
+        return affected.size
+    }
+
     /** 이 고객에게 시공일이 잡힌 건이 하나라도 남아 있나. 취소 후 '고객 카드도 백지로 할지' 판단용. */
     suspend fun hasScheduledJob(customerId: Long): Boolean =
         jobDao.scheduledByCustomerOnce(customerId).isNotEmpty()

@@ -1184,12 +1184,15 @@ fun CustomerDetailScreen(
             if (detailTab == 0 && !showJobBar && c.scheduledWorkDate != null) {
                 // 완료(완납 포함)된 단일 건이면 **A/S 일정 잡기**도 나란히 — AS 입구는 '건 2개'가 아니라
                 //   '완료된 시공'에 달려야 한다(1차 완납자가 AS 를 못 걸던 것). (2026-10-23 사장님)
+                //   완료 도장이 고객 카드(c)가 아니라 **건(Job)에만** 찍혔을 수도 있어 둘 다 본다(§13④ split).
+                val asReady = com.detailline.callfollowcrm.domain.job.Completion.isDone(c) ||
+                    allJobsForTabs.any { com.detailline.callfollowcrm.domain.job.Completion.isDone(it) }
                 androidx.compose.foundation.layout.Row(
                     Modifier.fillMaxWidth().padding(vertical = 12.dp),
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    if (com.detailline.callfollowcrm.domain.job.Completion.isDone(c)) {
+                    if (asReady) {
                         Text(if (c.asScheduledDate != null) "A/S 예약 보기" else "A/S 일정 잡기",
                             color = TossBlue, fontWeight = FontWeight.Bold, style = com.detailline.callfollowcrm.presentation.theme.AppType.label,
                             textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,

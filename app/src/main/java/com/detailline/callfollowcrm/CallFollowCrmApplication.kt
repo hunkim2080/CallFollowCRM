@@ -304,6 +304,10 @@ class CallFollowCrmApplication : Application() {
             runCatching { container.jobRepository.repairMoneyMirror() }
                 .onSuccess { n -> if (n > 0) android.util.Log.i("MoneyRepair", "카드-전용 돈 ${n}개 건으로 끌어올림") }
                 .onFailure { android.util.Log.w("MoneyRepair", "돈 보정 실패", it) }
+            // 🩹 미래 건에 잘못 찍힌 완료 도장을 뗀다 — 옛 버그(완료를 미래 대표 건에 찍음)로 「미래+미수+완료」가 된 것. (2026-10-23 사장님)
+            runCatching { container.jobRepository.healFutureFalseCompletions() }
+                .onSuccess { n -> if (n > 0) android.util.Log.i("CompleteHeal", "미래 거짓 완료 ${n}개 품") }
+                .onFailure { android.util.Log.w("CompleteHeal", "완료 치유 실패", it) }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.

@@ -94,4 +94,56 @@ class RepresentativeJobTest {
         assertEquals(a, b)
         assertEquals(2L, a?.id)
     }
+
+    // ── 🔨 완료 도장 대상 (pickToComplete) — '대표'와 다르다 (2026-10-23 사장님) ──
+    private data class C(
+        val id: Long,
+        override val scheduledWorkDate: Long?,
+        override val workCompletedAt: Long? = null,
+        override val cancelledAt: Long? = null,
+    ) : RepresentativeJob.Completable
+
+    @Test
+    fun `완료 도장은 미래 건이 아니라 방금 끝낸 지난 건에 찍는다 — 핵심 버그`() {
+        val 일차 = C(1, 오늘 - 하루 * 3)   // 지난, 아직 완료 안 됨 (방금 끝낸 것)
+        val 이차 = C(2, 오늘 + 하루 * 3)   // 미래
+        // 대표(pick)는 미래 2차를 집지만, 완료 대상은 지난 1차여야 한다
+        assertEquals(2L, RepresentativeJob.pick(listOf(일차, 이차), 오늘)?.id)
+        assertEquals(1L, RepresentativeJob.pickToComplete(listOf(일차, 이차), 오늘)?.id)
+    }
+
+    @Test
+    fun `완료 대상 — 지난·오늘 중 가장 최근을 집는다 (오늘 포함)`() {
+        val 지난 = C(1, 오늘 - 하루 * 5)
+        val 오늘것 = C(2, 오늘)
+        assertEquals(2L, RepresentativeJob.pickToComplete(listOf(지난, 오늘것), 오늘)?.id)
+    }
+
+    @Test
+    fun `완료 대상 없으면(다 미래) 대표 건으로 폴백`() {
+        val 미래1 = C(1, 오늘 + 하루)
+        val 미래2 = C(2, 오늘 + 하루 * 5)
+        assertEquals(1L, RepresentativeJob.pickToComplete(listOf(미래1, 미래2), 오늘)?.id)
+    }
+
+    @Test
+    fun `이미 완료된 지난 건은 완료 대상에서 빠진다 — 두 번 안 찍는다`() {
+        val 완료됨 = C(1, 오늘 - 하루 * 3, workCompletedAt = 오늘 - 하루)
+        val 안끝난지난 = C(2, 오늘 - 하루)
+        assertEquals(2L, RepresentativeJob.pickToComplete(listOf(완료됨, 안끝난지난), 오늘)?.id)
+    }
+
+    @Test
+    fun `취소한 건은 완료 대상이 아니다`() {
+        val 취소됨 = C(1, 오늘 - 하루, cancelledAt = 오늘)
+        val 정상지난 = C(2, 오늘 - 하루 * 2)
+        assertEquals(2L, RepresentativeJob.pickToComplete(listOf(취소됨, 정상지난), 오늘)?.id)
+    }
+
+    @Test
+    fun `되돌리기는 이미 완료된 지난 건을 집는다 — 미래 건 아님`() {
+        val 완료된1차 = C(1, 오늘 - 하루 * 3, workCompletedAt = 오늘)
+        val 미래2차 = C(2, 오늘 + 하루 * 3)
+        assertEquals(1L, RepresentativeJob.pickToComplete(listOf(완료된1차, 미래2차), 오늘, completing = false)?.id)
+    }
 }
