@@ -35,6 +35,15 @@ data class DupRule(
 )
 
 val dupRules = listOf(
+    // 📅 날짜 고르는 달력 — Material3 범위선택을 다시 쓰면 **또 두 벌**이 된다. (2026-10-24 사장님 "왜 캘린더 종류가 2개야?")
+    //   접수서·간단일정의 커스텀 달력과 섞여 세 종류였다 → 공용 WorkRangeCalendar/WorkRangePickerDialog 하나로.
+    //   (주석엔 그 Material3 이름을 쓰지 말 것 — 가드가 주석도 센다. `rememberDateRangePickerState` 만 막는다.)
+    DupRule(
+        id = "date-range-picker",
+        regex = Regex("""rememberDateRangePickerState"""),
+        instead = "WorkRangePickerDialog(...) / WorkRangeCalendar(...)  (presentation/component)",
+        homes = listOf()
+    ),
     // ⑦ ⌨️ 키보드 여백 — **세 번째로 터진 자리.** (2026-10-02 사장님 "이것도 두벌이다 뭐다 하는거 아니니")
     //   9/26 에 18곳을 고쳤는데 다른 표기 12곳이 남아 하루 만에 다시 났고,
     //   10/2 엔 `keyboardPadding()` 만 고쳤더니 `windowInsetsPadding(keyboardClearance)` 16곳이
