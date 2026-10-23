@@ -844,6 +844,10 @@ class AppPreferences(context: Context) {
     var intakeSyncSinceMs: Long
         get() = prefs.getLong("intake_sync_since_ms", 0L)
         set(value) = prefs.edit().putLong("intake_sync_since_ms", value).apply()
+    /** 유입경로 저장 추가(2026-10-23) 전 들어온 옛 접수서의 유입경로를 한 번 채웠는지 — 1회 backfill 가드. */
+    var intakeInflowBackfilled: Boolean
+        get() = prefs.getBoolean("intake_inflow_backfilled", false)
+        set(value) = prefs.edit().putBoolean("intake_inflow_backfilled", value).apply()
 
     /** 마감 브리핑 알림을 탭한 순간 그 브리핑의 '날짜'(startOfDay). 자정 넘겨 열어도 그날 기준으로 보이게. VM 이 읽고 0 으로 지움(일회성). (2026-07-30 버그감사) */
     var pendingBriefDayMs: Long

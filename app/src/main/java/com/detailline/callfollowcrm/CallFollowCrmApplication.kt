@@ -650,6 +650,7 @@ class CallFollowCrmApplication : Application() {
         if (!syncMutex.tryLock()) return
         try {
         runCatching { container.intakeSyncManager.sync(this) }
+        runCatching { container.intakeSyncManager.backfillInflowOnce() }   // 🔎 유입경로 저장 전 옛 접수서 1회 채움(멱등·네트워크 되면)
         runCatching { container.teamEventCenter.poll(this) }
         runCatching { container.collabEventCenter.poll(this) }
         runCatching { container.collabEventCenter.pollInvites(this) }

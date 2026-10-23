@@ -41,6 +41,20 @@ class IntakeSyncManager(private val container: AppContainer) {
         return runCatching { container.intakeEventRepository.byTokens(added) }.getOrDefault(emptyList())
     }
 
+    /** 유입경로 저장 추가(2026-10-23) 전 들어온 옛 접수서의 빈 유입경로를 **한 번** 채운다.
+     *   서버에 원본(survey)이 그대로 있으니 다시 긁어 **빈 것만 UPDATE** — 새 카드·알림·고객 안 생김. 1회(prefs 가드). */
+    suspend fun backfillInflowOnce() {
+        val prefs = container.preferences
+        if (prefs.intakeInflowBackfilled) return
+        val devicePhone = prefs.bizPhone
+        if (devicePhone.isBlank()) return
+        val list = container.intakeFormRepository.submissions(devicePhone, 0L).getOrNull() ?: return
+        for (s in list) {
+            s.source?.let { runCatching { container.intakeEventRepository.backfillInflow(s.token, it) } }
+        }
+        prefs.intakeInflowBackfilled = true
+    }
+
     /**
      * @param notify 알림을 울릴지. 평소 폴링은 true — **모르고 있던 새 접수서**를 알려야 하니까.
      *   되찾기(`resyncMissing`)는 false — 사장님이 직접 누른 것이라 이미 보고 계시고,

@@ -15025,3 +15025,7 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: DB 마이그레이션 v70(ADD COLUMN, nullable 안전). 테스트 전체·가드 7종 통과, style 2417→2415.
 - 폰 확인: 못 봄. ①접수 카드에 유입경로(새 제출/재폴링) ②풋터 사라짐 ③접수서 제출 시 벨에 뜨고 탭→대화.
 - 다음 액션: (사장님) 폰 확인.
+
+## 2026-10-23 · android
+유입경로 **옛 접수서 1회 backfill** (사장님 "그동안 것 다 날아갔어?"). 서버 survey 원본은 그대로 → 다시 긁어 빈 inflowSource만 UPDATE(새 카드·알림·고객 X). IntakeSyncManager.backfillInflowOnce(1회 가드 prefs.intakeInflowBackfilled), syncAllOnce 에서 네트워크 되면 1회. 최근 50건 한도. 가드 7종·빌드 EXIT=0.
+- 다음 액션: (사장님) 폰에서 옛 접수서 카드에 유입경로 채워지는지.
