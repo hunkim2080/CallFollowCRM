@@ -14967,3 +14967,13 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - 변경: UI만. style 2449→**2417**(손값 32 줄, 기준선 갱신). 가드 7종 통과, assembleRelease EXIT=0.
 - 폰 확인: 못 봄. (설명글은 이제 색·크기 다 같은 흐린 11.5)
 - 다음 액션: (사장님) 폰 확인 + Play 재제출. (android) 보편UX.
+
+## 2026-10-23 · android
+접수서 시트 "언발란스" 3종 해결 (사장님 꼽은 탭·간격·스크롤잘림).
+- ① 탭 무게: 공용 `AppTabs` 트랙 배경 surface(흰색)→**surfaceMuted(연회색)** — 트랙이 보여 세 탭이 한 틀 안 세그먼트로. **앱 전체 탭**(고객정보·정산·통계·협업) 같이 개선.
+- ② 구분선 간격: 위/아래 12/9 → **10/10 대칭**.
+- ③ 스크롤 하드클립: 스크롤 Column 을 Box 로 감싸고 위에 **TopScrollFade**(흰색→투명, 공용 ChatSmallParts) — 달력 월 제목이 구분선 밑에서 칼같이 잘리지 않고 스르륵.
+- size_guard: ChatScreen +49 걸림 → 페이드를 공용 TopScrollFade 로 빼서 해결(기준선 안 올림).
+- 변경: UI만. 가드 7종 통과, assembleRelease EXIT=0.
+- 폰 확인: 못 봄. 탭 회색 트랙·구분선 간격·스크롤 시 달력 윗부분 페이드 확인.
+- 다음 액션: (사장님) 폰 확인 → OK면 Play 재제출. (android) 보편UX.

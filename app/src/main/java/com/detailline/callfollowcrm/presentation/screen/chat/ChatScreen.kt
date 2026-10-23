@@ -4792,15 +4792,17 @@ private fun EstimateBuilderDialog(
             )
             // 머리(제목·탭)와 스크롤 내용 사이 **구분선** — 경계가 없어 스크롤 시 미완성처럼 보이던 것. (2026-10-22 사장님)
             //   theme.line 이 너무 연해 안 보였다 → 또렷한 회색으로. (2026-10-23 사장님 "구분선 수정 안했어?")
-            Spacer(Modifier.height(12.dp))
+            // ② 구분선 위/아래 간격 대칭(10/10). (2026-10-23 사장님 "언발란스")
+            Spacer(Modifier.height(10.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(TossTextTertiary.copy(alpha = 0.28f)))
-            // 여기서부터 스크롤 — 제목·탭은 위에 고정. 최대높이 = 시트(640) - 머리(≈120). (2026-09-16 사장님)
+            // 여기서부터 스크롤 — 제목·탭은 위에 고정. ③ Box 로 감싸 위 TopScrollFade 로 하드클립 방지. (2026-10-23)
+            androidx.compose.foundation.layout.Box {
             Column(
                 Modifier
                     .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-            Spacer(Modifier.height(9.dp))
+            Spacer(Modifier.height(10.dp))
             // (help 설명글은 제목 밑 첫사용 힌트로 올렸다 — 여기선 제거. 2026-10-23)
             // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력
             if (mode != "text") {
@@ -5218,6 +5220,8 @@ private fun EstimateBuilderDialog(
             Spacer(Modifier.height(10.dp))
             AiDisclaimer(Modifier.padding(horizontal = 2.dp))
             }   // ── 스크롤 영역 끝
+            TopScrollFade()   // ③ 위쪽 페이드 — 달력 윗부분 하드클립 방지 (공용, ChatSmallParts)
+            }   // ── Box(스크롤 + 위 페이드) 끝
         }
     }
 }

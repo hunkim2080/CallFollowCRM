@@ -40,7 +40,9 @@ fun AppTabs(
         modifier
             .fillMaxWidth()
             .clip(AppShape.md)
-            .background(AppTheme.colors.surface)
+            // 트랙(바탕)은 **연회색**이어야 세 탭이 한 틀 안에 든 세그먼트로 보인다.
+            //   surface(흰색)면 트랙이 안 보여 '선택만 파란 덩어리'처럼 언발란스했다. (2026-10-23 사장님)
+            .background(AppTheme.colors.surfaceMuted)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
