@@ -36,8 +36,8 @@ class MessageUrlTest {
 
     @Test fun 스킴있는_한글도메인은_통째로_링크() {
         // 사장님 실제: https:// 뒤 한글 도메인이 ".eable.kr" 부터만 링크됐다 (2026-10-19)
-        assertEquals("https://스마트홈인테리어.eable.kr", MessageUrl.first("견적서 https://스마트홈인테리어.eable.kr 확인하세요"))
-        assertEquals("https://스마트홈인테리어.eable.kr", MessageUrl.first("https://스마트홈인테리어.eable.kr"))
+        assertEquals("https://우리가게.eable.kr", MessageUrl.first("견적서 https://우리가게.eable.kr 확인하세요"))
+        assertEquals("https://우리가게.eable.kr", MessageUrl.first("https://우리가게.eable.kr"))
     }
 
     @Test fun www_와_TLD호스트는_링크_스킴보정() {

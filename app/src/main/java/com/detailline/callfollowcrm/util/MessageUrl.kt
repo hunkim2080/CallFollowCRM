@@ -18,7 +18,7 @@ object MessageUrl {
     // 알려진 TLD 만(아스키 호스트 뒤) — 흔한 것 + 스팸/단축도메인(AdHeuristics 와 같은 결).
     private val RE = Regex(
         "(?i)(?:" +
-            "https?://\\S+" +                                           // 스킴 있는 진짜 URL — 한글 도메인(스마트홈인테리어.eable.kr)도 포함, 공백 전까지 (2026-10-19 사장님)
+            "https?://\\S+" +                                           // 스킴 있는 진짜 URL — 한글 도메인(우리가게.eable.kr 꼴)도 포함, 공백 전까지 (2026-10-19 사장님)
             "|www\\.[a-z0-9\\-._]+(?:/[^\\s가-힣]*)?" +                   // www. 로 시작
             "|\\b[a-z0-9][a-z0-9\\-]*(?:\\.[a-z0-9\\-]+)*\\." +          // 아스키 호스트(여러 라벨)
             "(?:com|net|org|io|kr|me|ly|gg|link|shop|xyz|top|vip|club|info|biz|tv|cc|app|site|store|page|gl|me2|co)" +
