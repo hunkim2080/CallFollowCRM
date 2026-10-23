@@ -65,6 +65,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,7 +141,7 @@ fun TemplateEditScreen(
                 Modifier
                     .fillMaxWidth()
                     .background(TossGrayBg)
-                    .keyboardPadding()
+                    .keyboardOrNavPadding()   // 🔧 바닥 고정 버튼 — 키보드/내비바 중 큰 쪽만큼 띄워 '저장'이 내비바에 안 가리게. (2026-10-23 사장님)
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 TossPrimaryButton(

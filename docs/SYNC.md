@@ -14936,3 +14936,15 @@ MMS(사진문자) 뒤늦은 재알림 고침 — MmsDownloadedReceiver 가 알�
 - Ⓒ 접수서 시트: 머리(제목·탭)와 스크롤 내용 사이 **구분선** 추가 — 경계 없어 스크롤 시 미완성처럼 보이던 것. 탭은 공용 AppTabs 그대로. (ChatScreen EstimateBuilderDialog, 옛 주석 줄여 size 확보)
 - 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 건 순서·AS 버튼·접수서 구분선 확인.
 - 다음 액션: (android) 폰 확인 + 보편UX(스와이프·당겨새로고침·스켈레톤·햅틱)·내기록 탭재탭. (server) 없음.
+
+## 2026-10-23 · android
+① 접수서 시트 구분선 또렷하게(theme.line 너무 연함 → TossTextTertiary 0.28). ② 하단 고정 버튼 내비바 가림 4곳 수정.
+- 접수서: 머리/스크롤 사이 구분선 색 또렷하게. (ChatScreen EstimateBuilderDialog)
+- 내비바 가림(사장님: 템플릿 저장 버튼 가림 + 비슷한 것 체크):
+  - TemplateEditScreen:143 bottomBar keyboardPadding→keyboardOrNavPadding (그 '저장' 버튼)
+  - FollowUpScreen:207 bottomBar 여백 없음 → keyboardOrNavPadding 추가
+  - QuoteDocScreen:366 발송 버튼 → navigationBarsPadding 추가
+  - ScheduleAddScreen:207 등록 스크롤 keyboardPadding→keyboardOrNavPadding
+  - (약함 미처리: CallSummaryScreen/AiMessageScreen 스크롤 뷰포트 — 다음)
+- 협업현장 로딩: "불러오는 중…" 카드는 이미 있음(703·712). 스켈레톤(ShimmerTwoLines)로 바꾸면 더 '오는 중' 느낌 — 다음.
+- 폰 확인: 못 봄(빌드·시험 EXIT=0, 가드 7종). 템플릿 저장·후속·견적발송·일정등록 버튼이 내비바 위로 뜨는지.

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -363,7 +364,8 @@ fun QuoteDocScreen(
 
         // 발송 버튼
         Box(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 12.dp)
+            Modifier.fillMaxWidth().background(Color.White).navigationBarsPadding()   // 🔧 내비바에 안 가리게. (2026-10-23 사장님)
+                .padding(horizontal = 18.dp, vertical = 12.dp)
         ) {
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)

@@ -4791,9 +4791,10 @@ private fun EstimateBuilderDialog(
                 selected = estModes.indexOf(mode).coerceAtLeast(0),
                 onSelect = { i -> mode = estModes[i] }
             )
-            // 머리(제목·탭)와 스크롤 내용 사이 **구분선** — 경계가 없어 스크롤 시 디자인이 깨져/미완성처럼 보이던 것. (2026-10-22 사장님)
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
+            // 머리(제목·탭)와 스크롤 내용 사이 **구분선** — 경계가 없어 스크롤 시 미완성처럼 보이던 것. (2026-10-22 사장님)
+            //   theme.line 이 너무 연해 안 보였다 → 또렷한 회색으로. (2026-10-23 사장님 "구분선 수정 안했어?")
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(TossTextTertiary.copy(alpha = 0.28f)))
             // 여기서부터 스크롤 — 제목·탭은 위에 고정. 최대높이 = 시트(640) - 머리(≈120). (2026-09-16 사장님)
             Column(
                 Modifier

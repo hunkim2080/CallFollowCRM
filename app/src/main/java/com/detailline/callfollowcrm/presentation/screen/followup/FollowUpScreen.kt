@@ -79,6 +79,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -205,6 +206,7 @@ fun FollowUpScreen(
                 Modifier
                     .fillMaxWidth()
                     .background(TossGrayBg)
+                    .keyboardOrNavPadding()   // 🔧 바닥 고정 CTA — 내비바에 안 가리게. (2026-10-23 사장님)
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 TossPrimaryButton(

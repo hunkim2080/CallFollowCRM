@@ -81,6 +81,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import java.util.Calendar
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 import com.detailline.callfollowcrm.util.PhoneKey
 
 /**
@@ -204,7 +205,7 @@ fun ScheduleAddScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .keyboardPadding()
+                    .keyboardOrNavPadding()   // 🔧 끝 '등록' 버튼이 내비바에 안 가리게(키보드/내비바 큰 쪽). (2026-10-23 사장님)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 18.dp)
                     .padding(top = 8.dp)
