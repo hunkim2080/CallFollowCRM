@@ -3126,8 +3126,13 @@ private fun RecentRow(
     //   갤럭시의 ✨ 는 남색 밤하늘 타일로 그려져 줄마다 까만 네모가 붙었다. (2026-09-20 사장님)
     //   서버 요약에서 이모지를 뺀 뒤로 이 줄이 **손님 말인지 AI 요약인지** 구분할 표시는 이것뿐이다.
     val summaryLine = aiSummary?.takeIf { it.isNotBlank() }
-    val primaryText = lastMsg ?: summaryLine
-    val secondaryText = if (lastMsg != null) summaryLine else null
+    // 🔔 마지막이 **통화**면 미리보기에 **통화 한 줄 요약**을 주로 보여준다 — 옛 문자(마지막 SMS)·통화 시간("몇 초")은 안 띄운다.
+    //   (2026-10-23 사장님: "몇초 통화는 안 중요, 통화 한줄 요약을 내용으로". 마지막이 통화인데 옛 문자가 뜨던 것.)
+    val lastWasCall = item.lastActivityWasCall
+    val primaryText = if (lastWasCall) (summaryLine ?: lastMsg) else (lastMsg ?: summaryLine)
+    val secondaryText = if (lastWasCall) null else (if (lastMsg != null) summaryLine else null)
+    // 주줄이 AI 통화/대화 요약이면 ✨ 표시. (통화면 요약이 주 → 표시)
+    val primaryIsSummary = if (lastWasCall) summaryLine != null else (lastMsg == null && summaryLine != null)
     Row(
         Modifier
             .fillMaxWidth()
@@ -3181,8 +3186,8 @@ private fun RecentRow(
                 Spacer(Modifier.height(6.dp))
                 // 📖 **읽는 글** = body(15 Medium). 안 읽은 줄만 색을 진하게(굵기 말고 색으로).
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 문자가 없어 요약이 주(主)로 올라온 줄 — AI 가 쓴 글임을 표시.
-                    if (lastMsg == null && summaryLine != null) AiMark()
+                    // 요약이 주(主)로 올라온 줄(문자 없음 or 마지막이 통화) — AI 가 쓴 글임을 표시.
+                    if (primaryIsSummary) AiMark()
                     Text(
                         primaryText, style = AppType.body,
                         color = if (unread) AppTheme.colors.text else AppTheme.colors.textSub,
