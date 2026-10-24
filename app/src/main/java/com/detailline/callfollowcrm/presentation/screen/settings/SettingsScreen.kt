@@ -169,6 +169,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTemplates: () -> Unit,
     onOpenPricingItems: () -> Unit,
+    onOpenFeatureTour: () -> Unit = {},
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
     onOpenTeam: () -> Unit = {},
@@ -592,8 +593,10 @@ fun SettingsScreen(
                 //   있을지 짐작이 안 됐다. → 잣대를 하나로: **얼마나 자주 여는가.**
                 //   항목은 하나도 안 없앴다. **자리만 옮겼다.**
                 SettingsGroup("자주 쓰는 것") {
+                    LockRow(Icons.Filled.AutoAwesome, TossBlueSoft, TossBlue, "막내가 이런 것도 해요",
+                        "통화 요약·부재중·협업… 둘러보기", first = true, onClick = onOpenFeatureTour)
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동으로 챙기기",
-                        "부재중 문자 · 시공 D-1 · 통화 요약 · 답변 준비", first = true) { subPage = "autosms" }
+                        "부재중 문자 · 시공 D-1 · 통화 요약 · 답변 준비") { subPage = "autosms" }
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
                         "자주 쓰는 문구 관리", onClick = onOpenTemplates)
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",

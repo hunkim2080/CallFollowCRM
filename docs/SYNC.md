@@ -15120,3 +15120,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI+새 공용. 신규 presentation/screen/chat/IntakeDemoCard.kt(9초 자동재생: ①링크 ②고객이 날짜·주소 입력 ③보내기 ④자동 캘린더 등록) + theme/IntakeDemoStyle.kt(데모 색·크기). 대화 화면 ChatTopActions 아래 배선: !isPlainThread·접수서 안받은 고객(intakeEvents 빈)·첫사용(hintSeen "intake_demo")·controlsVisible 일 때만. ✕닫기/보내기=접수서 탭(estimateDraft.mode="accept")→다시 안 뜸. 이모지 대신 Material 아이콘(폰마다 동일). 서버/DB 영향 없음
 - 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과). ⚠️애니 움직임·2폰 레이아웃은 폰 실기 확인 필요
 - 다음 액션: 사장님 폰에서 접수서 안 받은 고객 대화 열어 데모 카드 자동재생·보기 좋은지 확인(움직임/속도/크기)
+
+## 2026-10-24 19:40 · android
+기능 둘러보기 화면(「막내가 이런 것도 해요」) + 데모 카드 공용틀 + ① 통화요약 카드 (전환율, 사장님 「가」)
+- 변경: UI+새 공용. 신규 presentation/component/ConversionDemoCard.kt(데모 카드 공용틀: 제목·자동재생 그림·자막·점·보너스·CTA, 8초 루프) + presentation/screen/tour/FeatureTourScreen.kt(둘러보기 화면) + CallSummaryDemoStage.kt(삼성 통화→요약중→시간순 요약카드, 실제동작 기준: AI짐작·화자점·수정X). Destinations.FEATURE_TOUR + AppNavHost 라우트 + SettingsScreen(더보기) "막내가 이런 것도 해요" 줄(onOpenFeatureTour) → 통화요약 CTA는 SETTINGS_AUTOSMS로. 이모지 대신 Material 아이콘. 서버/DB 영향 없음
+- 폰 확인: **못 봄**(adb 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과). ⚠️틀·통화요약 애니/레이아웃 폰 실기 확인 필요
+- 다음 액션: 사장님 폰 더보기 → 「막내가 이런 것도 해요」 → 통화요약 데모 보기(모양 OK면 ②~⑤ 같은 틀로 추가)

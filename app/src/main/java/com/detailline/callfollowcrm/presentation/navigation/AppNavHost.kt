@@ -723,6 +723,7 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
+                onOpenFeatureTour = { navController.navigate(Destinations.FEATURE_TOUR) },
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
@@ -737,6 +738,14 @@ fun AppNavHost(
                 onOpenSoundSettings = { navController.navigate(Destinations.SOUND_SETTINGS) },
                 onOpenExpo = { navController.navigate(Destinations.EXPO) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
+            )
+        }
+
+        // 더보기 → 막내가 이런 것도 해요 — 기능 둘러보기(자동 재생 데모 카드). (2026-10-24)
+        composable(Destinations.FEATURE_TOUR) {
+            com.detailline.callfollowcrm.presentation.screen.tour.FeatureTourScreen(
+                onBack = { navController.popBackStack() },
+                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
             )
         }
 

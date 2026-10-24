@@ -46,6 +46,8 @@ object Destinations {
     fun templateEdit(id: Long?) = if (id == null) "template_edit" else "template_edit?id=$id"
 
     const val SETTINGS = "settings"
+    /** 더보기 → 막내가 이런 것도 해요 — 기능 둘러보기(자동 재생 데모 카드). (2026-10-24) */
+    const val FEATURE_TOUR = "feature_tour"
     /** 더보기 → 자동 문자(부재중 자동 응답 펼친 상태). 상담함 자동답장 알림 길게누름 진입. */
     const val SETTINGS_AUTOSMS = "settings_autosms"
     /** 더보기 → 알림 소리 — 알림 종류별 소리 고르기 + 미리듣기. (2026-07-10 사장님) */

@@ -28,3 +28,26 @@ val DemoLabel = 8.sp    // 입력 라벨·주소줄
 val DemoBody = 8.5.sp   // 제목줄·링크카드 제목
 val DemoBtn = 9.sp      // 보내기·작성하기
 val DemoCal = 7.sp      // 달력 날짜
+
+// ── 기능 둘러보기 데모 공통(삼성 전화 화면·상태색) — 프로토 그대로. (2026-10-24) ──
+val DemoCallTop = Color(0xFF2E3440)    // 삼성 통화화면 윗부분
+val DemoCallBottom = Color(0xFF1C2028) // 아랫부분
+val DemoCallGreen = Color(0xFF7FE0A8)  // 통화 중 시간 글자
+val DemoRecRed = Color(0xFFFF5B52)     // 녹음 점
+val DemoEndRed = Color(0xFFFF3B30)     // 통화 종료
+val DemoCallBtn = Color(0x1FFFFFFF)    // 통화화면 버튼(흰 12%)
+val DemoCallSub = Color(0xFFAEB6C2)    // 번호 등 옅은 글자
+val DemoCallLabel = Color(0xFF8A93A0)  // "휴대전화" 라벨
+val DemoOkSoft = Color(0xFFE7F7EF)     // 완료/수락 연초록
+// 상태색(신규/예정/완료/기존) — 전화 미리보기·내 기록 등
+val DemoStatusNew = Color(0xFFFF9F0A)
+val DemoStatusSched = Color(0xFF12C06A)
+val DemoStatusDone = Color(0xFFF0436A)
+val DemoStatusExist = Color(0xFF3A86FF)
+// 둘러보기용 글자 크기(큰 폰 한 대 — 미니 폰보다 조금 큼)
+val DemoName = 13.sp    // 통화 상대 이름
+val DemoNum = 10.sp     // 번호
+val DemoTime = 11.sp    // 통화 중 2:47
+val DemoSumTitle = 10.sp // 요약 카드 제목
+val DemoNote = 7.5.sp   // AI 짐작 안내
+val DemoHero = 27.sp    // 내 기록 큰 번호
