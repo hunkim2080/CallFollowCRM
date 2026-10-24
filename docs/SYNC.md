@@ -15144,3 +15144,8 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. ① 펜 완료: CustomerDetailViewModel.sendMarkedPhoto → PhotoMarkRenderer.renderToShareUri(원본에 획 얹어 캐시+FileProvider) → SmsIntentHelper.openSmsComposeWithAttachments(고객 번호+사진). 현장 저장 안 함(addMarkedPhoto 대체). §12 표 펜 줄 갱신. ② 대화 입력창 Box에 Initial-pass **안 소비** 더블탭 감지 → 빈 칸이면 "/" 자동입력(명령 뜸). 고객 대화(showActions)에서만. 필드 포커스·커서 그대로. 서버/DB 영향 없음
 - 폰 확인: **못 봄**(compileReleaseKotlin+가드7 통과). ⚠️펜→메시지앱 열림·사진첨부·번호, 더블탭 반응 폰 확인 필요
 - 다음 액션: 사장님 폰 확인 (데모 6개·펜 전송·더블탭)
+
+## 2026-10-24 21:45 · android
+더블탭→"/" 는 키패드 열린(포커스) 상태에서만 (사장님: 닫힌 상태선 첫 탭에 키패드 올라와 더블탭 꼬임)
+- 변경: UI만. Composer 에 fieldFocused(onFocusChanged) 추가 → 더블탭 "/" 는 fieldFocused && 빈칸일 때만. 서버/DB 영향 없음
+- 폰 확인: 못 봄(가드7 통과). 키패드 연 뒤 빈 입력창 더블탭→"/" 확인 필요

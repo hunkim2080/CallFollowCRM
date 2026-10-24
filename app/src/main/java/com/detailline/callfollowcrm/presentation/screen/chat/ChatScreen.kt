@@ -3669,6 +3669,8 @@ private fun Composer(
                 //   "ㄱㅣㄷㅏㄹㅕ"처럼 자모가 분리됨. IME 가 준 TextFieldValue 를 그대로 들고 있어야 합쳐진다. (2026-06-17 사장님 버그)
                 //   외부(템플릿·다듬기·캘린더·발송클리어)에서 input 이 바뀐 경우에만 다시 채택(그땐 커서 지정 위치/끝).
                 var tfv by remember { mutableStateOf(TextFieldValue(input, TextRange(input.length))) }
+                // 키패드 열린(포커스된) 상태인지 — 더블탭 "/" 는 **그때만** 먹는다. (2026-10-24 사장님: 닫힌 상태선 첫 탭에 키패드가 올라와 더블탭이 꼬임)
+                var fieldFocused by remember { mutableStateOf(false) }
                 if (input != tfv.text) {
                     tfv = TextFieldValue(
                         text = input,
@@ -3695,7 +3697,7 @@ private fun Composer(
                                     val down = ev.changes.firstOrNull { it.pressed && !it.previousPressed }
                                     if (down != null) {
                                         val now = down.uptimeMillis
-                                        if ((now - lastDown) in 1..300 && tfv.text.isEmpty()) {
+                                        if (fieldFocused && (now - lastDown) in 1..300 && tfv.text.isEmpty()) {
                                             tfv = androidx.compose.ui.text.input.TextFieldValue("/", selection = TextRange(1))
                                             onChange("/")
                                             onSelectionChange(TextRange(1))
@@ -3720,7 +3722,7 @@ private fun Composer(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                            .onFocusChanged { state -> onFocusChange(state.isFocused) },
+                            .onFocusChanged { state -> fieldFocused = state.isFocused; onFocusChange(state.isFocused) },
                         decorationBox = { inner ->
                             if (input.isEmpty()) {
                                 // "/" 치면 명령이 뜬다고 살짝 알려준다(고객 대화에서만). (2026-10-24 사장님)
