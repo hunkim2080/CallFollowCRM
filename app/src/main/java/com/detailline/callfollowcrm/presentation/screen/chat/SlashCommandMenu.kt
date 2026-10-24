@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.domain.chat.SlashCommand
 import com.detailline.callfollowcrm.domain.chat.SlashMenu
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
@@ -60,6 +61,7 @@ fun SlashCommandMenu(
     val cmds = if (query == null) emptyList() else SlashMenu.match(query)
     if (cmds.isNotEmpty()) Column(
         Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            .tossCardShadow(AppShape.lg)   // 채팅 위에 떠 있는 느낌
             .clip(AppShape.lg)
             .background(Color.White)
             .border(1.dp, TossDivider, AppShape.lg)

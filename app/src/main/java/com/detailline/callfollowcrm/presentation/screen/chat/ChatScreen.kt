@@ -1074,6 +1074,20 @@ fun ChatScreen(
                 }
             }
             TopScrollFade(color = TossGrayBg)   // 머리 밑 하드클립 방지(대화 배경색)
+            // "/" 명령 드롭다운 — 채팅 위에 **띄운다**. 입력칸 자리는 안 건드려 항상 보인다. (2026-10-24 사장님 "슬래시 치면 입력칸 가려짐")
+            if (!isPlainThread) androidx.compose.foundation.layout.Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 14.dp)
+            ) {
+                SlashCommandMenu(
+                    input = input,
+                    onOpenEstimate = { showEstimateBuilder = true },
+                    onOpenSchedule = { myScheduleOpen = true },
+                    onOpenTemplate = { tplPickerOpen = true },
+                    onAttachPhoto = { showPhotoPicker = true },
+                    onCustomer = { customerSummaryOpen = true },
+                    onClearInput = { input = "" }
+                )
+            }
             }   // ── Box(메시지 목록 + 위 페이드) 끝
 
             // 템플릿 알약 (가로 스크롤) — 탭하면 입력칸에 본문 채워짐. 즉시 전송 안 함.
@@ -1275,7 +1289,6 @@ fun ChatScreen(
                 onOpenEstimate = { triggerActionByType("send_estimate") },
                 onOpenSchedule = { myScheduleOpen = true },
                 onOpenTemplate = { tplPickerOpen = true },
-                onOpenCustomer = { customerSummaryOpen = true },
                 // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님 · 2026-09-16 자리 이동)
                 onSaveAsTemplate = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
                 focusRequester = composerFocusRequester,
@@ -3526,7 +3539,6 @@ private fun Composer(
     onOpenEstimate: () -> Unit = {},
     onOpenSchedule: () -> Unit = {},
     onOpenTemplate: () -> Unit = {},
-    onOpenCustomer: () -> Unit = {},   // "/고객" 요약 카드. (2026-10-24)
     /** ⊕ "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 메뉴에 뜬다. (2026-09-16 사장님 개편) */
     onSaveAsTemplate: () -> Unit = {},
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null
@@ -3586,16 +3598,7 @@ private fun Composer(
         }
         // 프로토 .composer — [⊕ 액션][ 입력 ✨ ][✈ 보내기] (사진은 ⊕ 맨 위). ⊕ 왼쪽(카톡식)·보내기 오른쪽. ✨/보내기는 글 있을 때 톡. (2026-08-14 사장님)
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
-        // "/" 명령 — 치면 바로 접수서·견적·일정·문구·사진(⊕ 메뉴와 같은 기능, 다른 입구). (2026-10-24 "카톡 봇 벤치마킹")
-        if (showActions) SlashCommandMenu(
-            input = input,
-            onOpenEstimate = onOpenEstimate,
-            onOpenSchedule = onOpenSchedule,
-            onOpenTemplate = onOpenTemplate,
-            onAttachPhoto = onAttachPhoto,
-            onCustomer = onOpenCustomer,
-            onClearInput = { onChange("") }
-        )
+        // "/" 명령 드롭다운은 **채팅 위에 띄운다**(여기 입력줄 안이 아니라) — 입력칸이 안 가리게. (2026-10-24)
         Row(
             modifier = Modifier.fillMaxWidth(),
             // 여러 줄이 되면 버튼을 **바닥선**에 붙인다. (2026-09-18 사장님 "정렬과 여백이 어색")
