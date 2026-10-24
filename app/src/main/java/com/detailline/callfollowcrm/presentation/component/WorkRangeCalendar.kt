@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
  *   (전엔 Material3 DateRangePicker · 이 축소판 · 회색 미니달력 **세 종류**가 섞여 있었다 —
  *    2026-10-24 사장님 "왜 캘린더 종류가 2개야?")
  *
- * 흰 바탕 카드 · 일=빨강/토=파랑 · 날짜는 칸 **왼쪽 위 작은 원** 안에 · 오늘은 [accent] 원 ·
+ * 흰 바탕 카드 · 일=빨강/토=파랑 · 날짜는 칸 **가운데 작은 원** 안에 · 오늘은 [accent] 원 ·
  *   고른 기간(시작~끝)은 연한 [rangeBg] 한 덩어리. 색만 [accent]/[rangeBg] 로 바꿔
  *   A/S(주황) 같은 맥락을 구분한다 — 모양은 그대로.
  *
@@ -120,11 +120,13 @@ fun WorkRangeCalendar(
                                 Modifier.weight(1f).height(34.dp).padding(horizontal = 1.dp)
                                     .clip(AppShape.sm)
                                     .background(if (picked) rangeBg else Color.Transparent)
-                                    .clickable { onPick(cell.dayMs) }
+                                    .clickable { onPick(cell.dayMs) },
+                                // 날짜는 칸 **가운데**. 일정 막대가 없는 고르기 달력이라 가운데가 균형. (2026-10-24 사장님)
+                                contentAlignment = Alignment.Center
                             ) {
-                                // 날짜 = 칸 **왼쪽 위 작은 원** 안에. 오늘만 accent 원. (일정 탭과 같음)
+                                // 오늘만 accent 원(가운데).
                                 Box(
-                                    Modifier.padding(start = 3.dp, top = 4.dp).size(20.dp).clip(CircleShape)
+                                    Modifier.size(20.dp).clip(CircleShape)
                                         .background(if (cell.isToday) accent else Color.Transparent),
                                     contentAlignment = Alignment.Center
                                 ) {
