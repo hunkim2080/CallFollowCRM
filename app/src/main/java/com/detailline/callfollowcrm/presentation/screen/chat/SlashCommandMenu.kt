@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Assignment
@@ -65,18 +68,23 @@ fun SlashCommandMenu(
         Text(
             "명령 — \"/\" 뒤에 이어 치면 걸러져요",
             style = AppType.caption, color = TossTextTertiary,
-            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 4.dp)
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 5.dp, bottom = 2.dp)
         )
-        cmds.forEach { cmd ->
-            SlashRow(cmd) {
-                onClearInput()
-                when (cmd) {
-                    // 접수서는 견적 작성 안 두 번째 탭이라 둘 다 같은 입구. (ComposerActionMenu 와 동일)
-                    SlashCommand.INTAKE, SlashCommand.QUOTE -> onOpenEstimate()
-                    SlashCommand.SCHEDULE -> onOpenSchedule()
-                    SlashCommand.TEMPLATE -> onOpenTemplate()
-                    SlashCommand.PHOTO -> onAttachPhoto()
-                    SlashCommand.CUSTOMER -> onCustomer()
+        // 대화창을 덮지 않게 **최대 높이 묶음**(넘으면 스크롤). (2026-10-24 사장님 "대화창이 가려짐")
+        Column(
+            Modifier.heightIn(max = 232.dp).verticalScroll(rememberScrollState())
+        ) {
+            cmds.forEach { cmd ->
+                SlashRow(cmd) {
+                    onClearInput()
+                    when (cmd) {
+                        // 접수서는 견적 작성 안 두 번째 탭이라 둘 다 같은 입구. (ComposerActionMenu 와 동일)
+                        SlashCommand.INTAKE, SlashCommand.QUOTE -> onOpenEstimate()
+                        SlashCommand.SCHEDULE -> onOpenSchedule()
+                        SlashCommand.TEMPLATE -> onOpenTemplate()
+                        SlashCommand.PHOTO -> onAttachPhoto()
+                        SlashCommand.CUSTOMER -> onCustomer()
+                    }
                 }
             }
         }
@@ -102,14 +110,14 @@ private fun SlashRow(cmd: SlashCommand, onClick: () -> Unit) {
         SlashCommand.CUSTOMER -> Icons.Default.Person
     }
     Row(
-        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 14.dp, vertical = 9.dp),
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(34.dp).clip(AppShape.sm).background(tint.copy(alpha = 0.12f)),
+            Modifier.size(30.dp).clip(AppShape.sm).background(tint.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
-        ) { Icon(icon, cmd.key, tint = tint, modifier = Modifier.size(18.dp)) }
-        Column(Modifier.padding(start = 11.dp)) {
+        ) { Icon(icon, cmd.key, tint = tint, modifier = Modifier.size(16.dp)) }
+        Column(Modifier.padding(start = 10.dp)) {
             Row {
                 Text("/", style = AppType.body, color = TossBlue, fontWeight = FontWeight.ExtraBold)
                 Text(cmd.key, style = AppType.body, color = TossTextPrimary, fontWeight = FontWeight.ExtraBold)
