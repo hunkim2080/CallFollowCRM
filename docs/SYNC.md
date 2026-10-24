@@ -15126,3 +15126,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI+새 공용. 신규 presentation/component/ConversionDemoCard.kt(데모 카드 공용틀: 제목·자동재생 그림·자막·점·보너스·CTA, 8초 루프) + presentation/screen/tour/FeatureTourScreen.kt(둘러보기 화면) + CallSummaryDemoStage.kt(삼성 통화→요약중→시간순 요약카드, 실제동작 기준: AI짐작·화자점·수정X). Destinations.FEATURE_TOUR + AppNavHost 라우트 + SettingsScreen(더보기) "막내가 이런 것도 해요" 줄(onOpenFeatureTour) → 통화요약 CTA는 SETTINGS_AUTOSMS로. 이모지 대신 Material 아이콘. 서버/DB 영향 없음
 - 폰 확인: **못 봄**(adb 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과). ⚠️틀·통화요약 애니/레이아웃 폰 실기 확인 필요
 - 다음 액션: 사장님 폰 더보기 → 「막내가 이런 것도 해요」 → 통화요약 데모 보기(모양 OK면 ②~⑤ 같은 틀로 추가)
+
+## 2026-10-24 20:30 · android
+접수서 데모 = 어두운 팝업 + 프로토 1:1(웹뷰) 로 전환 + 펜 버튼 "표시"→"펜" (사장님 "배경 어두워져야·프로토랑 1:1")
+- 변경: UI만. 신규 presentation/component/DemoWebPopup.kt(Dialog 스크림 + WebView 로 assets/demos html 로드, AppBridge.cta()/close() → 앱 동작) + assets/demos/intake_demo.html(프로토 P3L5USe9 그대로, ✕/CTA 연결). ChatScreen: 인라인 IntakeDemoCard → DemoWebPopup 교체(첫사용 게이트 그대로). IntakeDemoCard.kt 는 미사용(남겨둠). PhotoViewer 펜 버튼 "표시"→"펜". 서버/DB 영향 없음
+- 폰 확인: **못 봄**(adb 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과). ⚠️웹뷰 팝업 뜨는지·움직임·버튼 동작 폰 실기 확인 필요
+- 다음 액션: (1) 둘러보기 5개도 같은 웹뷰 방식으로 (2) 펜 완료=「고객에게 보내기만」 (3) 빈 입력창 더블탭→"/" 자동

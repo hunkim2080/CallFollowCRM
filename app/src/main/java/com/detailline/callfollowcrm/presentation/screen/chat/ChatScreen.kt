@@ -891,19 +891,17 @@ fun ChatScreen(
                 }
             }
 
-            // 📅 접수서 데모 — 첫 사용 때만, 접수서 안 받은 고객 대화 위에. 보내면 바로 접수서 탭.
+            // 📅 접수서 데모 — 첫 사용 때 **어두운 팝업**(프로토 그대로 웹뷰). 보내면 바로 접수서 탭. (2026-10-24 사장님 "배경 어두워져야·1:1")
             if (!searchMode && intakeDemoEligible) {
-                androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
-                    IntakeDemoCard(
-                        onSendIntake = {
-                            estimateDraft.mode.value = "accept"   // 접수서 탭으로 바로 (ChatTopActions onIntake 와 같음)
-                            showEstimateBuilder = true
-                            intakeDemoDismissed = true
-                        },
-                        onDismiss = { intakeDemoDismissed = true },
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
-                    )
-                }
+                com.detailline.callfollowcrm.presentation.component.DemoWebPopup(
+                    assetPath = "demos/intake_demo.html",
+                    onCta = {
+                        estimateDraft.mode.value = "accept"   // 접수서 탭으로 바로 (ChatTopActions onIntake 와 같음)
+                        showEstimateBuilder = true
+                        intakeDemoDismissed = true
+                    },
+                    onDismiss = { intakeDemoDismissed = true }
+                )
             }
 
             // 대화 안 검색 바 — 앱바 🔍 누르면 뜸. 입력 + N/M + ▲▼ + ✕. (2026-09-02 사장님)

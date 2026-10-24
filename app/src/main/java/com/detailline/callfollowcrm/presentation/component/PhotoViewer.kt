@@ -447,8 +447,8 @@ private fun ViewerPage(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ViewerRotateBtn("↺  왼쪽") { onRotate(-90) }
                     ViewerRotateBtn("↻  오른쪽") { onRotate(90) }
-                    // ✏️ **내 사진이면 펜으로 표시.** 눌러 그리는 화면으로. (2026-10-24 사장님)
-                    onPen?.let { ViewerRotateBtn("표시", onClick = it) }
+                    // ✏️ **내 사진이면 펜으로 그리기.** 눌러 그리는 화면으로. (2026-10-24 사장님 "표시가 뭔지 헷갈려 → 펜")
+                    onPen?.let { ViewerRotateBtn("펜", onClick = it) }
                     // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
                     onSaveNow?.let { ViewerRotateBtn("이대로 저장", filled = true, onClick = it) }
                 }
