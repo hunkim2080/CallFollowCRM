@@ -654,6 +654,22 @@ internal fun JobDetailCard(
                                                         Text("대표", style = AppType.micro, color = Color.White)
                                                     }
                                                 }
+                                                // ✕ 바로 지우기 — **목록에서 한 장씩**(첨부사진 지우듯). (2026-10-24 사장님 "크게 열어 지우는 건 번거롭다")
+                                                //   평소 모드에서만(고르는 중엔 체크가 여기 뜬다). 탭 → 기존 확인창(onPicksToDelete) 재사용 → deleteSitePhoto 한 곳.
+                                                if (!pickMode) {
+                                                    androidx.compose.foundation.layout.Box(
+                                                        Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(3.dp)
+                                                            .size(20.dp).clip(CircleShape)
+                                                            .background(Color.Black.copy(alpha = 0.45f))
+                                                            .clickable { host.onPicksToDelete(setOf(cell.id) to emptySet()) },
+                                                        contentAlignment = androidx.compose.ui.Alignment.Center
+                                                    ) {
+                                                        androidx.compose.material3.Icon(
+                                                            Icons.Default.Close, "사진 지우기",
+                                                            tint = Color.White, modifier = Modifier.size(13.dp)
+                                                        )
+                                                    }
+                                                }
                                             }
                                             is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto -> {
                                                 picked = cell.photoId in pickedTeam
