@@ -15132,3 +15132,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. 신규 presentation/component/DemoWebPopup.kt(Dialog 스크림 + WebView 로 assets/demos html 로드, AppBridge.cta()/close() → 앱 동작) + assets/demos/intake_demo.html(프로토 P3L5USe9 그대로, ✕/CTA 연결). ChatScreen: 인라인 IntakeDemoCard → DemoWebPopup 교체(첫사용 게이트 그대로). IntakeDemoCard.kt 는 미사용(남겨둠). PhotoViewer 펜 버튼 "표시"→"펜". 서버/DB 영향 없음
 - 폰 확인: **못 봄**(adb 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과). ⚠️웹뷰 팝업 뜨는지·움직임·버튼 동작 폰 실기 확인 필요
 - 다음 액션: (1) 둘러보기 5개도 같은 웹뷰 방식으로 (2) 펜 완료=「고객에게 보내기만」 (3) 빈 입력창 더블탭→"/" 자동
+
+## 2026-10-24 21:00 · android
+데모 노출 전환: 대화 자동팝업 제거 → 둘러보기(6개 전부) + 접수서 칩(pull) · 프로토 5개 asset · 죽은 Compose 데모 삭제 (사장님 "타이밍 난관→안 막게")
+- 변경: UI만. DemoWebPopup = 원본 프로토 HTML 그대로 WebView + 주입(.lede/.foot 숨김·투명·.cta→AppBridge.cta())+네이티브 ✕. assets/demos/ 에 6개(intake·callsummary·missedcall·callerpreview·collab·myrecord — 프로토 그대로 복사). FeatureTourScreen = 6개 목록→탭하면 팝업(CTA는 녹음설정/협업/통계로). ChatScreen: 자동팝업 삭제 → 접수서 안받은 고객 대화에 "접수서 이렇게 써요 ▸" 작은 칩→팝업. 삭제: IntakeDemoCard·ConversionDemoCard·CallSummaryDemoStage·IntakeDemoStyle(미사용). 서버/DB 영향 없음
+- 폰 확인: **못 봄**(compileReleaseKotlin+가드7 통과). ⚠️웹뷰 팝업 6개 뜨는지·움직임·✕/CTA·칩 폰 확인 필요
+- 다음 액션: (사장님과 정밀 리뷰) · 펜 완료=고객에게 보내기만 · 빈입력창 더블탭→"/"

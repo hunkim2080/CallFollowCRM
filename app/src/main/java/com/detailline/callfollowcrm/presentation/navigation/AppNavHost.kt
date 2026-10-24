@@ -745,7 +745,9 @@ fun AppNavHost(
         composable(Destinations.FEATURE_TOUR) {
             com.detailline.callfollowcrm.presentation.screen.tour.FeatureTourScreen(
                 onBack = { navController.popBackStack() },
-                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
+                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
+                onOpenCollab = { navController.navigate(Destinations.COLLAB_SITES) },
+                onOpenStats = { navController.navigate(Destinations.STATS) }
             )
         }
 

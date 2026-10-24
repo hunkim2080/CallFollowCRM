@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>내 기록 데모</title>
+<meta name="description" content="시공 끝내고 완료를 누르면 현장 번호가 쌓이고 지도에 핀이 찍히고 트럭(막내)이 다녀온 길을 달리고 이번 달 성과·유입경로가 한눈에 — 자랑할 만한 내 기록. 지금 실제 동작 기준(RegionMap·트럭).">
+<style>
+  :root{
+    --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
+    --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --red:#FF5B52;
+    --lineSoft:#E7EBF0; --land:#E3EDE0; --landEdge:#CFE0C7; --water:#DCEAF5; --river:#BBD6EF;
+    --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
+    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
+  .lede b{color:var(--ink);font-weight:800}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
+    padding:4px 11px;border-radius:999px;font-weight:700}
+
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
+    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+  .chead .t{font-weight:800;font-size:15px}
+  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
+
+  .stage{position:relative;height:356px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line);display:flex;justify-content:center}
+
+  .phone{position:relative;top:16px;width:202px;height:322px;border-radius:22px;background:#fff;
+    box-shadow:0 12px 30px rgba(17,24,39,.18);border:1px solid var(--lineSoft);overflow:hidden}
+  .sbar{height:16px;display:flex;align-items:center;padding:0 9px;font-size:7px;font-weight:800;color:#fff}
+  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
+  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
+  .sbar .bat{width:12px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
+  .sbar .bat::after{content:"";position:absolute;inset:1px;right:4px;background:#fff;border-radius:1px}
+  .tbar{height:25px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;background:var(--blue)}
+  .body{padding:9px 10px}
+
+  /* 번호 주인공 */
+  .hero{display:flex;align-items:baseline;gap:5px}
+  .hero .lab{font-size:9px;font-weight:800;color:var(--sub)}
+  .hero .big{font-size:27px;font-weight:900;color:var(--ink);letter-spacing:-1px;line-height:1}
+  .hero .plus{font-size:7.5px;font-weight:800;color:#fff;background:var(--ok);border-radius:999px;padding:2px 6px;opacity:0;animation:pulse1 .6s ease forwards;animation-delay:2.2s}
+  .subline{font-size:9px;color:var(--sub);font-weight:700;margin-top:3px}
+  .subline b{color:var(--ink)}
+
+  /* 지도 (주인공) */
+  .mapwrap{position:relative;height:138px;border-radius:12px;margin-top:8px;overflow:hidden;border:1px solid var(--lineSoft);background:var(--water)}
+  .mapwrap svg{display:block;width:100%;height:100%}
+  .newpin{opacity:0;transform-box:fill-box;transform-origin:50% 100%;animation:drop .5s cubic-bezier(.2,.9,.3,1.3) forwards;animation-delay:2.2s}
+  .ring{opacity:0;animation:ring 0.9s ease-out forwards;animation-delay:2.5s}
+  .mapcap{position:absolute;left:7px;bottom:6px;font-size:7px;font-weight:800;color:#1f5e3a;background:rgba(255,255,255,.82);border-radius:6px;padding:2px 6px}
+  .mapcity{position:absolute;font-size:7px;font-weight:700;color:#7E8B96}
+
+  /* 유입경로 */
+  .inflow{margin-top:8px}
+  .inflow .h{font-size:8px;font-weight:800;color:var(--sub);margin-bottom:4px}
+  .ibar{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+  .ibar .nm{font-size:8px;font-weight:700;color:var(--ink);width:32px;flex:none}
+  .ibar .tr{flex:1;height:7px;border-radius:999px;background:#EEF1F4;overflow:hidden}
+  .ibar .fl{height:7px;border-radius:999px;background:var(--blue);width:0;animation:grow .7s ease forwards}
+  .ibar .n{font-size:8px;font-weight:800;color:var(--blueDark);width:14px;text-align:right}
+  .ibar:nth-of-type(1) .fl{animation-delay:3.1s}
+  .ibar:nth-of-type(2) .fl{animation-delay:3.3s}
+  .ibar:nth-of-type(3) .fl{animation-delay:3.5s}
+
+  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
+  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
+  .steps i.on{background:var(--blue);transform:scale(1.25)}
+  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
+  .caption b{color:var(--ink);font-weight:800}
+  .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
+    border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
+  .alt .k{font-size:14px}
+  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
+  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
+
+  @keyframes pulse1{0%{opacity:0;transform:scale(.6)}60%{opacity:1;transform:scale(1.15)}100%{opacity:1;transform:scale(1)}}
+  @keyframes drop{0%{opacity:0;transform:translateY(-12px) scale(.6)}70%{opacity:1;transform:translateY(2px) scale(1.1)}100%{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes ring{0%{opacity:.7;transform:scale(.3)}100%{opacity:0;transform:scale(1.4)}}
+  @keyframes drive{to{offset-distance:100%}}
+  @keyframes grow{to{width:var(--w)}}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important}
+    .hero .plus{opacity:1!important} .newpin{opacity:1!important} .truck{offset-distance:62%!important} .ibar .fl{width:var(--w)!important} }
+</style>
+</head>
+<body>
+  <div class="lede"><b>내 기록 — 다녀온 현장이 쌓여요</b><br>시공 끝내고 <b>[완료]</b>를 누르면, 번호·지도·이번 달 성과가 저절로
+    <br><span class="tag">프로토 · 자동 재생(8초) · 지금 실제 동작 기준</span></div>
+
+  <div class="card">
+    <div class="chead"><span class="dot"></span><span class="t">쌓이는 내 기록, 자랑할 만해요</span></div>
+    <p class="csub">완료만 누르면 <b>현장 번호가 쌓이고, 지도에 다녀온 길이 그려져요</b>. 이번 달 집수·매출·유입경로도 한눈에.</p>
+
+    <div class="stage">
+      <div class="phone">
+        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+        <div class="tbar">내 기록</div>
+        <div class="body">
+          <div class="hero"><span class="lab">현장</span><span class="big" id="bignum">038</span><span class="plus">방금 +1</span></div>
+          <div class="subline">이번 달 <b>7집</b> · 동네 <b>38곳</b> · 매출 <b>500만원</b></div>
+
+          <!-- 지도: 땅·강·경로·동네 점·출발 집 + 달리는 트럭 -->
+          <div class="mapwrap">
+            <svg viewBox="0 0 202 138" preserveAspectRatio="xMidYMid slice">
+              <!-- 땅 -->
+              <path d="M-5,40 C30,24 70,30 104,22 C140,14 176,24 210,16 L210,145 L-5,145 Z" fill="#E3EDE0" stroke="#CFE0C7" stroke-width="1.2"/>
+              <path d="M-5,40 C30,24 70,30 104,22 C140,14 176,24 210,16" fill="none" stroke="#CFE0C7" stroke-width="1.2"/>
+              <!-- 강 -->
+              <path d="M-5,86 C40,70 70,100 110,84 C150,68 180,96 210,82" fill="none" stroke="#BBD6EF" stroke-width="7" stroke-linecap="round"/>
+              <!-- 도로 몇 개 -->
+              <path d="M16,118 L190,30" stroke="#FFFFFF" stroke-width="2.5" opacity="0.7"/>
+              <path d="M40,20 L70,130" stroke="#FFFFFF" stroke-width="2" opacity="0.6"/>
+              <!-- 다녀온 경로(트럭이 달리는 길) -->
+              <path id="route" d="M24,112 Q58,52 96,78 Q128,98 170,44" fill="none" stroke="#3182F6" stroke-width="2.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.85"/>
+              <!-- 출발 집 -->
+              <g>
+                <circle cx="24" cy="112" r="8" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.5"/>
+                <text x="24" y="115" font-size="9" text-anchor="middle">🏠</text>
+              </g>
+              <!-- 동네 점 (크기=방문 횟수) -->
+              <circle cx="58" cy="52" r="5.5" fill="#3182F6"/>
+              <circle cx="96" cy="78" r="4" fill="#3182F6"/>
+              <circle cx="128" cy="98" r="6.5" fill="#3182F6"/>
+              <circle cx="170" cy="44" r="4.5" fill="#3182F6"/>
+              <circle cx="78" cy="34" r="3.2" fill="#3182F6"/>
+              <!-- 방금 완료된 새 동네 점 -->
+              <circle class="ring" cx="112" cy="60" r="9" fill="none" stroke="#FF5B52" stroke-width="2"/>
+              <circle class="newpin" cx="112" cy="60" r="5" fill="#FF5B52"/>
+              <!-- 🚚 막내 트럭 — 경로(#route)를 그대로 달린다 -->
+              <g>
+                <text y="4" font-size="14" text-anchor="middle">🚚</text>
+                <animateMotion dur="4.2s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1" keyTimes="0;1">
+                  <mpath href="#route"/>
+                </animateMotion>
+              </g>
+            </svg>
+            <div class="mapcity" style="left:30%;top:28%">판교</div>
+            <div class="mapcity" style="left:66%;top:66%">강남</div>
+            <div class="mapcap">내가 다녀온 길 · 동네 38곳</div>
+          </div>
+
+          <div class="inflow">
+            <div class="h">어디서 보셨어요? (유입경로)</div>
+            <div class="ibar"><span class="nm">네이버</span><span class="tr"><span class="fl" style="--w:100%"></span></span><span class="n">12</span></div>
+            <div class="ibar"><span class="nm">블로그</span><span class="tr"><span class="fl" style="--w:66%"></span></span><span class="n">8</span></div>
+            <div class="ibar"><span class="nm">소개</span><span class="tr"><span class="fl" style="--w:42%"></span></span><span class="n">5</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
+    <div class="caption" id="caption">① 시공 끝내고 [완료]를 누르면</div>
+
+    <div class="alt"><span class="k">🗺️</span>지도는 — <b style="margin-left:2px">남한테 보여주기</b>&nbsp;좋아요 (자랑·홍보)</div>
+
+    <div class="cta">내 기록 보기</div>
+  </div>
+
+  <div class="foot"><span>자동 재생 8초 반복</span><span>트럭=다녀온 길</span><span>완료 찍을수록 쌓임</span></div>
+
+<script>
+  const caps = [
+    "① 시공 끝내고 [완료]를 누르면",
+    "② 현장 번호가 하나 쌓여요 (038)",
+    "③ 지도에 다녀온 길·트럭이 달려요",
+    "④ 이번 달 집수·매출·유입경로까지 한눈에"
+  ];
+  const atMs = [0, 2200, 2700, 3100];
+  const capEl = document.getElementById('caption');
+  const dots = [...document.querySelectorAll('#steps i')];
+  const bignum = document.getElementById('bignum');
+  function cycle(){
+    const t0 = performance.now();
+    function tick(now){
+      const e = (now - t0) % 8000;
+      let idx = 0;
+      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
+      capEl.textContent = caps[idx];
+      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
+      bignum.textContent = (e < 2200) ? "037" : "038";
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+</script>
+</body>
+</html>

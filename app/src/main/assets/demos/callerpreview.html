@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>전화 미리보기 데모</title>
+<meta name="description" content="전화가 오면 받기 전에 화면 위 쪽지로 누구·시공일·주소·받은돈·최근대화를 보여줘 번호만으론 모르던 고객을 알아본다 — 지금 실제 동작 기준(상단 카드·상태색). 폰 목업은 접수서 데모와 통일.">
+<style>
+  :root{
+    --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
+    --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --red:#FF3B30; --green:#12C06A; --amber:#FF9F0A;
+    --lineSoft:#E7EBF0; --greenSoft:#E7F7EF;
+    --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
+    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
+  .lede b{color:var(--ink);font-weight:800}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
+    padding:4px 11px;border-radius:999px;font-weight:700}
+
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
+    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+  .chead .t{font-weight:800;font-size:15px}
+  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
+
+  .stage{position:relative;height:342px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line);display:flex;justify-content:center}
+
+  .phone{position:relative;top:18px;width:198px;height:304px;border-radius:22px;overflow:hidden;
+    box-shadow:0 12px 30px rgba(17,24,39,.18);border:1px solid var(--lineSoft)}
+  /* 삼성 전화 수신(배경) */
+  .call{position:absolute;inset:0;background:radial-gradient(130% 80% at 50% 0%, #2E3440 0%, #1C2028 70%);display:flex;flex-direction:column;align-items:center}
+  .sbar{height:16px;display:flex;align-items:center;padding:0 9px;font-size:7px;font-weight:800;color:#fff}
+  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
+  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
+  .sbar .bat{width:12px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
+  .sbar .bat::after{content:"";position:absolute;inset:1px;right:4px;background:#fff;border-radius:1px}
+  .call .lab{color:#8A93A0;font-size:8px;font-weight:700;margin-top:86px;letter-spacing:.3px}
+  .call .nm{color:#fff;font-weight:800;font-size:16px;margin-top:8px}
+  .call .num{color:#AEB6C2;font-size:10px;margin-top:4px}
+  .call .ring{color:#7FE0A8;font-size:8.5px;font-weight:700;margin-top:10px;animation:blink 1.1s steps(2) infinite}
+  .call .answer{position:absolute;bottom:20px;display:flex;justify-content:space-between;width:150px}
+  .call .answer b{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:8px;color:#C7CDD6;font-weight:600}
+  .call .answer b i{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:19px}
+  .call .answer .dec i{background:var(--red);transform:rotate(135deg)}
+  .call .answer .acc i{background:var(--green)}
+
+  /* 위에서 내려오는 쪽지 카드 */
+  .peek{position:absolute;top:22px;left:9px;right:9px;background:#fff;border-radius:14px;overflow:hidden;
+    box-shadow:0 10px 24px rgba(17,24,39,.3);opacity:0;transform:translateY(-16px);
+    animation:peekIn .5s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:1.1s}
+  .peek .strip{height:5px;background:var(--green)}
+  .peek .pin{padding:9px 10px}
+  .prow{display:flex;align-items:center;gap:6px}
+  .prow .av{width:26px;height:26px;border-radius:50%;background:var(--greenSoft);display:grid;place-items:center;font-size:12px;flex:none}
+  .prow .nm{font-size:12px;font-weight:800;color:var(--ink)}
+  .prow .chip{margin-left:auto;font-size:7.5px;font-weight:800;color:#0E8F52;background:var(--greenSoft);padding:3px 7px;border-radius:999px}
+  .pline{display:flex;align-items:center;gap:4px;font-size:9px;margin-top:6px;color:var(--ink);opacity:0;animation:fade .3s ease forwards}
+  .pline .k{font-size:9px}
+  .pline.l1{animation-delay:1.7s}.pline.l2{animation-delay:1.95s}.pline.l3{animation-delay:2.2s}
+  .pmsg{margin-top:7px;background:#F4F6F9;border-radius:8px;padding:6px 7px;opacity:0;animation:fade .3s ease forwards;animation-delay:2.5s}
+  .pmsg div{font-size:8px;color:#4B5563;line-height:1.45}
+  .pmsg .me{color:var(--blueDark);font-weight:700}
+  .popen{margin-top:7px;background:var(--green);color:#fff;font-size:8.5px;font-weight:800;text-align:center;padding:6px;border-radius:8px;opacity:0;animation:fade .3s ease forwards;animation-delay:2.8s}
+
+  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
+  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
+  .steps i.on{background:var(--blue);transform:scale(1.25)}
+  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
+  .caption b{color:var(--ink);font-weight:800}
+  .alt{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 11px;background:#F7F9FB;border:1px solid var(--line);
+    border-radius:11px;font-size:11px;color:var(--sub);font-weight:700;flex-wrap:wrap;justify-content:center}
+  .alt span{display:flex;align-items:center;gap:3px}
+  .alt i{width:8px;height:8px;border-radius:50%}
+  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
+  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
+
+  @keyframes fade{to{opacity:1}}
+  @keyframes blink{50%{opacity:.25}}
+  @keyframes peekIn{to{opacity:1;transform:none}}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important}
+    .peek{opacity:1!important;transform:none!important} .pline,.pmsg,.popen{opacity:1!important} }
+</style>
+</head>
+<body>
+  <div class="lede"><b>전화 미리보기 — 받기 전에 누군지 알아요</b><br>전화가 오면 화면 위에 <b>쪽지</b>로 누구·시공일·주소·받은 돈·최근 대화를
+    <br><span class="tag">프로토 · 자동 재생(8초) · 지금 실제 동작 기준</span></div>
+
+  <div class="card">
+    <div class="chead"><span class="dot"></span><span class="t">전화 올 때 누군지 바로</span></div>
+    <p class="csub">번호만으론 누군지 몰라요. 전화가 오면 <b>받기 전에</b> 위에 쪽지가 떠서 — 누구·언제 시공·어디·얼마 받았는지 흘긋 봐요.</p>
+
+    <div class="stage">
+      <div class="phone">
+        <!-- 삼성 전화 수신(배경) -->
+        <div class="call">
+          <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+          <div class="lab">휴대전화</div>
+          <div class="nm">010-5918-9978</div>
+          <div class="num">저장 안 된 번호</div>
+          <div class="ring">전화가 왔어요…</div>
+          <div class="answer"><b class="dec"><i>📞</i>거절</b><b class="acc"><i>📞</i>수락</b></div>
+        </div>
+
+        <!-- 위에서 내려오는 쪽지 -->
+        <div class="peek">
+          <div class="strip"></div>
+          <div class="pin">
+            <div class="prow"><span class="av">👤</span><span class="nm">판교 김성호</span><span class="chip">📅 시공 예정</span></div>
+            <div class="pline l1"><span class="k">🔨</span>10/16(목) 시공 · <b style="margin-left:3px">D-3</b></div>
+            <div class="pline l2"><span class="k">📍</span>강남구 대왕판교로 123</div>
+            <div class="pline l3"><span class="k">💰</span>계약금 10만원 받음 · 잔금 55만</div>
+            <div class="pmsg">
+              <div>고객: 화장실·주방 줄눈 견적 받고 싶어요</div>
+              <div class="me">나: 65만원 안내드렸어요 😊</div>
+            </div>
+            <div class="popen">기록 열기</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
+    <div class="caption" id="caption">① 전화가 와요 — 번호만으론 누군지 몰라요</div>
+
+    <div class="alt">
+      <span><i style="background:var(--amber)"></i>신규</span>
+      <span><i style="background:var(--green)"></i>시공 예정</span>
+      <span><i style="background:var(--red)"></i>완료 고객</span>
+      <span><i style="background:var(--blue)"></i>기존</span>
+      <span style="color:var(--ink);font-weight:800">— 색으로 흘긋</span>
+    </div>
+
+    <div class="cta">전화 미리보기 켜기</div>
+  </div>
+
+  <div class="foot"><span>자동 재생 8초 반복</span><span>삼성 One UI 기준</span><span>Play로 깐 폰에서 떠요</span></div>
+
+<script>
+  const caps = [
+    "① 전화가 와요 — 번호만으론 누군지 몰라요",
+    "② 받기 전에 — 위에 쪽지가 떠요",
+    "③ 누구·시공일·주소·받은 돈·최근 대화까지",
+    "④ 색으로 흘긋 — 신규·예정·완료·기존"
+  ];
+  const atMs = [0, 1100, 1700, 4000];
+  const capEl = document.getElementById('caption');
+  const dots = [...document.querySelectorAll('#steps i')];
+  function cycle(){
+    const t0 = performance.now();
+    function tick(now){
+      const e = (now - t0) % 8000;
+      let idx = 0;
+      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
+      capEl.textContent = caps[idx];
+      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+</script>
+</body>
+</html>

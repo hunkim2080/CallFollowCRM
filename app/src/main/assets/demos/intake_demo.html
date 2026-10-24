@@ -3,55 +3,67 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>접수서 보내기 데모</title>
+<meta name="description" content="앱 안에서 '이렇게 써보세요' — 고객이 날짜·주소를 적으면 자동으로 캘린더에 등록되는 흐름을 도는 미리보기 프로토 (전환율 유도).">
 <style>
   :root{
     --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
     --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
-    --card:#FFFFFF; --ok:#12B886; --lineSoft:#E7EBF0;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886;
     --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
-  body{background:transparent;color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
-    display:flex;align-items:center;justify-content:center;padding:10px}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
+    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
+  .lede b{color:var(--ink);font-weight:800}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
+    padding:4px 11px;border-radius:999px;font-weight:700}
 
-  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:16px 15px 15px;
-    box-shadow:0 12px 40px rgba(17,24,39,.22)}
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
+    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
   .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
   .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
   .chead .t{font-weight:800;font-size:15px}
-  .chead .x{margin-left:auto;font-size:19px;color:var(--hint);line-height:1;cursor:pointer;padding:2px 4px}
   .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
 
-  .stage{position:relative;height:306px;border-radius:16px;overflow:hidden;
+  .stage{position:relative;height:312px;border-radius:16px;overflow:hidden;
     background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line)}
-  .phone{position:absolute;top:20px;width:150px;height:262px;border-radius:21px;background:#fff;
-    box-shadow:0 10px 26px rgba(17,24,39,.16);border:1px solid var(--lineSoft);overflow:hidden}
-  .sbar{height:15px;display:flex;align-items:center;padding:0 8px;font-size:7px;font-weight:800;color:#fff}
+
+  .phone{position:absolute;top:20px;width:152px;height:270px;border-radius:21px;background:#fff;
+    box-shadow:0 10px 26px rgba(17,24,39,.16);border:1px solid #E4E9EF;overflow:hidden}
+  .sbar{height:15px;display:flex;align-items:center;padding:0 8px;font-size:7px;font-weight:800;color:#fff;opacity:.95}
   .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
   .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
   .sbar .bat{width:11px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
   .sbar .bat::after{content:"";position:absolute;inset:1px;right:3px;background:#fff;border-radius:1px}
-  .tbar{height:24px;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:#fff}
+  .tbar{height:24px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:800;color:#fff}
   .body{padding:9px 9px 0}
-  .pBoss{left:16px}  .pBoss .sbar,.pBoss .tbar{background:var(--blue)}
-  .pCust{right:16px} .pCust .sbar,.pCust .tbar{background:#30343B}
+  .pBoss{left:14px}  .pBoss .sbar,.pBoss .tbar{background:var(--blue)}
+  .pCust{right:14px} .pCust .sbar,.pCust .tbar{background:#30343B}
 
   .row{display:flex;align-items:flex-end;gap:5px;margin-bottom:7px}
+  .ava{width:17px;height:17px;border-radius:50%;background:var(--blueSoft);flex:none}
+  .ava.g{background:#E7EBF0}
   .bub{font-size:8.5px;line-height:1.35;padding:5px 7px;border-radius:9px;background:#F1F4F7;color:var(--ink);max-width:96px}
   .bub.me{background:var(--blue);color:#fff;margin-left:auto}
   .tm{font-size:6.5px;color:var(--hint);margin:0 2px 1px}
+
+  /* 접수서 링크 카드 */
   .linkcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 7px;max-width:112px;box-shadow:0 2px 8px rgba(17,24,39,.06)}
   .linkcard.me{margin-left:auto;border-color:#BFD8FF;background:#F6FAFF}
   .linkcard .h{font-size:8.5px;font-weight:800;color:var(--ink);display:flex;gap:3px;align-items:center}
   .linkcard .d{font-size:7px;color:var(--sub);margin:2px 0 4px}
   .linkcard .go{font-size:7.5px;font-weight:800;color:#fff;background:var(--blue);border-radius:6px;text-align:center;padding:4px}
+
   .lab{font-size:8px;color:var(--hint);font-weight:700;margin:2px 0 4px;display:flex;gap:3px;align-items:center}
   .inp{height:17px;border-radius:5px;background:#F1F4F7;margin-bottom:6px;position:relative;overflow:hidden;border:1px solid #E7EBF0}
   .inp .txt{position:absolute;left:5px;top:3.5px;font-size:7.5px;color:var(--ink);white-space:nowrap;opacity:0;z-index:2}
   .inp::after{content:"";position:absolute;inset:0;width:0;background:#DCEAFE}
   .btn{margin-top:3px;background:var(--blue);color:#fff;font-weight:800;font-size:9px;text-align:center;padding:7px;border-radius:9px}
 
+  /* 도착 — 자동 캘린더 */
   .arrived{margin-top:2px}
   .calCard{position:relative;border:1px solid #BFD8FF;border-radius:11px;padding:7px 8px;background:#F6FAFF}
   .calCard .h{display:flex;align-items:center;gap:4px;font-size:8.5px;font-weight:800;color:var(--blueDark)}
@@ -61,20 +73,25 @@
   .miniCal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin:5px 0 2px}
   .miniCal b{font-size:6px;color:var(--hint);text-align:center;font-weight:700}
   .miniCal span{font-size:7px;text-align:center;color:var(--sub);padding:2.5px 0;border-radius:5px;line-height:1}
-  .miniCal span.hi{background:#F1F4F7;color:var(--sub)}
+  .miniCal span.hi{background:#F1F4F7;color:var(--sub);position:relative}
 
-  .fly{position:absolute;z-index:6;font-size:17px;top:120px;left:150px;opacity:0}
+  .fly{position:absolute;z-index:6;font-size:17px;top:120px;left:152px;opacity:0}
+  .spark{position:absolute;z-index:7;left:72px;top:150px;font-size:15px;opacity:0}
 
   .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
   .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
   .steps i.on{background:var(--blue);transform:scale(1.25)}
   .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
   .caption b{color:var(--ink);font-weight:800}
+
   .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
     border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
   .alt .k{font-size:14px}
-  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:14px;border-radius:13px;cursor:pointer}
+  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
+  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
 
+  /* ═══ 타임라인 9초 ═══ */
   .pBoss .msgLink{opacity:0;transform:translateY(6px);animation:pop .4s ease forwards;animation-delay:.6s}
   .pCust .gotLink{opacity:0;transform:translateY(6px);animation:pop .4s ease forwards;animation-delay:2.4s}
   .pCust .form{opacity:0;animation:fade .4s ease forwards;animation-delay:3.1s}
@@ -87,43 +104,68 @@
   .fly.back{animation:flyLeft 1.4s ease forwards;animation-delay:5.4s}
   .pBoss .arrived{opacity:0;transform:scale(.92);animation:pop .45s ease forwards;animation-delay:6.7s}
   .miniCal span.hi{animation:dot .5s ease forwards;animation-delay:7.1s}
+  .spark{animation:spark 1s ease forwards;animation-delay:6.9s}
 
   @keyframes pop{to{opacity:1;transform:none}}
   @keyframes fade{to{opacity:1}}
   @keyframes flash{0%{opacity:.5}50%{opacity:1}100%{opacity:.6}}
   @keyframes typefill{to{width:100%}}
   @keyframes dot{to{background:var(--blue);color:#fff}}
-  @keyframes flyRight{0%{opacity:0;left:150px;top:120px}15%{opacity:1}100%{opacity:0;left:250px;top:66px}}
+  @keyframes spark{0%{opacity:0;transform:scale(.4) rotate(-10deg)}40%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(1) translateY(-8px)}}
+  @keyframes flyRight{0%{opacity:0;left:152px;top:120px}15%{opacity:1}100%{opacity:0;left:250px;top:66px}}
   @keyframes flyLeft{0%{opacity:0;left:250px;top:120px}15%{opacity:1}100%{opacity:0;left:150px;top:150px}}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important} .inp::after{width:100%!important}
+    .inp .txt,.msgLink,.gotLink,.form,.arrived{opacity:1!important;transform:none!important}
+    .miniCal span.hi{background:var(--blue)!important;color:#fff!important} }
 </style>
 </head>
 <body>
+  <div class="lede"><b>접수서 보내기 — 이렇게 써요</b><br>링크 하나 보내면 고객이 <b>날짜·주소</b>를 직접 적고, <b>자동으로 캘린더에</b>
+    <br><span class="tag">프로토 · 자동 재생(GIF식) · 전환율 유도</span></div>
+
   <div class="card">
-    <div class="chead"><span class="dot"></span><span class="t">접수서, 이렇게 받아요</span><span class="x" onclick="try{AppBridge.close()}catch(e){}">✕</span></div>
+    <div class="chead"><span class="dot"></span><span class="t">접수서, 이렇게 받아요</span></div>
     <p class="csub">고객이 <b>날짜와 주소</b>를 직접 적어줘요. 보내면 <b>자동으로 내 캘린더에</b> 쏙 — 다시 안 물어도 돼요.</p>
 
-    <div class="stage">
+    <div class="stage" id="stage">
+      <!-- 사장님 폰 -->
       <div class="phone pBoss">
         <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
         <div class="tbar">내 시공막내</div>
         <div class="body">
           <span class="tm" style="display:block;text-align:right">오후 2:10</span>
           <div class="row"><span class="bub me">접수서 보내드릴게요</span></div>
-          <div class="msgLink"><div class="linkcard me"><div class="h">📝 시공 접수서</div><div class="d">날짜·주소만 적어주세요</div><div class="go">작성하기</div></div></div>
-          <div class="arrived"><div class="calCard">
-            <div class="h">📅 캘린더에 자동 등록<span class="badge">✓ 완료</span></div>
-            <div class="dateline">10/16(목) 오전 9시</div>
-            <div class="miniCal"><b>일</b><b>월</b><b>화</b><b>수</b><b>목</b><b>금</b><b>토</b><span>12</span><span>13</span><span>14</span><span>15</span><span class="hi">16</span><span>17</span><span>18</span></div>
-            <div class="addrline">📍 서울 강남구 …로 123</div>
-          </div></div>
+          <div class="msgLink">
+            <div class="linkcard me">
+              <div class="h">📝 시공 접수서</div>
+              <div class="d">날짜·주소만 적어주세요</div>
+              <div class="go">작성하기</div>
+            </div>
+          </div>
+          <div class="arrived">
+            <div class="calCard">
+              <div class="h">📅 캘린더에 자동 등록<span class="badge">✓ 완료</span></div>
+              <div class="dateline">10/16(목) 오전 9시</div>
+              <div class="miniCal">
+                <b>일</b><b>월</b><b>화</b><b>수</b><b>목</b><b>금</b><b>토</b>
+                <span>12</span><span>13</span><span>14</span><span>15</span><span class="hi">16</span><span>17</span><span>18</span>
+              </div>
+              <div class="addrline">📍 서울 강남구 …로 123</div>
+            </div>
+          </div>
         </div>
       </div>
 
+      <!-- 고객 폰 -->
       <div class="phone pCust">
         <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
         <div class="tbar">고객</div>
         <div class="body">
-          <div class="gotLink"><span class="tm">오후 2:10</span><div class="linkcard"><div class="h">📝 시공 접수서</div><div class="d">날짜·주소만 적어주세요</div><div class="go">작성하기</div></div></div>
+          <div class="gotLink">
+            <span class="tm">오후 2:10</span>
+            <div class="linkcard"><div class="h">📝 시공 접수서</div><div class="d">날짜·주소만 적어주세요</div><div class="go">작성하기</div></div>
+          </div>
           <div class="form">
             <div class="lab">📅 시공 날짜</div>
             <div class="inp a1"><span class="txt">10/16(목) 오전 9시</span></div>
@@ -136,6 +178,7 @@
 
       <div class="fly paper">📨</div>
       <div class="fly back">📅</div>
+      <div class="spark">✨</div>
     </div>
 
     <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
@@ -143,7 +186,11 @@
 
     <div class="alt"><span class="k">📍</span>주소만 급할 땐 — <b style="margin-left:2px">‘주소만 받기’</b>로 주소 한 칸만</div>
 
-    <div class="cta" onclick="try{AppBridge.cta()}catch(e){}">접수서 보내기</div>
+    <div class="cta">접수서 보내기</div>
+  </div>
+
+  <div class="foot">
+    <span>자동 재생 9초 반복</span><span>FirstRunHint 자리 후보</span><span>실제=접수서 보내기 화면</span>
   </div>
 
 <script>
@@ -156,15 +203,19 @@
   const atMs = [0, 3100, 5100, 6700];
   const capEl = document.getElementById('caption');
   const dots = [...document.querySelectorAll('#steps i')];
-  const t0 = performance.now();
-  function tick(now){
-    const e = (now - t0) % 9000;
-    let idx = 0; for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
-    capEl.textContent = caps[idx];
-    dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
+  function cycle(){
+    const t0 = performance.now();
+    function tick(now){
+      const e = (now - t0) % 9000;
+      let idx = 0;
+      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
+      capEl.textContent = caps[idx];
+      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
+      requestAnimationFrame(tick);
+    }
     requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
 </script>
 </body>
 </html>

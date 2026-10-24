@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>협업 사장 데모</title>
+<meta name="description" content="일손 급한 현장을 다른 사장님께 협업 부르면 상대 앱에 요청이 떠 수락하고, 같이 시공하고 일당 정산서까지 자동 — 지금 실제 동작 기준. 폰 목업은 접수서 데모와 통일.">
+<style>
+  :root{
+    --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
+    --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --amber:#FF9F0A; --amberSoft:#FFF4E0;
+    --lineSoft:#E7EBF0;
+    --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
+    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
+  .lede b{color:var(--ink);font-weight:800}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
+    padding:4px 11px;border-radius:999px;font-weight:700}
+
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
+    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+  .chead .t{font-weight:800;font-size:15px}
+  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
+
+  .stage{position:relative;height:306px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line)}
+
+  .phone{position:absolute;top:20px;width:150px;height:262px;border-radius:21px;background:#fff;
+    box-shadow:0 10px 26px rgba(17,24,39,.16);border:1px solid var(--lineSoft);overflow:hidden}
+  .sbar{height:15px;display:flex;align-items:center;padding:0 8px;font-size:7px;font-weight:800;color:#fff}
+  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
+  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
+  .sbar .bat{width:11px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
+  .sbar .bat::after{content:"";position:absolute;inset:1px;right:3px;background:#fff;border-radius:1px}
+  .tbar{height:24px;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--blue)}
+  .body{padding:9px}
+  .pMe{left:16px}
+  .pPartner{right:16px}
+
+  .seclab{font-size:7px;font-weight:800;color:var(--hint);margin-bottom:5px}
+  /* 내 현장 카드 */
+  .site{border:1px solid var(--lineSoft);border-radius:10px;padding:8px;box-shadow:0 2px 8px rgba(17,24,39,.05)}
+  .site .d{font-size:9px;font-weight:800;color:var(--ink)}
+  .site .a{font-size:8px;color:var(--sub);margin-top:3px}
+  .site .busy{display:inline-block;margin-top:5px;font-size:7px;font-weight:800;color:#C0362F;background:#FFF0EF;border-radius:6px;padding:2px 6px}
+  .callbtn{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:4px;background:var(--amberSoft);border:1px solid #FFE2AE;border-radius:9px;padding:7px;font-size:8.5px;font-weight:800;color:#9A6A00}
+  .sent{margin-top:7px;background:#F6FAFF;border:1px solid var(--blueSoft);border-radius:9px;padding:6px 7px;font-size:8px;color:var(--blueDark);font-weight:700;opacity:0;animation:fade .4s ease forwards;animation-delay:2.0s}
+
+  /* 상대 사장 — 받은 요청 */
+  .req{border:1px solid #FFE2AE;border-radius:10px;background:#FFFBF2;padding:8px;opacity:0;transform:translateY(8px);animation:pop .45s ease forwards;animation-delay:3.0s}
+  .req .h{display:flex;align-items:center;gap:4px;font-size:8.5px;font-weight:800;color:#9A6A00}
+  .req .h .badge{margin-left:auto;font-size:6.5px;font-weight:700;color:#9A6A00;background:var(--amberSoft);padding:2px 5px;border-radius:999px}
+  .req .l{font-size:8px;color:var(--ink);margin-top:5px;line-height:1.4}
+  .req .l b{color:var(--ink)}
+  .req .wage{font-size:8.5px;font-weight:800;color:var(--ok);margin-top:4px}
+  .req .btns{display:flex;gap:5px;margin-top:7px}
+  .req .btns .acc{flex:1;text-align:center;background:var(--blue);color:#fff;font-size:8px;font-weight:800;border-radius:7px;padding:5px}
+  .req .btns .dec{flex:none;text-align:center;background:#F1F4F7;color:var(--sub);font-size:8px;font-weight:700;border-radius:7px;padding:5px 8px}
+  .accepted{margin-top:7px;background:#E7F7EF;border:1px solid #BFEAD4;border-radius:9px;padding:6px 7px;font-size:8px;color:#0E8F52;font-weight:800;opacity:0;animation:fade .4s ease forwards;animation-delay:5.2s}
+
+  /* 일당 정산서 미니 */
+  .fly{position:absolute;z-index:6;font-size:15px;top:120px;left:150px;opacity:0;animation:flyRight 1.3s ease forwards;animation-delay:2.5s}
+
+  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
+  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
+  .steps i.on{background:var(--blue);transform:scale(1.25)}
+  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
+  .caption b{color:var(--ink);font-weight:800}
+  .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
+    border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
+  .alt .k{font-size:14px}
+  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
+  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
+
+  @keyframes fade{to{opacity:1}}
+  @keyframes pop{to{opacity:1;transform:none}}
+  @keyframes flyRight{0%{opacity:0;left:150px;top:120px}15%{opacity:1}100%{opacity:0;left:248px;top:90px}}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important} .sent,.req,.accepted{opacity:1!important;transform:none!important} }
+</style>
+</head>
+<body>
+  <div class="lede"><b>협업 사장 — 일손 급할 때 다른 사장님과 함께</b><br>현장 하나를 <b>협업 부르면</b> 상대 앱에 떠서 수락하고, <b>일당 정산까지 자동</b>
+    <br><span class="tag">프로토 · 자동 재생(8초) · 지금 실제 동작 기준</span></div>
+
+  <div class="card">
+    <div class="chead"><span class="dot"></span><span class="t">바쁠 땐 사장님끼리 품앗이</span></div>
+    <p class="csub">일손 급한 현장을 <b>다른 사장님께 협업 부르기</b>. 상대가 수락하면 그 현장을 같이 봐요. 끝나면 <b>일당 정산서</b>까지 자동.</p>
+
+    <div class="stage">
+      <!-- 내 폰 -->
+      <div class="phone pMe">
+        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+        <div class="tbar">내 시공막내</div>
+        <div class="body">
+          <div class="seclab">내 현장</div>
+          <div class="site">
+            <div class="d">10/16(목) 시공</div>
+            <div class="a">강남구 대왕판교로 123</div>
+            <div class="busy">이 날 현장 2곳 — 손 부족</div>
+            <div class="callbtn">🤝 협업 부르기</div>
+            <div class="sent">김하우스 사장님께 요청 보냄 · 연결되면 알려드려요</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 상대 사장 폰 -->
+      <div class="phone pPartner">
+        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+        <div class="tbar">김하우스 사장님</div>
+        <div class="body">
+          <div class="seclab">받은 요청</div>
+          <div class="req">
+            <div class="h">🤝 협업 요청<span class="badge">23시간 남음</span></div>
+            <div class="l"><b>디테일라인 사장님</b>이 현장을<br>함께하자고 해요</div>
+            <div class="l">📅 10/16(목) · 📍 강남 대왕판교로</div>
+            <div class="wage">💰 일당 25만원</div>
+            <div class="btns"><span class="acc">수락</span><span class="dec">나중에</span></div>
+            <div class="accepted">✓ 수락함 — 내 일정에 추가됐어요</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fly">🤝</div>
+    </div>
+
+    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
+    <div class="caption" id="caption">① 일손 급한 현장에서 — 협업 부르기</div>
+
+    <div class="alt"><span class="k">🧾</span>끝나면 — <b style="margin-left:2px">일당 정산서</b>&nbsp;자동 (기간·합계, 이미지로 공유)</div>
+
+    <div class="cta">협업 부르기</div>
+  </div>
+
+  <div class="foot"><span>자동 재생 8초 반복</span><span>24시간 내 수락</span><span>일당 자동차감 · 정산서 자동</span></div>
+
+<script>
+  const caps = [
+    "① 일손 급한 현장에서 — 협업 부르기",
+    "② 다른 사장님 앱에 요청이 떠요",
+    "③ 수락하면 그 현장을 같이 봐요",
+    "④ 끝나면 일당 정산서까지 자동"
+  ];
+  const atMs = [0, 2500, 4000, 5600];
+  const capEl = document.getElementById('caption');
+  const dots = [...document.querySelectorAll('#steps i')];
+  function cycle(){
+    const t0 = performance.now();
+    function tick(now){
+      const e = (now - t0) % 8000;
+      let idx = 0;
+      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
+      capEl.textContent = caps[idx];
+      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+</script>
+</body>
+</html>

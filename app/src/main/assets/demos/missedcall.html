@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>부재중 자동문자 데모</title>
+<meta name="description" content="시공 중이라 전화를 못 받아도, 자동으로 고객에게 문자가 나가 고객을 안 놓친다 — 지금 실제 동작 기준(신규/단골 다른 문구·24시간 쿨다운). 폰 목업은 접수서 데모와 통일.">
+<style>
+  :root{
+    --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
+    --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --red:#FF3B30; --green:#2ECC71;
+    --lineSoft:#E7EBF0;
+    --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
+    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
+  .lede b{color:var(--ink);font-weight:800}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
+    padding:4px 11px;border-radius:999px;font-weight:700}
+
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
+    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+  .chead .t{font-weight:800;font-size:15px}
+  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
+
+  .stage{position:relative;height:306px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line)}
+
+  .phone{position:absolute;top:20px;width:150px;height:262px;border-radius:21px;background:#fff;
+    box-shadow:0 10px 26px rgba(17,24,39,.16);border:1px solid var(--lineSoft);overflow:hidden}
+  .sbar{height:15px;display:flex;align-items:center;padding:0 8px;font-size:7px;font-weight:800;color:#fff}
+  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
+  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
+  .sbar .bat{width:11px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
+  .sbar .bat::after{content:"";position:absolute;inset:1px;right:3px;background:#fff;border-radius:1px}
+  .tbar{height:24px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:800;color:#fff}
+  .pBoss{left:16px}  .pBoss .tbar{background:var(--blue)}
+  .pCust{right:16px} .pCust .tbar{background:#30343B}
+  .body{padding:9px}
+
+  /* 사장님 — 삼성 전화(수신→부재중) */
+  .call{position:absolute;inset:0;background:radial-gradient(130% 80% at 50% 0%, #2E3440 0%, #1C2028 70%);display:flex;flex-direction:column;align-items:center}
+  .call .lab{color:#8A93A0;font-size:7px;font-weight:700;margin-top:12px;letter-spacing:.3px}
+  .call .nm{color:#fff;font-weight:800;font-size:13px;margin-top:7px}
+  .call .num{color:#AEB6C2;font-size:9px;margin-top:3px}
+  .call .ring{color:#7FE0A8;font-size:8px;font-weight:700;margin-top:9px;animation:blink 1.1s steps(2) infinite}
+  .call .answer{position:absolute;bottom:18px;display:flex;justify-content:space-between;width:110px}
+  .call .answer b{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:7px;color:#C7CDD6;font-weight:600}
+  .call .answer b i{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:16px}
+  .call .answer .dec i{background:var(--red);transform:rotate(135deg)}
+  .call .answer .acc i{background:#4A535F}
+  .call{animation:fadeOut .35s ease forwards;animation-delay:2.2s}
+
+  /* 사장님 — 부재중 + 자동문자 보냄(앱) */
+  .bossApp{position:absolute;inset:0;background:#fff;opacity:0;animation:fade .35s ease forwards;animation-delay:2.4s}
+  .missed{display:flex;align-items:center;gap:6px;background:#FFF0EF;border:1px solid #FFD9D6;border-radius:10px;padding:7px 8px;margin-bottom:7px}
+  .missed .mi{width:18px;height:18px;border-radius:50%;background:var(--red);display:grid;place-items:center;color:#fff;font-size:9px;transform:rotate(135deg)}
+  .missed .mt{font-size:9px;font-weight:800;color:#C0362F}
+  .missed .mt small{display:block;font-size:7.5px;font-weight:600;color:#9B6B67}
+  .autobox{border:1px solid var(--blueSoft);border-radius:10px;background:#F6FAFF;padding:7px 8px;opacity:0;animation:fade .4s ease forwards;animation-delay:3.0s}
+  .autobox .h{display:flex;align-items:center;gap:4px;font-size:8.5px;font-weight:800;color:var(--blueDark)}
+  .autobox .h .badge{margin-left:auto;font-size:6.5px;font-weight:800;color:#fff;background:var(--ok);padding:2px 5px;border-radius:999px}
+  .autobox .nw{font-size:7px;font-weight:800;color:var(--blue);margin-top:4px}
+  .autobox .msg{font-size:8px;color:var(--ink);line-height:1.4;margin-top:2px}
+
+  /* 고객 — 문자앱 */
+  .cwrap{opacity:0;animation:fade .4s ease forwards;animation-delay:3.3s}
+  .ctime{font-size:6.5px;color:var(--hint);text-align:center;margin-bottom:5px}
+  .inbub{background:#F1F4F7;border-radius:10px;padding:6px 7px;font-size:8px;color:var(--ink);line-height:1.4;max-width:120px}
+  .cust-reply{margin-top:7px;margin-left:auto;background:var(--blue);color:#fff;border-radius:10px;padding:6px 7px;font-size:8px;max-width:96px;opacity:0;animation:fade .4s ease forwards;animation-delay:5.3s}
+  .readmk{font-size:6.5px;color:var(--hint);text-align:right;margin-top:3px;opacity:0;animation:fade .3s ease forwards;animation-delay:5.0s}
+
+  .fly{position:absolute;z-index:6;font-size:15px;top:120px;left:150px;opacity:0;animation:flyRight 1.3s ease forwards;animation-delay:2.9s}
+
+  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
+  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
+  .steps i.on{background:var(--blue);transform:scale(1.25)}
+  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
+  .caption b{color:var(--ink);font-weight:800}
+  .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
+    border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
+  .alt .k{font-size:14px}
+  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
+  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
+
+  @keyframes fade{to{opacity:1}}
+  @keyframes fadeOut{to{opacity:0}}
+  @keyframes blink{50%{opacity:.25}}
+  @keyframes flyRight{0%{opacity:0;left:150px;top:120px}15%{opacity:1}100%{opacity:0;left:248px;top:150px}}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important}
+    .call{opacity:0!important} .bossApp,.autobox,.cwrap,.cust-reply,.readmk{opacity:1!important} }
+</style>
+</head>
+<body>
+  <div class="lede"><b>부재중 자동문자 — 못 받아도 고객을 안 놓쳐요</b><br>시공 중이라 전화를 못 받으면, <b>자동으로 문자</b>가 나가요
+    <br><span class="tag">프로토 · 자동 재생(8초) · 지금 실제 동작 기준</span></div>
+
+  <div class="card">
+    <div class="chead"><span class="dot"></span><span class="t">전화 못 받아도 괜찮아요</span></div>
+    <p class="csub">시공 중이라 전화를 못 받으면 <b>자동으로 고객에게 문자</b>가 나가요. 신규·단골 문구가 따로, 같은 번호엔 하루 한 번만.</p>
+
+    <div class="stage">
+      <!-- 사장님 폰 -->
+      <div class="phone pBoss">
+        <!-- 삼성 전화 수신 -->
+        <div class="call">
+          <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+          <div class="lab">휴대전화</div>
+          <div class="nm">새 고객</div>
+          <div class="num">010-1234-5678</div>
+          <div class="ring">전화가 왔어요…</div>
+          <div class="answer"><b class="dec"><i>📞</i>거절</b><b class="acc"><i>📞</i>못 받음</b></div>
+        </div>
+        <!-- 앱: 부재중 + 자동문자 -->
+        <div class="bossApp">
+          <div class="sbar" style="background:#30343B">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+          <div class="tbar">내 시공막내</div>
+          <div class="body">
+            <div class="missed"><span class="mi">📞</span><span class="mt">부재중 · 새 고객<small>010-1234-5678 · 방금</small></span></div>
+            <div class="autobox">
+              <div class="h">자동 문자 보냄<span class="badge">자동</span></div>
+              <div class="nw">신규 고객 문구</div>
+              <div class="msg">안녕하세요 😊 지금 시공 중이라 전화를 못 받았어요. 문자로 남겨주시면 바로 견적 안내드릴게요!</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 고객 폰 -->
+      <div class="phone pCust">
+        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
+        <div class="tbar">문자</div>
+        <div class="body cwrap">
+          <div class="ctime">방금</div>
+          <div class="inbub">안녕하세요 😊 지금 시공 중이라 전화를 못 받았어요. 문자로 남겨주시면 바로 견적 안내드릴게요!</div>
+          <div class="readmk">전송됨</div>
+          <div class="cust-reply">화장실 줄눈 견적 좀 부탁드려요~</div>
+        </div>
+      </div>
+
+      <div class="fly">💬</div>
+    </div>
+
+    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
+    <div class="caption" id="caption">① 시공 중이라 전화를 못 받았어요</div>
+
+    <div class="alt"><span class="k">🕐</span>같은 번호엔 — <b style="margin-left:2px">하루(24시간)에 한 번만</b>&nbsp;· 문구는 내 맘대로</div>
+
+    <div class="cta">부재중 자동문자 켜기</div>
+  </div>
+
+  <div class="foot"><span>자동 재생 8초 반복</span><span>삼성 One UI 기준</span><span>신규/단골 문구 따로 · 24h 쿨다운</span></div>
+
+<script>
+  const caps = [
+    "① 시공 중이라 전화를 못 받았어요",
+    "② 자동으로 — 고객에게 문자가 나가요",
+    "③ 신규면 신규 인사로 (단골은 다른 문구)",
+    "④ 고객을 안 놓쳐요 — 답장이 와요"
+  ];
+  const atMs = [0, 2400, 3000, 5000];
+  const capEl = document.getElementById('caption');
+  const dots = [...document.querySelectorAll('#steps i')];
+  function cycle(){
+    const t0 = performance.now();
+    function tick(now){
+      const e = (now - t0) % 8000;
+      let idx = 0;
+      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
+      capEl.textContent = caps[idx];
+      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+</script>
+</body>
+</html>

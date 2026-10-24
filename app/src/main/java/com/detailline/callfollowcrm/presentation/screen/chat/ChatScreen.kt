@@ -472,16 +472,9 @@ fun ChatScreen(
     var showEstimateBuilder by remember { mutableStateOf(false) }
     // 견적 만들기 상태 — ChatScreen 보관(미리보기 닫고 와도 선택 유지). (2026-06-08 #5)
     val estimateDraft = remember { EstimateDraft(DateTimeUtils.startOfMonth(System.currentTimeMillis())) }
-    // 📅 접수서 데모 카드 — 대화 위에 **첫 사용 때 한 번**(이후 ✕로 닫거나 접수서 보내면 안 뜸). (2026-10-24 사장님 「가」, 프로토 P3L5USe9)
-    //   접수서 아직 안 받은 고객 대화에서만. everSeen 은 remember 로 묶어 이번 세션엔 계속 보이고, pref 기록은 다음 실행부터 적용.
-    val intakeDemoPrefs = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences }
-    val intakeDemoEverSeen = remember { intakeDemoPrefs.hintSeen.contains("intake_demo") }
-    var intakeDemoDismissed by remember { mutableStateOf(false) }
-    val intakeDemoEligible = !isPlainThread && !intakeDemoEverSeen && !intakeDemoDismissed && intakeEvents.isEmpty()
-    androidx.compose.runtime.LaunchedEffect(intakeDemoEligible) {
-        if (intakeDemoEligible && !intakeDemoPrefs.hintSeen.contains("intake_demo"))
-            intakeDemoPrefs.hintSeen = intakeDemoPrefs.hintSeen + "intake_demo"
-    }
+    // 📄 접수서 데모 — 대화 중 **막지 않게**(push 금지). 접수서 안 받은 고객 대화에 **작은 칩**만 두고,
+    //   누를 때만 어두운 팝업(프로토 1:1). (2026-10-24 사장님 "어느 타이밍에 보여줄지 난관 → 안 막게 pull")
+    var intakeDemoOpen by remember { mutableStateOf(false) }
     // 견적서(직인) 미리보기 — null 아니면 QuoteDocScreen 오버레이 표시 (견적 2단계).
     var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
     // 발행 이력 카드 → 견적서 '다시 보기' 리뷰 — 닫으면 채팅으로만 복귀(편집기 X). (2026-07-07 사장님)
@@ -891,16 +884,28 @@ fun ChatScreen(
                 }
             }
 
-            // 📅 접수서 데모 — 첫 사용 때 **어두운 팝업**(프로토 그대로 웹뷰). 보내면 바로 접수서 탭. (2026-10-24 사장님 "배경 어두워져야·1:1")
-            if (!searchMode && intakeDemoEligible) {
+            // 📄 접수서 데모 칩 — 접수서 안 받은 고객 대화에만, 작게. 누를 때만 팝업(안 막음).
+            if (!searchMode && !isPlainThread && intakeEvents.isEmpty()) {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.padding(start = 18.dp, top = 2.dp, bottom = 2.dp)
+                        .clip(AppShape.pill).background(AppTheme.colors.primaryBg)
+                        .clickable { intakeDemoOpen = true }
+                        .padding(horizontal = 11.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("접수서 이렇게 써요  ▸", style = AppType.caption,
+                        fontWeight = FontWeight.Bold, color = AppTheme.colors.primaryText)
+                }
+            }
+            if (intakeDemoOpen) {
                 com.detailline.callfollowcrm.presentation.component.DemoWebPopup(
                     assetPath = "demos/intake_demo.html",
                     onCta = {
-                        estimateDraft.mode.value = "accept"   // 접수서 탭으로 바로 (ChatTopActions onIntake 와 같음)
+                        estimateDraft.mode.value = "accept"   // 접수서 탭으로 바로
                         showEstimateBuilder = true
-                        intakeDemoDismissed = true
+                        intakeDemoOpen = false
                     },
-                    onDismiss = { intakeDemoDismissed = true }
+                    onDismiss = { intakeDemoOpen = false }
                 )
             }
 
