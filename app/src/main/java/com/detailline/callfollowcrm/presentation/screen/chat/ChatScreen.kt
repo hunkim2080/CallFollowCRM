@@ -382,6 +382,7 @@ fun ChatScreen(
     var starredViewerOpen by remember { mutableStateOf(false) }
     // 내 일정 확인 시트 (2026-06-01) — 대화 중 빈 날/시공일 미니 달력으로 확인.
     var myScheduleOpen by remember { mutableStateOf(false) }
+    var customerSummaryOpen by remember { mutableStateOf(false) }   // "/고객" 요약 시트. (2026-10-24)
     val scheduledJobs by viewModel.scheduledJobs.collectAsState()
     // 말풍선 꾹 누름 → BottomSheet 띄울 메시지 (null = 닫힘).
     //   사장님 결정 2026-05-25: 꾹 누름 = 저장/복사 선택. 직접 토글 X.
@@ -1274,6 +1275,7 @@ fun ChatScreen(
                 onOpenEstimate = { triggerActionByType("send_estimate") },
                 onOpenSchedule = { myScheduleOpen = true },
                 onOpenTemplate = { tplPickerOpen = true },
+                onOpenCustomer = { customerSummaryOpen = true },
                 // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님 · 2026-09-16 자리 이동)
                 onSaveAsTemplate = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
                 focusRequester = composerFocusRequester,
@@ -1608,6 +1610,17 @@ fun ChatScreen(
                 inputSelection = TextRange(start + piece.length)  // 커서를 넣은 날짜(+뒤 공백) 다음으로.
                 myScheduleOpen = false
             }
+        )
+    }
+
+    // "/고객" 요약 카드 — 이 고객 한눈에 + [전화/일정/문구/접수서] 바로가기. (2026-10-24)
+    if (customerSummaryOpen && customer != null) {
+        CustomerSummarySheet(
+            customer = customer!!,
+            onDismiss = { customerSummaryOpen = false },
+            onSchedule = { myScheduleOpen = true },
+            onTemplate = { tplPickerOpen = true },
+            onEstimate = { showEstimateBuilder = true }
         )
     }
 
@@ -3513,6 +3526,7 @@ private fun Composer(
     onOpenEstimate: () -> Unit = {},
     onOpenSchedule: () -> Unit = {},
     onOpenTemplate: () -> Unit = {},
+    onOpenCustomer: () -> Unit = {},   // "/고객" 요약 카드. (2026-10-24)
     /** ⊕ "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 메뉴에 뜬다. (2026-09-16 사장님 개편) */
     onSaveAsTemplate: () -> Unit = {},
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null
@@ -3579,6 +3593,7 @@ private fun Composer(
             onOpenSchedule = onOpenSchedule,
             onOpenTemplate = onOpenTemplate,
             onAttachPhoto = onAttachPhoto,
+            onCustomer = onOpenCustomer,
             onClearInput = { onChange("") }
         )
         Row(

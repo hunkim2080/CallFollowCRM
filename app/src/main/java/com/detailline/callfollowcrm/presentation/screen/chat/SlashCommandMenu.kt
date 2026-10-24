@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +49,7 @@ fun SlashCommandMenu(
     onOpenSchedule: () -> Unit,
     onOpenTemplate: () -> Unit,
     onAttachPhoto: () -> Unit,
+    onCustomer: () -> Unit,
     onClearInput: () -> Unit,
 ) {
     // ⚠️ Composable 안 early return 금지(그룹 꼬여 크래시) — if 로 감싼다.
@@ -74,6 +76,7 @@ fun SlashCommandMenu(
                     SlashCommand.SCHEDULE -> onOpenSchedule()
                     SlashCommand.TEMPLATE -> onOpenTemplate()
                     SlashCommand.PHOTO -> onAttachPhoto()
+                    SlashCommand.CUSTOMER -> onCustomer()
                 }
             }
         }
@@ -88,6 +91,7 @@ private fun SlashRow(cmd: SlashCommand, onClick: () -> Unit) {
         SlashCommand.SCHEDULE -> AppTheme.colors.category
         SlashCommand.TEMPLATE -> TossSuccess
         SlashCommand.PHOTO -> AppTheme.colors.caution
+        SlashCommand.CUSTOMER -> AppTheme.colors.text
     }
     val icon = when (cmd) {
         SlashCommand.INTAKE -> Icons.Default.Assignment
@@ -95,6 +99,7 @@ private fun SlashRow(cmd: SlashCommand, onClick: () -> Unit) {
         SlashCommand.SCHEDULE -> Icons.Default.DateRange
         SlashCommand.TEMPLATE -> Icons.AutoMirrored.Filled.Chat
         SlashCommand.PHOTO -> Icons.Default.Image
+        SlashCommand.CUSTOMER -> Icons.Default.Person
     }
     Row(
         Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 14.dp, vertical = 9.dp),

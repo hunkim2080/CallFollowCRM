@@ -15,7 +15,7 @@ class SlashCommandTest {
     @Test fun `슬래시만 치면 전부`() {
         assertEquals("", SlashMenu.queryOf("/"))
         assertEquals(SlashCommand.entries.toList(), SlashMenu.match(""))
-        assertEquals(5, SlashMenu.match("").size)
+        assertEquals(6, SlashMenu.match("").size)
     }
 
     @Test fun `글자로 걸러진다`() {
@@ -23,6 +23,7 @@ class SlashCommandTest {
         assertEquals(listOf(SlashCommand.INTAKE), SlashMenu.match("접"))
         assertEquals(listOf(SlashCommand.SCHEDULE), SlashMenu.match("일"))
         assertEquals(listOf(SlashCommand.PHOTO), SlashMenu.match("사진"))
+        assertEquals(listOf(SlashCommand.CUSTOMER), SlashMenu.match("고"))
     }
 
     @Test fun `공백 섞이면 명령 아님 — 그냥 문장`() {

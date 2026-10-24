@@ -12,6 +12,7 @@ enum class SlashCommand(val key: String, val desc: String) {
     SCHEDULE("일정", "내 일정 확인"),
     TEMPLATE("문구", "저장한 문구 넣기"),
     PHOTO("사진", "사진 첨부"),
+    CUSTOMER("고객", "이 고객 요약 보기"),
 }
 
 /** "/" 명령 거르기 — 순수 함수(화면에서 직접 split/판단하지 말 것). */
