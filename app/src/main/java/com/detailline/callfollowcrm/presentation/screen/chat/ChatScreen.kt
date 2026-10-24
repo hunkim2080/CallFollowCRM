@@ -689,7 +689,9 @@ fun ChatScreen(
     }
 
     Scaffold(
-        containerColor = TossGrayBg,
+        // 배경 = 흰색 → 입력줄 **아래 네비바 자리**가 입력줄 흰색과 **이어진다**(회색 띠 제거). (2026-10-24 사장님 ①)
+        //   대화 영역은 아래 본문 Column 이 TossGrayBg 를 직접 깔아 그대로 회색. 바뀌는 건 네비바 인셋 자리뿐.
+        containerColor = Color.White,
         // contentWindowInsets = ime ∪ navigationBars:
         //   키보드 뜨면 ime 만큼(composer 가 키보드 위), 키보드 내려가면 navbar 만큼 하단 여백 확보.
         //   예전엔 ime 단독 → 갤S23U 등에서 제스처/3버튼 내비바(홈버튼)가 입력창을 가림.

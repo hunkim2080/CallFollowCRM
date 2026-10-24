@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,6 +91,13 @@ fun FullscreenPhotoViewer(
     /** 내 사진의 돌린 각도를 파일에 저장. 없으면 돌려 보기만 된다. */
     onSaveRotation: ((photoId: Long, degrees: Int) -> Unit)? = null,
     /**
+     * 🗑 **이 사진 지우기 — 내 사진만**([ViewerPhoto.OfFile] 에 photoId>0). (2026-10-24 사장님 "현장사진 삭제를 못하는데")
+     *   없으면 삭제 버튼을 안 그린다 — 팀원·협업·문자 사진은 여기서 안 지운다(남의 것).
+     *   누르면 **확인 한 번** 뒤 지우고 **뷰어를 닫는다**(목록이 그 자리에서 바뀐 걸 보여준다).
+     *   실제 삭제는 부른 쪽의 `deleteSitePhoto`(→`SitePhotoRepository.delete`) 한 곳 — 여긴 입구만.
+     */
+    onDelete: ((photoId: Long) -> Unit)? = null,
+    /**
      * 화면 왼쪽 위에 더 얹을 것 — 문자 사진의 「갤러리에 저장」 같은 것.
      *   받는 값은 **지금 보고 있는 쪽 번호**다.
      */
@@ -133,6 +143,11 @@ fun FullscreenPhotoViewer(
         // 확대 중이면 좌우 넘김을 멈춘다 — 들여다보려다 옆 사진으로 넘어가면 성가시다.
         var zoomed by remember { mutableStateOf(false) }
         LaunchedEffect(pagerState.currentPage) { zoomed = false }
+        // 🗑 지울 수 있는 건 **지금 보는 게 내 사진**(OfFile·photoId>0)이고 onDelete 가 있을 때뿐.
+        var askDelete by remember { mutableStateOf(false) }
+        val deletablePhotoId = (photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile)
+            ?.photoId?.takeIf { it > 0L }
+        val canDeleteCur = onDelete != null && deletablePhotoId != null
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(
                 state = pagerState,
@@ -173,15 +188,31 @@ fun FullscreenPhotoViewer(
                     action(pagerState.currentPage)
                 }
             }
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(14.dp).size(38.dp)
-                    .clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
-                    .clickable { closeAndSave() },
-                contentAlignment = Alignment.Center
+            // 오른쪽 위 — [🗑 지우기(내 사진만)] [✕ 닫기]. 삭제는 확인 한 번 뒤 뷰어를 닫는다.
+            Row(
+                Modifier.align(Alignment.TopEnd).padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                androidx.compose.material3.Text(
-                    "✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold
-                )
+                if (canDeleteCur) {
+                    Box(
+                        Modifier.size(38.dp)
+                            .clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
+                            .clickable { askDelete = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Delete, "사진 지우기", tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                }
+                Box(
+                    Modifier.size(38.dp)
+                        .clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
+                        .clickable { closeAndSave() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.Text(
+                        "✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold
+                    )
+                }
             }
             // 💾 돌려놓고 그냥 닫으려 할 때 — **실수로 날아가지 않게.**
             if (askSave) {
@@ -215,6 +246,39 @@ fun FullscreenPhotoViewer(
                             onClick = { askSave = false; onDismiss() }
                         ) {
                             androidx.compose.material3.Text("그냥 닫기", color = AppTheme.colors.textHint)
+                        }
+                    }
+                )
+            }
+            // 🗑 **이 사진 지울까요?** — 되돌릴 수 없으니 한 번 묻는다. 지우면 뷰어를 닫아 목록으로.
+            if (askDelete && deletablePhotoId != null && onDelete != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { askDelete = false },
+                    containerColor = AppTheme.colors.surface,
+                    tonalElevation = 0.dp,
+                    title = {
+                        androidx.compose.material3.Text(
+                            "이 사진을 지울까요?", style = AppType.title,
+                            fontWeight = FontWeight.Bold, color = AppTheme.colors.text
+                        )
+                    },
+                    text = {
+                        androidx.compose.material3.Text(
+                            "되돌릴 수 없어요.", style = AppType.body, color = AppTheme.colors.textSub
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = { askDelete = false; onDelete(deletablePhotoId); onDismiss() }
+                        ) {
+                            androidx.compose.material3.Text(
+                                "삭제", fontWeight = FontWeight.Bold, color = AppTheme.colors.unpaid
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { askDelete = false }) {
+                            androidx.compose.material3.Text("취소", color = AppTheme.colors.textHint)
                         }
                     }
                 )

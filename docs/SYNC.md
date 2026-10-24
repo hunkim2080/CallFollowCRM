@@ -15096,3 +15096,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만 — ① BusinessInfoScreen 맨 위에 BizEstimatePreview(상호·대표·직인 치는 대로 반영·자동 스크롤·빨간네모 음각도장 톡). 실제 견적서(QuoteDocScreen)와 같은 도장 모양. ② 입력칸 placeholder "문자 입력 · / 치면 명령"(고객 대화만). 서버/DB 영향 없음
 - 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / 컴파일·시험·가드 통과). 미리보기 자동스크롤 양·속도는 실기 확인 필요
 - 다음 액션: 사장님 폰에서 사업자정보 열어 미리보기 움직임 확인 · 전환 TOP2(통화요약 샘플)
+
+## 2026-10-24 17:10 · android
+현장사진 크게보기에 🗑 삭제 버튼 추가 + 대화창 입력줄 아래 네비바 회색 띠 제거
+- 변경: UI만 — ① PhotoViewer(공용 뷰어)에 onDelete 추가 → 크게 보면서 ✕ 옆 🗑(내 사진=OfFile·photoId>0만, 확인 한 번 뒤 뷰어 닫힘). CustomerDetail이 deleteSitePhoto로 켬. 삭제 엔진은 기존 SitePhotoRepository.delete 한 곳 그대로(두 벌 아님, 입구만 추가). 팀·협업·문자 사진은 OfBitmap이라 버튼 안 뜸. 기존 「⋯더보기→골라 지우기」 벌크 경로는 그대로. ② ChatScreen Scaffold containerColor TossGrayBg→White → 입력줄 아래 네비바 인셋 자리가 입력줄 흰색과 이어짐(대화 영역은 본문 Column이 TossGrayBg 직접 깔아 그대로 회색). 서버/DB 영향 없음
+- 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 전부 통과)
+- 다음 액션: 사장님 폰에서 현장사진 크게 열어 🗑로 삭제 확인 · 네비바 회색 띠 사라졌는지 확인
