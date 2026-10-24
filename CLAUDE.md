@@ -427,6 +427,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 돈 보여주기(콤마·만 단위 **내림**·정확히) | `util/MoneyFormatter.kt` — `won`(「1,200,000원」) · `manwonShort`(내림 「37만원」, 좁은 자리) · `manwonShortOrWon`(만 미만은 원) · `manwonOrWon`(정확히, 손님이 읽는 글) · `grouped`(숫자만 콤마) · `manOf`(원→만 수) | `String.format("%,d")`·`NumberFormat` 직접, `won / 10_000` 을 화면에서, `Math.round` 로 만 단위(2026-10-18: 두 곳만 반올림이라 375,000원이 홈 「37만」·달력 「38만」) |
 | 「완료」(작업 끝)·「완납」(돈까지) 판정 — 목록 딱지·건 카드·검색·`CustomerEntity.isWorkDone` 이 같은 자 | `domain/job/Completion.kt` — `Completion.stageOf(c/j)` → `CompletionStage.IN_PROGRESS/DONE/PAID_OFF`(`.label` 「진행 중/완료/완납」) · `Completion.isDone` · 끝난 상태 글자 묶음은 `DONE_STATUSES`(`presentation/component/CustomerStatusTag.kt`) | 화면에서 `workCompletedAt != null`·`balancePaidAt != null` 로 직접 판정, 「완료」를 돈까지 받은 뜻으로 쓰기(2026-10-18: 목록은 「완료 = 돈까지」, 카드는 「완료 = 작업만」이라 한 손님이 카드엔 완료·목록엔 잔금미수) |
 | 사진 크게 보기·돌리기 | `presentation/component/PhotoViewer.kt` | 화면마다 Dialog 새로 만들기 |
+| 사진에 **펜 표시**(획을 원본에 얹어 새 사진으로) — 크게 보기 펜 모드 | 좌표 `domain/ui/PhotoFit.kt`(순수+시험) · 획 `domain/ui/PhotoMark.kt`(`MarkStroke`, 0..1 좌표) · 합성 `util/PhotoMarkRenderer.kt`(Coil 로드+그리기) · 색 `presentation/theme/PenPalette.kt` · 입구 `PhotoViewer.onSaveMarked` → `CustomerDetailViewModel.addMarkedPhoto` → `SitePhotoRepository.addFromBitmap` | 화면마다 Canvas 그리기·좌표 변환 새로, 펜 색 hex 직접 박기 |
 | 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest` 직접 |
 | 전화 걸기 | `util/PhoneDialer.kt` | `"tel:" ` URI 직접 |
 | 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |

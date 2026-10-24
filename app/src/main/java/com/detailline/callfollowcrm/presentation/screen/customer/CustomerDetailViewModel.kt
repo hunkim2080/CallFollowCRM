@@ -477,6 +477,29 @@ class CustomerDetailViewModel(
         _toast.value = "사진을 삭제했어요"
     }
 
+    /**
+     * ✏️ **펜으로 표시한 획을 원본에 얹어 새 사진으로 추가.** 원본은 그대로. (2026-10-24 사장님 "펜으로 체크")
+     *   무거운 합성은 `util/PhotoMarkRenderer`(Coil 로드 + 그리기). 여긴 찾기·한도·저장만.
+     */
+    fun addMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) = viewModelScope.launch {
+        if (marks.isEmpty()) return@launch
+        val src = sitePhotos.value.firstOrNull { it.id == sourcePhotoId }
+        if (src == null) { _toast.value = "원본 사진을 찾지 못했어요"; return@launch }
+        val repId = runCatching { container.jobRepository.representativeJobId(customerId) }.getOrNull()
+        val jid = src.jobId ?: repId
+        // 한 현장 20장 한도 — 내 사진만 센다(addSitePhotos 와 같은 규칙).
+        val ownOnJob = sitePhotos.value.count { it.jobId == jid || (it.jobId == null && jid != null && jid == repId) }
+        if (ownOnJob >= sitePhotoMax) { _toast.value = "내 사진은 한 현장에 ${sitePhotoMax}장까지예요"; return@launch }
+        _toast.value = "표시한 사진을 저장하는 중…"
+        val ok = withContext(NonCancellable) {
+            val bmp = com.detailline.callfollowcrm.util.PhotoMarkRenderer.render(container.appContext, src.filePath, marks)
+                ?: return@withContext false
+            container.sitePhotoRepository.addFromBitmap(customerId, bmp, jid)
+        }
+        _toast.value = if (ok) "표시한 사진을 추가했어요" else "표시한 사진을 저장하지 못했어요"
+        if (ok) container.ownerPhotoUploadManager.kick(viewModelScope)
+    }
+
     /** 팀원이 올린(서버) 현장 사진을 사장님이 삭제 — 퇴사한 팀원 사진도 정리 가능. (2026-06-07) */
     fun deleteTeamPhoto(photoId: Long) = viewModelScope.launch {
         val owner = container.preferences.bizPhone.trim()

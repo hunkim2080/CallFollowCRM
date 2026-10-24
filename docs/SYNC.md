@@ -15108,3 +15108,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만 — CustomerDetailJobCard 내 사진 썸네일 평소 모드에 ✕(오른쪽 위, 고르는 중엔 체크라 안 겹침). 탭 → 기존 확인창 host.onPicksToDelete(setOf(id) to empty) 재사용 → deleteSitePhoto 한 곳. 새 공용/새 확인창 안 만듦. 크게보기 🗑(직전 커밋)는 덤으로 유지. 팀·문자 사진은 ✕ 안 뜸. 서버/DB 영향 없음
 - 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과)
 - 다음 액션: 사장님 폰에서 현장사진 썸네일 ✕로 한 장 지워보기(확인창 뜨는지)
+
+## 2026-10-24 18:10 · android
+현장 사진에 펜으로 표시 — 크게 보기에 [표시] → 색4·굵기2·되돌리기·전체지우기·완료 → 원본에 얹어 새 사진으로 추가 (프로토 2zd76bXnDzocfYSMVbtz5f)
+- 변경: UI+새 공용. 신규: domain/ui/PhotoFit.kt(좌표, 순수+시험 7건)·PhotoMark.kt(MarkStroke 0..1)·util/PhotoMarkRenderer.kt(Coil 원본로드+그리기)·theme/PenPalette.kt(색). PhotoViewer.onSaveMarked 입구 → CustomerDetailViewModel.addMarkedPhoto → SitePhotoRepository.addFromBitmap(기존). 내 사진만(OfFile), 회전·확대는 펜 모드서 멈춤. EXIF로 방향 맞춤. 원본 그대로·표시본 한 장 더(같은 건, 20장 한도). §12 표에 펜 줄 추가(공용 44→45). 서버/DB 영향 없음
+- 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / compileReleaseKotlin + PhotoFitTest 통과 + assembleRelease 가드7 통과). ⚠️좌표·EXIF는 폰 실기 확인 필요(획이 그린 자리에 맞는지)
+- 다음 액션: 사장님 폰에서 현장사진 크게 → [표시] → 동그라미 그려 완료 → 새 사진 추가되는지·획 위치 맞는지 확인

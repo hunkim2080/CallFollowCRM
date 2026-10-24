@@ -1,9 +1,11 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -13,40 +15,59 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.detailline.callfollowcrm.domain.ui.FitBox
+import com.detailline.callfollowcrm.domain.ui.MarkStroke
+import com.detailline.callfollowcrm.domain.ui.PhotoFit
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.theme.PEN_COLORS
+import com.detailline.callfollowcrm.presentation.theme.PenBarBg
+import com.detailline.callfollowcrm.presentation.theme.PenStageBg
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 📷 **크게 볼 사진 한 장.**
@@ -98,6 +119,12 @@ fun FullscreenPhotoViewer(
      */
     onDelete: ((photoId: Long) -> Unit)? = null,
     /**
+     * ✏️ **사진에 펜으로 표시 — 내 사진만**([ViewerPhoto.OfFile] photoId>0). (2026-10-24 사장님 "펜으로 체크")
+     *   있으면 [표시] 버튼이 뜨고, 그린 뒤 완료하면 획(0..1 좌표)을 넘긴다.
+     *   부른 쪽이 **원본에 얹어 새 사진으로 추가**한다(원본은 그대로). 저장·합성은 부른 쪽 한 곳.
+     */
+    onSaveMarked: ((sourcePhotoId: Long, marks: List<MarkStroke>) -> Unit)? = null,
+    /**
      * 화면 왼쪽 위에 더 얹을 것 — 문자 사진의 「갤러리에 저장」 같은 것.
      *   받는 값은 **지금 보고 있는 쪽 번호**다.
      */
@@ -148,6 +175,9 @@ fun FullscreenPhotoViewer(
         val deletablePhotoId = (photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile)
             ?.photoId?.takeIf { it > 0L }
         val canDeleteCur = onDelete != null && deletablePhotoId != null
+        // ✏️ 펜 표시 — 지금 보는 게 내 사진이고 onSaveMarked 가 있을 때만.
+        var penMode by remember { mutableStateOf(false) }
+        val curOfFile = photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(
                 state = pagerState,
@@ -167,7 +197,12 @@ fun FullscreenPhotoViewer(
                         onSaveRotation != null &&
                         ((rotations[page] ?: 0) % 360) != 0 &&
                         (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
-                    ) ({ saveAll(); onDismiss() }) else null
+                    ) ({ saveAll(); onDismiss() }) else null,
+                    // ✏️ [표시] — 내 사진일 때만. 누르면 펜 화면으로.
+                    onPen = if (
+                        onSaveMarked != null &&
+                        (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
+                    ) ({ penMode = true }) else null
                 )
             }
             // 여러 장이면 몇 번째인지. 한 장이면 군더더기라 안 띄운다.
@@ -213,6 +248,18 @@ fun FullscreenPhotoViewer(
                         "✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold
                     )
                 }
+            }
+            // ✏️ 펜 화면 — 그릴 땐 사진창 전체를 덮는다(넘김·확대·닫기 멈춤). 완료하면 획을 넘기고 닫는다.
+            if (penMode && curOfFile != null) {
+                PenStage(
+                    photo = curOfFile,
+                    onCancel = { penMode = false },
+                    onDone = { marks ->
+                        penMode = false
+                        if (marks.isNotEmpty()) onSaveMarked?.invoke(curOfFile.photoId, marks)
+                        onDismiss()
+                    }
+                )
             }
             // 💾 돌려놓고 그냥 닫으려 할 때 — **실수로 날아가지 않게.**
             if (askSave) {
@@ -297,7 +344,9 @@ private fun ViewerPage(
     onTapClose: () -> Unit,
     canSave: Boolean,
     /** 돌린 게 있을 때만 들어온다 — null 이면 [이대로 저장] 을 안 그린다. */
-    onSaveNow: (() -> Unit)? = null
+    onSaveNow: (() -> Unit)? = null,
+    /** ✏️ 내 사진일 때만 들어온다 — null 이면 [펜으로 표시] 를 안 그린다. */
+    onPen: (() -> Unit)? = null
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -398,6 +447,8 @@ private fun ViewerPage(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ViewerRotateBtn("↺  왼쪽") { onRotate(-90) }
                     ViewerRotateBtn("↻  오른쪽") { onRotate(90) }
+                    // ✏️ **내 사진이면 펜으로 표시.** 눌러 그리는 화면으로. (2026-10-24 사장님)
+                    onPen?.let { ViewerRotateBtn("표시", onClick = it) }
                     // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
                     onSaveNow?.let { ViewerRotateBtn("이대로 저장", filled = true, onClick = it) }
                 }
@@ -436,5 +487,187 @@ private fun ViewerRotateBtn(label: String, filled: Boolean = false, onClick: () 
         androidx.compose.material3.Text(
             label, style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold
         )
+    }
+}
+
+/** 그리는 획 한 줄 — 색 + 굵기(화면 px) + 지나간 점들(화면 좌표). */
+private class PenLine(val color: Color, val wPx: Float) {
+    val pts = mutableStateListOf<Offset>()
+}
+
+/** DrawScope 에서 획 한 줄을 선분으로 잇는다. 점 하나면 아주 짧게 찍어 보이게. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPenLine(l: PenLine) {
+    if (l.pts.isEmpty()) return
+    if (l.pts.size == 1) {
+        drawLine(l.color, l.pts[0], l.pts[0] + Offset(0.5f, 0.5f), strokeWidth = l.wPx, cap = StrokeCap.Round)
+        return
+    }
+    for (i in 1 until l.pts.size) {
+        drawLine(l.color, l.pts[i - 1], l.pts[i], strokeWidth = l.wPx, cap = StrokeCap.Round)
+    }
+}
+
+/**
+ * ✏️ **펜 화면 — 사진 위에 손가락으로 그린다.** 프로토 「사진에 펜 표시」 그대로.
+ *   색 4(빨강 기본·노랑·파랑·흰) · 굵기 2 · ↶ 되돌리기 · 🗑 전체지우기 · 완료.
+ *   완료 = 획을 **0..1 좌표**([PhotoFit])로 바꿔 넘긴다 → 부른 쪽이 원본에 얹어 새 사진으로.
+ *   회전·확대·넘김은 **여기선 멈춘다**(그리기에 집중). 사진은 Fit(전체 보이게)로만 띄운다.
+ */
+@Composable
+private fun PenStage(
+    photo: ViewerPhoto.OfFile,
+    onCancel: () -> Unit,
+    onDone: (List<MarkStroke>) -> Unit
+) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val density = LocalDensity.current
+
+    val lines = remember { mutableStateListOf<PenLine>() }
+    var current by remember { mutableStateOf<PenLine?>(null) }
+    var color by remember { mutableStateOf(PEN_COLORS.first()) }
+    var widthDp by remember { mutableStateOf(6f) }   // 6 / 14
+
+    // 사진 원본 크기 — **EXIF 로 세워진 방향**(Coil 이 띄우는 그대로)에 맞춘다.
+    //   갤러리 사진은 눕혀 저장되고 화면엔 세워 보이므로, 안 맞추면 획이 어긋난다.
+    var bw by remember { mutableIntStateOf(0) }
+    var bh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(photo.uri) {
+        withContext(Dispatchers.IO) {
+            val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            runCatching {
+                ctx.contentResolver.openInputStream(photo.uri)?.use {
+                    android.graphics.BitmapFactory.decodeStream(it, null, o)
+                }
+            }
+            var ow = o.outWidth.coerceAtLeast(0)
+            var oh = o.outHeight.coerceAtLeast(0)
+            val path = photo.uri.path
+            if (path != null && ow > 0 && oh > 0) {
+                val orient = runCatching {
+                    android.media.ExifInterface(path).getAttributeInt(
+                        android.media.ExifInterface.TAG_ORIENTATION,
+                        android.media.ExifInterface.ORIENTATION_NORMAL
+                    )
+                }.getOrDefault(android.media.ExifInterface.ORIENTATION_NORMAL)
+                val sideways = orient == android.media.ExifInterface.ORIENTATION_ROTATE_90 ||
+                    orient == android.media.ExifInterface.ORIENTATION_ROTATE_270 ||
+                    orient == android.media.ExifInterface.ORIENTATION_TRANSPOSE ||
+                    orient == android.media.ExifInterface.ORIENTATION_TRANSVERSE
+                if (sideways) { val t = ow; ow = oh; oh = t }
+            }
+            bw = ow; bh = oh
+        }
+    }
+
+    // 완료 때 화면좌표→0..1 변환에 쓸 네모. BoxWithConstraints 안에서 채운다.
+    var fit by remember { mutableStateOf(FitBox(0f, 0f, 0f, 0f)) }
+
+    Column(Modifier.fillMaxSize().background(PenStageBg)) {
+        // ── 상단바: ✕ · 사진에 표시 · 완료 ──
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(38.dp).clip(AppShape.pill).clickable { onCancel() },
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Text("✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.weight(1f))
+            androidx.compose.material3.Text("사진에 표시", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Box(
+                Modifier.clip(AppShape.md).background(AppTheme.colors.primary)
+                    .clickable {
+                        val marks = lines.toList().mapNotNull { l ->
+                            if (l.pts.isEmpty() || fit.dispW <= 0f) return@mapNotNull null
+                            MarkStroke(
+                                colorArgb = l.color.toArgb(),
+                                normWidth = l.wPx / fit.dispW,
+                                pts = l.pts.map { p -> PhotoFit.toNorm(fit, p.x, p.y) }
+                            )
+                        }
+                        onDone(marks)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Text("완료", style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // ── 사진 + 그리기 ──
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            val fitLocal = remember(bw, bh, maxWidth, maxHeight) {
+                PhotoFit.of(bw, bh, with(density) { maxWidth.toPx() }, with(density) { maxHeight.toPx() })
+            }
+            SideEffect { fit = fitLocal }
+            coil.compose.AsyncImage(
+                model = com.detailline.callfollowcrm.util.PhotoModel.of(ctx, photo.uri),
+                contentDescription = "표시할 사진",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+            Canvas(
+                Modifier.fillMaxSize().pointerInput(color, widthDp) {
+                    val wPx = with(density) { widthDp.dp.toPx() }
+                    detectDragGestures(
+                        onDragStart = { o -> current = PenLine(color, wPx).also { it.pts.add(o) } },
+                        onDrag = { change, _ -> current?.pts?.add(change.position); change.consume() },
+                        onDragEnd = { current?.let { if (it.pts.isNotEmpty()) lines.add(it) }; current = null },
+                        onDragCancel = { current = null }
+                    )
+                }
+            ) {
+                for (l in lines) drawPenLine(l)
+                current?.let { drawPenLine(it) }
+            }
+        }
+
+        // ── 하단 도구바: 색 · ↶ · 🗑 · 굵기 ──
+        Row(
+            Modifier.fillMaxWidth().background(PenBarBg).padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            PEN_COLORS.forEach { c ->
+                Box(
+                    Modifier.size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c)
+                        .border(
+                            if (c == color) 2.dp else 1.dp,
+                            if (c == color) Color.White else Color.White.copy(alpha = 0.3f),
+                            androidx.compose.foundation.shape.CircleShape
+                        )
+                        .clickable { color = c }
+                )
+            }
+            Spacer(Modifier.width(2.dp))
+            Box(
+                Modifier.size(40.dp).clip(AppShape.md).background(Color.White.copy(alpha = 0.08f))
+                    .clickable { lines.removeLastOrNull() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Undo, "되돌리기", tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+            Box(
+                Modifier.size(40.dp).clip(AppShape.md).background(Color.White.copy(alpha = 0.08f))
+                    .clickable { lines.clear() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Delete, "전체 지우기", tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            listOf(6f, 14f).forEach { w ->
+                Box(
+                    Modifier.size(40.dp).clip(AppShape.md)
+                        .background(if (w == widthDp) AppTheme.colors.primary else Color.White.copy(alpha = 0.08f))
+                        .clickable { widthDp = w },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(Modifier.size((w * 0.9f).dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White))
+                }
+            }
+        }
     }
 }

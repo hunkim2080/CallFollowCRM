@@ -1327,7 +1327,9 @@ fun CustomerDetailScreen(
             onDismiss = { fullscreenPhotos = null },
             onSaveRotation = { id, deg -> viewModel.rotatePhoto(id, deg) },
             // 🗑 크게 보면서 바로 지우기 — 내 사진만(팀·협업 사진은 OfBitmap 이라 삭제 버튼이 안 뜬다). (2026-10-24 사장님)
-            onDelete = { id -> viewModel.deleteSitePhoto(id) }
+            onDelete = { id -> viewModel.deleteSitePhoto(id) },
+            // ✏️ 펜으로 표시 → 원본에 얹어 새 사진으로 추가 (내 사진만). (2026-10-24 사장님)
+            onSaveMarked = { id, marks -> viewModel.addMarkedPhoto(id, marks) }
         )
     }
 
