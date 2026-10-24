@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,6 +50,8 @@ fun AppSheet(
     maxHeight: Int = 680,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    // 뒤로가기 = **이 시트만 닫기**(뒤 화면으로 안 나감). 안 잡으면 nav 로 새어 채팅까지 나간다. (2026-10-24 사장님)
+    BackHandler { onDismiss() }
     Box(
         Modifier.fillMaxSize().background(AppTheme.colors.scrim)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onDismiss() },
