@@ -15159,3 +15159,8 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 건 카드 "통화로 정해졌으면 등록하세요" 안내 — 주소라도 들어오면 사라지게 (사장님 "주소 입력됐으면 없어져야지")
 - 변경: UI만. CustomerDetailJobCard 안내 조건에 && displayAddr.isNullOrBlank() 추가 → 예약·금액·주소 다 비었을 때만. 서버/DB 영향 없음
 - 폰 확인: 못 봄(가드7 통과)
+
+## 2026-10-24 22:40 · android
+데모 팝업 안 보임 수정: scale-to-fit(음수/0 되어 투명) → zoom + 안전장치 (사장님 "이번엔 아예 안 보여")
+- 변경: UI만. DemoWebPopup POPUP_INJECT: transform:scale → card.style.zoom, 값 이상(비유한·0.4미만)이면 원래 크기 유지(절대 안 사라지게), 크기 준비 전엔 return(스크롤 가능). body flex-start+overflow auto 폴백. 서버/DB 영향 없음
+- 폰 확인: 못 봄(가드7 통과). 데모 팝업 보이는지·안 잘리는지 확인 필요

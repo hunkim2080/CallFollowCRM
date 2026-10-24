@@ -84,16 +84,18 @@ fun DemoWebPopup(
  */
 private const val POPUP_INJECT =
     "(function(){try{var s=document.createElement('style');" +
-    "s.innerHTML='html,body{background:transparent!important;height:100%!important;overflow:hidden!important}" +
-    " body{margin:0!important;padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important}" +
-    " .lede,.foot{display:none!important} .card{margin:0!important}';" +
+    "s.innerHTML='html,body{background:transparent!important;height:100%!important}" +
+    " body{margin:0!important;padding:8px!important;display:flex!important;align-items:flex-start!important;justify-content:center!important;overflow-y:auto!important;overflow-x:hidden!important}" +
+    " .lede,.foot{display:none!important} .card{margin:0 auto!important}';" +
     "document.head.appendChild(s);" +
     "var card=document.querySelector('.card');" +
-    "function fit(){if(!card)return;card.style.transform='none';var r=card.getBoundingClientRect();" +
-    "var vw=window.innerWidth-16,vh=window.innerHeight-16;" +
-    "var sc=Math.min(vw/r.width,vh/r.height,1);" +
-    "card.style.transformOrigin='center center';card.style.transform='scale('+sc+')';}" +
-    "fit();setTimeout(fit,120);window.addEventListener('resize',fit);" +
+    "function fit(){if(!card)return;card.style.zoom='';" +
+    "var r=card.getBoundingClientRect();var vw=window.innerWidth,vh=window.innerHeight;" +
+    "if(r.width<50||r.height<50||vw<50||vh<50)return;" +            // 아직 크기 준비 안 됨 → 원래 크기(스크롤 가능), 다음 호출 때 맞춤
+    "var sc=Math.min((vw-16)/r.width,(vh-16)/r.height,1);" +
+    "if(!isFinite(sc)||sc<0.4)sc=1;" +                              // 안전장치 — 이상하면 원래 크기(절대 안 사라지게)
+    "card.style.zoom=sc;}" +
+    "fit();setTimeout(fit,100);setTimeout(fit,400);window.addEventListener('resize',fit);" +
     "var c=document.querySelector('.cta');" +
     "if(c&&!c.dataset.b){c.dataset.b=1;c.style.cursor='pointer';" +
     "c.addEventListener('click',function(){try{AppBridge.cta()}catch(e){}});}" +
