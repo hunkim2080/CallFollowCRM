@@ -15154,3 +15154,8 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 데모 팝업 잘림 수정: 카드 자동 축소(scale-to-fit) + 전체화면 중앙 + ✕ 상태바 아래 (사장님 스샷: 카드가 커서 위 잘림)
 - 변경: UI만. DemoWebPopup: Box fillMaxSize(전체화면 스크림 중앙), 주입 JS 가 .card 를 화면에 맞게 transform:scale(통째로 보이게), overflow hidden. ✕ statusBarsPadding. 서버/DB 영향 없음
 - 폰 확인: 못 봄(가드7 통과). 데모 6개 팝업이 안 잘리고 통째로 보이는지 확인 필요
+
+## 2026-10-24 22:20 · android
+건 카드 "통화로 정해졌으면 등록하세요" 안내 — 주소라도 들어오면 사라지게 (사장님 "주소 입력됐으면 없어져야지")
+- 변경: UI만. CustomerDetailJobCard 안내 조건에 && displayAddr.isNullOrBlank() 추가 → 예약·금액·주소 다 비었을 때만. 서버/DB 영향 없음
+- 폰 확인: 못 봄(가드7 통과)
