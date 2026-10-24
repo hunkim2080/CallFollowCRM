@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
+import androidx.core.content.FileProvider
 import coil.Coil
 import coil.request.ImageRequest
 import coil.size.Size
@@ -57,6 +59,23 @@ object PhotoMarkRenderer {
                     canvas.drawPath(p, paint)
                 }
                 bmp
+            }.getOrNull()
+        }
+    }
+
+    /**
+     * ✏️ **그린 사진을 고객에게 보낼 수 있게 — 캐시에 저장하고 공유 Uri 로.** (2026-10-24 사장님 "펜 완료=고객에게 보내기만")
+     *   견적서 발행과 같은 길(cacheDir/shared + FileProvider). 실패면 null → 화면이 말한다.
+     */
+    suspend fun renderToShareUri(context: Context, path: String, marks: List<MarkStroke>): Uri? {
+        val bmp = render(context, path, marks) ?: return null
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+                val f = File(dir, "mark_${System.currentTimeMillis()}.jpg")
+                f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+                if (f.length() == 0L) return@runCatching null
+                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
             }.getOrNull()
         }
     }

@@ -15138,3 +15138,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. DemoWebPopup = 원본 프로토 HTML 그대로 WebView + 주입(.lede/.foot 숨김·투명·.cta→AppBridge.cta())+네이티브 ✕. assets/demos/ 에 6개(intake·callsummary·missedcall·callerpreview·collab·myrecord — 프로토 그대로 복사). FeatureTourScreen = 6개 목록→탭하면 팝업(CTA는 녹음설정/협업/통계로). ChatScreen: 자동팝업 삭제 → 접수서 안받은 고객 대화에 "접수서 이렇게 써요 ▸" 작은 칩→팝업. 삭제: IntakeDemoCard·ConversionDemoCard·CallSummaryDemoStage·IntakeDemoStyle(미사용). 서버/DB 영향 없음
 - 폰 확인: **못 봄**(compileReleaseKotlin+가드7 통과). ⚠️웹뷰 팝업 6개 뜨는지·움직임·✕/CTA·칩 폰 확인 필요
 - 다음 액션: (사장님과 정밀 리뷰) · 펜 완료=고객에게 보내기만 · 빈입력창 더블탭→"/"
+
+## 2026-10-24 21:25 · android
+펜 완료=고객에게 보내기만 + 빈 입력창 더블탭→"/" 자동 (사장님 지시)
+- 변경: UI만. ① 펜 완료: CustomerDetailViewModel.sendMarkedPhoto → PhotoMarkRenderer.renderToShareUri(원본에 획 얹어 캐시+FileProvider) → SmsIntentHelper.openSmsComposeWithAttachments(고객 번호+사진). 현장 저장 안 함(addMarkedPhoto 대체). §12 표 펜 줄 갱신. ② 대화 입력창 Box에 Initial-pass **안 소비** 더블탭 감지 → 빈 칸이면 "/" 자동입력(명령 뜸). 고객 대화(showActions)에서만. 필드 포커스·커서 그대로. 서버/DB 영향 없음
+- 폰 확인: **못 봄**(compileReleaseKotlin+가드7 통과). ⚠️펜→메시지앱 열림·사진첨부·번호, 더블탭 반응 폰 확인 필요
+- 다음 액션: 사장님 폰 확인 (데모 6개·펜 전송·더블탭)

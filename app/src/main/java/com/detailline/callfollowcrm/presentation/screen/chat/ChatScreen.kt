@@ -3683,7 +3683,28 @@ private fun Composer(
                 //   ("+ 는 정렬됐는데 이번엔 메시지입력 텍스트가..")
                 //   dp 로 밀어 맞추지 않고 높이를 맞춘 이유: 글자 크기를 키운 폰에서도 안 어긋난다.
                 androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp)
+                        // 🖐️ **빈 입력창 빠르게 더블탭 → "/" 자동**(명령 메뉴 뜸). (2026-10-24 사장님 "슬러시조차 귀찮을 때")
+                        //   Initial 패스에서 **보기만** 하고 안 소비한다 → 필드의 탭(포커스·커서)은 그대로.
+                        .pointerInput(showActions) {
+                            if (!showActions) return@pointerInput   // 고객 대화에서만(명령은 거기만)
+                            awaitPointerEventScope {
+                                var lastDown = 0L
+                                while (true) {
+                                    val ev = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                    val down = ev.changes.firstOrNull { it.pressed && !it.previousPressed }
+                                    if (down != null) {
+                                        val now = down.uptimeMillis
+                                        if ((now - lastDown) in 1..300 && tfv.text.isEmpty()) {
+                                            tfv = androidx.compose.ui.text.input.TextFieldValue("/", selection = TextRange(1))
+                                            onChange("/")
+                                            onSelectionChange(TextRange(1))
+                                            lastDown = 0L
+                                        } else lastDown = now
+                                    }
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.CenterStart
                 ) {
                     BasicTextField(

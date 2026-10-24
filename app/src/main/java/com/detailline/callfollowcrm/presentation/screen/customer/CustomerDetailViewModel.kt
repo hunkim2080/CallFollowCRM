@@ -478,26 +478,26 @@ class CustomerDetailViewModel(
     }
 
     /**
-     * ✏️ **펜으로 표시한 획을 원본에 얹어 새 사진으로 추가.** 원본은 그대로. (2026-10-24 사장님 "펜으로 체크")
-     *   무거운 합성은 `util/PhotoMarkRenderer`(Coil 로드 + 그리기). 여긴 찾기·한도·저장만.
+     * ✏️ **펜으로 그린 사진을 고객에게 보낸다.** (2026-10-24 사장님 "펜 완료 = 고객에게 보내기만")
+     *   원본에 획을 얹어(PhotoMarkRenderer) 캐시에 저장 → 메시지 앱을 고객 번호로 연다(SmsIntentHelper, 사진 첨부).
+     *   현장 저장은 안 한다(그건 사진 올리기로). 못 열면 화면에 말한다.
      */
-    fun addMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) = viewModelScope.launch {
+    fun sendMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) = viewModelScope.launch {
         if (marks.isEmpty()) return@launch
         val src = sitePhotos.value.firstOrNull { it.id == sourcePhotoId }
         if (src == null) { _toast.value = "원본 사진을 찾지 못했어요"; return@launch }
-        val repId = runCatching { container.jobRepository.representativeJobId(customerId) }.getOrNull()
-        val jid = src.jobId ?: repId
-        // 한 현장 20장 한도 — 내 사진만 센다(addSitePhotos 와 같은 규칙).
-        val ownOnJob = sitePhotos.value.count { it.jobId == jid || (it.jobId == null && jid != null && jid == repId) }
-        if (ownOnJob >= sitePhotoMax) { _toast.value = "내 사진은 한 현장에 ${sitePhotoMax}장까지예요"; return@launch }
-        _toast.value = "표시한 사진을 저장하는 중…"
-        val ok = withContext(NonCancellable) {
-            val bmp = com.detailline.callfollowcrm.util.PhotoMarkRenderer.render(container.appContext, src.filePath, marks)
-                ?: return@withContext false
-            container.sitePhotoRepository.addFromBitmap(customerId, bmp, jid)
+        val phone = customer.value?.phoneNumber?.trim().orEmpty()
+        _toast.value = "보낼 사진 준비 중…"
+        val uri = withContext(NonCancellable) {
+            com.detailline.callfollowcrm.util.PhotoMarkRenderer.renderToShareUri(container.appContext, src.filePath, marks)
         }
-        _toast.value = if (ok) "표시한 사진을 추가했어요" else "표시한 사진을 저장하지 못했어요"
-        if (ok) container.ownerPhotoUploadManager.kick(viewModelScope)
+        if (uri == null) { _toast.value = "사진을 준비하지 못했어요"; return@launch }
+        val res = com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsComposeWithAttachments(
+            container.appContext, phone, "", listOf(uri)
+        )
+        if (res is com.detailline.callfollowcrm.util.SmsIntentHelper.Result.Failed) {
+            _toast.value = "메시지 앱을 열지 못했어요"
+        }
     }
 
     /** 팀원이 올린(서버) 현장 사진을 사장님이 삭제 — 퇴사한 팀원 사진도 정리 가능. (2026-06-07) */
