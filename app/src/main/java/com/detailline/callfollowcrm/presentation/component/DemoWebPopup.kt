@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -46,7 +48,17 @@ fun DemoWebPopup(
     val onCtaCb by rememberUpdatedState(onCta)
     val onDismissCb by rememberUpdatedState(onDismiss)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize()) {
+        // Dialog 창을 **전체화면**으로 — 안 그러면 창이 내용 크기로 잡혀(웹뷰가 짧아져) 카드 위가 잘린다. (2026-10-24)
+        val view = androidx.compose.ui.platform.LocalView.current
+        androidx.compose.runtime.SideEffect {
+            (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window?.setLayout(
+                android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                android.view.WindowManager.LayoutParams.MATCH_PARENT
+            )
+        }
+        // 창 크기에 안 기대고 **화면 높이를 직접** 준다 — Dialog 가 내용 크기로 잡혀 짧아지는 것 방지.
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        Box(Modifier.fillMaxWidth().height(cfg.screenHeightDp.dp)) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
@@ -84,18 +96,19 @@ fun DemoWebPopup(
  */
 private const val POPUP_INJECT =
     "(function(){try{var s=document.createElement('style');" +
-    "s.innerHTML='html,body{background:transparent!important;height:100%!important}" +
-    " body{margin:0!important;padding:8px!important;display:flex!important;align-items:flex-start!important;justify-content:center!important;overflow-y:auto!important;overflow-x:hidden!important}" +
-    " .lede,.foot{display:none!important} .card{margin:0 auto!important}';" +
+    "s.innerHTML='html,body{background:transparent!important;margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}" +
+    " .lede,.foot{display:none!important}';" +
     "document.head.appendChild(s);" +
     "var card=document.querySelector('.card');" +
-    "function fit(){if(!card)return;card.style.zoom='';" +
+    "function fit(){if(!card)return;" +
+    "card.style.position='fixed';card.style.left='50%';card.style.top='50%';card.style.margin='0';" +
+    "card.style.transform='translate(-50%,-50%)';" +                // 먼저 scale 없이 자연 크기 측정
     "var r=card.getBoundingClientRect();var vw=window.innerWidth,vh=window.innerHeight;" +
-    "if(r.width<50||r.height<50||vw<50||vh<50)return;" +            // 아직 크기 준비 안 됨 → 원래 크기(스크롤 가능), 다음 호출 때 맞춤
-    "var sc=Math.min((vw-16)/r.width,(vh-16)/r.height,1);" +
-    "if(!isFinite(sc)||sc<0.4)sc=1;" +                              // 안전장치 — 이상하면 원래 크기(절대 안 사라지게)
-    "card.style.zoom=sc;}" +
-    "fit();setTimeout(fit,100);setTimeout(fit,400);window.addEventListener('resize',fit);" +
+    "if(r.width<50||r.height<50||vw<50||vh<50)return;" +
+    "var sc=Math.min((vw-14)/r.width,(vh-14)/r.height,1);" +
+    "if(!isFinite(sc)||sc<=0)sc=1;" +                               // 투명 방지(음수/0만 막음)
+    "card.style.transform='translate(-50%,-50%) scale('+sc+')';}" + // 화면 정중앙 + 맞게 축소
+    "fit();setTimeout(fit,250);setTimeout(fit,700);window.addEventListener('resize',fit);" +
     "var c=document.querySelector('.cta');" +
     "if(c&&!c.dataset.b){c.dataset.b=1;c.style.cursor='pointer';" +
     "c.addEventListener('click',function(){try{AppBridge.cta()}catch(e){}});}" +

@@ -15164,3 +15164,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 데모 팝업 안 보임 수정: scale-to-fit(음수/0 되어 투명) → zoom + 안전장치 (사장님 "이번엔 아예 안 보여")
 - 변경: UI만. DemoWebPopup POPUP_INJECT: transform:scale → card.style.zoom, 값 이상(비유한·0.4미만)이면 원래 크기 유지(절대 안 사라지게), 크기 준비 전엔 return(스크롤 가능). body flex-start+overflow auto 폴백. 서버/DB 영향 없음
 - 폰 확인: 못 봄(가드7 통과). 데모 팝업 보이는지·안 잘리는지 확인 필요
+
+## 2026-10-24 10:55 · android
+데모 팝업 위 잘림 — 원인은 크기 아니라 **위치**(디버그 readout vh773 ch606 = 카드가 화면에 들어가는데 위로 밀려 잘림) → 카드를 화면 정중앙에 고정
+- 변경: UI만. DemoWebPopup POPUP_INJECT: 프로토 body의 flex-direction:column 때문에 세로 정렬이 꼬여 카드가 위로 밀렸음 → .card 를 position:fixed + top/left:50% + translate(-50%,-50%) 로 화면 정중앙에 박고, scale 없이 자연크기 측정 후 vw/vh 넘치면만 축소. 디버그 div 제거. Dialog MATCH_PARENT·명시적 height 유지. 서버/DB 영향 없음
+- 폰 확인: ✅ S9(23514638000c7ece) 디버그 설치 후 통화요약·협업 데모 2종 직접 확인 — 제목부터 CTA까지 안 잘리고 통째로 보임, 스크림 어둡게, ✕ 닫기 정상. 나머지 4종(부재중·통화미리보기·접수서·내기록)은 같은 주입코드라 동일
+- 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose)
