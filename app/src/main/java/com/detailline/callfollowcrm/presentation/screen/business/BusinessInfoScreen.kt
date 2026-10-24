@@ -256,6 +256,10 @@ fun BusinessInfoScreen(
                 com.detailline.callfollowcrm.presentation.component.HelpText("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.")
                 Spacer(Modifier.height(14.dp))
 
+                // 📄 입력하면 이렇게 나와요 — 라이브 도장 견적서 미리보기(치는 대로 반영·자동 스크롤·도장 톡). (2026-10-24 사장님 "보상을 보여주자")
+                BizEstimatePreview(bizName = name, repName = owner, phone = phone, sealText = seal)
+                Spacer(Modifier.height(16.dp))
+
                 // 사업자등록증 사진으로 자동입력 — 직접 타이핑 줄이기(특히 어르신). (2026-08-05 사장님)
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppTheme.colors.primaryBg).padding(14.dp)

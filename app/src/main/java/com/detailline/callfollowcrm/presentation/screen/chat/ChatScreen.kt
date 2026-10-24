@@ -3672,7 +3672,11 @@ private fun Composer(
                             .onFocusChanged { state -> onFocusChange(state.isFocused) },
                         decorationBox = { inner ->
                             if (input.isEmpty()) {
-                                Text("문자 입력…", color = TossTextTertiary, fontSize = 14.sp)
+                                // "/" 치면 명령이 뜬다고 살짝 알려준다(고객 대화에서만). (2026-10-24 사장님)
+                                Text(
+                                    if (showActions) "문자 입력  ·  / 치면 명령" else "문자 입력…",
+                                    color = TossTextTertiary, fontSize = 14.sp
+                                )
                             }
                             inner()
                         }
