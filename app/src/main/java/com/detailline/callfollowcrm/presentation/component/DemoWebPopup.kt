@@ -7,10 +7,9 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -47,7 +46,7 @@ fun DemoWebPopup(
     val onCtaCb by rememberUpdatedState(onCta)
     val onDismissCb by rememberUpdatedState(onDismiss)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxWidth().fillMaxHeight(0.92f).padding(horizontal = 12.dp)) {
+        Box(Modifier.fillMaxSize()) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
@@ -66,10 +65,10 @@ fun DemoWebPopup(
                     wv
                 }
             )
-            // 네이티브 닫기 — 오른쪽 위.
+            // 네이티브 닫기 — 오른쪽 위(상태바 아래).
             Box(
-                Modifier.align(Alignment.TopEnd).padding(2.dp).size(34.dp)
-                    .clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
+                Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp).size(36.dp)
+                    .clip(CircleShape).background(Color.Black.copy(alpha = 0.5f))
                     .clickable { onDismiss() },
                 contentAlignment = Alignment.Center
             ) {
@@ -79,13 +78,22 @@ fun DemoWebPopup(
     }
 }
 
-/** 원본 프로토에 주입: 바깥 소개(.lede)·꼬리(.foot) 숨김, 배경 투명, 카드 가운데, .cta → 앱 동작. */
+/**
+ * 원본 프로토에 주입: 바깥 소개(.lede)·꼬리(.foot) 숨김·배경 투명, **카드를 화면에 맞게 자동 축소(scale-to-fit)**,
+ *   .cta → 앱 동작. 프로토는 고정 크기라 폰에서 넘치면 잘린다 → 통째로 보이게 줄인다.
+ */
 private const val POPUP_INJECT =
     "(function(){try{var s=document.createElement('style');" +
-    "s.innerHTML='html,body{background:transparent!important;height:100%!important}" +
-    " body{padding:6px!important;display:flex!important;align-items:center!important;justify-content:center!important}" +
+    "s.innerHTML='html,body{background:transparent!important;height:100%!important;overflow:hidden!important}" +
+    " body{margin:0!important;padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important}" +
     " .lede,.foot{display:none!important} .card{margin:0!important}';" +
     "document.head.appendChild(s);" +
+    "var card=document.querySelector('.card');" +
+    "function fit(){if(!card)return;card.style.transform='none';var r=card.getBoundingClientRect();" +
+    "var vw=window.innerWidth-16,vh=window.innerHeight-16;" +
+    "var sc=Math.min(vw/r.width,vh/r.height,1);" +
+    "card.style.transformOrigin='center center';card.style.transform='scale('+sc+')';}" +
+    "fit();setTimeout(fit,120);window.addEventListener('resize',fit);" +
     "var c=document.querySelector('.cta');" +
     "if(c&&!c.dataset.b){c.dataset.b=1;c.style.cursor='pointer';" +
     "c.addEventListener('click',function(){try{AppBridge.cta()}catch(e){}});}" +

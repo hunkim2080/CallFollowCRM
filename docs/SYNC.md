@@ -15149,3 +15149,8 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 더블탭→"/" 는 키패드 열린(포커스) 상태에서만 (사장님: 닫힌 상태선 첫 탭에 키패드 올라와 더블탭 꼬임)
 - 변경: UI만. Composer 에 fieldFocused(onFocusChanged) 추가 → 더블탭 "/" 는 fieldFocused && 빈칸일 때만. 서버/DB 영향 없음
 - 폰 확인: 못 봄(가드7 통과). 키패드 연 뒤 빈 입력창 더블탭→"/" 확인 필요
+
+## 2026-10-24 22:00 · android
+데모 팝업 잘림 수정: 카드 자동 축소(scale-to-fit) + 전체화면 중앙 + ✕ 상태바 아래 (사장님 스샷: 카드가 커서 위 잘림)
+- 변경: UI만. DemoWebPopup: Box fillMaxSize(전체화면 스크림 중앙), 주입 JS 가 .card 를 화면에 맞게 transform:scale(통째로 보이게), overflow hidden. ✕ statusBarsPadding. 서버/DB 영향 없음
+- 폰 확인: 못 봄(가드7 통과). 데모 6개 팝업이 안 잘리고 통째로 보이는지 확인 필요
