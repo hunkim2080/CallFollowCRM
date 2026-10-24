@@ -13,6 +13,7 @@ import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.MessageHistoryEntity
 import com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity
+import com.detailline.callfollowcrm.data.repository.SitePhotoRepository.MarkResult
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.RecordingSourceType
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
@@ -478,25 +479,21 @@ class CustomerDetailViewModel(
     }
 
     /**
-     * ✏️ **펜으로 그린 사진을 고객에게 보낸다.** (2026-10-24 사장님 "펜 완료 = 고객에게 보내기만")
-     *   원본에 획을 얹어(PhotoMarkRenderer) 캐시에 저장 → 메시지 앱을 고객 번호로 연다(SmsIntentHelper, 사진 첨부).
-     *   현장 저장은 안 한다(그건 사진 올리기로). 못 열면 화면에 말한다.
+     * ✏️ **펜 그린 걸로 그 현장 사진을 바꾸고 갤러리에도 저장.** (2026-10-25 사장님 "업로드 원본이 수정본으로 대체·보내기 없음")
+     *   진짜 원본은 갤러리에 있어 안전. 교체·합성·갤러리 저장은 `SitePhotoRepository.markReplaceAndSave` 한 곳 — 여긴 화면 문구만(§13①).
      */
-    fun sendMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) = viewModelScope.launch {
+    fun saveMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) = viewModelScope.launch {
         if (marks.isEmpty()) return@launch
         val src = sitePhotos.value.firstOrNull { it.id == sourcePhotoId }
         if (src == null) { _toast.value = "원본 사진을 찾지 못했어요"; return@launch }
-        val phone = customer.value?.phoneNumber?.trim().orEmpty()
-        _toast.value = "보낼 사진 준비 중…"
-        val uri = withContext(NonCancellable) {
-            com.detailline.callfollowcrm.util.PhotoMarkRenderer.renderToShareUri(container.appContext, src.filePath, marks)
-        }
-        if (uri == null) { _toast.value = "사진을 준비하지 못했어요"; return@launch }
-        val res = com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsComposeWithAttachments(
-            container.appContext, phone, "", listOf(uri)
-        )
-        if (res is com.detailline.callfollowcrm.util.SmsIntentHelper.Result.Failed) {
-            _toast.value = "메시지 앱을 열지 못했어요"
+        _toast.value = "표시한 사진 저장 중…"
+        _toast.value = when (withContext(NonCancellable) {
+            container.sitePhotoRepository.markReplaceAndSave(sourcePhotoId, src.filePath, marks)
+        }) {
+            MarkResult.NO_RENDER -> "사진을 준비하지 못했어요"
+            MarkResult.REPLACE_FAIL -> "현장 사진을 바꾸지 못했어요"
+            MarkResult.GALLERY_FAIL -> "현장 사진은 바꿨어요 · 갤러리 저장은 실패했어요"
+            MarkResult.OK -> "표시한 사진으로 바꿨어요 · 갤러리에도 저장했어요"
         }
     }
 

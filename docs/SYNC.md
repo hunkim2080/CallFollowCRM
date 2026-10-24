@@ -15170,3 +15170,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. DemoWebPopup POPUP_INJECT: 프로토 body의 flex-direction:column 때문에 세로 정렬이 꼬여 카드가 위로 밀렸음 → .card 를 position:fixed + top/left:50% + translate(-50%,-50%) 로 화면 정중앙에 박고, scale 없이 자연크기 측정 후 vw/vh 넘치면만 축소. 디버그 div 제거. Dialog MATCH_PARENT·명시적 height 유지. 서버/DB 영향 없음
 - 폰 확인: ✅ S9(23514638000c7ece) 디버그 설치 후 통화요약·협업 데모 2종 직접 확인 — 제목부터 CTA까지 안 잘리고 통째로 보임, 스크림 어둡게, ✕ 닫기 정상. 나머지 4종(부재중·통화미리보기·접수서·내기록)은 같은 주입코드라 동일
 - 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose)
+
+## 2026-10-25 07:10 · android
+펜 완료 동작 변경: 「고객에게 보내기」 → **「저장할까요?」로 묻고 그 현장 사진을 그린 걸로 대체 + 갤러리에도 저장** (사장님 "업로드 원본이 수정본으로 대체. 진짜 원본은 갤러리에 있어 안전. 보내기는 없어도 됨 — 나중에 그린 것만 모아 보냄")
+- 변경: UI+로컬저장. PhotoViewer 펜 완료 → "저장할까요?"(저장/취소) AlertDialog. SitePhotoRepository.replaceWithBitmap(자리 그대로 파일 교체·serverUploadedAt 지워 서버 재업로드) + markReplaceAndSave(render→교체→RecordShot.save 오케스트레이션, MarkResult). CustomerDetailViewModel.sendMarkedPhoto→saveMarkedPhoto(얇게, 문구만). PhotoMarkRenderer.renderToShareUri 제거(dead). 서버/DB 스키마 영향 없음(기존 site_photos 재사용, 교체분은 outbox로 재업로드)
+- 폰 확인: ✅ S9(100.121.10.111 무선) 디버그로 2회 — 펜→완료→"저장할까요?"→저장 → 2차 현장사진 섬네일이 그린 걸로 바뀜(여전히 1장, 추가 아님) · 갤러리에 시공막내_표시_*.png 저장(2개) · 우체통에 "현장 사진 연결되면 자동 보내요"(서버 재업로드 대기) · 공유창 안 뜸
+- 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose). size_guard 한번 걸려 VM 로직을 저장소로 옮겨 해결

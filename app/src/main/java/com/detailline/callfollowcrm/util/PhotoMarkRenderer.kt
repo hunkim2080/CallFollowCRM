@@ -6,8 +6,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
-import androidx.core.content.FileProvider
 import coil.Coil
 import coil.request.ImageRequest
 import coil.size.Size
@@ -22,7 +20,7 @@ import java.io.File
  *   무거운 비트맵 작업이라 ViewModel 에서 떼어 여기 둔다(화면 파일이 더 안 커지게 — size_guard).
  *   - 원본은 **Coil 로 불러온다** → 화면에서 본 것(EXIF 로 세워진 방향)과 같아야 획이 맞다.
  *   - 획은 0..1 좌표([MarkStroke])라 **어떤 해상도에도** `점*가로`·`굵기*가로` 로 그대로 얹힌다.
- *   쓰는 곳: `CustomerDetailViewModel.addMarkedPhoto` 한 곳. 좌표 셈은 `domain/ui/PhotoFit.kt`.
+ *   쓰는 곳: `CustomerDetailViewModel.saveMarkedPhoto` 한 곳(그 현장 사진 교체 + 갤러리 저장). 좌표 셈은 `domain/ui/PhotoFit.kt`.
  */
 object PhotoMarkRenderer {
 
@@ -59,23 +57,6 @@ object PhotoMarkRenderer {
                     canvas.drawPath(p, paint)
                 }
                 bmp
-            }.getOrNull()
-        }
-    }
-
-    /**
-     * ✏️ **그린 사진을 고객에게 보낼 수 있게 — 캐시에 저장하고 공유 Uri 로.** (2026-10-24 사장님 "펜 완료=고객에게 보내기만")
-     *   견적서 발행과 같은 길(cacheDir/shared + FileProvider). 실패면 null → 화면이 말한다.
-     */
-    suspend fun renderToShareUri(context: Context, path: String, marks: List<MarkStroke>): Uri? {
-        val bmp = render(context, path, marks) ?: return null
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                val dir = File(context.cacheDir, "shared").apply { mkdirs() }
-                val f = File(dir, "mark_${System.currentTimeMillis()}.jpg")
-                f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 92, it) }
-                if (f.length() == 0L) return@runCatching null
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
             }.getOrNull()
         }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.detailline.callfollowcrm.data.local.dao.SitePhotoDao
 import com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity
+import com.detailline.callfollowcrm.domain.ui.MarkStroke
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -165,6 +166,52 @@ class SitePhotoRepository(
             runCatching { dao.markUploaded(photoId, null) }
             true
         }.getOrDefault(false)
+    }
+
+    /**
+     * ✏️ **올린 현장 사진을 펜으로 그린 걸로 바꾼다 — 그 자리 그대로.** (2026-10-25 사장님)
+     *
+     *   사장님: "업로드한 원본이 수정한 사진으로 대체되는 것. 진짜 원본은 **갤러리에** 있으니 안전하다."
+     *   돌리기([rotate])와 **같은 길** — 같은 파일을 덮어쓴다(경로 그대로 → photoId·대표·건 연결 유지,
+     *   `PhotoModel.of` 가 바뀐 시각으로 새로 띄워 목록·건 카드에 바로 반영).
+     *   서버 표시(serverUploadedAt)를 **지운다** → 웹/팀에도 그린 게 다시 올라간다(폰만 바뀌고 웹은 옛것 방지).
+     *   임시 파일에 먼저 쓴다 — 쓰다 죽어도 원본이 깨진 채 남지 않게(rotate 와 같은 안전장치).
+     * @return 성공 여부.
+     */
+    suspend fun replaceWithBitmap(photoId: Long, bitmap: android.graphics.Bitmap): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val path = dao.filePathOf(photoId) ?: return@runCatching false
+            val file = File(path)
+            val tmp = File(file.absolutePath + ".mark")
+            tmp.outputStream().use { o ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, o)
+            }
+            if (tmp.length() == 0L) { runCatching { tmp.delete() }; return@runCatching false }
+            if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true); runCatching { tmp.delete() }
+            }
+            // 서버에 다시 올리게 표시를 지운다(웹/팀도 그린 걸로).
+            runCatching { dao.markUploaded(photoId, null) }
+            true
+        }.getOrDefault(false)
+    }
+
+    /** ✏️ 펜 저장 결과 — 화면 문구는 VM 이 이걸로 고른다. */
+    enum class MarkResult { NO_RENDER, REPLACE_FAIL, GALLERY_FAIL, OK }
+
+    /**
+     * ✏️ **펜 획을 그 현장 사진에 얹어 — 그 자리를 바꾸고(교체) 갤러리에도 저장.** (2026-10-25 사장님)
+     *   render(합성) → [replaceWithBitmap](교체) → `RecordShot.save`(갤러리). 진짜 원본은 갤러리에 있어 안전.
+     *   오케스트레이션을 여기 모아 화면(VM)을 얇게 둔다 — 화면 문구는 VM 이 [MarkResult] 로 고른다(§13①).
+     */
+    suspend fun markReplaceAndSave(photoId: Long, path: String, marks: List<MarkStroke>): MarkResult {
+        val bmp = com.detailline.callfollowcrm.util.PhotoMarkRenderer.render(context, path, marks)
+            ?: return MarkResult.NO_RENDER
+        if (!replaceWithBitmap(photoId, bmp)) return MarkResult.REPLACE_FAIL
+        val gallery = com.detailline.callfollowcrm.util.RecordShot.save(
+            context, bmp, "시공막내_표시_${System.currentTimeMillis()}"
+        )
+        return if (gallery == null) MarkResult.GALLERY_FAIL else MarkResult.OK
     }
 
     /** DB 행 + 실제 파일 삭제. */

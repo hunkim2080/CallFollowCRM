@@ -120,8 +120,9 @@ fun FullscreenPhotoViewer(
     onDelete: ((photoId: Long) -> Unit)? = null,
     /**
      * ✏️ **사진에 펜으로 표시 — 내 사진만**([ViewerPhoto.OfFile] photoId>0). (2026-10-24 사장님 "펜으로 체크")
-     *   있으면 [표시] 버튼이 뜨고, 그린 뒤 완료하면 획(0..1 좌표)을 넘긴다.
-     *   부른 쪽이 **원본에 얹어 새 사진으로 추가**한다(원본은 그대로). 저장·합성은 부른 쪽 한 곳.
+     *   있으면 [펜] 버튼이 뜨고, 그린 뒤 완료하면 **「저장할까요?」를 묻고** 획(0..1 좌표)을 넘긴다.
+     *   부른 쪽이 **그 사진을 그린 걸로 바꾸고(대체) 갤러리에도 저장**한다 — 진짜 원본은 갤러리에 있어 안전.
+     *   (2026-10-25 사장님 "업로드한 원본이 수정한 사진으로 대체. 보내기는 없어도 됨.") 저장·합성은 부른 쪽 한 곳.
      */
     onSaveMarked: ((sourcePhotoId: Long, marks: List<MarkStroke>) -> Unit)? = null,
     /**
@@ -177,6 +178,8 @@ fun FullscreenPhotoViewer(
         val canDeleteCur = onDelete != null && deletablePhotoId != null
         // ✏️ 펜 표시 — 지금 보는 게 내 사진이고 onSaveMarked 가 있을 때만.
         var penMode by remember { mutableStateOf(false) }
+        // ✏️ 완료 후 「저장할까요?」로 들고 있는 획(사진 id + 획). null 이면 안 묻는 중.
+        var pendingMark by remember { mutableStateOf<Pair<Long, List<MarkStroke>>?>(null) }
         val curOfFile = photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(
@@ -249,15 +252,52 @@ fun FullscreenPhotoViewer(
                     )
                 }
             }
-            // ✏️ 펜 화면 — 그릴 땐 사진창 전체를 덮는다(넘김·확대·닫기 멈춤). 완료하면 획을 넘기고 닫는다.
+            // ✏️ 펜 화면 — 그릴 땐 사진창 전체를 덮는다(넘김·확대·닫기 멈춤). 완료하면 「저장할까요?」를 묻는다.
             if (penMode && curOfFile != null) {
                 PenStage(
                     photo = curOfFile,
                     onCancel = { penMode = false },
                     onDone = { marks ->
                         penMode = false
-                        if (marks.isNotEmpty()) onSaveMarked?.invoke(curOfFile.photoId, marks)
-                        onDismiss()
+                        // 그린 게 있으면 저장할지 묻는다. 없으면 그냥 닫는다.
+                        if (marks.isNotEmpty()) pendingMark = curOfFile.photoId to marks else onDismiss()
+                    }
+                )
+            }
+            // ✏️ **저장할까요?** — 완료 뒤 한 번 묻는다(삼성 갤러리 편집과 같은 방식).
+            //   저장 = 그 현장 사진을 그린 걸로 바꾸고 갤러리에도 저장(부른 쪽). 취소 = 그린 것 버리고 닫기.
+            pendingMark?.let { (pid, marks) ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { pendingMark = null; onDismiss() },
+                    containerColor = AppTheme.colors.surface,
+                    tonalElevation = 0.dp,
+                    title = {
+                        androidx.compose.material3.Text(
+                            "저장할까요?", style = AppType.title,
+                            fontWeight = FontWeight.Bold, color = AppTheme.colors.text
+                        )
+                    },
+                    text = {
+                        androidx.compose.material3.Text(
+                            "표시한 내용으로 이 현장 사진을 바꾸고, 갤러리에도 저장해요.",
+                            style = AppType.body, color = AppTheme.colors.textSub
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = { pendingMark = null; onSaveMarked?.invoke(pid, marks); onDismiss() }
+                        ) {
+                            androidx.compose.material3.Text(
+                                "저장", fontWeight = FontWeight.Bold, color = AppTheme.colors.primary
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = { pendingMark = null; onDismiss() }
+                        ) {
+                            androidx.compose.material3.Text("취소", color = AppTheme.colors.textHint)
+                        }
                     }
                 )
             }
