@@ -3572,6 +3572,15 @@ private fun Composer(
         }
         // 프로토 .composer — [⊕ 액션][ 입력 ✨ ][✈ 보내기] (사진은 ⊕ 맨 위). ⊕ 왼쪽(카톡식)·보내기 오른쪽. ✨/보내기는 글 있을 때 톡. (2026-08-14 사장님)
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
+        // "/" 명령 — 치면 바로 접수서·견적·일정·문구·사진(⊕ 메뉴와 같은 기능, 다른 입구). (2026-10-24 "카톡 봇 벤치마킹")
+        if (showActions) SlashCommandMenu(
+            input = input,
+            onOpenEstimate = onOpenEstimate,
+            onOpenSchedule = onOpenSchedule,
+            onOpenTemplate = onOpenTemplate,
+            onAttachPhoto = onAttachPhoto,
+            onClearInput = { onChange("") }
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             // 여러 줄이 되면 버튼을 **바닥선**에 붙인다. (2026-09-18 사장님 "정렬과 여백이 어색")

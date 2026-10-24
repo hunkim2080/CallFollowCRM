@@ -31,6 +31,7 @@ CLAUDE.md §0 이 가리키는 문서. **화면을 만들기 전 여기서 그 �
 | 통화 요약 = 시간 구간 | `artifact/C9u4cizR` | 2026-09-25 | 그리는 곳은 `CallSummaryBody` 한 군데 |
 | 「내 기록」 (통계 탭) | `artifact/EDcGwV4F` · `artifact/WuAifNxe` | 1단계 배포됨 | 진짜 데이터 버전이 앞것 |
 | 챗 입력줄 — ⊕ 풍선 메뉴 | `artifact/9bb5e35a` | 구현 중 | 상시 3칩 제거 |
+| 대화창 **"/" 명령** (자동완성 + 바로 실행) | `artifact/5nhqznJqPqXLtyfeTaHULA` | 2026-10-24 「가」(v2) | 카톡 봇 벤치마킹. "/" 치면 명령 목록(📋접수서·🧾견적·📅일정·💬문구·🖼️사진·👤고객) 걸러져 뜸(「넣기」라벨 없음). 누르면 **바로 그 화면**(탭 최소), 👤고객만 요약 카드. ⊕ 메뉴는 그대로 두고 "/" 얹음. 셈 `domain/chat/SlashCommand.kt` · 드롭다운 `SlashCommandMenu.kt`. **✅1단계(5기능 바로실행) · 2단계=/고객 요약카드 남음** |
 | 문자 예약 발송 (보내기 창 작은 🕐 → 시각 → 자동) | `artifact/56gF4zzgC9UYVBihJcsN9Z` | 2026-10-05 구현됨 | 메인버튼 X·조용한 보조. 글 자동·사진은 기본앱일 때만(아니면 '사진 못 갔어요'). 예약함=상담함 위 |
 | 일정 달력 **「금액」 토글** (달력 머리 오른쪽 끝 칩) | 사장님 승인 프로토(2026-10-19 세션) — **`artifact/32c88330` 앱 전체 프로토에 반영 필요** | 2026-10-19 구현됨 | **기본 꺼둠·기억**(`AppPreferences.scheduleShowMoney`, 남이 폰 볼 때 금액 안 보이게). 켬 = 시공 띠 「동대문 **[65]**」 — 그 건 **총액**(jobs SoT) **만원 숫자만**, 괄호·「–」 연한 회색, 금액 primary. 한 날 여러 현장은 **줄마다 각각**. 금액 안 적은 현장 「[–]」(0 과 구분). 끔 = 지역명만(전과 같음). 셈 `domain/schedule/CalendarMoneyLabel.kt` · 띠 `CalRegionBar(money)` · 칩 `CalMoneyToggle`(`ScheduleParts.kt`). 협업·A/S·요청·간단 띠는 금액 없음(그대로) |
 | 간단 일정 여러 날 — 구글처럼 **띠** | `artifact/U93GJ2KYz8Ma86fqXGf1fa` | 2026-10-08 구현됨 | 점→**청록 띠**(지난 회색·시공 초록과 구분, 새 토큰 `simpleText/simpleBg`). 띠 글자 가운데(공용 `CalRegionBar`). 하루짜리도 띠. 여러 날이면 **하루 종일 자동**. 범위=연속 띠. 고치기=범위 픽커. 격자 계산=`ScheduleCalendarGrid.kt` |
