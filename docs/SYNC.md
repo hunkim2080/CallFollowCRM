@@ -15114,3 +15114,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI+새 공용. 신규: domain/ui/PhotoFit.kt(좌표, 순수+시험 7건)·PhotoMark.kt(MarkStroke 0..1)·util/PhotoMarkRenderer.kt(Coil 원본로드+그리기)·theme/PenPalette.kt(색). PhotoViewer.onSaveMarked 입구 → CustomerDetailViewModel.addMarkedPhoto → SitePhotoRepository.addFromBitmap(기존). 내 사진만(OfFile), 회전·확대는 펜 모드서 멈춤. EXIF로 방향 맞춤. 원본 그대로·표시본 한 장 더(같은 건, 20장 한도). §12 표에 펜 줄 추가(공용 44→45). 서버/DB 영향 없음
 - 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / compileReleaseKotlin + PhotoFitTest 통과 + assembleRelease 가드7 통과). ⚠️좌표·EXIF는 폰 실기 확인 필요(획이 그린 자리에 맞는지)
 - 다음 액션: 사장님 폰에서 현장사진 크게 → [표시] → 동그라미 그려 완료 → 새 사진 추가되는지·획 위치 맞는지 확인
+
+## 2026-10-24 18:55 · android
+접수서 보내기 "이렇게 써요" 움직이는 데모 카드 — 대화 화면 위, 첫 사용 때만 (프로토 P3L5USe9, 사장님 「가」)
+- 변경: UI+새 공용. 신규 presentation/screen/chat/IntakeDemoCard.kt(9초 자동재생: ①링크 ②고객이 날짜·주소 입력 ③보내기 ④자동 캘린더 등록) + theme/IntakeDemoStyle.kt(데모 색·크기). 대화 화면 ChatTopActions 아래 배선: !isPlainThread·접수서 안받은 고객(intakeEvents 빈)·첫사용(hintSeen "intake_demo")·controlsVisible 일 때만. ✕닫기/보내기=접수서 탭(estimateDraft.mode="accept")→다시 안 뜸. 이모지 대신 Material 아이콘(폰마다 동일). 서버/DB 영향 없음
+- 폰 확인: **못 봄**(adb 무선디버깅 꺼짐 / compileReleaseKotlin + assembleRelease 가드7 통과). ⚠️애니 움직임·2폰 레이아웃은 폰 실기 확인 필요
+- 다음 액션: 사장님 폰에서 접수서 안 받은 고객 대화 열어 데모 카드 자동재생·보기 좋은지 확인(움직임/속도/크기)
