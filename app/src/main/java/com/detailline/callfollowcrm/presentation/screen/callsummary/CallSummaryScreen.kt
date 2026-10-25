@@ -162,16 +162,9 @@ fun CallSummaryScreen(
         }
     }
 
-    fun send() {
+    // 권한 있는 상태에서 실제 발송. send() 의 게이트를 통과했거나 권한 요청 허용 직후 불린다.
+    fun doSend() {
         val body = draft.text.trim()
-        if (body.isBlank()) {
-            Toast.makeText(context, "보낼 내용이 비어 있어요", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!SmsSender.hasPermission(context)) {
-            Toast.makeText(context, "문자 권한이 필요해요", Toast.LENGTH_SHORT).show()
-            return
-        }
         scope.launch {
             val customer = runCatching { container.customerRepository.upsertByPhone(phoneNumber = phone) }.getOrNull()
             val ok = SmsSender.sendDirect(context, phone, body)
@@ -191,6 +184,28 @@ fun CallSummaryScreen(
             ).show()
             if (ok) onBack()
         }
+    }
+
+    // 📩 문자 권한 없으면 **그 자리에서 권한 요청** — 토스트로만 막던 것 수정(처음 쓰는 사람은 어디서 켜는지 모름). (2026-10-25 사장님)
+    //   채팅 발송(ChatScreen sendPermissionLauncher)과 같은 방식. 허용하면 바로 보낸다.
+    val smsPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) doSend()
+        else Toast.makeText(context, "문자 권한이 있어야 보낼 수 있어요", Toast.LENGTH_SHORT).show()
+    }
+
+    fun send() {
+        val body = draft.text.trim()
+        if (body.isBlank()) {
+            Toast.makeText(context, "보낼 내용이 비어 있어요", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!SmsSender.hasPermission(context)) {
+            smsPermLauncher.launch(android.Manifest.permission.SEND_SMS)
+            return
+        }
+        doSend()
     }
 
     Scaffold(

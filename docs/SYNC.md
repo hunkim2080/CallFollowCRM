@@ -15195,3 +15195,10 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. ChatScreen EstimateBuilderDialog 의 quote 경로에서 `if(bizName.isBlank()){toast;return}` 게이트 제거. onQuoteDoc 이 이미 askBizThen 으로 감싸져 있어(시공접수서 경로와 동일) 상호 비면 BizIdentitySheet 가 뜬다. QuoteDocScreen 은 prefs.bizName 을 그때그때 읽어 시트에서 채운 상호가 바로 반영. 서버/DB 영향 없음
 - 폰 확인: ✅ S9(무선) 디버그 — 견적서 탭+항목1개+발행 → 토스트 대신 "고객에게 뭐라고 보일까요?"(상호/대표/사업자번호 입력, 나중에 할래요) 시트가 뜸
 - 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose)
+
+## 2026-10-25 11:30 · android
+막다른 안내 정리: 통화요약 발송 — 문자 권한 없으면 토스트만 뜨던 것 → 그 자리에서 권한 요청 (사장님 "비슷한거 또 찾아보자")
+- 변경: UI만. CallSummaryScreen.send() 를 doSend()(실제 발송)+권한 런처+send()(게이트)로 분리. 권한 없으면 rememberLauncherForActivityResult(RequestPermission).launch(SEND_SMS), 허용 시 doSend(). 채팅(ChatScreen sendPermissionLauncher)과 같은 패턴. 서버/DB 영향 없음
+- 폰 확인: 못 봄(통화요약 진입=통화기록 필요, 테스트폰 재현 어려움). 검증된 채팅 패턴과 동일 + 컴파일 OK
+- 가드: assembleRelease 7종 통과
+- 참고(안 고친 것): 협업 "내 번호 없음"=로그인때 bizPhone 자동설정이라 사실상 안 뜨는 죽은길 / 채팅 발송=이미 권한요청함 / 고객상세 인라인SMS(sendInlineSms)=VM이라 화면쪽 런처 필요(별도) / 수첩·팀 토스트=삭제 예정
