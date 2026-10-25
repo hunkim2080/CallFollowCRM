@@ -15275,3 +15275,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: 서버 /api/call-summary · /api/call-audio-summary(+start) — biz_name 을 앱이 보낸 값 그대로만 쓰고 `_web_owner_biz_suggested`(과거 접수서 상호) 폴백 제거. 규칙은 `_build_summary_system_prompt` 한 곳(비면 "(모름)"). 앱/모델 변경 없음.
 - 폰 확인: 못 봄 (라이브 배포 전 — 사장님 "배포해" 대기). 배포 후 테스트폰 후속문자로 확인 예정
 - 다음 액션: 사장님 승인 시 라이브 배포(GOTCHAS §3: 백업→patch_biz.py→py_compile→swap→kickstart→smoke.sh 10). 옛 앱은 새 앱 설치 전까지 후속문자에 상호 안 뜸(의도)
+
+## 2026-10-25 23:52 · android (+ server)
+↑ 후속문자 상호 변경 라이브 배포 완료
+- 배포: GOTCHAS §3 절차 — 백업(main.py.bak.predeploy-20261025-234954)→patch_biz.py(6곳)→py_compile 3.9→swap→kickstart(새 PID 38972). 라이브 main.py 에 옛-상호 폴백 0 확인.
+- 폰 확인: smoke.sh 10/10 통과. 실기 후속문자 확인은 **새 앱 설치 후** 가능(옛 앱은 biz_name 안 보내서 이름 없이 "방금 통화드렸습니다")
+- 다음 액션: 앱 릴리스(테스트폰) — 사장님 요청 시. 상호 설정한 사용자는 그 상호가, 안 한 사용자는 이름 없이 인사
