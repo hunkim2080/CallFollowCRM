@@ -24,6 +24,9 @@ class CallSummaryServerRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
     /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
     private val ownerPhone: () -> String = { "" },
+    /** 🧾 후속 문자 인사 상호 — **앱 사업자정보(상호) 설정 그대로.** 서버가 과거 접수서 상호(스테일) 대신 이걸 쓴다. (2026-10-25 사장님)
+     *  비면 서버가 기존 방식(접수서 상호 조회)으로 폴백 → 옛 앱 호환. */
+    private val bizName: () -> String = { "" },
     /** 🧾 사장님 **자기** 가격표 — 서버 요약이 전역 pricing.md 대신 이걸 쓴다.
      *  회원마다 업종이 달라서(줄눈·필름·도배…) 남의 가격표를 보여주면 안 된다. (2026-09-26) */
     private val priceList: suspend () -> String = { "" }
@@ -59,6 +62,7 @@ class CallSummaryServerRepository(
             val payload = JSONObject().apply {
                 put("phone", phone)
                 ownerPhone().filter { it.isDigit() }.takeIf { it.length >= 9 }?.let { put("owner_phone", it) }
+                bizName().trim().takeIf { it.isNotBlank() }?.let { put("biz_name", it) }
                 put("raw_text", rawText.take(8000))
                 put("direction", direction)
                 put("duration_sec", durationSec)

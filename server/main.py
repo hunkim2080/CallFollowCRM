@@ -16030,6 +16030,8 @@ class CallSummaryRequest(BaseModel):
     ownerTrade: Optional[str] = None   # 추가50 (2026-06-21) — 앱 onboarding 업종 (저장용)
     # 2026-09-26 — 사장님 **자기** 가격표 (자재 이름 바로잡기 + 금액). 전역 pricing.md 대체.
     price_list: Optional[str] = None
+    # 2026-10-25 사장님 — 후속 문자 인사 상호 = **앱 사업자정보(상호) 그대로.** 오면 이걸 쓰고, 없으면(옛 앱) 과거 접수서 상호로 폴백.
+    biz_name: Optional[str] = None
 
 
 CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
@@ -16306,9 +16308,11 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
 
     # 시스템 프롬프트 빌드 (가격표 + 톤 샘플 inject)
     _owner_pricing_remember(req.owner_phone, req.price_list)
+    # 후속 문자 상호: 앱이 보낸 현재 사업자정보(상호) 우선, 없으면(옛 앱) 과거 접수서 상호로 폴백. (2026-10-25 사장님)
+    _biz = (req.biz_name or "").strip() or _web_owner_biz_suggested(_norm_phone(req.owner_phone or ""))
     system_prompt = _build_summary_system_prompt(
         CALL_SUMMARY_SYSTEM, req.owner_tone_samples or [],
-        biz_name=_web_owner_biz_suggested(_norm_phone(req.owner_phone or "")),
+        biz_name=_biz,
         price_list=req.price_list, owner_phone=req.owner_phone,
     )
     user_msg = _build_call_summary_user_message(req)
@@ -16627,6 +16631,7 @@ async def call_audio_summary_endpoint(
     owner_phone: Optional[str] = Form(None),         # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone
     owner_trade: Optional[str] = Form(None),         # 추가50 (2026-06-21) — 앱 onboarding 업종
     price_list: Optional[str] = Form(None),          # 2026-09-26 — 사장님 자기 가격표
+    biz_name: Optional[str] = Form(None),            # 2026-10-25 — 후속 문자 상호(앱 사업자정보). 없으면 과거 접수서 상호 폴백
 ) -> dict:
     """통화 녹음 → Whisper STT → Gemini/Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
 
@@ -16809,9 +16814,11 @@ async def call_audio_summary_endpoint(
         user_msg = "\n".join(user_lines)
 
         _owner_pricing_remember(owner_phone, price_list)
+        # 후속 문자 상호: 앱이 보낸 현재 사업자정보 우선, 없으면(옛 앱) 과거 접수서 상호 폴백. (2026-10-25 사장님)
+        _biz = (biz_name or "").strip() or _web_owner_biz_suggested(_norm_phone(owner_phone or ""))
         system_prompt = _build_summary_system_prompt(
             CALL_SUMMARY_SYSTEM, samples_list,
-            biz_name=_web_owner_biz_suggested(_norm_phone(owner_phone or "")),
+            biz_name=_biz,
             price_list=price_list, owner_phone=owner_phone,
         )
 
@@ -16991,6 +16998,7 @@ async def call_audio_summary_start(
     owner_phone: Optional[str] = Form(None),
     owner_trade: Optional[str] = Form(None),
     price_list: Optional[str] = Form(None),          # 2026-09-26 — 사장님 자기 가격표
+    biz_name: Optional[str] = Form(None),            # 2026-10-25 — 후속 문자 상호(앱 사업자정보)
 ) -> dict:
     """접수만 하고 바로 대답. 긴 통화가 게이트웨이 시간 제한에 걸려 죽는 걸 막는다."""
     if not phone:
@@ -17050,6 +17058,7 @@ async def call_audio_summary_start(
                 owner_phone=owner_phone,
                 owner_trade=owner_trade,
                 price_list=price_list,
+                biz_name=biz_name,
             )
             _CALL_SUMMARY_JOBS.pop(key, None)   # 결과는 캐시에 들어갔다
             print("[call-audio-summary/start] " + phone_digits + " -> done")

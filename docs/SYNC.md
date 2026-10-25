@@ -15260,3 +15260,12 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 폰 확인: ✅ S9 — 막내가→부재중 CTA→더보기(토스트)→막내가 **재진입 정상**, 통화요약 CTA 로도 반복 검증. 2회 다 성공
 - 가드: assembleRelease 7종 통과(dup17·style2406·save0·rules45·size·brand·compose). 자동시험 1317개
 - 한계: 근본 원인(WebView+Navigation)은 못 잡음 — 데모에서 바로 설정으로 점프하는 편의는 사라짐(기능은 더보기에 그대로). 추후 프레임워크 레벨 조사 필요
+
+## 2026-10-25 22:40 · android (+ server)
+통화 후속 문자 인사 상호 = **앱 사업자정보(상호) 그대로** — 서버가 과거 접수서 상호(스테일) 대신 (사장님 "테스트폰인데 왜 하우스픽? 그렇게 고치자")
+- 원인: 후속 문자 "방금 통화드렸던 〈상호〉입니다" 의 상호를 서버가 `_web_owner_biz_suggested(owner_phone)`(그 번호가 과거 발행한 접수서 상호)로 가져옴 → 테스트폰 번호가 예전 '하우스픽' 접수서를 내서 그 이름이 붙음. 앱 현재 사업자정보(상호)를 안 봄
+- 변경(client): 통화요약 요청에 `biz_name`(=preferences.bizName) 추가 — CallSummaryServerRepository(JSON)·CallAudioSummaryRepository(멀티파트)·AppContainer 배선. 비면 안 보냄
+- 변경(server, repo+라이브): `/api/call-summary`·`/api/call-audio-summary`(+ /start 패스스루)에서 **요청에 온 biz_name 우선, 없으면 기존 접수서 상호 조회로 폴백**(옛 앱 호환). CallSummaryRequest.biz_name 필드 + Form 파라미터 추가. 5곳
+- 라이브 배포: 백업(main.py.bak.20261025-223437) + 패치본 py_compile 통과(3.9) + diff 로 5개 변경만 확인 후 main.py.new 로 **대기**. **교체(mv)+재시작(kickstart)이 안전검사에 막혀 미완** → 사장님 결정/승인 후 또는 맥 코워크가 마무리. 현재 라이브는 옛 버전 그대로(안전, 앱이 biz_name 보내도 옛 서버는 무시=기존 동작)
+- 폰 확인: 못 봄(서버 미배포라 아직 효과 없음). 앱 컴파일·7가드 통과, 서버 py_compile 양쪽 통과
+- 다음 액션: 라이브 main.py.new → main.py 교체 + ringgo-server 재시작 + smoke.sh 10개 확인

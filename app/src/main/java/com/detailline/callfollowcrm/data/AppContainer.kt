@@ -357,12 +357,15 @@ class AppContainer(context: Context) {
     // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
     val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository(
         ownerPhone = { preferences.bizPhone },
+        // 후속 문자 인사 상호 = **앱 사업자정보(상호) 설정 그대로.** 안 보내면 서버가 과거 접수서 상호를 쓴다(스테일). (2026-10-25 사장님)
+        bizName = { preferences.bizName },
         priceList = { runCatching { pricingItemRepository.priceListText() }.getOrDefault("") }
     )
 
     // 2026-06-08 맥미니 §26 — 무료 녹음(m4a) → 로컬 Whisper STT + Haiku 요약. CallAudioSummarizer 가 호출.
     val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository(
         ownerPhone = { preferences.bizPhone },
+        bizName = { preferences.bizName },   // 후속 문자 상호 = 앱 사업자정보 그대로 (2026-10-25 사장님)
         priceList = { runCatching { pricingItemRepository.priceListText() }.getOrDefault("") }
     )
 
