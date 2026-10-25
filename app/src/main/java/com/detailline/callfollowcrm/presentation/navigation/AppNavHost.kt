@@ -743,11 +743,21 @@ fun AppNavHost(
 
         // 더보기 → 막내가 이런 것도 해요 — 기능 둘러보기(자동 재생 데모 카드). (2026-10-24)
         composable(Destinations.FEATURE_TOUR) {
+            val tourCtx = androidx.compose.ui.platform.LocalContext.current
+            // CTA(기능 켜기): **투어를 닫고 더보기로** 돌아간다 — 거기서 그 기능을 바로 켤 수 있다.
+            //   ⚠️ 투어(데모 팝업=WebView) 안에서 **다른 화면으로 바로 navigate 하면**, 돌아왔을 때
+            //   "막내가 이런것도 해요" 카드가 안 눌리는 버그가 있다(WebView+네비게이션 Compose 깊은 문제 ·
+            //   Dialog/overlay/네비수정 7가지 다 실패). 그래서 **화면 이동 대신 닫기만** 하고 어디서 켜는지 안내한다.
+            //   (2026-10-25 사장님 「기능 켜기를 투어 닫기로」 · 모든 기능은 더보기에서 직접 됨)
+            fun closeTourWithHint(msg: String) {
+                android.widget.Toast.makeText(tourCtx, msg, android.widget.Toast.LENGTH_SHORT).show()
+                navController.popBackStack()
+            }
             com.detailline.callfollowcrm.presentation.screen.tour.FeatureTourScreen(
                 onBack = { navController.popBackStack() },
-                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
-                onOpenCollab = { navController.navigate(Destinations.COLLAB_SITES) },
-                onOpenStats = { navController.navigate(Destinations.STATS) }
+                onOpenRecordingSettings = { closeTourWithHint("더보기 → '자동으로 챙기기' 에서 켤 수 있어요") },
+                onOpenCollab = { closeTourWithHint("더보기 → '협업 현장' 에서 시작할 수 있어요") },
+                onOpenStats = { closeTourWithHint("아래 '내 기록' 탭에서 볼 수 있어요") }
             )
         }
 

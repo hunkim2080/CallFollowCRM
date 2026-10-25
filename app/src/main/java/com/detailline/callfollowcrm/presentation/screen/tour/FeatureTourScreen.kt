@@ -68,16 +68,6 @@ fun FeatureTourScreen(
     onOpenStats: () -> Unit
 ) {
     var open by remember { mutableStateOf<DemoItem?>(null) }
-    // CTA 로 화면 이동할 것 — **팝업(전체화면 Dialog)이 완전히 닫힌 다음** 한 프레임 뒤에 이동한다.
-    //   같은 프레임에 닫기+이동을 하면 Dialog 전체화면 창이 안 닫히고 남아 **터치를 다 먹는다**(2026-10-25 사장님 "뒤로가면 터치 먹통").
-    var pendingNav by remember { mutableStateOf<(() -> Unit)?>(null) }
-    androidx.compose.runtime.LaunchedEffect(pendingNav) {
-        pendingNav?.let { go ->
-            androidx.compose.runtime.withFrameNanos { }   // 팝업 창이 사라질 한 프레임을 기다린 뒤
-            go()
-            pendingNav = null
-        }
-    }
 
     val items = remember {
         listOf(
@@ -146,8 +136,9 @@ fun FeatureTourScreen(
     open?.let { item ->
         DemoWebPopup(
             assetPath = item.asset,
-            // 팝업 먼저 닫고(open=null) → 이동은 pendingNav 로 넘겨 **한 프레임 뒤에** (위 LaunchedEffect).
-            onCta = { open = null; pendingNav = item.cta },
+            // CTA = 팝업 닫고 item.cta() — item.cta 는 **투어를 닫고 더보기로** 돌아간다(기능으로 바로 안 간다, AppNavHost 참고).
+            //   투어에서 기능 화면으로 바로 navigate 하면 재진입이 깨지는 버그가 있어서다. (2026-10-25 사장님)
+            onCta = { open = null; item.cta() },
             onDismiss = { open = null }
         )
     }

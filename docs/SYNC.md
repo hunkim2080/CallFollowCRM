@@ -15250,3 +15250,13 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경(④견적서 전화 하이픈): QuoteDocScreen 대표번호가 날번호(01080052080)였음 → 공용 PhoneNumberFormatter.format → 010-8005-2080
 - 폰 확인: ✅ S9 — 사업자정보 미리보기 도장 없이 렌더·전화 하이픈 정상. 투어 데모 팝업 열림/닫힘·터치 유지(S9는 원래 freeze 재현 안 됐음, S23U가 기기 이슈라 사장님 폰 테스트 필요). /견적·실제 견적서는 코드·단위테스트·가드로 검증
 - 가드: assembleRelease 7종 통과(dup17·style2415→2406·save0·rules45·size·brand·compose). 자동시험 1317개
+
+## 2026-10-25 19:10 · android
+투어 "막내가 이런것도 해요" 재진입 버그 수정 — CTA(기능 켜기)를 **화면 이동 대신 투어 닫기**로 (사장님 「기능 켜기를 투어 닫기로」)
+- 증상: 막내가→데모→"기능 켜기"로 설정 이동→뒤로 하면 "막내가" 카드만 안 눌림(그 카드 onClick 자체가 발동 안 함. 다른 메뉴·앱 전체는 정상. 앱 재시작하면 풀림)
+- 원인: 데모 팝업(WebView) + 투어(상세화면)에서 **다른 화면으로 navigate** 하는 조합이 Compose 터치 처리를 깨뜨림. 유령 창·겹친 뷰 없음, 카드는 의미상 clickable 인데 포인터가 안 닿음. 깊은 WebView+Navigation 상호작용
+- 시도(전부 실패, 90+회 폰 검증): 네비 6종(withFrameNanos 제거·popUpTo·popBackStack·clearBackStack·delay·savedStateHandle 쪽지) + Dialog→overlay 근본수술. **다 안 됨**
+- 해결: 투어 CTA(onOpenRecordingSettings/Collab/Stats)를 `navController.navigate(기능)` → **`popBackStack()`(투어 닫고 더보기로) + 어디서 켜는지 안내 토스트**로. '팝업+화면이동' 조합 자체를 없애 버그 회피. 모든 기능은 더보기에서 직접 접근 가능. FeatureTourScreen 의 옛 pendingNav/withFrameNanos hack(틀린 진단)도 제거
+- 폰 확인: ✅ S9 — 막내가→부재중 CTA→더보기(토스트)→막내가 **재진입 정상**, 통화요약 CTA 로도 반복 검증. 2회 다 성공
+- 가드: assembleRelease 7종 통과(dup17·style2406·save0·rules45·size·brand·compose). 자동시험 1317개
+- 한계: 근본 원인(WebView+Navigation)은 못 잡음 — 데모에서 바로 설정으로 점프하는 편의는 사라짐(기능은 더보기에 그대로). 추후 프레임워크 레벨 조사 필요
