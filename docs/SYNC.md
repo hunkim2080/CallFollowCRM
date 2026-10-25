@@ -15208,3 +15208,12 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. ① onCta 가 open=null(팝업 닫기)+화면이동을 같은 프레임에 해서 전체화면 Dialog 창이 고아로 남아 터치를 먹었음 → pendingNav+LaunchedEffect(withFrameNanos)로 **팝업 닫은 다음 한 프레임 뒤 이동**. ② 상단 Row 에 statusBarsPadding() 추가(손으로 만든 바라 상태바 밀기를 빠뜨렸음 — S9는 상태바 작아 우연히 안 겹쳤고 S23U는 큼). 서버/DB 영향 없음
 - 폰 확인: ✅ S9(무선) — 부재중 데모→CTA→설정→뒤로→더보기→화면 탭 정상 이동(터치 살아있음) · 상단 제목이 상태바 아래로 내려옴. S23U는 읽기전용이라 직접 못 깜(statusBarsPadding은 기기별 자동)
 - 가드: assembleRelease 7종 통과
+
+## 2026-10-25 12:35 · android
+S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadding) 빠진 곳 전 화면 조사 후 수정 (사장님 "매번 S23U만 안 맞음, 한 번에 쓸기")
+- 조사: presentation/ 167파일 전수(Scaffold topBar 36·bottomBar 4·전체화면 Dialog 18·비-Scaffold 10). 대부분 이미 Material TopAppBar라 자동, 손제작 바만 문제
+- 변경(UI만, 실제 쓰는 화면만): ① QuoteDocScreen(견적서 미리보기) 윗바 Row 에 statusBarsPadding ② PhotoViewer(사진 크게보기) 위 3요소(장수표시 TopCenter·좌상단 topStartAction·오른쪽위 ✕/🗑 Row)에 statusBarsPadding. 둘 다 background 뒤에 넣어 색띠는 상태바 뒤까지·글자만 아래로
+- 안 건드림: NotebookScreen(수첩=삭제결정·숨겨짐)·ExpoScreen(박람회=SHOW_EXPO false·잠깐 애니) — 사용자가 못 만나서 재발 없음
+- 폰 확인: S9에서 FeatureTour로 같은 statusBarsPadding 패턴 검증됨(제목 상태바 아래). 나머지 동일 모디파이어. S23U는 읽기전용이라 직접 못 깜(인셋은 기기별 자동). 컴파일 OK
+- 가드: assembleRelease 7종 통과
+- 근본: 기종별 사이즈 표 대신 window insets 가 정답(새 폰 나와도 자동). S23U 사전확인=에뮬레이터/삼성 Remote Test Lab 제안함

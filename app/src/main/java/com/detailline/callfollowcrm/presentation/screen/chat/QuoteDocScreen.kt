@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -167,7 +168,8 @@ fun QuoteDocScreen(
     Column(Modifier.fillMaxSize().background(TossGrayBg)) {
         // 앱바 — 프로토: "견적서" + "미리보기 닫기"
         Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 14.dp),
+            // 상태바 밀기 — 안 넣으면 S23U(상태바·펀치홀 큼)에서 "견적서" 제목이 시계와 겹친다. (2026-10-25 S23U sweep)
+            Modifier.fillMaxWidth().background(Color.White).statusBarsPadding().padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("견적서", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)

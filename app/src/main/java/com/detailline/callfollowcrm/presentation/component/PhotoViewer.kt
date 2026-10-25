@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -222,7 +223,7 @@ fun FullscreenPhotoViewer(
             // 여러 장이면 몇 번째인지. 한 장이면 군더더기라 안 띄운다.
             if (photos.size > 1) {
                 Box(
-                    Modifier.align(Alignment.TopCenter).padding(top = 18.dp)
+                    Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 18.dp)
                         .clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
@@ -233,13 +234,14 @@ fun FullscreenPhotoViewer(
                 }
             }
             topStartAction?.let { action ->
-                Box(Modifier.align(Alignment.TopStart).padding(14.dp)) {
+                Box(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(14.dp)) {
                     action(pagerState.currentPage)
                 }
             }
             // 오른쪽 위 — [🗑 지우기(내 사진만)] [✕ 닫기]. 삭제는 확인 한 번 뒤 뷰어를 닫는다.
+            //   statusBarsPadding — S23U(상태바·펀치홀 큼)에서 ✕·🗑 이 시계/카메라에 안 겹치게. (2026-10-25 S23U sweep)
             Row(
-                Modifier.align(Alignment.TopEnd).padding(14.dp),
+                Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (canDeleteCur) {
