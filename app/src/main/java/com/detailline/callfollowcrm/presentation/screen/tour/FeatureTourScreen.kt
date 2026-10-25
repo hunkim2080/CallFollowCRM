@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -67,6 +68,16 @@ fun FeatureTourScreen(
     onOpenStats: () -> Unit
 ) {
     var open by remember { mutableStateOf<DemoItem?>(null) }
+    // CTA 로 화면 이동할 것 — **팝업(전체화면 Dialog)이 완전히 닫힌 다음** 한 프레임 뒤에 이동한다.
+    //   같은 프레임에 닫기+이동을 하면 Dialog 전체화면 창이 안 닫히고 남아 **터치를 다 먹는다**(2026-10-25 사장님 "뒤로가면 터치 먹통").
+    var pendingNav by remember { mutableStateOf<(() -> Unit)?>(null) }
+    androidx.compose.runtime.LaunchedEffect(pendingNav) {
+        pendingNav?.let { go ->
+            androidx.compose.runtime.withFrameNanos { }   // 팝업 창이 사라질 한 프레임을 기다린 뒤
+            go()
+            pendingNav = null
+        }
+    }
 
     val items = remember {
         listOf(
@@ -83,7 +94,10 @@ fun FeatureTourScreen(
         containerColor = AppTheme.colors.surfaceMuted,
         topBar = {
             Row(
-                Modifier.fillMaxWidth().background(AppTheme.colors.surface).padding(horizontal = 4.dp, vertical = 4.dp),
+                // 상태바 밀기 — 안 넣으면 S23U(상태바·펀치홀이 큼)에서 제목이 시계와 겹친다. (2026-10-25 사장님 S23U)
+                //   background 먼저 → 색 띠는 상태바 뒤까지, statusBarsPadding 으로 글자만 상태바 아래로.
+                Modifier.fillMaxWidth().background(AppTheme.colors.surface)
+                    .statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
@@ -132,7 +146,8 @@ fun FeatureTourScreen(
     open?.let { item ->
         DemoWebPopup(
             assetPath = item.asset,
-            onCta = { open = null; item.cta() },
+            // 팝업 먼저 닫고(open=null) → 이동은 pendingNav 로 넘겨 **한 프레임 뒤에** (위 LaunchedEffect).
+            onCta = { open = null; pendingNav = item.cta },
             onDismiss = { open = null }
         )
     }
