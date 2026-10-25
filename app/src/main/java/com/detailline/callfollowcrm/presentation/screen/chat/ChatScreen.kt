@@ -442,6 +442,8 @@ fun ChatScreen(
     }
     var fullscreenImages by remember { mutableStateOf<List<android.net.Uri>?>(null) }
     var fullscreenStart by remember { mutableStateOf(0) }
+    // ✏️ 크게 띄운 게 **보낼 첨부**(붙여둔 사진)일 때만 펜 표시를 켠다 — 주고받은 사진엔 안 켠다. (2026-10-25)
+    var fullscreenMarkable by remember { mutableStateOf(false) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
     var pendingSend by remember { mutableStateOf<String?>(null) }
     // 견적 회신 리마인드 기준 — 견적 빌더로 채운 본문. **실제 발송 성공 시에만** ESTIMATE_SENT 기록
@@ -992,7 +994,7 @@ fun ChatScreen(
                                     imageUris = msg.imageUris,
                                     videoUris = msg.videoUris,
                                     isStarred = starredKeys.contains(msg.dateMs to msg.sent),
-                                    onImageTap = { uris, idx -> fullscreenImages = uris; fullscreenStart = idx },
+                                    onImageTap = { uris, idx -> fullscreenImages = uris; fullscreenStart = idx; fullscreenMarkable = false },
                                     onLongPress = {
                                         // 2026-05-25: 직접 toggleStar 호출 X → BottomSheet 띄워서 저장/복사 선택.
                                         bubbleActionTarget = msg
@@ -1304,7 +1306,7 @@ fun ChatScreen(
                 onAttachPhoto = { showPhotoPicker = true },
                 attachments = attachedPhotos,
                 onRemoveAttachment = { uri -> attachedPhotos = attachedPhotos - uri },
-                onAttachmentTap = { idx -> fullscreenImages = attachedPhotos; fullscreenStart = idx },
+                onAttachmentTap = { idx -> fullscreenImages = attachedPhotos; fullscreenStart = idx; fullscreenMarkable = true },
                 onSend = {
                     // ▶ 탭 = 즉시 발송 X. 사장님 확인 다이얼로그 거침 (실수 발송 방지).
                     val body = input.trim()
@@ -1343,7 +1345,7 @@ fun ChatScreen(
             body = body,
             photos = photos,
             // 썸네일 탭 → 앱에 이미 있는 큰사진 뷰어로 전체화면(작성칸 첨부와 동일). (2026-10-05 사장님)
-            onPhotoTap = { idx -> fullscreenImages = photos; fullscreenStart = idx },
+            onPhotoTap = { idx -> fullscreenImages = photos; fullscreenStart = idx; fullscreenMarkable = false },
             // 취소/뒤로가기해도 확인창에서 고친 본문은 입력칸에 반영 — 고친 게 날아가지 않게. (2026-09-03 사장님)
             onCancel = { edited ->
                 sendConfirm = null
@@ -1890,6 +1892,20 @@ fun ChatScreen(
                 },
                 startIndex = fullscreenStart,
                 onDismiss = { fullscreenImages = null },
+                // ✏️ 보낼 첨부일 때만 펜 — 그리고 확인하면 붙여둔 그 사진을 그린 걸로 교체(갤러리 원본은 그대로).
+                onMarkAttachment = if (fullscreenMarkable) ({ page, marks ->
+                    imgs.getOrNull(page)?.let { src ->
+                        scope.launch {
+                            val newUri = com.detailline.callfollowcrm.util.PhotoMarkRenderer
+                                .renderToFileUri(context, src, marks)
+                            if (newUri != null && page < attachedPhotos.size) {
+                                attachedPhotos = attachedPhotos.toMutableList().also { it[page] = newUri }
+                            } else if (newUri == null) {
+                                android.widget.Toast.makeText(context, "표시를 적용하지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }) else null,
                 // 사진 저장(다운로드) — 지금 보고 있는 사진을 휴대폰 갤러리에. (2026-06-23 사장님)
                 topStartAction = { page ->
                     IconButton(onClick = {

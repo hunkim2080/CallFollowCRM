@@ -15176,3 +15176,10 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI+로컬저장. PhotoViewer 펜 완료 → "저장할까요?"(저장/취소) AlertDialog. SitePhotoRepository.replaceWithBitmap(자리 그대로 파일 교체·serverUploadedAt 지워 서버 재업로드) + markReplaceAndSave(render→교체→RecordShot.save 오케스트레이션, MarkResult). CustomerDetailViewModel.sendMarkedPhoto→saveMarkedPhoto(얇게, 문구만). PhotoMarkRenderer.renderToShareUri 제거(dead). 서버/DB 스키마 영향 없음(기존 site_photos 재사용, 교체분은 outbox로 재업로드)
 - 폰 확인: ✅ S9(100.121.10.111 무선) 디버그로 2회 — 펜→완료→"저장할까요?"→저장 → 2차 현장사진 섬네일이 그린 걸로 바뀜(여전히 1장, 추가 아님) · 갤러리에 시공막내_표시_*.png 저장(2개) · 우체통에 "현장 사진 연결되면 자동 보내요"(서버 재업로드 대기) · 공유창 안 뜸
 - 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose). size_guard 한번 걸려 VM 로직을 저장소로 옮겨 해결
+
+## 2026-10-25 09:35 · android
+고객에게 보낼 사진에도 펜 — 채팅 ⊕ 첨부 사진을 크게 열면 [펜] → 그리고 완료 → 「표시할까요?」 → 확인하면 그 붙인 사진이 그린 걸로 교체 (사장님 "고객한테 보낼 때도 그리기", 보편적 패턴=펜은 선택 버튼)
+- 변경: UI+로컬. FullscreenPhotoViewer 에 onMarkAttachment 추가(photoId 없어도 펜 뜸, 완료 confirm 이 현장사진=「저장할까요?」/첨부=「표시할까요?」로 갈림, pendingMark 를 page 로). PhotoMarkRenderer: render(Uri) 오버로드 + renderToFileUri(Uri→FileProvider) 되살림(공통 renderData 로 두 벌 방지). ChatScreen: fullscreenMarkable 플래그(첨부에서 열 때만 true) + onMarkAttachment 로 attachedPhotos 그 자리 교체. 갤러리 원본·서버 안 건드림(cache 새 파일만)
+- 폰 확인: ✅ S9(무선) 디버그 — 채팅 ⊕→사진첨부→썸네일 탭 → [펜] 뜸 → 그리기 → 완료 → 「표시할까요? 표시한 걸로 바꿔서 보내요(갤러리 원본은 그대로)」 → 확인 → 입력창 썸네일이 빨간선 그린 걸로 교체(1장 유지). 주고받은 사진엔 펜 안 뜸
+- 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose)
+- 다음: 펜 뷰어 하단 버튼(↺왼쪽·↻오른쪽·펜) 디자인 개선 — 사장님 요청

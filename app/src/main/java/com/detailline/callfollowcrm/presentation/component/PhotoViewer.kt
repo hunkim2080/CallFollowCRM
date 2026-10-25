@@ -126,6 +126,13 @@ fun FullscreenPhotoViewer(
      */
     onSaveMarked: ((sourcePhotoId: Long, marks: List<MarkStroke>) -> Unit)? = null,
     /**
+     * ✏️ **보낼 첨부 사진에 펜 표시 — 보내기 전 그 사진만 바꾼다.** (2026-10-25 사장님 "고객한테 보낼 때도 그리기")
+     *   있으면 [펜] 버튼이 뜨고(현장사진용 [onSaveMarked] 와 달리 photoId 없어도), 완료 후 **「표시할까요?」** 를 묻고
+     *   지금 보는 쪽 번호([page])와 획을 넘긴다. 부른 쪽이 **붙여둔 그 사진을 그린 걸로 교체**한다(갤러리 원본은 그대로).
+     *   둘 중 하나만 준다 — 현장사진이면 [onSaveMarked], 보낼 첨부면 이것.
+     */
+    onMarkAttachment: ((page: Int, marks: List<MarkStroke>) -> Unit)? = null,
+    /**
      * 화면 왼쪽 위에 더 얹을 것 — 문자 사진의 「갤러리에 저장」 같은 것.
      *   받는 값은 **지금 보고 있는 쪽 번호**다.
      */
@@ -178,8 +185,8 @@ fun FullscreenPhotoViewer(
         val canDeleteCur = onDelete != null && deletablePhotoId != null
         // ✏️ 펜 표시 — 지금 보는 게 내 사진이고 onSaveMarked 가 있을 때만.
         var penMode by remember { mutableStateOf(false) }
-        // ✏️ 완료 후 「저장할까요?」로 들고 있는 획(사진 id + 획). null 이면 안 묻는 중.
-        var pendingMark by remember { mutableStateOf<Pair<Long, List<MarkStroke>>?>(null) }
+        // ✏️ 완료 후 묻는 중 들고 있는 획(지금 보는 쪽 번호 + 획). null 이면 안 묻는 중.
+        var pendingMark by remember { mutableStateOf<Pair<Int, List<MarkStroke>>?>(null) }
         val curOfFile = photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(
@@ -201,10 +208,10 @@ fun FullscreenPhotoViewer(
                         ((rotations[page] ?: 0) % 360) != 0 &&
                         (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
                     ) ({ saveAll(); onDismiss() }) else null,
-                    // ✏️ [표시] — 내 사진일 때만. 누르면 펜 화면으로.
+                    // ✏️ [펜] — 내 현장 사진(photoId>0, 저장)이거나 보낼 첨부(onMarkAttachment, 확인)일 때.
                     onPen = if (
-                        onSaveMarked != null &&
-                        (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
+                        (onSaveMarked != null && (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true) ||
+                        (onMarkAttachment != null && photos[page] is ViewerPhoto.OfFile)
                     ) ({ penMode = true }) else null
                 )
             }
@@ -252,43 +259,53 @@ fun FullscreenPhotoViewer(
                     )
                 }
             }
-            // ✏️ 펜 화면 — 그릴 땐 사진창 전체를 덮는다(넘김·확대·닫기 멈춤). 완료하면 「저장할까요?」를 묻는다.
+            // ✏️ 펜 화면 — 그릴 땐 사진창 전체를 덮는다(넘김·확대·닫기 멈춤). 완료하면 한 번 묻는다.
             if (penMode && curOfFile != null) {
                 PenStage(
                     photo = curOfFile,
                     onCancel = { penMode = false },
                     onDone = { marks ->
                         penMode = false
-                        // 그린 게 있으면 저장할지 묻는다. 없으면 그냥 닫는다.
-                        if (marks.isNotEmpty()) pendingMark = curOfFile.photoId to marks else onDismiss()
+                        // 그린 게 있으면 묻는다(지금 보는 쪽). 없으면 그냥 닫는다.
+                        if (marks.isNotEmpty()) pendingMark = pagerState.currentPage to marks else onDismiss()
                     }
                 )
             }
-            // ✏️ **저장할까요?** — 완료 뒤 한 번 묻는다(삼성 갤러리 편집과 같은 방식).
-            //   저장 = 그 현장 사진을 그린 걸로 바꾸고 갤러리에도 저장(부른 쪽). 취소 = 그린 것 버리고 닫기.
-            pendingMark?.let { (pid, marks) ->
+            // ✏️ **완료 뒤 한 번 묻는다**(삼성 갤러리 편집과 같은 방식). 취소 = 그린 것 버리고 닫기.
+            //   현장 사진: 「저장할까요?」 → 그 사진 교체 + 갤러리 저장(onSaveMarked).
+            //   보낼 첨부: 「표시할까요?」 → 그 보낼 사진만 교체(onMarkAttachment). 둘 중 하나만 걸려 있다.
+            pendingMark?.let { (page, marks) ->
+                val toSite = onSaveMarked != null
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { pendingMark = null; onDismiss() },
                     containerColor = AppTheme.colors.surface,
                     tonalElevation = 0.dp,
                     title = {
                         androidx.compose.material3.Text(
-                            "저장할까요?", style = AppType.title,
+                            if (toSite) "저장할까요?" else "표시할까요?", style = AppType.title,
                             fontWeight = FontWeight.Bold, color = AppTheme.colors.text
                         )
                     },
                     text = {
                         androidx.compose.material3.Text(
-                            "표시한 내용으로 이 현장 사진을 바꾸고, 갤러리에도 저장해요.",
+                            if (toSite) "표시한 내용으로 이 현장 사진을 바꾸고, 갤러리에도 저장해요."
+                            else "표시한 걸로 바꿔서 보내요. (갤러리 원본은 그대로)",
                             style = AppType.body, color = AppTheme.colors.textSub
                         )
                     },
                     confirmButton = {
                         androidx.compose.material3.TextButton(
-                            onClick = { pendingMark = null; onSaveMarked?.invoke(pid, marks); onDismiss() }
+                            onClick = {
+                                pendingMark = null
+                                if (toSite) (photos.getOrNull(page) as? ViewerPhoto.OfFile)
+                                    ?.let { onSaveMarked?.invoke(it.photoId, marks) }
+                                else onMarkAttachment?.invoke(page, marks)
+                                onDismiss()
+                            }
                         ) {
                             androidx.compose.material3.Text(
-                                "저장", fontWeight = FontWeight.Bold, color = AppTheme.colors.primary
+                                if (toSite) "저장" else "확인",
+                                fontWeight = FontWeight.Bold, color = AppTheme.colors.primary
                             )
                         }
                     },
