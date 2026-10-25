@@ -202,22 +202,8 @@ fun FullscreenPhotoViewer(
                 ViewerPage(
                     photo = photos[page],
                     rotation = rotations[page] ?: 0,
-                    onRotate = { d -> rotations[page] = (rotations[page] ?: 0) + d },
                     onZoomedChange = { z -> if (page == pagerState.currentPage) zoomed = z },
-                    onTapClose = tryClose,
-                    canSave = onSaveRotation != null &&
-                        (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true,
-                    // 돌린 게 있고 **내 사진**일 때만 [이대로 저장] 이 나타난다.
-                    onSaveNow = if (
-                        onSaveRotation != null &&
-                        ((rotations[page] ?: 0) % 360) != 0 &&
-                        (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
-                    ) ({ saveAll(); onDismiss() }) else null,
-                    // ✏️ [펜] — 내 현장 사진(photoId>0, 저장)이거나 보낼 첨부(onMarkAttachment, 확인)일 때.
-                    onPen = if (
-                        (onSaveMarked != null && (photos[page] as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true) ||
-                        (onMarkAttachment != null && photos[page] is ViewerPhoto.OfFile)
-                    ) ({ penMode = true }) else null
+                    onTapClose = tryClose
                 )
             }
             // 여러 장이면 몇 번째인지. 한 장이면 군더더기라 안 띄운다.
@@ -263,6 +249,50 @@ fun FullscreenPhotoViewer(
                     androidx.compose.material3.Text(
                         "✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold
                     )
+                }
+            }
+            // 🔄 **회전/펜/저장 도구바 — 화면 바닥에 고정.** (2026-10-26 사장님 "기본 UX" · CLAUDE.md §0)
+            //   전엔 이 바가 **사진 한 장 한 장에 붙어** 있어, 옆으로 넘기면 버튼이 사진 따라 밀렸다.
+            //   삼성 갤러리처럼 **사진만 넘어가고 도구바는 가만히** — 지금 보는 쪽(currentPage)에 작동한다.
+            //   확대 중엔 숨긴다(손가락이 아래쪽이라 잘못 눌린다). 펜 화면일 땐 PenStage 가 덮으니 숨긴다.
+            val barPage = pagerState.currentPage
+            val barRot = rotations[barPage] ?: 0
+            val barPhoto = photos.getOrNull(barPage)
+            val barCanSave = onSaveRotation != null &&
+                (barPhoto as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
+            val barShowSave = barCanSave && (barRot % 360) != 0
+            val barShowPen = (onSaveMarked != null && (barPhoto as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true) ||
+                (onMarkAttachment != null && barPhoto is ViewerPhoto.OfFile)
+            if (!zoomed && !penMode) {
+                Column(
+                    // 🖐️ 시스템 버튼 위로 띄운다 — 96dp 면 어떤 폰 내비바(≤48dp)도 안 가린다. (2026-10-02)
+                    Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // 남의 사진은 돌려도 안 남는다 — **돌리고 나서** 조용히 알려준다.
+                    if (!barCanSave && barRot % 360 != 0) {
+                        Box(
+                            Modifier.padding(bottom = 10.dp)
+                                .clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                "내 사진이 아니라 돌려 보기만 돼요",
+                                style = AppType.caption, color = Color.White
+                            )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        ViewerToolBtn("왼쪽", glyph = "↺") { rotations[barPage] = (rotations[barPage] ?: 0) - 90 }
+                        ViewerToolBtn("오른쪽", glyph = "↻") { rotations[barPage] = (rotations[barPage] ?: 0) + 90 }
+                        // ✏️ **내 사진이면 펜으로 그리기.** (2026-10-24 사장님 "표시가 뭔지 헷갈려 → 펜")
+                        if (barShowPen) ViewerToolBtn("펜", accent = true, icon = Icons.Default.Edit) { penMode = true }
+                        // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
+                        if (barShowSave) ViewerToolBtn("저장", accent = true, icon = Icons.Default.Check) { saveAll(); onDismiss() }
+                    }
                 }
             }
             // ✏️ 펜 화면 — 그릴 땐 사진창 전체를 덮는다(넘김·확대·닫기 멈춤). 완료하면 한 번 묻는다.
@@ -397,19 +427,13 @@ fun FullscreenPhotoViewer(
     }
 }
 
-/** 한 쪽 — 돌리기 + 두 손가락 확대. */
+/** 한 쪽 — 사진 한 장(돌린 각도 반영) + 두 손가락 확대. 도구바는 부모가 바닥에 고정으로 그린다. */
 @Composable
 private fun ViewerPage(
     photo: ViewerPhoto,
     rotation: Int,
-    onRotate: (Int) -> Unit,
     onZoomedChange: (Boolean) -> Unit,
-    onTapClose: () -> Unit,
-    canSave: Boolean,
-    /** 돌린 게 있을 때만 들어온다 — null 이면 [이대로 저장] 을 안 그린다. */
-    onSaveNow: (() -> Unit)? = null,
-    /** ✏️ 내 사진일 때만 들어온다 — null 이면 [펜으로 표시] 를 안 그린다. */
-    onPen: (() -> Unit)? = null
+    onTapClose: () -> Unit
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -475,51 +499,7 @@ private fun ViewerPage(
                 modifier = imgMod, contentScale = ContentScale.Fit
             )
         }
-        // 🔄 돌리기 — **크게 보면서** 돌린다. 작은 썸네일에선 제대로 됐는지 안 보인다.
-        //   확대 중엔 숨긴다: 들여다보는 중엔 손가락이 아래쪽에 있어 잘못 눌린다.
-        if (!isZoomed) {
-            androidx.compose.foundation.layout.Column(
-                // 🖐️ **시스템 버튼(||| ○ ‹) 위로 띄운다.** (2026-10-02 사장님)
-                //   ① 34dp 로 박아뒀더니 S23U 에서 **버튼이 통째로 가려** 있었다 → 기능이 없는 줄 아셨다.
-                //   ② navBarBottomDp() + 20dp 로 고쳤더니 이번엔 **겹쳐 보였다**
-                //      (사장님 "겹쳐보여 아래 봐봐" — 알약 아래 끝 y2230 vs 내비바 y2190, 40px 겹침).
-                //   ③ `maxOf(navBarBottomDp(), 48.dp) + 24.dp` 로 고쳤는데도 **안 움직였다**
-                //      (2026-10-02 실측: 알약 위 테두리 y2094 — 고치기 전과 같은 자리).
-                //      이 창에선 그 값이 왜 안 먹는지 아직 모른다.
-                //   🔑 **그래서 폰에 아무것도 안 묻는다.** 숫자를 박는다 —
-                //      내비바는 어떤 폰도 48dp 를 안 넘으니 96dp 면 **두 배**로 안전하다.
-                //      사진 위 빈 검정 자리라 조금 높이 떠도 손해가 없다. 안 보이는 것보다 낫다.
-                modifier = Modifier.align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // 남의 사진은 돌려도 안 남는다 — **돌리고 나서** 조용히 알려준다.
-                //   처음부터 띄우면 안 돌릴 사람한테까지 잔소리가 된다.
-                if (!canSave && rotation % 360 != 0) {
-                    Box(
-                        Modifier.padding(bottom = 10.dp)
-                            .clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        androidx.compose.material3.Text(
-                            "내 사진이 아니라 돌려 보기만 돼요",
-                            style = AppType.caption, color = Color.White
-                        )
-                    }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    ViewerToolBtn("왼쪽", glyph = "↺") { onRotate(-90) }
-                    ViewerToolBtn("오른쪽", glyph = "↻") { onRotate(90) }
-                    // ✏️ **내 사진이면 펜으로 그리기.** 눌러 그리는 화면으로. (2026-10-24 사장님 "표시가 뭔지 헷갈려 → 펜")
-                    onPen?.let { ViewerToolBtn("펜", accent = true, icon = Icons.Default.Edit, onClick = it) }
-                    // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
-                    onSaveNow?.let { ViewerToolBtn("저장", accent = true, icon = Icons.Default.Check, onClick = it) }
-                }
-            }
-        }
+        // (회전/펜/저장 도구바는 부모 FullscreenPhotoViewer 가 바닥에 고정으로 그린다 — 2026-10-26 기본 UX)
     }
 }
 
