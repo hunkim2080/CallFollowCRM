@@ -75,6 +75,16 @@ fun DemoWebPopup(
                     }
                     wv.loadUrl("file:///android_asset/$assetPath")
                     wv
+                },
+                // 🧹 닫을 때 WebView 를 **반드시 정리**한다. 안 그러면 WebView 가 입력 채널을 쥔 채 남아
+                //   팝업이 사라진 뒤에도 **터치를 다 먹는다**(기기에 따라 매번 — S23U "들어갔다 나오면 먹통").
+                //   stopLoading → 부모에서 떼기 → destroy 순서가 WebView 정리의 정석이다. (2026-10-25 사장님 재신고)
+                onRelease = { wv ->
+                    wv.stopLoading()
+                    wv.loadUrl("about:blank")
+                    (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                    wv.removeJavascriptInterface("AppBridge")
+                    wv.destroy()
                 }
             )
             // 네이티브 닫기 — 오른쪽 위(상태바 아래).
