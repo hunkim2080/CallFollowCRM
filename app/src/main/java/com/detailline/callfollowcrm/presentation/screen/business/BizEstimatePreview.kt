@@ -58,14 +58,12 @@ fun BizEstimatePreview(
     bizName: String,
     repName: String,
     phone: String,
-    sealText: String,
     modifier: Modifier = Modifier
 ) {
     val co = bizName.ifBlank { "○○ 줄눈" }
     val rep = repName.ifBlank { "정민수" }
     val ph = phone.filter { it.isDigit() }.takeIf { it.isNotBlank() }
         ?.let { PhoneNumberFormatter.formatProgressive(it) } ?: "010-4805-2630"
-    val stamp = sealText.ifBlank { co }
 
     // ── 움직임 — 9초 한 바퀴. 스크롤(머리말→도장)과 도장 찍힘을 한 시계로. ──
     val inf = rememberInfiniteTransition(label = "biz-preview")
@@ -82,19 +80,6 @@ fun BizEstimatePreview(
             },
             repeatMode = RepeatMode.Restart
         ), label = "scroll"
-    )
-    val stampP by inf.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 9000
-                0f at 0 with LinearEasing
-                0f at 4000 with LinearEasing            // 아래로 다 내려올 때까지 숨어 있다가
-                1f at 4800 with FastOutSlowInEasing      // 톡 찍힌다
-                1f at 9000 with LinearEasing
-            },
-            repeatMode = RepeatMode.Restart
-        ), label = "stamp"
     )
 
     val density = LocalDensity.current
@@ -145,41 +130,9 @@ fun BizEstimatePreview(
                     Text("410,000원", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
                 }
 
-                // ── 서명란 + 직인 — 실제 견적서(QuoteDocScreen)와 같은 **빨간 네모 음각** 도장. 톡 찍힌다.
+                // ── 서명란 ── (직인 도장은 뺐다 — 실제 견적서(QuoteDocScreen)와 맞춤. 장난처럼 보여서. 2026-10-25 사장님)
                 Spacer(Modifier.height(18.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                    Text("위와 같이 견적합니다.", fontSize = 11.sp, color = TossTextSecondary, modifier = Modifier.weight(1f))
-                    Box(
-                        Modifier.graphicsLayerStamp(stampP).size(62.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // 빨강 꽉 찬 네모
-                        Box(Modifier.matchParentSize().clip(AppShape.sm).background(TossError))
-                        // 안쪽 흰 테두리 + 흰 글자(음각)
-                        Box(
-                            Modifier.size(52.dp).clip(AppShape.sm)
-                                .border(1.2.dp, Color.White, AppShape.sm)
-                                .padding(horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    stamp.replace(" ", ""),
-                                    fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Black,
-                                    color = Color.White, textAlign = TextAlign.Center
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Box(Modifier.size(30.dp, 1.dp).background(Color.White))
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    "대표 $rep",
-                                    fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold,
-                                    color = Color.White, textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                }
+                Text("위와 같이 견적합니다.", fontSize = 11.sp, color = TossTextSecondary)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -213,11 +166,3 @@ private fun DocItem(name: String, qty: String, price: String) {
 private fun Modifier.graphicsLayerTranslateY(y: Float): Modifier =
     this.graphicsLayer { translationY = y }
 
-/** 도장 찍힘 — 크고 흐리게 내려와(scale 2→1, alpha 0→1, 회전) 자리에 앉는다. */
-private fun Modifier.graphicsLayerStamp(p: Float): Modifier =
-    this.graphicsLayer {
-        alpha = p
-        val s = 2.0f + (1.0f - 2.0f) * p   // 2.0 → 1.0
-        scaleX = s; scaleY = s
-        rotationZ = 14f + (-8f - 14f) * p  // 14° → -8°(실제 도장 각도)
-    }

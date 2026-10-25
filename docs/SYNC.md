@@ -15241,3 +15241,12 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: AddressExtractor.dongHo → buildingUnit 로 교체. parse3 의 단지명(name)+동호수(unit) 를 합쳐 "수원 하늘채 더퍼스트2단지 224동 101호" 로. 단지명 없으면 동호수만, 둘 다 없으면 null→번호. ChatScreen estimateRecipient 연결·단위테스트 5건 갱신. UI/DB/서버 영향 없음(견적서 출력 문구만)
 - 폰 확인: 못 봄(견적서 출력 글자라 화면엔 안 뜸). 컴파일·단위테스트 5건 통과로 검증
 - 가드: assembleRelease 7종 통과(dup17·style2415·save0·rules45·size·brand·compose)
+
+## 2026-10-25 17:08 · android
+막내 투어 터치 먹통 뿌리 수정 + 견적서 정리(/견적 제거·도장 제거·전화 하이픈) (사장님 라이브 테스트 피드백)
+- 변경(①터치): DemoWebPopup(막내가 이런 것도 해요 데모 팝업) WebView 를 닫을 때 정리 안 하던 것 → onRelease 에서 stopLoading·about:blank·removeView·removeJavascriptInterface·destroy. WebView 가 입력 채널을 쥔 채 남아 "들어갔다 나오면 터치 먹통"(기기 따라 매번 — S23U). 저번 "1프레임 대기"는 타이밍 땜질이라 다른 기기서 또 샘 → 수명 정리가 뿌리(§12-D)
+- 변경(②/견적 제거): /접수서·/견적이 같은 창을 여는 중복이라 /견적(SlashCommand.QUOTE) 뺌. 접수서 창에서 '견적서로 보내기'는 그대로. SlashCommandMenu·SlashCommandTest(6→5) 반영
+- 변경(③견적서 도장 제거): 자동으로 그린 빨간 네모 도장이 진짜 직인 아니라 장난처럼 보임 → QuoteDocScreen 서명란 도장 삭제 + BizEstimatePreview(사업자설정 미리보기 애니 도장)·설정 "직인 문구" 입력칸·더보기 부제 "직인"까지 연결 지점 전부(§12-K). bizSeal pref 는 남김(dead, 나중 진짜 직인 업로드 대비)
+- 변경(④견적서 전화 하이픈): QuoteDocScreen 대표번호가 날번호(01080052080)였음 → 공용 PhoneNumberFormatter.format → 010-8005-2080
+- 폰 확인: ✅ S9 — 사업자정보 미리보기 도장 없이 렌더·전화 하이픈 정상. 투어 데모 팝업 열림/닫힘·터치 유지(S9는 원래 freeze 재현 안 됐음, S23U가 기기 이슈라 사장님 폰 테스트 필요). /견적·실제 견적서는 코드·단위테스트·가드로 검증
+- 가드: assembleRelease 7종 통과(dup17·style2415→2406·save0·rules45·size·brand·compose). 자동시험 1317개

@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -80,8 +79,7 @@ fun SlashCommandMenu(
                 SlashRow(cmd) {
                     onClearInput()
                     when (cmd) {
-                        // 접수서는 견적 작성 안 두 번째 탭이라 둘 다 같은 입구. (ComposerActionMenu 와 동일)
-                        SlashCommand.INTAKE, SlashCommand.QUOTE -> onOpenEstimate()
+                        SlashCommand.INTAKE -> onOpenEstimate()
                         SlashCommand.SCHEDULE -> onOpenSchedule()
                         SlashCommand.TEMPLATE -> onOpenTemplate()
                         SlashCommand.PHOTO -> onAttachPhoto()
@@ -97,7 +95,7 @@ fun SlashCommandMenu(
 private fun SlashRow(cmd: SlashCommand, onClick: () -> Unit) {
     // ⊕ 메뉴와 같은 색(견적=파랑·일정=보라·문구=초록·사진=주황).
     val tint = when (cmd) {
-        SlashCommand.INTAKE, SlashCommand.QUOTE -> AppTheme.colors.primary
+        SlashCommand.INTAKE -> AppTheme.colors.primary
         SlashCommand.SCHEDULE -> AppTheme.colors.category
         SlashCommand.TEMPLATE -> TossSuccess
         SlashCommand.PHOTO -> AppTheme.colors.caution
@@ -105,7 +103,6 @@ private fun SlashRow(cmd: SlashCommand, onClick: () -> Unit) {
     }
     val icon = when (cmd) {
         SlashCommand.INTAKE -> Icons.Default.Assignment
-        SlashCommand.QUOTE -> Icons.Default.Description
         SlashCommand.SCHEDULE -> Icons.Default.DateRange
         SlashCommand.TEMPLATE -> Icons.AutoMirrored.Filled.Chat
         SlashCommand.PHOTO -> Icons.Default.Image

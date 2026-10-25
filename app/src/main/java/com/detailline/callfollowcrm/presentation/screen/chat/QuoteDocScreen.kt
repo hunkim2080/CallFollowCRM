@@ -41,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -119,7 +118,6 @@ fun QuoteDocScreen(
     val bizNo = prefs.bizNo
     val bizAddr = prefs.bizAddr
     val bizPhone = prefs.displayPhone   // 대표번호 있으면 그것, 없으면 로그인 번호 (개인 휴대폰 노출 방지, 2026-07-04)
-    val seal = prefs.bizSeal.ifBlank { bizName }
     val validDays = prefs.bizQuoteValidDays.takeIf { it > 0 } ?: 14
 
     val today = remember { SimpleDateFormat("yyyy. M. d.", Locale.KOREA).format(java.util.Date()) }
@@ -179,7 +177,7 @@ fun QuoteDocScreen(
         }
         // 안내
         Text(
-            "고객에게 이 이미지(직인 포함)가 문자로 가요",
+            "고객에게 이 이미지가 문자로 가요",
             fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium,
             modifier = Modifier.fillMaxWidth().background(AppTheme.colors.primaryBg).padding(horizontal = 18.dp, vertical = 11.dp)
         )
@@ -219,7 +217,9 @@ fun QuoteDocScreen(
                         }
                         if (bizPhone.isNotBlank()) {
                             Spacer(Modifier.height(1.dp))
-                            Text(bizPhone, fontSize = 11.sp, color = TossTextTertiary)
+                            // 하이픈 넣어 보여준다(010-8005-2080). 공용 포맷터. (2026-10-25 사장님)
+                            Text(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(bizPhone),
+                                fontSize = 11.sp, color = TossTextTertiary)
                         }
                     }
                 }
@@ -311,53 +311,18 @@ fun QuoteDocScreen(
                     // 이 블록 제목이 이미 「비고」다 — 안에 또 「특이사항」을 붙이면 같은 말을 두 번 한다.
                     Text("· $m", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 }
-                // ── 서명란: 견적일자 + 직인 ──
+                // ── 서명란: 견적일자 ──
                 Spacer(Modifier.height(22.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.surfacePressed))
                 Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f)) {
-                        Text(today, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111))
+                // 직인(도장)은 뺐다 — 자동으로 그린 네모 도장이 진짜 직인이 아니라 오히려 장난처럼 보였다. (2026-10-25 사장님 "장난같아서 안 쓰는 게 좋을 듯")
+                Column(Modifier.fillMaxWidth()) {
+                    Text(today, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111))
+                    Spacer(Modifier.height(3.dp))
+                    Text("위와 같이 견적합니다.", fontSize = 12.sp, color = TossTextSecondary)
+                    if (bizAddr.isNotBlank()) {
                         Spacer(Modifier.height(3.dp))
-                        Text("위와 같이 견적합니다.", fontSize = 12.sp, color = TossTextSecondary)
-                        if (bizAddr.isNotBlank()) {
-                            Spacer(Modifier.height(3.dp))
-                            Text(bizAddr, fontSize = 11.sp, color = TossTextTertiary)
-                        }
-                    }
-                    // 직인 — 음각(백문) 네모 도장: 빨강 꽉참 + 흰 테두리·글자로 진짜 관인/직인 느낌. (2026-07-03 사장님)
-                    Box(Modifier.size(84.dp).rotate(-8f), contentAlignment = Alignment.Center) {
-                        // 빨강 꽉 찬 네모(살짝 진한 테두리로 도장 각인 느낌)
-                        Box(
-                            Modifier.matchParentSize().clip(RoundedCornerShape(8.dp))
-                                .background(SealRed)
-                                .border(2.dp, Color(0xFFB0201A), RoundedCornerShape(8.dp))
-                        )
-                        // 안쪽 흰 테두리 + 흰 글자(음각)
-                        Box(
-                            Modifier.size(71.dp).clip(RoundedCornerShape(4.dp))
-                                .border(1.5.dp, Color.White, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    seal.replace(" ", ""),
-                                    fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White,
-                                    textAlign = TextAlign.Center, lineHeight = 14.sp, letterSpacing = 0.5.sp
-                                )
-                                if (bizOwner.isNotBlank()) {
-                                    Spacer(Modifier.height(3.dp))
-                                    Box(Modifier.width(38.dp).height(1.dp).background(Color.White))
-                                    Spacer(Modifier.height(3.dp))
-                                    Text(
-                                        "대표 $bizOwner",
-                                        fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                                        textAlign = TextAlign.Center, lineHeight = 11.sp
-                                    )
-                                }
-                            }
-                        }
+                        Text(bizAddr, fontSize = 11.sp, color = TossTextTertiary)
                     }
                 }
             }

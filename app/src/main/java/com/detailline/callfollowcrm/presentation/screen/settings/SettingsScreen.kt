@@ -617,7 +617,7 @@ fun SettingsScreen(
                 }
                 SettingsGroup("한 번 해두면 끝") {
                     LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보",
-                        "상호·대표·사업자번호·직인 · 견적서에 자동 표시", first = true, onClick = onOpenBusinessInfo)
+                        "상호·대표·사업자번호·주소 · 견적서에 자동 표시", first = true, onClick = onOpenBusinessInfo)
                     LockRow(Icons.Filled.DateRange, TossBlueSoft, TossBlue, "구글 캘린더 연동",
                         "시공·A/S 일정을 구글 캘린더에") { subPage = "mirror" }
                     LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",

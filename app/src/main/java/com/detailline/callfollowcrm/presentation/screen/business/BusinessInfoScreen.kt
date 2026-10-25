@@ -56,7 +56,7 @@ import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 /**
  * 견적서·사업자 정보 — 프로토 openBizInfo 바텀시트 1:1.
  *   2026-06-03: 전체화면 → 시트 모양으로 교체 (그립 + 7필드 + 하단 고정 "저장"). 위 영역(scrim) 탭하면 닫힘.
- *   상호·대표자·사업자등록번호·주소·전화·직인문구·유효기간(기본 14일). SharedPreferences 저장.
+ *   상호·대표자·사업자등록번호·주소·전화·유효기간(기본 14일). SharedPreferences 저장.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -72,7 +72,6 @@ fun BusinessInfoScreen(
     // 숫자만 보관(표시는 PhoneHyphenTransformation 으로 하이픈). FormattedTextField 의 버퍼 재작성이 S23U IME 자리바뀜을 일으켜 교체. (2026-06-22)
     // 문서 표시용 대표번호 — 로그인/푸시용 bizPhone 과 분리(개인 휴대폰 노출 방지). 비면 로그인 번호로 시작. (2026-07-04 사장님)
     var phone by remember { mutableStateOf(prefs.bizRepPhone.ifBlank { prefs.bizPhone }.filter { it.isDigit() }) }
-    var seal by remember { mutableStateOf(prefs.bizSeal) }
     var validDays by remember { mutableStateOf(prefs.bizQuoteValidDays.toString()) }
     var bank by remember { mutableStateOf(prefs.bizBank) }
     var bankOpen by remember { mutableStateOf(false) }
@@ -170,8 +169,8 @@ fun BusinessInfoScreen(
     }
 
     // 폼 이탈 확인 — 입력/OCR 자동입력값이 딤·뒤로 한 번에 날아가던 것 방지. (2026-08-15 UX감사#2)
-    val initialBizForm = remember { listOf(name, owner, bizNo, addr, phone, seal, validDays, bank, accountNo, accountHolder) }
-    val isBizDirty = listOf(name, owner, bizNo, addr, phone, seal, validDays, bank, accountNo, accountHolder) != initialBizForm
+    val initialBizForm = remember { listOf(name, owner, bizNo, addr, phone, validDays, bank, accountNo, accountHolder) }
+    val isBizDirty = listOf(name, owner, bizNo, addr, phone, validDays, bank, accountNo, accountHolder) != initialBizForm
     var confirmBizExit by remember { mutableStateOf(false) }
     fun tryBizExit() { if (isBizDirty) confirmBizExit = true else onBack() }
     BackHandler(enabled = true) { tryBizExit() }
@@ -256,8 +255,8 @@ fun BusinessInfoScreen(
                 com.detailline.callfollowcrm.presentation.component.HelpText("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.")
                 Spacer(Modifier.height(14.dp))
 
-                // 📄 입력하면 이렇게 나와요 — 라이브 도장 견적서 미리보기(치는 대로 반영·자동 스크롤·도장 톡). (2026-10-24 사장님 "보상을 보여주자")
-                BizEstimatePreview(bizName = name, repName = owner, phone = phone, sealText = seal)
+                // 📄 입력하면 이렇게 나와요 — 라이브 견적서 미리보기(치는 대로 반영·자동 스크롤). (2026-10-24 사장님 "보상을 보여주자")
+                BizEstimatePreview(bizName = name, repName = owner, phone = phone)
                 Spacer(Modifier.height(16.dp))
 
                 // 사업자등록증 사진으로 자동입력 — 직접 타이핑 줄이기(특히 어르신). (2026-08-05 사장님)
@@ -303,7 +302,6 @@ fun BusinessInfoScreen(
                         .clickable { launchPhoneHint() }
                         .padding(horizontal = 8.dp, vertical = 5.dp)
                 )
-                Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: ○○ 줄눈") { seal = it }
 
                 // ── 입금 계좌 (협업 현장 정산용) ──
                 Spacer(Modifier.height(8.dp))
@@ -368,7 +366,6 @@ fun BusinessInfoScreen(
                         .clickable {
                             prefs.bizName = name; prefs.bizOwner = owner; prefs.bizNo = bizNo
                             prefs.bizAddr = addr; prefs.bizRepPhone = formatPhoneInput(phone)
-                            prefs.bizSeal = seal.ifBlank { name }
                             prefs.bizQuoteValidDays = validDays.toIntOrNull()?.coerceIn(1, 365) ?: 14
                             prefs.bizBank = bank; prefs.bizAccountNo = accountNo; prefs.bizAccountHolder = accountHolder
                             // 번호 저장 즉시 FCM 토큰 서버 등록 — 앱 재시작 안 기다리게(즉시 푸시용). (2026-06-12)

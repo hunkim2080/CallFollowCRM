@@ -7,8 +7,8 @@ package com.detailline.callfollowcrm.domain.chat
  *   2단계에서 `/고객` 요약 카드 추가 예정. UI 는 [SlashCommandMenu], 프로토 artifact/5nhqznJqPqXLtyfeTaHULA.
  */
 enum class SlashCommand(val key: String, val desc: String) {
+    // /접수서 하나로 — 접수서 창에서 '견적서로 보내기'까지 고를 수 있어 /견적은 중복이었다. (2026-10-25 사장님 "접수서에서 하는 일이라 뺌")
     INTAKE("접수서", "시공접수서 보내기"),
-    QUOTE("견적", "견적서 작성"),
     SCHEDULE("일정", "내 일정 확인"),
     TEMPLATE("문구", "저장한 문구 넣기"),
     PHOTO("사진", "사진 첨부"),

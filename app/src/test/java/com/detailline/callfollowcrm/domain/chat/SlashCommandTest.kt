@@ -15,7 +15,7 @@ class SlashCommandTest {
     @Test fun `슬래시만 치면 전부`() {
         assertEquals("", SlashMenu.queryOf("/"))
         assertEquals(SlashCommand.entries.toList(), SlashMenu.match(""))
-        assertEquals(6, SlashMenu.match("").size)
+        assertEquals(5, SlashMenu.match("").size)
     }
 
     @Test fun `글자로 걸러진다`() {
