@@ -181,6 +181,7 @@ fun CustomerDetailScreen(
     val summaries by viewModel.summaries.collectAsState()
     val systemSms by viewModel.systemSms.collectAsState()
     val toast by viewModel.toast.collectAsState()
+    val markedUndo by viewModel.markedUndo.collectAsState()   // 🔙 펜으로 바꾼 뒤 되돌리기 스낵바
     val context = LocalContext.current
     val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
     val snackbar = remember { SnackbarHostState() }
@@ -264,6 +265,14 @@ fun CustomerDetailScreen(
         toast?.let {
             snackbar.showBrief(it)
             viewModel.consumeToast()
+        }
+    }
+    // 🔙 펜으로 현장 사진을 바꾼 직후 — "되돌리기" 스낵바. 누르면 원본(.orig)으로 복구. (2026-10-25 사장님 "되돌리기 있어야해")
+    LaunchedEffect(markedUndo) {
+        markedUndo?.let { id ->
+            val r = snackbar.showBrief("표시한 사진으로 바꿨어요 · 갤러리에도 저장", actionLabel = "되돌리기")
+            if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.undoMarkedPhoto(id)
+            viewModel.clearMarkedUndo()
         }
     }
 

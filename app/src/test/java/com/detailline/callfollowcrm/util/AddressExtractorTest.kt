@@ -311,4 +311,23 @@ class AddressExtractorTest {
             }
         }
     }
+
+    // ---------- dongHo: 견적서 「받는 분」 폴백 — 이름 없을 때 아파트 동·호수 (2026-10-25 사장님) ----------
+
+    @Test fun `dongHo - 괄호 단지명 주소에서 동호수만 뽑는다`() {
+        assertEquals("224동 101호", AddressExtractor.dongHo("경기 수원시 권선구 망포로 14 (수원 하늘채 더퍼스트2단지) 224동 101호"))
+    }
+
+    @Test fun `dongHo - 단지명 없이 도로명+동호수`() {
+        assertEquals("122동 220호", AddressExtractor.dongHo("서울 서초구 서초대로 50 122동 220호"))
+    }
+
+    @Test fun `dongHo - 동호수 없는 도로명 주소는 null (번호로 폴백되게)`() {
+        assertNull(AddressExtractor.dongHo("서울 서대문구 응암로 28"))
+    }
+
+    @Test fun `dongHo - 빈 값은 null`() {
+        assertNull(AddressExtractor.dongHo(null))
+        assertNull(AddressExtractor.dongHo("   "))
+    }
 }

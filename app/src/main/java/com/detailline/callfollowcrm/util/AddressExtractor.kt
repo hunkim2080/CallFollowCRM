@@ -100,6 +100,15 @@ object AddressExtractor {
         return p.road to second.ifBlank { null }
     }
 
+    /**
+     * 주소에서 **동·호수만** — "224동 101호" / "1502호" / "101동". 없으면 null. (2026-10-25 사장님: 견적서 받는 분 폴백)
+     *   견적서 "받는 분" = 이름 없으면 이걸로, 이것도 없으면 번호. 파싱은 [parse3] 한 곳.
+     */
+    fun dongHo(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        return parse3(tidyAddress(raw)).unit?.takeIf { it.isNotBlank() }
+    }
+
     /** [twoLine]·[roadThenBuilding] 공통 파싱 — 도로명/행정 부분·단지(건물)명·동호수로 쪼갠다. **한 곳(§12).** */
     private data class AddrParts3(val road: String, val name: String, val unit: String?)
     private fun parse3(s: String): AddrParts3 {

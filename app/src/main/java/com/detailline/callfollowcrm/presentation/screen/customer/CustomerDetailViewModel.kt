@@ -13,7 +13,6 @@ import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.MessageHistoryEntity
 import com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity
-import com.detailline.callfollowcrm.data.repository.SitePhotoRepository.MarkResult
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.RecordingSourceType
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
@@ -478,24 +477,13 @@ class CustomerDetailViewModel(
         _toast.value = "사진을 삭제했어요"
     }
 
-    /**
-     * ✏️ **펜 그린 걸로 그 현장 사진을 바꾸고 갤러리에도 저장.** (2026-10-25 사장님 "업로드 원본이 수정본으로 대체·보내기 없음")
-     *   진짜 원본은 갤러리에 있어 안전. 교체·합성·갤러리 저장은 `SitePhotoRepository.markReplaceAndSave` 한 곳 — 여긴 화면 문구만(§13①).
-     */
-    fun saveMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) = viewModelScope.launch {
-        if (marks.isEmpty()) return@launch
-        val src = sitePhotos.value.firstOrNull { it.id == sourcePhotoId }
-        if (src == null) { _toast.value = "원본 사진을 찾지 못했어요"; return@launch }
-        _toast.value = "표시한 사진 저장 중…"
-        _toast.value = when (withContext(NonCancellable) {
-            container.sitePhotoRepository.markReplaceAndSave(sourcePhotoId, src.filePath, marks)
-        }) {
-            MarkResult.NO_RENDER -> "사진을 준비하지 못했어요"
-            MarkResult.REPLACE_FAIL -> "현장 사진을 바꾸지 못했어요"
-            MarkResult.GALLERY_FAIL -> "현장 사진은 바꿨어요 · 갤러리 저장은 실패했어요"
-            MarkResult.OK -> "표시한 사진으로 바꿨어요 · 갤러리에도 저장했어요"
-        }
-    }
+    // ✏️🔙 펜 표시→교체→갤러리 저장, 되돌리기 한 묶음은 [CustomerPhotoMarkFlow] 로 뗐다(size_guard, CustomerHoldFlow 와 같은 길). (2026-10-25 사장님)
+    private val markFlow by lazy { CustomerPhotoMarkFlow(container, _toast) { sitePhotos.value } }
+    val markedUndo get() = markFlow.markedUndo
+    fun clearMarkedUndo() = markFlow.clearUndo()
+    fun saveMarkedPhoto(sourcePhotoId: Long, marks: List<com.detailline.callfollowcrm.domain.ui.MarkStroke>) =
+        viewModelScope.launch { markFlow.save(sourcePhotoId, marks) }
+    fun undoMarkedPhoto(photoId: Long) = viewModelScope.launch { markFlow.undo(photoId) }
 
     /** 팀원이 올린(서버) 현장 사진을 사장님이 삭제 — 퇴사한 팀원 사진도 정리 가능. (2026-06-07) */
     fun deleteTeamPhoto(photoId: Long) = viewModelScope.launch {

@@ -182,6 +182,9 @@ class SitePhotoRepository(
         runCatching {
             val path = dao.filePathOf(photoId) ?: return@runCatching false
             val file = File(path)
+            // 🔙 되돌리기용 — 처음 바꿀 때 원본을 .orig 로 남긴다. 이미 있으면 그게 진짜 원본이라 안 덮는다. (2026-10-25 사장님 "되돌리기 있어야해")
+            val backup = File(file.absolutePath + ".orig")
+            if (file.exists() && !backup.exists()) runCatching { file.copyTo(backup, overwrite = false) }
             val tmp = File(file.absolutePath + ".mark")
             tmp.outputStream().use { o ->
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, o)
@@ -214,10 +217,32 @@ class SitePhotoRepository(
         return if (gallery == null) MarkResult.GALLERY_FAIL else MarkResult.OK
     }
 
+    /**
+     * 🔙 **펜으로 바꾼 걸 되돌린다 — 원본(.orig)으로 복구.** (2026-10-25 사장님 "되돌리기 있어야해")
+     *   [replaceWithBitmap] 가 남겨둔 .orig 를 그 자리에 되돌린다(돌리기와 같은 tmp→rename 안전장치).
+     *   서버 표시도 지워 원본이 다시 올라가게. .orig 는 남겨둔다(또 바꿨다 되돌려도 진짜 원본으로).
+     * @return 성공 여부(.orig 없으면 false).
+     */
+    suspend fun restoreOriginal(photoId: Long): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val path = dao.filePathOf(photoId) ?: return@runCatching false
+            val file = File(path)
+            val backup = File(file.absolutePath + ".orig")
+            if (!backup.exists() || backup.length() == 0L) return@runCatching false
+            val tmp = File(file.absolutePath + ".rst")
+            backup.copyTo(tmp, overwrite = true)
+            if (tmp.length() == 0L) { runCatching { tmp.delete() }; return@runCatching false }
+            if (!tmp.renameTo(file)) { tmp.copyTo(file, overwrite = true); runCatching { tmp.delete() } }
+            runCatching { dao.markUploaded(photoId, null) }   // 서버에도 원본 다시
+            true
+        }.getOrDefault(false)
+    }
+
     /** DB 행 + 실제 파일 삭제. */
     suspend fun delete(id: Long) = withContext(Dispatchers.IO) {
         runCatching {
-            dao.filePathOf(id)?.let { path -> runCatching { File(path).delete() } }
+            // 백업(.orig)·찌꺼기(.mark/.rst)도 같이 지운다 — 사진이 없어졌으니 되돌릴 것도 없다.
+            dao.filePathOf(id)?.let { path -> runCatching { File(path).delete(); File("$path.orig").delete() } }
             dao.deleteById(id)
         }
         Unit

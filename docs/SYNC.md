@@ -15228,3 +15228,10 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 견적 보내기 방식에서 "문자로 보내기" 버튼 제거 — 접수서·견적서 둘만 (사장님 "세번째 그냥 없애줘")
 - 변경: UI만. EstimateBuilderDialog "어떻게 보낼까요?"에서 EstSendOption("문자로 보내기") 삭제 + help 문구에서 '문자' 뺌. onConfirm/composeBody 는 이제 미사용(경고만, 에러 아님). 서버/DB 영향 없음
 - 폰 확인: 못 봄(버튼 하나 제거 · 남은 2개는 직전 확인분과 동일). 컴파일 OK·가드 7종 통과(style2415·size 감소)
+
+## 2026-10-25 14:49 · android
+견적서 「받는 분」 폴백 + 현장 사진 펜 **되돌리기** (사장님 두 지시)
+- 변경(①#2 받는분): ChatScreen estimateRecipient = 이름(저장돼 있으면) → 없으면 주소 동·호수(AddressExtractor.dongHo, parse3 재사용) → 그것도 없으면 번호. EstimateBuilderDialog defaultRecipient 에 연결(받는분 칸은 통합폼에서 이미 제거됨, 자동값만 바뀜). dongHo 단위테스트 4건 추가(AddressExtractorTest). UI/DB/서버 영향 없음(견적서 출력 문구만)
+- 변경(②#3 펜 되돌리기): 현장사진 크게보기 펜→완료→"저장할까요?"(표시한 내용으로 바꾸고 갤러리 저장)→저장 시 원본을 .orig 로 백업 후 교체. 되돌리기 스낵바("표시한 사진으로 바꿨어요·되돌리기")에서 .orig 로 원본 복구. SitePhotoRepository.restoreOriginal + replaceWithBitmap 의 .orig 백업(돌리기와 같은 tmp→rename). 펜교체/되돌리기 흐름은 CustomerPhotoMarkFlow 로 분리(CustomerHoldFlow 선례, size_guard — VM 1305→한도 아래). VM 공개 API(saveMarkedPhoto·undoMarkedPhoto·markedUndo) 그대로 위임
+- 폰 확인: ✅ S9(무선) 현장사진 펜 되돌리기 실측 — 펜→그리기→완료→"저장할까요?"→저장 후 .orig 백업 생성 확인(run-as ls). 되돌리기 탭 시 파일이 정확히 .orig 바이트로 복구 + "원본으로 되돌렸어요" 스낵바 확인. #2 는 컴파일·단위테스트로 검증(출력 문구라 폰 화면엔 안 뜸)
+- 가드: assembleRelease 7종 통과(dup17·style2415·save0·rules 공용45·size 늘어난 곳 없음·brand·compose). 자동시험 1316개
