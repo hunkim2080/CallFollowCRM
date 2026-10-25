@@ -15189,3 +15189,9 @@ AS 입구 버그 — **1차 완납(완료) 단일 건 고객한테 'A/S 일정 �
 - 변경: UI만. PhotoViewer ViewerRotateBtn → ViewerToolBtn(52dp 원형 + 아래 작은 이름). 돌리기(↺↻ 글자)=검정반투명, 주 동작 펜(Edit 아이콘)·저장(Check 아이콘)=파랑(primary). 흰 사진 위 대비는 검정0.55+흰테 유지
 - 폰 확인: ✅ S9(무선) 디버그 — 고객상세 2차 사진 뷰어에서 (↺)왼쪽·(↻)오른쪽 회색 + (✎)펜 파랑으로 뜸, 펜이 주 동작으로 눈에 띔
 - 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand(↺↻는 이모지 아님)·rules·save·compose)
+
+## 2026-10-25 11:05 · android
+견적서(직인) 보내기 — 상호 없으면 토스트로 막던 것 → 상호 입력 시트(BizIdentitySheet)로 바로 안내 (사장님 "안내메세지만 띄울게 아니지 않나, 처음 하는 사람이면 모르는건데")
+- 변경: UI만. ChatScreen EstimateBuilderDialog 의 quote 경로에서 `if(bizName.isBlank()){toast;return}` 게이트 제거. onQuoteDoc 이 이미 askBizThen 으로 감싸져 있어(시공접수서 경로와 동일) 상호 비면 BizIdentitySheet 가 뜬다. QuoteDocScreen 은 prefs.bizName 을 그때그때 읽어 시트에서 채운 상호가 바로 반영. 서버/DB 영향 없음
+- 폰 확인: ✅ S9(무선) 디버그 — 견적서 탭+항목1개+발행 → 토스트 대신 "고객에게 뭐라고 보일까요?"(상호/대표/사업자번호 입력, 나중에 할래요) 시트가 뜸
+- 가드: assembleRelease 7종 통과(dup17·style2415·size 변동없음·brand·rules·save·compose)

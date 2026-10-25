@@ -5204,8 +5204,9 @@ private fun EstimateBuilderDialog(
                 when (mode) {
                     "text" -> onConfirm(composeBody())
                     "quote" -> {
-                        // 상호 없이 발행하면 견적서에 "상호 미설정"·빈 직인이 고객에게 나감 → 사업자 정보 먼저. (2026-07-30)
-                        if (bizName.isBlank()) { toast("사업자 정보(상호)를 먼저 등록해주세요"); return@EstSheetCta }
+                        // 상호 없이 발행하면 견적서에 "상호 미설정"·빈 직인이 나간다 → onQuoteDoc 안의 askBizThen 이
+                        //   상호가 비면 **입력 시트(BizIdentitySheet)를 띄워 그 자리에서 등록**하게 한다(접수서 경로와 같게).
+                        //   토스트로 끝내면 처음 쓰는 사람은 어디서 등록하는지 몰라 막힌다. (2026-10-25 사장님)
                         onQuoteDoc(quoteDocData())
                     }
                     else -> {
