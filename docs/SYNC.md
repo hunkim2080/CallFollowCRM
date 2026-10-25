@@ -15223,3 +15223,8 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: UI만. ChatScreen EstimateBuilderDialog — AppTabs 제거, 제목 고정("견적 만들기"), 필드(시공일·계약금·VAT·비고) 항상 표시(if(mode!="text")→run{}), 받는분 칸 제거(견적서는 defaultRecipient 자동), meetMode(현장에서 정하기) 항상 표시. CTA(when(mode)) → EstSendOption 3개(접수서=primary·견적서·문자). 발송 핸들러(onIssueIntake·onQuoteDoc·onConfirm)는 그대로 복붙 재사용. EstSendOption 공용은 ChatEstimateSheet.kt(토큰 AppShape/AppType 써서 style 안 늘림). mode var 는 이제 안 바뀜(읽기만). 서버/DB 영향 없음
 - 폰 확인: ✅ S9(무선) — 탭 사라짐·시공일/항목/계약금/비고 한 폼·"어떻게 보낼까요?" 3버튼(접수서 파란강조) 뜸. 견적서 버튼(항목0)→"항목을 먼저 골라주세요" 토스트(배선·검증·무크래시 확인). 발송 핸들러는 기존과 동일 코드
 - 가드: assembleRelease 7종 통과(style 2415 유지·size 36311 감소·dup17·brand·rules·save·compose)
+
+## 2026-10-25 13:30 · android
+견적 보내기 방식에서 "문자로 보내기" 버튼 제거 — 접수서·견적서 둘만 (사장님 "세번째 그냥 없애줘")
+- 변경: UI만. EstimateBuilderDialog "어떻게 보낼까요?"에서 EstSendOption("문자로 보내기") 삭제 + help 문구에서 '문자' 뺌. onConfirm/composeBody 는 이제 미사용(경고만, 에러 아님). 서버/DB 영향 없음
+- 폰 확인: 못 봄(버튼 하나 제거 · 남은 2개는 직전 확인분과 동일). 컴파일 OK·가드 7종 통과(style2415·size 감소)

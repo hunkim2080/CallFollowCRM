@@ -4746,7 +4746,7 @@ private fun EstimateBuilderDialog(
     val anySelected = selectedQty.values.any { it > 0 } ||
         customItems.any { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
     // 탭 없앰(2026-10-25 사장님) — 항목·계약금을 고르고 아래에서 보낼 방식을 고른다.
-    val help = "시공 항목·계약금을 고르고, 아래에서 보낼 방식(접수서·견적서·문자)을 고르면 돼요."
+    val help = "시공 항목·계약금을 고르고, 아래에서 보낼 방식(접수서·견적서)을 고르면 돼요."
     fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName, customItems.toList(), vatIncluded)
     fun toast(msg: String) = android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
     fun quoteDocData(): QuoteDocData {
@@ -5215,13 +5215,7 @@ private fun EstimateBuilderDialog(
                 if (!anySelected) { toast("항목을 먼저 골라주세요"); return@EstSendOption }
                 onQuoteDoc(quoteDocData())
             }
-            Spacer(Modifier.height(AppSpace.s8))
-            // 💬 문자로 — 간단히 견적만 문자에.
-            EstSendOption("문자로 보내기", "간단히 견적만 문자로 (링크·직인 없음)") {
-                commitCustomLines()
-                if (!anySelected) { toast("항목을 한 개 이상 골라주세요"); return@EstSendOption }
-                onConfirm(composeBody())
-            }
+            // (💬 문자로 보내기 제거 — 접수서·견적서로 충분. 2026-10-25 사장님)
             Spacer(Modifier.height(10.dp))
             AiDisclaimer(Modifier.padding(horizontal = 2.dp))
             }   // ── 스크롤 영역 끝
