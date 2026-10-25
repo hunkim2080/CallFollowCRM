@@ -4745,11 +4745,8 @@ private fun EstimateBuilderDialog(
     )
     val anySelected = selectedQty.values.any { it > 0 } ||
         customItems.any { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
-    val help = when (mode) {
-        "accept" -> "예약금 받은 고객에게 — 정해진 시공일이 맞는지 확인하고 주소를 입력받는 셀프 접수서 링크예요."
-        "quote" -> "고객이 보고용으로 쓰는 직인 찍힌 정식 견적서를 만들어 보내요."
-        else -> "링크 없이 견적 내용만 문자로 보내요. (가볍게 견적만 물어볼 때)"
-    }
+    // 탭 없앰(2026-10-25 사장님) — 항목·계약금을 고르고 아래에서 보낼 방식을 고른다.
+    val help = "시공 항목·계약금을 고르고, 아래에서 보낼 방식(접수서·견적서·문자)을 고르면 돼요."
     fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName, customItems.toList(), vatIncluded)
     fun toast(msg: String) = android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
     fun quoteDocData(): QuoteDocData {
@@ -4801,16 +4798,10 @@ private fun EstimateBuilderDialog(
             SheetGrabber()
             // 설명글(help) 첫사용만 + ⓘ 재호출. 전엔 부제+help 두 줄이라 어수선 → help 하나로. (FirstRunHint 2026-10-23)
             val estHint = com.detailline.callfollowcrm.presentation.component.rememberFirstRunHint("estimate_sheet")
-            // 🔴 제목이 늘 "견적 만들기" 였다. 그래서 [접수서 보내기] 를 눌러도
-            //   접수서 탭에 와 있는데 **제목은 견적**이라 "왜 견적이 나오지?" 하게 됐다.
-            //   (2026-09-23 사장님) → 제목이 **지금 탭을 따라간다.**
+            // 탭을 없애고 보낼 방식을 맨 아래로 내렸다 — 제목은 늘 "견적 만들기". (2026-10-25 사장님)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    when (mode) {
-                        "accept" -> "접수서 보내기"
-                        "quote" -> "견적서 만들기"
-                        else -> "견적 만들기"
-                    },
+                    "견적 만들기",
                     fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
                     color = TossTextPrimary, letterSpacing = (-0.4).sp
                 )
@@ -4819,14 +4810,7 @@ private fun EstimateBuilderDialog(
             Spacer(Modifier.height(4.dp))
             com.detailline.callfollowcrm.presentation.component.FirstRunHintText(estHint, help)
             Spacer(Modifier.height(12.dp))
-            // 앱 어디서나 **같은 탭**. 여기만 혼자 다른 모양(회색 바탕+흰 알약)이었다. (2026-09-22 사장님)
-            //   AppTabs = 고객 정보·정산·통계·협업이 쓰는 그 탭.
-            val estModes = listOf("text", "accept", "quote")
-            com.detailline.callfollowcrm.presentation.component.AppTabs(
-                tabs = listOf("문자 견적", "시공접수서", "견적서"),
-                selected = estModes.indexOf(mode).coerceAtLeast(0),
-                onSelect = { i -> mode = estModes[i] }
-            )
+            // (탭 제거 — 보낼 방식은 맨 아래 "어떻게 보낼까요?"로 내림. 2026-10-25 사장님: "어차피 항목 고르는 건 똑같은 결")
             // 머리(제목·탭)와 스크롤 내용 사이 **구분선** — 경계가 없어 스크롤 시 미완성처럼 보이던 것. (2026-10-22 사장님)
             //   theme.line 이 너무 연해 안 보였다 → 또렷한 회색으로. (2026-10-23 사장님 "구분선 수정 안했어?")
             // ② 구분선 위/아래 간격 대칭(10/10). (2026-10-23 사장님 "언발란스")
@@ -4840,8 +4824,8 @@ private fun EstimateBuilderDialog(
                     .verticalScroll(rememberScrollState())
             ) {
             Spacer(Modifier.height(10.dp))
-            // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력 (help 는 제목 밑 첫사용으로 올림)
-            if (mode != "text") {
+            // 시공일 — 접수서/견적서에 쓰임(문자면 무시). 탭 없애 항상 보임. (2026-10-25)
+            run {
                 Spacer(Modifier.height(AppSpace.s24))
                 EstLabelRow("시공일", estDateLabel(workDateMs, workEndMs), dim = workDateMs == null)
                 Spacer(Modifier.height(AppSpace.s12))
@@ -4866,18 +4850,7 @@ private fun EstimateBuilderDialog(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
-            // 받는 분 (견적서 전용) — (2026-07-03 사장님)
-            if (mode == "quote") {
-                Spacer(Modifier.height(AppSpace.s24))
-                EstLabelRow("받는 분",
-                    recipient.ifBlank { defaultRecipient.ifBlank { "고객님" } },
-                    dim = recipient.isBlank())
-                Spacer(Modifier.height(AppSpace.s12))
-                com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                    recipient, { recipient = it },
-                    placeholder = defaultRecipient.ifBlank { "고객님" }
-                )
-            }
+            // (받는 분 칸 제거 — 견적서는 고객 이름으로 자동(defaultRecipient). 통합 폼 간결하게. 2026-10-25 사장님)
             Spacer(Modifier.height(AppSpace.s24))
             // 이 구역이 뭔지 + 지금 몇 개 골랐는지. 다른 구역과 같은 라벨 줄. (2026-09-24 사장님)
             val pickedCount = selectedQty.values.count { it > 0 } +
@@ -4900,8 +4873,8 @@ private fun EstimateBuilderDialog(
                     }
                 }
             }
-            // 🤝 시공접수서 탭에서만 — 가격표 줄(체크)과 모양이 달라 안 헷갈리게 라디오 박스.
-            if (mode == "accept") {
+            // 🤝 "현장에서 정하기(주소만)" — 항목 없이 주소만 받을 때. 탭 없애 항상 보임. (2026-10-25 사장님)
+            run {
                 EstMeetToggle(on = meetMode) { meetMode = !meetMode }
                 Spacer(Modifier.height(AppSpace.s12))
             }
@@ -5095,12 +5068,12 @@ private fun EstimateBuilderDialog(
             EstTotalCard(
                 total = totalSum,
                 vatIncluded = vatIncluded,
-                showVat = mode != "text",
+                showVat = true,
                 onVat = { vatIncluded = it }
             )
             }   // ← 🤝 meetMode 가 아닐 때만 보이는 항목/합계 블록 끝
-            // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
-            if (mode != "text") {
+            // 계약금 — 탭 없애 항상 보임(문자 견적엔 안 들어감). (2026-10-25)
+            run {
                 Spacer(Modifier.height(AppSpace.s24))
                 EstLabelRow("계약금", when (depMode) {
                     "none" -> "없음"
@@ -5177,7 +5150,7 @@ private fun EstimateBuilderDialog(
             }
             // 특이사항 메모 (시공접수서/견적서 공용) — 견적서 비고에 표시 + 접수서엔 ownerMemo 로 전송. (2026-07-06 사장님)
             //   ⚠️ 의미: 사장님이 고객에게 '미리 알릴' 약속·고지사항 (고객이 주는 정보 X). (2026-07-06 사장님 정정)
-            if (mode != "text") {
+            run {
                 Spacer(Modifier.height(AppSpace.s24))
                 // 이름은 **비고** 하나로. 사장님이 그렇게 부르고, 견적서 문서 블록 제목도 이미 비고다. (2026-09-30)
                 EstLabelRow("비고", if (memo.isBlank()) "안 적어도 돼요" else "적었어요",
@@ -5193,64 +5166,61 @@ private fun EstimateBuilderDialog(
                 )
             }
             Spacer(Modifier.height(AppSpace.s24))
-            // 프로토 .sheet-cta — 탭별 라벨/동작
-            val ctaText = when (mode) {
-                "accept" -> if (meetMode) "주소만 받는 접수서 보내기" else "시공접수서 링크 보내기"
-                "quote" -> "견적서(직인) 보내기"
-                else -> "문자에 견적 넣기"
-            }
-            EstSheetCta(ctaText, enabled = anySelected || meetMode, filled = true) {
-                if (!anySelected && !meetMode) { toast("항목을 고르거나, 만나서 정하기를 눌러주세요"); return@EstSheetCta }
-                when (mode) {
-                    "text" -> onConfirm(composeBody())
-                    "quote" -> {
-                        // 상호 없이 발행하면 견적서에 "상호 미설정"·빈 직인이 나간다 → onQuoteDoc 안의 askBizThen 이
-                        //   상호가 비면 **입력 시트(BizIdentitySheet)를 띄워 그 자리에서 등록**하게 한다(접수서 경로와 같게).
-                        //   토스트로 끝내면 처음 쓰는 사람은 어디서 등록하는지 몰라 막힌다. (2026-10-25 사장님)
-                        onQuoteDoc(quoteDocData())
-                    }
-                    else -> {
-                        // 시공일 안 고르면 0년 0월 0일로 나감 → 먼저 고르게. (2026-07-30)
-                        if (workDateMs == null) { toast("시공일을 먼저 골라주세요"); return@EstSheetCta }
-                        // 시공접수서 — 서버 발급 → smsDraft prefill (호출부에서 처리)
-                        val cal = workDateMs?.let { java.util.Calendar.getInstance().apply { timeInMillis = it } }
-                        val issItems = visibleItems.mapNotNull { item ->
-                            val q = selectedQty[item.id] ?: 0
-                            if (q <= 0) return@mapNotNull null
-                            val isP = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
-                            com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem(
-                                name = item.title,
-                                price = (item.price / 10_000L).toInt(),
-                                unit = if (isP) "pyeong" else "flat",
-                                area = if (isP) q.toDouble() else null
-                            )
-                        }
-                        commitCustomLines()
-                        val customIss = customItems.mapNotNull { c ->
-                            val m = c.manwon.toIntOrNull() ?: 0
-                            if (c.name.isBlank() || m <= 0) null
-                            else com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem(
-                                name = c.name.trim(), price = m, unit = "flat", area = null
-                            )
-                        }
-                        onIssueIntake(
-                            // 🤝 만나서 정하기면 항목·합계를 비워 보낸다 — 고객 폼에 견적이 안 뜨고 주소만. (2026-10-06 사장님)
-                            if (meetMode) emptyList() else issItems + customIss,
-                            if (meetMode) 0 else (totalSum / 10_000L).toInt(),
-                            cal?.get(java.util.Calendar.YEAR) ?: 0,
-                            cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
-                            cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
-                            workDays, depMode, depVal.toIntOrNull() ?: 0, memo, vatIncluded
-                        )
-                    }
+            // 🚚 **어떻게 보낼까요?** — 탭 없애고(2026-10-25 사장님) 항목·계약금은 한 번만 고른 뒤
+            //   여기서 보내는 모양만 고른다. 핸들러(onIssueIntake·onQuoteDoc·onConfirm)는 그대로 재사용.
+            Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            Spacer(Modifier.height(AppSpace.s16))
+            Text("어떻게 보낼까요?", style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(AppSpace.s4))
+            Text("고른 항목 그대로, 보내는 모양만 골라요.", style = AppType.caption, color = TossTextTertiary)
+            Spacer(Modifier.height(AppSpace.s12))
+            // 📋 접수서로 — 고객이 날짜·주소 채움(추천, 맨 위)
+            EstSendOption("접수서로 보내기", "고객이 날짜·주소 채우면 자동 캘린더", primary = true) {
+                if (!anySelected && !meetMode) { toast("항목을 고르거나, '현장에서 정하기'를 눌러주세요"); return@EstSendOption }
+                // 시공일 안 고르면 0년 0월 0일로 나감 → 먼저 고르게. (2026-07-30)
+                if (workDateMs == null) { toast("시공일을 먼저 골라주세요"); return@EstSendOption }
+                val cal = workDateMs?.let { java.util.Calendar.getInstance().apply { timeInMillis = it } }
+                val issItems = visibleItems.mapNotNull { item ->
+                    val q = selectedQty[item.id] ?: 0
+                    if (q <= 0) return@mapNotNull null
+                    val isP = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
+                    com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem(
+                        name = item.title,
+                        price = (item.price / 10_000L).toInt(),
+                        unit = if (isP) "pyeong" else "flat",
+                        area = if (isP) q.toDouble() else null
+                    )
                 }
-            }
-            if (mode != "text") {
-                Spacer(Modifier.height(9.dp))
-                EstSheetCta("문자로 붙여넣기", enabled = anySelected, filled = false) {
-                    commitCustomLines()
-                    if (anySelected) onConfirm(composeBody()) else toast("항목을 한 개 이상 골라주세요")
+                commitCustomLines()
+                val customIss = customItems.mapNotNull { c ->
+                    val m = c.manwon.toIntOrNull() ?: 0
+                    if (c.name.isBlank() || m <= 0) null
+                    else com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem(
+                        name = c.name.trim(), price = m, unit = "flat", area = null
+                    )
                 }
+                onIssueIntake(
+                    // 🤝 현장에서 정하기면 항목·합계를 비워 보낸다 — 고객 폼에 견적이 안 뜨고 주소만. (2026-10-06 사장님)
+                    if (meetMode) emptyList() else issItems + customIss,
+                    if (meetMode) 0 else (totalSum / 10_000L).toInt(),
+                    cal?.get(java.util.Calendar.YEAR) ?: 0,
+                    cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
+                    cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
+                    workDays, depMode, depVal.toIntOrNull() ?: 0, memo, vatIncluded
+                )
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            // 🧾 견적서(직인)로 — 미리보기 후 발송. 상호 비면 onQuoteDoc 안 askBizThen 이 입력 시트를 띄운다(접수서와 같게).
+            EstSendOption("견적서(직인)로 보내기", "도장 찍힌 정식 견적서 · 미리보기 후 발송") {
+                if (!anySelected) { toast("항목을 먼저 골라주세요"); return@EstSendOption }
+                onQuoteDoc(quoteDocData())
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            // 💬 문자로 — 간단히 견적만 문자에.
+            EstSendOption("문자로 보내기", "간단히 견적만 문자로 (링크·직인 없음)") {
+                commitCustomLines()
+                if (!anySelected) { toast("항목을 한 개 이상 골라주세요"); return@EstSendOption }
+                onConfirm(composeBody())
             }
             Spacer(Modifier.height(10.dp))
             AiDisclaimer(Modifier.padding(horizontal = 2.dp))

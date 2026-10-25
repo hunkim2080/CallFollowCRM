@@ -15217,3 +15217,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 폰 확인: S9에서 FeatureTour로 같은 statusBarsPadding 패턴 검증됨(제목 상태바 아래). 나머지 동일 모디파이어. S23U는 읽기전용이라 직접 못 깜(인셋은 기기별 자동). 컴파일 OK
 - 가드: assembleRelease 7종 통과
 - 근본: 기종별 사이즈 표 대신 window insets 가 정답(새 폰 나와도 자동). S23U 사전확인=에뮬레이터/삼성 Remote Test Lab 제안함
+
+## 2026-10-25 13:20 · android
+견적 만들기 통합 — 탭 3개(문자견적·시공접수서·견적서) 제거 → 항목·계약금 한 번만 고르고 맨 아래 "어떻게 보낼까요?"에서 보낼 방식 선택 (사장님 "어차피 항목 고르는 건 똑같은 결, 탭이 혼란만 줌". 프로토 artifact/UdLJdZeirJkGmzQyP4gZED 「굿」)
+- 변경: UI만. ChatScreen EstimateBuilderDialog — AppTabs 제거, 제목 고정("견적 만들기"), 필드(시공일·계약금·VAT·비고) 항상 표시(if(mode!="text")→run{}), 받는분 칸 제거(견적서는 defaultRecipient 자동), meetMode(현장에서 정하기) 항상 표시. CTA(when(mode)) → EstSendOption 3개(접수서=primary·견적서·문자). 발송 핸들러(onIssueIntake·onQuoteDoc·onConfirm)는 그대로 복붙 재사용. EstSendOption 공용은 ChatEstimateSheet.kt(토큰 AppShape/AppType 써서 style 안 늘림). mode var 는 이제 안 바뀜(읽기만). 서버/DB 영향 없음
+- 폰 확인: ✅ S9(무선) — 탭 사라짐·시공일/항목/계약금/비고 한 폼·"어떻게 보낼까요?" 3버튼(접수서 파란강조) 뜸. 견적서 버튼(항목0)→"항목을 먼저 골라주세요" 토스트(배선·검증·무크래시 확인). 발송 핸들러는 기존과 동일 코드
+- 가드: assembleRelease 7종 통과(style 2415 유지·size 36311 감소·dup17·brand·rules·save·compose)

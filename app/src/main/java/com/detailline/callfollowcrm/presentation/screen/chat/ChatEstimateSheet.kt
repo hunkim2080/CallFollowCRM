@@ -242,6 +242,32 @@ internal fun EstSheetCta(text: String, enabled: Boolean, filled: Boolean, onClic
 }
 
 /**
+ * 🚚 **"어떻게 보낼까요?" 한 줄** — 제목+설명+›, 누르면 그 방식으로 보낸다. (2026-10-25 사장님: 탭 3개 → 보낼 방식 선택)
+ *   추천(접수서)은 [primary]로 파란 강조. 스타일은 토큰(AppShape/AppType)으로 — 손으로 적은 값 안 늘리게.
+ */
+@Composable
+internal fun EstSendOption(title: String, desc: String, primary: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(AppShape.md)
+            .background(if (primary) TossBlue.copy(alpha = 0.08f) else Color.White)
+            .border(1.5.dp, if (primary) TossBlue else TossDivider, AppShape.md)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                color = if (primary) TossBlue else TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text(desc, style = AppType.caption, color = TossTextTertiary)
+        }
+        Text("›", style = AppType.title, color = if (primary) TossBlue else TossTextTertiary,
+            fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
  * ↕️ 차례 바꾸기 목록 — 「순서 바꾸기」를 누른 동안만 나온다. (2026-09-27 사장님)
  *   가격표 화면([PricingItemsScreen])과 **같은 손놀림**이다: ≡ 를 잡고 위아래로.
  *   끄는 동안은 여기 목록으로 바로 반응하고, **손을 떼야** 저장한다 —
