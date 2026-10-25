@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -28,7 +30,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -501,13 +505,16 @@ private fun ViewerPage(
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ViewerRotateBtn("↺  왼쪽") { onRotate(-90) }
-                    ViewerRotateBtn("↻  오른쪽") { onRotate(90) }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    ViewerToolBtn("왼쪽", glyph = "↺") { onRotate(-90) }
+                    ViewerToolBtn("오른쪽", glyph = "↻") { onRotate(90) }
                     // ✏️ **내 사진이면 펜으로 그리기.** 눌러 그리는 화면으로. (2026-10-24 사장님 "표시가 뭔지 헷갈려 → 펜")
-                    onPen?.let { ViewerRotateBtn("펜", onClick = it) }
+                    onPen?.let { ViewerToolBtn("펜", accent = true, icon = Icons.Default.Edit, onClick = it) }
                     // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
-                    onSaveNow?.let { ViewerRotateBtn("이대로 저장", filled = true, onClick = it) }
+                    onSaveNow?.let { ViewerToolBtn("저장", accent = true, icon = Icons.Default.Check, onClick = it) }
                 }
             }
         }
@@ -515,34 +522,49 @@ private fun ViewerPage(
 }
 
 /**
- * 돌리기 버튼. 손가락이 닿게 48dp.
+ * 뷰어 아래 **동그란 도구 버튼** — 아이콘(또는 ↺↻ 글자) + 아래 작은 이름. (2026-10-25 사장님 "버튼 디자인 개선")
+ *   돌리기는 **회색**, 주 동작(펜·저장)은 **파랑**으로 위계를 준다 — 뭘 누를지 한눈에.
  *
- * ⚠️ **흰 사진 위에서도 보여야 한다.** 처음엔 흰 반투명(0.16)으로 했다가
- *   밝은 사진에선 **통째로 묻혀 안 보였다**(2026-10-01 실기). 닫기(✕)가 쓰는
- *   **검정 반투명 + 흰 테두리**로 맞춘다 — 어떤 사진 위든 읽힌다.
+ * ⚠️ **흰 사진 위에서도 보여야 한다.** 밝은 사진에 묻히지 않게(2026-10-01 실기)
+ *   닫기(✕)와 같은 **검정 반투명 + 흰 테두리**(파랑은 그 자체로 보임)로 맞춘다.
+ *   동그라미 52dp — 손가락이 닿는다.
  */
 @Composable
-private fun ViewerRotateBtn(label: String, filled: Boolean = false, onClick: () -> Unit) {
-    Box(
-        Modifier
-            // 누르는 것은 48dp 는 돼야 한다 — 손가락은 정중앙을 못 찍는다. (2026-10-01)
-            .heightIn(min = 48.dp)
-            .clip(AppShape.pill)
-            .background(if (filled) AppTheme.colors.primary else Color.Black.copy(alpha = 0.55f))
-            .border(
-                1.dp,
-                if (filled) Color.Transparent else Color.White.copy(alpha = 0.34f),
-                AppShape.pill
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onClick() }
-            .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.Center
-    ) {
+private fun ViewerToolBtn(
+    label: String,
+    accent: Boolean = false,
+    glyph: String? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(if (accent) AppTheme.colors.primary else Color.Black.copy(alpha = 0.55f))
+                .border(
+                    1.dp,
+                    if (accent) Color.Transparent else Color.White.copy(alpha = 0.34f),
+                    CircleShape
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (icon != null) {
+                Icon(icon, label, tint = Color.White, modifier = Modifier.size(24.dp))
+            } else {
+                androidx.compose.material3.Text(
+                    glyph ?: label, style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
         androidx.compose.material3.Text(
-            label, style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold
+            label, style = AppType.caption, color = Color.White, fontWeight = FontWeight.Medium
         )
     }
 }
