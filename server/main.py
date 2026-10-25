@@ -14813,6 +14813,9 @@ def _build_summary_system_prompt(
     template: str, owner_tone_samples: list[str], biz_name: str = "",
     price_list: Optional[str] = None, owner_phone: Optional[str] = None,
 ) -> str:
+    # 후속 문자 상호 = **앱이 보낸 사업자정보(상호) 그대로**가 유일한 출처다. (2026-10-25 사장님)
+    #   비면 과거 접수서 상호를 꺼내오지 **않는다** — 옛 접수서 상호가 튀어나오는 사고 원천 차단.
+    #   (앱 안 보냄 = 옛 앱 or 상호 미설정 → 이름 없이 "(모름)")
     # 상호를 모르면 빈 칸이 아니라 **모른다고 적어준다** —
     #   빈 칸이면 모델이 그 자리를 메우려고 업종명을 지어낸다. (2026-09-24 실측)
     biz = (biz_name or "").strip() or "(모름 — 문자에 이름을 쓰지 말 것)"
@@ -16308,11 +16311,9 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
 
     # 시스템 프롬프트 빌드 (가격표 + 톤 샘플 inject)
     _owner_pricing_remember(req.owner_phone, req.price_list)
-    # 후속 문자 상호: 앱이 보낸 현재 사업자정보(상호) 우선, 없으면(옛 앱) 과거 접수서 상호로 폴백. (2026-10-25 사장님)
-    _biz = (req.biz_name or "").strip() or _web_owner_biz_suggested(_norm_phone(req.owner_phone or ""))
     system_prompt = _build_summary_system_prompt(
         CALL_SUMMARY_SYSTEM, req.owner_tone_samples or [],
-        biz_name=_biz,
+        biz_name=req.biz_name or "",   # 후속 문자 상호 = 앱 사업자정보 그대로. 비면 함수가 "(모름)" 처리. (2026-10-25 사장님)
         price_list=req.price_list, owner_phone=req.owner_phone,
     )
     user_msg = _build_call_summary_user_message(req)
@@ -16814,11 +16815,9 @@ async def call_audio_summary_endpoint(
         user_msg = "\n".join(user_lines)
 
         _owner_pricing_remember(owner_phone, price_list)
-        # 후속 문자 상호: 앱이 보낸 현재 사업자정보 우선, 없으면(옛 앱) 과거 접수서 상호 폴백. (2026-10-25 사장님)
-        _biz = (biz_name or "").strip() or _web_owner_biz_suggested(_norm_phone(owner_phone or ""))
         system_prompt = _build_summary_system_prompt(
             CALL_SUMMARY_SYSTEM, samples_list,
-            biz_name=_biz,
+            biz_name=biz_name or "",   # 후속 문자 상호 = 앱 사업자정보 그대로. 비면 함수가 "(모름)" 처리. (2026-10-25 사장님)
             price_list=price_list, owner_phone=owner_phone,
         )
 

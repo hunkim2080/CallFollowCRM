@@ -15269,3 +15269,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 라이브 배포: 백업(main.py.bak.20261025-223437) + 패치본 py_compile 통과(3.9) + diff 로 5개 변경만 확인 후 main.py.new 로 **대기**. **교체(mv)+재시작(kickstart)이 안전검사에 막혀 미완** → 사장님 결정/승인 후 또는 맥 코워크가 마무리. 현재 라이브는 옛 버전 그대로(안전, 앱이 biz_name 보내도 옛 서버는 무시=기존 동작)
 - 폰 확인: 못 봄(서버 미배포라 아직 효과 없음). 앱 컴파일·7가드 통과, 서버 py_compile 양쪽 통과
 - 다음 액션: 라이브 main.py.new → main.py 교체 + ringgo-server 재시작 + smoke.sh 10개 확인
+
+## 2026-10-25 23:24 · android (+ server)
+후속문자 상호 = 앱 사업자정보만 사용 (서버 폴백 제거 · 페이블 검토 C안) — 간결화
+- 변경: 서버 /api/call-summary · /api/call-audio-summary(+start) — biz_name 을 앱이 보낸 값 그대로만 쓰고 `_web_owner_biz_suggested`(과거 접수서 상호) 폴백 제거. 규칙은 `_build_summary_system_prompt` 한 곳(비면 "(모름)"). 앱/모델 변경 없음.
+- 폰 확인: 못 봄 (라이브 배포 전 — 사장님 "배포해" 대기). 배포 후 테스트폰 후속문자로 확인 예정
+- 다음 액션: 사장님 승인 시 라이브 배포(GOTCHAS §3: 백업→patch_biz.py→py_compile→swap→kickstart→smoke.sh 10). 옛 앱은 새 앱 설치 전까지 후속문자에 상호 안 뜸(의도)
