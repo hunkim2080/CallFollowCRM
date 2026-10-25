@@ -312,22 +312,28 @@ class AddressExtractorTest {
         }
     }
 
-    // ---------- dongHo: 견적서 「받는 분」 폴백 — 이름 없을 때 아파트 동·호수 (2026-10-25 사장님) ----------
+    // ---------- buildingUnit: 견적서 「받는 분」 폴백 — 이름 없을 때 아파트(단지명)+동·호수 (2026-10-25 사장님) ----------
 
-    @Test fun `dongHo - 괄호 단지명 주소에서 동호수만 뽑는다`() {
-        assertEquals("224동 101호", AddressExtractor.dongHo("경기 수원시 권선구 망포로 14 (수원 하늘채 더퍼스트2단지) 224동 101호"))
+    @Test fun `buildingUnit - 괄호 단지명 주소는 아파트+동호수`() {
+        assertEquals("수원 하늘채 더퍼스트2단지 224동 101호",
+            AddressExtractor.buildingUnit("경기 수원시 권선구 망포로 14 (수원 하늘채 더퍼스트2단지) 224동 101호"))
     }
 
-    @Test fun `dongHo - 단지명 없이 도로명+동호수`() {
-        assertEquals("122동 220호", AddressExtractor.dongHo("서울 서초구 서초대로 50 122동 220호"))
+    @Test fun `buildingUnit - 붙여 쓴 단지명도 아파트+동호수`() {
+        assertEquals("래미안강동팰리스 101동 1502호",
+            AddressExtractor.buildingUnit("강동구 천호동 래미안강동팰리스 101동 1502호"))
     }
 
-    @Test fun `dongHo - 동호수 없는 도로명 주소는 null (번호로 폴백되게)`() {
-        assertNull(AddressExtractor.dongHo("서울 서대문구 응암로 28"))
+    @Test fun `buildingUnit - 단지명 없으면 동호수만`() {
+        assertEquals("122동 220호", AddressExtractor.buildingUnit("서울 서초구 서초대로 50 122동 220호"))
     }
 
-    @Test fun `dongHo - 빈 값은 null`() {
-        assertNull(AddressExtractor.dongHo(null))
-        assertNull(AddressExtractor.dongHo("   "))
+    @Test fun `buildingUnit - 단지명도 동호수도 없으면 null (번호로 폴백되게)`() {
+        assertNull(AddressExtractor.buildingUnit("서울 서대문구 응암로 28"))
+    }
+
+    @Test fun `buildingUnit - 빈 값은 null`() {
+        assertNull(AddressExtractor.buildingUnit(null))
+        assertNull(AddressExtractor.buildingUnit("   "))
     }
 }

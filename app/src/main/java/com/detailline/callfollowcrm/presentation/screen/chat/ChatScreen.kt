@@ -654,9 +654,9 @@ fun ChatScreen(
     val displayName = customer?.name?.takeIf { it.isNotBlank() }
         ?: PhoneNumberFormatter.format(viewModel.phoneNumber)
     val displayPhone = PhoneNumberFormatter.format(viewModel.phoneNumber)
-    // 🧾 견적서 "받는 분" — 이름 있으면 이름, 없으면 주소의 동·호수("224동 101호"), 그것도 없으면 번호. (2026-10-25 사장님)
+    // 🧾 견적서 "받는 분" — 이름 있으면 이름, 없으면 주소의 아파트+동·호수("수원 하늘채 더퍼스트2단지 224동 101호"), 그것도 없으면 번호. (2026-10-25 사장님)
     val estimateRecipient = customer?.name?.takeIf { it.isNotBlank() }
-        ?: com.detailline.callfollowcrm.util.AddressExtractor.dongHo(customer?.address)
+        ?: com.detailline.callfollowcrm.util.AddressExtractor.buildingUnit(customer?.address)
         ?: displayPhone
 
     // 실제 발송 — confirm 다이얼로그 [보내기] 또는 권한 요청 직후 호출.

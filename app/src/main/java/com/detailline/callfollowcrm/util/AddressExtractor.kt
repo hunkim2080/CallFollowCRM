@@ -101,12 +101,15 @@ object AddressExtractor {
     }
 
     /**
-     * 주소에서 **동·호수만** — "224동 101호" / "1502호" / "101동". 없으면 null. (2026-10-25 사장님: 견적서 받는 분 폴백)
+     * 주소에서 **아파트(단지명) + 동·호수** — "수원 하늘채 더퍼스트2단지 224동 101호" / "래미안강동팰리스 101동 1502호" /
+     *   단지명 없으면 동호수만("122동 220호"). 둘 다 없으면 null. (2026-10-25 사장님: 견적서 받는 분 폴백 — "동호수만이 아니라 아파트+동 호수")
      *   견적서 "받는 분" = 이름 없으면 이걸로, 이것도 없으면 번호. 파싱은 [parse3] 한 곳.
      */
-    fun dongHo(raw: String?): String? {
+    fun buildingUnit(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
-        return parse3(tidyAddress(raw)).unit?.takeIf { it.isNotBlank() }
+        val p = parse3(tidyAddress(raw))
+        return listOfNotNull(p.name.takeIf { it.isNotBlank() }, p.unit?.takeIf { it.isNotBlank() })
+            .joinToString(" ").trim().ifBlank { null }
     }
 
     /** [twoLine]·[roadThenBuilding] 공통 파싱 — 도로명/행정 부분·단지(건물)명·동호수로 쪼갠다. **한 곳(§12).** */

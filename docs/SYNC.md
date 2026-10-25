@@ -15235,3 +15235,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경(②#3 펜 되돌리기): 현장사진 크게보기 펜→완료→"저장할까요?"(표시한 내용으로 바꾸고 갤러리 저장)→저장 시 원본을 .orig 로 백업 후 교체. 되돌리기 스낵바("표시한 사진으로 바꿨어요·되돌리기")에서 .orig 로 원본 복구. SitePhotoRepository.restoreOriginal + replaceWithBitmap 의 .orig 백업(돌리기와 같은 tmp→rename). 펜교체/되돌리기 흐름은 CustomerPhotoMarkFlow 로 분리(CustomerHoldFlow 선례, size_guard — VM 1305→한도 아래). VM 공개 API(saveMarkedPhoto·undoMarkedPhoto·markedUndo) 그대로 위임
 - 폰 확인: ✅ S9(무선) 현장사진 펜 되돌리기 실측 — 펜→그리기→완료→"저장할까요?"→저장 후 .orig 백업 생성 확인(run-as ls). 되돌리기 탭 시 파일이 정확히 .orig 바이트로 복구 + "원본으로 되돌렸어요" 스낵바 확인. #2 는 컴파일·단위테스트로 검증(출력 문구라 폰 화면엔 안 뜸)
 - 가드: assembleRelease 7종 통과(dup17·style2415·save0·rules 공용45·size 늘어난 곳 없음·brand·compose). 자동시험 1316개
+
+## 2026-10-25 15:05 · android
+견적서 「받는 분」 폴백 수정 — 동호수만 → **아파트(단지명)+동 호수** (사장님 "동호수만이 아니라 아파트+동 호수")
+- 변경: AddressExtractor.dongHo → buildingUnit 로 교체. parse3 의 단지명(name)+동호수(unit) 를 합쳐 "수원 하늘채 더퍼스트2단지 224동 101호" 로. 단지명 없으면 동호수만, 둘 다 없으면 null→번호. ChatScreen estimateRecipient 연결·단위테스트 5건 갱신. UI/DB/서버 영향 없음(견적서 출력 문구만)
+- 폰 확인: 못 봄(견적서 출력 글자라 화면엔 안 뜸). 컴파일·단위테스트 5건 통과로 검증
+- 가드: assembleRelease 7종 통과(dup17·style2415·save0·rules45·size·brand·compose)
