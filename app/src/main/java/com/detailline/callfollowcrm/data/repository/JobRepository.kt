@@ -195,7 +195,8 @@ class JobRepository(
         val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today)
         when {
             day == null -> rep?.let { jobDao.update(it.copy(scheduledWorkDate = null, updatedAt = now)) }
-            rep != null -> jobDao.update(
+            // 🔴 **안 끝난** 대표 건이면 그 건의 날짜를 옮긴다(평범한 재조정).
+            rep != null && rep.workCompletedAt == null -> jobDao.update(
                 rep.copy(
                     scheduledWorkDate = day,
                     cancelledAt = null,   // 날짜를 다시 잡았으면 취소가 아니다. (2026-09-18)
@@ -205,7 +206,21 @@ class JobRepository(
                     updatedAt = now
                 )
             )
-            // 예정 건이 하나도 없는 고객 — 지금 값으로 새 건을 만든다(중복 가드 포함).
+            // 🔴 **완료된 1차가 대표면 2차는 새 건으로.** 1차의 날짜·완료·돈을 **덮지 않고 보존**한다. (2026-10-26 사장님:
+            //   "2차 날짜 잡으려 보낸 접수서가 완료된 1차 날짜를 지우고 그 날짜로 들어감") 2차는 돈·받음 없이 새로 시작
+            //   — 완료된 1차의 돈/계약금이 미래 2차로 묻어나지 않게(§13④). 금액은 이 접수서/사장님이 새로 넣는다.
+            rep != null && jobDao.countByCustomerAndDate(customerId, day) == 0 -> jobDao.insert(
+                JobEntity(
+                    customerId = customerId,
+                    scheduledWorkDate = day,
+                    scheduledWorkMinutes = c.scheduledWorkMinutes,
+                    scheduledWorkDays = c.scheduledWorkDays.coerceAtLeast(1),
+                    address = c.address,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+            // 예정 건이 하나도 없는 고객(건 없음) — 카드가 SoT라 카드 돈까지 담아 새 건.
             jobDao.countByCustomerAndDate(customerId, day) == 0 -> jobDao.insert(
                 JobEntity(
                     customerId = customerId,

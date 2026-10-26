@@ -15339,3 +15339,10 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 ↑ #4·#5 라이브 배포 완료 (백업 predeploy-20261026-161350 · PID 93375)
 - 검증: smoke 10/10 (백업을 **Bearer만**으로 호출해 200 — #4 토큰 URL 제거 작동 확인). #5 마스킹 코드 배포됨.
 - smoke.sh: 백업 줄을 쿼리토큰→Bearer-only 로(앱 새 동작과 동일 경로 검사).
+
+## 2026-10-26 18:30 · android
+🔴 버그수정: 2차 접수서가 완료된 1차 날짜를 덮어쓰던 것 (사장님 실기 발견)
+- 증상: 완료된 1차가 대표 건인 고객에게 2차 접수서가 들어오면, syncRepresentativeFromCustomer 가 그 1차 건의 scheduledWorkDate 를 2차 날짜로 **덮어써** 1차 날짜가 사라짐(완료·돈은 남음).
+- 수정: JobRepository.syncRepresentativeFromCustomer — 대표 건이 **완료(workCompletedAt!=null)면 날짜를 안 옮기고 새 건(2차)으로 insert**. 2차는 돈/받음 없이 시작(1차 돈 안 묻어남). 안 끝난 대표만 날짜 이동.
+- 영향: 호출부 전부(IntakeSync·채팅·고객상세 달력일정)에 완료 건 보호로 이로움. 가드/테스트 통과.
+- ⚠️ 이미 덮인 데이터 복구는 별도(완료·돈은 보존됨, 날짜만 바뀜).
