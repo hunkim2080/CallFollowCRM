@@ -2,6 +2,8 @@ package com.detailline.callfollowcrm.presentation.screen.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,6 +105,7 @@ fun MyScheduleSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())  // 하루 다건이면 상세가 길어 하단 잘림 → 스크롤 (2026-10-26 기본 UX)
                 .padding(horizontal = 18.dp)
                 .bottomBarClearance(extra = 24.dp)  // 하단 내비바 가림 방지(M3 시트 인셋 0 버그). 2026-06-11
         ) {

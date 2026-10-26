@@ -136,6 +136,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.CircleShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -246,13 +247,14 @@ internal fun EstSheetCta(text: String, enabled: Boolean, filled: Boolean, onClic
  *   추천(접수서)은 [primary]로 파란 강조. 스타일은 토큰(AppShape/AppType)으로 — 손으로 적은 값 안 늘리게.
  */
 @Composable
-internal fun EstSendOption(title: String, desc: String, primary: Boolean = false, onClick: () -> Unit) {
+internal fun EstSendOption(title: String, desc: String, primary: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth()
             .clip(AppShape.md)
             .background(if (primary) TossBlue.copy(alpha = 0.08f) else Color.White)
             .border(1.5.dp, if (primary) TossBlue else TossDivider, AppShape.md)
-            .clickable { onClick() }
+            .alpha(if (enabled) 1f else 0.5f)   // 진행 중엔 흐리게 — 눌러도 안 먹는 걸 눈에 보이게 (2026-10-26 기본 UX)
+            .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

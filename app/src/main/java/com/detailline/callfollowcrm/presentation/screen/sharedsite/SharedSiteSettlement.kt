@@ -251,6 +251,7 @@ private fun SettlementPreviewDialog(doc: SettlementStatement.Doc, pages: List<Bi
     val c = AppTheme.colors
     var saving by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    var zoomStart by remember { mutableStateOf<Int?>(null) }   // 장 눌러 크게보기(핀치줌) — null=닫힘 (2026-10-26 기본 UX)
     val total = pages.size
     val names = remember(doc, total) { (1..total).map { SettlementShot.fileName(doc, page = it, total = total) } }
 
@@ -269,6 +270,8 @@ private fun SettlementPreviewDialog(doc: SettlementStatement.Doc, pages: List<Bi
                     modifier = Modifier.clickable { onDismiss() }.padding(6.dp))
             }
             Spacer(Modifier.height(10.dp))
+            Text("눌러서 크게 보기 · 두 손가락으로 확대", style = AppType.caption, color = c.textHint)
+            Spacer(Modifier.height(6.dp))
             // 서류는 길 수 있다 — 창 안에서 스크롤. 여러 장이면 세로로 이어서(장 사이 회색 틈).
             Column(
                 Modifier.fillMaxWidth().weight(1f, fill = false).clip(AppShape.sm)
@@ -281,7 +284,8 @@ private fun SettlementPreviewDialog(doc: SettlementStatement.Doc, pages: List<Bi
                     Image(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = if (total > 1) "일당 정산서 미리보기 ${i + 1}/$total" else "일당 정산서 미리보기",
-                        modifier = Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth
+                        modifier = Modifier.fillMaxWidth().clickable { zoomStart = i },   // 눌러서 크게+핀치줌
+                        contentScale = ContentScale.FillWidth
                     )
                 }
             }
@@ -331,5 +335,13 @@ private fun SettlementPreviewDialog(doc: SettlementStatement.Doc, pages: List<Bi
                 }
             }
         }
+    }
+    // 🔍 장을 누르면 크게 + 핀치줌 — 잔글씨 많은 서류라 키워 읽게. 공용 뷰어 재사용. (2026-10-26 기본 UX)
+    zoomStart?.let { s ->
+        com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+            photos = pages.map { com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(it) },
+            startIndex = s,
+            onDismiss = { zoomStart = null }
+        )
     }
 }

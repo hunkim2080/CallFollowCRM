@@ -80,6 +80,8 @@ fun StyleLearningScreen(
     var signatureOpen by remember { mutableStateOf(false) }
     var examplesListOpen by remember { mutableStateOf(false) }
     var editingExample by remember { mutableStateOf<String?>(null) }
+    // 🗑 예문 삭제 전 한 번 묻는다 — 가르친 예문은 되만들기 번거로운 자산. (원칙 관리와 동일한 기조, 2026-10-26 기본 UX)
+    var deletingExample by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -303,7 +305,7 @@ fun StyleLearningScreen(
                                         modifier = Modifier.weight(1f).clickable { editingExample = ex })
                                     Spacer(Modifier.width(8.dp))
                                     Text("✕", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                                        modifier = Modifier.clickable { viewModel.removeExample(ex) }.padding(4.dp))
+                                        modifier = Modifier.clickable { deletingExample = ex }.padding(4.dp))
                                 }
                             }
                         }
@@ -338,6 +340,23 @@ fun StyleLearningScreen(
             dismissButton = { TextButton(onClick = { editingExample = null }) { Text("취소", color = TossTextSecondary) } },
             containerColor = Color.White,
             tonalElevation = 0.dp,   // 흰 창에 회색이 덧칠되는 것 끄기 (2026-09-21 사장님)
+        )
+    }
+
+    // 🗑 예문 삭제 확인 — 한 번 잘못 누르면 날아가는 걸 막는다. (2026-10-26 기본 UX)
+    deletingExample?.let { ex ->
+        AlertDialog(
+            onDismissRequest = { deletingExample = null },
+            title = { Text("이 예문을 지울까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = { Text(ex, style = AppType.body, color = TossTextTertiary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.removeExample(ex); deletingExample = null }) {
+                    Text("삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deletingExample = null }) { Text("취소", color = TossTextSecondary) } },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
         )
     }
 }

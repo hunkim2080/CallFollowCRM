@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -91,6 +92,7 @@ fun FollowUpScreen(
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
+    val attViewer = remember { mutableStateOf<Int?>(null) }   // 첨부 썸네일 크게보기 — null=닫힘 (2026-10-26 기본 UX)
     val recentCalls by viewModel.recentCalls.collectAsState()
     val recentSms by viewModel.recentSms.collectAsState()
     val toast by viewModel.toast.collectAsState()
@@ -350,7 +352,7 @@ fun FollowUpScreen(
                         )
                         Spacer(Modifier.height(8.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(attachments) { a ->
+                            itemsIndexed(attachments) { idx, a ->
                                 AsyncImage(
                                     model = a.fileUri,
                                     contentDescription = a.displayName,
@@ -359,6 +361,7 @@ fun FollowUpScreen(
                                         .size(72.dp)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(TossGrayBg)
+                                        .clickable { attViewer.value = idx }   // 눌러서 크게보기(핀치줌) — 2026-10-26 기본 UX
                                 )
                             }
                         }
@@ -368,6 +371,18 @@ fun FollowUpScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = TossTextTertiary
                         )
+                        // 🔍 썸네일을 누르면 크게 + 핀치줌 — 다른 화면과 같은 공용 뷰어. (2026-10-26 기본 UX)
+                        attViewer.value?.let { s ->
+                            com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
+                                photos = attachments.map {
+                                    com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfFile(
+                                        android.net.Uri.parse(it.fileUri)
+                                    )
+                                },
+                                startIndex = s.coerceIn(0, (attachments.size - 1).coerceAtLeast(0)),
+                                onDismiss = { attViewer.value = null }
+                            )
+                        }
                     }
                 }
             }

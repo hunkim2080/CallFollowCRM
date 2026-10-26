@@ -2126,6 +2126,7 @@ fun ChatScreen(
         EstimateBuilderDialog(
             items = pricingItems,
             draft = estimateDraft,
+            issuing = viewModel.issuingIntake.collectAsState().value,
             bizName = estPrefs.bizName,
             bizOwner = estPrefs.bizOwner,
             bizNo = estPrefs.bizNo,
@@ -4697,7 +4698,9 @@ private fun EstimateBuilderDialog(
     bizPhone: String = "",
     validDays: Int = 0,
     /** 견적서 '받는 분' 기본값 — 고객 이름 또는 번호(빈값이면 '고객님'). (2026-07-03 사장님) */
-    defaultRecipient: String = ""
+    defaultRecipient: String = "",
+    /** ⏳ 접수서 발급 서버 왕복 중 — [접수서로 보내기] 잠금 + "보내는 중…". (2026-10-26 기본 UX) */
+    issuing: Boolean = false
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -5179,7 +5182,10 @@ private fun EstimateBuilderDialog(
             Text("고른 항목 그대로, 보내는 모양만 골라요.", style = AppType.caption, color = TossTextTertiary)
             Spacer(Modifier.height(AppSpace.s12))
             // 📋 접수서로 — 고객이 날짜·주소 채움(추천, 맨 위)
-            EstSendOption("접수서로 보내기", "고객이 날짜·주소 채우면 자동 캘린더", primary = true) {
+            EstSendOption(
+                if (issuing) "접수서 보내는 중…" else "접수서로 보내기",
+                "고객이 날짜·주소 채우면 자동 캘린더", primary = true, enabled = !issuing
+            ) {
                 if (!anySelected && !meetMode) { toast("항목을 고르거나, '현장에서 정하기'를 눌러주세요"); return@EstSendOption }
                 // 시공일 안 고르면 0년 0월 0일로 나감 → 먼저 고르게. (2026-07-30)
                 if (workDateMs == null) { toast("시공일을 먼저 골라주세요"); return@EstSendOption }

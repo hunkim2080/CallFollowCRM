@@ -15287,3 +15287,13 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: PhotoViewer.kt FullscreenPhotoViewer — 회전/펜/저장 도구바를 각 페이지(ViewerPage)에서 부모 Box 바닥 고정으로 이동(지금 보는 currentPage 에 작동). 삼성 갤러리식. 공용 한 곳이라 고객상세·팀원·협업·문자 사진 전부 적용. 가드 전부 통과.
 - CLAUDE.md §0: 「기본 UX(플랫폼 표준)는 프로토에 없어도 챙긴다 — 묻지 않는다」 룰 추가(사장님 지시). 글·배치·색=프로토 그대로 / 동작의 관습=표준대로.
 - 폰 확인: 테스트폰(S9) 설치 완료. 넘기기+도구바 고정 실기 확인은 사장님 테스트 대기
+
+## 2026-10-26 01:10 · android
+기본 UX 구멍 6곳 보강 (감사 후 — 전부 공용 컴포넌트 재사용)
+- 접수서 발급: 진행표시("접수서 보내는 중…")+버튼잠금+연타막기(ChatViewModel issuingIntake StateFlow, EstSendOption enabled). AI 다른 기능과 같은 패턴.
+- MyScheduleSheet: 내용 Column verticalScroll — 하루 다건이면 하단 잘리던 것.
+- 스타일학습 예문 삭제: 확인 AlertDialog(원칙관리와 동일 기조).
+- 검색 '전체 삭제': 확인 AlertDialog(개별 칩 ✕는 저위험이라 유지).
+- 일당 정산서 미리보기: 장 탭 → 공용 FullscreenPhotoViewer(핀치줌).
+- 후속문자 첨부 썸네일: 탭 → 공용 FullscreenPhotoViewer(핀치줌). itemsIndexed.
+- 가드 전부 통과(dup 17/17·style 2406·size 안 늘음·rules·save). 폰 확인: S9 설치 완료, 실기 확인 대기.

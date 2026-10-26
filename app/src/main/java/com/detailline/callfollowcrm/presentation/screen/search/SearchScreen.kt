@@ -31,9 +31,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -87,8 +89,26 @@ fun SearchScreen(
     val periodOpen = remember { mutableStateOf(true) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    // 🗑 '전체 삭제' 전 한 번 묻는다 — 되돌릴 수 없어 실수로 다 날아가지 않게. (2026-10-26 기본 UX)
+    val confirmClear = remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { focus.requestFocus() }
+
+    if (confirmClear.value) {
+        AlertDialog(
+            onDismissRequest = { confirmClear.value = false },
+            title = { Text("최근 검색을 모두 지울까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = { Text("지운 기록은 되돌릴 수 없어요.", style = AppType.body, color = TossTextTertiary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearRecent(); confirmClear.value = false }) {
+                    Text("전체 삭제", color = AppTheme.colors.unpaid, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear.value = false }) { Text("취소", color = TossTextSecondary) } },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+        )
+    }
 
     Column(
         Modifier
@@ -146,7 +166,7 @@ fun SearchScreen(
                         Spacer(Modifier.weight(1f))
                         Text("전체 삭제", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                             modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.clearRecent() }.padding(horizontal = 6.dp, vertical = 3.dp))
+                                .clickable { confirmClear.value = true }.padding(horizontal = 6.dp, vertical = 3.dp))
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         recent.forEach { word ->

@@ -1885,6 +1885,10 @@ class ChatViewModel(
         return "아래 링크에서 주소·시공 범위를 확인 부탁드려요 😊\n${issued.url}"
     }
 
+    // ⏳ 접수서 발급 진행 중 — 버튼 잠금 + "보내는 중…". 서버 왕복이라 연타로 두 번 발급되는 걸 막는다. (2026-10-26 기본 UX)
+    private val _issuingIntake = MutableStateFlow(false)
+    val issuingIntake: StateFlow<Boolean> = _issuingIntake
+
     /**
      * 시공접수서 발급 v2 (맥미니 §19.2, 2026-06-03) — 견적 시트 [시공접수서 링크 보내기].
      *   견적 데이터 + 사업자정보(AppPreferences) → POST /api/quote/issue → smsDraft 반환.
@@ -1898,6 +1902,9 @@ class ChatViewModel(
         vatIncluded: Boolean,
         onResult: (Result<Pair<String, Boolean>>) -> Unit   // (smsDraft, reused=기존 링크 갱신)
     ) = viewModelScope.launch {
+        if (_issuingIntake.value) return@launch   // 이미 발급 중이면 무시 — 연타 막기
+        _issuingIntake.value = true
+        try {
         val prefs = container.preferences
         // 이름 없으면 전화번호 대신 "고객" — 안 그러면 서버 인사말이 "안녕하세요 01012345678님…"이 되고
         //   앱이 그 번호를 링크(파란 밑줄)로 잡아 문장과 뭉개짐(사장님 지적 2026-08-14). D-1 알림 관례(renderReminderBody)와 통일.
@@ -1937,6 +1944,7 @@ class ChatViewModel(
             )
         }
         onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } to it.reused })
+        } finally { _issuingIntake.value = false }
     }
 
     // 🤫 **조용해도 되는 이유**: 발행 '이력' 스냅샷이다. 실패해도 **보낸 견적서는 그대로**고,
