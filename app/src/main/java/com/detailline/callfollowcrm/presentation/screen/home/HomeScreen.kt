@@ -3045,7 +3045,8 @@ private fun OweRow(
                     // 금액과 일째를 **딱지 하나**로. 오른쪽에 큰 금액을 따로 두었더니
                     //   현장 이름이 "동탄 아..." 로 잘렸다. (2026-09-20 실기)
                     Text(
-                        "${due.daysSince}일째", fontSize = 10.5.sp,
+                        // 완료 당일은 "0일째"가 어색 → "오늘". (2026-10-26 유예 0일)
+                        if (due.daysSince <= 0) "오늘" else "${due.daysSince}일째", fontSize = 10.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (late) TossError else TossTextSecondary
                     )

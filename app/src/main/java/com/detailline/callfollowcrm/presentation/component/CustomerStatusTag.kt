@@ -49,7 +49,9 @@ fun customerStatusOf(
     now: Long = System.currentTimeMillis()
 ): String {
     val wd = c.scheduledWorkDate
-    if (wd != null && wd >= today0) return "예약"
+    // 예약은 **아직 안 끝낸** 것만 — 오늘 시공을 **완료 처리하면** 「예약」이 아니라 완료/잔금미수로 간다. (2026-10-26 사장님)
+    //   전엔 시공일이 오늘이면 완료해도 「예약(시공 D-DAY)」로 먼저 떠서 당일엔 잔금미수가 안 보였다.
+    if (wd != null && wd >= today0 && c.workCompletedAt == null) return "예약"
     // 🔴 **시공완료가 찍혀야 미수다.** (2026-09-20 사장님 · SettlementCalc.overdueDays 와 같은 규칙)
     //   전엔 예약일만 지나도(wd<today0) 「잔금미수」로 띄웠다 → 잔금 대기 칩(완료 필요)과 엇갈렸다(두 벌).
     //   예약일만 지났고 완료 표시가 없는 건은 미수가 아니라 「시공확인」 — 끝났는지부터 확인(돈 독촉 금지).

@@ -356,7 +356,7 @@ private fun OverdueRowView(r: OverdueRow, onClick: () -> Unit) {
                 fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
             Text(
-                buildString { append(manwon(r.amount)); append(" · "); append(r.days?.let { "${it}일 지남" } ?: "날짜 미정") },
+                buildString { append(manwon(r.amount)); append(" · "); append(r.days?.let { if (it <= 0) "오늘" else "${it}일 지남" } ?: "날짜 미정") },
                 fontSize = 12.sp, fontWeight = FontWeight.Medium,
                 color = if (overdue14) TossError else TossTextTertiary
             )

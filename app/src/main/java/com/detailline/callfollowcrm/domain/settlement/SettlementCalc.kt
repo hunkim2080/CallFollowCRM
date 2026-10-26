@@ -301,6 +301,9 @@ object SettlementCalc {
         //   예약일이 지났는데 완료 표시가 없는 건은 '시공 확인 필요' 지 미수가 아니다.
         val base = workCompletedAt ?: return null
         val days = ((todayStartMs - DateTimeUtils.startOfDay(base)) / DateTimeUtils.DAY_MS).toInt()
-        return if (days >= 1) days else null
+        // 완료됐는데 돈이 바로 안 들어오면 **당일부터 미수**다 — 안 들어온 걸 잊지 않게. (2026-10-26 사장님)
+        //   전엔 하루 유예(>=1)였는데, "들어오면 그때 체크해 없애면 된다"는 사장님 판단으로 0일로.
+        //   ⚠️ 자동 푸시 독촉은 별도 3일 유예(ReminderWorker `overdue < 3`)라 안 서두른다.
+        return if (days >= 0) days else null
     }
 }

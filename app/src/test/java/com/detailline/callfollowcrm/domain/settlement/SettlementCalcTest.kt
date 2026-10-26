@@ -138,9 +138,11 @@ class SettlementCalcTest {
         assertEquals(1, SettlementCalc.overdueDays(c, today))
     }
 
-    @Test fun `완료가 오늘이면 아직 안 지남`() {
+    @Test fun `완료가 오늘이면 0일째 - 당일부터 미수`() {
+        // 2026-10-26 사장님: 완료됐는데 돈이 바로 안 들어오면 **당일부터 미수**(안 들어온 걸 잊지 않게).
+        //   자동 푸시 독촉만 별도 3일 유예(ReminderWorker). 목록·칩·딱지는 당일.
         val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, completedAt = today)
-        assertEquals(null, SettlementCalc.overdueDays(c, today))
+        assertEquals(0, SettlementCalc.overdueDays(c, today))
     }
 
     /**

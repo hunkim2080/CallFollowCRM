@@ -1202,9 +1202,9 @@ fun ChatScreen(
                 WorkDoneAskCard(
                     workLastDayMs = lastDay,
                     outstandingWon = doneOutstanding,
-                    // 다 받았다 = 일도 끝났고 돈도 들어왔다. **두 개를 한 번에** 찍는다.
+                    // 다 받았다 = 일도 끝났고 돈도 들어왔다. **완료가 끝난 뒤 잔금**을 찍어 경합을 없앤다(B3 — 전엔 두 코루틴 동시).
                     onDoneAndPaid = {
-                        viewModel.markWorkCompleted(); viewModel.markBalancePaid()
+                        viewModel.markWorkCompleted { viewModel.markBalancePaid() }
                         viewModel.dismissWorkDoneAsk(lastDay)
                     },
                     // 일은 끝났는데 돈은 아직 — 완료만. 미수금으로 남아 알림이 계속 챙긴다.
