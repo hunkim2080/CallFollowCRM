@@ -25869,14 +25869,20 @@ async def account_delete(req: AccountDeleteRequest) -> dict:
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
-            "SELECT code, expires_at_ms FROM auth_codes WHERE phone = ?", (phone,)
+            "SELECT code, expires_at_ms, attempts FROM auth_codes WHERE phone = ?", (phone,)
         ).fetchone()
         if not row:
             raise HTTPException(400, "인증번호를 먼저 받아주세요")
-        saved_code, expires = row[0], int(row[1] or 0)
+        saved_code, expires, attempts = row[0], int(row[1] or 0), int(row[2] or 0)
         if now > expires:
             raise HTTPException(400, "인증번호가 만료됐어요. 다시 받아주세요")
+        # 🔒 무차별 대입 잠금 — verify-code 와 같은 규칙(5회 틀리면 재요청). 비가역 삭제라 특히 중요. (2026-10-26 보안감사)
+        if attempts >= 5:
+            raise HTTPException(429, "시도 횟수 초과 — 인증번호를 다시 받아주세요")
         if str(saved_code) != code:
+            con.execute(
+                "UPDATE auth_codes SET attempts = attempts + 1 WHERE phone = ?", (phone,))
+            con.commit()
             raise HTTPException(400, "인증번호가 달라요")
 
         deleted: dict[str, int] = {}
@@ -30695,9 +30701,10 @@ _WEB_COOKIE = "wsid"
 _WEB_AUTH_REQUIRE_TOKEN = os.environ.get("WEB_AUTH_REQUIRE_TOKEN", "1") == "1"
 # 감사#2 하드닝 트랙: 앱→서버 push 3종(schedule-feed 전량삭제/logout-all/customer-content)이
 # owner_phone 문자열만 신뢰 → 번호만 알면 캘린더삭제·강제로그아웃·재료오염 가능.
-# 단계적 전환: 기본 OFF(토큰 없으면 현행 허용=구버전 앱 안 깨짐), 토큰 오면 반드시 검증.
-# android 가 이 3개 호출에 session_token 동봉 배포하면 env WEB_PUSH_REQUIRE_TOKEN=1 로 강제 → 구멍 닫힘.
-_WEB_PUSH_REQUIRE_TOKEN = os.environ.get("WEB_PUSH_REQUIRE_TOKEN", "0") == "1"
+# 보안감사 2026-10-26: 앱이 이 3종에 session_token 동봉 배포 완료(WebFeedRepository) → 기본 ON 전환.
+#   익명 쓰기(공개 번호만으로 캘린더삭제·강제로그아웃·재료오염) 구멍을 env 없이도 코드로 막는다(defense-in-depth, 감사#3).
+#   구버전(토큰 미동봉) 앱의 웹 미러 push 는 업데이트 전까지 401 → 웹 뷰어만 잠시 스테일(자가치유). 긴급 완화는 env WEB_PUSH_REQUIRE_TOKEN=0.
+_WEB_PUSH_REQUIRE_TOKEN = os.environ.get("WEB_PUSH_REQUIRE_TOKEN", "1") == "1"
 _WEB_BASE = INTAKE_PUBLIC_BASE_URL  # https://api.si0in.kr
 
 
