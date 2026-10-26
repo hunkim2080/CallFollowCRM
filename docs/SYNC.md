@@ -15325,3 +15325,12 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - B3: 챗 "다 받았다"를 markWorkCompleted{markBalancePaid} 체이닝(완료 후 잔금)으로 — 두 코루틴 경합 제거. (god-object ChatViewModel 줄 안 늘림)
 - 가드/테스트 통과. 폰 설치 완료. ⚠️당일 미수로 뜨려면 잔금액이 앱 금액칸에 입력돼 있어야 함.
 - 남음: B8(리포트 소스)·#4(토큰 URL)·#5(서버로그)·C2/C3.
+
+## 2026-10-26 17:00 · android (+ server)
+보안감사 나머지 — #4(토큰 URL제거) · #5(서버로그 번호) · B8(리포트 미수=홈과 동일) · C3
+- #4 서버: _web_push_auth 가 Authorization: Bearer 헤더도 받음(쿼리/바디 토큰 없을 때). app_backup_status/pull 에 authorization 헤더 파라미터, logout-all 은 request 헤더 전달. → 앱이 URL 에 토큰 안 실어도 됨(backward compat: 쿼리 토큰도 계속 허용).
+- #4 앱: BackupRepository(pull/status GET)·WebFeedRepository(logout-all) 에서 &session_token= 제거(Bearer 가 Net.builder 로 감). 로그 토큰 노출 차단.
+- #5 서버: _rp(phone) 마스킹 헬퍼 + 인증/계정 print 마스킹([auth/sms] 미도달은 코드 로그도 제거, account/delete·auth/verify×4 번호 마스킹).
+- B8 앱: ReportViewModel '못 받은 돈'을 SettlementCalc.book(건 장부) 합으로 — 홈 미수와 숫자 통일(전엔 고객 카드 합이라 건 2개 손님서 달랐다).
+- C3(접수서 토큰 로그 가림)은 앞서 커밋.
+- 서버 배포 예정(GOTCHAS §3). 앱은 가드/테스트 통과. C2는 의도적 타협이라 둠.

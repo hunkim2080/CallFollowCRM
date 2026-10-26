@@ -17152,6 +17152,12 @@ def _norm_phone(p: Optional[str]) -> str:
     return "".join(ch for ch in (p or "") if ch.isdigit())
 
 
+def _rp(phone: Optional[str]) -> str:
+    """로그용 번호 마스킹 — 가운데를 가린다. (감사#5 2026-10-26, 앱 LogRedact 서버판)"""
+    p = _norm_phone(phone)
+    return "***" if len(p) < 7 else p[:3] + "****" + p[-2:]
+
+
 def _fmt_phone(p: Optional[str]) -> str:
     """전화번호 표시 format — '010-1234-5678' 형태.
 
@@ -25366,7 +25372,7 @@ async def _auth_sms_watch(phone: str, message_id: str) -> None:
         code = str(m.get("statusCode") or "")
         if code in _SMS_FAIL_REASON:
             why = _SMS_FAIL_REASON[code]
-            print(f"[auth/sms] 미도달 {phone} {code} {why}")
+            print(f"[auth/sms] 미도달 {_rp(phone)} {why}")   # 감사#5: 번호 마스킹 + 코드는 로그 금지
             # 🚫 **없는 번호면 적어둔다** — 다음부터 문자를 안 보낸다.
             #   전원 꺼짐·시간 초과·망 장애는 번호 탓이 아니라 기록하지 않는다.
             dead = code in _SMS_DEAD_CODES
@@ -25909,7 +25915,7 @@ async def account_delete(req: AccountDeleteRequest) -> dict:
                     pass
         con.commit()
 
-    print(f"[account/delete] {phone} → {sum(deleted.values())}행 삭제 {deleted}")
+    print(f"[account/delete] {_rp(phone)} → {sum(deleted.values())}행 삭제 {deleted}")
     return {"ok": True, "deleted": deleted}
 
 
@@ -25966,7 +25972,7 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
         and _hm_master.compare_digest(code, AUTH_MASTER_CODE)
     )
     if master_ok:
-        print(f"[auth/verify] {phone} → 마스터 로그인(문자 생략)")
+        print(f"[auth/verify] {_rp(phone)} → 마스터 로그인(문자 생략)")
     with db_conn() as con:
         if not master_ok:
             row = con.execute(
@@ -25994,7 +26000,7 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
         ).fetchone()
         if wl:
             con.commit()
-            print(f"[auth/verify] {phone} → member (기존)")
+            print(f"[auth/verify] {_rp(phone)} → member (기존)")
             _tok, _exp = _issue_session_token(phone)
             return {"ok": True, "status": "member", "freeUntilMs": wl[0],
                     "sessionToken": _tok, "sessionTokenExpMs": _exp}
@@ -26008,7 +26014,7 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
                 (phone, now, free_until),
             )
             con.commit()
-            print(f"[auth/verify] {phone} → enrolled (자동 등업 {current + 1}/{AUTO_ENROLL_CAP})")
+            print(f"[auth/verify] {_rp(phone)} → enrolled (자동 등업 {current + 1}/{AUTO_ENROLL_CAP})")
             _tok, _exp = _issue_session_token(phone)
             return {"ok": True, "status": "enrolled", "freeUntilMs": free_until,
                     "freeDays": FREE_TRIAL_DAYS,
@@ -26025,7 +26031,7 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
                 (phone, now, now, now),
             )
         con.commit()
-        print(f"[auth/verify] {phone} → waitlisted (cap {AUTO_ENROLL_CAP} 초과)")
+        print(f"[auth/verify] {_rp(phone)} → waitlisted (cap {AUTO_ENROLL_CAP} 초과)")
         return {"ok": True, "status": "waitlisted"}
 
 
@@ -30708,13 +30714,19 @@ _WEB_PUSH_REQUIRE_TOKEN = os.environ.get("WEB_PUSH_REQUIRE_TOKEN", "1") == "1"
 _WEB_BASE = INTAKE_PUBLIC_BASE_URL  # https://api.si0in.kr
 
 
-def _web_push_auth(owner: str, session_token: Optional[str]) -> None:
-    """앱→서버 push 3종 인증(하드닝). 토큰 있으면 반드시 owner 와 일치. REQUIRE=1 이면 유효토큰 필수."""
+def _web_push_auth(owner: str, session_token: Optional[str], authorization: Optional[str] = None) -> None:
+    """앱→서버 push 인증(하드닝). 토큰 있으면 반드시 owner 와 일치. REQUIRE=1 이면 유효토큰 필수.
+    감사#4(2026-10-26): 토큰을 URL 에 안 싣게 — 쿼리/바디 토큰이 없으면 Authorization: Bearer 헤더로 검증."""
     if session_token:
         v = _verify_session_token(session_token)
         if not v or _norm_phone(v) != owner:
             raise HTTPException(401, "세션 토큰이 이 번호와 일치하지 않아요")
         return
+    if authorization:
+        ph = _session_phone_from_header(authorization)
+        if ph and _norm_phone(ph) == owner:
+            return
+        raise HTTPException(401, "세션 토큰이 이 번호와 일치하지 않아요")
     if _WEB_PUSH_REQUIRE_TOKEN:
         raise HTTPException(401, "세션 토큰이 필요해요 (앱 업데이트/재로그인 후 다시 시도)")
 
@@ -31007,7 +31019,7 @@ async def web_logout_all(request: Request, owner_phone: str, session_token: Opti
         raise HTTPException(400, "owner_phone 필수")
     # 본인 웹세션(이 PC 쿠키)이 그 owner 면 허용(마이페이지에서 본인 실행). 아니면 토큰 검증.
     if _web_owner_from_request(request) != owner:
-        _web_push_auth(owner, session_token)
+        _web_push_auth(owner, session_token, request.headers.get("authorization"))   # 감사#4: Bearer 허용
     with db_conn() as con:
         cur = con.execute("DELETE FROM web_sessions WHERE owner_phone = ?", (owner,))
         con.commit()
@@ -34589,11 +34601,12 @@ async def app_backup_push(req: AppBackupPush) -> dict:
 
 
 @app.get("/api/app-backup/status")
-async def app_backup_status(owner_phone: str, session_token: Optional[str] = None) -> dict:
+async def app_backup_status(owner_phone: str, session_token: Optional[str] = None,
+                            authorization: Optional[str] = Header(None)) -> dict:
     owner = _norm_phone(owner_phone)
     if not owner:
         raise HTTPException(400, "owner_phone 필수")
-    _web_push_auth(owner, session_token)
+    _web_push_auth(owner, session_token, authorization)   # 감사#4: 토큰 없으면 Bearer 헤더로
     with db_conn() as con:
         row = con.execute(
             "SELECT size_bytes, updated_at_ms FROM app_backups WHERE owner_phone=?", (owner,)).fetchone()
@@ -34602,11 +34615,12 @@ async def app_backup_status(owner_phone: str, session_token: Optional[str] = Non
 
 
 @app.get("/api/app-backup")
-async def app_backup_pull(owner_phone: str, session_token: Optional[str] = None) -> dict:
+async def app_backup_pull(owner_phone: str, session_token: Optional[str] = None,
+                          authorization: Optional[str] = Header(None)) -> dict:
     owner = _norm_phone(owner_phone)
     if not owner:
         raise HTTPException(400, "owner_phone 필수")
-    _web_push_auth(owner, session_token)
+    _web_push_auth(owner, session_token, authorization)   # 감사#4: 토큰 없으면 Bearer 헤더로
     with db_conn() as con:
         row = con.execute(
             "SELECT blob, size_bytes, fmt, updated_at_ms FROM app_backups WHERE owner_phone=?", (owner,)).fetchone()

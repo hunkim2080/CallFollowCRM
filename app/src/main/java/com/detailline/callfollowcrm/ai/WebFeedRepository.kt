@@ -156,8 +156,8 @@ class WebFeedRepository(
         withContext(Dispatchers.IO) {
             runCatching {
                 val op = java.net.URLEncoder.encode(ownerPhone, "UTF-8")
-                var url = "$baseUrl/api/web/logout-all?owner_phone=$op"
-                sessionToken()?.let { url += "&session_token=" + java.net.URLEncoder.encode(it, "UTF-8") }   // 감사#2 하드닝
+                val url = "$baseUrl/api/web/logout-all?owner_phone=$op"
+                // 토큰은 Authorization: Bearer(Net.builder)로 간다 — URL 에 안 싣는다(로그 노출 방지, 감사#4 2026-10-26)
                 val req = Request.Builder()
                     .url(url)
                     .post("".toRequestBody(jsonMedia))

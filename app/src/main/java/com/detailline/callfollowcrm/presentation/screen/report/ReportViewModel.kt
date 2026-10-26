@@ -100,7 +100,7 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
             c.scheduledWorkDate?.let { if (it in from until to) jobs++ }
             if (c.createdAt in from until to) newCustomers++
             if (SettlementCalc.hasMoney(c)) {
-                outstandingNow += row.outstanding
+                // 미수 금액(outstandingNow)은 아래 건 장부(book)로 따로 센다 — 여기선 '돈 있는 고객 수'만.
                 if (row.total > 0L) moneyCust++
                 if (row.isPaidOff) paidOffNow++
             }
@@ -112,6 +112,9 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
             prevRevenue += SettlementCalc.receivedInRange(j.totalAmount, j.depositAmount, j.depositPaidAt, j.balanceAmount, j.balancePaidAt, prevFrom, prevTo)
         }
         val revenueDeltaPct = if (prevRevenue > 0L) (((revenue - prevRevenue) * 100.0) / prevRevenue).roundToInt() else null
+        // 💰 "못 받은 돈"은 **홈·정산과 같은 건 장부(book)**로 센다. (2026-10-26 보안감사 B8)
+        //   전엔 고객 카드 합이라, 건이 2개인 손님(1차 미수 + 2차 예정)에서 홈 미수와 숫자가 달랐다.
+        outstandingNow = SettlementCalc.book(customers, jobHistory).sumOf { it.calc.outstanding }
         val overdue = ReportCalc.overdueRows(customers, todayStart)
 
         // 3) 추천 채택률.

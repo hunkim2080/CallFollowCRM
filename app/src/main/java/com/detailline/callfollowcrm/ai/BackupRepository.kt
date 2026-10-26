@@ -53,7 +53,7 @@ class BackupRepository(
         val op = owner() ?: return@withContext null
         runCatching {
             var url = "$baseUrl/api/app-backup?owner_phone=$op"
-            token()?.let { url += "&session_token=" + java.net.URLEncoder.encode(it, "UTF-8") }
+            // 토큰은 Authorization: Bearer(Net.builder)로 간다 — URL 에 안 싣는다(로그 노출 방지, 감사#4 2026-10-26)
             val req = Request.Builder().url(url).get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@use null
@@ -69,7 +69,7 @@ class BackupRepository(
         val op = owner() ?: return@withContext null
         runCatching {
             var url = "$baseUrl/api/app-backup/status?owner_phone=$op"
-            token()?.let { url += "&session_token=" + java.net.URLEncoder.encode(it, "UTF-8") }
+            // 토큰은 Authorization: Bearer(Net.builder)로 간다 — URL 에 안 싣는다(로그 노출 방지, 감사#4 2026-10-26)
             val req = Request.Builder().url(url).get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@use null
