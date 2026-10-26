@@ -137,7 +137,7 @@ class IntakeSyncManager(private val container: AppContainer) {
                 val workMs = workMsOf(s)
                 android.util.Log.i(
                     "IntakeSync",
-                    "tok=${s.token} cid=${c.id} y=${s.workYear} mo=${s.workMonth} d=${s.workDay} conf=${s.confirmedDateIso} => workMs=$workMs total=${s.total}"
+                    "tok=${s.token.take(3)}… cid=${c.id} y=${s.workYear} mo=${s.workMonth} d=${s.workDay} conf=${s.confirmedDateIso} => workMs=$workMs total=${s.total}"
                 )
                 // 시공예약일도 '기존 로컬 값이 없을 때만' 채운다 — 사장님이 통화로 잡아둔 시공일을 접수서가 덮지 않게. (2026-08-11 데이터안전 감사 rank6)
                 if (workMs != null && c.scheduledWorkDate != null &&
@@ -232,7 +232,7 @@ class IntakeSyncManager(private val container: AppContainer) {
                     )
                 }
             }.onFailure {
-                android.util.Log.e("IntakeSync", "process token=${s.token} FAILED", it)
+                android.util.Log.e("IntakeSync", "process token=${s.token.take(3)}… FAILED", it)   // 토큰 전체 로그 금지(릴리스에 남음) — C3
             }.isSuccess
 
             if (processed) {
