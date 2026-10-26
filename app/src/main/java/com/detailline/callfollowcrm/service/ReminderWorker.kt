@@ -105,6 +105,16 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             android.util.Log.w("AutoBackup", "백업 만들기 실패", e)
             return
         }
+        // 🛡️ **지금 폰이 서버 백업보다 확 작으면 자동으로 덮어쓰지 않는다.** (2026-10-26 보안감사 A3)
+        //   새로 깐 폰에서 복원 안 한 채 쓰면, 몇 달치 서버 백업이 빈 데이터로 밀려날 수 있다.
+        //   서버가 최근 5벌을 보관하지만, 빈 폰이 자동으로 계속 덮으면 그 5벌도 빈 걸로 다 밀린다.
+        //   → 절반 미만이면 자동은 비킨다. 손버튼 [서버에 백업]은 그대로(사장님이 일부러 누르면 덮어씀).
+        if (remote != null && remote.has && remote.sizeBytes > 0 &&
+            bytes.size.toLong() * 2 < remote.sizeBytes) {
+            android.util.Log.w("AutoBackup",
+                "폰(${bytes.size}B)이 서버 백업(${remote.sizeBytes}B)보다 훨씬 작음 — 자동 덮어쓰기 건너뜀(복원 먼저?)")
+            return
+        }
         val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
         if (container.backupRepository.push(b64)) {
             DataBackup.markBackedUpNow(ctx)
