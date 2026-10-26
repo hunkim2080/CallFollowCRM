@@ -97,7 +97,9 @@ hit "접수서 화면(고객)"      200 "$BASE/intake/$TOKEN"          "접수"
 hit "견적 보기(고객)"        200 "$BASE/q/$TOKEN"
 hit "견적 문서(고객)"        200 "$BASE/q/$TOKEN/doc"
 hit "개인정보 안내(고객)"    200 "$BASE/q/$TOKEN/privacy"
-hit "백업 칸(앱)"            200 "$BASE/api/app-backup/status?owner_phone=$OWNER"
+# 백업은 _web_push_auth 로 **쿼리 session_token** 을 본다(앱도 그렇게 보냄, Bearer 아님).
+#   WEB_PUSH_REQUIRE_TOKEN=1(2026-10-26 보안) 이후 무인증은 401 — 토큰 동봉해 **진짜 앱 경로**를 검사한다.
+hit "백업 칸(앱)"            200 "$BASE/api/app-backup/status?owner_phone=$OWNER&session_token=$SMOKE_JWT"
 hit "답변 추천(앱)"          200 "$BASE/suggestions/01034045247?owner_phone=$OWNER"
 
 echo "──────────────────────────────────────────"

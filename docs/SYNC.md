@@ -15297,3 +15297,10 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 일당 정산서 미리보기: 장 탭 → 공용 FullscreenPhotoViewer(핀치줌).
 - 후속문자 첨부 썸네일: 탭 → 공용 FullscreenPhotoViewer(핀치줌). itemsIndexed.
 - 가드 전부 통과(dup 17/17·style 2406·size 안 늘음·rules·save). 폰 확인: S9 설치 완료, 실기 확인 대기.
+
+## 2026-10-26 14:50 · android (+ server)
+보안감사 #1 — 라이브 배포 완료 (계정삭제 무차별대입 잠금 + 웹/백업 토큰 강제)
+- 변경: /api/account/delete 에 verify-code 와 동일한 5회 잠금(429)+실패증가. WEB_PUSH_REQUIRE_TOKEN 기본 1 → /api/web/* 3종 + /api/app-backup/* 이 토큰 필수(크라운주얼 익명접근 차단, 감사#3 핸들러단 2차잠금).
+- 배포: GOTCHAS §3 (백업 predeploy-20261026-144024 → patch_sec.py 2곳 → py_compile → swap → kickstart PID 88046). 
+- 검증: smoke 10/10(백업 줄을 쿼리 session_token 으로 수정 — 앱 실제 경로). 무인증 app-backup/status=401, 토큰=200, 웹 schedule-feed 무인증 POST=401, account/delete=400 확인.
+- 영향: 구버전(토큰 미동봉) 앱의 웹 미러 push·백업은 업데이트/재로그인 전까지 401(자가치유). 돈/데이터손실 감사건은 아직 미착수(다음).
