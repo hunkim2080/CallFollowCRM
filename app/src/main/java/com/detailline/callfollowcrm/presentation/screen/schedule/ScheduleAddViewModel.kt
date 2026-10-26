@@ -129,7 +129,9 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                     depositPaidAt = depositPaidAtMs,
                     now = nowMs
                 )
-                if (address.isNotBlank()) container.customerRepository.updateAddress(id, address)
+                // ⚠️ 주소도 **addJob 이 새 건에 이미 넣었다**(위 address=). 여기서 updateAddress 로 카드에 또 쓰면
+                //   그게 '대표 건'으로 미러돼 **1차 주소를 2차 주소로 덮는다**(돈과 똑같은 사고 — 2026-10-26 보안감사 B4).
+                //   카드 주소는 recomputeMirror(addJob 안)가 대표 건에서 당겨온다. 방향은 언제나 jobs → customers.
                 // 돈은 **addJob 이 새 건에 이미 넣었다.** 여기서 고객 카드에 또 쓰면,
                 //   그 값이 '대표 건'(=오늘 이후 가장 가까운 건) 전표로 미러링돼
                 //   **엉뚱한 건의 금액을 덮어쓴다.** (2026-09-18 실기에서 확인:

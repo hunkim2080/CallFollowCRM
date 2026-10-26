@@ -111,4 +111,27 @@ class JobMoneyBackfillTest {
         assertNull("계약금만 받은 건 완료가 아니다", out.workCompletedAt)
         assertNull(out.balancePaidAt)
     }
+
+    @Test fun `B1 - 대표 건이 비었는데 다른 건에 돈이 있으면 카드 돈을 안 끌어온다`() {
+        // 1차(50만·완납·완료) 지나고 빈 2차가 대표가 됐다. 카드엔 아직 1차 돈이 스테일로 남았다.
+        //   othersHaveMoney=true → 그 돈을 빈 2차로 끌어올리면 미래가 완납·완료로 뜬다. 막는다.
+        val out = JobMoneyBackfill.merge(
+            rep = job(),
+            c = card(total = 500_000, deposit = 100_000, balance = 400_000, balancePaidAt = paidAt, workCompletedAt = paidAt),
+            othersHaveMoney = true
+        )
+        assertNull("지난 1차 돈·완납이 빈 미래 2차로 묻어나면 안 된다 (B1)", out)
+    }
+
+    @Test fun `B1 - 다른 건에 돈이 없으면(진짜 카드전용) 그대로 끌어온다`() {
+        // 레거시: 카드에만 돈이 있고 어느 건에도 없다 → 빈 대표 건으로 올려 보호(기존 동작 유지).
+        val out = JobMoneyBackfill.merge(
+            rep = job(),
+            c = card(total = 500_000, deposit = 100_000, balance = 400_000, balancePaidAt = paidAt, workCompletedAt = paidAt),
+            othersHaveMoney = false
+        )
+        assertNotNull("카드전용 돈은 여전히 대표 건으로 올려야 한다", out)
+        assertEquals(500_000L, out!!.totalAmount)
+        assertEquals(paidAt, out.balancePaidAt)
+    }
 }

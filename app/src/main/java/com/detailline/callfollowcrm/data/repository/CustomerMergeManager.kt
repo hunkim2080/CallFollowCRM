@@ -229,6 +229,7 @@ class CustomerMergeManager(
     private suspend fun moveEverything(from: Long, to: Long): Int {
         var n = 0
         n += runCatching { mergeDao.moveJobs(from, to) }.getOrDefault(0)
+        n += runCatching { mergeDao.moveCustomerNotes(from, to) }.getOrDefault(0)   // 쪽지 — 안 옮기면 사라짐 (A1)
         n += runCatching { mergeDao.moveJobCrew(from, to) }.getOrDefault(0)
         n += runCatching { mergeDao.moveMessages(from, to) }.getOrDefault(0)
         n += runCatching { mergeDao.moveCallSummaries(from, to) }.getOrDefault(0)

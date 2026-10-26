@@ -15304,3 +15304,13 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 배포: GOTCHAS §3 (백업 predeploy-20261026-144024 → patch_sec.py 2곳 → py_compile → swap → kickstart PID 88046). 
 - 검증: smoke 10/10(백업 줄을 쿼리 session_token 으로 수정 — 앱 실제 경로). 무인증 app-backup/status=401, 토큰=200, 웹 schedule-feed 무인증 POST=401, account/delete=400 확인.
 - 영향: 구버전(토큰 미동봉) 앱의 웹 미러 push·백업은 업데이트/재로그인 전까지 401(자가치유). 돈/데이터손실 감사건은 아직 미착수(다음).
+
+## 2026-10-26 15:30 · android
+보안감사 #3(돈 두 벌)+A1(쪽지) — 명확/테스트가능한 것 수정
+- A1: 고객 병합 때 customer_notes 이동(mergeDao.moveCustomerNotes). 전엔 안 옮겨 쪽지(현관비번 등) 사라짐.
+- B2: WorkCompletionManager.setBalancePaid(jobId=null) → 대표(미래) 대신 completionTargetJobId(작업한 건). 완료·잔금이 늘 같은 건에.
+- B4: ScheduleAddViewModel — 2차 등록 때 customerRepository.updateAddress 제거(대표 건으로 미러돼 1차 주소 덮던 것). 돈과 동일 패턴, 카드는 recomputeMirror가 당겨옴.
+- B5: Home 완료+완납 되돌리기 undoJobCompletedBalancePaid(둘 다 뗌). 전엔 완료만 떼고 잔금 남음.
+- B1: JobMoneyBackfill.merge(othersHaveMoney) 가드 — 대표 비었는데 다른 건에 돈 있으면 카드 돈 안 끌어옴(지난 1차가 미래 2차로 묻어남 방지). 호출부 repairMoneyMirrorOf가 신호+스테일 카드 recomputeMirror. 단위테스트 2개 추가.
+- 가드/테스트 전부 통과. 폰 설치 완료. 실기(건 2개·입금확인·되돌리기) 확인 대기.
+- 남음: B3(연타 race)·B8(리포트 vs 홈 소스)·#4(토큰 URL)·#5(로그 번호)·C2/C3 — 다음.

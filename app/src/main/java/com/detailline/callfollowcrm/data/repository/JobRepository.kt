@@ -402,13 +402,18 @@ class JobRepository(
         if (jobs.isEmpty()) return false   // 건 없는 고객 = 카드가 SoT, 안 건드림
         val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(now)
         val rep = com.detailline.callfollowcrm.domain.job.RepresentativeJob.pick(jobs, today) ?: return false
-        val merged = com.detailline.callfollowcrm.domain.job.JobMoneyBackfill.merge(rep, c)
+        // 🛡️ B1: 대표 아닌 다른 건에 돈이 있나 — 있으면 카드 돈을 빈 대표로 끌어올리지 않는다(지난 건 돈이 미래로 묻어남 방지). (2026-10-26)
+        val othersHaveMoney = jobs.any {
+            it.id != rep.id && com.detailline.callfollowcrm.domain.job.JobMoneyBackfill.hasMoneyOrStamp(it)
+        }
+        val merged = com.detailline.callfollowcrm.domain.job.JobMoneyBackfill.merge(rep, c, othersHaveMoney)
         if (merged != null) {
             val ok = runCatching { jobDao.update(merged.copy(updatedAt = now)) }.isSuccess
             if (ok && renumber) renumberRecords(now)
             return ok
         }
-        if ((c.balancePaidAt == null && rep.balancePaidAt != null) ||
+        if (othersHaveMoney ||   // B1 가드로 안 끌어왔으면 카드가 스테일(지난 건 돈) — 대표(빈 건) 기준으로 다시 맞춘다.
+            (c.balancePaidAt == null && rep.balancePaidAt != null) ||
             (c.depositPaidAt == null && rep.depositPaidAt != null) ||
             (c.workCompletedAt == null && rep.workCompletedAt != null)) {
             // 🩹 (2026-10-13 사장님) 반대 방향 — **받음·완료가 건 전표엔 있는데 카드엔 없는** 경우.

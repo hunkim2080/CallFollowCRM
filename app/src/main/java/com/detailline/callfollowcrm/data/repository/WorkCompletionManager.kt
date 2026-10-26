@@ -64,22 +64,24 @@ class WorkCompletionManager(
      *   잔금 액수가 비어 있으면 (총액 − 계약금)으로 채운다 — 안 채우면 「잔금 받음」인데 0원이라 정산이 이상해진다.
      */
     suspend fun setBalancePaid(customerId: Long, at: Long?, jobId: Long? = null, now: Long = System.currentTimeMillis()) {
-        if (jobId != null) {
-            // 🔴 **그 건에만** 찍는다 — 옆 건 돈을 건드리면 안 된다. (2026-09-18) 건의 미러가 대표 건이면 카드도 따라간다.
-            jobRepository.setBalancePaid(jobId, at, now)
-            if (jobRepository.representativeJobId(customerId, now) == jobId) {
+        // 🔴 어느 '건'에 찍나 — 지정 건, 없으면 **방금 끝낸(오늘/지난) 건**(완료와 **같은 건**). 대표(미래) 아님. (2026-10-26 보안감사 B2)
+        //   전엔 jobId=null 이면 대표=미래 건에 찍어, 작업한 1차는 미수로 남고 미래 2차가 완납으로 떴다.
+        //   JobRepository.setBalancePaid 가 그 건에 **잔금액 채움 + 자동완료 + 카드(대표 건) 미러**까지 한다.
+        val target = jobId ?: jobRepository.completionTargetJobId(customerId, now, completing = at != null)
+        if (target != null) {
+            jobRepository.setBalancePaid(target, at, now)
+            // 그 건이 대표(카드가 보여주는 건)면 카드에도 바로 — recomputeMirror 와 belt-and-suspenders. (2026-09-18)
+            if (jobRepository.representativeJobId(customerId, now) == target) {
                 customerRepository.updateBalancePaidAt(customerId, at)
             }
             return
         }
+        // 건이 하나도 없는 고객 — 카드가 SoT. 카드에만 찍는다(잔금액 비면 총액−계약금으로).
         val c = customerRepository.findById(customerId)
         if (at != null && c != null && c.balanceAmount == null) {
             val bal = ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
             if (bal > 0L) customerRepository.updateBalanceAmount(customerId, bal)
         }
         customerRepository.updateBalancePaidAt(customerId, at)
-        jobRepository.repairMoneyMirrorOf(customerId, now)
-        jobRepository.representativeJobId(customerId, now)
-            ?.let { jobRepository.setBalancePaid(it, at, now) }
     }
 }

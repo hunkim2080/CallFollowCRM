@@ -31,9 +31,20 @@ object JobMoneyBackfill {
         totalAmount != null || depositAmount != null || balanceAmount != null ||
             depositPaidAt != null || balancePaidAt != null || workCompletedAt != null
 
-    fun merge(rep: JobEntity, c: CustomerEntity): JobEntity? {
+    /** 이 건에 돈·받음·완료가 하나라도 있나. (B1 가드: '대표는 비었는데 다른 건에 돈 있나' 판정에 호출부가 쓴다) */
+    fun hasMoneyOrStamp(job: JobEntity): Boolean = job.hasAny()
+
+    /**
+     * @param othersHaveMoney 이 고객의 **대표 아닌 다른 건**에 돈·받음·완료가 있나(호출부가 셈).
+     *   true 이고 대표 건이 비어 있으면 — 카드 돈은 그 다른(지난) 건 것이라 **빈 대표로 안 끌어온다**(B1).
+     */
+    fun merge(rep: JobEntity, c: CustomerEntity, othersHaveMoney: Boolean = false): JobEntity? {
         if (!c.hasAny()) return null
         val jobEmpty = !rep.hasAny()
+        // 🛡️ B1 (2026-10-26 보안감사): 대표 건이 비었는데 **다른 건에 돈이 있으면** 카드 돈은 그 건(지난 1차) 것이다.
+        //   빈 미래 건으로 끌어올리면 미래가 완납·완료로 뜬다(매출 이중계산·거짓 완납). → 아무것도 안 끌어온다.
+        //   카드 스테일은 호출부가 recomputeMirror(건→카드)로 바로잡는다.
+        if (jobEmpty && othersHaveMoney) return null
         val pullPaid = (rep.balancePaidAt == null && c.balancePaidAt != null) ||
             (rep.depositPaidAt == null && c.depositPaidAt != null)
         if (!jobEmpty && !pullPaid) return null

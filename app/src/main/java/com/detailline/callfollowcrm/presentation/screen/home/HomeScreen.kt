@@ -1722,7 +1722,8 @@ fun HomeScreen(
                                 "$name 완료 · 잔금까지 다 받음 처리했어요",
                                 actionLabel = "되돌리기"
                             )
-                            if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompleted(cid)
+                            // 완료+완납을 했으니 되돌리기도 **둘 다** 떼야 한다 (B5 — 전엔 완료만 떼 잔금이 남았다)
+                            if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompletedBalancePaid(cid)
                         }
                     },
                     onSend = { phone, name, body, kind ->

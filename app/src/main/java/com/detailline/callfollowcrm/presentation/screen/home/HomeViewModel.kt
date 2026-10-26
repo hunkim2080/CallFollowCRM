@@ -1356,6 +1356,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             container.workCompletionManager.setCompleted(customerId, null)
         }
     }
+    /** 완료+완납 되돌리기 — **둘 다** 뗀다. (2026-10-26 보안감사 B5)
+     *   전엔 완료만 떼고 잔금은 '받음'으로 남아, 사장님은 되돌린 줄 알고 영영 안 받았다. */
+    fun undoJobCompletedBalancePaid(customerId: Long) = viewModelScope.launch {
+        SaveGuard.run("되돌리기", _toast) {
+            container.workCompletionManager.setBalancePaid(customerId, null)
+            container.workCompletionManager.setCompleted(customerId, null)
+        }
+    }
 
     /**
      * 완료 + 잔금 완납 처리 — 완료 팝업에서 "잔금 다 받았어요" 선택 시. (2026-06-15 사장님)

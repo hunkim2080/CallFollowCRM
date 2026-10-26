@@ -46,6 +46,10 @@ interface CustomerMergeDao {
     @Query("UPDATE jobs SET customerId = :to WHERE customerId = :from")
     suspend fun moveJobs(from: Long, to: Long): Int
 
+    // 🗒️ 쪽지(현관 비번·주차 등) — 안 옮기면 없어지는 쪽에 묶여 영영 사라진다. (2026-10-26 보안감사 A1)
+    @Query("UPDATE customer_notes SET customerId = :to WHERE customerId = :from")
+    suspend fun moveCustomerNotes(from: Long, to: Long): Int
+
     @Query("UPDATE job_crew SET customerId = :to WHERE customerId = :from")
     suspend fun moveJobCrew(from: Long, to: Long): Int
 
