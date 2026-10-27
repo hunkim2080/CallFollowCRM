@@ -208,9 +208,22 @@ fun CustomerDetailScreen(
     // (selectedPastJobId 제거 — 건 탭에서 하나를 고르던 상태. 이제 건마다 자기 카드가 다 보인다. 2026-10-15)
     // 빈 메모 카드를 폈나 — 빈 공백 줄이려 접어두고, 누르면 펼친다. (2026-10-07 사장님 "허전해")
     var memoExpanded by remember(customer?.id) { mutableStateOf(false) }
-    // 🤝 이 고객이 협업 사장이면(시공막내로 한 번이라도 같이 일함) 전용 화면으로 분기한다. null = 보통 고객.
-    //   판정·받음/준 묶기는 CollabTogether 한 곳(화면이 직접 날짜 비교 안 함).
-    val collabView by viewModel.collabView.collectAsState()
+    // 🤝 이 고객이 협업 사장이면 전용 화면으로 분기. 세 상태(Loading/Partner/NotPartner)로 둬서,
+    //   서버 답을 기다리는 동안 보통 고객 화면을 깜빡 보였다 홱 바뀌는 걸 막는다. (2026-10-27 사장님 "갑자기 전환")
+    val collabUi by viewModel.collabUi.collectAsState()
+    val collabPartner = (collabUi as? CollabPartnerUi.Partner)?.view
+    // 전에 협업 사장으로 확인된 번호(기억) 이거나 내가 그 사람한테 공유한 적(collabAssignments) 있으면 → 로딩 중에도 보통 화면 대신 "불러오는 중".
+    val knownCollabCtx = androidx.compose.ui.platform.LocalContext.current
+    val knownCollab = remember(customer?.id) {
+        val ph = customer?.phoneNumber
+        if (ph.isNullOrBlank()) false else {
+            val kprefs = (knownCollabCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
+            val key = com.detailline.callfollowcrm.util.PhoneKey.of(ph)
+            key.isNotBlank() && (kprefs.knownCollabPartners.contains(key) ||
+                kprefs.collabAssignments.any { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it)?.let { l -> com.detailline.callfollowcrm.util.PhoneKey.of(l.phone) == key } == true })
+        }
+    }
+    val showCollabLoading = collabUi is CollabPartnerUi.Loading && knownCollab
     // 🗑 취소/빈 '지난 건' 삭제 확인 대상. (2026-10-06 사장님)
     var deletePastJobConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.JobEntity?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
@@ -329,7 +342,7 @@ fun CustomerDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (collabView != null) "협업 사장" else "고객 정보",
+                        if (collabPartner != null || showCollabLoading) "협업 사장" else "고객 정보",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -362,7 +375,7 @@ fun CustomerDetailScreen(
                     color = TossTextTertiary
                 )
             }
-        } else if (collabView != null) {
+        } else if (collabPartner != null) {
             // 🤝 협업 사장 — 보통 고객 화면 대신 전용 화면(전화·메모·함께한 현장). (2026-10-27 사장님 ②)
             //   메모 편집 창(NoteEditDialog)도 이 분기가 들고 있다 — 보통 화면 것과 같은 공용 컴포넌트.
             val collabNotes by viewModel.notes.collectAsState()
@@ -376,7 +389,7 @@ fun CustomerDetailScreen(
             }
             CustomerCollabScreen(
                 customer = c,
-                view = collabView!!,
+                view = collabPartner,
                 topPadding = inner.calculateTopPadding(),
                 notes = collabNotes,
                 memoExpanded = memoExpanded,
@@ -386,6 +399,15 @@ fun CustomerDetailScreen(
                 onTogglePin = { viewModel.togglePinNote(it.id) },
                 onDeleteNote = { viewModel.deleteNote(it.id) }
             )
+        } else if (showCollabLoading) {
+            // 🤝 전에 협업 사장으로 확인된 사람 — 서버 답(collabUi)이 오기 전에 보통 고객 화면을 깜빡 보이지 않게
+            //   "불러오는 중"만 보인다. 답 오면 위 Partner 분기(또는 아니면 아래 보통 화면)로. (2026-10-27 사장님 "갑자기 전환")
+            Column(
+                Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("협업 현장 불러오는 중…", modifier = Modifier.padding(24.dp), color = TossTextTertiary)
+            }
         } else {
         // ⚠️ 여기 있던 return@Scaffold 를 뺐다 — Composable 안에서 빠져나가면
         //    빈→로드 전환 때 슬롯테이블이 어긋나 화면이 꺼지거나 빈 화면이 된다.

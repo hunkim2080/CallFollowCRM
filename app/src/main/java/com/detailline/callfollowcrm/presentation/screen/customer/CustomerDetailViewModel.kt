@@ -32,7 +32,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.detailline.callfollowcrm.util.PhoneKey
-import com.detailline.callfollowcrm.domain.collab.CollabTogether
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CustomerDetailViewModel(
@@ -126,14 +125,10 @@ class CustomerDetailViewModel(
         }
     }
 
-    /**
-     * 🤝 이 고객이 **협업 사장**이면 그 양방향 함께한 현장, 아니면 null → 보통 고객 화면 그대로.
-     *   로딩은 [loadCollabView] 한 곳(VM 안 키우려고 §12-F), 판정·묶기는 [CollabTogether].
-     */
-    val collabView: kotlinx.coroutines.flow.StateFlow<CollabTogether.View?> =
-        customer.filterNotNull().flatMapLatest { c ->
-            flow { emit(loadCollabView(container, c.phoneNumber)) }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    /** 🤝 협업 판정 세 상태 — 캐시 먼저→서버 갱신. 흐름은 [collabUiFlow] 한 곳(VM 안 키움). (2026-10-27 사장님 캐시) */
+    val collabUi: kotlinx.coroutines.flow.StateFlow<CollabPartnerUi> =
+        customer.filterNotNull().flatMapLatest { c -> collabUiFlow(container, c.phoneNumber) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CollabPartnerUi.Loading)
 
     // 발행 이력 — 이 고객에게 발행한 견적서/시공접수서. 2026-07-07 사장님.
     /**

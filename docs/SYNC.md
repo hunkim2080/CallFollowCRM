@@ -15425,3 +15425,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: CustomerDetail 이 협업 사장이면 분기(상단 제목 '협업 사장'). 새 CollabTogether(판정·받음/준 묶기, 순수+시험7), CollabPartnerLoad(로딩), CustomerCollabScreen(화면 ②). CollabPillarRow 에 선택 인자 dirTag 추가(기존 3호출부는 기본값이라 안 바뀜). 서버 변경 없음.
 - 폰 확인: S9 설치만. 협업 실데이터가 없어 화면은 눈으로 미확인 — 순수 셈은 시험이 대신 봄. S23U 내부테스트 업로드함.
 - 다음 액션: 사장님이 실제 협업 사장 고객 열어서 ② 화면 확인.
+
+## 2026-10-27 22:45 · android
+협업 사장 고객상세 — 깜빡임 수정 + 캐시 (사장님 지시).
+- 변경: collabUi 3상태(Loading/Partner/NotPartner)로 보통→협업 홱 전환 방지. 함께한 현장을 폰에 캐시(CollabSitesCache, prefs JSON)해 다음엔 서버 안 묻고 바로 표시. 한 번 협업 사장이면 서버 빈 답(실패·윈도우밖)에도 강등 안 함(캐시 유지). 흐름은 collabUiFlow 한 곳.
+- 폰 확인: S9 설치. 협업 실데이터 없어 화면은 미확인(순수 셈·캐시 직렬화는 시험/컴파일로 확인).
+- 다음 액션: 사장님이 실제 협업 사장 열어서 ① 바로 뜨는지 ② 재진입 시 깜빡임 없는지 확인.

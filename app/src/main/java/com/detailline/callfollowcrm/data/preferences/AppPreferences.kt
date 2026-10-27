@@ -964,6 +964,24 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("collab_assignments", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("collab_assignments", value).commit() }
 
+    /**
+     * 🤝 **협업 사장으로 확인된 고객 번호(끝 8자리 열쇠) 기억** — 고객상세가 열릴 때 서버 답을 기다리는 동안
+     *   보통 고객 화면을 먼저 깜빡 보였다가 협업 화면으로 홱 바뀌는 걸 막는다(한 번 알면 다음부턴 바로 협업 화면).
+     *   채우는 곳은 [loadCollabView] 한 곳(협업이면 더함·아니면 뺌 — 자가 교정). (2026-10-27 사장님 "갑자기 화면이 전환되네")
+     */
+    var knownCollabPartners: Set<String>
+        get() = prefs.getStringSet("known_collab_partners", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("known_collab_partners", value).commit() }
+
+    /**
+     * 🤝 **협업 사장 고객별 함께한 현장 캐시(JSON)** — 다녀온 페이지를 기억해 다음엔 서버에 안 묻고 바로 보여준다.
+     *   { "번호열쇠": { "r":[받은현장…], "g":[준현장…] } }. 채우고 읽는 곳은 [CollabSitesCache] 한 곳.
+     *   서버가 새 현장을 주면 갱신, 빈 답(실패·윈도우 밖)이면 **그대로 둔다** — 협업 사장은 보통 고객이 안 된다(사장님 2026-10-27).
+     */
+    var collabSitesCacheJson: String
+        get() = prefs.getString("collab_sites_cache", "") ?: ""
+        set(value) { prefs.edit().putString("collab_sites_cache", value).commit() }
+
     /** 전문가 배정에서 협업 요청 시 마지막으로 고른 출근시간(24h). 다음 요청 때 미리 선택됨. 기본 오전 9시. (2026-06-14) */
     var lastCollabStartHour: Int
         get() = prefs.getInt("last_collab_start_hour", 9)
