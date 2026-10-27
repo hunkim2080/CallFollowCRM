@@ -40,6 +40,7 @@ import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity
 import com.detailline.callfollowcrm.domain.collab.CollabPartnerGroups
 import com.detailline.callfollowcrm.domain.collab.CollabTogether
+import com.detailline.callfollowcrm.domain.collab.SettlementStatement
 import com.detailline.callfollowcrm.domain.ui.AvatarInitial
 import com.detailline.callfollowcrm.presentation.component.NoteList
 import com.detailline.callfollowcrm.presentation.component.TossCard
@@ -99,11 +100,11 @@ internal fun CustomerCollabScreen(
     }
     val fold = rememberMonthFold(foldMonths)
 
-    // 정산서는 완료 건이 있어야 — 받은 쪽(내가 받은 일당)을 기본으로, 없으면 준 쪽.
-    val settleGroup = remember(view) {
-        CollabPartnerGroups.group(view.receivedSites).firstOrNull()
-            ?: CollabPartnerGroups.groupByPartner(view.givenSites).firstOrNull()
-    }
+    // 정산서는 방향별 2장(사장님 2026-10-27) — 받을 일당/줄 일당을 섞지 않는다. 완료 건(일당 있는)이 있는 방향만 보인다.
+    val recvGroup = remember(view) { CollabPartnerGroups.group(view.receivedSites).firstOrNull() }
+    val giveGroup = remember(view) { CollabPartnerGroups.groupByPartner(view.givenSites).firstOrNull() }
+    val recvHasDone = remember(view) { SettlementStatement.eligible(view.receivedSites).isNotEmpty() }
+    val giveHasDone = remember(view) { SettlementStatement.eligible(view.givenSites).isNotEmpty() }
 
     Column(
         Modifier
@@ -206,8 +207,9 @@ internal fun CustomerCollabScreen(
                 }
             }
 
-            // 정산서 (완료 건이 있어야 — 버튼이 스스로 판단·연타막기)
-            settleGroup?.let { Column { SettlementStatementButton(it) } }
+            // 정산서 — 받을/줄 각각 2장(완료 건 있는 방향만). 버튼은 스스로 달 고르기·연타막기.
+            if (recvHasDone && recvGroup != null) Column { SettlementStatementButton(recvGroup, title = "받을 일당 정산서") }
+            if (giveHasDone && giveGroup != null) Column { SettlementStatementButton(giveGroup, title = "줄 일당 정산서") }
 
             // 필터 칩 (받음·줌 둘 다 있을 때만)
             if (view.receivedCount > 0 && view.givenCount > 0) {

@@ -68,7 +68,7 @@ import kotlinx.coroutines.withContext
  *   값은 전부 토큰(AppType · AppShape · AppTheme.colors) — style_guard 0.
  */
 @Composable
-internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group) {
+internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group, title: String = "정산서 이미지 저장·공유") {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
@@ -104,7 +104,7 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group) {
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text(if (busy) "정산서 만드는 중…" else "정산서 이미지 저장·공유",
+            Text(if (busy) "정산서 만드는 중…" else title,
                 style = AppType.label, fontWeight = FontWeight.ExtraBold,
                 color = if (canMake) androidx.compose.ui.graphics.Color.White else c.textHint)
         }

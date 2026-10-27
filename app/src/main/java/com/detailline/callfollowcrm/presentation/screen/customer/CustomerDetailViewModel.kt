@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -125,10 +126,16 @@ class CustomerDetailViewModel(
         }
     }
 
-    /** 🤝 협업 판정 세 상태 — 캐시 먼저→서버 갱신. 흐름은 [collabUiFlow] 한 곳(VM 안 키움). (2026-10-27 사장님 캐시) */
+    /**
+     * 🤝 협업 판정 세 상태 — 캐시 먼저→서버 갱신. 흐름은 [collabUiFlow] 한 곳(VM 안 키움). (2026-10-27 사장님 캐시)
+     *   **번호가 바뀔 때만** 다시 부른다(distinctUntilChanged) — 고객 행이 자주 갱신돼도(백필 등) 로딩이
+     *   다시 시작돼 "불러오는 중"에서 안 넘어가던 것 방지. (2026-10-27 사장님 "첫 진입 때 멈춤")
+     */
     val collabUi: kotlinx.coroutines.flow.StateFlow<CollabPartnerUi> =
-        customer.filterNotNull().flatMapLatest { c -> collabUiFlow(container, c.phoneNumber) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CollabPartnerUi.Loading)
+        customer.map { it?.phoneNumber }.distinctUntilChanged().flatMapLatest { phone ->
+            if (phone.isNullOrBlank()) kotlinx.coroutines.flow.flowOf(CollabPartnerUi.NotPartner)
+            else collabUiFlow(container, phone)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CollabPartnerUi.Loading)
 
     // 발행 이력 — 이 고객에게 발행한 견적서/시공접수서. 2026-07-07 사장님.
     /**
