@@ -824,8 +824,10 @@ internal fun CalendarSyncSheet(
     data class CalRow(val emoji: String, val day: Long, val title: String, val sub: String?)
     val rows = androidx.compose.runtime.remember(work, asList, simples) {
         val out = ArrayList<CalRow>()
+        // 올린 일정 목록은 **현장 주소로 통일** — 이름(업체·대표님)이 섞여 들쭉날쭉했다. 주소 없으면 이름, 그것도 없으면 번호. (2026-10-28 사장님)
         fun who(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity): String =
-            c.name?.takeIf { it.isNotBlank() } ?: c.address?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+            com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address).takeIf { it.isNotBlank() }
+                ?: c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
         for (c in work) { val d = c.scheduledWorkDate ?: continue; out.add(CalRow("🏗️", d, who(c), "시공")) }
         for (c in asList) { val d = c.asScheduledDate ?: continue; out.add(CalRow("🔧", d, who(c), "A/S")) }
         for (e in simples) out.add(
