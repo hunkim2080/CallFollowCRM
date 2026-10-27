@@ -977,8 +977,10 @@ fun CustomerDetailScreen(
                 val alreadyUsed = caught != null && allJobsForTabs.any {
                     it.address?.trim() == caught.trim()
                 } || (caught != null && c.address?.trim() == caught.trim())
-                val fillTarget = allJobsForTabs
-                    .filter { !jobFolded(it) && it.address.isNullOrBlank() }
+                // 주소가 빈 건이 있으면 — **완료(접힌)됐어도** — 새 시공 말고 그 건을 먼저 채운다. 열린 건을 우선. (2026-10-28 사장님)
+                //   "1차에 주소가 안 적혀 있으면 새시공 아니라 1차 빈 주소에 들어가야 함."
+                val emptyAddrJobs = allJobsForTabs.filter { it.address.isNullOrBlank() && !jobCancelled(it) }
+                val fillTarget = (emptyAddrJobs.filter { !jobFolded(it) }.ifEmpty { emptyAddrJobs })
                     .minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
                 val show = detailTab == 0 && caught != null && !addrSuggestDismissed &&
                     !isGeneralThread && closedJobs.isNotEmpty() && !alreadyUsed
@@ -987,7 +989,7 @@ fun CustomerDetailScreen(
                         closedJobs.joinToString("·") { "${jobNthOf(allJobsForTabs, it)}차" } + "는 잔금까지 받아서 마무리됐어요."
                     else "이번 시공은 잔금까지 받아서 마무리됐어요."
                     val askText = if (fillTarget != null)
-                        "진행 중인 ${jobNthOf(allJobsForTabs, fillTarget)}차 현장 주소인가요?"
+                        "${jobNthOf(allJobsForTabs, fillTarget)}차 현장 주소인가요? (주소가 비어 있어요)"
                     else "새 현장 주소인가요?"
                     val yesText = if (fillTarget != null)
                         "${jobNthOf(allJobsForTabs, fillTarget)}차 주소로 등록" else "새 시공으로 잡기"
