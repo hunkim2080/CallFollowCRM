@@ -34,6 +34,14 @@ interface CallRecordDao {
     """)
     fun observeByPhoneSuffix(suffix: String): Flow<List<CallRecordEntity>>
 
+    /** 짧은 번호(114 등) — 끝자리 LIKE 는 '…0114' 남의 통화를 끌어오므로 번호 전체가 같을 때만. (2026-10-27) */
+    @Query("""
+        SELECT * FROM call_records
+        WHERE replace(replace(phoneNumber, '-', ''), ' ', '') = :number
+        ORDER BY endedAt DESC
+    """)
+    fun observeByPhoneExact(number: String): Flow<List<CallRecordEntity>>
+
     @Query("SELECT * FROM call_records ORDER BY endedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<CallRecordEntity>>
 

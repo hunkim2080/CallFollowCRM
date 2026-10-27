@@ -433,6 +433,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 |---|---|---|
 | 키보드 여백 | `Modifier.keyboardPadding()` / `.keyboardOrNavPadding()` (`presentation/util/SystemBars.kt`, 셈은 `domain/ui/KeyboardFit.kt`) | `imePadding()`, `windowInsetsPadding(ime/keyboardClearance)` |
 | 전화번호 맞추기 | `util/PhoneKey.kt` | `takeLast(8)`, 글자 그대로 비교 |
+| 두 번호가 **같은 상대인가**(짧은 번호 114·100 등은 **번호 전체가 같아야** · 보통 번호는 끝 8자리) | `util/PhoneMatch.kt` — `same`·`keyOf`·`isShort`. 조회가 `LIKE '%'+suffix` 면 `isShort` 로 갈라 짧은 번호는 정확일치 쿼리로(통화 기록·녹음·요약) | 화면·DAO 에서 `takeLast(8)` 직접, 짧은 번호를 `LIKE '%'+suffix` 로 그냥 조회(2026-10-27: 통화조회가 114 방에 「…0114」 남의 통화를 끌어옴) |
 | 전화번호 보여주기 | `util/PhoneNumberFormatter.kt` | 하이픈 직접 끼우기 |
 | 오늘 0시·날짜 경계 | `util/DateTimeUtils.startOfDay(ms)` | `set(HOUR_OF_DAY, 0)` |
 | 달의 시작·달 넘기기 | `util/DateTimeUtils.startOfMonth(ms)` / `.shiftMonth(anchor, delta)` | `set(DAY_OF_MONTH, 1)`, `monthStartOf`·`monthAnchor(Of)`·`shiftMonth(Ms)` 를 화면마다 새로 |

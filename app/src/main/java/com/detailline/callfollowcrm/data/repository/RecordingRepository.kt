@@ -14,9 +14,11 @@ class RecordingRepository(private val dao: RecordingAttachmentDao) {
 
     fun observeUnlinked(): Flow<List<RecordingAttachmentEntity>> = dao.observeUnlinked()
 
-    /** 채팅 통화카드 재생 플레이어용 — 번호 suffix 매칭으로 녹음 첨부 관찰. */
+    /** 채팅 통화카드 재생 플레이어용 — 번호 suffix 매칭으로 녹음 첨부 관찰.
+     *  짧은 번호(114 등)는 번호 전체 일치로 — 끝자리 LIKE 가 남의 번호를 끌어오지 않게. (2026-10-27) */
     fun observeByPhoneSuffix(suffix: String): Flow<List<RecordingAttachmentEntity>> =
-        dao.observeByPhoneSuffix(suffix)
+        if (com.detailline.callfollowcrm.util.PhoneMatch.isShort(suffix)) dao.observeByPhoneExact(suffix)
+        else dao.observeByPhoneSuffix(suffix)
 
     suspend fun existsByUri(uri: String): Boolean = dao.countByUri(uri) > 0
 

@@ -31,6 +31,14 @@ interface RecordingAttachmentDao {
     """)
     fun observeByPhoneSuffix(suffix: String): Flow<List<RecordingAttachmentEntity>>
 
+    /** 짧은 번호(114 등) — 끝자리 LIKE 가 남의 번호를 끌어오므로 번호 전체가 같을 때만. (2026-10-27) */
+    @Query("""
+        SELECT * FROM recording_attachments
+        WHERE replace(replace(phoneNumber, '-', ''), ' ', '') = :number
+        ORDER BY createdAt DESC
+    """)
+    fun observeByPhoneExact(number: String): Flow<List<RecordingAttachmentEntity>>
+
     @Query("SELECT * FROM recording_attachments WHERE id = :id")
     suspend fun findById(id: Long): RecordingAttachmentEntity?
 

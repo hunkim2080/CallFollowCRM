@@ -13,9 +13,11 @@ class CallSummaryRepository(private val dao: CallSummaryDao) {
     suspend fun listByCustomer(customerId: Long): List<CallSummaryEntity> =
         dao.listByCustomer(customerId)
 
-    /** 채팅 화면용 — 번호 끝 8자리로 통화요약 관찰(통화기록과 같은 suffix 매칭). */
+    /** 채팅 화면용 — 번호 끝 8자리로 통화요약 관찰(통화기록과 같은 suffix 매칭).
+     *  짧은 번호(114 등)는 번호 전체 일치로 — 끝자리 LIKE 가 남의 번호를 끌어오지 않게. (2026-10-27) */
     fun observeByPhoneSuffix(suffix: String): Flow<List<CallSummaryEntity>> =
-        dao.observeByPhoneSuffix(suffix)
+        if (com.detailline.callfollowcrm.util.PhoneMatch.isShort(suffix)) dao.observeByPhoneExact(suffix)
+        else dao.observeByPhoneSuffix(suffix)
 
     /** 상담함 한줄 미리보기용 — 전체 통화요약(최신순). */
     fun observeAll(): Flow<List<CallSummaryEntity>> = dao.observeAll()

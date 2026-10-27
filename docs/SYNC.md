@@ -15354,3 +15354,13 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 표시·소비 지점 확인(§12-K): 메시지 목록=loadMessages(865) 한 곳만 표시 차단 → 고침. 다른 <7 가드 11곳은 AI추천/요약/백로그/발신보존(각자 다른 판단) → 그대로 둠. MMS 경로(queryMmsByPhone)는 sameParty 정확매칭이라 114 OK.
 - 폰 확인: S9(100.121.10.111) 에 debug 설치 성공. ⚠️ S9 는 하드웨어 오버레이로 화면캡처가 빈화면 → 눈 확인 못 함. 사장님 폰(114 실데이터)에서 봐주셔야 함.
 - 다음 액션: 사장님 — 업데이트 받은 뒤 114 방 열어 메시지 뜨는지 / 긴 MMS 안 꺼도 미리보기 바뀌는지 확인.
+
+## 2026-10-27 11:55 · android
+짧은 번호(114 등) 대화방이 '보이는 내용'까지 막던 것 — 막을 필요 없는 7곳 풀고, 섞이던 3곳은 정확일치로
+- 배경: 사장님 "내용 보이는 것까지 막을 필요가 있나?" → 7자리 미만이면 빈 것으로 처리하던 가드가 메시지 말고도 6곳(통화기록·녹음·통화요약·접수서·변경이력·발행이력) 더 있었음.
+- 변경A(막을 이유 없던 4곳): intakeEvents·timelineEvents·issuedDocs·aiSummary 는 조회가 `phoneSuffix = :suffix` 정확일치 → 가드만 제거(ChatViewModel).
+- 변경B(섞이던 3곳): callRecords·recordings·callSummaries 는 조회가 `LIKE '%'+suffix` 라 114 풀면 '…0114' 남의 통화가 섞임. → DAO 에 `observeByPhoneExact` 추가, repository 가 `PhoneMatch.isShort` 로 짧으면 정확일치/길면 기존 LIKE 라우팅(호출부 전부 자동: ChatViewModel·NewLeads·IncomingCallOverlay). 공용 util/PhoneMatch.kt 에 isShort 추가.
+- 표시·소비 지점 확인(§12-K): 대화방 <7 가드 전수 — 내용 숨기던 7곳 다 품(바꾼 것 7). 남긴 4곳은 내용숨김 아님(고객인가요?프롬프트·AI요약생성·발신보존·백로그판정, 둬도 됨).
+- 공용 등재: PhoneMatch 6곳→§12 표 한 줄 추가 + rulesBaselineUpdate(46개). 가드7종 통과·테스트 통과.
+- 폰 확인: S9 debug 설치 성공. ⚠️ S9 화면캡처 불가 → 사장님 폰에서 114 방(메시지+통화 카드) 보이는지 확인 요망.
+- 다음 액션: 사장님 — 114 방 열어 내용 뜨는지 / 다른 번호 대화에 114 통화가 안 섞이는지 확인.

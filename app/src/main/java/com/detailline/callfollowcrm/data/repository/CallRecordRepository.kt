@@ -66,7 +66,10 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     fun observeBetween(from: Long, to: Long): Flow<List<CallRecordEntity>> = dao.observeBetween(from, to)
     fun observeByPhone(phone: String): Flow<List<CallRecordEntity>> = dao.observeByPhone(phone)
     /** 채팅 통화 구간 표시용 — 끝 8자리 suffix 매칭. */
-    fun observeByPhoneSuffix(suffix: String): Flow<List<CallRecordEntity>> = dao.observeByPhoneSuffix(suffix)
+    // 짧은 번호(114 등)는 끝자리 LIKE 가 '…0114' 남의 통화를 끌어오므로 번호 전체 일치로. (2026-10-27)
+    fun observeByPhoneSuffix(suffix: String): Flow<List<CallRecordEntity>> =
+        if (com.detailline.callfollowcrm.util.PhoneMatch.isShort(suffix)) dao.observeByPhoneExact(suffix)
+        else dao.observeByPhoneSuffix(suffix)
     fun countUnhandled(from: Long, to: Long): Flow<Int> = dao.countUnhandled(from, to)
     fun countHandled(from: Long, to: Long): Flow<Int> = dao.countHandled(from, to)
     fun observeMissedSince(from: Long): Flow<List<CallRecordEntity>> = dao.observeMissedSince(from)

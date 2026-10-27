@@ -274,9 +274,8 @@ class ChatViewModel(
      *   요약 가져오기(에이닷/서버)는 별개 — 여기선 통화 자체(유형·시간·길이) 노출까지.
      */
     val callRecords: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
-        else container.callRecordRepository.observeByPhoneSuffix(suffix)
+        // 짧은 번호(114 등)도 통화 카드가 보이게 — 남의 통화 섞임은 repository(PhoneMatch.isShort→정확일치)가 막는다. (2026-10-27)
+        container.callRecordRepository.observeByPhoneSuffix(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ── '이 사람 고객인가요?' 조용한 줄 (2026-07-18 사장님) ── (callRecords 아래 선언 = 초기화 순서 NPE 방지)
@@ -310,9 +309,8 @@ class ChatViewModel(
 
     /** 통화 녹음 첨부 (2026-06-16) — 통화 카드에 재생 플레이어를 띄우기 위함. suffix 매칭. */
     val recordings: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity>> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
-        else container.recordingRepository.observeByPhoneSuffix(suffix)
+        // 짧은 번호도 녹음 재생 카드가 보이게 — 섞임 방지는 repository 가 정확일치로 처리. (2026-10-27)
+        container.recordingRepository.observeByPhoneSuffix(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -320,9 +318,8 @@ class ChatViewModel(
      *   통화기록과 같은 suffix 매칭. 통화 카드(CallSegment)가 시각으로 짝지어 "AI 요약됨" 상태로 표시.
      */
     val callSummaries: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity>> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
-        else container.callSummaryRepository.observeByPhoneSuffix(suffix)
+        // 짧은 번호도 통화요약이 보이게 — 섞임 방지는 repository 가 정확일치로 처리. (2026-10-27)
+        container.callSummaryRepository.observeByPhoneSuffix(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -465,9 +462,8 @@ class ChatViewModel(
      *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
      */
     val intakeEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
-        else container.intakeEventRepository.observe(suffix)
+        // 조회가 `phoneSuffix = :suffix` 정확일치라 짧은 번호도 남의 것 안 섞임 → 가드 불필요. (2026-10-27)
+        container.intakeEventRepository.observe(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -475,9 +471,8 @@ class ChatViewModel(
      *   채팅 타임라인에 "📅 일정 변경 / 💰 금액 변경 / 💵 잔금 받음" 카드로 표시(처리 시각 기준).
      */
     val timelineEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity>> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
-        else container.timelineEventRepository.observe(suffix)
+        // 조회가 `phoneSuffix = :suffix` 정확일치라 짧은 번호도 안전 → 가드 불필요. (2026-10-27)
+        container.timelineEventRepository.observe(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -485,9 +480,8 @@ class ChatViewModel(
      *   "📜 견적서 발행 / 📋 시공접수서 발행" 카드로(발행 시각 기준). 탭하면 다시 열람.
      */
     val issuedDocs: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
-        else container.issuedDocRepository.observeBySuffix(suffix)
+        // 조회가 `phoneSuffix = :suffix` 정확일치라 짧은 번호도 안전 → 가드 불필요. (2026-10-27)
+        container.issuedDocRepository.observeBySuffix(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -496,12 +490,8 @@ class ChatViewModel(
      * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).
      */
     val aiSummary: StateFlow<com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity?> = run {
-        val suffix = PhoneKey.of(phoneNumber)
-        if (suffix.length < 7) {
-            kotlinx.coroutines.flow.flowOf(null)
-        } else {
-            container.conversationAiRepository.observe(suffix)
-        }
+        // 조회가 `phoneSuffix = :suffix` 정확일치라 짧은 번호도 안전 → 가드 불필요. (2026-10-27)
+        container.conversationAiRepository.observe(PhoneKey.of(phoneNumber))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _toast = MutableStateFlow<String?>(null)

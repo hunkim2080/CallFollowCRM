@@ -1,40 +1,41 @@
 # 지금 「공용」인 파일들 — 새로 생기면 CLAUDE.md §12 표에 한 줄 적어야 빌드가 통과한다.
 # 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
 # 줄 모양: <파일이름> <쓰는 파일 수> <경로>
-# 총 43개 (3곳 이상에서 쓰이는 것)
-DateTimeUtils 88 util/DateTimeUtils.kt
+# 총 46개 (3곳 이상에서 쓰이는 것)
+DateTimeUtils 92 util/DateTimeUtils.kt
+PhoneNumberFormatter 50 util/PhoneNumberFormatter.kt
 PhoneKey 47 util/PhoneKey.kt
-PhoneNumberFormatter 47 util/PhoneNumberFormatter.kt
-MoneyFormatter 35 util/MoneyFormatter.kt
-SettlementCalc 24 domain/settlement/SettlementCalc.kt
+MoneyFormatter 36 util/MoneyFormatter.kt
+SettlementCalc 25 domain/settlement/SettlementCalc.kt
 AddressExtractor 19 util/AddressExtractor.kt
 SmsSender 12 util/SmsSender.kt
+PhoneDialer 11 util/PhoneDialer.kt
+AvatarInitial 10 domain/ui/AvatarInitial.kt
+AvatarTints 10 presentation/component/AvatarTints.kt
 PermissionHelper 10 util/PermissionHelper.kt
-PhoneDialer 10 util/PhoneDialer.kt
 RegionName 10 util/RegionName.kt
-AvatarInitial 9 domain/ui/AvatarInitial.kt
-AvatarTints 9 presentation/component/AvatarTints.kt
 LogRedact 9 util/LogRedact.kt
 SmsIntentHelper 9 util/SmsIntentHelper.kt
 SpamPrefix 9 util/SpamPrefix.kt
 SaveGuard 8 presentation/util/SaveGuard.kt
 DefaultSmsAppHelper 8 util/DefaultSmsAppHelper.kt
-Completion 7 domain/job/Completion.kt
 NavApp 7 util/NavApp.kt
 CollabAssignmentLine 6 domain/collab/CollabAssignmentLine.kt
 CollabInviteExpiry 6 domain/collab/CollabInviteExpiry.kt
 OnHold 6 domain/customer/OnHold.kt
+Completion 6 domain/job/Completion.kt
+PhoneMatch 6 util/PhoneMatch.kt
 CollabPartnerGroups 5 domain/collab/CollabPartnerGroups.kt
 InboxClassifier 5 domain/inbox/InboxClassifier.kt
 RepresentativeJob 5 domain/job/RepresentativeJob.kt
 OutboxRules 5 domain/outbox/OutboxRules.kt
 MapGeo 5 util/MapGeo.kt
+RecordShot 5 util/RecordShot.kt
 SpamKeywordMatch 4 domain/inbox/SpamKeywordMatch.kt
 OutboxWording 4 presentation/util/OutboxWording.kt
 CallLogHelper 4 util/CallLogHelper.kt
 ContactNameResolver 4 util/ContactNameResolver.kt
 DataBackup 4 util/DataBackup.kt
-RecordShot 4 util/RecordShot.kt
 CollabDayCheck 3 domain/collab/CollabDayCheck.kt
 BucketPolicy 3 domain/inbox/BucketPolicy.kt
 DefiniteAd 3 domain/inbox/DefiniteAd.kt
@@ -44,4 +45,6 @@ InflowStats 3 domain/intake/InflowStats.kt
 IntakeScheduleState 3 domain/intake/IntakeScheduleState.kt
 JobCardRow 3 domain/job/JobCardRow.kt
 CalendarMoneyLabel 3 domain/schedule/CalendarMoneyLabel.kt
+RangePick 3 domain/schedule/RangePick.kt
 CashFlowCalc 3 domain/settlement/CashFlowCalc.kt
+PhotoFit 3 domain/ui/PhotoFit.kt
