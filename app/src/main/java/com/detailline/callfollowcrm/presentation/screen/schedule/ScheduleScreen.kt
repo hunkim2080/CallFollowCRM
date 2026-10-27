@@ -1311,7 +1311,8 @@ private fun DayJobCard(
                             lineHeight = 17.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        AssignBtn("변경", filled = false, onClick = onAssign)
+                        // ③ "변경"이 이미 초대 시트를 열어 추가도 되는데 라벨이 몰랐다 → "변경·추가"로. (2026-10-27 사장님)
+                        AssignBtn("변경·추가", filled = false, onClick = onAssign)
                     }
                 }
             }

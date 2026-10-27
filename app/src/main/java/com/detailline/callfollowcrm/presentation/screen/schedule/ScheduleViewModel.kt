@@ -615,9 +615,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         // 시트에서 주소를 받았으면 그걸로(고객에도 저장), 아니면 고객 주소 → 제목·addr 둘 다 주소 기반. (2026-06-20 사장님)
         val effectiveAddress = addressOverride?.trim()?.takeIf { it.isNotBlank() } ?: customer.address
         val title = collabTitleOf(effectiveAddress, customer.name)
-        val partnerName = collabPartners.value
+        // 이름 = 협업 명단에서 먼저 (여기선 nullable — 저장된 고객 상호 폴백은 아래 코루틴에서). (2026-10-27 사장님 ①)
+        val collabName = collabPartners.value
             .firstOrNull { PhoneKey.of(it.phone) == PhoneKey.of(partner) }
-            ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
+            ?.name?.takeIf { it.isNotBlank() }
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(effectiveAddress).takeIf { it.isNotBlank() }
         // 출근시간 선택 시: 일정 날짜에 그 정시 박아 scheduled_at_ms + time_label 도 함께.
         //   다일 공사에서 이 협업자가 오는 첫 날을 기준일로 → 상대(B)·캘린더가 그 날짜로. 비면 공사 시작일. (2026-08-02)
@@ -655,6 +656,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                         customer.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }, customer.scheduledWorkDays
                     )
                 }
+                // ① 협업 명단에 없으면 **저장된 고객 상호**로 (저장된 번호인데 생번호로 뜨던 것). 그것도 없으면 "협업 사장님".
+                val partnerName = collabName
+                    ?: container.customerRepository.findByPhone(partner)?.name?.takeIf { it.isNotBlank() }
+                    ?: "협업 사장님"
                 val line = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine(
                     customerId = customer.id, phone = partner, name = partnerName, shareId = r.shareId, days = days
                 )

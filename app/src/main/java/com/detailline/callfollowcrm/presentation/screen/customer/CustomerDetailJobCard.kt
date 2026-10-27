@@ -989,6 +989,9 @@ internal fun JobDetailCard(
                             if (jobCollab.isEmpty()) showJobCollabShare.value = true
                             else collabExpanded = !collabExpanded   // 펼치면 해제·다시 부르기(만료된 건 다시 부르기)
                         }
+                        // ② 협업 있어도 '더 부르기'를 **바로 보이는 칩**으로(전엔 펼쳐야 보여 막막). (2026-10-27 사장님)
+                        if (jobCollab.isNotEmpty()) CdUndoChip("협업 더 부르기", danger = false,
+                            filled = true, icon = Icons.Filled.PersonAddAlt1, tint = AppTheme.colors.categoryText) { showJobCollabShare.value = true }
                     }
                     // 📋 접수서 — 발행된 게 있을 때만, 파랑(프로토 `.lk`). 탭 → 아래 펼침(보기 전용).
                     if (docsForJob.isNotEmpty()) {
@@ -1047,12 +1050,7 @@ internal fun JobDetailCard(
                         )
                         Spacer(Modifier.height(10.dp))
                     }
-                    Text(
-                        "협업 사장님 더 부르기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.categoryText,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                            .clickable { showJobCollabShare.value = true }.padding(vertical = 8.dp)
-                    )
+                    // '더 부르기'는 이제 **접기 전 칩**으로 늘 보인다(위 ②) — 펼침엔 해제 카드만. (2026-10-27)
                 }
 
                 // 접수서 펼침 — 발행 접수서 목록(열기·수정·삭제) + 다시 보내기(챗으로). 내용은 전과 같다.
