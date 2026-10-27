@@ -15398,3 +15398,10 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 판단은 호출부(CustomerDetailJobCard)에서 jobDayStart > DateTimeUtils.startOfDay(now). 당일부터 전체 노출.
 - 가드 7종 통과(style 기준선 2404→2405: 안내문구 fontSize 1 — 파일이 원래 raw fontSize). 폰 확인: S9 설치.
 - 다음: 협업 ④ 피커 검색 확장.
+
+## 2026-10-27 16:30 · android
+구글 캘린더 올린일정 시트 — '지금 다시 올리기'가 3버튼 네비바에 짤리던 것(3번째) 고침
+- 뿌리: 이 시트만 Dialog 창(edge-to-edge)이라 네비바 밑까지 깔림. Dialog 는 WindowInsets.navigationBars 를 0 으로 주고, resNavPx(navigation_bar_height 리소스)도 현재 3버튼 모드를 못 맞춤 → bottomBarClearance 로 2번 고쳐도(10-12·14) 부족.
+- 해결: ScheduleParts.CalendarSyncSheet 바닥 padding 을 `maxOf(navBarBottomDp(), 48.dp) + 8` 로 — **3버튼 네비(48dp) 무조건 넘게 최소 보장**. gesture 면 조금 넉넉할 뿐(짤리는 것보다 나음).
+- ⚠️ **눈 확인 못 함** — S9 화면캡처 불가 + 기기별(네비 모드). **사장님이 폰에서 '지금 다시 올리기'가 다 보이는지** 확인 필요. 아직도 짤리면 → 근본해법(이 시트를 Dialog→인라인 오버레이로, 다른 시트들처럼) 으로 간다.
+- 가드 7종 통과. 다음 내부테스트 때 반영.
