@@ -70,6 +70,19 @@ import com.detailline.callfollowcrm.util.SmsIntentHelper
  *   구성(사장님 확정 프로토 ②, 2026-10-27): 전화/문자 → **메모(최상단 카드)** → 함께한 현장(양방향·필터·달 접기·정산서).
  *   시공예약·금액·현장사진·계약금·분류 **없음**(협업 사장은 보통 고객 기능을 안 쓴다 — 사장님).
  */
+/**
+ * 정산서용 묶음 — 이 사장의 현장 **전부**를 한 묶음으로 넣는다(상호가 공유마다 갈려도 안 쪼갬).
+ *   `CollabPartnerGroups.group().firstOrNull()` 은 번호+이름으로 갈라 묶음 하나만 줘서 옛 달이 빠졌다. 비면 null.
+ *   정산서 버튼은 `name`·`sites` 만 쓴다(달 고르기·발행). recentMs 외 나머지는 안 쓰여 0.
+ */
+private fun settleGroupOf(name: String, sites: List<SharedSiteRepository.SharedSite>): CollabPartnerGroups.Group? {
+    if (sites.isEmpty()) return null
+    return CollabPartnerGroups.Group(
+        key = "settle", phoneKey = "", name = name,
+        count = sites.size, recentMs = sites.maxOf { it.scheduledAtMs }, wageSum = 0, sites = sites
+    )
+}
+
 @Composable
 internal fun CustomerCollabScreen(
     customer: CustomerEntity,
@@ -100,9 +113,11 @@ internal fun CustomerCollabScreen(
     }
     val fold = rememberMonthFold(foldMonths)
 
-    // 정산서는 방향별 2장(사장님 2026-10-27) — 받을 일당/줄 일당을 섞지 않는다. 완료 건(일당 있는)이 있는 방향만 보인다.
-    val recvGroup = remember(view) { CollabPartnerGroups.group(view.receivedSites).firstOrNull() }
-    val giveGroup = remember(view) { CollabPartnerGroups.groupByPartner(view.givenSites).firstOrNull() }
+    // 정산서는 방향별 2장(사장님 2026-10-27) — 받을/줄 안 섞음. 완료 건(일당 있는) 있는 방향만.
+    //   ⚠️ 이 사장의 **모든** 현장을 한 묶음으로 넣는다 — group().firstOrNull() 로 묶음 하나만 쓰면 상호가 조금씩
+    //   달라 쪼개진 묶음(옛 달)이 빠진다(2026-10-27 사장님 "7·8월이 정산서에 안 떠"). 받음/준 각각 전부.
+    val recvGroup = remember(view, name) { settleGroupOf(name, view.receivedSites) }
+    val giveGroup = remember(view, name) { settleGroupOf(name, view.givenSites) }
     val recvHasDone = remember(view) { SettlementStatement.eligible(view.receivedSites).isNotEmpty() }
     val giveHasDone = remember(view) { SettlementStatement.eligible(view.givenSites).isNotEmpty() }
 
