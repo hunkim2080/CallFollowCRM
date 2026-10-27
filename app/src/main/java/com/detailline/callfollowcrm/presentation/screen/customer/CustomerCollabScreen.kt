@@ -17,6 +17,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Icon
@@ -47,7 +49,7 @@ import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.screen.sharedsite.CollabMonthHeader
 import com.detailline.callfollowcrm.presentation.screen.sharedsite.CollabPillarRow
-import com.detailline.callfollowcrm.presentation.screen.sharedsite.SettlementStatementButton
+import com.detailline.callfollowcrm.presentation.screen.sharedsite.SettlementSheets
 import com.detailline.callfollowcrm.presentation.screen.sharedsite.collabStatusTagQuiet
 import com.detailline.callfollowcrm.presentation.screen.sharedsite.rememberMonthFold
 import com.detailline.callfollowcrm.presentation.theme.AppShape
@@ -94,7 +96,8 @@ internal fun CustomerCollabScreen(
     onAddNote: (String) -> Unit,
     onEditNote: (CustomerNoteEntity) -> Unit,
     onTogglePin: (CustomerNoteEntity) -> Unit,
-    onDeleteNote: (CustomerNoteEntity) -> Unit
+    onDeleteNote: (CustomerNoteEntity) -> Unit,
+    onEditName: () -> Unit
 ) {
     val c = AppTheme.colors
     val ctx = LocalContext.current
@@ -120,6 +123,12 @@ internal fun CustomerCollabScreen(
     val giveGroup = remember(view, name) { settleGroupOf(name, view.givenSites) }
     val recvHasDone = remember(view) { SettlementStatement.eligible(view.receivedSites).isNotEmpty() }
     val giveHasDone = remember(view) { SettlementStatement.eligible(view.givenSites).isNotEmpty() }
+    val recvDoneCount = remember(view) { SettlementStatement.pickableMonths(view.receivedSites).sumOf { it.count } }
+    val giveDoneCount = remember(view) { SettlementStatement.pickableMonths(view.givenSites).sumOf { it.count } }
+    // ②안(사장님 2026-10-28): 큰 버튼 2개 대신 "정산서 ›" 한 줄 → 받을/줄 고르기 시트 → 달 고르기(SettlementSheets).
+    var settleChoose by remember { mutableStateOf(false) }
+    var activeGroup by remember { mutableStateOf<CollabPartnerGroups.Group?>(null) }
+    var settleOpen by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -157,6 +166,17 @@ internal fun CustomerCollabScreen(
                         val sinceYm = view.entries.minByOrNull { it.site.scheduledAtMs }?.let { SharedSiteRepository.ymOf(it.site.scheduledAtMs) }
                         val since = sinceYm?.let { " · 함께 ${SharedSiteRepository.monthLabel(it)}부터" }.orEmpty()
                         Text(PhoneNumberFormatter.format(phone) + since, style = AppType.caption, color = c.textSub)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    // 이름 바꾸기 — 보통 고객 화면 머리의 '수정'과 같은 창(onEditName → nameDialog). (2026-10-28 사장님 "이름 바꿀 데가 없더라")
+                    Row(
+                        Modifier.clip(AppShape.sm).background(c.surfaceMuted).clickable { onEditName() }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Edit, null, tint = c.textHint, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("수정", style = AppType.micro, fontWeight = FontWeight.Bold, color = c.textHint)
                     }
                 }
                 Spacer(Modifier.height(16.dp))
@@ -208,23 +228,38 @@ internal fun CustomerCollabScreen(
 
         // ── 3. 함께한 현장 (양방향 · 필터 · 달 접기 · 정산서)
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // 머리: 곳수 + 받은/준 일당 + 최근
-            Column {
-                Text("함께한 현장 ${view.total}곳", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text)
-                Spacer(Modifier.height(3.dp))
-                val parts = buildList {
-                    if (view.receivedWageMan > 0) add("받은 일당 ${view.receivedWageMan}만원")
-                    if (view.givenWageMan > 0) add("준 일당 ${view.givenWageMan}만원")
-                    if (view.recentMs > 0L) add("최근 ${DateTimeUtils.formatMonthDay(view.recentMs)}")
+            // 머리: 곳수 + 받은/준 일당 + 최근  /  오른쪽 작은 "정산서 ›" (큰 버튼 2개 대신 — 사장님 ②안)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text("함께한 현장 ${view.total}곳", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text)
+                    Spacer(Modifier.height(3.dp))
+                    val parts = buildList {
+                        if (view.receivedWageMan > 0) add("받은 일당 ${view.receivedWageMan}만원")
+                        if (view.givenWageMan > 0) add("준 일당 ${view.givenWageMan}만원")
+                        if (view.recentMs > 0L) add("최근 ${DateTimeUtils.formatMonthDay(view.recentMs)}")
+                    }
+                    if (parts.isNotEmpty()) Text(parts.joinToString(" · "), style = AppType.caption, color = c.textSub)
                 }
-                if (parts.isNotEmpty()) {
-                    Text(parts.joinToString(" · "), style = AppType.caption, color = c.textSub)
+                if (recvHasDone || giveHasDone) {
+                    Spacer(Modifier.width(8.dp))
+                    Row(
+                        Modifier.clip(AppShape.md).background(c.categoryBg)
+                            .clickable {
+                                when {
+                                    recvHasDone && giveHasDone -> settleChoose = true
+                                    recvHasDone -> { activeGroup = recvGroup; settleOpen = true }
+                                    else -> { activeGroup = giveGroup; settleOpen = true }
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Description, null, tint = c.categoryText, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("정산서 ›", style = AppType.caption, fontWeight = FontWeight.ExtraBold, color = c.categoryText)
+                    }
                 }
             }
-
-            // 정산서 — 받을/줄 각각 2장(완료 건 있는 방향만). 버튼은 스스로 달 고르기·연타막기.
-            if (recvHasDone && recvGroup != null) Column { SettlementStatementButton(recvGroup, title = "받을 일당 정산서") }
-            if (giveHasDone && giveGroup != null) Column { SettlementStatementButton(giveGroup, title = "줄 일당 정산서") }
 
             // 필터 칩 (받음·줌 둘 다 있을 때만)
             if (view.receivedCount > 0 && view.givenCount > 0) {
@@ -270,5 +305,63 @@ internal fun CustomerCollabScreen(
                 }
             }
         }
+    }
+
+    // 정산서 방향 고르기(받을/줄 둘 다 있을 때) → 고른 방향으로 SettlementSheets(달 고르기+미리보기).
+    if (settleChoose) {
+        SettleDirectionDialog(
+            recvCount = recvDoneCount,
+            giveCount = giveDoneCount,
+            onRecv = { settleChoose = false; activeGroup = recvGroup; settleOpen = true },
+            onGive = { settleChoose = false; activeGroup = giveGroup; settleOpen = true },
+            onDismiss = { settleChoose = false }
+        )
+    }
+    activeGroup?.let { g ->
+        SettlementSheets(g, settleOpen, { settleOpen = it }, onClosed = { activeGroup = null; settleOpen = false })
+    }
+}
+
+/** 정산서 방향 고르기 — 받을/줄 둘 다 완료 건이 있을 때 "어느 걸 만들까요?". 완료 건 있는 방향만 보인다. */
+@Composable
+private fun SettleDirectionDialog(
+    recvCount: Int,
+    giveCount: Int,
+    onRecv: () -> Unit,
+    onGive: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val c = AppTheme.colors
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().clip(AppShape.lg).background(c.surface).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("어떤 정산서를 만들까요?", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text)
+            if (recvCount > 0) SettleDirOption("받을 일당 정산서", "내가 받을 일당 · 완료 ${recvCount}건", onRecv)
+            if (giveCount > 0) SettleDirOption("줄 일당 정산서", "내가 줄 일당 · 완료 ${giveCount}건", onGive)
+            Text(
+                "취소", style = AppType.label, fontWeight = FontWeight.Bold, color = c.textHint,
+                modifier = Modifier.align(Alignment.End).clip(AppShape.sm).clickable { onDismiss() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettleDirOption(title: String, sub: String, onClick: () -> Unit) {
+    val c = AppTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clip(AppShape.md).background(c.categoryBg).clickable { onClick() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Filled.Description, null, tint = c.categoryText, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = AppType.label, fontWeight = FontWeight.ExtraBold, color = c.categoryText)
+            Text(sub, style = AppType.micro, color = c.textSub)
+        }
+        Text("›", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.categoryText)
     }
 }

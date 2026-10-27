@@ -70,29 +70,20 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group, title: String = "정산서 이미지 저장·공유") {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
     val c = AppTheme.colors
-
-    var busy by remember { mutableStateOf(false) }
-    var picking by remember { mutableStateOf(false) }
-    var preview by remember { mutableStateOf<Pair<SettlementStatement.Doc, List<Bitmap>>?>(null) }
-    // 고를 수 있는 달(완료 건 있는 달만) — 셈은 SettlementStatement 한 곳. 완료 건 수는 그 합.
+    var open by remember { mutableStateOf(false) }
     val options = remember(partner.sites) { SettlementStatement.pickableMonths(partner.sites) }
     val doneCount = remember(options) { options.sumOf { it.count } }
+    val canMake = doneCount > 0
 
-    // 꽉 찬 보라 버튼 — 이 화면 톤(협업)에 맞춘 진짜 '액션' 버튼. (2026-10-17 사장님 "버튼이 앱이랑 달라 보인다")
-    val canMake = !busy && doneCount > 0
+    // 꽉 찬 보라 버튼 — 업체 내역 화면용(한 화면에 정산서 하나). 협업 사장 고객상세는 SettlementSheets 를 직접 쓴다.
     Box(
         Modifier.fillMaxWidth().clip(AppShape.md)
             .background(if (canMake) CollabPurple else c.surfaceMuted)
-            .clickable(enabled = !busy) {
-                if (busy) return@clickable   // 연타 막기 — 두 번 만들지 않는다
+            .clickable {
                 if (doneCount == 0) {
                     android.widget.Toast.makeText(context, "완료된 현장이 있어야 정산서를 만들 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
-                    return@clickable
-                }
-                picking = true
+                } else open = true
             }
             .padding(vertical = 13.dp),
         contentAlignment = Alignment.Center
@@ -104,8 +95,7 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group, title
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text(if (busy) "정산서 만드는 중…" else title,
-                style = AppType.label, fontWeight = FontWeight.ExtraBold,
+            Text(title, style = AppType.label, fontWeight = FontWeight.ExtraBold,
                 color = if (canMake) androidx.compose.ui.graphics.Color.White else c.textHint)
         }
     }
@@ -119,11 +109,33 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group, title
         style = AppType.caption, color = c.textHint, modifier = Modifier.padding(start = 2.dp)
     )
 
-    if (picking) {
+    SettlementSheets(partner, open, { open = it })
+}
+
+/**
+ * 🧾 정산서 **달 고르기 + 그리기 + 미리보기** — 트리거(버튼)와 **분리**해 다른 화면이 재사용한다(§12-D).
+ *   협업 사장 고객상세는 "정산서 ›" 한 줄 → 받을/줄 고른 뒤 이걸 [open]=true 로 바로 연다.
+ *   만드는 중([busy])엔 창이 안 닫힌다(§13③). 닫히면(만들든 취소하든) [onClosed].
+ */
+@Composable
+internal fun SettlementSheets(
+    partner: CollabPartnerGroups.Group,
+    open: Boolean,
+    onOpenChange: (Boolean) -> Unit,
+    onClosed: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
+    var busy by remember(partner) { mutableStateOf(false) }
+    var preview by remember(partner) { mutableStateOf<Pair<SettlementStatement.Doc, List<Bitmap>>?>(null) }
+    val options = remember(partner.sites) { SettlementStatement.pickableMonths(partner.sites) }
+
+    if (open) {
         SettlementMonthPickDialog(
             options = options,
             busy = busy,
-            onDismiss = { if (!busy) picking = false },   // 만드는 중엔 닫히지 않는다 — 결과(미리보기/토스트)가 올 때까지
+            onDismiss = { if (!busy) { onOpenChange(false); if (preview == null) onClosed() } },
             onMake = { months ->
                 if (busy) return@SettlementMonthPickDialog   // 연타 막기
                 busy = true
@@ -142,7 +154,7 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group, title
                     if (pages.isNullOrEmpty()) {
                         android.widget.Toast.makeText(context, "정산서 이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
                     } else {
-                        picking = false
+                        onOpenChange(false)
                         preview = doc to pages
                     }
                 }
@@ -151,7 +163,7 @@ internal fun SettlementStatementButton(partner: CollabPartnerGroups.Group, title
     }
 
     preview?.let { (doc, pages) ->
-        SettlementPreviewDialog(doc, pages, onDismiss = { preview = null })
+        SettlementPreviewDialog(doc, pages, onDismiss = { preview = null; onClosed() })
     }
 }
 

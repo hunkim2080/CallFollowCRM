@@ -397,7 +397,8 @@ fun CustomerDetailScreen(
                 onAddNote = { viewModel.addNote(it) },
                 onEditNote = { collabEditing = it },
                 onTogglePin = { viewModel.togglePinNote(it.id) },
-                onDeleteNote = { viewModel.deleteNote(it.id) }
+                onDeleteNote = { viewModel.deleteNote(it.id) },
+                onEditName = { nameDialogOpen = true }
             )
         } else if (showCollabLoading) {
             // 🤝 전에 협업 사장으로 확인된 사람 — 서버 답(collabUi)이 오기 전에 보통 고객 화면을 깜빡 보이지 않게
