@@ -38,12 +38,19 @@ import androidx.compose.runtime.mutableIntStateOf
 fun navBarBottomDp(): Dp {
     val density = LocalDensity.current
     val context = LocalContext.current
+    val view = LocalView.current
     val resNavPx = remember {
         val id = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
         if (id > 0) context.resources.getDimensionPixelSize(id) else 0
     }
-    val insetPx = WindowInsets.navigationBars.getBottom(density)
-    return with(density) { (if (insetPx > 0) insetPx else resNavPx).toDp() }
+    // 🧷 Dialog 안에선 Compose WindowInsets 가 0 으로 오기도 한다(S23U 올린일정 시트 4번 짤림) →
+    //   **창(View)의 실제 시스템 인셋**을 같이 본다(제일 믿을 만 · 기기 실제 높이 그대로). 둘 중 큰 값.
+    //   composeInsetPx 가 snapshot 이라, 인셋이 바뀌면 이 함수가 recompose 되며 viewInsetPx 도 다시 읽힌다.
+    val composeInsetPx = WindowInsets.navigationBars.getBottom(density)
+    val viewInsetPx = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+        ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    val px = maxOf(composeInsetPx, viewInsetPx)
+    return with(density) { (if (px > 0) px else resNavPx).toDp() }
 }
 
 /** ModalBottomSheet/Dialog 콘텐츠 하단을 내비바만큼 띄우는 안전 패딩(+선택 여백). */
