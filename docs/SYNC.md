@@ -15374,3 +15374,11 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 가드: style 기준선 2415→2406(공용 이동 재기록, 전체 안 늘음). JobCard 1239줄(≤1240 slack). 7종 통과·테스트 통과.
 - 폰 확인: S9 debug 설치 성공. ⚠️ S9 화면캡처 불가 → 사장님 폰에서 눈으로.
 - 다음 액션: 사장님 — 새 시공 시트에 주소 미리 떠 있는지 / 현장 메모 접혀도 첫 줄 보이는지 / '1' 뱃지 또렷한지 확인. (이 3건은 아직 내부테스트 업로드 안 함 — 원하시면 올림)
+
+## 2026-10-27 14:45 · android (+ server)
+접수서 링크 카톡/문자 미리보기 섬네일 — 라이브 배포 완료 (사장님 「가」)
+- server(main.py): _make_intake_thumb(biz) Pillow 렌더(크림 격자+흰 문서카드+"시공 접수서"+업체명 optional 윗줄, 캐시 /static/thumbs/intake-*.png, _make_blog_thumb 패턴 재사용) + _inject_intake_og(html,biz,token). /intake(intake_form_page)·/q(_render_quote_form_html) **양쪽** <head> 에 og 주입(두 렌더 길 둘 다 — 한쪽만=500 사고 방지). 업체명=raw biz_name(전화폴백 아님)→등록시만 윗줄, 없으면 intake-default.png.
+- 배포: GOTCHAS §3 (scp→서버 py_compile 3.9 OK→백업 main.py.bak-20261027-1441→swap→kickstart). **smoke.sh 10개 전부 200**(접수서 /q·/intake 안 깨짐). og 태그+PNG 실물 눈 확인 — 업체명 있음/없음 둘 다 가운데정렬 깔끔.
+- repo: 같은 변경 반영(내 125줄만, 삭제 0). ⚠️ repo↔live **미세 text drift**(최근 보안수정 주석/문구 ~19줄 차이) — 라이브 통짜덮기 금물, 다음에 reconcile.
+- 폰 확인: 서버 PNG 데스크탑서 확인. 실제 카톡 미리보기는 **새 접수서 링크** 보내면 뜸(카톡이 og 캐시).
+- 다음: 없음.

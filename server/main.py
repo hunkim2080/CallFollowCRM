@@ -7765,6 +7765,129 @@ def _make_blog_thumb(title: str, category: str, slug: str) -> str:
         return "/static/thumbs/default.png"
 
 
+# ─── 접수서 링크 미리보기 섬네일 (2026-10-27 사장님 「가」) ───
+#   카톡/문자에서 /q·/intake 링크 밑에 뜨는 미리보기 카드 그림.
+#   디자인: 크림 격자 + 가운데 흰 문서 카드 + "시공 접수서" + (업체명 있으면 윗줄) + 안내문.
+#   업체명 없으면 그 줄만 빠지고 가운데 정렬 유지(비어도 자연스럽게). 1200x630. 캐시.
+_INTAKE_THUMB_SUB = "시공일 확정을 위해 1분만 작성해 주세요"
+
+
+def _make_intake_thumb(biz_name) -> str:
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return "/static/thumbs/default.png"
+    try:
+        import hashlib
+        biz = (biz_name or "").strip()[:20]
+        key = hashlib.md5(biz.encode("utf-8")).hexdigest()[:10] if biz else "default"
+        out = _THUMBS_DIR / ("intake-%s.png" % key)
+        if out.exists():
+            return "/static/thumbs/intake-%s.png" % key
+        font_candidates = [
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+            "/Library/Fonts/AppleGothic.ttf",
+        ]
+        fpath = next((p for p in font_candidates if Path(p).exists()), None)
+        if not fpath:
+            return "/static/thumbs/default.png"
+
+        def _font(sz):
+            return ImageFont.truetype(fpath, sz)
+
+        W, H = 1200, 630
+        CREAM = (247, 243, 236)
+        GRID = (235, 227, 213)
+        NAVY = (34, 52, 73)
+        GRAY = (107, 114, 128)
+        BIZCOL = (154, 140, 116)
+        TRUST = (154, 160, 168)
+        LINE = (232, 224, 210)
+        GREEN = (47, 158, 91)
+        img = Image.new("RGB", (W, H), CREAM)
+        d = ImageDraw.Draw(img)
+        x = 0
+        while x < W:
+            d.line([(x, 0), (x, H)], fill=GRID, width=1)
+            x += 44
+        y = 0
+        while y < H:
+            d.line([(0, y), (W, y)], fill=GRID, width=1)
+            y += 44
+        cw, ch = 772, 470
+        cx, cy = (W - cw) // 2, (H - ch) // 2
+        d.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=28, fill="white", outline=LINE, width=1)
+        mid = W // 2
+
+        def _ctext(yy, text, font, fill):
+            tw = d.textlength(text, font=font)
+            d.text((mid - tw / 2, yy), text, font=font, fill=fill)
+
+        blocks = [("tile", 92), ("gap", 24)]
+        if biz:
+            blocks += [("biz", 40), ("gap", 14)]
+        blocks += [("title", 78), ("gap", 18), ("sub", 36), ("gap", 24),
+                   ("line", 1), ("gap", 24), ("trust", 26)]
+        total = sum(h for _, h in blocks)
+        yy = cy + (ch - total) // 2
+        for kind, h in blocks:
+            if kind == "gap":
+                yy += h
+                continue
+            if kind == "tile":
+                tx = mid - 46
+                d.rounded_rectangle([tx, yy, tx + 92, yy + 92], radius=24, fill=(241, 236, 225))
+                d.line([(tx + 28, yy + 48), (tx + 40, yy + 60)], fill=GREEN, width=6)
+                d.line([(tx + 40, yy + 60), (tx + 64, yy + 32)], fill=GREEN, width=6)
+            elif kind == "biz":
+                _ctext(yy, biz, _font(30), BIZCOL)
+            elif kind == "title":
+                _ctext(yy, "시공 접수서", _font(66), NAVY)
+            elif kind == "sub":
+                _ctext(yy, _INTAKE_THUMB_SUB, _font(27), GRAY)
+            elif kind == "line":
+                d.line([(mid - 64, yy), (mid + 64, yy)], fill=LINE, width=1)
+            elif kind == "trust":
+                _ctext(yy, "안전하게 보관 · 시공막내 안심 접수", _font(20), TRUST)
+            yy += h
+        _THUMBS_DIR.mkdir(parents=True, exist_ok=True)
+        img.save(out, "PNG", optimize=True)
+        return "/static/thumbs/intake-%s.png" % key
+    except Exception as e:
+        print("[intake/thumb] 생성 실패 (%s) -> default.png" % e)
+        return "/static/thumbs/default.png"
+
+
+def _inject_intake_og(html: str, biz_name, token: str) -> str:
+    """접수서 폼 HTML <head> 에 카톡/문자 미리보기(og) 태그 삽입.
+    /intake 와 /q 양쪽에서 부른다(두 렌더 길). 실패해도 원본 그대로 반환."""
+    try:
+        import html as _h
+        biz = (biz_name or "").strip()
+        base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+        img = base + _make_intake_thumb(biz)
+        title = "시공 접수서" + ((" · " + biz) if biz else "")
+        url = "%s/q/%s" % (base, token)
+        og = (
+            '<meta property="og:type" content="website">'
+            '<meta property="og:title" content="%s">' % _h.escape(title, quote=True)
+            + '<meta property="og:description" content="%s">' % _h.escape(_INTAKE_THUMB_SUB, quote=True)
+            + '<meta property="og:url" content="%s">' % _h.escape(url, quote=True)
+            + '<meta property="og:site_name" content="시공막내">'
+            + '<meta property="og:image" content="%s">' % _h.escape(img, quote=True)
+            + '<meta property="og:image:width" content="1200">'
+            + '<meta property="og:image:height" content="630">'
+            + '<meta name="twitter:card" content="summary_large_image">'
+            + '<meta name="twitter:image" content="%s">' % _h.escape(img, quote=True)
+        )
+        return html.replace("<head>", "<head>" + og, 1)
+    except Exception as e:
+        print("[intake/og] 삽입 실패 (%s)" % e)
+        return html
+
+
+
 _BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가다. 독자는 혼자 일하는 한국의 시공·인테리어 사장님 (40~60대, 현장직, 존댓말 선호).
 
 시공막내 = 시공 사장님의 막내 앱 ("상담과 일정관리는, 우리 막내가"). 기능: 전화 오면 고객 카드, 부재중 자동 문자, AI 통화 요약, AI 추천 답장(말투 학습), 직인 견적서 이미지(부가세 별도/포함 명시), 시공접수서 링크(고객이 작성→일정 자동 등록→읽기전용 영수증), 시공 하루 전 자동 안내 문자, 계약금·잔금 정산 관리, 협업 현장 공유(도착·증거사진·일당 정산), 정기 문자 예약, **글 만들기(실제 상담 내용·현장 사진으로 블로그 글 자동 생성 — 시공막내의 핵심 영업 무기)**, 통화 내용까지 되는 전체 검색, 잔금 미수 자동 분류, 한 고객 여러 현장 일정. 고객카드·견적서·접수서·일정·정산 등 기본 기능은 기간 제한 없이 무료, AI 응대·홍보 기능만 유료.
@@ -21340,6 +21463,7 @@ async def intake_form_page(token: str, request: Request) -> HTMLResponse:
         signature_html=_build_signature_html(data),
         total_won_html=_html.escape(_format_won(int(data.get("total_man") or 0) * 10000)),
     )
+    page = _inject_intake_og(page, data.get("biz_name"), token)
     return HTMLResponse(content=page)
 
 
@@ -21897,6 +22021,7 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
                 signature_html=_build_signature_html(data),
                 total_won_html=_html.escape(_format_won(int(data.get("total_man") or 0) * 10000)),
             ))
+    page = _inject_intake_og(page, data.get("biz_name"), token)
     return page
 
 
