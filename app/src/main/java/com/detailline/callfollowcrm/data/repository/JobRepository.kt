@@ -118,6 +118,9 @@ class JobRepository(
     /** 그 고객·그 날의 건 — 일정 카드에서 '어느 건'을 뺄지 특정할 때. */
     suspend fun jobAt(customerId: Long, dayMs: Long): JobEntity? = jobDao.jobAt(customerId, dayMs)
 
+    /** 건 하나를 id 로. 건 카드에서 '그 건'을 직접 취소/수정할 때(날짜로 되찾지 않게). (2026-10-28) */
+    suspend fun jobById(id: Long): JobEntity? = jobDao.findById(id)
+
     /**
      * 새 시공 건 등록 — 같은 고객의 기존 일정을 **덮지 않고** 건으로 쌓는다.
      *

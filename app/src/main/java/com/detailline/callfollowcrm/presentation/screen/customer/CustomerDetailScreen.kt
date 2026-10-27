@@ -1292,9 +1292,11 @@ fun CustomerDetailScreen(
             initialStart = initStart,
             initialDays = initDays,
             // 예약 취소(일정 비우기) — '새 시공 추가' 중엔 숨긴다(원래 잡힌 시공이 지워짐). (2026-09-21)
-            clearText = if (!addingNewJob && customer?.scheduledWorkDate != null) "예약 취소" else null,
+            //   건 카드에서 왔으면 그 건에 날짜가 있을 때, 아니면 고객 대표 날짜가 있을 때 보인다.
+            clearText = if (!addingNewJob && (if (dateEditJobId != null) dateEditStart != null else customer?.scheduledWorkDate != null)) "예약 취소" else null,
             onClear = {
-                viewModel.updateScheduledWorkDate(null)
+                // 🔴 건 카드에서 왔으면 **그 건**(dateEditJobId)을 직접 지운다 — 고객 날짜로 되찾다 어긋나 건 날짜가 잔존하던 것. (2026-10-28 사장님)
+                viewModel.updateScheduledWorkDate(null, jobId = dateEditJobId)
                 android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
             },
             onConfirm = { start, days ->

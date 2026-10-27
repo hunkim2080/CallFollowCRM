@@ -878,10 +878,12 @@ class CustomerDetailViewModel(
      * 시공 예약일 설정. epoch ms (자정으로 정규화). 취소는 null.
      * 2026-05-25: 자동 status RESERVATION_CONFIRMED 전환 제거 — 카테고리 시스템으로 이관.
      */
-    fun updateScheduledWorkDate(epochMs: Long?) = viewModelScope.launch {
+    fun updateScheduledWorkDate(epochMs: Long?, jobId: Long? = null) = viewModelScope.launch {
         val normalized = epochMs?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
-        val oldDate = customer.value?.scheduledWorkDate           // 변경 이력 카드용 (옛 일정)
-        val oldMinutes = customer.value?.scheduledWorkMinutes     // 옛 시공 시간
+        // 🔴 건 카드 '예약 취소'는 그 건(jobId)을 직접 지운다 — 고객 날짜로 jobAt 되찾다 어긋나 날짜 잔존하던 것. (2026-10-28 사장님)
+        val targetJob = if (normalized == null && jobId != null) runCatching { container.jobRepository.jobById(jobId) }.getOrNull() else null
+        val oldDate = targetJob?.scheduledWorkDate ?: customer.value?.scheduledWorkDate   // 변경 이력·정리 기준 날짜
+        val oldMinutes = targetJob?.scheduledWorkMinutes ?: customer.value?.scheduledWorkMinutes
         // 캘린더 등록 KPI — 고객상세 날짜 픽커로 시공일 잡는 것도 한 건. 취소(null)는 제외. (2026-06-25 cowork 요청)
         if (normalized != null) {
             val c = customer.value
@@ -896,12 +898,9 @@ class CustomerDetailViewModel(
                 container.jobRepository.archiveCompletedBeforeNewSchedule(customerId, System.currentTimeMillis())
             }
             if (normalized == null) {
-                // 🔴 취소는 **그 건 하나만** 지운다. (2026-09-18 연결부 점검)
-                //   전엔 고객 카드의 날짜·돈을 지웠는데, 날짜를 비우는 순간 미러가 **다음 건**을
-                //   대표로 잡아서 그 "백지" 가 다음 건(예: 1차) 전표에 찍혔다.
-                //   → 2차를 취소했는데 1차 잔금 기록이 사라지던 것.
+                // 🔴 취소는 그 건 하나만 — 건 카드에서 왔으면(targetJob) 직접, 아니면 고객 대표 날짜로 되찾아서. (2026-09-18 · 10-28)
                 val cancelDay = oldDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
-                val target = cancelDay?.let { runCatching { container.jobRepository.jobAt(customerId, it) }.getOrNull() }
+                val target = targetJob ?: cancelDay?.let { runCatching { container.jobRepository.jobAt(customerId, it) }.getOrNull() }
                 if (target != null) {
                     container.jobRepository.cancelJob(target.id, System.currentTimeMillis())
                 } else {
