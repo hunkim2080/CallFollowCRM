@@ -169,6 +169,7 @@ internal fun CollabAfterCard(
     partnerName: String,
     siteTitle: String,
     shareId: String,
+    upcoming: Boolean = false,   // 시공일 미래면 단계·사진 숨기고 '한마디'만. (2026-10-27 사장님)
     onRelease: () -> Unit
 ) {
     val context = LocalContext.current
@@ -333,6 +334,10 @@ internal fun CollabAfterCard(
                 Text("모든 진행이 끝난 현장이에요", fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold, color = Color(0xFF0E9F56))
             }
+        } else if (upcoming) {
+            // 미래(시공 전) 건 — 배정~완료 단계는 아직 의미 없어 숨긴다. 궁금한 건 아래 한마디로. (2026-10-27 사장님)
+            Text("아직 시공 전이에요. 궁금하거나 전할 말은 아래 '현장 한마디'로 미리 남겨두세요.",
+                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
         } else {
             Text("상대가 올린 진행·사진·메모가 여기 그대로 들어와요.", fontSize = 12.sp, color = TossTextTertiary)
             Spacer(Modifier.height(12.dp))
@@ -352,6 +357,7 @@ internal fun CollabAfterCard(
                 }
             }
         }
+        if (!upcoming) {   // 미래 건은 현장 사진 섹션 숨김(당연히 없음). (2026-10-27 사장님)
         Spacer(Modifier.height(14.dp))
         // 📸 협업 사장님이 올린 증거사진 (proto a-after) — A 는 보기만.
         Text("${partnerName}이 올린 현장 사진 · 증거용", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
@@ -386,6 +392,7 @@ internal fun CollabAfterCard(
                 }
             }
         }
+        }   // ← if (!upcoming) 닫기 (현장 사진 섹션). 한마디는 아래로 항상.
         // 협업 사장과 현장 한 줄 논의 — 자동 새로고침(폴링)으로 카톡처럼 올라옴. (2026-07-01 사장님)
         Spacer(Modifier.height(16.dp))
         com.detailline.callfollowcrm.presentation.component.CollabCommentSection(

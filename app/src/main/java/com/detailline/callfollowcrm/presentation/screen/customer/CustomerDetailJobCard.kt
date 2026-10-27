@@ -1023,6 +1023,8 @@ internal fun JobDetailCard(
                             partnerName = line.name.ifBlank { "협업 사장님" },
                             siteTitle = collabSiteTitle,
                             shareId = line.shareId,
+                            // 시공일이 미래면(아직 시공 전) 단계·사진 숨기고 '한마디'만. (2026-10-27 사장님)
+                            upcoming = jobDayStart != null && jobDayStart > DateTimeUtils.startOfDay(System.currentTimeMillis()),
                             onRelease = {
                                 // 📮 협업 해제 → 우체통(B 에게 알림은 연결되면 간다). (설계 §1-A #3)
                                 if (line.shareId.isNotBlank()) {
