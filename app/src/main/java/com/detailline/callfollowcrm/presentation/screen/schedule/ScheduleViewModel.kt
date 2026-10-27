@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -378,6 +380,23 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
 
     init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
 
+    init {
+        // 🏷️ 명부(고객)가 로드/변경되면, 협업 배정의 **번호 이름 → 명부 상호**로 맞춘다. (2026-10-27 사장님)
+        container.customerRepository.observeAll()
+            .onEach { list ->
+                val byPhone = HashMap<String, String>(list.size)
+                for (c in list) {
+                    val n = c.name?.trim()
+                    if (!n.isNullOrBlank()) {
+                        val k = PhoneKey.of(c.phoneNumber)
+                        if (k.isNotEmpty() && !byPhone.containsKey(k)) byPhone[k] = n
+                    }
+                }
+                resolveCollabNamesFromContacts(byPhone)
+            }
+            .launchIn(viewModelScope)
+    }
+
     /**
      * 거절/종료/취소된 협업은 일정 뱃지("🤝 이름")에서 자동 제거(self-heal).
      *   collab_assignments 는 요청 시 로컬에 박는 기록인데, 상대가 거절하거나 협업이 끝나도 서버 상태와 대조를 안 해
@@ -453,6 +472,32 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             if (!dup) list.add(CollabAssign(phone, shown, accepted, days))
         }
         _collabAssignByCustomer.value = map
+    }
+
+    /** 🏷️ 저장된 협업 배정의 **'번호/기본값 이름'을 명부 상호로** 한 번 맞춘다(멱등). (2026-10-27 사장님 "번호가 파인탄성이면 이름으로")
+     *   고객상세(forJob)·일정(loadCollabAssignments) 둘 다 이 **저장값**을 그리니, 저장값만 고치면 두 화면 다 바뀐다.
+     *   사장님이 직접 지은 이름(숫자 아님·기본값 아님)은 안 건드린다. 명부가 로드/변경될 때 호출(아래 init).
+     */
+    private fun resolveCollabNamesFromContacts(nameByPhone: Map<String, String>) {
+        if (nameByPhone.isEmpty()) return
+        val cur = container.preferences.collabAssignments
+        var changed = false
+        val updated = cur.map { raw ->
+            val p = raw.split('|')
+            if (p.size < 3) return@map raw
+            val name = p[2].trim()
+            val phone = p.getOrNull(1)?.filter { it.isDigit() }.orEmpty()
+            val placeholder = name == "협업 사장님" || name == "협업 사장" || (name.isNotEmpty() && name.all { it.isDigit() })
+            if (placeholder && phone.isNotEmpty()) {
+                val saved = nameByPhone[PhoneKey.of(phone)]
+                if (!saved.isNullOrBlank() && saved != name) {
+                    changed = true
+                    return@map p.toMutableList().also { it[2] = saved }.joinToString("|")
+                }
+            }
+            raw
+        }.toSet()
+        if (changed) { container.preferences.collabAssignments = updated; loadCollabAssignments() }
     }
 
     fun loadTeam() {
