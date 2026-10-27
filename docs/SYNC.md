@@ -15346,3 +15346,11 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 수정: JobRepository.syncRepresentativeFromCustomer — 대표 건이 **완료(workCompletedAt!=null)면 날짜를 안 옮기고 새 건(2차)으로 insert**. 2차는 돈/받음 없이 시작(1차 돈 안 묻어남). 안 끝난 대표만 날짜 이동.
 - 영향: 호출부 전부(IntakeSync·채팅·고객상세 달력일정)에 완료 건 보호로 이로움. 가드/테스트 통과.
 - ⚠️ 이미 덮인 데이터 복구는 별도(완료·돈은 보존됨, 날짜만 바뀜).
+
+## 2026-10-27 11:30 · android
+고객 메시지 2건: ① 긴 MMS 가 미리보기에 바로 안 뜨던 것 ② 114 같은 서비스 번호 방이 통째로 비던 것
+- 수정①: service/MmsDownloadedReceiver — 긴/큰 MMS 가 1.2초 안에 provider 에 안 들어오면 조용히 포기하던 자리(§13① 삼키기)에서, 5초 뒤 requestSyncNow 한 번 더 요청(기존 경로 재사용, §12). → '껐다 켜야 최신 MMS 보임' 해소.
+- 수정②: presentation/screen/chat/ChatViewModel.loadMessages — '7자리 미만이면 빈 화면' 옛 가드만 남아 114(3자리) 방이 비어 있었다. 저장소 매칭은 2026-09-23 PhoneMatch 로 이미 고쳤고, 표시 가드만 isEmpty 로 완화. AI 추천·요약 가드는 그대로(서비스 번호엔 안 돎, §12-I).
+- 표시·소비 지점 확인(§12-K): 메시지 목록=loadMessages(865) 한 곳만 표시 차단 → 고침. 다른 <7 가드 11곳은 AI추천/요약/백로그/발신보존(각자 다른 판단) → 그대로 둠. MMS 경로(queryMmsByPhone)는 sameParty 정확매칭이라 114 OK.
+- 폰 확인: S9(100.121.10.111) 에 debug 설치 성공. ⚠️ S9 는 하드웨어 오버레이로 화면캡처가 빈화면 → 눈 확인 못 함. 사장님 폰(114 실데이터)에서 봐주셔야 함.
+- 다음 액션: 사장님 — 업데이트 받은 뒤 114 방 열어 메시지 뜨는지 / 긴 MMS 안 꺼도 미리보기 바뀌는지 확인.

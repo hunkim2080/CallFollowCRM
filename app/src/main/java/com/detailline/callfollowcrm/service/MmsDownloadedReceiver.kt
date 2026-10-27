@@ -187,7 +187,13 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         val container = app.container
         val mms = pollLatestInboxMms(container, maxAttempts = 8, delayMs = 150L)
         if (mms == null) {
-            Log.w(TAG, "persisted but no inbox MMS row found — notify (no silent loss)"); notifyFail(app); return
+            Log.w(TAG, "persisted but no inbox MMS row found — notify (no silent loss)"); notifyFail(app)
+            // 긴 글/사진 많은 MMS 는 1.2초(8×150ms) 안에 provider 조회에 안 잡힐 수 있다.
+            //   여기서 조용히 포기하면 홈 미리보기가 '껐다 켜야' 최신 MMS 로 바뀐다(§13① 조용히 삼키기).
+            //   → 포기 대신 몇 초 뒤 캐시 훑기를 한 번 더 요청(그때면 들어와 있다). 새 경로 X, 기존 requestSyncNow 재사용(§12).
+            //   (2026-10-27 사장님 통점: "고객 긴 MMS 가 미리보기에 안 뜨고 내가 보낸 글이 남아 있다 — 껐다 켜니 바뀜")
+            scope.launch { kotlinx.coroutines.delay(5_000); runCatching { app.requestSyncNow() } }
+            return
         }
         val sender = mms.address.orEmpty()
         if (sender.isBlank()) { Log.w(TAG, "MMS sender blank — abort hook"); return }

@@ -862,7 +862,11 @@ class ChatViewModel(
             return
         }
         val digits = phoneNumber.filter { it.isDigit() }
-        if (digits.length < 7) {
+        // ⚠️ 짧은 번호(114·100 같은 서비스 번호)도 방을 열면 메시지가 보여야 한다.
+        //   저장소 매칭은 2026-09-23 에 PhoneMatch(짧으면 번호 전체 일치)로 이미 고쳤는데,
+        //   여기 '7자리 미만이면 빈 화면' 옛 가드만 남아 114 방이 통째로 비어 보였다. (2026-10-27 사장님)
+        //   비어 있을 때만 막는다 — AI 추천·요약은 각자 자기 가드로 서비스 번호를 알아서 끈다(§12-I 다른 판단).
+        if (digits.isEmpty()) {
             _messages.value = emptyList()
             return
         }
