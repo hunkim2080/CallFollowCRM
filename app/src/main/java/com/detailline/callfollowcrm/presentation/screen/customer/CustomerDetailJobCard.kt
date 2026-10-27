@@ -455,6 +455,7 @@ internal fun JobDetailCard(
                     jobNotes.size, memoJobExpanded,
                     emptyAction = if (jobNotes.isEmpty()) "＋ 적기" else null
                 ) { memoJobExpanded = !memoJobExpanded }
+                if (!memoJobExpanded) MemoPreviewLine(jobNotes)   // 접혀도 첫 줄 보이게 · 고객 메모와 같은 공용(§12). 2026-10-27
                 if (memoJobExpanded) Column {
                         Spacer(Modifier.height(4.dp))
                         Text("이 현장에서만 · 주차, 열쇠, 자재", fontSize = 11.5.sp, color = TossTextTertiary)

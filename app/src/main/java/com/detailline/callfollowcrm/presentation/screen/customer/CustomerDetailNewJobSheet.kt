@@ -55,6 +55,9 @@ internal fun NewJobSheet(
     customerName: String?,
     /** 쌓일 차수 — 취소 안 한 건 수 + 1. */
     nth: Int,
+    /** 기존(고객) 주소 — 같은 집 재방문이 흔해 **미리 채워 보여준다**(눈에 보이고, 다른 집이면 지우고 새로).
+     *  (2026-10-27 사장님: 빈 채로 두면 카드가 고객 주소를 대신 보여줘 '왜 채워졌지?' 가 됨 → 아예 보이게.) */
+    initialAddress: String? = null,
     start: Long?,
     days: Int,
     onPickDate: () -> Unit,
@@ -62,14 +65,17 @@ internal fun NewJobSheet(
     onRegister: (address: String?, totalWon: Long?, depositWon: Long?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var address by remember { mutableStateOf("") }
+    val prefillAddress = initialAddress?.trim().orEmpty()
+    var address by remember { mutableStateOf(prefillAddress) }
     var dong by remember { mutableStateOf("") }
     var ho by remember { mutableStateOf("") }
     var totalText by remember { mutableStateOf("") }
     var depositText by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
-    val dirty = start != null || address.isNotBlank() || totalText.isNotBlank() || depositText.isNotBlank()
+    // 미리 채운 주소는 '내가 적은 것'이 아니니 dirty 로 안 친다 — 아무것도 안 바꾸고 닫을 때 괜한 '버릴까요' 안 뜨게.
+    val dirty = start != null || address != prefillAddress || dong.isNotBlank() || ho.isNotBlank() ||
+        totalText.isNotBlank() || depositText.isNotBlank()
     val tryDismiss = { if (dirty) confirmDiscard = true else onDismiss() }
     // 💰 셈은 금액 창과 **같은 한 곳**(planAmounts) — 잔금 자동·계약금>총액 막기. (2026-10-15 사장님 "총금액 밑에 계약금 항목")
     val plan = SettlementCalc.planAmounts(

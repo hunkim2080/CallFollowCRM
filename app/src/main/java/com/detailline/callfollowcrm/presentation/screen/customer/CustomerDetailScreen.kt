@@ -732,16 +732,8 @@ fun CustomerDetailScreen(
                             Icons.Filled.Person, "이 고객 메모", custNotes.size, memoExpanded,
                             emptyAction = if (custNotes.isEmpty()) "＋ 적기" else null
                         ) { memoExpanded = !memoExpanded }
-                        if (!memoExpanded && custNotes.isNotEmpty()) {
-                            // 📌 고정 메모가 있으면 그것, 없으면 맨 위(최근) 메모 한 줄.
-                            val preview = custNotes.firstOrNull { it.pinned } ?: custNotes.first()
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                preview.body, fontSize = 12.5.sp, color = TossTextSecondary,
-                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(start = 32.dp)
-                            )
-                        }
+                        // 📌 고정 메모가 있으면 그것, 없으면 맨 위(최근) 메모 한 줄. 공용(§12) — 현장 메모와 같은 모양.
+                        if (!memoExpanded) MemoPreviewLine(custNotes)
                         if (memoExpanded) {
                             Spacer(Modifier.height(8.dp))
                             com.detailline.callfollowcrm.presentation.component.NoteList(
@@ -1217,6 +1209,7 @@ fun CustomerDetailScreen(
         NewJobSheet(
             customerName = customer?.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 },
             nth = allJobsForNew.count { !jobCancelled(it) } + 1,
+            initialAddress = customer?.address,   // 같은 집 재방문 흔함 → 미리 채워 보여줌(보이고 편집 가능). (2026-10-27)
             start = newJobStart, days = newJobDays,
             onPickDate = { dateEditJobId = null; addingNewJob = true; datePickerOpen = true },
             onRegister = { address, totalWon, depositWon ->

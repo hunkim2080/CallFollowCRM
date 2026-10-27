@@ -340,6 +340,19 @@ internal fun CdTitleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, 
  *   모양: 24dp 회색 아이콘 상자 + 12sp 회색 제목 + 개수 + 오른쪽 › (펼치면 ▾).
  *   비어 있고 접혀 있으면 › 대신 [emptyAction](예: "＋ 적기")을 파란 글씨로.
  */
+/** 접힌 메모 줄 밑 '첫 줄 미리보기' — 고객 메모·현장 메모가 **같은 모양**(고정 우선, 없으면 최근). 비면 안 그림.
+ *  (2026-10-27 사장님 "접혀서 있는지 모르겠다" → 접힌 채로도 첫 줄이 보이게. 고객 메모와 두 벌 안 되게 공용.) */
+@Composable
+internal fun MemoPreviewLine(notes: List<com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity>) {
+    val preview = notes.firstOrNull { it.pinned } ?: notes.firstOrNull() ?: return
+    Spacer(Modifier.height(4.dp))
+    Text(
+        preview.body, fontSize = 12.5.sp, color = TossTextSecondary,
+        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 32.dp)
+    )
+}
+
 @Composable
 internal fun CdFoldRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -358,7 +371,8 @@ internal fun CdFoldRow(
         Text(title, style = AppType.label, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
         if (count > 0) {
             Spacer(Modifier.width(6.dp))
-            Text("$count", style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+            // 개수는 앱 공용 알약 뱃지로 — 전엔 제목과 같은 회색 맨숫자라 눈에 안 띄었다. (2026-10-27 사장님)
+            com.detailline.callfollowcrm.presentation.component.TossBadge("$count")
         }
         Spacer(Modifier.weight(1f))
         if (emptyAction != null && !expanded) {
