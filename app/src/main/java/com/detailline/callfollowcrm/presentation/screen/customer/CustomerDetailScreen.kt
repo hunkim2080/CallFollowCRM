@@ -208,6 +208,9 @@ fun CustomerDetailScreen(
     // (selectedPastJobId 제거 — 건 탭에서 하나를 고르던 상태. 이제 건마다 자기 카드가 다 보인다. 2026-10-15)
     // 빈 메모 카드를 폈나 — 빈 공백 줄이려 접어두고, 누르면 펼친다. (2026-10-07 사장님 "허전해")
     var memoExpanded by remember(customer?.id) { mutableStateOf(false) }
+    // 🤝 이 고객이 협업 사장이면(시공막내로 한 번이라도 같이 일함) 전용 화면으로 분기한다. null = 보통 고객.
+    //   판정·받음/준 묶기는 CollabTogether 한 곳(화면이 직접 날짜 비교 안 함).
+    val collabView by viewModel.collabView.collectAsState()
     // 🗑 취소/빈 '지난 건' 삭제 확인 대상. (2026-10-06 사장님)
     var deletePastJobConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.JobEntity?>(null) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
@@ -326,7 +329,7 @@ fun CustomerDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "고객 정보",
+                        if (collabView != null) "협업 사장" else "고객 정보",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -359,6 +362,30 @@ fun CustomerDetailScreen(
                     color = TossTextTertiary
                 )
             }
+        } else if (collabView != null) {
+            // 🤝 협업 사장 — 보통 고객 화면 대신 전용 화면(전화·메모·함께한 현장). (2026-10-27 사장님 ②)
+            //   메모 편집 창(NoteEditDialog)도 이 분기가 들고 있다 — 보통 화면 것과 같은 공용 컴포넌트.
+            val collabNotes by viewModel.notes.collectAsState()
+            var collabEditing by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerNoteEntity?>(null) }
+            collabEditing?.let { en ->
+                com.detailline.callfollowcrm.presentation.component.NoteEditDialog(
+                    note = en,
+                    onClose = { collabEditing = null },
+                    onSave = { t -> viewModel.editNote(en.id, t); collabEditing = null }
+                )
+            }
+            CustomerCollabScreen(
+                customer = c,
+                view = collabView!!,
+                topPadding = inner.calculateTopPadding(),
+                notes = collabNotes,
+                memoExpanded = memoExpanded,
+                onToggleMemo = { memoExpanded = !memoExpanded },
+                onAddNote = { viewModel.addNote(it) },
+                onEditNote = { collabEditing = it },
+                onTogglePin = { viewModel.togglePinNote(it.id) },
+                onDeleteNote = { viewModel.deleteNote(it.id) }
+            )
         } else {
         // ⚠️ 여기 있던 return@Scaffold 를 뺐다 — Composable 안에서 빠져나가면
         //    빈→로드 전환 때 슬롯테이블이 어긋나 화면이 꺼지거나 빈 화면이 된다.

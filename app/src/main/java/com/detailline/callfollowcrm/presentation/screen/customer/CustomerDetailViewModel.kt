@@ -24,12 +24,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.detailline.callfollowcrm.util.PhoneKey
+import com.detailline.callfollowcrm.domain.collab.CollabTogether
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CustomerDetailViewModel(
@@ -122,6 +125,15 @@ class CustomerDetailViewModel(
                 .associate { it.shareId to it.createdAtMs }
         }
     }
+
+    /**
+     * 🤝 이 고객이 **협업 사장**이면 그 양방향 함께한 현장, 아니면 null → 보통 고객 화면 그대로.
+     *   로딩은 [loadCollabView] 한 곳(VM 안 키우려고 §12-F), 판정·묶기는 [CollabTogether].
+     */
+    val collabView: kotlinx.coroutines.flow.StateFlow<CollabTogether.View?> =
+        customer.filterNotNull().flatMapLatest { c ->
+            flow { emit(loadCollabView(container, c.phoneNumber)) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // 발행 이력 — 이 고객에게 발행한 견적서/시공접수서. 2026-07-07 사장님.
     /**

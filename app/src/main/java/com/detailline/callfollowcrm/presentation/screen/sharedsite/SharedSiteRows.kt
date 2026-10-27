@@ -73,7 +73,9 @@ internal fun CollabPillarRow(
     line2Weight: FontWeight,
     status: Triple<String, Color, Color>,
     wageMan: Int?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    // 🤝 현장명 옆 작은 방향 딱지(받음/내가 줌) — 협업 사장 상세의 양방향 목록에서만 쓴다. 비면 안 그린다(기존 줄 안 바뀜).
+    dirTag: Triple<String, Color, Color>? = null
 ) {
     val c = AppTheme.colors
     val (stTxt, stBg, stFg) = status
@@ -86,7 +88,15 @@ internal fun CollabPillarRow(
         DatePillar(scheduledAtMs)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(line1, style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(line1, style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                dirTag?.let { (txt, bg, fg) ->
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.clip(AppShape.pill).background(bg).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                        Text(txt, style = AppType.micro, color = fg)
+                    }
+                }
+            }
             if (!line2.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(line2, style = AppType.caption, fontWeight = line2Weight, color = line2Color, maxLines = 1, overflow = TextOverflow.Ellipsis)
