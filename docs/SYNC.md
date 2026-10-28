@@ -15504,3 +15504,8 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 전/후 사진 섬네일에 '전' 딱지 추가 — 지정은 됐는데 고객상세 그리드엔 '대표'만 뜨고 '전'이 안 보이던 것 수정(사장님 지적)
 - 변경: CustomerDetailJobCard — beforePhotoId 그리드에서 복원, 섬네일 TopStart 에 '전'(주황 TossWarning) 딱지(대표=파랑 옆).
 - 폰 확인: 못 봄 — 빌드 통과(BUILD=0). 내부테스트 재업로드.
+
+## 2026-10-28 17:33 · android
+내 기록 영상 **오프닝 훅** 추가(바이럴 광택 B) — 맨 앞 ~1.5초 "이번 달, 현장에서" 제목 카드가 떴다 걷히며 여정 시작(숫자는 일부러 안 보여주고 달리며 올라가게)
+- 변경: RecordReel — INTRO 상수, t 리맵(드라이브는 [INTRO,1]), drawIntro 헬퍼(밝은 막+월+헤드라인+metricLabel, argb 알파). 미리보기는 drawFrame 내부라 자동 일치.
+- 폰 확인: 못 봄 — 빌드 통과(BUILD=0). 내부테스트 재업로드.
