@@ -221,6 +221,10 @@ object RecordReel {
                 fit(paint(med, w * 0.040f, 0xD9FFFFFF.toInt()), line, w - pad * 2, w * 0.040f, w * 0.028f)))
             by += h * 0.034f
         }
+        // 🏷️ 단지명 — 지금 배경(그 현장)의 단지. (2026-10-28 사장님)
+        ordered.getOrNull(ride?.arrived ?: 0)?.apartment?.takeIf { it.isNotBlank() }?.let { apt ->
+            c.drawText(apt, pad, by, RecordShot.onPhoto(paint(bold, w * 0.036f, white)))
+        }
         if (!d.sign) return
         val name = d.bizName.trim()
         if (name.isNotBlank()) {
@@ -338,6 +342,8 @@ object RecordReel {
          *   트럭이 그 동네에 **도착하면 그 사진으로 바뀐다.** (2026-09-25 사장님)
          */
         photos: Map<String, android.graphics.Bitmap> = emptyMap(),
+        /** 🕐 그 동네 대표 현장의 **시공 전 사진** — 동네 이름 → 사진. 있으면 도착 때 전→후로 와이프. (2026-10-28 사장님) */
+        beforePhotos: Map<String, android.graphics.Bitmap> = emptyMap(),
         /**
          * 끝에서 **한 박자 쉬는** 비율. 0.12 면 88% 지점에서 다 달리고 남은 1.2초는 멈춰 있는다.
          *   전엔 마지막 현장 사진이 **0.6초만** 보이고 영상이 끝났다. (2026-09-25 사장님)
@@ -490,7 +496,33 @@ object RecordReel {
             val path = android.graphics.Path().apply {
                 addRoundRect(box, 13f, 13f, android.graphics.Path.Direction.CW)
             }
-            c.save(); c.clipPath(path); RecordShot.drawCover(c, photo, box); c.restore()
+            // 🕐 전/후 — 그 현장에 '시공 전' 사진이 있으면 도착하며 전→후로 와이프. 없으면 대표 한 장. (2026-10-28 사장님)
+            val arrDot = ordered.getOrNull(arrived)
+            val beforeBmp = arrDot?.name?.let { beforePhotos[it] }
+            c.save(); c.clipPath(path)
+            if (beforeBmp != null) {
+                val sinceArrive = if (ride != null) ride.nowT - (ride.arriveAt.getOrNull(arrived) ?: 0f) else 1f
+                val wipe = ((sinceArrive - 0.15f) / 0.5f).coerceIn(0f, 1f)   // 도착 후 전 0.15초 → 0.5초 동안 후로
+                RecordShot.drawCover(c, beforeBmp, box)
+                val split = box.left + box.width() * wipe
+                c.save(); c.clipRect(box.left, box.top, split, box.bottom)
+                RecordShot.drawCover(c, photo, box)
+                c.restore()
+                if (wipe in 0.03f..0.97f) c.drawRect(
+                    split - 2f, box.top, split + 2f, box.bottom,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
+                )
+            } else {
+                RecordShot.drawCover(c, photo, box)
+            }
+            c.restore()
+            // 🏷️ 단지명 — 사진 밑(있을 때만). 사진·단지·전후가 **같은 집**을 가리킨다. (2026-10-28 사장님)
+            arrDot?.apartment?.takeIf { it.isNotBlank() }?.let { apt ->
+                c.drawText(
+                    apt, box.centerX(), box.bottom + h * 0.030f,
+                    fit(paint(bold, w * 0.030f, ink, Paint.Align.CENTER), apt, side + w * 0.05f, w * 0.030f, w * 0.021f)
+                )
+            }
         }
 
         // ── 아래: 동네 이름 ──
@@ -567,11 +599,18 @@ object RecordReel {
                 d.dots.minByOrNull { it.order }?.let { photos[it.name] = b }
             }
         }
+        // 🕐 '시공 전' 사진도 **한 번만** 읽는다(지정된 현장만). 전→후 와이프용. (2026-10-28 사장님)
+        val beforePhotos = LinkedHashMap<String, android.graphics.Bitmap>()
+        for (dot in d.dots.sortedBy { it.order }.take(12)) {
+            val bp = dot.beforePhotoPath ?: continue
+            if (beforePhotos.containsKey(dot.name)) continue
+            RecordShot.loadPhoto(bp, 320, 320)?.let { beforePhotos[dot.name] = it }
+        }
         try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = forward
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, END_HOLD) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, beforePhotos, END_HOLD) }
             ?.let { lastMadeSize = "$W × $H"; return it }
         retrying = true   // 여기부터는 "다른 방법으로 다시 만드는 중"
         // ② 안 되면 **소프트웨어 인코더**로. 느리지만 어느 폰에서나 된다.
@@ -580,7 +619,7 @@ object RecordReel {
             VideoMaker.make(
                 outFile = out, width = W, height = H, fps = 24, seconds = seconds,
                 codecName = sw, progress = forward
-            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, END_HOLD) }
+            ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, beforePhotos, END_HOLD) }
                 ?.let { lastMadeSize = "$W × $H"; return it }
         }
         // ③ 그래도 안 되면 **작게** 한 번 더. 작으면 되는 경우가 많다.
@@ -593,11 +632,12 @@ object RecordReel {
         return VideoMaker.make(
             outFile = out, width = w2, height = h2, fps = 24, seconds = seconds,
             bitRate = 4_200_000, progress = forward
-        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos, END_HOLD) }
+        ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos, beforePhotos, END_HOLD) }
             ?.also { lastMadeSize = "$w2 × $h2" }
         } finally {
             // 읽어둔 사진은 반드시 놓아준다 — 그대로 두면 메모리를 잡아먹는다.
             for (b in photos.values) runCatching { b.recycle() }
+            for (b in beforePhotos.values) runCatching { b.recycle() }
         }
     }
 }

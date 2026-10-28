@@ -267,6 +267,8 @@ fun CustomerDetailScreen(
     var reviewQuoteDoc by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocData?>(null) }
     var intakeReviewDoc by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
     var issuedDocToDelete by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
+    // 🕐 전/후 사진 고르기 시트 요청(사진 섹션 [전/후] 버튼). null = 닫힘. (2026-10-28 사장님)
+    var beforeAfterReq by remember { mutableStateOf<BeforeAfterReq?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     // 고객 정보 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 0 일정·정산 / 1 시공접수서 / 2 블로그(준비중, 탭 숨김).
@@ -1073,6 +1075,7 @@ fun CustomerDetailScreen(
                 onDeleteJob = { deletePastJobConfirm = it },
                 onEditNote = { editingNote = it },
                 onOpenPhoto = { photos, start -> fullscreenPhotos = photos; fullscreenStart = start },
+                onOpenBeforeAfter = { beforeAfterReq = it },
                 onPicksToDelete = { picksToDelete = it },
                 onOpenQuoteDoc = { reviewQuoteDoc = it },
                 onOpenIntakeDoc = { intakeReviewDoc = it },
@@ -1253,6 +1256,19 @@ fun CustomerDetailScreen(
             Spacer(Modifier.height(8.dp))
         }
         }   // ── if (c == null) … else 끝
+    }
+    // 🕐 전/후 사진 고르기 시트 — 고객상세 사진 섹션 [전/후] 버튼이 연다. 선택은 바로 저장된다. (2026-10-28 사장님)
+    beforeAfterReq?.let { req ->
+        val ids = req.photos.map { it.id }
+        BeforeAfterPickerSheet(
+            photos = req.photos,
+            repPhotoId = req.repId,
+            beforePhotoId = req.beforeId,
+            onPickRep = { viewModel.setRepresentativePhoto(it, ids) },
+            onPickBefore = { viewModel.setBeforePhoto(it, ids) },
+            onClearBefore = { viewModel.setBeforePhoto(null, ids) },
+            onDone = { beforeAfterReq = null }
+        )
     }
     // ➕ 새 시공 잡기 시트 — 프로토 `s_newjob`(시공일·현장 주소·총 금액). 시공일 칸은 아래 기간 달력(addingNewJob)을 연다.
     //   저장은 addNewJob(start, days, address, totalWon) — 주소·총액이 **그 새 건**에 들어간다. (2026-10-15 사장님)

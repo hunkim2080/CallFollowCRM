@@ -15493,3 +15493,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 올린일정 시트 버튼 정리 — '구글 캘린더 최신화' 하나로. (사장님)
 - 변경: 파란 '구글 캘린더 열기'(바깥앱 띄우기)·회색 '지금 다시 올리기' 두 개 → 파란 '구글 캘린더 최신화' 하나(=onResync). 올리는 중엔 그 자리에 진행바(UploadProgressBar) 그대로. 바깥앱 열기는 제거(사장님 "왜 있는지").
 - 폰 확인: S9 설치.
+
+## 2026-10-28 15:13 · android
+내 기록 영상 **전/후 사진 + 단지명** 기능 + 캘린더 올릴 때 토스트 가림 수정
+- 변경(UI/모델): SitePhotoEntity.label("시공 전") 재활용(DB 마이그 0)·SitePhotoDao markBefore/clearBefore·SitePhotoRepository setBeforePhoto/clearBeforePhoto/beforeOf·CustomerDetailViewModel.setBeforePhoto·**BeforeAfterPicker(신규 시트, 콕콕 2단계)**·JobCardHost.onOpenBeforeAfter·RegionDot.apartment/beforePhotoPath·StatsViewModel(단지·전사진 점에 실음)·**RecordReel(전→후 와이프 + 단지명)**·StatsScreen(미리보기 일치)·AddressExtractor.complexName. AppNavHost 캘린더 '올리는 중' 토스트 제거(진행바가 대신). size 기준선 갱신(사장님 OK).
+- 폰 확인: 못 봄 — 빌드까지만 통과(assembleRelease BUILD=0, 가드 7개). 내부테스트 업로드 진행.
+- 다음 액션: 폰에서 ①전/후 지정(고객상세 사진 [전/후]) ②영상 미리보기(단지명·전→후 와이프) 눈으로.

@@ -130,6 +130,7 @@ internal class JobCardHost(
     val onEditNote: (CustomerNoteEntity) -> Unit,
     /** 크게 보기 — **그 건 사진 전부**를 넘겨 좌우 스와이프. startIndex=탭한 사진. (2026-10-15) */
     val onOpenPhoto: (photos: List<com.detailline.callfollowcrm.presentation.component.ViewerPhoto>, startIndex: Int) -> Unit,
+    val onOpenBeforeAfter: (BeforeAfterReq) -> Unit,
     val onPicksToDelete: (Pair<Set<Long>, Set<Long>>) -> Unit,
     val onOpenQuoteDoc: (com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocData) -> Unit,
     val onOpenIntakeDoc: (IssuedDocEntity) -> Unit,
@@ -570,6 +571,15 @@ internal fun JobDetailCard(
                         if (pickMode) {
                             PhotoHeadBtn("취소", filled = false) { exitPickMode() }
                         } else {
+                            // 🕐 전/후 사진 고르기 — 콕콕 짚어주는 2단계 시트(대표 + 시공 전). 사진 있을 때만. (2026-10-28 사장님)
+                            if (sitePhotos.isNotEmpty()) {
+                                PhotoHeadBtn("전/후", filled = false) {
+                                    val beforeId = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                                        .beforeOf(sitePhotos, repCustomerId, jobId)?.id
+                                    host.onOpenBeforeAfter(BeforeAfterReq(sitePhotos, repPhotoId, beforeId))
+                                }
+                                Spacer(Modifier.width(6.dp))
+                            }
                             // 「사진 골라 지우기」는 foot 의 ⋯ 더보기 안으로 — 가끔 하는 일을 머리 줄에 늘 두지 않는다. (2026-10-15 Fable §4-7)
                             //   이름은 그대로 「골라 지우기」(2026-09-30 사장님: 「고르기」만으론 뭘 고르는지 모르고,
                             //   「지우기」만이면 다 지워질 것 같다). 색도 중립 그대로 — 이 버튼은 아무것도 안 지운다.

@@ -20,7 +20,8 @@ data class SitePhotoEntity(
     val jobId: Long? = null,
     /** 앱 내부 저장소에 복사한 파일 절대 경로. */
     val filePath: String,
-    /** '시공 전'|'시공 중'|'시공 후'|'추가' — 현재 미사용(확장 대비, null). */
+    /** '시공 전'|'시공 중'|'시공 후'|'추가' — 지금은 **'시공 전'만** 쓴다([LABEL_BEFORE]).
+     *   내 기록 영상 전/후 비교용으로, 그 건의 '시공 전' 대표 한 장을 표시한다. 한 건에 최대 1장. (2026-10-28 사장님) */
     val label: String? = null,
     val createdAt: Long,
     /**
@@ -31,4 +32,10 @@ data class SitePhotoEntity(
     /** 사장님이 **꾹 눌러 직접 고른 대표 사진**. (v67, 2026-10-15 사장님: "맨 먼저 올린 게 대표가 되던데 — 꾹 누르면 대표로")
      *   한 건에 최대 1장만 true. 없으면 맨 먼저 올린 사진이 대표(RepresentativeOf 폴백). */
     val isRepresentative: Boolean = false
-)
+) {
+    companion object {
+        /** '시공 전' 사진 표식 — [label] 에 이 값이면 그 건의 '시공 전' 대표.
+         *   ⚠️ `SitePhotoDao` 의 markBefore/clearBefore 쿼리도 이 글자를 **인라인**으로 쓴다(Room 애너테이션은 상수를 못 끼운다 — 바꾸면 양쪽 같이). */
+        const val LABEL_BEFORE = "시공 전"
+    }
+}

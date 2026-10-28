@@ -30,6 +30,17 @@ class SitePhotoRepository(
         dao.markRepresentative(chosenId)
     }
 
+    /** 사장님이 고른 사진을 그 건의 **'시공 전'으로**. 같은 건의 다른 '시공 전'은 해제(1장만). (2026-10-28 사장님: 전/후 고르기) */
+    suspend fun setBeforePhoto(chosenId: Long, siblingIds: List<Long>) {
+        if (siblingIds.isNotEmpty()) dao.clearBefore(siblingIds)
+        dao.markBefore(chosenId)
+    }
+
+    /** '시공 전' 지정 해제 — 그 건의 '시공 전'을 모두 푼다(전/후 안 쓰고 대표 한 장으로 되돌릴 때). */
+    suspend fun clearBeforePhoto(siblingIds: List<Long>) {
+        if (siblingIds.isNotEmpty()) dao.clearBefore(siblingIds)
+    }
+
     /** 전부, 올린 순서대로. 「내 기록」이 대표 사진을 고를 때 쓴다. */
     fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>> = dao.observeAllOldestFirst()
 
@@ -57,6 +68,21 @@ class SitePhotoRepository(
                 //   사장님이 1차 탭에서 올린 사진이 2차 건에 안 붙어 **조용히 빠지던** 경우를 건진다.
                 //   그 고객 현장 사진인 건 맞으니, 아예 안 나오는 것보다 낫다.
                 ?: photos.firstOrNull { it.customerId == customerId }
+
+        /**
+         * **그 건의 '시공 전' 사진 — [representativeOf] 와 같은 짝.** (2026-10-28 사장님: 전/후 비교)
+         *
+         * 대표(후)와 똑같은 범위 규칙으로 고른다(그 건 → 건 없는 옛 사진 → 그 고객).
+         * 없으면 null — 그러면 영상·카드가 전/후 대신 **대표 한 장만** 쓴다(사장님 "전 설정한 경우만").
+         */
+        fun beforeOf(
+            photos: List<SitePhotoEntity>, customerId: Long, jobId: Long?
+        ): SitePhotoEntity? {
+            val before = photos.filter { it.label == SitePhotoEntity.LABEL_BEFORE }
+            return before.firstOrNull { it.jobId != null && it.jobId == jobId }
+                ?: before.firstOrNull { it.jobId == null && it.customerId == customerId }
+                ?: before.firstOrNull { it.customerId == customerId }
+        }
     }
 
     private fun photoDir(): File = File(context.filesDir, "site_photos").apply { mkdirs() }

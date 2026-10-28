@@ -112,6 +112,13 @@ object AddressExtractor {
             .joinToString(" ").trim().ifBlank { null }
     }
 
+    /** 주소에서 **단지명(브랜드)만** — "래미안 그란데" · "마곡엠밸리 7단지". 없으면 null.
+     *   내 기록 영상 점 라벨용(동·호수·도로명 뺀 단지 이름만). 파싱은 [parse3] 한 곳. (2026-10-28 사장님) */
+    fun complexName(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        return parse3(tidyAddress(raw)).name.takeIf { it.isNotBlank() }
+    }
+
     /** [twoLine]·[roadThenBuilding] 공통 파싱 — 도로명/행정 부분·단지(건물)명·동호수로 쪼갠다. **한 곳(§12).** */
     private data class AddrParts3(val road: String, val name: String, val unit: String?)
     private fun parse3(s: String): AddrParts3 {

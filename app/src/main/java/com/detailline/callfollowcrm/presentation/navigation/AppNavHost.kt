@@ -499,7 +499,7 @@ fun AppNavHost(
                 val token = container.googleCalendarConnection.tokenFromConsentResult(result.data)
                 if (token != null) {
                     container.preferences.googleCalendarConnected = true
-                    schedToast("연결됐어요 — 이제 캘린더에 올리는 중…")
+                    schedToast("연결됐어요")
                     container.calendarSyncManager.startSyncAll(container.applicationScope) { n -> onCalSynced(n) }
                 } else schedToast("연결이 취소됐어요")
             }
@@ -523,14 +523,14 @@ fun AppNavHost(
                     if (calSyncing) {
                         schedToast("이미 올리는 중이에요 — 뒤로 가도 계속 올라가요")
                     } else if (container.preferences.googleCalendarConnected) {
-                        schedToast("구글 캘린더에 올리는 중…")
+                        // 진행 안내는 시트 안 진행바(몇/몇)가 대신한다 — 여기서 토스트를 띄우면 그 바를 덮어 가린다. (2026-10-28 사장님)
                         container.calendarSyncManager.startSyncAll(container.applicationScope) { n -> onCalSynced(n) }
                     } else schedScope.launch {
                         // 연결(인증)은 화면 scope — 계정 고르기 런처가 필요. 연결되면 올리기는 백그라운드로.
                         when (val r = runCatching { container.googleCalendarConnection.authorize() }.getOrNull()) {
                             is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.Success -> {
                                 container.preferences.googleCalendarConnected = true
-                                schedToast("연결됐어요 — 이제 캘린더에 올리는 중…")
+                                schedToast("연결됐어요")
                                 container.calendarSyncManager.startSyncAll(container.applicationScope) { n -> onCalSynced(n) }
                             }
                             is com.detailline.callfollowcrm.data.calendar.GoogleCalendarConnection.AuthResult.NeedsConsent -> {

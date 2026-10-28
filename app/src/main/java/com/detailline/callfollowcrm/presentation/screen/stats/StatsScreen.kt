@@ -654,6 +654,19 @@ private fun ShotPreviewDialog(
     androidx.compose.runtime.DisposableEffect(previewPhotos) {
         onDispose { for (b in previewPhotos.values) runCatching { b.recycle() } }
     }
+    // 🕐 '시공 전' 사진도 미리보기에서 미리 읽는다 — 저장본과 **같게** 전→후 와이프가 보이게. (2026-10-28 사장님)
+    val previewBeforePhotos = remember(rec.dots) {
+        val m = LinkedHashMap<String, android.graphics.Bitmap>()
+        for (dot in rec.dots.sortedBy { it.order }.take(12)) {
+            val bp = dot.beforePhotoPath ?: continue
+            if (m.containsKey(dot.name)) continue
+            com.detailline.callfollowcrm.util.RecordShot.loadPhoto(bp, 320, 320)?.let { m[dot.name] = it }
+        }
+        m
+    }
+    androidx.compose.runtime.DisposableEffect(previewBeforePhotos) {
+        onDispose { for (b in previewBeforePhotos.values) runCatching { b.recycle() } }
+    }
     // 한 바퀴 도는 데 걸리는 시간 = **진짜 영상 길이.**
     //   영상과 같은 길이라야 "이대로 나오겠구나" 가 맞는다 — 그렇게 적어두고도
     //   10초로 박아두어, 곳이 많은 달은 미리보기가 **진짜보다 빨리** 돌았다.
@@ -761,7 +774,7 @@ private fun ShotPreviewDialog(
                                     ctx, nc, reelData, reelT,
                                     com.detailline.callfollowcrm.util.RecordReel.W,
                                     com.detailline.callfollowcrm.util.RecordReel.H,
-                                    previewPhotos,
+                                    previewPhotos, previewBeforePhotos,
                                     // 🔒 저장되는 영상과 **같은 값**. 끝 박자를 여기 빼먹으면
                                     //   미리보기에선 마지막 사진이 스치고 저장본은 머문다. (2026-09-25)
                                     com.detailline.callfollowcrm.util.RecordReel.END_HOLD

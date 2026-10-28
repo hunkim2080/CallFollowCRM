@@ -42,4 +42,12 @@ interface SitePhotoDao {
     /** 같은 건의 다른 사진들 대표 해제(한 건에 1장만). */
     @Query("UPDATE site_photos SET isRepresentative = 0 WHERE id IN (:ids)")
     suspend fun clearRepresentative(ids: List<Long>)
+
+    /** '시공 전' 사진 지정 — 고른 1장만 (label='시공 전' = [SitePhotoEntity.LABEL_BEFORE]). (2026-10-28 사장님: 전/후 고르기) */
+    @Query("UPDATE site_photos SET label = '시공 전' WHERE id = :id")
+    suspend fun markBefore(id: Long)
+
+    /** 같은 건의 다른 '시공 전' 해제(한 건에 1장만). 다른 label 값은 안 건드린다. */
+    @Query("UPDATE site_photos SET label = NULL WHERE id IN (:ids) AND label = '시공 전'")
+    suspend fun clearBefore(ids: List<Long>)
 }

@@ -402,6 +402,17 @@ class CustomerDetailViewModel(
         _toast.value = "대표 사진으로 정했어요"
     }
 
+    /** 고른 사진을 그 건의 '시공 전'으로(photoId=null 이면 해제). 같은 건의 다른 '시공 전'은 해제(1장만). (2026-10-28 사장님: 전/후 고르기) */
+    fun setBeforePhoto(photoId: Long?, siblingIds: List<Long>) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            SaveGuard.run("시공 전 사진", _toast) {
+                if (photoId == null) container.sitePhotoRepository.clearBeforePhoto(siblingIds)
+                else container.sitePhotoRepository.setBeforePhoto(photoId, siblingIds)
+            }
+        }
+        if (photoId != null) _toast.value = "시공 전 사진으로 정했어요"
+    }
+
     /** 🛟 서버에만 있는 내 사진 — 되살릴 수 있는 것들. 폰에 사진이 하나도 없을 때만 찬다. */
     private val _restorable =
         MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())

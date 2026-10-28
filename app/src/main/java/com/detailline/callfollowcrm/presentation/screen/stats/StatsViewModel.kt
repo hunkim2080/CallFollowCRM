@@ -283,6 +283,9 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val photoOf = LinkedHashMap<String, String>()
         // 그 동네에서 번 돈 — 도착할 때 **지폐가 몇 장 올라올지**를 정한다. (2026-09-25)
         val moneyOf = LinkedHashMap<String, Int>()
+        // 그 동네 대표 현장의 단지명 · 시공 전 사진 — 사진과 **한 짝**(같은 현장). (2026-10-28 사장님: 영상 ①단지명 ③전/후)
+        val apartmentOf = LinkedHashMap<String, String>()
+        val beforePhotoOf = LinkedHashMap<String, String>()
         for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             val spot = spotOf(a) ?: continue
@@ -293,9 +296,19 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             // 그 동네 사진 — **그 현장에 제일 먼저 올린 것.** [photos] 가 올린 순서라 먼저 걸리는 게 대표.
             //   한 동네에 현장이 여럿이면, 사진이 있는 **첫 현장** 것을 쓴다.
             if (photoOf[spot.name] == null) {
-                val hit = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                val repPath = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
                     .representativeOf(photos, j.customerId, j.id)
-                hit?.filePath?.takeIf { java.io.File(it).exists() }?.let { photoOf[spot.name] = it }
+                    ?.filePath?.takeIf { java.io.File(it).exists() }
+                if (repPath != null) {
+                    photoOf[spot.name] = repPath
+                    // 같은 현장의 단지명 · 시공 전 사진을 같이 — 사진·단지·전후가 **한 집**을 가리킨다.
+                    com.detailline.callfollowcrm.util.AddressExtractor.complexName(a)
+                        ?.let { apartmentOf[spot.name] = it }
+                    com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                        .beforeOf(photos, j.customerId, j.id)
+                        ?.filePath?.takeIf { java.io.File(it).exists() }
+                        ?.let { beforePhotoOf[spot.name] = it }
+                }
             }
         }
         // 🤝 협업 현장도 같은 지도에. 일당이 **그 동네에서 번 돈**이 된다.
@@ -311,7 +324,9 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             com.detailline.callfollowcrm.presentation.component.RegionDot(
                 nm, v.first, v.second, v.third, orderOf[nm] ?: 0,
                 amountManwon = moneyOf[nm] ?: 0,
-                photoPath = photoOf[nm]
+                photoPath = photoOf[nm],
+                apartment = apartmentOf[nm],
+                beforePhotoPath = beforePhotoOf[nm]
             )
         }
         // 🏠 **아침에 나선 자리.** (2026-09-27 사장님 "내가 출발하는 위치를 정해야하는데")
