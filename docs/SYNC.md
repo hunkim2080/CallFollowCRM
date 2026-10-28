@@ -15472,3 +15472,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 네비바 짤림 — CalendarSyncSheet 를 Dialog→인라인 오버레이로 (5번째 끝, 근본). (사장님)
 - 변경: 올린 일정 시트를 Dialog 에서 빼서 다른 시트(AssignTeamSheet)처럼 Scaffold 뒤 인라인 오버레이로. Dialog 는 삼성에서 WindowInsets.navigationBars=0 으로 와 바닥 버튼이 계속 짤렸다(인셋 읽기 4방식 다 실패). 인라인은 액티비티 창 인셋이 정확 → 공용 keyboardOrNavPadding() 으로 탭바/네비바 위로. 뒤로가기=시트 닫기(BackHandler).
 - 폰 확인: S9 설치. S23U 짤림 해소는 사장님 확인.
+
+## 2026-10-28 02:40 · android
+네비바 진단(임시) — 올린일정 시트에 네비바 측정값 표시 + 창 인셋 여백.
+- 변경: CalendarSyncSheet 에 "🔧nav compose=X view=Y ime=Z pad=Ndp" 빨간 글씨(임시). 바닥 여백을 maxOf(컴포즈인셋, 창인셋) 기반으로. 사장님 스샷으로 어느 인셋이 0인지 확인 → 근본 수정.
+- 폰 확인: S9 설치. S23U 측정값은 사장님 스샷 대기.
+- 다음 액션: 측정값 받으면 진단 글씨 빼고 올바른 여백으로 확정.
