@@ -508,6 +508,11 @@ internal fun JobDetailCard(
                     sitePhotos.sortedBy { it.createdAt }, repCustomerId, jobId
                 )?.id
             }
+            // 🕐 지금 '시공 전'으로 지정된 사진 — 섬네일 딱지·전/후 버튼이 같이 쓴다. (2026-10-28 사장님)
+            val beforePhotoId = remember(sitePhotos, jobId, repCustomerId) {
+                com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                    .beforeOf(sitePhotos, repCustomerId, jobId)?.id
+            }
             LaunchedEffect(showPhotoPicker) {
                 if (showPhotoPicker) {
                     showPhotoPicker = false
@@ -574,9 +579,7 @@ internal fun JobDetailCard(
                             // 🕐 전/후 사진 고르기 — 콕콕 짚어주는 2단계 시트(대표 + 시공 전). 사진 있을 때만. (2026-10-28 사장님)
                             if (sitePhotos.isNotEmpty()) {
                                 PhotoHeadBtn("전/후", filled = false) {
-                                    val beforeId = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
-                                        .beforeOf(sitePhotos, repCustomerId, jobId)?.id
-                                    host.onOpenBeforeAfter(BeforeAfterReq(sitePhotos, repPhotoId, beforeId))
+                                    host.onOpenBeforeAfter(BeforeAfterReq(sitePhotos, repPhotoId, beforePhotoId))
                                 }
                                 Spacer(Modifier.width(6.dp))
                             }
@@ -664,6 +667,17 @@ internal fun JobDetailCard(
                                                             .padding(horizontal = 7.dp, vertical = 2.dp)
                                                     ) {
                                                         Text("대표", style = AppType.micro, color = Color.White)
+                                                    }
+                                                }
+                                                // 🕐 시공 전 딱지 — 전/후 지정한 사진(대표와 다른 사진). (2026-10-28 사장님)
+                                                if (cell.id == beforePhotoId) {
+                                                    androidx.compose.foundation.layout.Box(
+                                                        Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(5.dp)
+                                                            .clip(AppShape.pill)
+                                                            .background(com.detailline.callfollowcrm.presentation.theme.TossWarning)
+                                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("전", style = AppType.micro, color = Color.White)
                                                     }
                                                 }
                                                 // ✕ 바로 지우기 — **목록에서 한 장씩**(첨부사진 지우듯). (2026-10-24 사장님 "크게 열어 지우는 건 번거롭다")

@@ -15499,3 +15499,8 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경(UI/모델): SitePhotoEntity.label("시공 전") 재활용(DB 마이그 0)·SitePhotoDao markBefore/clearBefore·SitePhotoRepository setBeforePhoto/clearBeforePhoto/beforeOf·CustomerDetailViewModel.setBeforePhoto·**BeforeAfterPicker(신규 시트, 콕콕 2단계)**·JobCardHost.onOpenBeforeAfter·RegionDot.apartment/beforePhotoPath·StatsViewModel(단지·전사진 점에 실음)·**RecordReel(전→후 와이프 + 단지명)**·StatsScreen(미리보기 일치)·AddressExtractor.complexName. AppNavHost 캘린더 '올리는 중' 토스트 제거(진행바가 대신). size 기준선 갱신(사장님 OK).
 - 폰 확인: 못 봄 — 빌드까지만 통과(assembleRelease BUILD=0, 가드 7개). 내부테스트 업로드 진행.
 - 다음 액션: 폰에서 ①전/후 지정(고객상세 사진 [전/후]) ②영상 미리보기(단지명·전→후 와이프) 눈으로.
+
+## 2026-10-28 16:51 · android
+전/후 사진 섬네일에 '전' 딱지 추가 — 지정은 됐는데 고객상세 그리드엔 '대표'만 뜨고 '전'이 안 보이던 것 수정(사장님 지적)
+- 변경: CustomerDetailJobCard — beforePhotoId 그리드에서 복원, 섬네일 TopStart 에 '전'(주황 TossWarning) 딱지(대표=파랑 옆).
+- 폰 확인: 못 봄 — 빌드 통과(BUILD=0). 내부테스트 재업로드.
