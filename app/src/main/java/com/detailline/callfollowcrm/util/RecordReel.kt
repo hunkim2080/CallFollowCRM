@@ -105,7 +105,7 @@ object RecordReel {
         h: Int,
         photos: Map<String, android.graphics.Bitmap>,
         ride: com.detailline.callfollowcrm.util.MapRide.At?,
-        introFade: Float
+        introP: Float
     ) {
         val bold = font(ctx, R.font.pretendard_bold)
         val xbold = font(ctx, R.font.pretendard_extrabold)
@@ -226,7 +226,7 @@ object RecordReel {
         ordered.getOrNull(ride?.arrived ?: 0)?.apartment?.takeIf { it.isNotBlank() }?.let { apt ->
             c.drawText(apt, pad, by, RecordShot.onPhoto(paint(bold, w * 0.036f, white)))
         }
-        drawIntro(ctx, c, d, w, h, introFade)
+        drawIntro(ctx, c, d, w, h, introP)
         if (!d.sign) return
         val name = d.bizName.trim()
         if (name.isNotBlank()) {
@@ -290,7 +290,7 @@ object RecordReel {
     const val END_HOLD = 0.12f
 
     /** 🎬 오프닝 훅 비율 — 맨 앞 이만큼은 제목 카드가 떴다 걷힌다(기대감). 미리보기도 같은 값. (2026-10-28 사장님: 바이럴 광택) */
-    const val INTRO = 0.14f
+    const val INTRO = 0.18f
 
     /** 제일 짧은 영상. 두세 곳뿐인 달도 이보다 짧으면 볼 새가 없다. */
     const val MIN_SECONDS = 10f
@@ -341,30 +341,41 @@ object RecordReel {
      *   숫자는 **일부러 안 보여준다** — "얼마나?" 궁금하게 두고, 달리면서 올라가는 걸로 푼다.
      *   [fade] 1→0 (INTRO 구간). 밝은 톤이라 흰 막 + 검은 글씨. 색은 argb(알파·10진 RGB)로 — 하드코딩 hex 안 늘린다.
      */
-    private fun drawIntro(ctx: Context, c: Canvas, d: Data, w: Int, h: Int, fade: Float) {
-        if (fade <= 0.01f) return
-        val a = fade.coerceIn(0f, 1f)
+    private fun drawIntro(ctx: Context, c: Canvas, d: Data, w: Int, h: Int, introP: Float) {
+        if (introP >= 1f) return
+        // 앞 72% 는 **꽉 차게**(그동안 큰 숫자 0→최종 올라감), 뒤 28% 에서 걷힌다 — '금방 꺼져 흐리멍텅' 고침. (2026-10-28 사장님)
+        val a = if (introP <= 0.72f) 1f else (1f - (introP - 0.72f) / 0.28f).coerceIn(0f, 1f)
+        if (a <= 0.01f) return
         val xbold = font(ctx, R.font.pretendard_extrabold)
         val med = font(ctx, R.font.pretendard_medium)
-        c.drawColor(android.graphics.Color.argb((a * 235f).toInt(), 247, 248, 250))
+        c.drawColor(android.graphics.Color.argb((a * 255f).toInt(), 247, 248, 250))   // 꽉 찬 밝은 막
         val cx = w / 2f
-        var y = h * 0.40f
+        var y = h * 0.32f
         c.drawText(
             d.monthLabel, cx, y,
-            paint(med, w * 0.046f, android.graphics.Color.argb((a * 255f).toInt(), 90, 100, 114), Paint.Align.CENTER)
+            paint(med, w * 0.048f, android.graphics.Color.argb((a * 255f).toInt(), 90, 100, 114), Paint.Align.CENTER)
         )
-        y += h * 0.062f
+        y += h * 0.058f
         val title = d.headline.ifBlank { "이번 달, 현장에서" }
         c.drawText(
             title, cx, y,
-            fit(paint(xbold, w * 0.082f, android.graphics.Color.argb((a * 255f).toInt(), 11, 15, 25), Paint.Align.CENTER),
-                title, w - w * 0.14f, w * 0.082f, w * 0.052f)
+            fit(paint(xbold, w * 0.072f, android.graphics.Color.argb((a * 255f).toInt(), 11, 15, 25), Paint.Align.CENTER),
+                title, w - w * 0.14f, w * 0.072f, w * 0.05f)
         )
+        // 🔢 큰 숫자 — 앞 72% 동안 0→최종으로 후르륵(오프닝 주인공). 글자 자리는 최종값으로 고정.
+        val cp = (introP / 0.72f).coerceIn(0f, 1f)
+        val eased = 1f - (1f - cp) * (1f - cp)
+        y += h * 0.115f
+        val bigP = fit(
+            paint(xbold, w * 0.170f, android.graphics.Color.argb((a * 255f).toInt(), 49, 130, 246), Paint.Align.CENTER),
+            d.metricValue + d.metricUnit, w - w * 0.12f, w * 0.170f, w * 0.10f
+        )
+        c.drawText(countUp(d.metricValue, eased) + " " + d.metricUnit, cx, y, bigP)
         if (d.metricLabel.isNotBlank()) {
-            y += h * 0.052f
+            y += h * 0.054f
             c.drawText(
                 d.metricLabel, cx, y,
-                paint(med, w * 0.042f, android.graphics.Color.argb((a * 255f).toInt(), 49, 130, 246), Paint.Align.CENTER)
+                paint(med, w * 0.044f, android.graphics.Color.argb((a * 255f).toInt(), 90, 100, 114), Paint.Align.CENTER)
             )
         }
     }
@@ -391,7 +402,7 @@ object RecordReel {
     ) {
         val tE = if (endHold > 0f) (t / (1f - endHold)).coerceAtMost(1f) else t
         // 🎬 오프닝 훅 — 맨 앞 INTRO 동안 제목이 떴다 걷히며 여정 시작(기대감). 그동안 트럭은 출발선(t=0). (2026-10-28 사장님)
-        val introFade = (1f - tE / INTRO).coerceIn(0f, 1f)
+        val introP = (tE / INTRO).coerceIn(0f, 1f)
         @Suppress("NAME_SHADOWING")
         val t = ((tE - INTRO) / (1f - INTRO)).coerceIn(0f, 1f)
         val bold = font(ctx, R.font.pretendard_bold)
@@ -421,7 +432,7 @@ object RecordReel {
 
         // 📸 사진이 주인공인 갈래로. 사진이 하나도 없으면 지도 갈래 그대로 간다.
         if (d.photoHero && photos.isNotEmpty()) {
-            drawPhotoFrame(ctx, c, d, t, w, h, photos, ride, introFade)
+            drawPhotoFrame(ctx, c, d, t, w, h, photos, ride, introP)
             return
         }
 
@@ -575,7 +586,7 @@ object RecordReel {
 
         // ── 맨 아래: 간판 ── 상호 크게 · 지역·업종·번호. SNS 에 올리는 건 결국 광고다.
         //   끄면 담백하게 — 그림과 같은 토글을 따른다.
-        drawIntro(ctx, c, d, w, h, introFade)
+        drawIntro(ctx, c, d, w, h, introP)
         if (!d.sign) return
         val name = d.bizName.trim()
         if (name.isNotBlank()) {

@@ -76,8 +76,27 @@ object DiagnosticsReporter {
      * @param extra 상황별 진단 텍스트(개인정보 배제). 예: [com.detailline.callfollowcrm.recording.AdotFolderScanner.recordingDiag].
      * @return 서버 전송 성공 여부. 실패 시 호출부가 [share] 폴백.
      */
-    suspend fun sendAuto(context: Context, prefs: AppPreferences, tag: String, extra: String): Boolean =
-        sendToServer(context, prefs, note = "[막힘 자동진단] $tag\n$extra", imageUri = null)
+    suspend fun sendAuto(context: Context, prefs: AppPreferences, tag: String, extra: String): Boolean {
+        // 🤖 가짜 폰(에뮬레이터)에선 자동진단을 **안 보낸다** — 구글 Play 심사가 여러 에뮬레이터에서
+        //   Robo 로 버튼을 자동으로 눌러 채널이 도배됐다. 진짜 손님(실기기)만 보낸다. (2026-10-28 사장님 "왜 계속 보내지")
+        if (isProbablyEmulator()) return false
+        return sendToServer(context, prefs, note = "[막힘 자동진단] $tag\n$extra", imageUri = null)
+    }
+
+    /** 에뮬레이터(구글 테스트 farm·우리 테스트)인가 — 표준 지문 휴리스틱. */
+    private fun isProbablyEmulator(): Boolean {
+        val fp = (android.os.Build.FINGERPRINT ?: "")
+        val model = (android.os.Build.MODEL ?: "")
+        val product = (android.os.Build.PRODUCT ?: "")
+        val hw = (android.os.Build.HARDWARE ?: "")
+        val device = (android.os.Build.DEVICE ?: "")
+        return fp.startsWith("generic") || fp.startsWith("unknown") || fp.contains("sdk_gphone") ||
+            fp.contains("emulator") || fp.contains("simulator") ||
+            model.contains("sdk_gphone") || model.contains("Emulator") || model.contains("Android SDK built for") ||
+            product.contains("sdk_gphone") || product.startsWith("sdk") || product.contains("emulator") ||
+            hw.contains("goldfish") || hw.contains("ranchu") ||
+            (android.os.Build.BRAND.startsWith("generic") && device.startsWith("generic"))
+    }
 
     /** 자동 진단 폴백(공유 시트)용 리포트 — 서버 직송 실패 시 [share] 에 넘길 본문. */
     fun autoReport(prefs: AppPreferences, tag: String, extra: String): String =

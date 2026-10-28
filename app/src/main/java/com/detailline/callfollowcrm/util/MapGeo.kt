@@ -202,14 +202,34 @@ object MapGeo {
         for (i in 0 until dots.size - 1) {
             val a = dots[i]
             val b = dots[i + 1]
-            routeBetween(ctx, a.first, a.second, b.first, b.second)?.let { seg ->
+            val seg = routeBetween(ctx, a.first, a.second, b.first, b.second)
+            if (seg != null) {
                 var k = 0
                 while (k + 1 < seg.size) { push(seg[k], seg[k + 1]); k += 2 }
+            } else {
+                // 🛣️ 길을 못 찾은 먼 구간 — **직선(가로지르기) 대신 부드러운 곡선 아크**로 잇는다. (2026-10-28 사장님 "가로지르기 장난아니야")
+                pushArc({ x, y -> push(x, y) }, a.first.toFloat(), a.second.toFloat(), b.first.toFloat(), b.second.toFloat())
             }
             push(b.first.toFloat(), b.second.toFloat())
             stops[i + 1] = out.size / 2 - 1
         }
         return Trip(out.toFloatArray(), stops)
+    }
+
+    /** 두 점을 **곡선(이차 베지어)**으로 — 가운데를 진행방향 옆으로 살짝 띄워 아크. 중간점만 push(양 끝은 호출부가 찍는다). */
+    private fun pushArc(push: (Float, Float) -> Unit, ax: Float, ay: Float, bx: Float, by: Float) {
+        val dx = bx - ax; val dy = by - ay
+        val len = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        if (len < 1e-5f) return
+        val nx = -dy / len; val ny = dx / len          // 진행방향 왼쪽 법선
+        val bow = len * 0.14f                           // 휘는 정도
+        val cx = (ax + bx) / 2f + nx * bow
+        val cy = (ay + by) / 2f + ny * bow
+        val n = 18
+        for (k in 1 until n) {
+            val t = k.toFloat() / n; val u = 1f - t
+            push(u * u * ax + 2f * u * t * cx + t * t * bx, u * u * ay + 2f * u * t * cy + t * t * by)
+        }
     }
 
     private fun nearest(g: Net, lon: Double, lat: Double): Int {
