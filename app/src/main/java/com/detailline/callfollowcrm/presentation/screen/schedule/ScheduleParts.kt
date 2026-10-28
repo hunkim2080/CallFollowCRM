@@ -895,21 +895,8 @@ internal fun CalendarSyncSheet(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            androidx.compose.foundation.layout.Box(
-                Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
-                    .clickable {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse("https://calendar.google.com"))
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-                        }
-                    }.padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("구글 캘린더 열기", style = AppType.headline, color = AppTheme.colors.textOnPrimary) }
-            Spacer(Modifier.height(8.dp))
-            // 올리는 중이면 '지금 다시 올리기' 버튼 자리에 **진행바**(채워지는 느낌 + 몇/몇). (2026-10-08 사장님)
-            //   백그라운드라 이 시트를 닫거나 뒤로 가도 계속 올라간다 — sub 안내로 안심시킨다.
+            // 🔵 파란 버튼 = **구글 캘린더 최신화**(= 올린 일정 다시 올리기/동기화). 바깥앱 '열기'·중복 '지금 다시 올리기' 정리. (2026-10-28 사장님)
+            //   올리는 중이면 이 자리에 진행바(채워지는 느낌 + 몇/몇). 백그라운드라 닫거나 뒤로 가도 계속 올라간다.
             if (syncing) {
                 com.detailline.callfollowcrm.presentation.component.UploadProgressBar(
                     done = syncDone, total = syncTotal,
@@ -917,10 +904,10 @@ internal fun CalendarSyncSheet(
                 )
             } else {
                 androidx.compose.foundation.layout.Box(
-                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(TossBlue)
                         .clickable { onResync() }.padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("지금 다시 올리기", style = AppType.headline, color = TossTextSecondary) }
+                ) { Text("구글 캘린더 최신화", style = AppType.headline, color = AppTheme.colors.textOnPrimary) }
             }
         }
     }
