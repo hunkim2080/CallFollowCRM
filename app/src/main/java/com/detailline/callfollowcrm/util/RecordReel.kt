@@ -537,42 +537,37 @@ object RecordReel {
             found
         }
         if (photo != null) {
-            val side = w * 0.30f
-            val bx = w - pad - side
-            val by0 = mapTop + h * 0.012f
-            val box = android.graphics.RectF(bx, by0, bx + side, by0 + side)
-            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFFFFFFFF.toInt(); setShadowLayer(14f, 0f, 5f, 0x33000000)
-            }
-            c.drawRoundRect(box.left - 9f, box.top - 9f, box.right + 9f, box.bottom + 9f, 20f, 20f, frame)
-            val path = android.graphics.Path().apply {
-                addRoundRect(box, 13f, 13f, android.graphics.Path.Direction.CW)
-            }
-            // 🕐 전/후 — 그 현장에 '시공 전' 사진이 있으면 도착하며 전→후로 와이프. 없으면 대표 한 장. (2026-10-28 사장님)
+            // 🖼️ **크게** — 코너 작은 상자가 아니라 지도 위 큰 카드(4:3). 전→후는 **페이드**(와이프·구분선 없이 덜 정신없게). (2026-10-28 사장님 "사진 작아서 안 보여")
             val arrDot = ordered.getOrNull(arrived)
             val beforeBmp = arrDot?.name?.let { beforePhotos[it] }
+            val cardW = w * 0.46f
+            val cardH = cardW * 0.74f
+            val bx = w - pad - cardW
+            val by0 = mapTop + h * 0.010f
+            val box = android.graphics.RectF(bx, by0, bx + cardW, by0 + cardH)
+            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt(); setShadowLayer(18f, 0f, 6f, 0x40000000)
+            }
+            c.drawRoundRect(box.left - 10f, box.top - 10f, box.right + 10f, box.bottom + 10f, 22f, 22f, frame)
+            val path = android.graphics.Path().apply { addRoundRect(box, 15f, 15f, android.graphics.Path.Direction.CW) }
             c.save(); c.clipPath(path)
+            RecordShot.drawCover(c, photo, box)                       // 후(완성) — 바닥
             if (beforeBmp != null) {
+                // 전이 스르륵 사라지며 후가 드러난다(페이드). 도착 후 0.2초 보여주고 0.5초 동안.
                 val sinceArrive = if (ride != null) ride.nowT - (ride.arriveAt.getOrNull(arrived) ?: 0f) else 1f
-                val wipe = ((sinceArrive - 0.15f) / 0.5f).coerceIn(0f, 1f)   // 도착 후 전 0.15초 → 0.5초 동안 후로
-                RecordShot.drawCover(c, beforeBmp, box)
-                val split = box.left + box.width() * wipe
-                c.save(); c.clipRect(box.left, box.top, split, box.bottom)
-                RecordShot.drawCover(c, photo, box)
-                c.restore()
-                if (wipe in 0.03f..0.97f) c.drawRect(
-                    split - 2f, box.top, split + 2f, box.bottom,
-                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
-                )
-            } else {
-                RecordShot.drawCover(c, photo, box)
+                val beforeA = 1f - ((sinceArrive - 0.2f) / 0.5f).coerceIn(0f, 1f)
+                if (beforeA > 0.01f) {
+                    val sv = c.saveLayerAlpha(box.left, box.top, box.right, box.bottom, (beforeA * 255f).toInt())
+                    RecordShot.drawCover(c, beforeBmp, box)
+                    c.restoreToCount(sv)
+                }
             }
             c.restore()
-            // 🏷️ 단지명 — 사진 밑(있을 때만). 사진·단지·전후가 **같은 집**을 가리킨다. (2026-10-28 사장님)
+            // 🏷️ 단지명 — 카드 밑(있을 때만).
             arrDot?.apartment?.takeIf { it.isNotBlank() }?.let { apt ->
                 c.drawText(
-                    apt, box.centerX(), box.bottom + h * 0.030f,
-                    fit(paint(bold, w * 0.030f, ink, Paint.Align.CENTER), apt, side + w * 0.05f, w * 0.030f, w * 0.021f)
+                    apt, box.centerX(), box.bottom + h * 0.034f,
+                    fit(paint(xbold, w * 0.040f, ink, Paint.Align.CENTER), apt, cardW + w * 0.06f, w * 0.040f, w * 0.026f)
                 )
             }
         }
@@ -644,11 +639,11 @@ object RecordReel {
         for (dot in d.dots.sortedBy { it.order }.take(12)) {
             val p = dot.photoPath ?: continue
             if (photos.containsKey(dot.name)) continue
-            RecordShot.loadPhoto(p, 320, 320)?.let { photos[dot.name] = it }
+            RecordShot.loadPhoto(p, 400, 400)?.let { photos[dot.name] = it }
         }
         // 동네별 사진이 하나도 없으면 **그 달 대표 사진**이라도 쓴다(예전처럼 한 장).
         if (photos.isEmpty()) {
-            RecordShot.loadPhoto(d.photoPath, 320, 320)?.let { b ->
+            RecordShot.loadPhoto(d.photoPath, 400, 400)?.let { b ->
                 d.dots.minByOrNull { it.order }?.let { photos[it.name] = b }
             }
         }
@@ -657,7 +652,7 @@ object RecordReel {
         for (dot in d.dots.sortedBy { it.order }.take(12)) {
             val bp = dot.beforePhotoPath ?: continue
             if (beforePhotos.containsKey(dot.name)) continue
-            RecordShot.loadPhoto(bp, 320, 320)?.let { beforePhotos[dot.name] = it }
+            RecordShot.loadPhoto(bp, 400, 400)?.let { beforePhotos[dot.name] = it }
         }
         try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
