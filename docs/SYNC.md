@@ -15467,3 +15467,8 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: ①접수서 "방금 문자에서 주소" 카드가 완료(접힌)됐어도 주소 빈 건이 있으면 그 건에 채운다(새 시공 X) — fillTarget 에 완료 빈건 포함(열린 건 우선). ②건 예약취소 건 ID로 직접(위 커밋). ③navBarBottomDp 뷰 인셋.
 - 폰 확인: S9 설치.
 - 다음 액션: 네비바 아직 짤리면 → CalendarSyncSheet 를 Dialog→인라인 AppSheet 로 전환.
+
+## 2026-10-28 02:10 · android
+네비바 짤림 — CalendarSyncSheet 를 Dialog→인라인 오버레이로 (5번째 끝, 근본). (사장님)
+- 변경: 올린 일정 시트를 Dialog 에서 빼서 다른 시트(AssignTeamSheet)처럼 Scaffold 뒤 인라인 오버레이로. Dialog 는 삼성에서 WindowInsets.navigationBars=0 으로 와 바닥 버튼이 계속 짤렸다(인셋 읽기 4방식 다 실패). 인라인은 액티비티 창 인셋이 정확 → 공용 keyboardOrNavPadding() 으로 탭바/네비바 위로. 뒤로가기=시트 닫기(BackHandler).
+- 폰 확인: S9 설치. S23U 짤림 해소는 사장님 확인.

@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
+import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -819,8 +820,8 @@ internal fun CalendarSyncSheet(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val noRipple = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    // 바닥 네비바 클리어런스 — Dialog 는 인셋 0·리소스도 3버튼 못 맞춰, **최소 48dp 보장**(아래 .padding 주석). (2026-10-27 사장님)
-    val bottomClear = maxOf(com.detailline.callfollowcrm.presentation.util.navBarBottomDp(), 48.dp) + 8.dp
+    // 뒤로가기 = 이 시트만 닫기(인라인 오버레이라 Dialog 처럼 자동으로 안 닫힌다). AppSheet 과 같은 규칙.
+    androidx.activity.compose.BackHandler { onClose() }
     data class CalRow(val emoji: String, val day: Long, val title: String, val sub: String?)
     val rows = androidx.compose.runtime.remember(work, asList, simples) {
         val out = ArrayList<CalRow>()
@@ -845,13 +846,11 @@ internal fun CalendarSyncSheet(
                 .clip(AppShape.xl)
                 .background(AppTheme.colors.surface)
                 .clickable(interactionSource = noRipple, indication = null) { }
+                // 🧷 바닥 네비바/키보드 여백 — 다른 시트와 같은 공용(AppSheet 의 keyboardOrNavPadding). 인라인 오버레이라
+                //   액티비티 창 인셋이 **정확히** 와서 바닥 버튼이 네비바에 안 짤린다(Dialog 땐 인셋 0 으로 와 5번 짤렸다). (2026-10-28 사장님)
+                .keyboardOrNavPadding()
                 .heightIn(max = 620.dp)
-                // 🧷 바닥 버튼이 3버튼 네비바에 짤리는 것 — 이 시트는 **Dialog 창**(edge-to-edge)이라 네비바 밑까지 깔리는데,
-                //   Dialog 는 네비바 인셋을 **0** 으로 주고 리소스(resNavPx)도 **현재 3버튼 모드**를 못 맞춰 bottomBarClearance
-                //   로도 부족했다(2026-10-12·14 두 번 시도 "아직도"). → 리소스에 안 기대고 **3버튼(48dp)은 무조건 넘게 최소 보장**.
-                //   (2026-10-27 사장님 "아직도 이러네". gesture 네비면 조금 넉넉할 뿐 — 짤리는 것보다 낫다.)
-                .padding(horizontal = 20.dp).padding(top = 12.dp)
-                .padding(bottom = bottomClear)
+                .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 12.dp)
         ) {
             androidx.compose.foundation.layout.Box(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)

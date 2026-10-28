@@ -172,37 +172,9 @@ fun ScheduleScreen(
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "이름"
     // 「방금 · N건」 탭 → 올린 일정 목록 시트. (2026-10-05 사장님) 자동 동기화라 그 자리는 '확인용'.
+    //   🧷 시트 자체는 **Scaffold 뒤 인라인 오버레이**로 띄운다(아래). Dialog 는 삼성에서 네비바 인셋이 0 으로 와
+    //      바닥 버튼이 짤렸다(5번 시도 실패) — 다른 시트(AssignTeamSheet)처럼 화면 안에서 띄우면 탭바 위라 안 짤린다. (2026-10-28 사장님)
     var showCalSheet by remember { mutableStateOf(false) }
-    if (showCalSheet) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showCalSheet = false },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            // 🧷 삼성(S23U) Dialog 네비바 가림 — Compose Dialog 는 기본이 **창을 시스템바 위에** 올려
-            //   WindowInsets.navigationBars 를 0 으로 준다. 그래서 바닥 버튼이 3버튼 네비바에 짤렸다.
-            //   창을 edge-to-edge 로 열면 인셋이 **진짜 값**(48dp 등)으로 와, bottomBarClearance 가 정확히 띄운다.
-            //   (2026-10-12 resNavPx fallback 로는 부족 → 2026-10-14 사장님 "아직도 그래")
-            val dialogView = androidx.compose.ui.platform.LocalView.current
-            androidx.compose.runtime.SideEffect {
-                ((dialogView.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window)?.let {
-                    androidx.core.view.WindowCompat.setDecorFitsSystemWindows(it, false)
-                }
-            }
-            CalendarSyncSheet(
-                accountEmail = calendarAccountEmail,
-                syncedAtMs = calendarSyncedAtMs,
-                syncedCount = calendarSyncedCount,
-                syncing = calendarSyncing,
-                syncDone = calendarSyncDone,
-                syncTotal = calendarSyncTotal,
-                work = state.all,
-                asList = asList,
-                simples = simpleEvents,
-                onResync = onCalendarSync,
-                onClose = { showCalSheet = false }
-            )
-        }
-    }
     val collabSites by viewModel.collabSites.collectAsState()
     // 협업 현장에도 **주소가 있다**. 달력 칸에 지역명을 적으려고 날짜→지역명으로 바꿔둔다.
     //   (2026-09-22 사장님 "협업도 주소지가 있는데 왜 이렇게 하니" — 내가 없다고 잘못 알았다.)
@@ -691,6 +663,23 @@ fun ScheduleScreen(
             }
             item { Spacer(Modifier.height(12.dp)) }
         }
+    }
+
+    // 올린 일정 시트 — 인라인 오버레이(Dialog 아님, 위 주석). 다른 시트처럼 Scaffold 뒤에 떠서 탭바 위 → 네비바에 안 닿음.
+    if (showCalSheet) {
+        CalendarSyncSheet(
+            accountEmail = calendarAccountEmail,
+            syncedAtMs = calendarSyncedAtMs,
+            syncedCount = calendarSyncedCount,
+            syncing = calendarSyncing,
+            syncDone = calendarSyncDone,
+            syncTotal = calendarSyncTotal,
+            work = state.all,
+            asList = asList,
+            simples = simpleEvents,
+            onResync = onCalendarSync,
+            onClose = { showCalSheet = false }
+        )
     }
 
     // 전문가 배정 시트 — 팀원(칩 토글, 완료에 저장) + 협업 사장님(탭하면 이 현장 협업 요청).
