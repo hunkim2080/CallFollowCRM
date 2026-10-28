@@ -47,7 +47,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
-import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -822,15 +821,15 @@ internal fun CalendarSyncSheet(
     val noRipple = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     // 뒤로가기 = 이 시트만 닫기(인라인 오버레이라 Dialog 처럼 자동으로 안 닫힌다). AppSheet 과 같은 규칙.
     androidx.activity.compose.BackHandler { onClose() }
-    // 🔧 진단 — 네비바를 몇으로 재는지(컴포즈 인셋 vs 창 인셋 vs 키보드). 창 인셋이 제일 믿을 만. (2026-10-28 임시)
-    val diagDensity = androidx.compose.ui.platform.LocalDensity.current
-    val diagView = androidx.compose.ui.platform.LocalView.current
-    val navComposePx = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(diagDensity)
-    val imeComposePx = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(diagDensity)
-    val navViewPx = androidx.core.view.ViewCompat.getRootWindowInsets(diagView)
-        ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: -1
-    val appliedNavPx = maxOf(navComposePx, if (navViewPx > 0) navViewPx else 0)
-    val navPadDp = with(diagDensity) { appliedNavPx.toDp() }
+    // 🧷 바닥 네비바 여백 — **창(View) 인셋**으로 잰다. 이 시트는 탭바 위 인라인 오버레이라 Compose 의
+    //   WindowInsets.navigationBars 는 탭바가 이미 소비해 **0** 으로 온다(그래서 keyboardOrNavPadding 이 안 먹었다).
+    //   창의 rootWindowInsets 는 진짜 네비바 높이를 줘서 그걸로 바닥 버튼을 띄운다. (2026-10-28 사장님 — 측정으로 확정, 네비바 6번째 끝)
+    val navDensity = androidx.compose.ui.platform.LocalDensity.current
+    val navView = androidx.compose.ui.platform.LocalView.current
+    val navComposePx = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(navDensity)
+    val navViewPx = androidx.core.view.ViewCompat.getRootWindowInsets(navView)
+        ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    val navPadDp = with(navDensity) { maxOf(navComposePx, navViewPx).toDp() }
     data class CalRow(val emoji: String, val day: Long, val title: String, val sub: String?)
     val rows = androidx.compose.runtime.remember(work, asList, simples) {
         val out = ArrayList<CalRow>()
@@ -864,11 +863,6 @@ internal fun CalendarSyncSheet(
                     .width(38.dp).height(4.dp).clip(AppShape.pill).background(TossDivider)
             )
             Text("구글 캘린더에 올린 일정", style = AppType.title, color = TossTextPrimary)
-            // 🔧 진단(임시) — 네비바 측정값. compose=컴포즈인셋 view=창인셋 ime=키보드 pad=적용여백dp.
-            Text(
-                "🔧nav compose=${navComposePx} view=${navViewPx} ime=${imeComposePx} pad=${navPadDp.value.toInt()}dp",
-                style = AppType.caption, color = AppTheme.colors.unpaidText
-            )
             Spacer(Modifier.height(12.dp))
             androidx.compose.foundation.layout.Row(
                 Modifier.fillMaxWidth().clip(AppShape.lg).background(TossBlueSoft).padding(13.dp),

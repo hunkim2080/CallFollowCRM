@@ -15478,3 +15478,8 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: CalendarSyncSheet 에 "🔧nav compose=X view=Y ime=Z pad=Ndp" 빨간 글씨(임시). 바닥 여백을 maxOf(컴포즈인셋, 창인셋) 기반으로. 사장님 스샷으로 어느 인셋이 0인지 확인 → 근본 수정.
 - 폰 확인: S9 설치. S23U 측정값은 사장님 스샷 대기.
 - 다음 액션: 측정값 받으면 진단 글씨 빼고 올바른 여백으로 확정.
+
+## 2026-10-28 03:10 · android
+네비바 짤림 — 해결(측정으로 확정). 진단 글씨 제거. (사장님)
+- 원인(확정): 올린일정 시트가 탭바 위 인라인 오버레이라, Compose WindowInsets.navigationBars 를 탭바가 이미 소비해 0 으로 왔다(keyboardOrNavPadding·bottomBarClearance 다 0). 창(View) rootWindowInsets 는 진짜 네비바 높이를 줌 → 그걸로 바닥 여백. 버튼이 탭바 위로 온전히 보임(사장님 스샷 확인).
+- 폰 확인: S9 설치 · S23U 사장님 스샷으로 해결 확인.
