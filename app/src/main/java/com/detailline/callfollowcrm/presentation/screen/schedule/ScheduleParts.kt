@@ -821,15 +821,6 @@ internal fun CalendarSyncSheet(
     val noRipple = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     // 뒤로가기 = 이 시트만 닫기(인라인 오버레이라 Dialog 처럼 자동으로 안 닫힌다). AppSheet 과 같은 규칙.
     androidx.activity.compose.BackHandler { onClose() }
-    // 🧷 바닥 네비바 여백 — **창(View) 인셋**으로 잰다. 이 시트는 탭바 위 인라인 오버레이라 Compose 의
-    //   WindowInsets.navigationBars 는 탭바가 이미 소비해 **0** 으로 온다(그래서 keyboardOrNavPadding 이 안 먹었다).
-    //   창의 rootWindowInsets 는 진짜 네비바 높이를 줘서 그걸로 바닥 버튼을 띄운다. (2026-10-28 사장님 — 측정으로 확정, 네비바 6번째 끝)
-    val navDensity = androidx.compose.ui.platform.LocalDensity.current
-    val navView = androidx.compose.ui.platform.LocalView.current
-    val navComposePx = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(navDensity)
-    val navViewPx = androidx.core.view.ViewCompat.getRootWindowInsets(navView)
-        ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
-    val navPadDp = with(navDensity) { maxOf(navComposePx, navViewPx).toDp() }
     data class CalRow(val emoji: String, val day: Long, val title: String, val sub: String?)
     val rows = androidx.compose.runtime.remember(work, asList, simples) {
         val out = ArrayList<CalRow>()
@@ -854,9 +845,10 @@ internal fun CalendarSyncSheet(
                 .clip(AppShape.xl)
                 .background(AppTheme.colors.surface)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                // 🧷 바닥 네비바 여백 — 창(View) 인셋 기반(제일 믿을 만). 컴포즈 인셋이 탭바에 먹혀 0 으로 올 때 대비. (2026-10-28 진단)
+                // 🧷 바닥 여백 — 이 시트는 **탭바 위** 인라인 오버레이라 탭바가 이미 네비바를 가린다 → 네비바 여백 불필요,
+                //   보통 시트 여백(18dp)만. (2026-10-28 사장님 "여백이 부자연스럽다" — 48dp 네비바 여백 뺌)
                 .heightIn(max = 620.dp)
-                .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = navPadDp + 12.dp)
+                .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 18.dp)
         ) {
             androidx.compose.foundation.layout.Box(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
