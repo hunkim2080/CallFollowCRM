@@ -287,15 +287,22 @@ object RecordReel {
      * 끝에서 쉬는 비율 — 10초짜리면 마지막 1.2초는 다 그려진 채로 머무른다.
      * 🔒 **미리보기도 이 값을 쓴다.** 한쪽에만 넣으면 미리보기와 저장본이 또 달라진다.
      */
-    const val END_HOLD = 0.12f
+    // 🎬 틀(목업 F, 2026-10-28 사장님 A안): [0,INTRO]=오프닝 · [INTRO,1-ENDCARD]=여정(핵심 멈춤 리빌) · [1-ENDCARD,1]=엔드카드.
+    //   엔드카드가 마무리를 맡으니 옛 END_HOLD 는 0 (미리보기도 같은 값).
+    const val END_HOLD = 0f
+    /** 🎬 오프닝 비율 — 꽉 찼다 걷힘 + 큰 숫자. */
+    const val INTRO = 0.16f
+    /** 🎬 엔드카드 비율 — 결과 한 줄 + 큰 숫자 + 간판. */
+    const val ENDCARD = 0.16f
+    /** 🎬 핵심 현장 **한 곳**이 "멈춰서 크게" 차지하는 비율(여정 구간 안). 핵심 N곳이면 N×이만큼. */
+    const val REVEAL_FRAC = 0.16f
+    /** 🎬 크게 보여줄 핵심 현장 **최대 개수**. 많아도 이만큼만 "짠" 크게, 나머지는 점. (2026-10-28 사장님 "5곳만 제대로") */
+    const val FEAT_MAX = 4
 
-    /** 🎬 오프닝 훅 비율 — 맨 앞 이만큼은 제목 카드가 떴다 걷힌다(기대감). 미리보기도 같은 값. (2026-10-28 사장님: 바이럴 광택) */
-    const val INTRO = 0.18f
-
-    /** 제일 짧은 영상. 두세 곳뿐인 달도 이보다 짧으면 볼 새가 없다. */
-    const val MIN_SECONDS = 10f
-    /** 제일 긴 영상. 더 늘리면 올릴 때 부담스럽다 (사장님 "10-15초"). */
-    const val MAX_SECONDS = 15f
+    /** 제일 짧은 영상. */
+    const val MIN_SECONDS = 12f
+    /** 제일 긴 영상 (리빌이 들어가 조금 길어진다). */
+    const val MAX_SECONDS = 18f
 
     /**
      * 🎬 **몇 초짜리로 만들까** — 곳이 많으면 길게. (2026-09-30 사장님)
@@ -380,6 +387,128 @@ object RecordReel {
         }
     }
 
+    // ═══════════ 틀 F 전용 조각들 (2026-10-28 사장님 A안: 풀스크린 지도 + 핵심 멈춤 리빌 + 엔드카드) ═══════════
+
+    /** 핵심 현장 index(order 순, 최대 [FEAT_MAX]) — 전 사진 있는 곳 먼저, 모자라면 대표 사진 있는 곳. */
+    private fun pickFeatured(ordered: List<com.detailline.callfollowcrm.presentation.component.RegionDot>): List<Int> {
+        val withBefore = ordered.indices.filter { !ordered[it].beforePhotoPath.isNullOrBlank() }
+        val withPhoto = ordered.indices.filter { !ordered[it].photoPath.isNullOrBlank() && it !in withBefore }
+        return (withBefore + withPhoto).take(FEAT_MAX).sorted()
+    }
+
+    private class Warp(val driveT: Float, val revealIdx: Int, val revealProg: Float)
+
+    /** 🎬 여정 진행도(0..1)를 (트럭 driveT, 리빌중인 핵심 순번, 리빌 진행)로. 핵심 현장마다 [rf] 만큼 **멈춘다**. [featDriveT] 오름차순. */
+    private fun warpTime(frameT: Float, featDriveT: FloatArray, rf: Float): Warp {
+        val m = featDriveT.size
+        if (m == 0) return Warp(frameT.coerceIn(0f, 1f), -1, 0f)
+        val driveTime = (1f - m * rf).coerceAtLeast(0.08f)
+        var acc = 0f; var prev = 0f
+        for (i in 0 until m) {
+            val fdt = featDriveT[i].coerceIn(0f, 1f)
+            val span = (fdt - prev) * driveTime
+            if (span > 0f && frameT <= acc + span)
+                return Warp((prev + (frameT - acc) / driveTime).coerceIn(0f, 1f), -1, 0f)
+            acc += span
+            if (frameT <= acc + rf) return Warp(fdt, i, ((frameT - acc) / rf).coerceIn(0f, 1f))
+            acc += rf
+            prev = fdt
+        }
+        return Warp((prev + (frameT - acc) / driveTime).coerceIn(0f, 1f), -1, 0f)
+    }
+
+    /** 바닥 가운데 알약 "현장 N · 동네". */
+    private fun drawChip(c: Canvas, w: Int, h: Int, text: String, bold: Typeface?) {
+        val tp = paint(bold, w * 0.040f, android.graphics.Color.argb(255, 11, 15, 25), Paint.Align.CENTER)
+        val tw = tp.measureText(text)
+        val cx = w / 2f; val cy = h - h * 0.050f
+        val rw = tw / 2f + w * 0.045f; val rh = h * 0.026f
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(240, 255, 255, 255); setShadowLayer(14f, 0f, 4f, 0x33000000)
+        }
+        c.drawRoundRect(cx - rw, cy - rh, cx + rw, cy + rh, rh, rh, bg)
+        c.drawText(text, cx, cy + tp.textSize * 0.35f, tp)
+    }
+
+    /** 🖼️ 핵심 현장 **크게** — 어둑한 막 + 큰 카드(전→후 페이드) + 단지명·동네. [prog] 0..1. */
+    private fun drawBigReveal(
+        ctx: Context, c: Canvas, w: Int, h: Int,
+        dot: com.detailline.callfollowcrm.presentation.component.RegionDot,
+        after: android.graphics.Bitmap?, before: android.graphics.Bitmap?, prog: Float
+    ) {
+        if (after == null) return
+        val xbold = font(ctx, R.font.pretendard_extrabold)
+        val med = font(ctx, R.font.pretendard_medium)
+        val pop = (prog * 5f).coerceIn(0f, 1f)
+        val popE = 1f - (1f - pop) * (1f - pop)
+        c.drawColor(android.graphics.Color.argb((pop * 150f).toInt(), 18, 26, 48))
+        val cardW = w * 0.80f
+        val frameH = cardW * 0.72f
+        val cx = w / 2f
+        val fx = cx - cardW / 2f
+        val fy = h * 0.26f
+        val sc = 0.9f + 0.1f * popE
+        c.save()
+        c.translate(cx, fy + frameH / 2f); c.scale(sc, sc); c.translate(-cx, -(fy + frameH / 2f))
+        val pad = cardW * 0.04f
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE; setShadowLayer(24f, 0f, 9f, 0x55000000)
+        }
+        c.drawRoundRect(fx - pad, fy - pad, fx + cardW + pad, fy + frameH + h * 0.058f, 26f, 26f, bg)
+        val box = android.graphics.RectF(fx, fy, fx + cardW, fy + frameH)
+        val path = android.graphics.Path().apply { addRoundRect(box, 18f, 18f, android.graphics.Path.Direction.CW) }
+        c.save(); c.clipPath(path)
+        RecordShot.drawCover(c, after, box)
+        if (before != null) {
+            val bA = 1f - ((prog - 0.18f) / 0.5f).coerceIn(0f, 1f)
+            if (bA > 0.01f) {
+                val sv = c.saveLayerAlpha(box.left, box.top, box.right, box.bottom, (bA * 255f).toInt())
+                RecordShot.drawCover(c, before, box)
+                c.restoreToCount(sv)
+            }
+        }
+        c.restore()
+        val apt = dot.apartment?.takeIf { it.isNotBlank() } ?: dot.name
+        c.drawText(apt, fx, box.bottom + h * 0.040f,
+            fit(paint(xbold, w * 0.052f, android.graphics.Color.argb(255, 11, 15, 25)), apt, cardW, w * 0.052f, w * 0.034f))
+        if (!dot.apartment.isNullOrBlank())
+            c.drawText(dot.name, fx, box.bottom + h * 0.066f, paint(med, w * 0.034f, android.graphics.Color.argb(255, 90, 100, 114)))
+        c.restore()
+    }
+
+    /** 🏁 엔드카드 — 결과 한 줄 + 큰 숫자 + 간판. [endP] 0..1. */
+    private fun drawEnd(ctx: Context, c: Canvas, d: Data, w: Int, h: Int, endP: Float) {
+        val a = (endP * 4f).coerceIn(0f, 1f)
+        val xbold = font(ctx, R.font.pretendard_extrabold)
+        val med = font(ctx, R.font.pretendard_medium)
+        val bold = font(ctx, R.font.pretendard_bold)
+        c.drawColor(android.graphics.Color.argb((a * 245f).toInt(), 244, 247, 251))
+        val cx = w / 2f; var y = h * 0.33f
+        val q = d.headline.ifBlank { "이번 달도, 현장에서" }
+        c.drawText(q, cx, y,
+            fit(paint(xbold, w * 0.074f, android.graphics.Color.argb((a * 255f).toInt(), 11, 15, 25), Paint.Align.CENTER), q, w - w * 0.14f, w * 0.074f, w * 0.05f))
+        y += h * 0.085f
+        val num = d.metricValue + " " + d.metricUnit
+        c.drawText(num, cx, y,
+            fit(paint(xbold, w * 0.150f, android.graphics.Color.argb((a * 255f).toInt(), 49, 130, 246), Paint.Align.CENTER), num, w - w * 0.12f, w * 0.150f, w * 0.09f))
+        y += h * 0.048f
+        if (d.metricLabel.isNotBlank())
+            c.drawText(d.metricLabel, cx, y, paint(med, w * 0.044f, android.graphics.Color.argb((a * 255f).toInt(), 90, 100, 114), Paint.Align.CENTER))
+        if (d.sign) {
+            val name = d.bizName.trim()
+            if (name.isNotBlank())
+                c.drawText(name, cx, h - h * 0.085f,
+                    fit(paint(xbold, w * 0.050f, android.graphics.Color.argb((a * 255f).toInt(), 11, 15, 25), Paint.Align.CENTER), name, w - w * 0.16f, w * 0.050f, w * 0.034f))
+            val line2 = listOfNotNull(
+                listOfNotNull(d.area.takeIf { it.isNotBlank() }, d.tradeName.takeIf { it.isNotBlank() }).joinToString(" ").takeIf { it.isNotBlank() },
+                d.phone.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (line2.isNotBlank())
+                c.drawText(line2, cx, h - h * 0.050f, paint(bold, w * 0.036f, android.graphics.Color.argb((a * 255f).toInt(), 49, 130, 246), Paint.Align.CENTER))
+        }
+        c.drawText("시공막내", cx, h - h * 0.022f, paint(med, w * 0.028f, android.graphics.Color.argb((a * 200f).toInt(), 90, 100, 114), Paint.Align.CENTER))
+    }
+
     /**
      * 한 컷 그리기.
      * @param t 0~1 로 흐르는 시각. 1 이면 다 달린 마지막 장면(= 인증샷으로 쓸 그림).
@@ -436,71 +565,37 @@ object RecordReel {
             return
         }
 
-        // ── 위: 달 · 큰 숫자 · 이름 ──
-        var y = pad + h * 0.045f
-        val monP = paint(bold, w * 0.036f, hint)
-        c.drawText(d.monthLabel, pad, y, monP)
-        // 🔢 **달린 만큼 올라간다.** (2026-09-25 사장님 "키로수도 후르륵 올라가는 느낌")
-        //   글자 크기와 'km' 자리는 **최종 숫자**로 정해둔다 — 자릿수가 늘 때마다
-        //   단위가 옆으로 밀리고 글자가 커졌다 작아졌다 하면 싸구려로 보인다.
-        val bigP = fit(paint(xbold, w * 0.145f, blue), d.metricValue, w - pad * 2 - w * 0.22f, w * 0.145f, w * 0.085f)
-        // 📐 달 라벨과 겹치지 않게 — 「약」 같은 한글은 숫자보다 위로 더 솔는다.
-        if (d.headline.isNotBlank()) {
-            val hp = fit(paint(xbold, w * 0.052f, ink), d.headline, w - pad * 2, w * 0.052f, w * 0.038f)
-            y += RecordShot.bigTop(monP, hp, h * 0.008f)
-            c.drawText(d.headline, pad, y, hp)
-            y += RecordShot.bigTop(hp, bigP, h * 0.008f)
-        } else {
-            y += RecordShot.bigTop(monP, bigP, h * 0.010f)
-        }
-        // 단위는 **지금 숫자**에 붙어 따라온다(글자 크기만 최종값으로 고정) —
-        //   마지막 자릿수로 자리를 박아놓았더니 "약 52      km" 처럼 멀찍이 떨어져 보였다.
-        //   🔒 띄우기는 [RecordShot.drawBigNumber] 한 곳에 있다 — 각자 적어놓았더니 닿았다.
-        //   (2026-09-25 사장님 "글자가 겹쳤어 km 있는곳 간격")
-        // 거리는 **달린 만큼** 이어서, 돈·집 수는 **도착할 때마다 그 몫만큼**.
-        val bigP2 = if (ride == null) 1f else stepUp(
-            d.metricWeights, ride.arrived,
-            ride.nowT - (ride.arriveAt.getOrNull(ride.arrived) ?: 0f), ride.frac
-        )
-        val shownBig = countUp(d.metricValue, bigP2)
-        val numW = RecordShot.drawBigNumber(
-            c, pad, y, shownBig, d.metricUnit, bigP, paint(bold, w * 0.058f, blue)
-        )
-        y += h * 0.031f
-        c.drawText(d.metricLabel, pad, y, paint(bold, w * 0.040f, sub))
-        if (d.metricNote.isNotBlank()) {
-            y += h * 0.026f
-            c.drawText(d.metricNote, pad, y, paint(med, w * 0.030f, hint))
-        }
+        // ═══ 틀 F — 풀스크린 지도 + 오프닝 숫자 + 핵심 멈춤 리빌 + 엔드카드. (2026-10-28 사장님 A안) ═══
+        val ordered = ordered0
+        val tripStops = trip0?.stops ?: IntArray(ordered.size) { it }
+        // 각 현장 도착 시각(arriveAt) — 멈춤 자리 잡는 데. driveT 와 무관하니 한 번만.
+        val refRide = if (ordered.isEmpty()) null
+            else com.detailline.callfollowcrm.util.MapRide.at(wayLL0, tripStops, 1f)
+        val featIdx = pickFeatured(ordered)
+        val featDriveT = FloatArray(featIdx.size) { refRide?.arriveAt?.getOrNull(featIdx[it]) ?: 0f }
+        // 시간 축: [0,INTRO]=오프닝 · [INTRO,1-ENDCARD]=여정(핵심 멈춤) · [1-ENDCARD,1]=엔드카드. (END_HOLD=0 → tE=t)
+        val jT = ((tE - INTRO) / (1f - INTRO - ENDCARD)).coerceIn(0f, 1f)
+        val endP = ((tE - (1f - ENDCARD)) / ENDCARD).coerceIn(0f, 1f)
+        val warp = warpTime(jT, featDriveT, REVEAL_FRAC)
+        val driveT = warp.driveT
+        val ride2 = if (ordered.isEmpty()) null
+            else com.detailline.callfollowcrm.util.MapRide.at(wayLL0, tripStops, driveT)
 
-        // ── 가운데: 지도 ── 세로로 길게 준다. 릴스는 위아래가 넉넉하다.
-        val mapTop = y + h * 0.028f
-        val mapH = h * 0.545f
-        // 지도가 **몇 번째 현장까지 왔는지** 알려준다 — 사진을 그걸로 고른다.
+        // ── 풀스크린 지도 ──
         var arrived = 0
-        if (d.dots.isNotEmpty()) {
-            c.save()
-            c.translate(0f, mapTop)
-            c.clipRect(0f, 0f, w.toFloat(), mapH)
-            // 🎥 **카메라가 트럭을 따라간다.** (2026-09-25 사장님)
-            //   전엔 수도권 전체를 멀리서 보여줘서 트럭이 깨알만 했다 — 안 움직이는 것처럼 보인다.
-            //   트럭 자리는 지도가 쓰는 **그 셈 그대로**(MapRide) 구한다. 따로 구하면 어긋난다.
-            //   마지막 현장에 닿으면 쭉 빠지면서, 사장님이 맞춰둔 그 화면으로 한 달 전체를 보여준다.
+        if (ordered.isNotEmpty() && ride2 != null) {
             val shot = com.detailline.callfollowcrm.util.MapRide.follow(
-                b = com.detailline.callfollowcrm.util.MapRide.bounds(ordered0.map { it.lon to it.lat }),
-                at = ride!!,
-                t = t,
-                // 🎥 구간을 화면에 담으려면 **들르는 곳 좌표**가 필요하다. (2026-10-01)
-                stopsLL = ordered0.map { it.lon to it.lat },
+                b = com.detailline.callfollowcrm.util.MapRide.bounds(ordered.map { it.lon to it.lat }),
+                at = ride2, t = driveT,
+                stopsLL = ordered.map { it.lon to it.lat },
                 restZoom = d.zoom, restPanX = d.panX, restPanY = d.panY
             )
             androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
                 Density(1f), LayoutDirection.Ltr,
-                androidx.compose.ui.graphics.Canvas(c), Size(w.toFloat(), mapH)
+                androidx.compose.ui.graphics.Canvas(c), Size(w.toFloat(), h.toFloat())
             ) {
                 drawRegionMap(
                     spots = d.dots,
-                    // 당겨져 있을 땐 **동네 이름을 다 보여준다** — 안 그러면 지금 어디인지 알 수가 없다.
                     named = if (com.detailline.callfollowcrm.util.MapRide.showAllNames(shot.zoom))
                         d.dots.map { it.name }.toSet() else MapPalette.namedOf(d.dots),
                     measurer = null,
@@ -508,99 +603,33 @@ object RecordReel {
                     edge = androidx.compose.ui.graphics.Color(MapPalette.EDGE),
                     dot = androidx.compose.ui.graphics.Color(blue),
                     labelColor = androidx.compose.ui.graphics.Color(0xFF5A6472),
-                    labelStyle = TextStyle(fontSize = 10.sp),
+                    labelStyle = TextStyle(fontSize = 11.sp),
                     river = androidx.compose.ui.graphics.Color(MapPalette.RIVER),
-                    progress = t,
+                    progress = driveT,
                     geo = MapGeo.load(ctx),
                     trip = trip0,
                     zoom = shot.zoom, panX = shot.panX, panY = shot.panY,
                     onArrived = { arrived = it }
                 )
             }
-            c.restore()
         }
 
-        // ── 지도 오른쪽 위에 **지금 그 현장의 사진** ── 그림(인증샷)과 같은 자리.
-        //   왼쪽 위는 큰 숫자가 쓰고 있어서 오른쪽 위가 빈다.
-        //   도착한 데부터 거꾸로 훑어 **사진이 있는 제일 가까운 현장**을 쓴다
-        //   — 그 동네에 사진이 없다고 화면이 깜빡이면 오히려 어수선하다.
-        val ordered = d.dots.sortedBy { it.order }
-        val photo = run {
-            var i = arrived.coerceIn(0, maxOf(0, ordered.size - 1))
-            var found: android.graphics.Bitmap? = null
-            while (i >= 0) {
-                val nm = ordered.getOrNull(i)?.name
-                val b = if (nm != null) photos[nm] else null
-                if (b != null) { found = b; break }
-                i--
-            }
-            found
-        }
-        if (photo != null) {
-            // 🖼️ **크게** — 코너 작은 상자가 아니라 지도 위 큰 카드(4:3). 전→후는 **페이드**(와이프·구분선 없이 덜 정신없게). (2026-10-28 사장님 "사진 작아서 안 보여")
-            val arrDot = ordered.getOrNull(arrived)
-            val beforeBmp = arrDot?.name?.let { beforePhotos[it] }
-            val cardW = w * 0.46f
-            val cardH = cardW * 0.74f
-            val bx = w - pad - cardW
-            val by0 = mapTop + h * 0.010f
-            val box = android.graphics.RectF(bx, by0, bx + cardW, by0 + cardH)
-            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFFFFFFFF.toInt(); setShadowLayer(18f, 0f, 6f, 0x40000000)
-            }
-            c.drawRoundRect(box.left - 10f, box.top - 10f, box.right + 10f, box.bottom + 10f, 22f, 22f, frame)
-            val path = android.graphics.Path().apply { addRoundRect(box, 15f, 15f, android.graphics.Path.Direction.CW) }
-            c.save(); c.clipPath(path)
-            RecordShot.drawCover(c, photo, box)                       // 후(완성) — 바닥
-            if (beforeBmp != null) {
-                // 전이 스르륵 사라지며 후가 드러난다(페이드). 도착 후 0.2초 보여주고 0.5초 동안.
-                val sinceArrive = if (ride != null) ride.nowT - (ride.arriveAt.getOrNull(arrived) ?: 0f) else 1f
-                val beforeA = 1f - ((sinceArrive - 0.2f) / 0.5f).coerceIn(0f, 1f)
-                if (beforeA > 0.01f) {
-                    val sv = c.saveLayerAlpha(box.left, box.top, box.right, box.bottom, (beforeA * 255f).toInt())
-                    RecordShot.drawCover(c, beforeBmp, box)
-                    c.restoreToCount(sv)
-                }
-            }
-            c.restore()
-            // 🏷️ 단지명 — 카드 밑(있을 때만).
-            arrDot?.apartment?.takeIf { it.isNotBlank() }?.let { apt ->
-                c.drawText(
-                    apt, box.centerX(), box.bottom + h * 0.034f,
-                    fit(paint(xbold, w * 0.040f, ink, Paint.Align.CENTER), apt, cardW + w * 0.06f, w * 0.040f, w * 0.026f)
-                )
-            }
+        // ── HUD: 현장 칩 (여정 중, 리빌 아닐 때) ──
+        if (jT > 0f && jT < 1f && warp.revealIdx < 0 && ordered.isNotEmpty()) {
+            val nm = ordered.getOrNull(arrived)?.name ?: ""
+            drawChip(c, w, h, "현장 ${(arrived + 1).coerceAtMost(ordered.size)} · $nm", bold)
         }
 
-        // ── 아래: 동네 이름 ──
-        var by = mapTop + mapH + h * 0.045f
-        if (d.towns.isNotEmpty()) {
-            val line = RecordShot.townLine(d.towns)
-            c.drawText(line, pad, by, fit(paint(bold, w * 0.040f, ink), line, w - pad * 2, w * 0.040f, w * 0.028f))
+        // ── 핵심 현장 큰 리빌 (멈춤) ──
+        if (warp.revealIdx in featIdx.indices) {
+            val dot = ordered[featIdx[warp.revealIdx]]
+            drawBigReveal(ctx, c, w, h, dot, photos[dot.name], beforePhotos[dot.name], warp.revealProg)
         }
 
-        // ── 맨 아래: 간판 ── 상호 크게 · 지역·업종·번호. SNS 에 올리는 건 결국 광고다.
-        //   끄면 담백하게 — 그림과 같은 토글을 따른다.
+        // ── 오프닝 ──
         drawIntro(ctx, c, d, w, h, introP)
-        if (!d.sign) return
-        val name = d.bizName.trim()
-        if (name.isNotBlank()) {
-            c.drawText(name, pad, h - pad - h * 0.052f,
-                fit(paint(xbold, w * 0.062f, ink), name, w - pad * 2, w * 0.062f, w * 0.036f))
-        }
-        val line2 = listOfNotNull(
-            listOfNotNull(
-                d.area.takeIf { it.isNotBlank() },
-                d.tradeName.takeIf { it.isNotBlank() }
-            ).joinToString(" ").takeIf { it.isNotBlank() },
-            d.phone.takeIf { it.isNotBlank() }
-        ).joinToString(" · ")
-        if (line2.isNotBlank()) {
-            c.drawText(line2, pad, h - pad - h * 0.014f,
-                fit(paint(bold, w * 0.038f, blue), line2, w - pad * 2 - w * 0.20f, w * 0.038f, w * 0.028f))
-        }
-        c.drawText("시공막내", w - pad, h - pad - h * 0.014f,
-            paint(med, w * 0.028f, hint, Paint.Align.RIGHT))
+        // ── 엔드카드 ──
+        if (endP > 0f) drawEnd(ctx, c, d, w, h, endP)
     }
 
     /** 영상 한 편 만들기. 만든 파일을 돌려준다(실패하면 null). */
