@@ -15524,3 +15524,6 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 내 기록 영상 **틀 재작성(A안, 목업 F)** — 풀스크린 지도 + 오프닝 + 핵심 멈춤 리빌 + 엔드카드
 - 변경: RecordReel.drawFrame(map-hero) 통째로 새 틀. 시간축 [오프닝 INTRO·여정(핵심 멈춤 리빌)·엔드카드 ENDCARD]. warpTime(핵심마다 REVEAL_FRAC 멈춤)·pickFeatured(전 사진 우선 최대 FEAT_MAX=4)·drawChip·drawBigReveal(큰 전→후 페이드)·drawEnd 추가. 지도 풀스크린, 숫자는 오프닝/엔드에만. END_HOLD=0, MAX 18초. 옛 '숫자판+지도끼움' 틀 제거.
 - 폰 확인: 못 봄 — 빌드 통과(BUILD=0). 내부테스트. 첫 틀이라 미세조정 예상(길이·리빌초·휜정도 등).
+
+## 2026-10-28 21:33 · android
+영상 틀 재작성 후속 — MIN/MAX 초를 10/15 로 되돌림(RecordReelSecondsTest 3건 통과). 새 틀도 15초 안에 들어감.

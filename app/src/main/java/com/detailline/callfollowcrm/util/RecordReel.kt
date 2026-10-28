@@ -300,9 +300,9 @@ object RecordReel {
     const val FEAT_MAX = 4
 
     /** 제일 짧은 영상. */
-    const val MIN_SECONDS = 12f
-    /** 제일 긴 영상 (리빌이 들어가 조금 길어진다). */
-    const val MAX_SECONDS = 18f
+    const val MIN_SECONDS = 10f
+    /** 제일 긴 영상 (사장님 "10-15초"). 새 틀도 15초 안에 들어간다(오프닝·여정·핵심 4곳 리빌·엔드카드). */
+    const val MAX_SECONDS = 15f
 
     /**
      * 🎬 **몇 초짜리로 만들까** — 곳이 많으면 길게. (2026-09-30 사장님)
