@@ -58,6 +58,46 @@ object ContactNameResolver {
     fun resolveDisplayName(context: Context, appName: String?, phone: String?): String? =
         appName?.takeIf { it.isNotBlank() }?.trim() ?: lookup(context, phone)
 
+    /**
+     * 이름(또는 번호 일부)으로 **폰 주소록을 뒤져** (이름·번호) 목록을 돌려준다. 권한 없으면 빈 목록.
+     *   [lookup] 이 "번호→이름"(비춰주기)이라면 이건 그 **반대 방향** — 앱에 고객으로 안 넣었지만
+     *   폰 연락처(삼성·구글·SIM 을 폰이 하나로 합친 것)엔 있는 사람을 **이름으로 찾게** 한다.
+     *   (2026-10-29 사장님: 삼성 연락처엔 있는데 시공막내 검색엔 안 떴다 — 문자 보내려 이름 검색)
+     *   Phone.CONTENT_FILTER_URI 는 이름·번호 양쪽에 걸린다. 같은 번호는 한 번만.
+     */
+    fun searchByName(context: Context, query: String, limit: Int = 8): List<ContactHit> {
+        val q = query.trim()
+        if (q.length < 2) return emptyList()
+        if (!hasPermission(context)) return emptyList()
+        return runCatching {
+            val uri = Uri.withAppendedPath(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI,
+                Uri.encode(q)
+            )
+            val out = LinkedHashMap<String, ContactHit>()
+            context.contentResolver.query(
+                uri,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                ),
+                null, null, null
+            )?.use { c ->
+                while (c.moveToNext() && out.size < limit) {
+                    val name = c.getString(0)?.trim().orEmpty()
+                    val num = c.getString(1)?.trim().orEmpty()
+                    if (name.isBlank() || num.isBlank()) continue
+                    val key = num.filter { it.isDigit() }.ifBlank { num }
+                    if (!out.containsKey(key)) out[key] = ContactHit(name, num)
+                }
+            }
+            out.values.toList()
+        }.getOrDefault(emptyList())
+    }
+
     /** 삼성 연락처가 바뀌었을 수 있을 때(포그라운드 복귀·권한 획득) 캐시 비우기. */
     fun clearCache() = cache.clear()
 }
+
+/** 폰 주소록 이름 검색 결과 한 건 — 저장된 이름 + 번호. [ContactNameResolver.searchByName] */
+data class ContactHit(val name: String, val phone: String)

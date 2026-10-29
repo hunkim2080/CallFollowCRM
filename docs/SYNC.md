@@ -15547,3 +15547,10 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: ConversationAiRepository.ensureFullSummary — /api/conversation-summary 호출 제거(옛 캐시 conversationSummaryJson·conversationStage 보존). 신선도 판정도 card-summary 만 기준으로. 이제 ensureFullSummary 는 card-summary 1개만 호출.
 - 왜: 그 결과 그리던 대화방 맨 위 파란 ✨ 4줄 박스(UnifiedSummaryCard)는 2026-08-14 이미 화면에서 치웠는데 호출만 계속 나갔음. 사장님 폰에서 안 보이는 것 확인. ※ 상담함 목록 ✨ 한 줄 = card-summary(다른 것) → 그대로 유지.
 - 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.
+
+## 2026-10-29 14:58 · android
+검색에 **주소록 이름 찾기** 추가 — 폰 연락처(삼성)에만 있고 앱 고객으로 안 넣은 사람을 이름으로 못 찾던 것.
+- 변경: 공용 ContactNameResolver.searchByName(신규, Phone.CONTENT_FILTER_URI) + ContactHit. SearchViewModel: 글자 든 질의면 주소록 이름 검색 → 이미 나온 번호 빼고 SearchSource.CONTACT 로 추가. SearchScreen: 묶음 순서/제목("주소록")/칩(배지없음)에 CONTACT 반영. READ_CONTACTS 권한 있을 때만(없으면 빈 목록).
+- 왜: "번호→이름 비춰주기"(7월)는 있었지만 반대 방향(이름→찾기)이 없었음. 사장님 삼성연락처엔 있는데 시공막내 검색 안 됨(문자 보내려 이름 검색). 에이닷 전용 저장분은 여전히 못 읽음(시스템 연락처만).
+- §12-K 연결점: 주소록 읽기 1곳(searchByName)·소비 1곳(SearchViewModel). SearchSource when 3곳(order/groupTitle/SourceChip) 다 반영. 번호→이름 반영(lookup)과 별개.
+- 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.

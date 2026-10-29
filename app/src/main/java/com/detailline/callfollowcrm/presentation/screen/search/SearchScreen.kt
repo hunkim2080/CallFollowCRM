@@ -277,7 +277,7 @@ fun SearchScreen(
                     }
                 }
                 val order = listOf(
-                    SearchSource.CUSTOMER, SearchSource.CALL, SearchSource.MESSAGE, SearchSource.MEMO
+                    SearchSource.CUSTOMER, SearchSource.CONTACT, SearchSource.CALL, SearchSource.MESSAGE, SearchSource.MEMO
                 )
                 for (src in order) {
                     val rows = results.filter { it.source == src }
@@ -493,6 +493,7 @@ private fun SiteRow(s: SiteHit, query: String, onClick: () -> Unit) {
 /** 02 묶음 제목 — 손님 → 통화 → 문자 → 메모. (2026-09-19 사장님) */
 private fun groupTitle(src: SearchSource): String = when (src) {
     SearchSource.CUSTOMER -> "손님"
+    SearchSource.CONTACT -> "주소록"
     SearchSource.CALL -> "통화"
     SearchSource.MESSAGE -> "문자"
     SearchSource.MEMO -> "메모"
@@ -534,7 +535,8 @@ private fun SourceChip(source: SearchSource, fromSummary: Boolean = false) {
         )
         SearchSource.MESSAGE -> Triple("문자", AppTheme.colors.primaryBg, AppTheme.colors.primary)
         SearchSource.MEMO -> Triple("메모", AppTheme.colors.categoryBg, AppTheme.colors.category)
-        SearchSource.CUSTOMER -> null
+        // 손님·주소록은 이름/번호 매칭이라 배지 없음 (묶음 제목 "손님"/"주소록" 으로 이미 구분). (2026-10-29)
+        SearchSource.CUSTOMER, SearchSource.CONTACT -> null
     }
     if (chip != null) {
         Box(

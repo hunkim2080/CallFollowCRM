@@ -453,6 +453,26 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             )
         }
 
+        // 📇 폰 주소록 **이름** 검색 — 앱 고객으로 안 넣었지만 폰 연락처엔 있는 사람을 이름으로 찾기.
+        //   (2026-10-29 사장님: 삼성 연락처엔 있는데 시공막내 검색엔 안 떴다. "번호→이름 비춰주기"의 반대 방향.)
+        //   글자가 든 검색일 때만(순수 숫자는 위 번호검색 담당). 이미 나온 번호(고객·문자·통화)는 건너뜀.
+        if (q.any { !it.isDigit() }) {
+            val contactHits = withContext(Dispatchers.IO) {
+                com.detailline.callfollowcrm.util.ContactNameResolver.searchByName(container.appContext, q)
+            }
+            for (hit in contactHits) {
+                val suf = suffixOf(hit.phone)
+                if (suf.length < 7 || out.containsKey(suf)) continue
+                out[suf] = SearchResult(
+                    phone = hit.phone,
+                    customerId = null,
+                    name = hit.name,
+                    snippet = null,
+                    source = SearchSource.CONTACT
+                )
+            }
+        }
+
         out.values.take(50).toList()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -504,7 +524,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 /** 검색 결과에서 '어디서 걸렸는지' — 문자/통화/메모 배지용. (2026-09-02 사장님) */
-enum class SearchSource { CUSTOMER, MESSAGE, CALL, MEMO }
+enum class SearchSource { CUSTOMER, CONTACT, MESSAGE, CALL, MEMO }
 
 /**
  * 검색 결과 한 줄. name 있으면 고객, 없으면 번호만 아는 연락처. source = 매칭 위치.
