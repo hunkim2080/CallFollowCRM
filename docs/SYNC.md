@@ -15580,3 +15580,22 @@ pro 대시보드 지표별 '막내 코치' 규칙 추가(상황🧢→액션→)
 - ⚠️ 라이브는 git 아님 — **repo/server/main.py 에는 push 안 함**(지시대로). 커밋/푸시는 사장님이.
 - 폰 확인: 못 봄 (admin 웹)
 - 다음 액션: 없음. (setup_snapshot 1건이라 default_sms 코치는 '표본 적음'으로 뜸 — 유저 앱 최신화되면 실집계로 바뀜)
+
+## 2026-10-29 19:55 · android (+ server)
+사용자 상세 페이지(`/admin/user/{phone}`) pro 대시보드 톤 통일 + 들어온길 중복 제거 + 여정 노이즈(버전업) 접기 + 이 사람 설정상태·막내 코치 추가 (서버 additive). 라이브 main.py 에만.
+- 변경(라이브 main.py 에만, ADD-ONLY · 기존 라우트/거동 손 안 댐): `_ADMIN_USER_DETAIL_HTML` 재스타일 — 관제실(`_ADMIN_PRO_HTML`)과 같은 CSS 토큰(--bg/--card/--card2/--ink·ink2·ink3/--accent·soft·ink/--good/--warn/--crit/--shadow/--r, Noto Sans KR+Manrope)로. 옛 이름(--blue/--t1/--t2/--t3/--line/--error/--success/--warn)은 그대로 두고 **값만** 프로 토큰에 별칭 → 기존 class 안 깨짐. `prefers-color-scheme: dark` + `[data-theme]` 다크모드 추가, 새 hex 0(토큰만). 상단에 관제실 머리띠(막 마크) + 「← admin 홈」 유지.
+- JSON(`/admin/user/{phone}/data`)에 additive 키 2개: `setup`(setup_snapshot 최신 1건 → ✅/❌ 칩 값·고객수·상호·사업자번호, 없으면 null) + `setup_coach`(결정론적 막내 코치 한 줄, 없으면 null). 서버 헬퍼 `_user_setup_view`·`_user_setup_coach` 한 곳. 전부 try/except(깨진 한 줄이 500 못 냄).
+- B 중복 제거: 「쓰는 폰」 줄에서 앱버전·설치경로 빼고 기기모델·마지막켠시각만(앱버전/설치경로는 전용 줄 1회). 「들어온 길」의 업종 줄 삭제(헤더 🔧에 이미 있음). C 여정: app_update(버전업) 20줄 나열 → 「⬆️ 앱 업데이트 N회」 접힌 칸 1개로, 의미있는 세션 다음 맨 아래 조용히. D: 「⚙️ 이 사람 설정 상태」 카드(관제실 .setup/.coach와 같은 모양) + 막내 코치.
+- 배포: GOTCHAS §3. 로컬 py_compile OK → 백업 `main.py.bak-20261029-194925` → scp → remote py_compile(3.9) OK → kickstart → **smoke 10/10**. 자가검증: `/admin/user/01064610131`(업무폰) HTML 200·restyle 마커 확인·중복줄 0, `/data` setup=null·setup_coach=null(스냅샷 없음→placeholder). `/admin/user/01080056674/data` 200·setup 전필드+coach「설정은 깔끔해요…」. `/admin`·`/admin/pro` 비로그인 303 / 토큰 200 그대로.
+- ⚠️ 라이브는 git 아님 — **repo/server/main.py 에는 push 안 함**(지시대로). 커밋/푸시는 사장님이.
+- 폰 확인: 못 봄 (admin 웹)
+- 다음 액션: 없음. setup_snapshot 이 아직 1건(01080056674)이라 다른 사용자는 placeholder — 유저 앱 최신화되면 채워짐.
+
+## 2026-10-29 20:05 · android (+ server)
+pro 대시보드 '온보딩 깔때기' 계산 버그 수정 — 비단조(뒤 단계가 앞보다 큼, 막대 133%, "-2명 나감" 음수) → 진짜 깔때기. 라이브 main.py 에만.
+- 원인: 각 화면을 **따로** 세서(`scr in owner_screens[ph]` 독립 카운트) 들른 순서를 안 봄 → 온보딩 8 > 가입 6 식 역전, 막대 100% 초과 overflow, 앞단계 이탈이 음수.
+- 수정(라이브 main.py, §12 한 곳): "여기까지 온 사람"으로 — 사용자가 방문한 funnel 화면 중 **가장 뒤 단계 index** 를 구해 step k 인원 = (max >= k) 인 사람 수. 항상 단조 감소 보장 → 막대 ≤100%, '나감' ≥0. JS는 서버 `worst_index` 하나로 통일(막대 빨간표시·요약·막내 코치가 같은 단계 가리키게).
+- 배포: GOTCHAS §3. 로컬 py_compile OK → 백업 `main.py.bak-20261029-195512` → staged scp → remote py_compile(3.9) OK → swap → kickstart → **smoke 10/10**. 검증: `/admin/pro/data` funnel 8·8·8·8·7·7 (단조), worst_index=4(업종선택·1명), coach 일치. `/admin`·`/admin/pro`·`/admin/user` 비로그인 303 / 토큰 200 그대로.
+- ⚠️ 라이브는 git 아님 — repo/server/main.py 엔 push 안 함. 커밋/푸시는 사장님이.
+- 폰 확인: 못 봄 (admin 웹)
+- 다음 액션: 없음. (참고: 깔때기 기간 토글 7/30/전체는 아직 같은 30일 수치 — 추후)
