@@ -318,7 +318,9 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         //   "35" 를 치면 번호에 35 가 든 손님이 15명 우르르 올라와, 정작 찾던
         //   "35만원" 통화·문자를 아래로 밀어냈다. 두세 자리 숫자는 번호가 아니라 **금액**이다.
         //   번호 뒷자리로 찾을 땐 어차피 네 자리를 친다.
-        val qDigits = q.filter { it.isDigit() }.takeIf { it.length >= 4 } ?: ""
+        // 🔢 1~3자리는 **번호 전체가 똑같을 때만** 찾는다(114·119·100 등 특수번호). 부분(뒷자리) 검색은 4자리부터.
+        //   금액 '35' 는 어떤 번호와도 '전체 일치'가 안 되니 안 걸린다 — 옛 "35 치면 15명 우르르" 재발 X. (2026-10-29 사장님 "114 예외")
+        val qDigits = q.filter { it.isDigit() }
 
         // 대화 전체 본문 검색(폰 SMS/MMS) — IO. suffix 별 '가장 최근 매칭' 한 건만(list 는 date DESC).
         val bodyHits = LinkedHashMap<String, SmsHit>()
@@ -363,7 +365,12 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         for (c in customers) {
             val suf = suffixOf(c.phoneNumber)
             val nameHit = c.name?.lowercase()?.contains(qLower) == true
-            val phoneHit = qDigits.isNotEmpty() && c.phoneNumber.filter { it.isDigit() }.contains(qDigits)
+            val phoneDigits = c.phoneNumber.filter { it.isDigit() }
+            val phoneHit = when {
+                qDigits.isEmpty() -> false
+                qDigits.length < 4 -> phoneDigits == qDigits   // 짧은 번호(114 등): 번호 전체가 같아야
+                else -> phoneDigits.contains(qDigits)           // 보통: 뒷자리·부분 일치
+            }
             val memoHit = c.memo?.lowercase()?.contains(qLower) == true
             val bodyHit = bodyHits[suf]
             val callHit = callHits[suf]
