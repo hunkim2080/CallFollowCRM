@@ -15599,3 +15599,14 @@ pro 대시보드 '온보딩 깔때기' 계산 버그 수정 — 비단조(뒤 �
 - ⚠️ 라이브는 git 아님 — repo/server/main.py 엔 push 안 함. 커밋/푸시는 사장님이.
 - 폰 확인: 못 봄 (admin 웹)
 - 다음 액션: 없음. (참고: 깔때기 기간 토글 7/30/전체는 아직 같은 30일 수치 — 추후)
+
+## 2026-10-29 20:40 · android (+ server)
+pro 대시보드(관제실) 홈화면 아이콘 추가 — 홈추가 시 삼성 브라우저 기본 회색 "s" → 막내 「막」 마크. 라이브 main.py + static/ 에만.
+- 원인: `_ADMIN_PRO_HTML` 에 favicon/apple-touch-icon/manifest 링크가 **아예 없었음** → 기본 아이콘.
+- 추가(라이브, ADD-ONLY): `static/ddl-icon-{180,192,512}.png`(파란 그라데이션+흰 「막」, PIL+Malgun Bold 생성) + 서빙 라우트 `/manifest/ddl-icon-*.png`(한 곳 `_ddl_icon_png`, Cache-Control 1d). 새 `/manifest/pro.webmanifest`(name 시공막내 관제실·short 관제실·start_url /admin/pro·막 PNG icons, maskable). `_ADMIN_PRO_HTML` head 에 apple-touch(180)+icon(192·512)+svg폴백+manifest+theme-color 링크.
+- 덤: 기존 `/manifest/admin.webmanifest` 아이콘 R(SVG)→막(PNG)로 교체, `admin-icon.svg` 폴백도 R→막. 다른 admin 페이지(콘솔·사용자상세)도 같은 막 아이콘으로 통일(아이콘 PNG 한 벌 공유 — manifest 만 start_url 달라 둘).
+- 경로는 `/manifest/*`·`/admin` 아님 → `_admin_gate_middleware` 안 막음(아이콘은 비민감). 홈화면 추가 후 런처가 캐시.
+- 배포: GOTCHAS §3. 백업 `main.py.bak-20261029-20*(최신)` → remote py_compile(3.9) OK → kickstart → **smoke 10/10**. 검증: ddl-icon-192/512/180.png 200 image/png(바이트 일치), pro.webmanifest·admin.webmanifest 200 application/manifest+json, admin-icon.svg 막, pro HTML head 링크 5개 확인. `/admin`·`/admin/pro` 게이트 그대로.
+- ⚠️ 아이콘 PNG 는 서버 static/ 에만(repo 아님). repo/server/main.py push 안 함.
+- 폰 확인: 못 봄 (사장님이 페이지 새로고침 후 홈화면 재추가 필요 — 옛 바로가기는 캐시됨)
+- 다음 액션: 사장님 — /admin/pro 새로고침 → 홈화면에 다시 추가 → 막 아이콘 확인
