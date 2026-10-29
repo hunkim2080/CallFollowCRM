@@ -15571,3 +15571,12 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 배포: GOTCHAS §3 절차. scp→remote py_compile OK→백업 `main.py.bak-20261029-175612`→swap→kickstart→**smoke 10/10 통과**. 자가검증: `/admin/pro/data` 200 JSON(실데이터 total_users 24·DAU 12·setup_snapshot 1건), `/admin/pro` 303(로그인 게이트, 정상).
 - ⚠️ **라이브 서버는 git 아님(repo 보다 앞섬)** — 이 변경은 **라이브 main.py 에만** 넣었고 **repo/server/main.py 에는 push 안 함**(작업 지시에 따라). repo 반영이 필요하면 별도 작업.
 - 폰 확인: 해당 없음(서버). setup_snapshot 이 아직 1건이라 권한·업종·설정 패널은 유저들이 앱 최신화하면 채워짐.
+
+## 2026-10-29 19:30 · android (+ server)
+pro 대시보드 지표별 '막내 코치' 규칙 추가(상황🧢→액션→) — 서버 규칙 한 곳, additive. 비기술자 사장님이 숫자만 보고 "그래서 뭘?" 하지 않게, 각 지표 밑에 실수치 기반 결정론적 코치 한 줄.
+- 변경(라이브 main.py 에만, ADD-ONLY · 기존 라우트/거동 0줄 손 안 댐): 헬퍼 `_pro_coach(m)` 1개 신설(§12 한 곳) — 입력=admin_pro_data 가 이미 집계한 응답 dict(실제 필드명 그대로). `/admin/pro/data` 응답에 `coach` + 코치용 집계 `setup_stats`(snapshots·default_sms_off·no_customers) 추가. `_ADMIN_PRO_HTML` 에 지표마다 코치 블록 렌더(기존 토큰/CSS 재사용 — 새 hex 0, `.coach` 클래스만 var() 로 추가).
+- 규칙(LLM 호출 없음·결정론적): churn/funnel(최다이탈단계)/default_sms/perms(연락처거부)/retention(D7)/no_customers/new_users/cost/benchmark. 섹션 있는 키만 반환. 표본 부족 분기 포함.
+- 배포: GOTCHAS §3 절차. 로컬 py_compile OK → 백업 `main.py.bak-20261029-192518` → scp → remote py_compile(3.9) OK → kickstart → **smoke 10/10 통과**. 자가검증: `/admin/pro/data` 200, `coach` 7키 실수치 보간(예 churn "10명 중 4명…", funnel "'업종 선택' 단계… 3명", cost "₩12,824 · 1인당 ₩534"). `/admin`·`/admin/pro` 303(로그인 게이트 정상).
+- ⚠️ 라이브는 git 아님 — **repo/server/main.py 에는 push 안 함**(지시대로). 커밋/푸시는 사장님이.
+- 폰 확인: 못 봄 (admin 웹)
+- 다음 액션: 없음. (setup_snapshot 1건이라 default_sms 코치는 '표본 적음'으로 뜸 — 유저 앱 최신화되면 실집계로 바뀜)
