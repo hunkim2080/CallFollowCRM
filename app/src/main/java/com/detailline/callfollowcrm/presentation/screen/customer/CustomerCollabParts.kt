@@ -149,6 +149,11 @@ import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 import com.detailline.callfollowcrm.util.PhoneKey
 import androidx.compose.ui.graphics.graphicsLayer
 
+/** 협업 상대 **보이는 이름** — 진짜 이름 있으면 그대로, 없거나 생번호면 포맷 번호(010-…). (2026-10-29 사장님: "누구를 부를까요"에 생번호가 이름으로 뜨던 것) */
+private fun collabPersonName(name: String, phone: String): String =
+    name.takeIf { it.isNotBlank() && it.any { c -> !c.isDigit() } }
+        ?: com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phone)
+
 // ======================================================================
 //  🍃 고객 정보의 협업 조각 — 같이 보기 시트·협업 뒤 카드
 //
@@ -723,7 +728,7 @@ internal fun CollabShareSheet(
                                 ) {
                                     if (on) Icon(Icons.Default.Check, null, tint = Color.White,
                                         modifier = Modifier.size(16.dp))
-                                    else Text(com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(w.name).ifBlank { "?" }, fontSize = 13.sp,
+                                    else Text(com.detailline.callfollowcrm.domain.ui.AvatarInitial.of(w.name.takeIf { it.any { c -> !c.isDigit() } } ?: "").ifBlank { "?" }, fontSize = 13.sp,
                                         fontWeight = FontWeight.Black, color = AppTheme.colors.category)
                                 }
                                 Spacer(Modifier.width(11.dp))
@@ -731,7 +736,7 @@ internal fun CollabShareSheet(
                                     androidx.compose.foundation.layout.Row(
                                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                     ) {
-                                        Text(w.name, style = AppType.body, fontWeight = FontWeight.Bold,
+                                        Text(collabPersonName(w.name, w.phone), style = AppType.body, fontWeight = FontWeight.Bold,
                                             color = TossTextPrimary, maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                         if (asked) {
@@ -742,9 +747,11 @@ internal fun CollabShareSheet(
                                     }
                                     // ☎️ **번호 먼저.** 이름만으론 누군지 못 알아본다. (2026-09-26 사장님)
                                     val n = freq[k8] ?: 0
+                                    val freqTxt = if (n > 0) "함께 ${n}번" else "아직 같이 안 감"
+                                    // 이름줄이 이미 번호면(진짜 이름 없음) 부제에 번호를 또 안 쓴다.
+                                    val hasRealName = w.name.isNotBlank() && w.name.any { c -> !c.isDigit() }
                                     Text(
-                                        com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(w.phone) +
-                                            (if (n > 0) " · 함께 ${n}번" else " · 아직 같이 안 감"),
+                                        if (hasRealName) com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(w.phone) + " · " + freqTxt else freqTxt,
                                         style = AppType.caption, color = TossTextTertiary, maxLines = 1,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
@@ -787,7 +794,7 @@ internal fun CollabShareSheet(
                             Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text(w.name, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            Text(collabPersonName(w.name, w.phone), fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                 color = TossTextPrimary, modifier = Modifier.weight(1f), maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             Box(Modifier.width(96.dp)) {

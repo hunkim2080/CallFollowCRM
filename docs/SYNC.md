@@ -15531,3 +15531,7 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 ## 2026-10-29 11:07 · android
 검색 — 1~3자리 짧은 번호(114·119 등)는 **번호 전체 일치**로만 찾게(남의 번호 안 딸려옴). 금액(35)은 안 걸림. 4자리+는 부분검색 그대로. (사장님 "114 예외")
 - 변경: SearchViewModel qDigits 길이제한 제거 + phoneHit 분기(<4=전체일치/>=4=부분). 폰 확인: 못 봄, 빌드+테스트 통과.
+
+## 2026-10-29 11:37 · android
+① 협업 "누구를 부를까요" 생번호가 이름으로 뜨던 것 수정(공용 collabPersonName — 진짜이름/포맷번호) ② 다음 액션 제안 서버 호출 제거(안 쓰기로 함, 호출1위 475/월·비용31% 절감)
+- 변경: CustomerCollabParts(이름 3곳+부제) · ConversationAiRepository.ensureFullSummary(next-action-suggest 호출 제거, 신선도판정서 제외). 폰 확인: 못 봄, 빌드+테스트 통과.

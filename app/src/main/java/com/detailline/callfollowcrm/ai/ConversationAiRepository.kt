@@ -86,7 +86,7 @@ class ConversationAiRepository(
             val isFresh = existing != null
                 && existing.cardSummary != null
                 && existing.conversationSummaryJson != null
-                && existing.nextActionJson != null
+                // 🚫 다음 액션(nextActionJson)은 신선도 판정에서 뺀다 — 안 쓰기로 해 더 안 받으므로 null 이어도 stale 아님. (2026-10-29 사장님)
                 && existing.latestMessageTimestampMs >= ctx.latestMessageTimestampMs
             if (isFresh) return@runCatching
 
@@ -109,10 +109,9 @@ class ConversationAiRepository(
             val stage = convoResp?.optString("current_stage")?.takeIf { it.isNotBlank() }
                 ?: existing?.conversationStage
 
-            val nextResp = runCatching { callServer("$baseUrl/api/next-action-suggest", body) }.getOrNull()
-            val nextJson = nextResp?.toString()
-                ?: existing?.nextActionJson
-                ?: "{}"   // 빈 응답 = "{}" sentinel
+            // 🚫 다음 액션 제안 — **안 쓰기로 함**(2026-10-29 사장님). 서버 호출 제거: 호출 1위(475/월)·비용 31%(₩3,774) 절감.
+            //   옛 캐시(nextActionJson)는 그대로 두되 새로 받지 않는다 → 새 대화는 null → UI 박스 자연히 안 뜸.
+            val nextJson = existing?.nextActionJson
 
             val merged = (existing ?: AiSummaryEntity(phoneSuffix = ctx.phoneSuffix)).copy(
                 cardSummary = card,
