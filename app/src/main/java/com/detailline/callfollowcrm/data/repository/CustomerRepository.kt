@@ -27,6 +27,9 @@ class CustomerRepository(
     //   증발한다(lost update). 모든 단일 고객 수정을 아래 mutate 한 곳으로 모아 읽기부터 쓰기까지 원자화한다.
     private val writeMutex = Mutex()
 
+    /** 전체 고객 수 — 설정 스냅샷(업종별 통계)용. (2026-10-29) */
+    suspend fun count(): Int = dao.count()
+
     /**
      * 단일 고객 읽기-수정-쓰기를 원자적으로. transform 이 받은 현재 값을 복사·수정해 반환하면 저장한다.
      *   - 없는 id 면 아무 것도 안 함. transform 이 null 을 반환하면(=변경 없음) 저장 생략.

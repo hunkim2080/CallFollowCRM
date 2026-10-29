@@ -39,6 +39,10 @@ interface CustomerDao {
     @Query("SELECT * FROM customers WHERE id = :id LIMIT 1")
     suspend fun findById(id: Long): CustomerEntity?
 
+    /** 전체 고객 수 — 설정 스냅샷(업종별 통계)용. (2026-10-29) */
+    @Query("SELECT COUNT(*) FROM customers")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM customers WHERE id = :id LIMIT 1")
     fun observeById(id: Long): Flow<CustomerEntity?>
 

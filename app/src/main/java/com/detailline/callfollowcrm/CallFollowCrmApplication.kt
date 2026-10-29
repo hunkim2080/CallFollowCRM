@@ -154,6 +154,15 @@ class CallFollowCrmApplication : Application() {
                     )
                 }
             }
+            // 📋 **설정 스냅샷** — 이 사장님이 어떻게 설정했는지(업종·기본앱·권한·사업자정보·고객수)를 서버로. (2026-10-29 사장님)
+            //   관리자 대시보드가 「이 사람 설정 상태 + 업종별 통계」를 보게 — "여기 잘못 설정돼 오류 난 거예요" 짚어주려고.
+            //   손님 데이터는 안 보낸다(설정·수치만). 바뀌었을 때만 보낸다. 자리: util/SetupSnapshotReporter.kt
+            runCatching {
+                val n = container.customerRepository.count()
+                com.detailline.callfollowcrm.util.SetupSnapshotReporter.report(
+                    this@CallFollowCrmApplication, container.preferences, container.journeyEventRepository, n
+                )
+            }
             // 🌙 마감 브리핑 기본값을 **한 번만** 정한다. (2026-09-30 사장님)
             //   새로 깐 폰 = 꺼진 채로(놀라지 않게). 이미 쓰시던 폰 = 켜둔 채로(갑자기 사라지면 안 되니).
             //   판단은 「손님이 한 명이라도 있나」 — 빈 폰이면 방금 깐 것이다.

@@ -15554,3 +15554,10 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 왜: "번호→이름 비춰주기"(7월)는 있었지만 반대 방향(이름→찾기)이 없었음. 사장님 삼성연락처엔 있는데 시공막내 검색 안 됨(문자 보내려 이름 검색). 에이닷 전용 저장분은 여전히 못 읽음(시스템 연락처만).
 - §12-K 연결점: 주소록 읽기 1곳(searchByName)·소비 1곳(SearchViewModel). SearchSource when 3곳(order/groupTitle/SourceChip) 다 반영. 번호→이름 반영(lookup)과 별개.
 - 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.
+
+## 2026-10-29 15:40 · android
+설정 스냅샷 수집 1단계 — 유저가 '어떻게 설정했나'를 서버로(관리자 대시보드 통계·지원용).
+- 변경: 공용 util/SetupSnapshotReporter.kt(신규) — 업종·활동지역·온보딩여부·기본문자앱여부·권한6종(연락처/문자/통화기록/전화/알림/오버레이)·사업자 상호·번호·고객수를 'setup_snapshot' 이벤트로 /api/event 에 실어 보냄(바뀌었을 때만). CustomerDao.count()/CustomerRepository.count() 추가. AppPreferences.lastSetupSnapshot 추가. CallFollowCrmApplication 앱시작 블록에서 1회 호출.
+- 선(사장님 확정): 설정상태+사업자정보(상호·번호)+고객'수'만. 손님 데이터(번호·대화·문의내용)는 안 보냄.
+- 다음(2단계, 서버+대시보드): 서버가 스냅샷을 유저별 최신상태로 저장 + 업종별 집계 → 대시보드에 '이 사람 설정 상태' 패널 + 업종별 벤치마크. 업데이트 묶임(언제 한 건지) 풀기도. ※ 라이브 서버라 GOTCHAS §3 절차로 조심히.
+- 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.

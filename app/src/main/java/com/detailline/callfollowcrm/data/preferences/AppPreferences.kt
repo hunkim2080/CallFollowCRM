@@ -774,6 +774,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_HAS_ONBOARDED, false)
         set(value) = prefs.edit().putBoolean(KEY_HAS_ONBOARDED, value).apply()
 
+    /** 📋 마지막으로 서버에 보낸 '설정 스냅샷' 지문 — 바뀌었을 때만 다시 보낸다(이벤트 로그 깔끔). (2026-10-29) [[SetupSnapshotReporter]] */
+    var lastSetupSnapshot: String
+        get() = prefs.getString("last_setup_snapshot", "") ?: ""
+        set(value) = prefs.edit().putString("last_setup_snapshot", value).apply()
+
     /** 활동 지역 (온보딩에서 선택, 여러 곳). "|" join. AI 답장·길찾기 컨텍스트. */
     var ownerRegions: List<String>
         get() = prefs.getString(KEY_OWNER_REGIONS, "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
