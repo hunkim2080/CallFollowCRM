@@ -15610,3 +15610,12 @@ pro 대시보드(관제실) 홈화면 아이콘 추가 — 홈추가 시 삼성 
 - ⚠️ 아이콘 PNG 는 서버 static/ 에만(repo 아님). repo/server/main.py push 안 함.
 - 폰 확인: 못 봄 (사장님이 페이지 새로고침 후 홈화면 재추가 필요 — 옛 바로가기는 캐시됨)
 - 다음 액션: 사장님 — /admin/pro 새로고침 → 홈화면에 다시 추가 → 막 아이콘 확인
+
+## 2026-10-29 21:00 · android (+ server)
+pro 대시보드(관제실) 화면 영어 제거 — 사장님 "나 영어 못해, 사이트에 영어 없도록". 라이브 main.py 에만.
+- 기능·비용 이름이 영어 원본(app_update·send·next-action-suggest·conversation-summary …)으로 노출됐었음.
+- 추가(§12 한 곳): `_PRO_KO_FEATURE` 맵 + `_pro_ko_feature()` — app_events target/event_name + llm_usage_log endpoint 전부 한글 라벨. 실 데이터에서 distinct 뽑아 빠짐없이 매핑(기능 9종·AI엔드포인트 18종). features build 의 `name`, cost rows 의 `k` 에 적용. 내부 이벤트 `claude_schema_check` 는 기능 목록에서 제외.
+- JS: 깔때기 막대 밑 영어 소제목(`<small>FUNNEL.keys</small>`) 제거(한글 라벨만), 리텐션 축·표 `D1/D7` → `1일/7일`(가입일은 유지).
+- 배포: GOTCHAS §3. 백업 `main.py.bak-20261029-2059xx` → remote py_compile(3.9) OK → kickstart → **smoke 10/10**. 검증: `/admin/pro/data` features=[앱 업데이트·문자 보내기·일정 등록·사진 저장·답변 추천 보기], cost rows=[다음 행동 추천·대화 요약·상담함 한줄요약·통화 요약(녹음)·답변 추천·문구 다듬기]. 전부 한글.
+- repo/server/main.py push 안 함. 폰 확인: 못 봄 (admin 웹).
+- 다음 액션: 없음. (참고: '다음 행동 추천'·'대화 요약'은 오늘 제거한 기능 — 이번 달 제거 전 누적분이라 비용 상위에 남아있음. 다음 달엔 사라짐)
