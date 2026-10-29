@@ -15535,3 +15535,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 ## 2026-10-29 11:37 · android
 ① 협업 "누구를 부를까요" 생번호가 이름으로 뜨던 것 수정(공용 collabPersonName — 진짜이름/포맷번호) ② 다음 액션 제안 서버 호출 제거(안 쓰기로 함, 호출1위 475/월·비용31% 절감)
 - 변경: CustomerCollabParts(이름 3곳+부제) · ConversationAiRepository.ensureFullSummary(next-action-suggest 호출 제거, 신선도판정서 제외). 폰 확인: 못 봄, 빌드+테스트 통과.
+
+## 2026-10-29 12:10 · android
+다음 액션 UI 박스 **완전 삭제**(사장님 지시) — 서버 호출(v2602)에 이어 UI 코드까지 제거.
+- 변경: ChatScreen.kt UnifiedSummaryCard 에서 action/onAction 파라미터·hasAction·구분선·다음액션 렌더 블록 전부 제거(대화요약 골격은 보존). NextAction import 제거. 790쪽 trigger 주석 정정. ※ 카드 자체는 2026-08-14 이미 렌더 제거된 죽은코드였음 → 이제 다음액션 조각까지 완전 제거.
+- 연결점(§12-K): 다음액션 표시지점 1곳(UnifiedSummaryCard, 렌더 안 됨)=제거 · NextAction data class/parse(ConversationAiRepository)=둬도 됨(nextActionJson 컬럼·옛캐시 호환) · 다른 chat 파일 NextAction import=미사용이라 둬도 됨.
+- 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.

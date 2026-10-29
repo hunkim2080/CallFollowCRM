@@ -164,7 +164,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.detailline.callfollowcrm.ai.NextAction
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.TemplateCategory
@@ -786,7 +785,7 @@ fun ChatScreen(
             //   aiSummary/summaryFailed 등 파싱은 미사용이 됨 — 관련 composable 정의는 보존(재활성 대비).
             // 2026-05-27 사장님 결정: 템플릿 chip row 의 [액션] 토글 칩과 공유.
             //   action_type 별 분기 — RINGGO_SERVER_P0P1P2_UPGRADE.md §4 매칭 시나리오.
-            //   AI 자동 추천 (next-action-suggest) + 사장님 수동 [액션] 토글 둘 다 같은 trigger 사용.
+            //   (AI 자동 추천 next-action-suggest 은 2026-10-29 제거 — 이제 ⊕ 액션 메뉴/수동 토글만 이 trigger 를 쓴다.)
             // 길찾기 — 기본 네비 앱이 정해져 있으면 바로, 아니면 한 번 고르게. (일정 탭과 같은 방식)
             val navPrefs = remember {
                 (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
@@ -3848,24 +3847,21 @@ private fun Composer(
  * 사장님이 짚은 "정보 영역이 너무 많아 화면 답답" 문제 fix.
  *
  * 구조:
- *  - 상단: ✨ 대화 요약 4줄
- *  - 구분선
- *  - 하단: 다음 액션 (작은 좌측 title/subtitle + 우측 작은 칩 버튼)
+ *  - ✨ 대화 요약 4줄
+ *    (다음 액션 박스는 2026-10-29 사장님 지시로 **완전 제거** — 안 쓰기로 함.)
  *
  * focus 되면 호출부에서 CollapsedSummaryHeader 로 전환.
+ * (현재 렌더 안 됨 — 재활성 대비 골격만 보존. 2026-08-14 상단 요약 렌더 제거)
  */
 @Composable
 private fun UnifiedSummaryCard(
     entity: com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity,
-    action: NextAction?,
     isRefreshing: Boolean = false,
-    onAction: (NextAction) -> Unit,
     onCollapse: () -> Unit
 ) {
     val lines = com.detailline.callfollowcrm.ai.parseConversationLines(entity.conversationSummaryJson)
     val hasSummary = lines.isNotEmpty()
-    val hasAction = action != null
-    if (!hasSummary && !hasAction) return
+    if (!hasSummary) return
 
     Column(
         modifier = Modifier
@@ -3935,61 +3931,7 @@ private fun UnifiedSummaryCard(
             }
         }
 
-        if (hasSummary && hasAction) {
-            Spacer(Modifier.height(10.dp))
-            androidx.compose.material3.Divider(color = TossDivider, thickness = 1.dp)
-            Spacer(Modifier.height(10.dp))
-        }
-
-        if (hasAction) {
-            val a = action!!
-            val accent = when (a.urgency) {
-                "high" -> TossError
-                "medium" -> TossWarning
-                else -> TossBlue
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "다음 액션",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = accent,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        a.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TossTextPrimary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    a.subtitle?.let { sub ->
-                        Text(
-                            sub,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TossTextSecondary
-                        )
-                    }
-                }
-                a.primaryLabel?.let { label ->
-                    Spacer(Modifier.width(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = accent,
-                        onClick = { onAction(a) }
-                    ) {
-                        Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
-                            Text(
-                                label,
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        // 다음 액션 박스 — 2026-10-29 사장님 지시로 완전 제거(안 쓰기로 함). 대화 요약만 남긴다.
 
         if (hasSummary) {
             Spacer(Modifier.height(8.dp))
