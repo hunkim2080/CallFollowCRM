@@ -15561,3 +15561,13 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 선(사장님 확정): 설정상태+사업자정보(상호·번호)+고객'수'만. 손님 데이터(번호·대화·문의내용)는 안 보냄.
 - 다음(2단계, 서버+대시보드): 서버가 스냅샷을 유저별 최신상태로 저장 + 업종별 집계 → 대시보드에 '이 사람 설정 상태' 패널 + 업종별 벤치마크. 업데이트 묶임(언제 한 건지) 풀기도. ※ 라이브 서버라 GOTCHAS §3 절차로 조심히.
 - 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.
+
+## 2026-10-29 17:56 · android (+ server)
+설정 스냅샷 2단계 — **프로 관제실 대시보드**를 라이브 서버에 추가(ADD-ONLY). 승인된 시안(다른 에이전트 제작)을 실데이터로 구동. 사장님 주소: **https://api.si0in.kr/admin/pro**
+- 변경(라이브 main.py 에만, ADD-ONLY · 기존 라우트 0줄 손 안 댐): 새 라우트 2개 — `GET /admin/pro`(HTML 셸, `_ADMIN_PRO_HTML` 상수) + `GET /admin/pro/data`(집계 JSON, Bearer=ADMIN_TOKEN). 기존 `/admin` anchor 바로 앞에 삽입. 헬퍼 재사용(db_conn/_now_ms/_norm_phone/_admin_auth_bearer_from_header).
+- 데이터: app_events(setup_snapshot=최신/owner, screen_view=깔때기·리텐션, app_update=업데이트 타임라인, schedule_create=활성화, crash/error=크래시) + beta_whitelist + app_devices + llm_usage_log(이번달 비용). 깨진 extra_json 한 줄이 500 못 내게 전부 try/except.
+- 산출: KPI(가입/DAU/WAU/신규/이탈14일) · 이탈 깔때기(신규 30일, 최대 구멍 표시) · 리텐션 D1/D7/D30 + 주별 코호트 · 유저목록(마스킹+실번호 상세링크, 설정상태 패널 + 자동 '짚어줄 것') · 업종 벤치마크 · 기능/비용. 표본 적으면 '표본 적음' 힌트.
+- 게이팅: `/admin/pro` 는 기존 `_admin_gate_middleware` 가 그대로 가드(비로그인 303→/admin/login, `/admin`·`/admin/home/data` 와 동일 거동). HTML 은 localStorage `ringgo_admin_token` 으로 `/admin/pro/data` fetch.
+- 배포: GOTCHAS §3 절차. scp→remote py_compile OK→백업 `main.py.bak-20261029-175612`→swap→kickstart→**smoke 10/10 통과**. 자가검증: `/admin/pro/data` 200 JSON(실데이터 total_users 24·DAU 12·setup_snapshot 1건), `/admin/pro` 303(로그인 게이트, 정상).
+- ⚠️ **라이브 서버는 git 아님(repo 보다 앞섬)** — 이 변경은 **라이브 main.py 에만** 넣었고 **repo/server/main.py 에는 push 안 함**(작업 지시에 따라). repo 반영이 필요하면 별도 작업.
+- 폰 확인: 해당 없음(서버). setup_snapshot 이 아직 1건이라 권한·업종·설정 패널은 유저들이 앱 최신화하면 채워짐.
