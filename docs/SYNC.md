@@ -15541,3 +15541,9 @@ S23U 상태바/노치 겹침 sweep — 손제작 바에서 인셋(statusBarsPadd
 - 변경: ChatScreen.kt UnifiedSummaryCard 에서 action/onAction 파라미터·hasAction·구분선·다음액션 렌더 블록 전부 제거(대화요약 골격은 보존). NextAction import 제거. 790쪽 trigger 주석 정정. ※ 카드 자체는 2026-08-14 이미 렌더 제거된 죽은코드였음 → 이제 다음액션 조각까지 완전 제거.
 - 연결점(§12-K): 다음액션 표시지점 1곳(UnifiedSummaryCard, 렌더 안 됨)=제거 · NextAction data class/parse(ConversationAiRepository)=둬도 됨(nextActionJson 컬럼·옛캐시 호환) · 다른 chat 파일 NextAction import=미사용이라 둬도 됨.
 - 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.
+
+## 2026-10-29 14:20 · android
+대화 요약(conversation-summary) 서버 호출 **제거** — 다음 액션에 이은 두 번째 "안 보는데 돈 나가는" 자리.
+- 변경: ConversationAiRepository.ensureFullSummary — /api/conversation-summary 호출 제거(옛 캐시 conversationSummaryJson·conversationStage 보존). 신선도 판정도 card-summary 만 기준으로. 이제 ensureFullSummary 는 card-summary 1개만 호출.
+- 왜: 그 결과 그리던 대화방 맨 위 파란 ✨ 4줄 박스(UnifiedSummaryCard)는 2026-08-14 이미 화면에서 치웠는데 호출만 계속 나갔음. 사장님 폰에서 안 보이는 것 확인. ※ 상담함 목록 ✨ 한 줄 = card-summary(다른 것) → 그대로 유지.
+- 폰 확인: 못 봄 — BUILD=0, testReleaseUnitTest 통과, 가드 7개 통과. 내부테스트 업로드.

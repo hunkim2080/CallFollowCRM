@@ -77,16 +77,18 @@ class ConversationAiRepository(
     }
 
     /**
-     * P0 + P1 + P2 모두 호출 — ChatScreen 진입 시.
-     * 캐시 stale 일 때만 호출. 세 endpoint 순차 호출.
+     * ChatScreen 진입 시 — 캐시 stale 일 때만 호출.
+     * 2026-10-29 현재 **card-summary 1개만** 호출한다(상담함 목록 ✨ 한 줄용).
+     *   - conversation-summary(대화요약)·next-action(다음액션) 호출은 **제거**됨 — 둘 다 화면에서 안 쓰는데
+     *     돈만 나가던 자리라 뺐다. 옛 캐시 필드는 보존(재활성 대비). (사장님 지시)
      */
     suspend fun ensureFullSummary(ctx: SummaryContext): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val existing = dao.get(ctx.phoneSuffix)
             val isFresh = existing != null
                 && existing.cardSummary != null
-                && existing.conversationSummaryJson != null
-                // 🚫 다음 액션(nextActionJson)은 신선도 판정에서 뺀다 — 안 쓰기로 해 더 안 받으므로 null 이어도 stale 아님. (2026-10-29 사장님)
+                // 🚫 대화요약(conversationSummaryJson)·다음액션(nextActionJson)은 신선도 판정에서 뺀다 —
+                //    둘 다 안 쓰기로 해 더 안 받으므로 null 이어도 stale 아님. **카드요약만** 신선도 기준. (2026-10-29 사장님)
                 && existing.latestMessageTimestampMs >= ctx.latestMessageTimestampMs
             if (isFresh) return@runCatching
 
@@ -102,12 +104,12 @@ class ConversationAiRepository(
                 ?: existing?.cardSummary
                 ?: ""   // 빈 응답 + existing 없음 = "시도했으나 응답 없음" sentinel
 
-            val convoResp = runCatching { callServer("$baseUrl/api/conversation-summary", body) }.getOrNull()
-            val convoJson = convoResp?.optJSONArray("summary_lines")?.toString()
-                ?: existing?.conversationSummaryJson
-                ?: "[]"   // 빈 응답 = "[]" sentinel
-            val stage = convoResp?.optString("current_stage")?.takeIf { it.isNotBlank() }
-                ?: existing?.conversationStage
+            // 🚫 대화 요약 — **안 쓰기로 함**(2026-10-29 사장님). 서버 호출 제거.
+            //   그 결과를 그리던 대화방 맨 위 파란 ✨ 4줄 박스(UnifiedSummaryCard)는 2026-08-14 이미 화면에서
+            //   치웠는데 호출만 계속 나갔다 → 다음 액션과 같은 "안 보는데 돈 나가는" 자리. 옛 캐시는 그대로 둔다.
+            //   (상담함 목록의 ✨ 한 줄 = card-summary — 다른 것. 그건 위에서 그대로 받는다.)
+            val convoJson = existing?.conversationSummaryJson
+            val stage = existing?.conversationStage
 
             // 🚫 다음 액션 제안 — **안 쓰기로 함**(2026-10-29 사장님). 서버 호출 제거: 호출 1위(475/월)·비용 31%(₩3,774) 절감.
             //   옛 캐시(nextActionJson)는 그대로 두되 새로 받지 않는다 → 새 대화는 null → UI 박스 자연히 안 뜸.
