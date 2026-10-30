@@ -1536,24 +1536,19 @@ fun CustomerDetailScreen(
         com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocScreen(
             data = data,
             onClose = { reviewQuoteDoc = null },
-            // onShared 생략 — 다시 보기는 이력에 이미 있어 재기록 안 함(재발송은 됨).
+            // onShared 생략 — 다시 보기는 이력에 이미 있어 재기록 안 함.
             onSendImage = { uri ->
-                // 📮 이 고객에게 바로 사진문자(MMS) 재발송. 앱이 기본 문자앱이라 앱 안에서 나간다. (2026-10-30 사장님)
+                // 📎 여긴 입력창이 없다 → 그 고객 **채팅으로 가서 첨부**. (2026-10-30 사장님 선택)
+                //   사진 초안(ChatDraftStore)에 담아두면 채팅이 열리며 입력창에 자동으로 붙는다.
                 val phone = customer?.phoneNumber
+                val cid = customer?.id
                 reviewQuoteDoc = null
-                if (phone.isNullOrBlank()) {
+                if (phone.isNullOrBlank() || cid == null) {
                     android.widget.Toast.makeText(context, "고객 번호가 없어요", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
-                    scope.launch {
-                        val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            com.detailline.callfollowcrm.util.SmsSender.sendMms(context, phone, "", listOf(uri))
-                        }
-                        android.widget.Toast.makeText(
-                            context,
-                            if (ok) "견적서를 보냈어요" else "견적서를 보내지 못했어요 — 다시 시도해주세요",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    val store = (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.chatDraftStore
+                    store.setPhotos(phone, store.getPhotos(phone) + uri.toString())
+                    onOpenChat(phone, cid)
                 }
             }
         )

@@ -2198,11 +2198,9 @@ fun ChatScreen(
             onClose = { quoteDocData = null; showEstimateBuilder = true },
             onShared = { viewModel.recordIssuedQuote(data) },   // 발행 이력 저장 (2026-07-07 사장님)
             onSendImage = { uri ->
-                // 📮 그 고객에게 바로 사진문자(MMS) — 대화창에도 보낸 견적서로 남는다. (2026-10-30 사장님)
-                quoteDocData = null   // 미리보기 닫고 채팅으로 복귀
-                viewModel.sendMessageWithPhotos(context, "", listOf(uri)) { ok ->
-                    if (!ok) android.widget.Toast.makeText(context, "견적서를 보내지 못했어요 — 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                // 📎 바로 안 보낸다 — 문자 입력창에 **첨부**로 올린다. 사장님이 보고 직접 보내기. (2026-10-30 사장님)
+                quoteDocData = null   // 미리보기 닫고 채팅으로 복귀 → 입력창에 견적서가 첨부돼 있음
+                attachedPhotos = attachedPhotos + uri
             }
         )
     }
@@ -2212,11 +2210,9 @@ fun ChatScreen(
         QuoteDocScreen(
             data = data,
             onClose = { reviewIssuedDoc = null },
-            onSendImage = { uri ->   // 다시 보기에서도 바로 재발송(사진문자). 재기록(onShared)은 안 함.
+            onSendImage = { uri ->   // 다시 보기에서도 입력창에 첨부(재기록 onShared 은 안 함).
                 reviewIssuedDoc = null
-                viewModel.sendMessageWithPhotos(context, "", listOf(uri)) { ok ->
-                    if (!ok) android.widget.Toast.makeText(context, "견적서를 보내지 못했어요 — 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                attachedPhotos = attachedPhotos + uri
             }
         )
     }
@@ -4867,7 +4863,7 @@ private fun EstimateBuilderDialog(
             ) {
                 Text(
                     if (orderMode) "≡ 를 끌어 차례를 바꿔요 · 가격표에도 그대로 남아요"
-                    else "이름·가격을 꾹 누르면 고칠 수 있어요",
+                    else "줄을 누르면 선택 · 꾹 누르면 고칠 수 있어요",
                     style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.weight(1f)
                 )
@@ -4972,7 +4968,9 @@ private fun EstimateBuilderDialog(
                         onToggle = { customItems.removeAt(idx) },
                         onIncrement = {}, onDecrement = {},
                         onEditPrice = { manwon -> c.manwon = manwon.toString() },
-                        onEditTitle = { t -> t.trim().takeIf { it.isNotBlank() }?.let { c.name = it } }
+                        onEditTitle = { t -> t.trim().takeIf { it.isNotBlank() }?.let { c.name = it } },
+                        // 여긴 onToggle=삭제 — 줄 탭으로 실수로 지워지지 않게 체크박스로만 끈다. 수정은 꾹. (2026-10-30)
+                        rowTapToggles = false
                     )
                 } else {
                     Row(
@@ -5256,7 +5254,10 @@ private fun EstimateItemRow(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     onEditPrice: (manwon: Int) -> Unit = {},
-    onEditTitle: (String) -> Unit = {}
+    onEditTitle: (String) -> Unit = {},
+    /** 줄(이름·가격) 아무 데나 탭하면 선택 토글(기본 UX). 꾹=수정. (2026-10-30 사장님)
+     *   false = 직접추가 항목처럼 onToggle 이 **삭제**라 실수 방지로 체크박스로만 끄는 곳. */
+    rowTapToggles: Boolean = true
 ) {
     val checked = quantity > 0
     val isPyeong = unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
@@ -5270,8 +5271,10 @@ private fun EstimateItemRow(
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxWidth()) {
         // 프로토 .est-item — [체크박스] 이름(flex) 가격(우측)
-        //   토글 클릭은 '체크박스+이름'에만 둔다. 행 전체에 두면 비활성 clickable 이 가격 입력칸 탭까지 삼켜
-        //   숫자패드가 안 떴다(2026-06-25 사장님 버그). 가격/입력칸 영역은 클릭 가로채는 부모가 없어야 함.
+        //   탭=선택 토글 / 꾹=수정 (2026-10-30 사장님 "띠 누르면 체크, 꾹 누르면 수정 — 기본 UX").
+        //   탭 토글은 **이름·가격 Text 각각**에만 건다(둘이 줄 폭 대부분을 덮는다). 행(Row) 전체를 clickable 로
+        //   감싸면 수정 입력칸 탭까지 삼켜 숫자패드가 안 떴다(2026-06-25 버그) → 그래서 Text 단위로만.
+        //   편집 중엔 Text 가 입력칸으로 바뀌어(아래 editing 분기) clickable 이 없다 — 입력칸은 안 삼킨다.
         Row(
             Modifier.fillMaxWidth().padding(vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -5321,10 +5324,10 @@ private fun EstimateItemRow(
                             onEditTitle(draftT.text); editingTitle = false; keyboard?.hide()
                         }.padding(horizontal = 7.dp, vertical = 4.dp))
                 } else {
-                    // 꾹(롱프레스) = 이름 그 자리에서 수정. 그냥 탭은 무시 — 스크롤 중 실수 편집 방지. 선택은 왼쪽 체크박스로. (2026-07-13 사장님)
+                    // 탭 = 선택 토글(줄 누르면 체크) · 꾹(롱프레스) = 이름 그 자리에서 수정. (2026-10-30 사장님)
                     Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                            .combinedClickable(onClick = {}, onLongClick = { editingTitle = true })
+                            .combinedClickable(onClick = { if (rowTapToggles) onToggle() }, onLongClick = { editingTitle = true })
                             .padding(vertical = 2.dp))
                 }
             }
@@ -5383,7 +5386,7 @@ private fun EstimateItemRow(
                     }.padding(horizontal = 7.dp, vertical = 4.dp)
                 )
             } else {
-                // 꾹(롱프레스) = 그 자리에서 가격 수정. 그냥 탭은 무시 — 스크롤 중 실수 편집 방지. (2026-07-13 사장님)
+                // 탭 = 선택 토글(줄 누르면 체크) · 꾹(롱프레스) = 그 자리에서 가격 수정. (2026-10-30 사장님)
                 // 🏷️ 0원이면 「서비스」, 「할인」이면 빨간 −금액. (2026-10-02 사장님)
                 Text(
                     if (isPyeong) "${formatWon(price)}/평" else com.detailline.callfollowcrm.domain.quote.QuoteMoney.label(title, price),
@@ -5395,7 +5398,7 @@ private fun EstimateItemRow(
                     //   글자 폭이 달라져 금액이 세로로 안 맞는다. (2026-09-22 사장님)
                     style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                        .combinedClickable(onClick = {}, onLongClick = { editingPrice = true })
+                        .combinedClickable(onClick = { if (rowTapToggles) onToggle() }, onLongClick = { editingPrice = true })
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
             }

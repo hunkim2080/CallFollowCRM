@@ -36,7 +36,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -130,36 +132,31 @@ fun QuoteDocScreen(
         else -> 0L
     }
 
-    // 캡처할 .qdoc 영역(윈도우 좌표).
-    var docRect by remember { mutableStateOf<Rect?>(null) }
+    val scope = rememberCoroutineScope()
 
     fun captureAndSend() {
-        val rect = docRect ?: return
-        if (rect.width() <= 0 || rect.height() <= 0) return
-        val window = findActivity(context)?.window ?: return
-        val bmp = Bitmap.createBitmap(rect.width(), rect.height(), Bitmap.Config.ARGB_8888)
-        try {
-            PixelCopy.request(window, rect, bmp, { result ->
-                if (result == PixelCopy.SUCCESS) {
-                    runCatching {
-                        val dir = File(context.cacheDir, "shared").apply { mkdirs() }
-                        // 이름에 시각 — 연달아 보내도 앞 견적서 파일을 덮지 않게(타임라인 썸네일 보존).
-                        val f = File(dir, "견적서_${System.currentTimeMillis()}.png")
-                        FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                        val uri = androidx.core.content.FileProvider.getUriForFile(
-                            context, context.packageName + ".fileprovider", f
-                        )
-                        onSendImage(uri)   // 📮 그 고객에게 바로 사진문자로 — 발송은 호출부(§12 공용 경로 재사용)
-                        onShared()         // 발행 이력에 이 견적서 스냅샷 저장
-                    }.onFailure {
-                        android.widget.Toast.makeText(context, "견적서 이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    android.widget.Toast.makeText(context, "이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }, Handler(Looper.getMainLooper()))
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(context, "이미지 캡처를 지원하지 않는 기기예요", android.widget.Toast.LENGTH_SHORT).show()
+        // 🖼️ 화면을 찍지 않고(PixelCopy=보이는 데만 찍혀 잘림) 견적서 **전체**를 1080폭으로 그려서 첨부한다. (2026-10-30 사장님)
+        val biz = com.detailline.callfollowcrm.util.QuoteShot.Biz(
+            name = bizName, owner = bizOwner, no = bizNo, addr = bizAddr, phone = bizPhone, validDays = validDays
+        )
+        scope.launch {
+            val uri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val bmp = com.detailline.callfollowcrm.util.QuoteShot.render(context, data, biz)
+                    val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+                    // 이름에 시각 — 연달아 만들어도 앞 견적서 파일을 안 덮는다(입력창 썸네일 보존).
+                    val f = File(dir, "견적서_${System.currentTimeMillis()}.png")
+                    FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    bmp.recycle()
+                    androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".fileprovider", f)
+                }.getOrNull()
+            }
+            if (uri != null) {
+                onSendImage(uri)   // 📮 문자 입력창에 **첨부**(바로 안 보냄 — 사장님이 보고 직접 보내기). 첨부는 호출부가.
+                onShared()         // 발행 이력에 이 견적서 스냅샷 저장
+            } else {
+                android.widget.Toast.makeText(context, "견적서 이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -177,7 +174,7 @@ fun QuoteDocScreen(
         }
         // 안내
         Text(
-            "고객에게 이 이미지가 문자로 가요",
+            "문자 입력창에 견적서가 첨부돼요 · 확인하고 보내기를 누르세요",
             fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium,
             modifier = Modifier.fillMaxWidth().background(AppTheme.colors.primaryBg).padding(horizontal = 18.dp, vertical = 11.dp)
         )
@@ -185,14 +182,10 @@ fun QuoteDocScreen(
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
-            // .qdoc — 캡처 대상
+            // .qdoc — 미리보기(실제 전송 이미지는 QuoteShot 이 전체를 새로 그린다 — PixelCopy 아님)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .onGloballyPositioned { c ->
-                        val r = c.boundsInWindow()
-                        docRect = Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt())
-                    }
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.White)
                     .border(1.dp, AppTheme.colors.surfaceMuted, RoundedCornerShape(16.dp))
@@ -339,7 +332,7 @@ fun QuoteDocScreen(
                     .clickable { captureAndSend() }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("이미지로 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("문자에 첨부", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
