@@ -29,6 +29,8 @@ import java.util.Locale
 object QuoteShot {
     private const val W = 1080
     private const val PAD = 64f
+    // 📄 A4 한 장 높이(210:297). 내용이 이보다 짧으면 아래를 흰 여백으로 채워 **인쇄용 한 장 서류**로. (2026-10-30 사장님)
+    private val A4_H = Math.round(W * 297f / 210f)   // = 1527
 
     // 색 — Compose 미리보기(QuoteDocScreen)가 쓰는 토큰 값 그대로(라이트). 서류라 하드코딩이 맞다(SettlementShot 과 같은 길).
     private const val INK = 0xFF111111.toInt()
@@ -55,7 +57,7 @@ object QuoteShot {
         val bold = RecordShot.font(ctx, R.font.pretendard_bold)
         val med = RecordShot.font(ctx, R.font.pretendard_medium)
 
-        val scratchH = (1500 + data.lines.size * 110 + (data.memo?.length ?: 0) * 2).coerceAtMost(8000)
+        val scratchH = (maxOf(A4_H, 1500 + data.lines.size * 110 + (data.memo?.length ?: 0) * 2) + 80).coerceAtMost(8000)
         val scratch = Bitmap.createBitmap(W, scratchH, Bitmap.Config.ARGB_8888)
         val c = Canvas(scratch)
         c.drawColor(PAPER)
@@ -75,7 +77,8 @@ object QuoteShot {
             if (biz.no.isNotBlank()) { c.drawText("사업자 ${biz.no}", right, ry, RecordShot.paint(med, 24f, HINT, Paint.Align.RIGHT)); ry += 30f }
             if (biz.phone.isNotBlank()) c.drawText(PhoneNumberFormatter.format(biz.phone), right, ry, RecordShot.paint(med, 24f, HINT, Paint.Align.RIGHT))
         }
-        y += 78f
+        // 오른쪽 상호 블록이 4줄(상호·대표·사업자·전화)까지 올 수 있어 — 파란 선이 전화번호를 물지 않게 넉넉히. (2026-10-30 사장님 "잘려 보임")
+        y += 108f
         // ── 파란 선 ──
         c.drawRect(PAD, y, right, y + 6f, Paint().apply { color = BLUE })
         y += 56f
@@ -175,8 +178,11 @@ object QuoteShot {
         }
         y += PAD
 
+        // 📄 내용이 A4 한 장보다 짧으면 **A4 높이까지 흰 여백**으로(인쇄용 한 장 서류). 길면 그 높이로.
+        //   scratch 는 처음에 전체를 흰색으로 칠했으니, 내용 아래는 자동으로 흰 여백이다.
         val finalH = y.toInt().coerceIn(1, scratchH)
-        val out = Bitmap.createBitmap(scratch, 0, 0, W, finalH)
+        val pageH = maxOf(finalH, A4_H).coerceAtMost(scratchH)
+        val out = Bitmap.createBitmap(scratch, 0, 0, W, pageH)
         if (out !== scratch) scratch.recycle()
         return out
     }
