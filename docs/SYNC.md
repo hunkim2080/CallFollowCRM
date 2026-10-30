@@ -15635,3 +15635,10 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: 서버 영향 없음(앱 내부 DB/UI만). ① `WorkCompletionManager.setDepositPaid(customerId, at, jobId)` 신설 — 계약금 받음도 잔금처럼 고객 카드+건 같이 찍음(계약금은 대표 건에). 챗 markDepositPaid·고객상세 setDepositPaid·예약취소 리셋·정산 setDepositPaid 4곳을 여기로 라우팅. 직접 updateDepositPaidAt 는 건없는 상담경로(setCustomerAmounts) 1곳만 남음(카드=SoT, dup 기준선). ② PaymentClaimAnswer.decide: 시공 전이어도 '계약금 이미 받음'이면 잔금 카드(10/17 안전장치 유지 — 계약금 아직·일부입금이면 안 띄움). dup_guard 에 deposit-paid-stamp 추가(25→26).
 - 폰 확인: 못 봄 (내부테스트로 올려 S23U에서 확인 예정). assembleRelease BUILD=0·가드7 통과·단위시험 1328개 통과.
 - 다음 액션: 없음.
+
+## 2026-10-30 15:50 · android
+견적서(직인) 보내기를 **외부 공유창(ACTION_SEND) → 그 고객에게 바로 사진문자(MMS)** 로. 사장님 "저장되는게 의미있나, 바로 보낼메세지에 이미지로 첨부되게".
+- 변경: 서버 영향 없음(앱 내부만). `QuoteDocScreen` 가 혼자 `Intent.createChooser(ACTION_SEND, image/png)` 를 띄우던 걸 제거 — 받는 고객이 안 잡혀 "저장"처럼 샜다(§12 두 벌: 앱의 사진발송 공용을 안 씀). 이제 캡처한 견적서 PNG(FileProvider uri)를 `onSendImage(uri)` 콜백으로 호출부에 넘김.
+- 연결(§12-K, QuoteDocScreen 3곳 전부): 채팅 메인 보내기·채팅 발행이력 다시보기 → `ChatViewModel.sendMessageWithPhotos(context, "", [uri])`(앱 안 MMS·타임라인에 남음·기록) · 고객상세 발행이력 다시보기 → `SmsSender.sendMms(context, phone, "", [uri])`. 실패 시 토스트로 말함(§13①).
+- 폰 확인: 에뮬레이터 설치·실행 크래시 0(로그인 진입)·BUILD=0·가드7 통과. 실제 발송은 진짜 고객에게 나가 테스트폰서 못 쏨 → 내부테스트로 올려 사장님 본인폰서 확인 필요.
+- 다음 액션: (사장님) 내부테스트 받아 견적서 '이미지로 문자 보내기' → 그 고객 대화에 바로 사진문자로 가는지 확인.

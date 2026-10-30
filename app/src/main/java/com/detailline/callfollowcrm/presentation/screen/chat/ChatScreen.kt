@@ -2196,13 +2196,29 @@ fun ChatScreen(
         QuoteDocScreen(
             data = data,
             onClose = { quoteDocData = null; showEstimateBuilder = true },
-            onShared = { viewModel.recordIssuedQuote(data) }   // 발행 이력 저장 (2026-07-07 사장님)
+            onShared = { viewModel.recordIssuedQuote(data) },   // 발행 이력 저장 (2026-07-07 사장님)
+            onSendImage = { uri ->
+                // 📮 그 고객에게 바로 사진문자(MMS) — 대화창에도 보낸 견적서로 남는다. (2026-10-30 사장님)
+                quoteDocData = null   // 미리보기 닫고 채팅으로 복귀
+                viewModel.sendMessageWithPhotos(context, "", listOf(uri)) { ok ->
+                    if (!ok) android.widget.Toast.makeText(context, "견적서를 보내지 못했어요 — 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
         )
     }
 
     // 발행 이력 카드 → 견적서 다시 보기(재렌더). 닫으면 채팅으로만 복귀(편집기 X), 재기록 안 함. (2026-07-07 사장님)
     reviewIssuedDoc?.let { data ->
-        QuoteDocScreen(data = data, onClose = { reviewIssuedDoc = null })
+        QuoteDocScreen(
+            data = data,
+            onClose = { reviewIssuedDoc = null },
+            onSendImage = { uri ->   // 다시 보기에서도 바로 재발송(사진문자). 재기록(onShared)은 안 함.
+                reviewIssuedDoc = null
+                viewModel.sendMessageWithPhotos(context, "", listOf(uri)) { ok ->
+                    if (!ok) android.widget.Toast.makeText(context, "견적서를 보내지 못했어요 — 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
     }
 
     // ✨ 다듬기 확인 — 실수 탭으로 본문이 바뀌지 않게 한 번 물어봄. (2026-07-08 사장님)

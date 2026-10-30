@@ -6,7 +6,6 @@ import com.detailline.callfollowcrm.presentation.theme.LightColors
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Handler
@@ -97,14 +96,18 @@ private fun findActivity(ctx: Context): Activity? {
 
 /**
  * 프로토 openQuoteDoc 1:1 — 직인 찍힌 정식 견적서.
- *   화면에 그린 .qdoc 영역을 PixelCopy 로 캡처 → PNG → 문자/공유(이미지).
+ *   화면에 그린 .qdoc 영역을 PixelCopy 로 캡처 → PNG → **그 고객에게 바로 사진문자(MMS)**. (2026-10-30 사장님 "저장 말고 바로 첨부")
+ *   발송은 **호출부**가 한다 — 채팅=`ChatViewModel.sendMessageWithPhotos` · 고객상세=`SmsSender.sendMms`.
+ *   (앱이 기본 문자앱이라 앱 안에서 바로 나간다. 전엔 외부 공유창(ACTION_SEND)이라 받는 고객이 안 잡혀 "저장"처럼 샜다.)
  *   2026-06-03 견적 2단계.
  */
 @Composable
 fun QuoteDocScreen(
     data: QuoteDocData,
     onClose: () -> Unit,
-    onShared: () -> Unit = {}      // 이미지 공유(발송)한 순간 — 발행 이력 기록용. (2026-07-07 사장님)
+    onShared: () -> Unit = {},     // 이미지 공유(발송)한 순간 — 발행 이력 기록용. (2026-07-07 사장님)
+    /** 📮 캡처한 견적서 이미지를 **그 고객에게 바로** 보낸다. 실제 발송은 호출부(채팅=MMS 타임라인 · 고객상세=SmsSender). */
+    onSendImage: (android.net.Uri) -> Unit
 ) {
     // 뒤로가기 = 미리보기만 닫고 견적 편집기로 복귀. 없으면 back 이 ChatScreen 까지 pop 됨. (2026-06-23 사장님)
     androidx.activity.compose.BackHandler { onClose() }
@@ -130,7 +133,7 @@ fun QuoteDocScreen(
     // 캡처할 .qdoc 영역(윈도우 좌표).
     var docRect by remember { mutableStateOf<Rect?>(null) }
 
-    fun captureAndShare() {
+    fun captureAndSend() {
         val rect = docRect ?: return
         if (rect.width() <= 0 || rect.height() <= 0) return
         val window = findActivity(context)?.window ?: return
@@ -140,19 +143,16 @@ fun QuoteDocScreen(
                 if (result == PixelCopy.SUCCESS) {
                     runCatching {
                         val dir = File(context.cacheDir, "shared").apply { mkdirs() }
-                        val f = File(dir, "견적서.png")
+                        // 이름에 시각 — 연달아 보내도 앞 견적서 파일을 덮지 않게(타임라인 썸네일 보존).
+                        val f = File(dir, "견적서_${System.currentTimeMillis()}.png")
                         FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
                         val uri = androidx.core.content.FileProvider.getUriForFile(
                             context, context.packageName + ".fileprovider", f
                         )
-                        val send = Intent(Intent.ACTION_SEND)
-                            .setType("image/png")
-                            .putExtra(Intent.EXTRA_STREAM, uri)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        context.startActivity(Intent.createChooser(send, "견적서 보내기"))
-                        onShared()   // 발행 이력에 이 견적서 스냅샷 저장
+                        onSendImage(uri)   // 📮 그 고객에게 바로 사진문자로 — 발송은 호출부(§12 공용 경로 재사용)
+                        onShared()         // 발행 이력에 이 견적서 스냅샷 저장
                     }.onFailure {
-                        android.widget.Toast.makeText(context, "이미지 공유에 실패했어요", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "견적서 이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     android.widget.Toast.makeText(context, "이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
@@ -336,7 +336,7 @@ fun QuoteDocScreen(
         ) {
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
-                    .clickable { captureAndShare() }.padding(vertical = 15.dp),
+                    .clickable { captureAndSend() }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text("이미지로 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
