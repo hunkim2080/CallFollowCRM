@@ -141,6 +141,15 @@ val dupRules = listOf(
         instead = "workCompletionManager.setBalancePaid(customerId, at, jobId)  (data/repository/WorkCompletionManager.kt)",
         homes = listOf("/repository/WorkCompletionManager.kt")
     ),
+    // 💵 계약금 받음 도장도 두 군데(고객 카드+건)를 같이 찍어야 한다 — 한쪽만 찍으면 어긋난다. (2026-10-30 §13④)
+    //   챗에서 "계약금 받았어요" 눌렀는데 건 카드 버튼이 "계약금 받았어요"로 남은 사고. 고객 카드 칸만 직접 찍는 줄이 생기면 막는다.
+    //   (건 없는 상담 고객의 금액 경로 CustomerDetailViewModel.setCustomerAmounts 는 카드가 SoT라 예외 — 기준선에 1개 남음)
+    DupRule(
+        id = "deposit-paid-stamp",
+        regex = Regex("""customerRepository\.updateDepositPaidAt\("""),
+        instead = "workCompletionManager.setDepositPaid(customerId, at, jobId)  (data/repository/WorkCompletionManager.kt)",
+        homes = listOf("/repository/WorkCompletionManager.kt")
+    ),
     // 📥 상담함 「광고」 판정을 화면에서 **직접 조합**하기. (2026-10-15 사장님 "왜 1이 떠 있을까?")
     //   `customer == null && lastSent != true && 허용목록 아님 && isLikelyAd(lastBody…)` 네 줄이 HomeScreen 에
     //   숫자용·목록용 **두 벌**로 있었다 → 10-14 한쪽만 고쳐져 「답장 안 함 1 인데 열면 빈 목록」.

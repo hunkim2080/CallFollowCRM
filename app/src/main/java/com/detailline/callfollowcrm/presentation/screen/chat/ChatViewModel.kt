@@ -747,7 +747,8 @@ class ChatViewModel(
     /**
      * 「입금했습니다」 카드가 **계약금**이라고 판단했을 때의 [네, 받았어요]. (2026-10-17 사장님 실기)
      *   계약금 받음만 찍는다 — 잔금은 그대로 미수로 남고 완료도 안 찍힌다.
-     *   도장은 고객 카드 경로(CustomerDetailViewModel.setDepositPaid 와 같은 한 줄) — 대표 건엔 미러(mutate)가 옮긴다.
+     *   💵 도장은 WorkCompletionManager.setDepositPaid 한 곳 — 카드+건을 같이 찍는다. (2026-10-30 §13④)
+     *     전엔 updateDepositPaidAt 로 고객 카드만 찍어, 건 카드 버튼이 "계약금 받았어요"로 남았다.
      */
     fun markDepositPaid(onDone: (Boolean) -> Unit = {}) {
         val c = customer.value
@@ -755,7 +756,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val ok = runCatching {
                 withContext(kotlinx.coroutines.NonCancellable) {
-                    container.customerRepository.updateDepositPaidAt(c.id, System.currentTimeMillis())
+                    container.workCompletionManager.setDepositPaid(c.id, System.currentTimeMillis())
                     container.autoCategoryClassifier.reclassify(c.id)
                 }
             }.isSuccess

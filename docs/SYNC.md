@@ -15629,3 +15629,9 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - ⚠️ 비용(llm_usage_log)은 owner_phone 칸이 없어 테스트분을 못 뺌 → 총 비용은 실지출 그대로, 1인당은 실사용자(19)로 나눔(소폭 과대). 추후 필요시 로그에 phone 추가 검토.
 - 배포: GOTCHAS §3. 백업 `main.py.bak-20261029-2124xx` → remote py_compile(3.9) OK → kickstart → **smoke 10/10**. repo push 안 함. 폰 확인: 못 봄(admin 웹).
 - 다음 액션: 없음.
+
+## 2026-10-30 13:08 · android
+계약금 '받음' 도장을 WorkCompletionManager 한 곳으로 합침(§13④ 버그) + 계약금 받은 뒤엔 '이체' 오면 잔금을 묻게(PaymentClaimAnswer).
+- 변경: 서버 영향 없음(앱 내부 DB/UI만). ① `WorkCompletionManager.setDepositPaid(customerId, at, jobId)` 신설 — 계약금 받음도 잔금처럼 고객 카드+건 같이 찍음(계약금은 대표 건에). 챗 markDepositPaid·고객상세 setDepositPaid·예약취소 리셋·정산 setDepositPaid 4곳을 여기로 라우팅. 직접 updateDepositPaidAt 는 건없는 상담경로(setCustomerAmounts) 1곳만 남음(카드=SoT, dup 기준선). ② PaymentClaimAnswer.decide: 시공 전이어도 '계약금 이미 받음'이면 잔금 카드(10/17 안전장치 유지 — 계약금 아직·일부입금이면 안 띄움). dup_guard 에 deposit-paid-stamp 추가(25→26).
+- 폰 확인: 못 봄 (내부테스트로 올려 S23U에서 확인 예정). assembleRelease BUILD=0·가드7 통과·단위시험 1328개 통과.
+- 다음 액션: 없음.

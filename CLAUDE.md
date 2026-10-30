@@ -356,13 +356,13 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (25가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (26가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 25가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker`
+**`dup_guard` 가 지금 막는 26가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `deposit-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -475,7 +475,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 서버에 말 걸기 | `ai/Net.builder()` — **로그인 토큰이 자동으로 붙는다** | `OkHttpClient.Builder()` 직접 |
 | 권한 묻기 | `util/PermissionHelper.kt` | 화면마다 런처 |
 | 끌어서 순서 바꾸기 | `util/DragReorder.kt` | 화면마다 복사 |
-| 완료 찍기·잔금 받음 도장(카드+건 같이) | `data/repository/WorkCompletionManager.kt` — `setCompleted` / `setBalancePaid(customerId, at, jobId)` | 화면마다 따로, `customerRepository.updateBalancePaidAt` 직접(2026-10-15: 카드에만 찍혀 건은 「금액 미입력」+「완료」로 보였다) |
+| 완료 찍기·잔금/계약금 받음 도장(카드+건 같이) | `data/repository/WorkCompletionManager.kt` — `setCompleted` / `setBalancePaid(customerId, at, jobId)` / `setDepositPaid(customerId, at, jobId)`(계약금은 **대표 건**에) | 화면마다 따로, `customerRepository.updateBalancePaidAt`·`updateDepositPaidAt` 직접(2026-10-15: 카드에만 찍혀 건은 「금액 미입력」+「완료」 · 2026-10-30: 챗에서 계약금 찍었는데 건 버튼이 「계약금 받았어요」로 남음) |
 | 로그에 번호 가리기 | `util/LogRedact.kt` | 번호를 그대로 로그 |
 | 대화 화면 조각 | `presentation/screen/chat/` 의 `ChatScreenHelpers` · `ChatTimelineSegments` · `ChatAskCards` · `ChatEstimateSheet` · `ChatSmallParts` | ChatScreen.kt 안에 또 쌓기 |
 | 토스 카드·큰 버튼·칩·딱지·폼 입력칸(흰 카드+그림자+18 모서리, 56 높이 버튼, 알약 칩, 8 모서리 딱지, 회색 입력칸) | `presentation/component/TossComponents.kt` — `TossCard` · `tossCardShadow` · `TossPrimaryButton`/`TossSecondaryButton` · `TossChip` · `TossBadge` · `SheetTextField` · `SheetFieldLabel`. **토큰과 다른 값(18·14·56·17sp·38)은 이 파일 머리 주석 한 곳**에 있다 — 맞추기로 하면 거기 한 줄 | 화면에서 `shadow(4.dp, 18)+background(White, 18)` 카드 틀을 손으로 새로, 파란 56 버튼 손제작(2026-10-18: 홈 밖 20파일 24곳 남음), 입력칸 `clip+background+border(1.5)` 손조립 |

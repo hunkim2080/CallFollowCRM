@@ -681,7 +681,8 @@ class CustomerDetailViewModel(
 
     fun setDepositPaid(paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateDepositPaidAt(
+            // 💵 도장은 WorkCompletionManager.setDepositPaid 한 곳 — 카드+건 같이. (2026-10-30 §13④)
+            container.workCompletionManager.setDepositPaid(
                 customerId,
                 if (paid) System.currentTimeMillis() else null
             )
@@ -941,9 +942,9 @@ class CustomerDetailViewModel(
                 //   그 건의 돈을 고객 카드에 넣어둔 상태라, 여기서 지우면 남은 건 돈이 날아간다. (2026-09-18)
                 val stillHasJob = runCatching { container.jobRepository.hasScheduledJob(customerId) }.getOrDefault(false)
                 if (!stillHasJob) {
-                    // 잔금 도장 풀기도 WorkCompletionManager 한 곳(건이 없으니 카드만 풀린다). (2026-10-15 balance-paid-stamp 가드)
+                    // 잔금·계약금 도장 풀기도 WorkCompletionManager 한 곳(건이 없으니 카드만 풀린다). (balance/deposit-paid-stamp 가드)
                     container.workCompletionManager.setBalancePaid(customerId, null)
-                    container.customerRepository.updateDepositPaidAt(customerId, null)
+                    container.workCompletionManager.setDepositPaid(customerId, null)
                     container.customerRepository.updateTotalAmount(customerId, null)
                     container.customerRepository.updateDepositAmount(customerId, null)
                     container.customerRepository.updateBalanceAmount(customerId, null)

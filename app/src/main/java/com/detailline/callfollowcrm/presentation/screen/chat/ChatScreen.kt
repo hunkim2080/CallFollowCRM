@@ -1225,9 +1225,10 @@ fun ChatScreen(
                     if (settle.outstanding <= 0L) null
                     else com.detailline.callfollowcrm.domain.payment.PaymentClaimDetector
                         .detect(last.body)?.let { claim ->
-                            // 💵 **어느 돈인지**는 PaymentClaimAnswer 한 곳이 정한다 — 시공 전엔 계약금만, 잔금은 시공 뒤에만.
-                            //   (2026-10-17 사장님 실기: 예약금 10만 "입금했습니다" 에 [네] 한 번으로 65만 완납·완료가 찍혔다)
-                            //   물을 게 없으면(시공 전인데 계약금 이미 받음 등) 카드를 안 띄운다.
+                            // 💵 **어느 돈인지**는 PaymentClaimAnswer 한 곳이 정한다 —
+                            //   계약금 아직이면 계약금, **계약금 받았으면** 잔금(시공 전이어도). (2026-10-30 사장님)
+                            //   (2026-10-17 실기: 예약금 10만 "입금했습니다" 에 [네] 한 번으로 65만 완납·완료가 찍혔다
+                            //    → 계약금 아직일 땐 잔금을 절대 안 열어 막는다. 일부 입금도 안 띄운다.)
                             com.detailline.callfollowcrm.domain.payment.PaymentClaimAnswer.decide(
                                 saidAmountWon = claim.amountWon,
                                 outstandingWon = settle.outstanding,

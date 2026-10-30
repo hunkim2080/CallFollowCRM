@@ -14,9 +14,12 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
  * 규칙 — 틀리면 어느 쪽으로 틀리는가(§13②): 못 물어보면 손해가 없고(직접 누르면 된다),
  *   **잘못 찍으면 안 받은 돈이 '받음'이 된다.** 그래서 애매하면 **안 찍는 쪽**으로 기운다.
  *   ① 받을 돈이 없거나 이미 완납이면 — 묻지 않는다.
- *   ② **시공 전**(완료 안 찍혔고, 마지막 시공일이 오늘 이후 또는 날짜 미정)에 들어온 돈은 **계약금**이다.
- *      계약금이 아직 '받음'이 아니면 계약금을 묻고, 이미 받음이면 **아무것도 묻지 않는다** — 잔금은 시공 전엔 절대 안 묻는다.
- *   ③ 시공이 끝났거나 시공일이 지났으면 잔금을 묻되,
+ *   ② **시공 전**(완료 안 찍혔고, 마지막 시공일이 오늘 이후 또는 날짜 미정)에 들어온 돈 —
+ *      · 계약금이 아직 '받음'이 아니면 → **계약금**을 묻는다. (예약금 10만이 잔금 완납으로 둔갑한 10/17 사고를 여기서 막는다)
+ *      · 계약금 개념이 없으면(계약금 0원 등, 아직 안 받음) → **아무것도 묻지 않는다.**
+ *      · **계약금을 이미 '받음'이면** → 다음 돈은 잔금이다 → 시공 전이어도 **잔금**을 묻되, ③의 안전장치를 그대로 쓴다.
+ *        (2026-10-30 사장님: "계약금 받은 뒤엔 잔금 받았냐고 물어봐줘". 일부 입금은 ③-b 가 막는다)
+ *   ③ 시공이 끝났거나 시공일이 지났으면(또는 ②에서 계약금 이미 받음으로 내려온 경우) 잔금을 묻되,
  *      · 손님이 말한 금액이 **계약금과 같고** 계약금이 아직이면 → 계약금
  *      · 손님이 말한 금액이 **잔금보다 적으면**(일부 입금) → 묻지 않는다(완납으로 찍으면 나머지 미수가 사라진다)
  *      · 그 외 → 잔금(말한 금액이 다르면 카드가 그 사실을 같이 보여준다 — [saidDiffers])
@@ -60,7 +63,9 @@ object PaymentClaimAnswer {
         if (outstandingWon <= 0L || balancePaid) return null                       // ①
         val depositDue = depositWon > 0L && !depositPaid
         if (isBeforeWork(scheduledWorkDate, scheduledWorkDays, workCompletedAt, todayStartMs)) {
-            return if (depositDue) Stamp.Deposit(depositWon) else null             // ②
+            if (depositDue) return Stamp.Deposit(depositWon)                       // ②-a 계약금 아직 → 계약금
+            if (!depositPaid) return null                                          // ②-b 계약금 개념 없음(0원 등) → 안 묻는다
+            // ②-c 계약금 이미 '받음' → 다음 돈은 잔금. 아래 ③으로 내려가 **같은 안전장치**로 묻는다. (2026-10-30)
         }
         if (saidAmountWon != null) {
             if (depositDue && saidAmountWon == depositWon) return Stamp.Deposit(depositWon)   // ③-a

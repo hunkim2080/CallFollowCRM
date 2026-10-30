@@ -280,16 +280,10 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     fun setDepositPaid(customerId: Long, paid: Boolean, jobId: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             runCatching {
-                val at = if (paid) System.currentTimeMillis() else null
-                if (jobId != null) {
-                    container.jobRepository.setDepositPaid(jobId, at)
-                    // 대표 건이면 고객 카드도 맞춰둔다 — 아직 고객 카드를 읽는 화면들이 있다(Step 3 진행 중).
-                    if (container.jobRepository.representativeJobId(customerId) == jobId) {
-                        container.customerRepository.updateDepositPaidAt(customerId, at)
-                    }
-                } else {
-                    container.customerRepository.updateDepositPaidAt(customerId, at)
-                }
+                // 💵 도장은 WorkCompletionManager.setDepositPaid 한 곳 — 카드와 건을 같이. (2026-10-30 §13④)
+                container.workCompletionManager.setDepositPaid(
+                    customerId, if (paid) System.currentTimeMillis() else null, jobId
+                )
             }.onSuccess {
                 if (paid) _toast.value = "받았어요"
             }.onFailure {

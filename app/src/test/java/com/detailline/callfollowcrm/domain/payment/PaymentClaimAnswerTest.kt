@@ -11,7 +11,9 @@ import org.junit.Test
 /**
  * 💵 「입금했습니다」 카드가 **무엇을 찍을지**. (2026-10-17 사장님 실기 — 예약금 10만이 65만 완납으로 둔갑)
  *
- *   ⚠️ 이 시험의 핵심은 한 줄이다: **시공 전엔 잔금을 절대 묻지 않는다.**
+ *   ⚠️ 이 시험의 핵심 두 줄:
+ *     ① **계약금을 아직 안 받았으면** 시공 전엔 잔금을 절대 묻지 않는다(10/17 사고 방지).
+ *     ② **계약금을 이미 받았으면** 시공 전이어도 잔금을 묻는다 — 단 일부 입금은 막는다. (2026-10-30 사장님)
  */
 class PaymentClaimAnswerTest {
 
@@ -34,21 +36,45 @@ class PaymentClaimAnswerTest {
         todayStartMs = today
     )
 
-    // ── 사고 모양 ─────────────────────────────────────────────
+    // ── 사고 모양 (계약금 아직) ────────────────────────────────
 
-    @Test fun `사고 그대로 - 시공 전·계약금 이미 받음·"입금했습니다"(금액 없음) → 아무것도 안 묻는다`() {
-        assertNull(decide())
+    @Test fun `10_17 사고 - 시공 전·계약금 아직·"입금했습니다"(금액 없음) → 계약금을 묻는다(잔금 X)`() {
+        // 예약금을 보고 잔금 완납이 찍히던 사고. 계약금이 아직이면 계약금만 묻는다.
+        assertEquals(Stamp.Deposit(100_000L), decide(depositPaid = false))
     }
 
-    @Test fun `사고 변형 - 시공 전인데 손님이 10만원이라 적어도 잔금은 안 묻는다`() {
-        assertNull(decide(said = 100_000L))
+    @Test fun `사고 변형 - 계약금 아직인데 10만원이라 적어도 잔금은 안 묻는다`() {
+        // 계약금(10만)과 같은 금액 → 계약금, 절대 잔금 아님.
+        assertEquals(Stamp.Deposit(100_000L), decide(said = 100_000L, depositPaid = false))
     }
 
-    @Test fun `시공 전엔 어떤 금액을 말해도 Balance 는 안 나온다`() {
+    @Test fun `계약금 아직이면 시공 전엔 어떤 금액을 말해도 Balance 는 안 나온다`() {
         listOf(null, 10_000L, 100_000L, 550_000L, 650_000L, 1_000_000L).forEach { said ->
             val out = decide(said = said, depositPaid = false)
-            assertFalse("시공 전에 잔금을 물었다(said=$said)", out is Stamp.Balance)
+            assertFalse("계약금 아직인데 시공 전에 잔금을 물었다(said=$said)", out is Stamp.Balance)
         }
+    }
+
+    // ── 계약금 이미 받음 → 시공 전이어도 잔금 (2026-10-30 사장님) ──
+
+    @Test fun `계약금 받은 뒤 시공 전 "이체했습니다"(금액 없음) → 잔금을 묻는다`() {
+        // 사장님 실제 케이스: 계약금 받음 + 시공 당일 "이체하였습니다~" → 다음 돈은 잔금.
+        assertEquals(Stamp.Balance(550_000L), decide(depositPaid = true))
+    }
+
+    @Test fun `계약금 받은 뒤 시공 전 일부만 입금(잔금보다 적음) → 안 묻는다`() {
+        // 안전장치 유지: 안 받은 돈이 완납으로 찍히지 않게.
+        assertNull(decide(said = 200_000L, depositPaid = true))
+    }
+
+    @Test fun `계약금 받은 뒤 시공 전 잔금만큼 입금 → 잔금을 묻는다`() {
+        assertEquals(Stamp.Balance(550_000L), decide(said = 550_000L, depositPaid = true))
+    }
+
+    @Test fun `계약금 받은 뒤 시공 전 잔금보다 많이 적음 → 잔금 묻되 다르다고 표시`() {
+        val out = decide(said = 600_000L, depositPaid = true)
+        assertEquals(Stamp.Balance(550_000L), out)
+        assertTrue(PaymentClaimAnswer.saidDiffers(600_000L, out!!))
     }
 
     // ── 시공 전 = 계약금 ───────────────────────────────────────
@@ -57,18 +83,20 @@ class PaymentClaimAnswerTest {
         assertEquals(Stamp.Deposit(100_000L), decide(depositPaid = false))
     }
 
-    @Test fun `날짜를 아직 안 잡았어도 시공 전 — 계약금만`() {
+    @Test fun `날짜를 아직 안 잡았어도 시공 전 — 계약금 아직이면 계약금, 받았으면 잔금`() {
         assertEquals(Stamp.Deposit(100_000L), decide(date = null, depositPaid = false))
-        assertNull(decide(date = null, depositPaid = true))
+        assertEquals(Stamp.Balance(550_000L), decide(date = null, depositPaid = true))
     }
 
     @Test fun `여러 날 공사 - 마지막 날이 오늘이면 아직 시공 전`() {
-        // 3일 공사, 그저께 시작 → 마지막 날 = 오늘 → 시공 전(오늘은 안 묻는다 — WorkDoneAsk 와 같은 자)
-        assertNull(decide(date = today - 2 * day, days = 3, depositPaid = true))
+        // 3일 공사, 그저께 시작 → 마지막 날 = 오늘 → 시공 전(WorkDoneAsk 와 같은 자)
+        // 계약금 아직 → 계약금 / 계약금 받음 → 잔금
         assertEquals(Stamp.Deposit(100_000L), decide(date = today - 2 * day, days = 3, depositPaid = false))
+        assertEquals(Stamp.Balance(550_000L), decide(date = today - 2 * day, days = 3, depositPaid = true))
     }
 
-    @Test fun `계약금이 0이면 시공 전엔 아무것도 안 묻는다`() {
+    @Test fun `계약금이 0이고 아직 안 받았으면 시공 전엔 아무것도 안 묻는다`() {
+        // 계약금 개념이 없으면(0원) '받음'이 아니므로 잔금을 열지 않는다 — 10/17 안전장치.
         assertNull(decide(deposit = 0L, depositPaid = false, outstanding = 650_000L))
     }
 

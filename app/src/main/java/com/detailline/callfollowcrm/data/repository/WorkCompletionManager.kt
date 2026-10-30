@@ -17,6 +17,10 @@ package com.detailline.callfollowcrm.data.repository
  * 💵 **「잔금 받음」도 여기 하나**([setBalancePaid]). (2026-10-15 사장님 "완납 안 눌렀는데 완료로 뜸")
  *   전엔 홈 미수 카드·정산·완료 팝업·채팅이 **고객 카드에만** 잔금 받음을 찍고 건은 안 건드렸다(§13④).
  *   그래서 카드는 「200만 · 다 받았어요」인데 건은 「금액 미입력」 + (완료 버튼의) 「완료」 — 모순으로 보였다.
+ *
+ * 💵 **「계약금 받음」도 여기 하나**([setDepositPaid]). (2026-10-30 사장님 "챗에서 계약금 받았어요 눌렀는데 건엔 안 찍힘")
+ *   잔금은 2026-10-15에 모았는데 계약금은 안 모아서, 챗 카드([ChatViewModel.markDepositPaid])·고객상세·정산이
+ *   **고객 카드에만** 찍어 건이 어긋났다(같은 §13④). 계약금은 시공 전 돈이라 **대표(앞으로 갈) 건**에 찍는다(잔금과 다름).
  */
 class WorkCompletionManager(
     private val customerRepository: CustomerRepository,
@@ -83,5 +87,26 @@ class WorkCompletionManager(
             if (bal > 0L) customerRepository.updateBalanceAmount(customerId, bal)
         }
         customerRepository.updateBalancePaidAt(customerId, at)
+    }
+
+    /**
+     * 💵 **계약금 받음/되돌리기 도장 — 카드와 건을 같이 찍는다.** (2026-10-30 §13④)
+     *   @param at 받은 시각. **null 이면 되돌리기**(계약금 안 받음).
+     *   @param jobId 그 건에만 찍을 때(건 카드·정산의 건별 줄). null = 고객 경로.
+     *
+     *   잔금([setBalancePaid])은 '방금 끝낸 건'에 찍지만, 계약금은 **시공 전** 돈이라 **대표(앞으로 갈) 건**에 찍는다.
+     *   [JobRepository.setDepositPaid] 가 건에 찍고 recomputeMirror 로 카드까지 — 대표 건이면 카드도 바로(belt-and-suspenders).
+     */
+    suspend fun setDepositPaid(customerId: Long, at: Long?, jobId: Long? = null, now: Long = System.currentTimeMillis()) {
+        val target = jobId ?: jobRepository.representativeJobId(customerId, now)
+        if (target != null) {
+            jobRepository.setDepositPaid(target, at, now)
+            if (jobRepository.representativeJobId(customerId, now) == target) {
+                customerRepository.updateDepositPaidAt(customerId, at)
+            }
+            return
+        }
+        // 건이 하나도 없는 고객 — 카드가 SoT.
+        customerRepository.updateDepositPaidAt(customerId, at)
     }
 }
