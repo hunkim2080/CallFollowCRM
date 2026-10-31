@@ -15675,3 +15675,14 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 배포: ✅ **라이브 배포 완료**(android 가 직접 swap+kickstart, smoke 10/10). 백업 `main.py.bak-20261031-*`. repo 반영 완료.
 - 폰 확인: 못 봄. 사장님 "다시 요약"(우니 통화)으로 첫 블롭 쪼개지는지 확인 필요(새 통화는 자동 새 코드).
 - 다음 액션: (사장님) 우니 통화 '다시 요약' → 첫 말풍선 쪼개지는지 확인.
+
+## 2026-10-31 13:27 · android (+ server)
+받아쓰기(STT) 정확도 — 사장님 **'자기 단어(품목)'로 자기 통화 교정**. 사장님 "다른 앱이 받아쓰기 더 잘함, 종목 다양한데 빅데이터 있나".
+- 원인: STT는 faster-whisper `small`(공짜·로컬). "줄눈"을 "졸름"으로 오인. 손 사전은 줄눈만 맞고 도배·타일 등엔 안 맞음.
+- 아이디어(사장님): 바깥 빅데이터 X → **우리가 가진 "사장님이 직접 쓴 단어"가 진짜 데이터.** 각자 자기 가격표 품목으로 자기 STT 교정 → 종목 자동 적응.
+- 고침(**서버만**, 앱 안 바꿈): 앱이 이미 통화마다 `price_list` 보냄 + 서버가 `_owner_pricing_recall` 로 기억. `_vocab_hint_from_pricelist` 신설 — 가격표에서 품목 단어만 뽑아(숫자·단위·태그 제거) Whisper `initial_prompt` 힌트로. `_run_stt_one_subprocess`/`_run_stt_with_chunking` 에 vocab 인자 추가, `whisper_worker.py` argv[2]=vocab → initial_prompt. 비면 지금과 동일(graceful).
+- faster-whisper 1.2.1 = initial_prompt·hotwords 둘 다 지원. 일단 부드러운 initial_prompt(오삽입 위험↓). 약하면 hotwords 로 강화 가능.
+- 검증: `_vocab_hint_from_pricelist` 로컬 단위시험 통과(줄눈·탄성·에폭시 뽑힘, 원·신축·구축·평당 걸러짐, recall 폴백·빈값·중복).
+- 배포: ✅ 라이브(android 직접 swap 두 파일 + kickstart, smoke 10/10). 백업 `*.bak-20261031-132544`. repo 반영.
+- 폰 확인: 못 봄. 사장님 "다시 요약"(줄눈 오인 통화)으로 "졸름→줄눈" 개선 확인 필요.
+- 다음 액션: (사장님) 줄눈 섞인 통화 '다시 요약' → 전문에 품목 단어 제대로 들리는지. 약하면 hotwords 로 강화.

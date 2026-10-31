@@ -24,6 +24,7 @@ def main() -> int:
         print("usage: whisper_worker.py <audio_path>", file=sys.stderr)
         return 2
     audio_path = sys.argv[1]
+    vocab = sys.argv[2] if len(sys.argv) > 2 else ""   # 사장님 품목 단어 힌트(Whisper initial_prompt, 2026-10-31 사장님)
     if not os.path.exists(audio_path):
         print(f"audio file not found: {audio_path}", file=sys.stderr)
         return 2
@@ -52,6 +53,7 @@ def main() -> int:
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500),
             condition_on_previous_text=False,
+            initial_prompt=(vocab or None),
         )
         # 세그먼트별 시각(start)+텍스트를 JSON 으로 출력 (탭재생 start_ms 용).
         # main.py 가 JSON 파싱; 실패 시 flat 텍스트로 폴백(하위호환).

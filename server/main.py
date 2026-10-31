@@ -16687,16 +16687,44 @@ STT_CHUNK_TIMEOUT_SEC = 900.0
 STT_CHUNK_CONCURRENCY = 2
 
 
-async def _run_stt_one_subprocess(audio_path: str, label: str = "") -> str:
-    """단일 audio (또는 chunk) STT subprocess 호출. 실패 시 raise."""
+def _vocab_hint_from_pricelist(price_list, owner_phone=None, max_terms=40, max_chars=300):
+    """사장님 가격표(품목)에서 품목 단어만 뽑아 Whisper initial_prompt 문자열로.
+       숫자·가격·단위·태그 제거. 비면 서버가 기억한 가격표 recall. 실패/빈='' (힌트 없음).
+       종목 안 가림 — 각 사장님 '자기 단어'로 자기 통화 받아쓰기 교정. (2026-10-31 사장님)"""
+    import re as _re
+    text = (price_list or "").strip()
+    if not text:
+        try:
+            text = (_owner_pricing_recall(owner_phone) or "").strip()
+        except Exception:
+            text = ""
+    if not text:
+        return ""
+    stop = {"원", "만원", "만", "부가세", "별도", "평당", "신축", "구축", "기준", "가격표", "평"}
+    terms, seen = [], set()
+    for w in _re.findall(r"[가-힣A-Za-z]{2,}", text):
+        if w in stop or w in seen:
+            continue
+        seen.add(w)
+        terms.append(w)
+        if len(terms) >= max_terms:
+            break
+    return " ".join(terms)[:max_chars]
+
+
+async def _run_stt_one_subprocess(audio_path: str, label: str = "", vocab: str = "") -> str:
+    """단일 audio (또는 chunk) STT subprocess 호출. 실패 시 raise. vocab=사장님 품목 힌트(Whisper)."""
     worker_script = BASE_DIR / "whisper_worker.py"
     if not worker_script.exists():
         raise HTTPException(503, "whisper_worker.py 미배포")
     venv_python = "/Users/hun/ringgo-server/venv/bin/python"
     if not Path(venv_python).exists():
         venv_python = sys.executable
+    _args = [venv_python, str(worker_script), audio_path]
+    if vocab:
+        _args.append(vocab)
     proc = await asyncio.create_subprocess_exec(
-        venv_python, str(worker_script), audio_path,
+        *_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -16724,7 +16752,7 @@ def _fmt_chunk_label(start: int, end: int) -> str:
     return f"{fmt(start)}-{fmt(end)}"
 
 
-async def _run_stt_with_chunking(audio_path: str):
+async def _run_stt_with_chunking(audio_path: str, vocab: str = ""):
     """audio 길이 기반 자동 분기. 5분 미만 → 단일, 5분+ → 청크 병렬.
 
     반환 = (flat_transcript, segments[{start_ms,text}]).
@@ -16735,7 +16763,7 @@ async def _run_stt_with_chunking(audio_path: str):
     if not chunks:
         # 단일 처리
         print("[chunk] 단일 처리 (5분 미만 또는 split 실패)")
-        raw = await _run_stt_one_subprocess(audio_path, label="single")
+        raw = await _run_stt_one_subprocess(audio_path, label="single", vocab=vocab)
         flat, segs = _parse_stt_json(raw, offset_ms=0)
         if not flat and raw:      # 옛 워커(flat) 폴백
             flat = raw
@@ -16750,7 +16778,7 @@ async def _run_stt_with_chunking(audio_path: str):
 
     async def _one(cp: str, label: str) -> str:
         async with _sem:
-            return await _run_stt_one_subprocess(cp, label=label)
+            return await _run_stt_one_subprocess(cp, label=label, vocab=vocab)
 
     try:
         transcripts = await asyncio.gather(
@@ -16870,7 +16898,9 @@ async def call_audio_summary_endpoint(
             async with lock:  # 메모리 보호 위해 동시 요청 1건만 (각 요청 안의 청크는 병렬)
                 try:
                     print(f"[call-audio-summary] {phone_digits} STT 시작 audio={len(audio_data)//1024}KB")
-                    transcript, whisper_segs = await _run_stt_with_chunking(tmp_path)
+                    # 사장님 품목 단어를 STT 힌트로 — "졸름→줄눈" 류 오타 줄임. 종목 안 가림(자기 가격표 기반). (2026-10-31 사장님)
+                    _stt_vocab = _vocab_hint_from_pricelist(price_list, owner_phone)
+                    transcript, whisper_segs = await _run_stt_with_chunking(tmp_path, vocab=_stt_vocab)
                     print(f"[call-audio-summary] {phone_digits} STT 완료 transcript={len(transcript)}자")
                 except HTTPException:
                     raise
