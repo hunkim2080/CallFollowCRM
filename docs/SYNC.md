@@ -15747,3 +15747,9 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: NewMessageDialog.kt 한 줄. UI만. dialog-white 규칙(containerColor+tonalElevation 둘 다)에 맞춤
 - 폰 확인: 못 봄(테스트폰 무선디버깅 꺼짐) — assembleRelease BUILD=0·가드7통과. 다른 다이얼로그(NoteList·PhotoViewer)가 쓰는 것과 동일한 설정
 - 다음 액션: 없음
+
+## 2026-10-31 19:40 · android
+새 메시지 창 회색톤 → 앱 표준 흰 시트(AppSheet)로 교체. Material 기본 다이얼로그 걷어냄
+- 변경: NewMessageDialog.kt — AlertDialog 제거, AppSheet(surface=#FFFFFF) + 공용 SheetTextField/TossPrimary·Secondary 버튼. UI만
+- 폰 확인: 못 봄(테스트폰 무선디버깅 꺼짐·에뮬엔 앱 미설치) — assembleRelease BUILD=0·가드7통과·style 2412→2411. ScheduleTimeSheet 등 다른 시트가 쓰는 동일 흰 카드
+- 다음 액션: 다음 설치 빌드에서 흰색 확인
