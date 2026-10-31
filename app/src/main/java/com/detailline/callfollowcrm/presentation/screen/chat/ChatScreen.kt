@@ -2196,7 +2196,7 @@ fun ChatScreen(
         QuoteDocScreen(
             data = data,
             onClose = { quoteDocData = null; showEstimateBuilder = true },
-            onShared = { viewModel.recordIssuedQuote(data) },   // 발행 이력 저장 (2026-07-07 사장님)
+            onShared = { snapshot -> viewModel.recordIssuedQuote(snapshot) },   // 발행 이력 저장(이름표·날짜 얼린 스냅샷). (2026-07-07 · 2026-10-31 사장님)
             onSendImage = { uri ->
                 // 📎 바로 안 보낸다 — 문자 입력창에 **첨부**로 올린다. 사장님이 보고 직접 보내기. (2026-10-30 사장님)
                 quoteDocData = null   // 미리보기 닫고 채팅으로 복귀 → 입력창에 견적서가 첨부돼 있음

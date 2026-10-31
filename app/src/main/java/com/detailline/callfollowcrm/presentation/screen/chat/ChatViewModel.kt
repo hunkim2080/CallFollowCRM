@@ -1929,7 +1929,14 @@ class ChatViewModel(
             val docJson = QuoteDocData(
                 docLines, total.toLong() * 10_000L, depositMode, depositValue,
                 vatIncluded = vatIncluded, workDateMs = workMs, recipient = name,
-                memo = ownerMemo.ifBlank { null }
+                memo = ownerMemo.ifBlank { null },
+                // 발행 당시 이름표·날짜 얼림 — url 없을 때 QuoteDocScreen 폴백 재열람도 그때 그대로. (2026-10-31 사장님 §12-K)
+                biz = QuoteBiz(
+                    name = prefs.bizName.ifBlank { "상호 미설정" },
+                    owner = prefs.bizOwner, no = prefs.bizNo, addr = prefs.bizAddr,
+                    phone = prefs.displayPhone, validDays = prefs.bizQuoteValidDays.takeIf { it > 0 } ?: 14
+                ),
+                issuedDateMs = System.currentTimeMillis()
             ).toIssuedJson()
             recordIssued(
                 kind = "intake", recipient = name, totalWon = total.toLong() * 10_000L,

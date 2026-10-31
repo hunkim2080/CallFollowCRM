@@ -10,6 +10,7 @@ import android.text.TextPaint
 import android.text.TextUtils
 import com.detailline.callfollowcrm.R
 import com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocData
+import com.detailline.callfollowcrm.presentation.screen.chat.QuoteBiz
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,17 +43,14 @@ object QuoteShot {
     private const val SEAL = 0xFFD6342C.toInt()     // QuoteDocScreen.SealRed
     private const val PAPER = 0xFFFFFFFF.toInt()
 
-    /** 그릴 때 필요한 사업자 정보 — QuoteDocScreen 이 prefs 에서 읽어 넘긴다. */
-    data class Biz(
-        val name: String, val owner: String, val no: String,
-        val addr: String, val phone: String, val validDays: Int
-    )
+    // 사업자 정보는 공용 [QuoteBiz] 한 곳(QuoteDocScreen.kt) — 화면·그림이 같은 타입을 쓴다(두 벌 X).
+    //   QuoteDocScreen 이 재열람이면 저장 스냅샷을, 새 견적이면 현재 설정을 골라 넘긴다.
 
     private val todayFmt = SimpleDateFormat("yyyy. M. d.", Locale.KOREA)
     private val workFmt = SimpleDateFormat("M월 d일 (E)", Locale.KOREA)
 
     /** 견적서 한 장 — 내용 높이에 딱 맞는 Bitmap. (넉넉한 캔버스에 그린 뒤 실제 쓴 높이로 자른다 = 높이 셈을 두 벌로 안 만든다.) */
-    fun render(ctx: Context, data: QuoteDocData, biz: Biz): Bitmap {
+    fun render(ctx: Context, data: QuoteDocData, biz: QuoteBiz): Bitmap {
         val xbold = RecordShot.font(ctx, R.font.pretendard_extrabold)
         val bold = RecordShot.font(ctx, R.font.pretendard_bold)
         val med = RecordShot.font(ctx, R.font.pretendard_medium)
@@ -168,7 +166,8 @@ object QuoteShot {
         // ── 서명란: 선 + 발행일 + 문구 + 주소 ──
         c.drawRect(PAD, y, right, y + 1.5f, ruleP)
         y += 48f
-        c.drawText(todayFmt.format(Date()), PAD, y, RecordShot.paint(bold, 27f, INK))
+        // 발행일 = 저장된 발행 날짜(재열람은 그때 날짜 그대로). 없으면(옛 이력) 오늘. (2026-10-31 사장님)
+        c.drawText(todayFmt.format(Date(data.issuedDateMs ?: System.currentTimeMillis())), PAD, y, RecordShot.paint(bold, 27f, INK))
         y += 34f
         c.drawText("위와 같이 견적합니다.", PAD, y, RecordShot.paint(med, 24f, SUB))
         if (biz.addr.isNotBlank()) {

@@ -66,6 +66,15 @@ import java.util.Locale
 /** 견적서 한 줄 — 품목/규격/금액(원). */
 data class QuoteLine(val name: String, val spec: String, val amountWon: Long)
 
+/**
+ * 발행 당시 **사업자 이름표 스냅샷** — 재열람 때 "그때 그대로" 보이게 함께 얼린다. (2026-10-31 사장님)
+ *   null 이면(옛 이력·새 견적) 현재 설정(prefs)을 쓴다. 화면·그림(QuoteShot)이 같은 걸 쓴다(두 벌 X).
+ */
+data class QuoteBiz(
+    val name: String, val owner: String, val no: String,
+    val addr: String, val phone: String, val validDays: Int
+)
+
 /** 견적서(직인) 미리보기에 필요한 데이터. depMode = ratio|fixed|none, depVal = %(ratio) 또는 만원(fixed). */
 data class QuoteDocData(
     val lines: List<QuoteLine>,
@@ -79,7 +88,11 @@ data class QuoteDocData(
     /** 받는 분(이름/번호). null·빈값=고객님. */
     val recipient: String? = null,
     /** 특이사항 메모 — 비고에 표시. null·빈값=표시 안 함. (2026-07-06 사장님) */
-    val memo: String? = null
+    val memo: String? = null,
+    /** 발행 당시 사업자정보 스냅샷. null=현재 설정 사용(새 견적·옛 이력). (2026-10-31 사장님 "그때 발행한 그대로") */
+    val biz: QuoteBiz? = null,
+    /** 발행 당시 날짜(ms). null=오늘(새 견적·옛 이력). (2026-10-31 사장님) */
+    val issuedDateMs: Long? = null
 )
 
 private val SealRed = Color(0xFFD6342C)
@@ -107,7 +120,8 @@ private fun findActivity(ctx: Context): Activity? {
 fun QuoteDocScreen(
     data: QuoteDocData,
     onClose: () -> Unit,
-    onShared: () -> Unit = {},     // 이미지 공유(발송)한 순간 — 발행 이력 기록용. (2026-07-07 사장님)
+    /** 이미지 공유(발송)한 순간 — 발행 이력 기록용. 넘기는 data 는 **그때 이름표·날짜를 얼린 스냅샷**. (2026-07-07 · 2026-10-31 사장님) */
+    onShared: (QuoteDocData) -> Unit = {},
     /** 📮 캡처한 견적서 이미지를 **그 고객에게 바로** 보낸다. 실제 발송은 호출부(채팅=MMS 타임라인 · 고객상세=SmsSender). */
     onSendImage: (android.net.Uri) -> Unit
 ) {
@@ -118,14 +132,25 @@ fun QuoteDocScreen(
     val prefs = remember {
         (context.applicationContext as CallFollowCrmApplication).container.preferences
     }
-    val bizName = prefs.bizName.ifBlank { "상호 미설정" }
-    val bizOwner = prefs.bizOwner
-    val bizNo = prefs.bizNo
-    val bizAddr = prefs.bizAddr
-    val bizPhone = prefs.displayPhone   // 대표번호 있으면 그것, 없으면 로그인 번호 (개인 휴대폰 노출 방지, 2026-07-04)
-    val validDays = prefs.bizQuoteValidDays.takeIf { it > 0 } ?: 14
+    // 📌 재열람(data.biz != null)이면 **그때 얼린 이름표**를, 새 견적이면 현재 설정에서 — 한 곳에서 가른다. (2026-10-31 사장님)
+    //   "견적서 다시 보기"는 그때 발행한 그대로여야 한다(주소·상호 바꿔도 옛 카드는 안 바뀜).
+    val resolvedBiz = remember(data.biz) {
+        data.biz ?: QuoteBiz(
+            name = prefs.bizName.ifBlank { "상호 미설정" },
+            owner = prefs.bizOwner, no = prefs.bizNo, addr = prefs.bizAddr,
+            phone = prefs.displayPhone,   // 대표번호 있으면 그것, 없으면 로그인 번호 (개인 휴대폰 노출 방지, 2026-07-04)
+            validDays = prefs.bizQuoteValidDays.takeIf { it > 0 } ?: 14
+        )
+    }
+    val resolvedDateMs = remember(data.issuedDateMs) { data.issuedDateMs ?: System.currentTimeMillis() }
+    val bizName = resolvedBiz.name
+    val bizOwner = resolvedBiz.owner
+    val bizNo = resolvedBiz.no
+    val bizAddr = resolvedBiz.addr
+    val bizPhone = resolvedBiz.phone
+    val validDays = resolvedBiz.validDays
 
-    val today = remember { SimpleDateFormat("yyyy. M. d.", Locale.KOREA).format(java.util.Date()) }
+    val today = remember(resolvedDateMs) { SimpleDateFormat("yyyy. M. d.", Locale.KOREA).format(java.util.Date(resolvedDateMs)) }
     val depWon = when (data.depMode) {
         "ratio" -> data.totalWon * data.depVal / 100
         "fixed" -> data.depVal * 10_000L
@@ -136,13 +161,12 @@ fun QuoteDocScreen(
 
     fun captureAndSend() {
         // 🖼️ 화면을 찍지 않고(PixelCopy=보이는 데만 찍혀 잘림) 견적서 **전체**를 1080폭으로 그려서 첨부한다. (2026-10-30 사장님)
-        val biz = com.detailline.callfollowcrm.util.QuoteShot.Biz(
-            name = bizName, owner = bizOwner, no = bizNo, addr = bizAddr, phone = bizPhone, validDays = validDays
-        )
+        // 📌 발행 스냅샷 = 지금 쓴 이름표(resolvedBiz) + 날짜(resolvedDateMs)를 data 에 얼려 둔다 — 재열람 때 그대로. (2026-10-31)
+        val snapshot = data.copy(biz = resolvedBiz, issuedDateMs = resolvedDateMs)
         scope.launch {
             val uri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
-                    val bmp = com.detailline.callfollowcrm.util.QuoteShot.render(context, data, biz)
+                    val bmp = com.detailline.callfollowcrm.util.QuoteShot.render(context, snapshot, resolvedBiz)
                     val dir = File(context.cacheDir, "shared").apply { mkdirs() }
                     // 이름에 시각 — 연달아 만들어도 앞 견적서 파일을 안 덮는다(입력창 썸네일 보존).
                     val f = File(dir, "견적서_${System.currentTimeMillis()}.png")
@@ -152,8 +176,8 @@ fun QuoteDocScreen(
                 }.getOrNull()
             }
             if (uri != null) {
-                onSendImage(uri)   // 📮 문자 입력창에 **첨부**(바로 안 보냄 — 사장님이 보고 직접 보내기). 첨부는 호출부가.
-                onShared()         // 발행 이력에 이 견적서 스냅샷 저장
+                onSendImage(uri)       // 📮 문자 입력창에 **첨부**(바로 안 보냄 — 사장님이 보고 직접 보내기). 첨부는 호출부가.
+                onShared(snapshot)     // 발행 이력에 이 견적서 스냅샷(이름표·날짜 포함) 저장
             } else {
                 android.widget.Toast.makeText(context, "견적서 이미지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
             }

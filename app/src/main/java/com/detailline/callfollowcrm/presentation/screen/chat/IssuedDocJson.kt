@@ -21,6 +21,13 @@ fun QuoteDocData.toIssuedJson(): String {
     workDateMs?.let { o.put("workDateMs", it) }
     recipient?.let { o.put("recipient", it) }
     memo?.let { o.put("memo", it) }
+    // 📌 발행 당시 사업자 이름표·날짜 스냅샷 — 재열람 때 "그때 그대로". 없으면 안 담음(옛 카드 호환). (2026-10-31 사장님)
+    biz?.let {
+        o.put("biz", JSONObject()
+            .put("name", it.name).put("owner", it.owner).put("no", it.no)
+            .put("addr", it.addr).put("phone", it.phone).put("validDays", it.validDays))
+    }
+    issuedDateMs?.let { o.put("issuedDateMs", it) }
     return o.toString()
 }
 
@@ -42,7 +49,16 @@ fun quoteDocDataFromIssuedJson(json: String?): QuoteDocData? {
             vatIncluded = o.optBoolean("vatIncluded"),
             workDateMs = if (o.has("workDateMs")) o.optLong("workDateMs") else null,
             recipient = o.optString("recipient").takeIf { it.isNotBlank() },
-            memo = o.optString("memo").takeIf { it.isNotBlank() }
+            memo = o.optString("memo").takeIf { it.isNotBlank() },
+            // 사업자정보·날짜 스냅샷(있으면). 없으면 null → QuoteDocScreen 이 현재 설정을 씀(옛 카드). (2026-10-31)
+            biz = o.optJSONObject("biz")?.let {
+                QuoteBiz(
+                    name = it.optString("name"), owner = it.optString("owner"), no = it.optString("no"),
+                    addr = it.optString("addr"), phone = it.optString("phone"),
+                    validDays = it.optInt("validDays", 14)
+                )
+            },
+            issuedDateMs = if (o.has("issuedDateMs")) o.optLong("issuedDateMs") else null
         )
     }.getOrNull()
 }
