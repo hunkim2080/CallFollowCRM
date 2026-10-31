@@ -15765,3 +15765,8 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: HomeScreen 에서 NewMessageDialog 렌더를 Scaffold 감싼 Box **밖(아래 z-레벨)** → Box 안·Scaffold 뒤(예약함 오버레이 옆)로 이동. 원인=AppSheet 는 Dialog 가 아니라 inline overlay 라 Box 밖이면 홈 콘텐츠가 덮어 안 보였음(AlertDialog→AppSheet 전환 때 생긴 틈). FAB onClick·상태는 멀쩡했음
 - 폰 확인: 못 봄(무선디버깅 꺼짐) — assembleRelease BUILD=0·가드7통과. NewMessageDialog 호출부 1곳뿐(단일). 주석만큼 떼어내 size 순증 0
 - 다음 액션: 내부배포 태그로 올림 → 사장님 폰에서 ✏️ 눌러 흰 시트 뜨는지 확인
+
+## 2026-10-31 22:05 · android
+위 ✏️ 새 메시지 수정 — 테스트폰 S9+(Tailscale 100.121.10.111) 눈으로 확인 완료
+- 폰 확인: 봄 — 디버그 APK(2989) 덮어설치 후 ✏️ 탭 → 흰 시트 정상 표시(회색 아님), "01099991234"→"010-9999-1234" 하이픈·문자 쓰기 버튼 활성화·키보드 위로 시트 밀림 전부 정상. 크래시 0
+- 내부배포: upload-20261031-2144 CI success (Play 내부테스트 업로드 완료)
