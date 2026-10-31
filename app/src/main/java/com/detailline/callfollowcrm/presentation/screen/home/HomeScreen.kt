@@ -518,10 +518,32 @@ fun HomeScreen(
         }
     }
 
+    // ✏️ 새 메시지 — 번호를 직접 입력해 바로 문자(그 번호 채팅으로 이동). 모두가 아는 자리(우하단 FAB). (2026-10-31 사장님)
+    //   다이얼로그 본문은 NewMessageDialog.kt (HomeScreen 안 키움, §12-F).
+    var showNewMessage by remember { mutableStateOf(false) }
+    if (showNewMessage) {
+        NewMessageDialog(
+            onDismiss = { showNewMessage = false },
+            onSend = { p -> showNewMessage = false; onOpenChat(p, null) }
+        )
+    }
     // Scaffold 를 Box 로 감싸 그 위(홈 콘텐츠 전체를 덮는 z-레벨)에 업데이트 시트를 오버레이. (2026-07-18 사장님)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
+        floatingActionButton = {
+            androidx.compose.material3.FloatingActionButton(
+                onClick = { showNewMessage = true },
+                modifier = Modifier.bottomBarClearance(extra = 16.dp),
+                containerColor = TossBlue,
+                contentColor = Color.White
+            ) {
+                androidx.compose.material3.Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "새 메시지"
+                )
+            }
+        },
         topBar = {
             // 프로토 .appbar — "상담함" + 오늘 날짜 + AI 배지(서버 상태 흡수).
             //   기존 달력/문서/설정 아이콘은 하단 5탭(일정·더보기)이 대체 → 프로토대로 제거.
