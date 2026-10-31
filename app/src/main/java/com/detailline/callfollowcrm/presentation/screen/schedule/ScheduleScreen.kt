@@ -497,7 +497,8 @@ fun ScheduleScreen(
                             AppTheme.colors.category to "협업",
                             AppTheme.colors.caution to "요청",
                             AppTheme.colors.primary to "A/S",
-                            AppTheme.colors.simpleText to "간단"
+                            AppTheme.colors.simpleText to "간단",
+                            AppTheme.colors.importText to "가져옴"
                         ).forEach { (col, lbl) ->
                             Box(
                                 Modifier.padding(start = 9.dp).width(13.dp).height(4.dp)
@@ -1097,11 +1098,13 @@ private fun CalendarDay(
                                 if (bar != null) {
                                     // 간단 일정 = 청록(지난 회색·시공 초록과 구분). 시공은 지난이면 회색, 아니면 초록. (2026-10-08 사장님)
                                     val bg = when {
+                                        bar.kind == BarKind.IMPORTED -> AppTheme.colors.importBg   // 가져온 일정 = 갈색 (2026-10-31)
                                         bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleBg
                                         bar.past -> AppTheme.colors.surfaceMuted
                                         else -> AppTheme.colors.doneBg
                                     }
                                     val fg = when {
+                                        bar.kind == BarKind.IMPORTED -> AppTheme.colors.importText
                                         bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleText
                                         bar.past -> TossTextSecondary
                                         else -> AppTheme.colors.doneText

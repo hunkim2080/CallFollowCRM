@@ -12,8 +12,8 @@ internal const val CAL_MAX_LANE = 2
 
 internal enum class BarSeg { SINGLE, START, MID, END }
 
-/** 띠 종류 — 색을 가른다. 시공(초록/지난 회색) vs 간단 일정(청록). (2026-10-08 사장님) */
-internal enum class BarKind { SCHEDULE, SIMPLE }
+/** 띠 종류 — 색을 가른다. 시공(초록/지난 회색) vs 간단 일정(청록) vs 가져온 일정(갈색, 외부 캘린더). (2026-10-08 · 2026-10-31 사장님) */
+internal enum class BarKind { SCHEDULE, SIMPLE, IMPORTED }
 
 internal data class DayBar(
     val lane: Int,
@@ -152,7 +152,8 @@ internal fun buildCalendarCells(
                 seg = seg,
                 past = dayStart < todayStart,
                 label = if (seg == BarSeg.SINGLE || seg == BarSeg.START) e.title else null,
-                kind = BarKind.SIMPLE
+                // 외부 캘린더에서 가져온 건(importSourceId)은 갈색 띠 — 우리 색과 안 겹치게. (2026-10-31 사장님)
+                kind = if (e.importSourceId != null) BarKind.IMPORTED else BarKind.SIMPLE
             )
         }
         cells += CalendarCell(

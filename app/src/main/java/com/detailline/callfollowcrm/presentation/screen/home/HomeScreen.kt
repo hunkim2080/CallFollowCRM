@@ -498,6 +498,16 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     // 🔝 상담함 탭 재탭 → 맨 위로. (2026-10-22 사장님)
     com.detailline.callfollowcrm.presentation.util.TabReselectScrollTop(com.detailline.callfollowcrm.presentation.navigation.Destinations.HOME) { listState.animateScrollToItem(0) }
+    // ✏️ 새 메시지 FAB — 아래로 스크롤하면 스르르 숨고, 올리면/맨 위면 다시 나온다(삼성 메시지식). (2026-10-31 사장님)
+    var fabVisible by remember { mutableStateOf(true) }
+    var lastScrollPos by remember { mutableStateOf(0 to 0) }
+    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+        val idx = listState.firstVisibleItemIndex
+        val off = listState.firstVisibleItemScrollOffset
+        val (pIdx, pOff) = lastScrollPos
+        fabVisible = idx == 0 || idx < pIdx || (idx == pIdx && off < pOff)   // 맨 위거나 올리는 중 = 보임
+        lastScrollPos = idx to off
+    }
     /** 목록이 맨 위인가 — 검색창·칩 줄을 **내리면 접는** 기준. (사장님: "정리는 스크롤 자동 숨김으로") */
     val atTop by remember {
         derivedStateOf {
@@ -532,16 +542,23 @@ fun HomeScreen(
     Scaffold(
         containerColor = TossGrayBg,
         floatingActionButton = {
-            androidx.compose.material3.FloatingActionButton(
-                onClick = { showNewMessage = true },
-                modifier = Modifier.bottomBarClearance(extra = 16.dp),
-                containerColor = TossBlue,
-                contentColor = Color.White
+            // 삼성 메시지처럼 — 내리면 스르르 사라지고 올리면 스르르 나타난다. (2026-10-31 사장님)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = fabVisible,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut()
             ) {
-                androidx.compose.material3.Icon(
-                    Icons.Default.Edit,
-                    contentDescription = "새 메시지"
-                )
+                androidx.compose.material3.FloatingActionButton(
+                    onClick = { showNewMessage = true },
+                    modifier = Modifier.bottomBarClearance(extra = 16.dp),
+                    containerColor = TossBlue,
+                    contentColor = Color.White
+                ) {
+                    androidx.compose.material3.Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "새 메시지"
+                    )
+                }
             }
         },
         topBar = {

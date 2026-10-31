@@ -103,7 +103,11 @@ data class AppColors(
     /** 간단 일정 띠의 글자 — 청록. 지난(회색)·시공(초록)과 구분. (2026-10-08 사장님) */
     val simpleText: Color,
     /** 간단 일정 띠의 연한 면. */
-    val simpleBg: Color
+    val simpleBg: Color,
+    /** 외부 캘린더에서 **가져온** 일정 띠의 글자 — 갈색. 우리 6색(시공·지난·협업·요청·A/S·간단)과 안 겹치게. (2026-10-31 사장님) */
+    val importText: Color,
+    /** 가져온 일정 띠의 연한 면. */
+    val importBg: Color
 )
 
 /** 밝은 화면. @Composable 이 아닌 자리에서는 이걸 직접 본다. */
@@ -140,7 +144,9 @@ val LightColors = AppColors(
     neutralText = Color(0xFF5A6472),
     neutralBg = Color(0xFFEEF0F3),
     simpleText = Color(0xFF0E7C7C),
-    simpleBg = Color(0xFFE2F6F5)
+    simpleBg = Color(0xFFE2F6F5),
+    importText = Color(0xFF9A6A3A),
+    importBg = Color(0xFFF4ECE0)
 )
 
 /**
@@ -181,7 +187,9 @@ val DarkColors = AppColors(
     neutralText = Color(0xFFA9B1BD),
     neutralBg = Color(0xFF2E3138),
     simpleText = Color(0xFF5CD6CF),
-    simpleBg = Color(0xFF123230)
+    simpleBg = Color(0xFF123230),
+    importText = Color(0xFFD1A878),
+    importBg = Color(0xFF332A1E)
 )
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
