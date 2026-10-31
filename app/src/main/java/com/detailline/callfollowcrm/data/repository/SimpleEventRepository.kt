@@ -52,6 +52,37 @@ class SimpleEventRepository(private val dao: SimpleEventDao) {
         )
     }
 
+    /**
+     * 📥 외부 캘린더에서 가져온 일정들을 간단 일정으로 넣는다. (2026-10-31 사장님)
+     *   · **이미 가져온 건(importSourceId) 제외** → 두 번 눌러도 안 겹침.
+     *   · 날짜는 자정 정규화(add 가 해줌). 가져온 건 importSourceId 를 박아 **재export 안 되게**(루프 방지).
+     *   @return 이번에 새로 들어온 개수.
+     */
+    suspend fun importFromDevice(events: List<com.detailline.callfollowcrm.util.DeviceCalendars.ImportedEvent>): Int = writeMutex.withLock {
+        if (events.isEmpty()) return@withLock 0
+        val already = runCatching { dao.importedSourceIds() }.getOrDefault(emptyList()).toHashSet()
+        val now = System.currentTimeMillis()
+        var n = 0
+        for (e in events) {
+            if (e.sourceId in already) continue
+            already += e.sourceId   // 같은 가져오기 안의 중복도 막음
+            dao.insert(
+                SimpleEventEntity(
+                    title = e.title.trim(),
+                    dayStartMs = DateTimeUtils.startOfDay(e.dayStartMs),
+                    minutes = e.minutes,
+                    days = e.days.coerceAtLeast(1),
+                    memo = e.memo.trim(),
+                    importSourceId = e.sourceId,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+            n++
+        }
+        n
+    }
+
     /** 구글 캘린더에 올린 이벤트 id 기록(또는 지움). */
     suspend fun setCalendarEventId(id: Long, eventId: String?) = writeMutex.withLock {
         val e = dao.findById(id) ?: return@withLock

@@ -34,6 +34,10 @@ data class SimpleEventEntity(
     val days: Int = 1,
     val memo: String = "",
     val calendarEventId: String? = null,
+    /** 외부 캘린더(폰 구글·삼성)에서 **가져온** 일정이면 그 원본 이벤트 id. null = 사장님이 직접 적은 것.
+     *   · 두 번 가져와도 안 겹치게(중복 방지 열쇠)
+     *   · 가져온 건 **다시 구글로 안 내보낸다**(import→export→re-import 루프 방지, CalendarSyncManager). (v71, 2026-10-31 사장님) */
+    val importSourceId: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

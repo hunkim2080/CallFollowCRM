@@ -840,6 +840,8 @@ fun SettingsScreen(
                 // ══════════════ 본폰에서 일정 보기 (미러 링크) ══════════════
                 "mirror" -> {
                     GoogleCalendarSection(container = container)
+                    // 📥 외부 캘린더 가져오기 — 내보내기 바로 아래에(한 화면에서 내보내기↕가져오기). (2026-10-31 사장님)
+                    ExternalCalendarImportSection(container = container)
                     Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ 시공막내 웹 (PC 사진 캘린더) ══════════════

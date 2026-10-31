@@ -19,6 +19,10 @@ interface SimpleEventDao {
     @Query("SELECT * FROM simple_events WHERE id = :id LIMIT 1")
     suspend fun findById(id: Long): SimpleEventEntity?
 
+    /** 이미 가져온 외부 캘린더 원본 id 들 — 중복 방지(두 번 가져와도 안 겹치게). */
+    @Query("SELECT importSourceId FROM simple_events WHERE importSourceId IS NOT NULL")
+    suspend fun importedSourceIds(): List<String>
+
     @Insert
     suspend fun insert(entity: SimpleEventEntity): Long
 

@@ -727,6 +727,140 @@ internal fun WebViewerSection(container: AppContainer) {
  *   규칙: "업무폰이 코드 만들고, 본폰이 넣는다." 협업 요청(수락/거절)과 동일 컨셉. 옵트인(기본 꺼짐).
  */
 /**
+ * 📥 **외부 캘린더 가져오기** — 설정 › 구글 캘린더 연동 화면, "내보내기" 아래. (2026-10-31 사장님)
+ *   폰에 있는 다른 캘린더(구글·삼성) 일정을 **간단 일정**으로 가져온다(설명·장소는 메모로).
+ *   읽기만 — 원본은 안 건드림. 우리 "시공막내" 캘린더는 제외(되가져오기=루프). 겹치는 건 자동으로 거른다.
+ */
+@Composable
+internal fun ExternalCalendarImportSection(container: AppContainer) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun toast(m: String) = Toast.makeText(context, m, Toast.LENGTH_SHORT).show()
+
+    var granted by remember {
+        mutableStateOf(com.detailline.callfollowcrm.util.PermissionHelper.isGranted(context, Manifest.permission.READ_CALENDAR))
+    }
+    var calendars by remember { mutableStateOf<List<com.detailline.callfollowcrm.util.DeviceCalendars.DeviceCalendar>>(emptyList()) }
+    var counts by remember { mutableStateOf<Map<Long, Int>>(emptyMap()) }
+    var selected by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var loaded by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+
+    // 범위: 지난 1개월 ~ 앞으로 1년 (과거 끝난 일정은 안 가져옴)
+    val fromMs = remember { System.currentTimeMillis() - 30L * 86_400_000L }
+    val toMs = remember { System.currentTimeMillis() + 365L * 86_400_000L }
+
+    fun isHolidayish(name: String): Boolean =
+        listOf("공휴일", "휴일", "기념일", "세시", "절기", "holiday").any { name.contains(it, ignoreCase = true) }
+
+    fun loadCalendars() {
+        scope.launch {
+            val cals = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.detailline.callfollowcrm.util.DeviceCalendars.listCalendars(context).filter { !it.isOurs }
+            }
+            val cnt = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.detailline.callfollowcrm.util.DeviceCalendars.countInRange(context, cals.map { it.id }, fromMs, toMs)
+            }
+            calendars = cals
+            counts = cnt
+            // 기본 선택: 일정 있는 캘린더만 켬, 공휴일류는 꺼둠(보통 안 가져옴).
+            selected = cals.filter { (cnt[it.id] ?: 0) > 0 && !isHolidayish(it.name) }.map { it.id }.toSet()
+            loaded = true
+        }
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        granted = ok
+        if (ok) loadCalendars() else toast("캘린더를 읽으려면 권한이 필요해요")
+    }
+    LaunchedEffect(granted) { if (granted && !loaded) loadCalendars() }
+
+    fun doImport() {
+        if (busy) return
+        val sel = selected
+        if (sel.isEmpty()) { toast("가져올 캘린더를 켜주세요"); return }
+        busy = true
+        scope.launch {
+            val events = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.detailline.callfollowcrm.util.DeviceCalendars.readEvents(context, sel, fromMs, toMs)
+            }
+            val n = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                container.simpleEventRepository.importFromDevice(events)
+            }
+            busy = false
+            toast(if (n > 0) "${n}개 일정을 가져왔어요" else "새로 가져올 일정이 없어요 (이미 다 가져왔어요)")
+        }
+    }
+
+    Spacer(Modifier.height(18.dp))
+    Text("외부 캘린더 가져오기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+        modifier = Modifier.padding(start = 4.dp, bottom = 7.dp))
+    TossCard {
+        Column {
+            Text(
+                "폰에 있는 다른 캘린더(구글·삼성) 일정을 시공막내로 가져와요.\n원래 캘린더는 그대로 두고 읽기만 해요 · 겹치는 건 자동으로 걸러요.",
+                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            when {
+                !granted -> androidx.compose.material3.Button(
+                    onClick = { permLauncher.launch(Manifest.permission.READ_CALENDAR) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("폰 캘린더 불러오기") }
+
+                !loaded -> Text("불러오는 중…", fontSize = 13.sp, color = TossTextTertiary)
+
+                calendars.isEmpty() -> Text("폰에 가져올 캘린더가 없어요.", fontSize = 13.sp, color = TossTextTertiary)
+
+                else -> {
+                    calendars.forEachIndexed { i, cal ->
+                        if (i > 0) Spacer(Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp)
+                        ) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.size(11.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    // 캘린더 자기 색(데이터) — 알파 0 이면 불투명 보정. 색 없으면 회색 토큰.
+                                    .background(if (cal.color != 0) Color(cal.color).copy(alpha = 1f) else TossTextTertiary)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(cal.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TossTextPrimary)
+                                if (cal.account.isNotBlank())
+                                    Text(cal.account, fontSize = 11.sp, color = TossTextTertiary)
+                            }
+                            val cnt = counts[cal.id] ?: 0
+                            Text(
+                                if (cnt > 0) "$cnt" else "–", fontSize = 12.sp, color = TossTextTertiary,
+                                modifier = Modifier.padding(end = 10.dp)
+                            )
+                            Switch(
+                                checked = cal.id in selected,
+                                onCheckedChange = { on -> selected = if (on) selected + cal.id else selected - cal.id }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    val totalSel = selected.sumOf { counts[it] ?: 0 }
+                    androidx.compose.material3.Button(
+                        onClick = { doImport() }, enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (busy) "가져오는 중…" else "$totalSel" + "개 일정 가져오기") }
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        "언제든 다시 가져올 수 있어요.", fontSize = 11.sp, color = TossTextTertiary,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * 구글 캘린더 연동 (본폰 미러링 대체, 2026-08-31) — 시공/AS 일정을 구글 "시공막내" 캘린더에 올림.
  *   위젯·구글 캘린더 앱에서 보기 + 가족/직원 공유 + 폰 교체 백업. 참고: 동생 jeongsan/lib/calendar_sync.dart.
  */

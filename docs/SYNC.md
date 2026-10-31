@@ -15686,3 +15686,15 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 배포: ✅ 라이브(android 직접 swap 두 파일 + kickstart, smoke 10/10). 백업 `*.bak-20261031-132544`. repo 반영.
 - 폰 확인: 못 봄. 사장님 "다시 요약"(줄눈 오인 통화)으로 "졸름→줄눈" 개선 확인 필요.
 - 다음 액션: (사장님) 줄눈 섞인 통화 '다시 요약' → 전문에 품목 단어 제대로 들리는지. 약하면 hotwords 로 강화.
+
+## 2026-10-31 14:55 · android
+외부 캘린더 가져오기 — 폰 구글·삼성 캘린더 일정을 간단 일정으로 가져오기. 사장님 "기존 일정 다른 데 등록해둔 사장님도 우리로 넘어오게 → 고객 됨".
+- 자리: **설정 › 구글 캘린더 연동** 화면 "내보내기" 아래 새 섹션(`ExternalCalendarImportSection`). **새 화면 안 만듦**(한 화면에서 내보내기↕가져오기).
+- 동작: `READ_CALENDAR` 권한 → 폰 캘린더 목록 토글 → 켠 것(지난 1달~앞 1년) 가져오기 → **간단 일정(SimpleEvent)**으로. 설명·장소는 메모로(탭하면 보임). 공휴일류 기본 꺼짐.
+- 호환 3함정 처리: ① 우리 "시공막내" 캘린더는 가져오기서 **제외**(isOurs) ② 가져온 간단일정은 구글로 **재export 안 함**(CalendarSyncManager importSourceId 필터 — 루프 방지) ③ **종일 UTC→로컬 보정**(하루 밀림 방지).
+- 중복 방지: `SimpleEvent.importSourceId`(원본 이벤트 id) + `importedSourceIds()` dedup. **DB v70→71** 마이그(ALTER ADD COLUMN, nullable, 옛 행 null).
+- 새 파일: `util/DeviceCalendars.kt`(CalendarContract 리더). `SimpleEventRepository.importFromDevice`.
+- 기본 UX: 권한 친절·연타막기(busy)·빈화면·진행표시(가져오는 중…)·공휴일 기본꺼짐·언제든 다시.
+- 변경: **서버 영향 없음**(앱 로컬만). READ_CALENDAR 권한 추가 — 프로덕션 심사 땐 사유 설명(연락처처럼).
+- 폰 확인: 못 봄(테스트폰 미연결·에뮬만). assembleRelease BUILD=0·가드7·style 기준선 2411·health OK(시험 1328).
+- 다음 액션: (사장님) 내부테스트 받아 설정›구글캘린더연동 아래 "가져오기" → 폰 캘린더 토글 → 일정 탭에 뜨는지(종일 날짜 맞나·탭하면 메모 보이나).

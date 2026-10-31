@@ -20,6 +20,12 @@
         Play 데이터안전: 연락처는 로컬 표시용, 서버 전송/저장 안 함.
     -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!--
+        READ_CALENDAR (선택 권한, 2026-10-31 사장님) — "외부 캘린더 가져오기": 폰에 있는 구글·삼성 캘린더 일정을
+        시공막내 간단 일정으로 가져와 한 달력에서 본다. **읽기만** — 원본 캘린더는 안 건드림. 서버 전송/저장 안 함.
+        설정 › 구글 캘린더 연동 에서 사장님이 직접 켤 때만 요청. 없어도 앱은 정상 동작.
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />

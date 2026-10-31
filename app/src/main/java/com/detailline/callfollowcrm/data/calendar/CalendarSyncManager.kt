@@ -273,7 +273,9 @@ class CalendarSyncManager(
         val cal = ensureCalendar(token) ?: return -1
         val workJobs = store.scheduledWorkJobs()
         val customers = store.scheduledCustomers()
-        val simples = store.simpleEvents()
+        // 🔁 가져온 일정(importSourceId)은 **다시 구글로 안 올린다** — 원본이 이미 구글/삼성에 있어 올리면 중복.
+        //   (import→export→re-import 루프 방지. 2026-10-31 사장님) 사장님이 직접 적은 간단일정만 올린다.
+        val simples = store.simpleEvents().filter { it.importSourceId == null }
         // 📊 진행률 — 올릴 전체(시공 건 + A/S 고객 + 간단일정). 한 건 끝낼 때마다 올린다. (2026-10-08 사장님 진행바)
         val total = workJobs.size + customers.size + simples.size
         var done = 0
