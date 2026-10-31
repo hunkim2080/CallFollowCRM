@@ -226,8 +226,15 @@ fun ScheduleAddScreen(
                 if (workMode) "주소를 넣으면 제목이 자동으로 채워져요."
                 else "제목만 적어도 저장돼요. 전화번호는 안 물어봐요.",
                 fontSize = 11.5.sp, color = TossTextTertiary,
-                modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 14.dp)
+                modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 12.dp)
             )
+            // ── 간단/시공 — 구글 캘린더처럼 제목 바로 아래 작은 칩으로 고른다. 전엔 아래쪽 큰 파란 카드였다. (2026-10-31 사장님)
+            //   "이 일은 내고객/거래처" 와 같은 공용 FChip — 고른 것에 따라 아래 칸이 바뀐다.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FChip("간단 일정", !workMode) { workMode = false }
+                FChip("시공 일정", workMode) { workMode = true }
+            }
+            Spacer(Modifier.height(14.dp))
 
             // ── 날짜 한 줄 (접힘) ── (2026-09-16 사장님)
             //   "시공일을 찍고 그날 일정을 등록하러 들어왔는데 왜 또 캘린더가 있지?"
@@ -319,14 +326,7 @@ fun ScheduleAddScreen(
                 SheetTextField(simpleMemo, { simpleMemo = it }, placeholder = "안 적어도 돼요 · 예: 챙길 것")
             }
 
-            Spacer(Modifier.height(14.dp))
-            // ── 시공으로 펼치기 — 번호·주소·금액은 여기 눌렀을 때만 나온다.
-            ExpandRow(
-                open = workMode,
-                title = if (workMode) "시공 정보" else "시공 일정으로 등록하기",
-                sub = if (workMode) "누르면 다시 접혀요 · 간단 일정으로 돌아가기"
-                      else "고객 번호·현장 주소·금액을 함께 기록해요"
-            ) { workMode = !workMode }
+            // 시공 상세는 맨 위 '시공 일정' 칩으로 켠다 — 큰 카드(ExpandRow) 제거. (2026-10-31 사장님)
             Spacer(Modifier.height(14.dp))
 
             if (workMode) {
@@ -761,30 +761,6 @@ private fun SwitchRow(
                 uncheckedBorderColor = TossDivider
             )
         )
-    }
-}
-
-/** 시공 정보를 펼치는 줄. 접힌 상태가 기본 = 간단 일정. */
-@Composable
-private fun ExpandRow(open: Boolean, title: String, sub: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(if (open) TossGrayBg else AppTheme.colors.primaryBg)
-            .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        androidx.compose.material3.Icon(
-            Icons.Filled.Engineering, null,
-            tint = if (open) TossTextSecondary else TossBlueDark, modifier = Modifier.size(19.dp)
-        )
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold,
-                color = if (open) TossTextPrimary else TossBlueDark)
-            Spacer(Modifier.height(3.dp))
-            Text(sub, fontSize = 12.sp, color = TossTextTertiary)
-        }
-        Text(if (open) "⌃" else "›", fontSize = 16.sp, color = TossTextTertiary)
     }
 }
 
