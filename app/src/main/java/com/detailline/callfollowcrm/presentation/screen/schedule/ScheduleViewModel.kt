@@ -772,6 +772,55 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         _toast.value = com.detailline.callfollowcrm.presentation.util.OutboxWording.cancelledCollab
     }
 
+    /**
+     * 🗓️ **이미 보낸 협업 사장의 '오는 날'을 바꾼다** (다일 공사에서 날마다 다른 사장). (2026-10-31 사장님 — 같은 날 두 사장 겹침)
+     *   왜: 시트가 이미 보낸 사장은 보내기 때 건너뛰어 날짜 변경이 **버려졌다** → A를 전체로 부른 뒤 12일로 줄여도 그대로 남아 13일에 A·B 겹침.
+     *   - 로컬 배정 날짜 교체는 공용 [CollabAssignmentLine.assignDays] 한 곳(같은 사장 줄 전부 바꿔 끼움). 표시(달력·카드 forJob)는 저장값을 읽으니 자동 반영.
+     *   - **첫 오는 날**이 바뀌면 상대 사장에게도 새 날짜 — 이미 있는 서버 reschedule(우체통 COLLAB_RESCHEDULE) 재사용. 양쪽이 같은 날을 보게(§13② 서버가 최종).
+     */
+    fun updateCollabDays(customerId: Long, partnerPhone: String, newDays: List<Long>, startHour: Int = -1) {
+        val wantDays = newDays.map { DateTimeUtils.startOfDay(it) }.toSet()
+        if (wantDays.isEmpty()) return
+        val key = PhoneKey.of(partnerPhone)
+        val cur = container.preferences.collabAssignments
+        val line = cur.mapNotNull { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it) }
+            .firstOrNull { it.customerId == customerId && PhoneKey.of(it.phone) == key } ?: return
+        if (line.days == wantDays) return                          // 안 바뀌었으면 아무것도 안 함(쓸데없는 reschedule 방지)
+        val oldFirst = line.days.minOrNull()
+        // 로컬 날짜 교체 — 같은 사장 줄 전부(공용). 어느 건에 뜰지는 이 날짜가 정한다.
+        val updated = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.assignDays(cur, line, wantDays)
+        if (updated != cur) container.preferences.collabAssignments = updated
+        loadCollabAssignments()
+        // 첫 오는 날이 바뀌면 상대 사장에게 새 날짜 전파 (수락 전이면 서버가 조용히 반영).
+        val newFirst = wantDays.minOrNull()
+        if (line.shareId.isNotBlank() && oldFirst != null && newFirst != null && oldFirst != newFirst) {
+            val newAt = if (startHour in 0..23)
+                Calendar.getInstance().apply {
+                    timeInMillis = newFirst
+                    set(Calendar.HOUR_OF_DAY, startHour); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            else newFirst
+            val timeLabel = startHour.takeIf { it in 0..23 }?.let { DateTimeUtils.timeLabel(it) }
+            container.applicationScope.launch {
+                // save-silent-ok: 사장님 데이터(collabAssignments)는 위에서 **직접 prefs 에 저장**(동기, 실패 안 함)돼
+                //   loadCollabAssignments 로 화면에 이미 반영됐다. 이 runCatching 은 **상대에게 알리는 서버 전파(outbox)** 만 감싼다 —
+                //   오프라인·서버 404 여도 우체통이 재시도하므로 조용해도 된다(removeCollabAssignment·notifyCollabReschedule 과 같은 패턴).
+                runCatching {
+                    container.outbox.enqueue(
+                        com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_RESCHEDULE,
+                        line.shareId,
+                        org.json.JSONObject().apply {
+                            put("newAtMs", newAt); put("oldAtMs", oldFirst)
+                            timeLabel?.let { put("timeLabel", it) }
+                        }.toString()
+                    )
+                }
+                container.outbox.tryNow()
+            }
+        }
+    }
+
     /** 전문가 배정 시트 안 "+추가" — 팀원 즉시 등록(서버 invite). 등록 후 칩에 바로 뜸. (2026-06-14) */
     fun addTeamMember(name: String, phone: String) {
         val owner = ownerPhone.filter { it.isDigit() }

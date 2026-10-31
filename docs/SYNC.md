@@ -15770,3 +15770,10 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 위 ✏️ 새 메시지 수정 — 테스트폰 S9+(Tailscale 100.121.10.111) 눈으로 확인 완료
 - 폰 확인: 봄 — 디버그 APK(2989) 덮어설치 후 ✏️ 탭 → 흰 시트 정상 표시(회색 아님), "01099991234"→"010-9999-1234" 하이픈·문자 쓰기 버튼 활성화·키보드 위로 시트 밀림 전부 정상. 크래시 0
 - 내부배포: upload-20261031-2144 CI success (Play 내부테스트 업로드 완료)
+
+## 2026-10-31 22:40 · android
+협업 '날마다 다른 사장' — 같은 날 두 사장 겹침 버그 고침 (사장님 2026-10-31 신고)
+- 원인: "같이 할 사장님" 시트가 ①이미 보낸 사장의 저장된 '오는 날'을 안 받아 칩이 전부 '전체'로 리셋돼 보였고 ②제출 때 이미 보낸 사장은 통째 건너뛰어 날짜 변경이 버려졌다 → A를 전체로 부른 뒤 12일로 줄여도 그대로 남아 13일에 A·B 겹침
+- 변경: AssignTeamSheet에 savedPartnerDays(이미 보낸 사장별 '오는 날', 이 건 날짜로 좁힘) 추가 → partnerDays 한 번만 시드(칩이 실제 배정 표시·안 건드린 사장 날짜 유지). 제출에서 이미 보낸 사장도 '오는 날' 바뀌면 onUpdateCollabDays로 저장. ScheduleViewModel.updateCollabDays 신규(로컬은 공용 CollabAssignmentLine.assignDays로 교체, 첫 오는 날 바뀌면 서버 reschedule outbox — removeCollabAssignment·notifyCollabReschedule과 같은 패턴). cross-job 오염 방지(savedPartnerDays에 있는 사장만)
+- 폰 확인: 단위 테스트로 겹침→분리 재현·증명(CollabAssignmentLineTest 신규 1건). assembleRelease BUILD=0·가드7통과·전체 1334테스트 통과. 실기 2-사장 E2E는 멀티데이+서버 초대 데이터 필요라 사장님 실제 12·13 건에서 확인 요청. 표시·소비 지점(달력·건카드 forJob·상대 reschedule) 다 확인
+- 다음 액션: 사장님 — 12·13 건에서 A 전체로 부른 뒤 다시 열어 A를 하루로 줄이고 B 추가 → 겹치지 않는지 확인

@@ -705,6 +705,8 @@ fun ScheduleScreen(
             collabPartners = collabPartners,
             collabPartnerNames = collabPartnerNames,
             assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
+            savedPartnerDays = collabAssign[c.id].orEmpty().filter { it.days.isNotEmpty() }
+                .associate { PhoneKey.of(it.phone) to it.days.intersect(assignJobDayStarts.toSet()) }.filterValues { it.isNotEmpty() },
             initiallySelected = assignedIds,
             initialMemo = existingMemo,
             defaultStartHour = viewModel.lastCollabStartHour,
@@ -729,6 +731,7 @@ fun ScheduleScreen(
                 }
             },
             onCancelCollab = { phone -> viewModel.removeCollabAssignment(c.id, phone) },
+            onUpdateCollabDays = { phone, days, hour -> viewModel.updateCollabDays(c.id, phone, days, hour) },
             // 내가 부른 일당 — 이 시공(고객+시공일)에 이미 붙어있는 사람/금액.
             crewWagesByWorkerId = jobCrewByCustomer[c.id].orEmpty()
                 .filter { it.dayStartMs == DateTimeUtils.startOfDay(c.scheduledWorkDate ?: 0L) }
@@ -1374,6 +1377,8 @@ private fun AssignTeamSheet(
     defaultStartHour: Int,
     /** 공사가 걸친 날들(startOfDay). 2개 이상이면 '일하는 날' 칩 노출. 협업자별로 오는 날 선택. (2026-08-02) */
     jobDayStarts: List<Long> = emptyList(),
+    /** 이미 보낸 사장(PhoneKey)의 저장된 '오는 날' — 칩을 실제 배정으로 띄워 겹침 방지. (2026-10-31) */
+    savedPartnerDays: Map<String, Set<Long>> = emptyMap(),
     onAddTeamMember: (name: String, phone: String) -> Unit,
     onAddWorker: (name: String, phone: String, wageManwon: Int?) -> Unit,
     /** 명부에서 빼기 — 꾹 누르면. 협업 요청 취소와는 다르다. (2026-09-24 사장님) */
@@ -1391,6 +1396,7 @@ private fun AssignTeamSheet(
     onSave: (Set<String>, String) -> Unit,
     onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int, address: String?, days: List<Long>) -> Unit,
     onCancelCollab: (phone: String) -> Unit,
+    onUpdateCollabDays: (phone: String, days: List<Long>, startHour: Int) -> Unit = { _, _, _ -> },
     /** 이 시공에 이미 배정된 '내가 부른 일당' (workerId → 일당 원). */
     crewWagesByWorkerId: Map<Long, Long> = emptyMap(),
     /** 일당 배정 통째 저장 (workerId → 일당 원). 고른 사람만 넘김 = 나머지는 해제. */
@@ -1428,6 +1434,11 @@ private fun AssignTeamSheet(
     // '오는 날' — 협업자가 오는 날(startOfDay), **사장별로 따로**. 없으면(기본) 건 전체 날 = 지금까지 동작. (2026-10-31 사장님: 날마다 다른 사장)
     //   일당(partnerWages)과 **같은 Map 패턴** — key(phone) → 그 사장이 오는 날들. 다일 공사에서만 UI 노출.
     var partnerDays by remember { mutableStateOf<Map<String, Set<Long>>>(emptyMap()) }
+    // 이미 보낸 사장의 '오는 날'을 저장값으로 한 번만 채운다 — 안 하면 칩이 '전체'로 리셋돼 겹친다(협업 자료는 시트 그린 뒤 옴). (2026-10-31)
+    var partnerDaysSeeded by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(savedPartnerDays) {
+        if (!partnerDaysSeeded && savedPartnerDays.isNotEmpty()) { partnerDays = savedPartnerDays; partnerDaysSeeded = true }
+    }
     val multiDayJob = jobDayStarts.size > 1
     fun daysOfPartner(k: String): Set<Long> = partnerDays[k] ?: jobDayStarts.toSet()
     // 시트 안 "+추가" 인라인 폼 (한 번에 하나만 열림)
@@ -2089,8 +2100,14 @@ private fun AssignTeamSheet(
                 // 고른 사람은 전부 협업 요청(서버 초대, 상대 수락 필요). '내가 부른 일당'은 없앴다. (2026-07-17 사장님)
                 //   ⚠️ onSaveCrew 는 호출하지 않는다 — 기존 JobCrew(일당) 데이터를 건드리지 않고 그대로 보존.
                 selectedPartners.forEach { k ->
-                    if (k in reqKeys) return@forEach                       // 이미 보낸 요청은 그대로
                     val p = collabPartners.firstOrNull { key(it.phone) == k } ?: return@forEach
+                    if (k in reqKeys) {
+                        // 이미 보낸 사장 — 재초대 X(중복 가드), '오는 날'만 바뀌면 그것만 저장(전엔 통째 건너뛰어 전체로 남아 겹쳤다). savedPartnerDays 에 있는(이 건 걸린) 사장만. (2026-10-31)
+                        if (multiDayJob) savedPartnerDays[k]?.let { saved ->
+                            val nd = daysOfPartner(k); if (nd != saved) onUpdateCollabDays(p.phone, nd.toList(), startHour)
+                        }
+                        return@forEach
+                    }
                     val manwon = partnerWages[k]?.toIntOrNull() ?: 0
                     // 🗓️ 이 사장의 '오는 날'만 — 건 전체면 빈 리스트(=전체, 하위호환). 셈은 CollabAssignmentLine 한 곳. (2026-10-31 날마다 다른 사장)
                     val daysToSend = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine

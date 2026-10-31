@@ -176,6 +176,28 @@ class CollabAssignmentLineTest {
         assertTrue(CollabAssignmentLine.forJob(raw, 7, CollabAssignmentLine.daysOfJob(day(12), 2)).isEmpty())
     }
 
+    // ── 🐞 2026-10-31 사장님: 두 사장을 **같은 날 겹쳐** 부른 것 — 이미 보낸 사장의 '오는 날'을 바꿔
+    //    갈라놓을 수 있어야 한다(전엔 보내기 때 건너뛰어 전체로 남아 겹쳤다). 갈라놓는 셈은 assignDays 한 곳.
+    @Test fun `assignDays - 겹친 두 사장을 날짜로 갈라놓으면 각 날 한 사장만 뜬다`() {
+        // A(sh1)·B(sh2) 둘 다 2일 전체(12·13)에 걸려 있음 = 겹침
+        val raw = setOf(
+            "7|01011110001|A|sh1|${day(12)},${day(13)}",
+            "7|01011110002|B|sh2|${day(12)},${day(13)}"
+        )
+        val jobDays = CollabAssignmentLine.daysOfJob(day(12), 2)
+        // 겹친 상태: 12일에도 13일에도 둘 다
+        assertEquals(setOf("sh1", "sh2"), CollabAssignmentLine.forJob(raw, 7, jobDays).map { it.shareId }.toSet())
+        // A 를 12일만, B 를 13일만으로 갈라놓는다 (이미 보낸 사장의 '오는 날' 수정 = updateCollabDays 가 쓰는 길)
+        val aLine = CollabAssignmentLine.forJob(raw, 7, jobDays).first { it.shareId == "sh1" }
+        val bLine = CollabAssignmentLine.forJob(raw, 7, jobDays).first { it.shareId == "sh2" }
+        var after = CollabAssignmentLine.assignDays(raw, aLine, setOf(day(12)))
+        after = CollabAssignmentLine.assignDays(after, bLine, setOf(day(13)))
+        // 이제 12일 = A 만, 13일 = B 만 (겹침 해소)
+        assertEquals(listOf("sh1"), CollabAssignmentLine.forJob(after, 7, setOf(day(12))).map { it.shareId })
+        assertEquals(listOf("sh2"), CollabAssignmentLine.forJob(after, 7, setOf(day(13))).map { it.shareId })
+        assertEquals("줄 수는 그대로", 2, after.size)
+    }
+
     // ── 날마다 다른 사장: 사장별 '오는 날' → 서버로 보낼 날짜 (2026-10-31 사장님) ──
 
     @Test fun `daysToSend - 전체 날 맡으면 빈 리스트(=전체 하위호환)`() {
