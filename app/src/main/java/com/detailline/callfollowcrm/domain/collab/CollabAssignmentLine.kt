@@ -60,16 +60,28 @@ data class CollabAssignmentLine(
          *   @param jobDayStart 그 건 시공일 0시. **null 이면 날짜를 모르는 것 → 아무도 안 고른다**(전체로 퍼뜨리지 않음).
          *   같은 사장이 두 줄이면(shareId 같거나, shareId 없으면 번호 같음) 하나로.
          */
-        fun forJob(raw: Collection<String>, customerId: Long, jobDayStart: Long?): List<CollabAssignmentLine> {
-            if (jobDayStart == null) return emptyList()
+        fun forJob(raw: Collection<String>, customerId: Long, jobDayStart: Long?): List<CollabAssignmentLine> =
+            forJob(raw, customerId, jobDayStart?.let { setOf(it) } ?: emptySet())
+
+        /**
+         * 🎯 **이 건의 날짜들 중 하나라도** 맡은 협업 — 멀티데이 건(2일 이상)에서 **2일차만 맡은 협업**도 그 건에 뜬다. (2026-10-31 사장님)
+         *   🐞 전엔 `jobDayStart`(시작일) **한 날만** 봐서, 11/12~13 건에 11/13만 부른 협업이 건 카드/전파에서 사라졌다.
+         *   날짜 없는 떠돌이(days 빈 것)는 제외. 같은 사장은 하나로. 서로 다른 건은 날짜가 안 겹쳐 안 섞인다(1차/2차 분리 유지).
+         */
+        fun forJob(raw: Collection<String>, customerId: Long, jobDays: Set<Long>): List<CollabAssignmentLine> {
+            if (jobDays.isEmpty()) return emptyList()
             return raw.mapNotNull { parse(it) }
-                .filter { it.customerId == customerId && it.coversDay(jobDayStart) }
+                .filter { it.customerId == customerId && it.days.isNotEmpty() && it.days.any { d -> d in jobDays } }
                 .distinctBy { it.shareId.ifBlank { it.phone } }
         }
 
-        /** [forJob] 중 서버에 말을 걸 수 있는(shareId 있는) 것의 shareId 들 — 우체통 전파 대상. */
+        /** [forJob] 중 서버에 말을 걸 수 있는(shareId 있는) 것의 shareId 들 — 우체통 전파 대상. (single-day 입구) */
         fun shareIdsForJob(raw: Collection<String>, customerId: Long, jobDayStart: Long?): List<String> =
-            forJob(raw, customerId, jobDayStart).map { it.shareId }.filter { it.isNotBlank() }.distinct()
+            shareIdsForJob(raw, customerId, jobDayStart?.let { setOf(it) } ?: emptySet())
+
+        /** [forJob] (건 날짜 집합) 중 shareId 있는 것들 — 멀티데이 건 주소/일정 전파가 2일차 협업까지 닿게. (2026-10-31) */
+        fun shareIdsForJob(raw: Collection<String>, customerId: Long, jobDays: Set<Long>): List<String> =
+            forJob(raw, customerId, jobDays).map { it.shareId }.filter { it.isNotBlank() }.distinct()
 
         /**
          * 🧭 **떠돌이** — 이 고객의 줄 중 날짜 꼬리표가 없는 것(어느 건 카드에도 안 뜨는 것). 고객 상세가 보여주고

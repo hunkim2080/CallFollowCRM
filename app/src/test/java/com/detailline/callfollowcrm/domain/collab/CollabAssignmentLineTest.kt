@@ -152,4 +152,27 @@ class CollabAssignmentLineTest {
         assertEquals(setOf(day(30)), CollabAssignmentLine.daysOfJob(day(30), 0))
         assertTrue(CollabAssignmentLine.daysOfJob(null, 3).isEmpty())
     }
+
+    // ── 🐞 2026-10-31 사장님: 2일짜리 건(11/12~13)에 **2일차(11/13)만** 협업 불렀는데 건 카드에 안 떴다.
+    //    forJob 이 시작일(11/12) 하나만 봐서 11/13 협업을 놓쳤다. → **건 전체 날짜 집합**으로 본다.
+
+    @Test fun `forJob(날짜집합) - 멀티데이 건 2일차만 맡은 협업도 그 건에 뜬다`() {
+        val raw = setOf("7|01011110002|협업사장|sh2|${day(13)}")   // 2일차(day13)만 맡음
+        val jobDays = CollabAssignmentLine.daysOfJob(day(12), 2)   // 11/12~13 = {12,13}
+        assertEquals(setOf(day(12), day(13)), jobDays)
+        assertEquals(listOf("sh2"), CollabAssignmentLine.forJob(raw, 7, jobDays).map { it.shareId })
+        assertEquals(listOf("sh2"), CollabAssignmentLine.shareIdsForJob(raw, 7, jobDays))
+        // 시작일 하나만 보면(옛 방식) 놓친다 — 이게 버그였다
+        assertTrue(CollabAssignmentLine.forJob(raw, 7, jobDayStart = day(12)).isEmpty())
+    }
+
+    @Test fun `forJob(날짜집합) - 날짜 안 겹치는 다른 건엔 안 샌다`() {
+        val raw = setOf("7|01011110002|협업사장|sh2|${day(13)}")
+        assertTrue(CollabAssignmentLine.forJob(raw, 7, CollabAssignmentLine.daysOfJob(day(20), 1)).isEmpty())
+    }
+
+    @Test fun `forJob(날짜집합) - 떠돌이(days 빈 것)는 안 붙는다`() {
+        val raw = setOf("7|01011110003|떠돌이|sh3|")
+        assertTrue(CollabAssignmentLine.forJob(raw, 7, CollabAssignmentLine.daysOfJob(day(12), 2)).isEmpty())
+    }
 }

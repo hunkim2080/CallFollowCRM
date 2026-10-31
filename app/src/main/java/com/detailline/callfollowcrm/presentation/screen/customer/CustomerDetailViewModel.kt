@@ -276,7 +276,8 @@ class CustomerDetailViewModel(
             // 🤝 **그 건(날짜)의 협업 사장에게만** 새 주소 전파 — 전엔 건별 저장은 전파를 안 해 B 폰이 옛 주소 그대로였다.
             //   (2026-10-15 사장님 실기: 2차 현장 주소 바꿨는데 하우스픽 폰에 알림도 주소도 안 감) 1차 협업엔 안 간다(타깃팅 = 카드 협업 칩과 같은 forJob).
             val jobDayStart = job?.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
-            if (jobDayStart != null) propagateAddressToCollab(address, jobDayStart)
+            val jobDays = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(jobDayStart, job?.scheduledWorkDays ?: 1)
+            if (jobDays.isNotEmpty()) propagateAddressToCollab(address, jobDays)
         }
     }
 
@@ -1067,20 +1068,22 @@ class CustomerDetailViewModel(
         //   고객 주소 = **대표 건** 주소이므로 대표 건 날짜의 협업에게만(전엔 그 고객 shareId 전부 → 다른 차수까지 과전파). (2026-10-15)
         //   대표 건 날짜를 모르면(건 없음·날짜 미정) 협업도 없으니 안 보낸다.
         val repDay = customer.value?.scheduledWorkDate?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
-        withContext(NonCancellable) { propagateAddressToCollab(address, repDay) }
+        val repDays = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(repDay, customer.value?.scheduledWorkDays ?: 1)
+        withContext(NonCancellable) { propagateAddressToCollab(address, repDays) }
     }
 
     /**
      * **그 건(jobDayStart)에 걸린** 협업 shareId 들에 새 주소를 전파. 타깃팅은 카드 협업 칩과 같은 한 곳
      *   ([com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob]). collabAssignments = "customerId|phone|name|shareId|days".
      */
-    private suspend fun propagateAddressToCollab(newAddress: String?, jobDayStart: Long?) {
+    private suspend fun propagateAddressToCollab(newAddress: String?, jobDays: Set<Long>) {
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(newAddress.orEmpty())
             .takeIf { it.isNotBlank() } ?: return
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length < 9) return
+        // 건 전체 날짜 중 하나라도 맡은 협업에게 — 멀티데이 건 2일차 협업까지. (2026-10-31)
         val shareIds = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(
-            container.preferences.collabAssignments, customerId, jobDayStart
+            container.preferences.collabAssignments, customerId, jobDays
         )
         if (shareIds.isEmpty()) return
         val label = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(addr)

@@ -922,9 +922,11 @@ internal fun JobDetailCard(
                 }
                 // 이 건에 걸린 협업 사장만 — 타깃팅은 CollabAssignmentLine.forJob **한 곳**(주소 전파도 같은 것을 쓴다. 2026-10-15).
                 //   날짜 없는 떠돌이 줄은 어느 카드에도 안 뜬다 — 고객 상세 아래 「어느 건인지 모르는 협업」에서 사장님이 붙인다.
-                val jobCollab = remember(c.id, host.collabRefresh, jobDayStart) {
+                // 🐞 멀티데이 건: 시작일 하나가 아니라 **건 전체 날짜(jobDays)** 중 하나라도 맡은 협업을 다 띄운다
+                //   (11/12~13 건에 11/13만 부른 협업도 보이게). (2026-10-31 사장님)
+                val jobCollab = remember(c.id, host.collabRefresh, jobDays) {
                     com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.forJob(
-                        host.container.preferences.collabAssignments, c.id, jobDayStart
+                        host.container.preferences.collabAssignments, c.id, jobDays
                     )
                 }
                 val showJobCollabShare = remember(c.id, jobId) { mutableStateOf(false) }

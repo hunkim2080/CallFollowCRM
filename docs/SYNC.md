@@ -15707,3 +15707,12 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: **서버 영향 없음**(앱 UI만).
 - 폰 확인: 못 봄. assembleRelease BUILD=0·가드7·style 기준선 2412·health OK.
 - 다음 액션: (사장님) 내부테스트 받아 상담함 우하단 ✏️ → 번호 입력 → 그 번호 채팅 열려 문자 되나.
+
+## 2026-10-31 16:10 · android
+협업 버그 — **2일짜리 건에 2일차만 협업 부르면 건 카드에 안 떴다.** 사장님 실기(11/12~13 건, 11/13만 협업).
+- 원인: `CollabAssignmentLine.forJob` 이 건 시작일(jobDayStart=11/12) **한 날만** 봐서 11/13 협업을 놓침(멀티데이 건 전체 날짜를 안 봄).
+- 고침: `forJob`/`shareIdsForJob` 에 **건 날짜 집합(jobDays) 오버로드** 추가 — 협업 days 중 하나라도 건 날짜에 겹치면 뜬다. single-day 입구는 그 위로 위임(옛 호출 호환). 건 카드(`CustomerDetailJobCard`)·주소 전파 2곳(`propagateAddressToCollab` 콜러 setJobAddress/updateManualAddress)을 jobDays 로. 리스케줄(옮기는 그 날)은 의도대로 single-day 유지. 달력 day-list 는 선택한 날 기준이라 이미 정상.
+- 안 섞임: 서로 다른 건은 날짜가 안 겹쳐 안 섞인다(1차/2차 분리 유지). 떠돌이(days 빈 것)는 여전히 안 붙음.
+- 단위시험 +3(멀티데이 2일차 뜸·다른 건 안 샘·떠돌이 안 붙음). 총 1331.
+- 변경: **서버 영향 없음**(앱 로직). assembleRelease BUILD=0·가드7·health OK.
+- 다음 액션: (사장님) 2일짜리 건 2일차만 협업 → 건 카드에 협업 뜨나.
