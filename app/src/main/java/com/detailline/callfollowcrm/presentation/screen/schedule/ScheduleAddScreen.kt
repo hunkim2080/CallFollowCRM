@@ -236,21 +236,32 @@ fun ScheduleAddScreen(
             }
             Spacer(Modifier.height(14.dp))
 
-            // ── 날짜 한 줄 (접힘) ── (2026-09-16 사장님)
-            //   "시공일을 찍고 그날 일정을 등록하러 들어왔는데 왜 또 캘린더가 있지?"
-            //   맞는 말이다. 이미 정해진 날이니 **한 줄로 접어두고**, 바꿀 때만 펼친다.
-            FoldRow(
-                icon = Icons.Filled.Schedule,
-                title = if (!workMode && simpleDays > 1) rangeLabel(dayMs, endDayMs) else dayLabel(dayMs),
-                sub = buildString {
-                    // 여러 날 간단 일정은 '하루 종일' 고정이라 헤더도 그렇게 — 시간칸과 어긋나지 않게. (2026-10-08 사장님)
-                    append(if (allDay || (!workMode && simpleDays > 1)) "하루 종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
-                    if (workMode && workDays > 1) append(" · ").append(workDays).append("일")
-                    else if (!workMode && simpleDays > 1) append(" · ").append(simpleDays).append("일")
-                },
-                open = dateOpen,
-                onClick = { dateOpen = !dateOpen }
-            )
+            // ── 날짜·시간·종일 한 블록 ── 구글 캘린더처럼 **종일 토글을 날짜와 같은 카드**에. (2026-11-01 사장님)
+            //   "시공일을 찍고 그날 일정을 등록하러 들어왔는데 왜 또 캘린더가 있지?" → 한 줄로 접어두고 바꿀 때만 펼친다. (2026-09-16)
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
+                FoldRow(   // 카드가 배경을 주니 FoldRow 는 투명.
+                    icon = Icons.Filled.Schedule,
+                    title = if (!workMode && simpleDays > 1) rangeLabel(dayMs, endDayMs) else dayLabel(dayMs),
+                    sub = buildString {
+                        append(if (allDay || (!workMode && simpleDays > 1)) "종일" else DateTimeUtils.formatWorkMinutes(workMinutes))
+                        if (workMode && workDays > 1) append(" · ").append(workDays).append("일")
+                        else if (!workMode && simpleDays > 1) append(" · ").append(simpleDays).append("일")
+                    },
+                    open = dateOpen,
+                    onClick = { dateOpen = !dateOpen }
+                )
+                // 간단 일정만 종일 토글(시공은 늘 시각). 여러 날은 종일 고정이라 토글 대신 안내. (2026-10-08·11-01)
+                if (!workMode) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White))
+                    if (simpleDays > 1) {
+                        Text("여러 날은 종일로 저장돼요",
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
+                    } else {
+                        SwitchRow(icon = Icons.Filled.CalendarMonth, title = "종일", on = allDay) { allDay = !allDay }
+                    }
+                }
+            }
             if (dateOpen) {
                 Spacer(Modifier.height(10.dp))
                 if (!workMode) {
@@ -307,19 +318,7 @@ fun ScheduleAddScreen(
             }
 
             if (!workMode) {
-                Spacer(Modifier.height(4.dp))
-                // 하루 종일 — 시공엔 없는 개념(시공은 늘 시각이 있다). 간단 일정에만.
-                //   여러 날이면 시간 개념이 안 맞아 '하루 종일' 고정(여행·휴가). 토글 숨김. (2026-10-08 사장님)
-                if (simpleDays > 1) {
-                    Text(
-                        "여러 날은 하루 종일로 저장돼요",
-                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(TossGrayBg).padding(horizontal = 14.dp, vertical = 12.dp)
-                    )
-                } else {
-                    SwitchRow(icon = Icons.Filled.CalendarMonth, title = "하루 종일", on = allDay) { allDay = !allDay }
-                }
+                // 종일 토글은 위 날짜 카드 안으로 옮겼다(구글식 한 블록). 여기선 메모만. (2026-11-01 사장님)
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("메모 (선택)")
                 // 범용(1인 시공업자 공통) — 특정 업종 재료명 X. (2026-10-31 사장님)
@@ -717,9 +716,9 @@ private fun FoldRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String, sub: String, open: Boolean, onClick: () -> Unit
 ) {
+    // 바깥 카드(날짜·종일 한 블록)가 배경을 주므로 여기선 투명. (2026-11-01 사장님)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         androidx.compose.material3.Icon(icon, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
