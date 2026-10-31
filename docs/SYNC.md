@@ -15741,3 +15741,9 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 배포: ✅ 라이브(android swap+kickstart, smoke 10/10). 백업 `*.bak`. repo 반영.
 - 폰 확인: 못 봄. 사장님 "다시 요약"으로 나/손님 좌우 갈리는지.
 - 다음 액션: (사장님) 통화 **다시 요약** → 전문 나(오른쪽)/손님(왼쪽) 갈리나.
+
+## 2026-10-31 19:05 · android
+새 메시지 다이얼로그 "회색창" 고침 — tonalElevation=0.dp 추가(흰색이 회색빛으로 뜨던 색조 틴트 끔)
+- 변경: NewMessageDialog.kt 한 줄. UI만. dialog-white 규칙(containerColor+tonalElevation 둘 다)에 맞춤
+- 폰 확인: 못 봄(테스트폰 무선디버깅 꺼짐) — assembleRelease BUILD=0·가드7통과. 다른 다이얼로그(NoteList·PhotoViewer)가 쓰는 것과 동일한 설정
+- 다음 액션: 없음

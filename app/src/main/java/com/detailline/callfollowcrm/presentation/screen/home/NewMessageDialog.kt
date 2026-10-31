@@ -32,6 +32,7 @@ internal fun NewMessageDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.White,
+        tonalElevation = 0.dp,   // 색조 틴트 끔 — 없으면 흰색이 회색빛으로 뜸(예전 "회색창")
         title = { Text("새 메시지", fontWeight = FontWeight.Bold, color = AppTheme.colors.text) },
         text = {
             Column {
