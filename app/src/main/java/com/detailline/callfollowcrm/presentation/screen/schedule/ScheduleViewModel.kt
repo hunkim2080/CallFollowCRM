@@ -353,6 +353,13 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private val _collabAssignByCustomer = MutableStateFlow<Map<Long, List<CollabAssign>>>(emptyMap())
     val collabAssignByCustomer = _collabAssignByCustomer.asStateFlow()
 
+    /** 📇 **번호(PhoneKey) → 상대가 등록한 상호** — 명부 시트가 번호로 저장된 협업 사장을 **이름으로** 보이게.
+     *   일정 배지와 같은 출처(`partnerNameByShareId`)를, collabAssignments 의 phone↔shareId 로 번호에 매핑.
+     *   시트는 이 맵을 공용 `CollabDisplayName.merge` 에 넣는다(번호→상호→형식번호). (2026-10-31 사장님 "시트만 번호로 떠")
+     *   ⚠️ 보여줄 때만 쓴다 — 명부 원본 이름은 안 건드린다(§CollabDisplayName). */
+    private val _collabPartnerNameByPhone = MutableStateFlow<Map<String, String>>(emptyMap())
+    val collabPartnerNameByPhone = _collabPartnerNameByPhone.asStateFlow()
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
@@ -447,6 +454,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      *   거절/종료된 shareId(deadCollabShareIds) 건은 표시에서 제외. */
     private fun loadCollabAssignments() {
         val map = HashMap<Long, MutableList<CollabAssign>>()
+        val partnerByPhone = HashMap<String, String>()   // PhoneKey → 상대 상호(명부 시트가 번호 대신 이름 보이게)
         for (e in container.preferences.collabAssignments) {
             val parts = e.split('|')
             val id = parts.getOrNull(0)?.toLongOrNull() ?: continue
@@ -455,6 +463,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val phone = if (parts.size >= 3) parts[1].filter { it.isDigit() } else ""
             val name = if (parts.size >= 3) parts[2] else parts.getOrNull(1).orEmpty()
             if (name.isBlank()) continue
+            // 📇 이 번호의 상대 상호(수락 시 서버가 채운 partner_name) 를 모아둔다 → 명부 시트가 번호 대신 이름으로.
+            if (phone.isNotBlank()) partnerNameByShareId[shareId]?.trim()?.takeIf { it.isNotBlank() }
+                ?.let { partnerByPhone.putIfAbsent(PhoneKey.of(phone), it) }
             // 5번째 칸 = 일하는 날(startOfDay, 콤마). 비면 = 떠돌이(어느 날 카드에도 안 뜸 — 판단은 collabCoversDay 한 곳). (2026-10-15)
             val days = parts.getOrNull(4)?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet().orEmpty()
             val list = map.getOrPut(id) { mutableListOf() }
@@ -472,6 +483,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             if (!dup) list.add(CollabAssign(phone, shown, accepted, days))
         }
         _collabAssignByCustomer.value = map
+        _collabPartnerNameByPhone.value = partnerByPhone
     }
 
     /** 🏷️ 저장된 협업 배정의 **'번호/기본값 이름'을 명부 상호로** 한 번 맞춘다(멱등). (2026-10-27 사장님 "번호가 파인탄성이면 이름으로")

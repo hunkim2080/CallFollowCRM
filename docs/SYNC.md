@@ -15753,3 +15753,9 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: NewMessageDialog.kt — AlertDialog 제거, AppSheet(surface=#FFFFFF) + 공용 SheetTextField/TossPrimary·Secondary 버튼. UI만
 - 폰 확인: 못 봄(테스트폰 무선디버깅 꺼짐·에뮬엔 앱 미설치) — assembleRelease BUILD=0·가드7통과·style 2412→2411. ScheduleTimeSheet 등 다른 시트가 쓰는 동일 흰 카드
 - 다음 액션: 다음 설치 빌드에서 흰색 확인
+
+## 2026-10-31 20:05 · android
+협업 "같이 할 사장님" 시트 이름 — 번호(01022647734)로 뜨던 걸 상대 상호/형식번호로. 일정 배지와 같은 출처
+- 변경: ScheduleViewModel 에 collabPartnerNameByPhone(PhoneKey→상대상호) 추가(loadCollabAssignments 에서 partnerNameByShareId 를 phone 에 매핑). AssignTeamSheet 가 받아 명부줄·선택목록 2곳을 공용 CollabDisplayName.merge 로 표시. 이름 없이 번호면 line1 번호 중복 제거
+- 폰 확인: 못 봄(무선디버깅 꺼짐) — assembleRelease BUILD=0·가드7통과. 표시·소비 지점 3곳(아바타·명부줄 제목·선택목록 제목) 다 교정, 검색필터는 원본 name+번호로 둠(둬도 됨)
+- 다음 액션: 없음

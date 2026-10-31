@@ -266,6 +266,7 @@ fun ScheduleScreen(
     // 팀원 현장 배정 (2026-06-05) — 팀원 있을 때만 일정 카드에 배정 줄 노출.
     val teamMembers by viewModel.teamMembers.collectAsState()
     val collabPartners by viewModel.collabPartners.collectAsState()
+    val collabPartnerNames by viewModel.collabPartnerNameByPhone.collectAsState()
     val partnerStats by viewModel.partnerStats.collectAsState()
     val partnerLastPlace by viewModel.partnerLastPlace.collectAsState()
     val pickCandidates by viewModel.pickCandidates.collectAsState()
@@ -702,6 +703,7 @@ fun ScheduleScreen(
             siteAddress = c.address,
             members = teamMembers,
             collabPartners = collabPartners,
+            collabPartnerNames = collabPartnerNames,
             assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
             initiallySelected = assignedIds,
             initialMemo = existingMemo,
@@ -1364,6 +1366,8 @@ private fun AssignTeamSheet(
     siteAddress: String?,
     members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
     collabPartners: List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>,
+    /** 📇 PhoneKey → 상대 상호. 명부 이름이 번호로 저장돼 있으면 이걸로 교정해 보인다(공용 CollabDisplayName). */
+    collabPartnerNames: Map<String, String> = emptyMap(),
     assignedCollabPhones: Set<String>,
     initiallySelected: Set<String>,
     initialMemo: String,
@@ -1708,6 +1712,10 @@ private fun AssignTeamSheet(
                 }
                 shown.forEachIndexed { idx, p ->
                     val k = key(p.phone)
+                    // 📇 번호로 저장된 협업 사장도 **이름으로** — 공용 merge(내 이름 → 상대 상호 → 형식번호). 일정 배지와 같은 자리.
+                    val displayName = com.detailline.callfollowcrm.domain.collab.CollabDisplayName
+                        .merge(p.name, collabPartnerNames[k], accepted = true).ifBlank { p.name }
+                    val nameIsPhone = displayName.none { it.isLetter() }   // 이름 없이 번호로만 뜬 경우 → line1 번호 중복 방지
                     val on = k in selectedPartners
                     val wasReq = k in reqKeys
                     val st = partnerStats[p.phone.filter { ch -> ch.isDigit() }]
@@ -1731,13 +1739,13 @@ private fun AssignTeamSheet(
                         ) {
                             if (on) Icon(Icons.Default.Check, null, tint = Color.White,
                                 modifier = Modifier.size(16.dp))
-                            else Text(p.name.take(1), style = AppType.body,
+                            else Text(displayName.take(1), style = AppType.body,
                                 fontWeight = FontWeight.Black, color = purple)
                         }
                         Spacer(Modifier.width(11.dp))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(p.name, style = AppType.body, fontWeight = FontWeight.Bold,
+                                Text(displayName, style = AppType.body, fontWeight = FontWeight.Bold,
                                     color = TossTextPrimary)
                                 if (wasReq) {
                                     Spacer(Modifier.width(6.dp))
@@ -1752,7 +1760,8 @@ private fun AssignTeamSheet(
                             // ☎️ **번호 먼저.** 이름만 적혀 있으면 누구지 못 알아본다.
                             //   (2026-09-27 사장님 "이 사람 번호가 안 뜼니까 모르겠네")
                             val line1 = buildString {
-                                com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p.phone)
+                                // 제목이 이미 번호면(이름 없음) 여기선 번호 생략 — 두 줄에 같은 번호 중복 방지.
+                                if (!nameIsPhone) com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p.phone)
                                     .takeIf { it.isNotBlank() }?.let { append(it) }
                                 if (st != null && st.count > 0) {
                                     if (isNotEmpty()) append(" · ")
@@ -1993,12 +2002,15 @@ private fun AssignTeamSheet(
                     SheetFieldLabel(if (multiDayJob) "사장님별 오는 날 · 일당" else "보낼 일당")
                     selectedPartnerList.forEach { p ->
                         val k = key(p.phone)
+                        // 명부 줄과 같은 이름(번호로 저장돼 있으면 상대 상호·형식번호로) — 공용 merge.
+                        val pName = com.detailline.callfollowcrm.domain.collab.CollabDisplayName
+                            .merge(p.name, collabPartnerNames[k], accepted = true).ifBlank { p.name }
                         // 이름 + 일당 (한 줄)
                         Row(
                             Modifier.fillMaxWidth().padding(top = if (multiDayJob) 16.dp else 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(p.name, style = AppType.label, fontWeight = FontWeight.ExtraBold,
+                            Text(pName, style = AppType.label, fontWeight = FontWeight.ExtraBold,
                                 color = TossTextPrimary, modifier = Modifier.weight(1f))
                             Box(Modifier.width(120.dp)) {
                                 SheetTextField(
