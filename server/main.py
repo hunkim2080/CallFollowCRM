@@ -14767,6 +14767,69 @@ async def _ollama_attribute_speakers(text: str, direction: str = "incoming") -> 
     return result
 
 
+async def _claude_label_speakers(texts, direction="incoming"):
+    """Whisper 세그먼트 목록 → 각 화자(나/손님) 라벨 (Haiku — exaone 보다 정확). 실패 시 exaone 폴백.
+       (2026-10-31 사장님: exaone 이 다 '손님'으로 몰아 나/손님 구분이 안 됨)"""
+    n = len(texts or [])
+    if n == 0:
+        return []
+    _first = "손님" if (direction or "").strip() == "outgoing" else "나"
+    _dir_ko = "사장님이 건(발신)" if _first == "손님" else "손님이 걸어 사장님이 받은(수신)"
+    sys_p = (
+        "통화 자막 각 줄의 화자를 붙여라. '나'(업체 사장님)와 '손님'(고객) 둘뿐이다. "
+        "이 통화는 %s 통화라 맨 처음(1번) 말하는 줄은 보통 '%s' 이다 — 기준점으로 삼아라. "
+        "단서: 질문하거나 문의를 시작하면 '손님', 가격·일정을 제시하거나 '사장님' 호칭을 받으면 '나'. "
+        "실제 대화는 나와 손님이 번갈아 말한다 — 전부 한 사람으로 몰지 마라. "
+        "입력 줄 수와 정확히 같은 개수로, 각 줄 화자를 순서대로 '나' 또는 '손님' 으로만. "
+        "JSON {\"speakers\":[\"나\",\"손님\"]} 형식만 출력."
+    ) % (_dir_ko, _first)
+    joined = "\n".join("%d. %s" % (j + 1, t) for j, t in enumerate(texts))
+    try:
+        out, _ = await call_claude_json(system_prompt=sys_p, user_msg=joined, max_tokens=1024, model=HAIKU_MODEL)
+        sp = out.get("speakers") if isinstance(out, dict) else None
+        if isinstance(sp, list) and sp:
+            return [(str(sp[k]).strip() if (k < len(sp) and str(sp[k]).strip() in ("나", "손님")) else "?") for k in range(n)]
+    except Exception:
+        pass
+    return await _ollama_label_speakers(texts, direction=direction)
+
+
+async def _claude_attribute_speakers(text, direction="incoming"):
+    """보정된 transcript → 발화 순서대로 나누고 화자(나/손님) (Haiku). 실패 시 exaone 폴백. (2026-10-31 사장님)"""
+    text = (text or "").strip()
+    if not text:
+        return []
+    _first = "손님" if (direction or "").strip() == "outgoing" else "나"
+    _dir_ko = "사장님이 건(발신)" if _first == "손님" else "손님이 걸어 사장님이 받은(수신)"
+    sys_p = (
+        "한국어 통화 텍스트를 대화 순서대로 나누고 화자를 붙여라. '나'(업체 사장님)와 '손님'(고객) 둘 사이 대화다. "
+        "이 통화는 %s 통화라 맨 처음 말하는 쪽은 보통 '%s' 이다. "
+        "단서: 질문·문의 시작은 '손님', 가격·일정 제시나 '사장님' 호칭 받으면 '나'. 나와 손님이 번갈아 말한다 — 한 사람으로 몰지 마라. "
+        "없는 말 지어내지 말고 있는 문장만 나눠라. 뜻·표현 바꾸지 마라. "
+        "JSON {\"segments\":[{\"speaker\":\"나\",\"text\":\"...\"}]} 만 출력."
+    ) % (_dir_ko, _first)
+    try:
+        out, _ = await call_claude_json(system_prompt=sys_p, user_msg="다음 통화를 화자별로 나눠줘:\n\n" + text, max_tokens=4096, model=HAIKU_MODEL)
+        segs = out.get("segments") if isinstance(out, dict) else None
+        if isinstance(segs, list) and segs:
+            result = []
+            for s2 in segs:
+                if not isinstance(s2, dict):
+                    continue
+                tx = str(s2.get("text") or "").strip()
+                if not tx:
+                    continue
+                sp = str(s2.get("speaker") or "").strip()
+                if sp not in ("나", "손님"):
+                    sp = "?"
+                result.append({"speaker": sp, "text": tx})
+            if result:
+                return result
+    except Exception:
+        pass
+    return await _ollama_attribute_speakers(text, direction=direction)
+
+
 async def _split_long_segments(segments, direction="incoming", max_len=45, cap=20):
     """긴 세그먼트(한 말풍선에 여러 턴이 뭉친 것)만 exaone 로 발화 단위 재분할. (2026-10-31 사장님)
        start_ms 는 원 세그먼트 것을 물려준다(탭재생=그 세그먼트 처음). 짧은 건 그대로. 실패=원본 유지.
@@ -14783,7 +14846,7 @@ async def _split_long_segments(segments, direction="incoming", max_len=45, cap=2
         tx = str(segments[i].get("text") or "").strip()
         try:
             async with _sem:
-                sub = await _ollama_attribute_speakers(tx, direction=direction)
+                sub = await _claude_attribute_speakers(tx, direction=direction)
         except Exception:
             sub = None
         return i, sub
@@ -16937,7 +17000,7 @@ async def call_audio_summary_endpoint(
         transcript_segments = []
         try:
             if whisper_segs:
-                _labels = await _ollama_label_speakers([s["text"] for s in whisper_segs], direction=direction)
+                _labels = await _claude_label_speakers([s["text"] for s in whisper_segs], direction=direction)
                 transcript_segments = [
                     {
                         "start_ms": whisper_segs[i]["start_ms"],
@@ -16947,7 +17010,7 @@ async def call_audio_summary_endpoint(
                     for i in range(len(whisper_segs))
                 ]
             else:
-                transcript_segments = await _ollama_attribute_speakers(transcript, direction=direction)
+                transcript_segments = await _claude_attribute_speakers(transcript, direction=direction)
         except Exception:
             transcript_segments = []
         # 긴 세그먼트(한 말풍선에 여러 턴 뭉침)만 발화 단위로 재분할 — 모모콜식 가독성. (2026-10-31 사장님)
