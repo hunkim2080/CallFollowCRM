@@ -15759,3 +15759,9 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: ScheduleViewModel 에 collabPartnerNameByPhone(PhoneKey→상대상호) 추가(loadCollabAssignments 에서 partnerNameByShareId 를 phone 에 매핑). AssignTeamSheet 가 받아 명부줄·선택목록 2곳을 공용 CollabDisplayName.merge 로 표시. 이름 없이 번호면 line1 번호 중복 제거
 - 폰 확인: 못 봄(무선디버깅 꺼짐) — assembleRelease BUILD=0·가드7통과. 표시·소비 지점 3곳(아바타·명부줄 제목·선택목록 제목) 다 교정, 검색필터는 원본 name+번호로 둠(둬도 됨)
 - 다음 액션: 없음
+
+## 2026-10-31 21:30 · android
+새 메시지(✏️ FAB) 버튼 눌러도 반응 없던 것 고침 — AppSheet(인라인 오버레이) 렌더 위치가 문제
+- 변경: HomeScreen 에서 NewMessageDialog 렌더를 Scaffold 감싼 Box **밖(아래 z-레벨)** → Box 안·Scaffold 뒤(예약함 오버레이 옆)로 이동. 원인=AppSheet 는 Dialog 가 아니라 inline overlay 라 Box 밖이면 홈 콘텐츠가 덮어 안 보였음(AlertDialog→AppSheet 전환 때 생긴 틈). FAB onClick·상태는 멀쩡했음
+- 폰 확인: 못 봄(무선디버깅 꺼짐) — assembleRelease BUILD=0·가드7통과. NewMessageDialog 호출부 1곳뿐(단일). 주석만큼 떼어내 size 순증 0
+- 다음 액션: 내부배포 태그로 올림 → 사장님 폰에서 ✏️ 눌러 흰 시트 뜨는지 확인

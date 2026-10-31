@@ -528,15 +528,8 @@ fun HomeScreen(
         }
     }
 
-    // ✏️ 새 메시지 — 번호를 직접 입력해 바로 문자(그 번호 채팅으로 이동). 모두가 아는 자리(우하단 FAB). (2026-10-31 사장님)
-    //   다이얼로그 본문은 NewMessageDialog.kt (HomeScreen 안 키움, §12-F).
+    // ✏️ 새 메시지 FAB 상태 — 시트 렌더는 Box 안·Scaffold 뒤(아래 오버레이 자리)에 둔다. (2026-10-31 사장님)
     var showNewMessage by remember { mutableStateOf(false) }
-    if (showNewMessage) {
-        NewMessageDialog(
-            onDismiss = { showNewMessage = false },
-            onSend = { p -> showNewMessage = false; onOpenChat(p, null) }
-        )
-    }
     // Scaffold 를 Box 로 감싸 그 위(홈 콘텐츠 전체를 덮는 z-레벨)에 업데이트 시트를 오버레이. (2026-07-18 사장님)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     Scaffold(
@@ -1984,6 +1977,14 @@ fun HomeScreen(
                 onDismiss = { showScheduledSheet = false },
                 onCancel = { id -> viewModel.cancelScheduled(id) },
                 onReschedule = { id, ms -> viewModel.rescheduleScheduled(id, ms) }
+            )
+        }
+
+        // ✏️ 새 메시지 — AppSheet 는 Dialog 가 아니라 인라인 오버레이라 반드시 여기(Box 안·Scaffold 뒤)서 그린다. Box 밖이면 홈이 덮어 안 보임. (2026-10-31 사장님)
+        if (showNewMessage) {
+            NewMessageDialog(
+                onDismiss = { showNewMessage = false },
+                onSend = { p -> showNewMessage = false; onOpenChat(p, null) }
             )
         }
     }
