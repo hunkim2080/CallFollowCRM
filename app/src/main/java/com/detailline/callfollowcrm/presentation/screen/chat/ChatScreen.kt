@@ -472,7 +472,8 @@ fun ChatScreen(
     // P3 — 견적서 작성기 (사장님 결정 2026-05-24): send_estimate 액션 시 템플릿 picker 대신 띄움.
     var showEstimateBuilder by remember { mutableStateOf(false) }
     // 견적 만들기 상태 — ChatScreen 보관(미리보기 닫고 와도 선택 유지). (2026-06-08 #5)
-    val estimateDraft = remember { EstimateDraft(DateTimeUtils.startOfMonth(System.currentTimeMillis())) }
+    // 계약금은 마지막에 쓴 방식·값에서 시작(prefs). (2026-11-01 사장님)
+    val estimateDraft = remember { EstimateDraft(DateTimeUtils.startOfMonth(System.currentTimeMillis()), prefs.lastDepositMode, prefs.lastDepositVal) }
     // 📄 접수서 데모 — 대화 중 **막지 않게**(push 금지). 접수서 안 받은 고객 대화에 **작은 칩**만 두고,
     //   누를 때만 어두운 팝업(프로토 1:1). (2026-10-24 사장님 "어느 타이밍에 보여줄지 난관 → 안 막게 pull")
     var intakeDemoOpen by remember { mutableStateOf(false) }
@@ -2122,7 +2123,12 @@ fun ChatScreen(
             (estCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
         }
         // 미리보기로 갈 때만 sheet 닫고 draft 유지. 발송/취소 등 '종료' 시에만 draft 초기화. (2026-06-08 #5)
-        fun resetEstimateDraft() = estimateDraft.reset(DateTimeUtils.startOfMonth(System.currentTimeMillis()))
+        // 보낼 때(발행/공유/접수서) 호출됨 — 그 순간의 계약금을 '마지막 쓴 값'으로 저장하고, 다음 견적도 거기서 시작. (2026-11-01 사장님)
+        fun resetEstimateDraft() {
+            estPrefs.lastDepositMode = estimateDraft.depMode.value
+            estPrefs.lastDepositVal = estimateDraft.depVal.value
+            estimateDraft.reset(DateTimeUtils.startOfMonth(System.currentTimeMillis()), estPrefs.lastDepositMode, estPrefs.lastDepositVal)
+        }
         EstimateBuilderDialog(
             items = pricingItems,
             draft = estimateDraft,
@@ -4555,10 +4561,11 @@ private fun SendConfirmDialog(
  * 견적 만들기 상태 — '미리보기 닫기' 후 편집기로 돌아와도 선택이 유지되도록 ChatScreen 레벨에서 보관. (2026-06-08 #5)
  *   (편집기=ModalBottomSheet 는 별도 윈도우라 미리보기 띄울 때 닫혀야 함 → 상태를 밖에 둬야 보존됨.)
  */
-private class EstimateDraft(initialCalMonth: Long) {
+private class EstimateDraft(initialCalMonth: Long, initialDepMode: String = "ratio", initialDepVal: String = "30") {
     val mode = androidx.compose.runtime.mutableStateOf("text")
-    val depMode = androidx.compose.runtime.mutableStateOf("ratio")
-    val depVal = androidx.compose.runtime.mutableStateOf("30")
+    // 계약금은 **마지막에 쓴 방식·값에서 시작**(ratio/fixed/none). 늘 정액 10만원인데 매번 비율로 시작해 손 가던 것. (2026-11-01 사장님)
+    val depMode = androidx.compose.runtime.mutableStateOf(initialDepMode)
+    val depVal = androidx.compose.runtime.mutableStateOf(initialDepVal)
     val depCustom = androidx.compose.runtime.mutableStateOf(false)
     val workDateMs = androidx.compose.runtime.mutableStateOf<Long?>(null)
     /** 시공 **끝날**. null = 당일. 며칠 걸리는지는 여기서 저절로 나온다 — 따로 고르지 않는다. (2026-09-24 사장님) */
@@ -4574,8 +4581,9 @@ private class EstimateDraft(initialCalMonth: Long) {
     /** 항목 id → 이번 세션에서 그 자리에서 바꾼 이름(라벨). 즉시 우선 적용. DB 저장과 별개. (2026-07-10 사장님) */
     val titleOverrides = androidx.compose.runtime.mutableStateMapOf<Long, String>()
     /** 견적을 보냈거나(또는 진짜 닫았을 때) 다음을 위해 초기화. 미리보기 왕복 때는 호출 안 함. */
-    fun reset(initialCalMonth: Long) {
-        mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
+    fun reset(initialCalMonth: Long, initialDepMode: String = "ratio", initialDepVal: String = "30") {
+        // 계약금은 '처음 기본값'이 아니라 **마지막에 쓴 값**으로 되돌린다(다음 견적도 거기서 시작). (2026-11-01 사장님)
+        mode.value = "text"; depMode.value = initialDepMode; depVal.value = initialDepVal; depCustom.value = false
         workDateMs.value = null; workEndMs.value = null; estCalMonth.value = initialCalMonth
         vatIncluded.value = false; recipient.value = ""; memo.value = ""
         selectedQty.clear(); customItems.clear(); priceOverrides.clear(); titleOverrides.clear()

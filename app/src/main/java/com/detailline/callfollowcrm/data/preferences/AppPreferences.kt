@@ -992,6 +992,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("last_collab_start_hour", 9)
         set(value) { prefs.edit().putInt("last_collab_start_hour", value).apply() }
 
+    /** 견적 '계약금'에서 마지막으로 고른 방식(ratio|fixed|none)·값 — 다음 견적이 거기서 시작한다.
+     *   왜: 사장님은 늘 정액 10만원인데 앱이 매번 '비율'로 시작해 매일 손이 갔다. 한 번 고른 걸 기억한다. (2026-11-01 사장님) */
+    var lastDepositMode: String
+        get() = prefs.getString("last_deposit_mode", "ratio") ?: "ratio"
+        set(value) { prefs.edit().putString("last_deposit_mode", value).apply() }
+    var lastDepositVal: String
+        get() = prefs.getString("last_deposit_val", "30") ?: "30"
+        set(value) { prefs.edit().putString("last_deposit_val", value).apply() }
+
     /** 협업 현장(더보기→협업현장) 목록에서 밀어서 휴지통에 넣은 share_id 들. 서버 삭제 아님 — 목록에서 빼고 휴지통 보관(되살리기 가능). */
     var trashedSharedSiteIds: Set<String>
         get() = prefs.getStringSet("trashed_shared_site_ids", emptySet()) ?: emptySet()
