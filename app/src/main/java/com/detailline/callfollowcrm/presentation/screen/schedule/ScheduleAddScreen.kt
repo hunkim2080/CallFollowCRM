@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -90,7 +93,8 @@ import com.detailline.callfollowcrm.util.PhoneKey
  *   시공 시간/기간 칩 · 총 금액(만원) · 계약금 "받았어요" 체크→펼침.
  *   주소 검색은 아직 미구현 → 자유입력 유지. 금액은 만원 입력 → 저장 시 ×10000(원).
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ScheduleAddScreen(
     viewModel: ScheduleAddViewModel,
@@ -280,7 +284,11 @@ fun ScheduleAddScreen(
                 if (workMode) {
                     Spacer(Modifier.height(12.dp))
                     FieldLabel("시공 기간")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        // 세로 간격도 — 2줄로 넘칠 때 알약이 붙어 겹쳐 보이지 않게. (2026-10-31 사장님)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         WORK_DAYS_OPTIONS.forEach { (label, days) ->
                             SelectChip(label, workDays == days) { workDays = days }
                         }
@@ -307,7 +315,8 @@ fun ScheduleAddScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("메모 (선택)")
-                SheetTextField(simpleMemo, { simpleMemo = it }, placeholder = "예: 케라폭시 20개")
+                // 범용(1인 시공업자 공통) — 특정 업종 재료명 X. (2026-10-31 사장님)
+                SheetTextField(simpleMemo, { simpleMemo = it }, placeholder = "안 적어도 돼요 · 예: 챙길 것")
             }
 
             Spacer(Modifier.height(14.dp))
@@ -350,6 +359,8 @@ fun ScheduleAddScreen(
                 // 번호 일부(중간·뒷자리)만 쳐도 저장된 고객을 바로 찾아 보여줌 → 탭하면 채워짐. (2026-06-20 사장님)
                 //   "불러오기" 목록은 안 쓰고 외운 뒷번호/중간번호로 치는 사장님 흐름에 맞춤.
                 val typedDigits = phoneField.text.filter { it.isDigit() }
+                // 🔎 추천이 뜨면 그 자리로 자동 스크롤 — 번호칸이 키보드 바로 위면 추천이 가려져 "안 나오네?" 싶다(기본 UX). (2026-10-31 사장님)
+                val phoneSuggestReq = remember { BringIntoViewRequester() }
                 if (typedDigits.length in 3..10) {
                     val matches = recentContacts.asSequence()
                         .filter { c ->
@@ -359,8 +370,14 @@ fun ScheduleAddScreen(
                         .distinctBy { PhoneKey.of(it.phoneNumber) }
                         .take(6).toList()
                     if (matches.isNotEmpty()) {
+                        // 추천이 생기거나 바뀌면 키보드 위로 올려 보인다(레이아웃 한 박자 뒤).
+                        LaunchedEffect(matches.size, typedDigits) {
+                            kotlinx.coroutines.delay(50)
+                            runCatching { phoneSuggestReq.bringIntoView() }
+                        }
                         Spacer(Modifier.height(8.dp))
-                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
+                        Column(Modifier.fillMaxWidth().bringIntoViewRequester(phoneSuggestReq)
+                            .clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
                             matches.forEachIndexed { i, c ->
                                 val cn = c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }
                                 Row(

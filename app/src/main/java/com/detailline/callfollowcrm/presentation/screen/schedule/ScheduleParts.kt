@@ -218,7 +218,11 @@ internal fun SimpleEventEditDialog(
                     modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
                         .padding(horizontal = 12.dp, vertical = 9.dp)
                 )
-            } else FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            } else FlowRow(
+                // 가로·세로 둘 다 — 세로 간격이 없으면 2줄로 넘칠 때 알약이 딱 붙어 겹쳐 보인다. (2026-10-31 사장님)
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
                 listOf<Pair<String, Int?>>(
                     "하루 종일" to null, "오전 8시" to 8 * 60, "오전 9시" to 9 * 60,
                     "오전 10시" to 10 * 60, "오후 1시" to 13 * 60, "오후 3시" to 15 * 60
@@ -244,7 +248,8 @@ internal fun SimpleEventEditDialog(
             androidx.compose.material3.OutlinedTextField(
                 value = memo, onValueChange = { memo = it },
                 modifier = Modifier.fillMaxWidth(), minLines = 2,
-                placeholder = { Text("예: 케라폭시 20개") }
+                // 범용(1인 시공업자 공통) — 특정 업종 재료명 X. (2026-10-31 사장님)
+                placeholder = { Text("안 적어도 돼요 · 예: 챙길 것") }
             )
 
             Spacer(Modifier.height(16.dp))

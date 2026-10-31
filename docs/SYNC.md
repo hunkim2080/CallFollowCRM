@@ -15777,3 +15777,10 @@ pro 대시보드 통계에서 구글 심사·테스트·봇·사장님 본인폰
 - 변경: AssignTeamSheet에 savedPartnerDays(이미 보낸 사장별 '오는 날', 이 건 날짜로 좁힘) 추가 → partnerDays 한 번만 시드(칩이 실제 배정 표시·안 건드린 사장 날짜 유지). 제출에서 이미 보낸 사장도 '오는 날' 바뀌면 onUpdateCollabDays로 저장. ScheduleViewModel.updateCollabDays 신규(로컬은 공용 CollabAssignmentLine.assignDays로 교체, 첫 오는 날 바뀌면 서버 reschedule outbox — removeCollabAssignment·notifyCollabReschedule과 같은 패턴). cross-job 오염 방지(savedPartnerDays에 있는 사장만)
 - 폰 확인: 단위 테스트로 겹침→분리 재현·증명(CollabAssignmentLineTest 신규 1건). assembleRelease BUILD=0·가드7통과·전체 1334테스트 통과. 실기 2-사장 E2E는 멀티데이+서버 초대 데이터 필요라 사장님 실제 12·13 건에서 확인 요청. 표시·소비 지점(달력·건카드 forJob·상대 reschedule) 다 확인
 - 다음 액션: 사장님 — 12·13 건에서 A 전체로 부른 뒤 다시 열어 A를 하루로 줄이고 B 추가 → 겹치지 않는지 확인
+
+## 2026-10-31 23:35 · android
+UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크롤 (사장님 2026-10-31 실기)
+- 변경: ① 간단일정 고치기 시간 칩 FlowRow 에 verticalArrangement 추가(ScheduleParts) — 세로 간격 없어 2줄 넘칠 때 알약이 붙어 겹쳐 보였음. 등록화면 기간 칩(7개)도 같이. ② 메모 placeholder "예: 케라폭시 20개"→"안 적어도 돼요 · 예: 챙길 것"(ScheduleParts·ScheduleAddScreen) — 줄눈 전용 재료명 제거(1인 시공업자 공통 앱). ③ 번호 입력 추천이 뜨면 BringIntoViewRequester 로 키보드 위로 자동 스크롤(ScheduleAddScreen) — 번호칸이 키보드 바로 위면 추천이 가려져 "안 나오네?" 했던 기본 UX
+- 폰 확인: 봄(S9+) — 메모 placeholder 범용 확인·번호 "1234" 입력시 "010-1234-9999 넣기" 추천이 키보드 위로 자동 스크롤 확인. 알약 겹침은 코드(verticalArrangement)로 확정, 빌드 통과
+- assembleRelease BUILD=0·가드7통과·전체 1335테스트 통과
+- 다음 액션: 내부배포
