@@ -1418,9 +1418,11 @@ private fun AssignTeamSheet(
     }
     var memo by remember { mutableStateOf(initialMemo) }
     var startHour by remember { mutableStateOf(defaultStartHour) }
-    // '일하는 날' — 협업자가 오는 날(startOfDay). 기본 전체 켜짐(기존 동작 유지). 다일 공사에서만 UI 노출. (2026-08-02)
-    var selectedDays by remember { mutableStateOf(jobDayStarts.toSet()) }
+    // '오는 날' — 협업자가 오는 날(startOfDay), **사장별로 따로**. 없으면(기본) 건 전체 날 = 지금까지 동작. (2026-10-31 사장님: 날마다 다른 사장)
+    //   일당(partnerWages)과 **같은 Map 패턴** — key(phone) → 그 사장이 오는 날들. 다일 공사에서만 UI 노출.
+    var partnerDays by remember { mutableStateOf<Map<String, Set<Long>>>(emptyMap()) }
     val multiDayJob = jobDayStarts.size > 1
+    fun daysOfPartner(k: String): Set<Long> = partnerDays[k] ?: jobDayStarts.toSet()
     // 시트 안 "+추가" 인라인 폼 (한 번에 하나만 열림)
     var addTeamOpen by remember { mutableStateOf(false) }
     var addWorkerOpen by remember { mutableStateOf(false) }
@@ -1917,31 +1919,7 @@ private fun AssignTeamSheet(
                         fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
                     Spacer(Modifier.height(14.dp))
                 }
-                // '일하는 날' — 다일 공사에서만. 협업자가 오는 날만 켜기(기본 전체). 그 날에만 🤝 + 상대에게 그 날짜로. (2026-08-02)
-                if (multiDayJob) {
-                    SheetFieldLabel("일하는 날")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        jobDayStarts.forEach { dayMs ->
-                            val on = dayMs in selectedDays
-                            val cal = java.util.Calendar.getInstance().apply { timeInMillis = dayMs }
-                            val md = "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
-                            val dow = arrayOf("일", "월", "화", "수", "목", "금", "토")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
-                            Box(
-                                Modifier.clip(RoundedCornerShape(999.dp))
-                                    .background(if (on) purple else TossGrayBg)
-                                    // 마지막 1개는 못 끄게(최소 하루) — 0일 배정 방지.
-                                    .clickable { selectedDays = if (on) (selectedDays - dayMs).ifEmpty { selectedDays } else selectedDays + dayMs }
-                                    .padding(horizontal = 13.dp, vertical = 8.dp)
-                            ) {
-                                Text((if (on) "● " else "") + "$md($dow)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                    color = if (on) Color.White else TossTextSecondary, maxLines = 1)
-                            }
-                        }
-                    }
-                    Text("이 사장님이 오는 날만 켜두세요. (기본은 전체)",
-                        fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
-                    Spacer(Modifier.height(14.dp))
-                }
+                // '오는 날'은 이제 **사장별로** — 아래 '사장님별 오는 날·일당' 섹션에서 사장마다 칩으로 고른다. (2026-10-31 사장님: 날마다 다른 사장)
                 SheetFieldLabel("출근 시간")
                 // ⏰ 자주 쓰는 넷만 앞에 두고 나머지는 「다른 시간」 뒤로. 일곱 개가 두 줄을 먹었다.
                 //   (2026-09-26 프로토 F1ERiGmCxX)
@@ -2009,11 +1987,12 @@ private fun AssignTeamSheet(
                 val selectedPartnerList = collabPartners.filter { key(it.phone) in selectedPartners }
                 if (selectedPartnerList.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    SheetFieldLabel("보낼 일당")
+                    SheetFieldLabel(if (multiDayJob) "사장님별 오는 날 · 일당" else "보낼 일당")
                     selectedPartnerList.forEach { p ->
                         val k = key(p.phone)
+                        // 이름 + 일당 (한 줄)
                         Row(
-                            Modifier.fillMaxWidth().padding(top = 10.dp),
+                            Modifier.fillMaxWidth().padding(top = if (multiDayJob) 16.dp else 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(p.name, style = AppType.label, fontWeight = FontWeight.ExtraBold,
@@ -2029,13 +2008,42 @@ private fun AssignTeamSheet(
                             Spacer(Modifier.width(6.dp))
                             Text("만원", style = AppType.label, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                         }
+                        // 🗓️ 이 사장이 **오는 날** — 다일 공사에서만, 사장별로. (2026-10-31 사장님: 날마다 다른 사장)
+                        if (multiDayJob) {
+                            val bossDays = daysOfPartner(k)
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 7.dp)
+                            ) {
+                                jobDayStarts.forEach { dayMs ->
+                                    val on = dayMs in bossDays
+                                    val cal = java.util.Calendar.getInstance().apply { timeInMillis = dayMs }
+                                    val md = "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+                                    val dow = arrayOf("일", "월", "화", "수", "목", "금", "토")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+                                    Box(
+                                        Modifier.clip(RoundedCornerShape(999.dp))
+                                            .background(if (on) purple else TossGrayBg)
+                                            // 마지막 1개는 못 끄게(최소 하루) — 0일 배정 방지.
+                                            .clickable {
+                                                val next = if (on) (bossDays - dayMs).ifEmpty { bossDays } else bossDays + dayMs
+                                                partnerDays = partnerDays + (k to next)
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                                    ) {
+                                        Text((if (on) "● " else "") + "$md($dow)", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                            color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
                     }
-                    // 사람마다 다르게 적을 수 있다는 걸 한 줄로. 전엔 사람마다 같은 설명이 반복됐다.
                     Text(
-                        if (selectedPartnerList.size > 1) "사람마다 다르게 적을 수 있어요."
+                        if (multiDayJob) "사장님마다 오는 날·일당을 따로 정할 수 있어요."
+                        else if (selectedPartnerList.size > 1) "사람마다 다르게 적을 수 있어요."
                         else "이 현장에서 보낼 일당이에요.",
                         style = AppType.caption, color = TossTextTertiary,
-                        modifier = Modifier.padding(top = 6.dp, start = 2.dp)
+                        modifier = Modifier.padding(top = 8.dp, start = 2.dp)
                     )
                 }
             }
@@ -2065,13 +2073,13 @@ private fun AssignTeamSheet(
                 if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
                 // 고른 사람은 전부 협업 요청(서버 초대, 상대 수락 필요). '내가 부른 일당'은 없앴다. (2026-07-17 사장님)
                 //   ⚠️ onSaveCrew 는 호출하지 않는다 — 기존 JobCrew(일당) 데이터를 건드리지 않고 그대로 보존.
-                // 일하는 날 — 전체 선택(또는 단일일 공사)이면 빈 리스트(=전체, 하위호환), 일부만이면 그 날들만. (2026-08-02)
-                val daysToSend = if (!multiDayJob || selectedDays.size >= jobDayStarts.size) emptyList()
-                                 else selectedDays.toList().sorted()
                 selectedPartners.forEach { k ->
                     if (k in reqKeys) return@forEach                       // 이미 보낸 요청은 그대로
                     val p = collabPartners.firstOrNull { key(it.phone) == k } ?: return@forEach
                     val manwon = partnerWages[k]?.toIntOrNull() ?: 0
+                    // 🗓️ 이 사장의 '오는 날'만 — 건 전체면 빈 리스트(=전체, 하위호환). 셈은 CollabAssignmentLine 한 곳. (2026-10-31 날마다 다른 사장)
+                    val daysToSend = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine
+                        .daysToSend(daysOfPartner(k), jobDayStarts.toSet())
                     onInviteCollab(p.phone, false, memo, manwon.takeIf { it > 0 }, startHour, addrToSend, daysToSend)
                 }
                 // 보냈던 요청을 뺐으면 협업 요청 취소(서버에도 알림).

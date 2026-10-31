@@ -175,4 +175,23 @@ class CollabAssignmentLineTest {
         val raw = setOf("7|01011110003|떠돌이|sh3|")
         assertTrue(CollabAssignmentLine.forJob(raw, 7, CollabAssignmentLine.daysOfJob(day(12), 2)).isEmpty())
     }
+
+    // ── 날마다 다른 사장: 사장별 '오는 날' → 서버로 보낼 날짜 (2026-10-31 사장님) ──
+
+    @Test fun `daysToSend - 전체 날 맡으면 빈 리스트(=전체 하위호환)`() {
+        val jobDays = setOf(day(12), day(13))
+        assertTrue(CollabAssignmentLine.daysToSend(jobDays, jobDays).isEmpty())        // 둘 다
+        assertTrue(CollabAssignmentLine.daysToSend(setOf(day(12)), setOf(day(12))).isEmpty())  // 단일일 공사
+    }
+
+    @Test fun `daysToSend - 일부 날만 맡으면 그 날들만 정렬`() {
+        val jobDays = setOf(day(12), day(13))
+        assertEquals(listOf(day(13)), CollabAssignmentLine.daysToSend(setOf(day(13)), jobDays))   // 13일만
+        assertEquals(listOf(day(12)), CollabAssignmentLine.daysToSend(setOf(day(12)), jobDays))   // 12일만
+    }
+
+    @Test fun `daysToSend - 건 밖 날짜는 교집합만`() {
+        val jobDays = setOf(day(12), day(13))
+        assertEquals(listOf(day(13)), CollabAssignmentLine.daysToSend(setOf(day(13), day(99)), jobDays))
+    }
 }

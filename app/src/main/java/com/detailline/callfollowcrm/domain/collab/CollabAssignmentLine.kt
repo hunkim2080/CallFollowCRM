@@ -108,6 +108,15 @@ data class CollabAssignmentLine(
          * 그 건의 날짜들(0시) — 시공일부터 기간(일수)만큼. 협업을 건에 붙일 때 적는 days 는 **이걸로만** 만든다
          *   (카드 협업 칩·「이 건에 붙이기」·일정 시트 초대가 같은 셈). 시공일 없으면 빈 집합(= 떠돌이).
          */
+        /**
+         * 협업 요청에 **보낼 날짜 목록** — 그 사장이 건의 **전체 날**을 맡으면 **빈 리스트(=전체, 하위호환)**,
+         *   일부만이면 그 날들 정렬. (2026-10-31 사장님: 날마다 다른 사장 — 사장별 '오는 날' → 서버로 보낼 날짜)
+         *   단일일 공사(jobDays ≤ 1)도 빈 리스트. bossDays 가 jobDays 밖 값을 가져도 교집합만.
+         */
+        fun daysToSend(bossDays: Set<Long>, jobDays: Set<Long>): List<Long> =
+            if (jobDays.size <= 1 || bossDays.containsAll(jobDays)) emptyList()
+            else bossDays.intersect(jobDays).toList().sorted()
+
         fun daysOfJob(jobDayStart: Long?, nDays: Int): Set<Long> {
             if (jobDayStart == null) return emptySet()
             return (0 until nDays.coerceAtLeast(1))

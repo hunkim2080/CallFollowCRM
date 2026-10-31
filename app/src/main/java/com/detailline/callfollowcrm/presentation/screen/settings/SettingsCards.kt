@@ -746,8 +746,8 @@ internal fun ExternalCalendarImportSection(container: AppContainer) {
     var loaded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
 
-    // 범위: 지난 1개월 ~ 앞으로 1년 (과거 끝난 일정은 안 가져옴)
-    val fromMs = remember { System.currentTimeMillis() - 30L * 86_400_000L }
+    // 범위: 지난 1년 ~ 앞으로 1년 (전후 1년 — 과거 기록도 함께 넘어오게). (2026-10-31 사장님)
+    val fromMs = remember { System.currentTimeMillis() - 365L * 86_400_000L }
     val toMs = remember { System.currentTimeMillis() + 365L * 86_400_000L }
 
     fun isHolidayish(name: String): Boolean =
