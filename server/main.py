@@ -14767,6 +14767,45 @@ async def _ollama_attribute_speakers(text: str, direction: str = "incoming") -> 
     return result
 
 
+async def _split_long_segments(segments, direction="incoming", max_len=45, cap=20):
+    """긴 세그먼트(한 말풍선에 여러 턴이 뭉친 것)만 exaone 로 발화 단위 재분할. (2026-10-31 사장님)
+       start_ms 는 원 세그먼트 것을 물려준다(탭재생=그 세그먼트 처음). 짧은 건 그대로. 실패=원본 유지.
+       폭주 방지: 긴 세그먼트 최대 cap 개만, 동시 3개."""
+    if not segments:
+        return segments
+    long_idx = [i for i, s in enumerate(segments)
+                if len((str(s.get("text") or "")).strip()) > max_len][:cap]
+    if not long_idx:
+        return segments
+    _sem = asyncio.Semaphore(3)
+
+    async def _resplit(i):
+        tx = str(segments[i].get("text") or "").strip()
+        try:
+            async with _sem:
+                sub = await _ollama_attribute_speakers(tx, direction=direction)
+        except Exception:
+            sub = None
+        return i, sub
+
+    pairs = await asyncio.gather(*[_resplit(i) for i in long_idx])
+    repl = {i: sub for i, sub in pairs}
+    out = []
+    for i, s in enumerate(segments):
+        sub = repl.get(i)
+        if sub and len(sub) >= 2:
+            for t in sub:
+                _sp = str(t.get("speaker") or "").strip()
+                if _sp not in ("나", "손님"):
+                    _sp = str(s.get("speaker") or "") or "?"
+                _tx = str(t.get("text") or "").strip()
+                if _tx:
+                    out.append({"start_ms": s.get("start_ms"), "speaker": _sp, "text": _tx})
+        else:
+            out.append(s)
+    return out
+
+
 async def call_claude_json(
     *, system_prompt: str, user_msg: str, max_tokens: int = 600,
     model: str = CLAUDE_MODEL,
@@ -16881,6 +16920,12 @@ async def call_audio_summary_endpoint(
                 transcript_segments = await _ollama_attribute_speakers(transcript, direction=direction)
         except Exception:
             transcript_segments = []
+        # 긴 세그먼트(한 말풍선에 여러 턴 뭉침)만 발화 단위로 재분할 — 모모콜식 가독성. (2026-10-31 사장님)
+        if transcript_segments:
+            try:
+                transcript_segments = await _split_long_segments(transcript_segments, direction=direction)
+            except Exception:
+                pass
         if transcript_segments:
             print(f"[call-audio-summary] {phone_digits} 화자분리 {len(transcript_segments)}발화")
 
