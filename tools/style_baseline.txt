@@ -61,9 +61,9 @@ screen/reminder/ScheduleReminderScreen.kt 5
 screen/report/ReportScreen.kt 35
 screen/schedule/ScheduleAddScreen.kt 57
 screen/schedule/ScheduleParts.kt 42
-screen/schedule/ScheduleScreen.kt 64
+screen/schedule/ScheduleScreen.kt 63
 screen/search/SearchScreen.kt 45
-screen/settings/SettingsCards.kt 62
+screen/settings/SettingsCards.kt 63
 screen/settings/SettingsScreen.kt 163
 screen/settings/SoundSettingsScreen.kt 12
 screen/settlement/CashFlowSection.kt 24

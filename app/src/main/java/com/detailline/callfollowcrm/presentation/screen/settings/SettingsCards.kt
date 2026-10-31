@@ -793,12 +793,12 @@ internal fun ExternalCalendarImportSection(container: AppContainer) {
     }
 
     Spacer(Modifier.height(18.dp))
-    Text("외부 캘린더 가져오기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+    Text("가져오기 · 다른 캘린더 → 여기로 (이사)", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
         modifier = Modifier.padding(start = 4.dp, bottom = 7.dp))
     TossCard {
         Column {
             Text(
-                "폰에 있는 다른 캘린더(구글·삼성) 일정을 시공막내로 가져와요.\n원래 캘린더는 그대로 두고 읽기만 해요 · 겹치는 건 자동으로 걸러요.",
+                "다른 캘린더(구글·삼성)에 있던 일정을 시공막내로 가져와요(이사).\n자동 동기화가 아니에요 — 누를 때만 가져와요. 이미 가져온 건 다시 안 와요. 원래 캘린더는 그대로예요.",
                 fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
             )
             Spacer(Modifier.height(12.dp))
@@ -925,8 +925,10 @@ internal fun GoogleCalendarSection(container: AppContainer) {
     TossCard {
         Column {
             // 제목은 바로 위 앱바가 이미 말하고 있다. 같은 말을 두 번 하지 않는다. (2026-09-22 사장님)
+            Text("내보내기 · 내 일정 → 구글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                modifier = Modifier.padding(bottom = 6.dp))
             Text(
-                "시공·A/S 일정이 구글 캘린더에 자동으로 올라가요.\n폰 위젯에서 보거나, 가족·직원과 나눠 보거나, 폰을 바꿔도 그대로 남아요.",
+                "내가 잡은 시공·A/S 일정을 구글 캘린더로 보내요. 구글 앱·위젯에서 보고, 가족·직원과 나눠 보고, 폰 바꿔도 백업돼요. (자동으로 계속 올라가요.)",
                 fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
             )
             Spacer(Modifier.height(12.dp))
