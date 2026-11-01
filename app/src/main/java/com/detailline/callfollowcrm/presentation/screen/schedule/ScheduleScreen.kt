@@ -314,24 +314,23 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
-                    // 구글 캘린더 — **연결한 사람에게만**, 버튼이 아니라 '언제 올렸는지' 한 줄. (2026-09-16 사장님)
-                    //   "이제 버튼 안 눌러도 되는 거면 동기화 날짜만 적히면 될 듯한데. 지금은 투박해서.
-                    //    그리고 구글 캘린더를 연동한 사람만 나와야 하지 않을까?"
-                    //   일정·메모가 바뀌면 CalendarAutoSync 가 알아서 올린다 → 누를 일이 없다.
-                    //   미연결이면 아예 안 보인다(연결은 더보기 > 설정에서). 안 쓰는 사람 화면을 안 어지럽힌다.
-                    //   탭은 살려둔다 — 자동이 늦을 때 직접 올릴 수 있는 뒷문(겉보기는 조용한 글씨).
-                    if (calendarConnected) {
-                        Text(
-                            if (calendarSyncing) "올리는 중…"
-                            else lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount),
-                            fontSize = 11.sp,
-                            color = TossTextTertiary,
-                            maxLines = 1,
-                            modifier = Modifier
-                                .padding(end = 10.dp)
-                                .clickable { showCalSheet = true }
-                        )
-                    }
+                    // 구글 캘린더 — 일정 페이지에서 바로. 연결됨=동기화 상태(조용히), 미연결=「연결」 입구. (2026-11-01 사장님 "동기화를 일정 페이지에")
+                    //   전엔 연결한 사람만 보였다(2026-09-16). 이제 미연결도 연결 입구를 여기서 — 더보기까지 안 가게.
+                    //   탭: 연결됨 → 올린 내역 시트 · 미연결 → onCalendarSync 가 연결(인증) 띄움. 자동 동기화는 그대로라 평소 누를 일 없음(조용한 글씨).
+                    Text(
+                        text = when {
+                            !calendarConnected -> "구글 캘린더 연결"
+                            calendarSyncing -> "올리는 중…"
+                            else -> lastSyncLabel(calendarSyncedAtMs, calendarSyncedCount)
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = if (calendarConnected) FontWeight.Medium else FontWeight.Bold,
+                        color = if (calendarConnected) TossTextTertiary else TossBlue,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .padding(end = 10.dp)
+                            .clickable { if (calendarConnected) showCalSheet = true else onCalendarSync() }
+                    )
                     Box(
                         modifier = Modifier
                             .padding(end = 12.dp)
