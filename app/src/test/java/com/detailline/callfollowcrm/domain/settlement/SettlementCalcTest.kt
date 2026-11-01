@@ -70,11 +70,24 @@ class SettlementCalcTest {
         assertEquals(1_000_000, r.total)
     }
 
-    @Test fun `계약금만 박혀있고 받음 - 총액 없으면 그게 완납`() {
+    @Test fun `계약금만 받음 + 총액 미정 - 완납 아님 (총액을 지어내지 않는다)`() {
+        // 🔴 2026-11-01 사장님: '만나서 정하기' 손님은 계약금만 받고 총액은 나중에 정한다.
+        //   계약금을 받았다고 「전액 완납」이 되면 안 된다. 전엔 총액 미정이면 total=계약금 으로 지어내
+        //   received==total → 완납으로 찍혔다(계약금 10만 받자마자 완납·완료되던 버그).
         val r = SettlementCalc.rowOf(customer(deposit = 200_000, depositPaid = true))
-        assertEquals(200_000, r.total)
-        assertEquals(200_000, r.received)
-        assertEquals(0, r.outstanding)
+        assertFalse(r.totalKnown)        // 총액을 실제로 안 넣음 = 미정
+        assertTrue(r.depositPaid)        // 계약금은 받은 걸로 남는다(티는 유지)
+        assertFalse(r.isPaidOff)         // 지어낸 총액으론 완납 아님
+    }
+
+    @Test fun `총액 미정이라도 잔금까지 받았으면 완납 (옛 계약금+잔금 데이터)`() {
+        // 총액은 안 적었지만 계약금 10만 + 잔금 50만을 다 받음 → 마지막 지불(잔금)까지 받았으니 완납.
+        //   총액 미정이어도 balancePaid 면 완납으로 본다(총액은 계약금+잔금으로 알 수 있다).
+        val r = SettlementCalc.rowOf(
+            customer(deposit = 100_000, depositPaid = true, balance = 500_000, balancePaid = true)
+        )
+        assertFalse(r.totalKnown)
+        assertEquals(600_000, r.received)
         assertTrue(r.isPaidOff)
     }
 

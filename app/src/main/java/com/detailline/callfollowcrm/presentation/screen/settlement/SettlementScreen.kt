@@ -630,15 +630,21 @@ private fun PayBlock(
     onUndoPaid: () -> Unit
 ) {
     val hasDeposit = c.depositAmount > 0L
+    // 총액 미정(만나서 정하기 — 계약금만, 잔금 없음). 지어낸 총액으로 「완납」·「잔금 확인」이 뜨면 안 된다. (2026-11-01 사장님)
+    val totalUnset = !c.totalKnown && c.balanceAmount <= 0L
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("총 ${MoneyFormatter.manwonShort(c.total)}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp)
+            // 총액 미정이면 지어낸 「총 10만」 대신 「총 미정」. (2026-11-01 사장님)
+            Text(if (totalUnset) "총 미정" else "총 ${MoneyFormatter.manwonShort(c.total)}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp)
             Spacer(Modifier.height(4.dp))
             // pay-stat
             // 같은 상태를 "남음"/"미수" 로 다르게 쓰던 것을 **한 가지 말**로. 단위도 "만" -> "만원".
             //   (2026-09-20 사장님)
             when {
                 c.isPaidOff -> Text("전액 완납", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossSuccess)
+                totalUnset -> PayStat(
+                    if (c.depositPaid) "계약금 ${MoneyFormatter.manwonShort(c.depositAmount)} 받음 · " else "계약금 ${MoneyFormatter.manwonShort(c.depositAmount)} 안 받음 · ",
+                    "총액 미정")
                 hasDeposit && !c.depositPaid -> PayStat(
                     "계약금 ${MoneyFormatter.manwonShort(c.depositAmount)} 안 받음 · ", "잔금 ${MoneyFormatter.manwonShort(c.balanceAmount)} 남음")
                 hasDeposit -> PayStat(
@@ -668,6 +674,8 @@ private fun PayBlock(
                     )
                 }
             }
+            // 총액 미정 → 「잔금 확인」(눌러도 완납 덫)은 안 낸다. 계약금만 확인, 총액은 고객 상세에서 넣는다. (2026-11-01 사장님)
+            totalUnset -> { if (!c.depositPaid) PayAct("계약금 확인", onConfirmDeposit) }
             hasDeposit && !c.depositPaid -> PayAct("계약금 확인", onConfirmDeposit)
             hasDeposit -> PayAct("잔금 확인", onConfirmBalance)
             else -> PayAct("전액 확인", onConfirmBalance)

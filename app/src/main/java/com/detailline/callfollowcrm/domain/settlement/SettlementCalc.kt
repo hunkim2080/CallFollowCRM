@@ -21,7 +21,10 @@ data class SettleRow(
     val balanceAmount: Long,
     val depositPaid: Boolean,
     val balancePaid: Boolean,
-    val isPaidOff: Boolean
+    val isPaidOff: Boolean,
+    /** 총액을 **실제로 입력**했나(totalAmount≠null). false면 total 은 계약금+잔금으로 **지어낸 값** —
+     *  「완납」·「잔금」을 단정하면 안 된다(총액 미정). (2026-11-01 사장님 "만나서 정하기 손님 계약금 받으니 완납됨") */
+    val totalKnown: Boolean
 )
 
 /**
@@ -218,6 +221,7 @@ object SettlementCalc {
         } else {
             balanceAmount?.coerceAtLeast(0L) ?: 0L
         }
+        val totalKnown = totalAmount != null
         val total = totalAmount ?: (deposit + balance)
         // 잔금(마지막 지불)까지 받았으면 = 전액 받은 것(완납). 계약금 '받음' 표시가 없어도 완납으로 본다.
         //   (완납 원탭이 잔금만 받음처리 → 계약금 10만원이 미수로 남던 버그 fix, 2026-07-15 사장님.
@@ -228,7 +232,10 @@ object SettlementCalc {
             else -> 0L
         }
         val outstanding = (total - received).coerceAtLeast(0L)
-        val isPaidOff = total > 0L && received >= total
+        // 「완납」은 **총액을 실제로 정했거나(totalKnown) 마지막 잔금을 받았을 때(balancePaid)만**. (2026-11-01 사장님)
+        //   총액 미정이면 total 을 계약금으로 지어내 → 계약금만 받아도 received==total 이 되어 「전액 완납」이 찍히던 버그
+        //   (만나서 정하기 손님: 계약금 10만 받자마자 완납·완료됨). 지어낸 총액으론 완납 없다.
+        val isPaidOff = total > 0L && received >= total && (totalKnown || balancePaid)
 
         return SettleRow(
             customerId = customerId,
@@ -239,7 +246,8 @@ object SettlementCalc {
             balanceAmount = balance,
             depositPaid = depositPaid,
             balancePaid = balancePaid,
-            isPaidOff = isPaidOff
+            isPaidOff = isPaidOff,
+            totalKnown = totalKnown
         )
     }
 

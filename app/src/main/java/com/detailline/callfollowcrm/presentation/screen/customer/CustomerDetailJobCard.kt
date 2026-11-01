@@ -182,6 +182,9 @@ internal fun JobDetailCard(
     val depPaid = cShown.depositPaidAt != null
     val balPaid = cShown.balancePaidAt != null
     val allPaid = settle.isPaidOff
+    // 💬 총액을 아직 안 정한 손님(만나서 정하기) — 계약금만 받은 상태. 「완납」도 「잔금」도 아니고 **「총액 미정」**. (2026-11-01 사장님)
+    //   hasAmount(계약금이라도 있음) 안에서 총액이 비었으면 = 총액 미정. 잔금은 총액을 넣어야 생긴다.
+    val totalUnset = hasAmount && totalWon <= 0L
     // 머리에 날짜가 있고 눌러 고칠 수 있으면(진행 중인 건) 몸통의 「시공 예약」 줄은 안 그린다 — 같은 말 두 번 X.
     //   접힌 건(완료)은 머리 날짜가 펼침 손잡이라 몸통 줄로 고친다. 날짜 없는 건은 몸통 줄이 「눌러서 설정」 입구.
     val headHasDate = job != null && !folded && scheduled != null
@@ -386,6 +389,22 @@ internal fun JobDetailCard(
                                         )
                                         Spacer(Modifier.width(9.dp))
                                         CdAddBox(Icons.Default.Add)
+                                    }
+                                } else if (totalUnset) {
+                                    // 💬 총액 미정 — 「전액 완납」(계약금을 완납으로 오해)도 「잔금 0 남음」도 아니다. 계약금 받은 티만. (2026-11-01 사장님)
+                                    //   「잔금 받았어요」(완납 덫)는 안 낸다 — 총액을 넣어야 잔금이 생긴다. 글자를 누르면 총액 입력창.
+                                    Text(
+                                        if (depPaid) "총액 미정 · 계약금 " + manwonLabel(depositWon) + " 받음" else "총액 미정",
+                                        fontSize = 14.sp, lineHeight = 14.sp, fontWeight = FontWeight.ExtraBold,
+                                        color = TossTextTertiary, style = CdTightText,
+                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { host.onEditAmount(editJobId, "total") }
+                                    )
+                                    if (!depPaid) {
+                                        Spacer(Modifier.width(9.dp))
+                                        CdUndoChip("계약금 받았어요", danger = false, filled = true) {
+                                            if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true)
+                                            else viewModel.setDepositPaid(true)
+                                        }
                                     }
                                 } else {
                                     // 값 크기=윗줄 CdKv 값(14)과 같게 — 라벨(13)과 눈높이 맞아 한 줄로. 전엔 18이라 작은 라벨이 위로 떠 "중앙 아님"이 났다. 강조는 색·굵기. (2026-10-20 사장님)
