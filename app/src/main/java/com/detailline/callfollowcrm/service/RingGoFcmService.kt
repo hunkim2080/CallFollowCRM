@@ -28,6 +28,11 @@ class RingGoFcmService : FirebaseMessagingService() {
         val data = message.data
         // 알림 빌드 중 어떤 예외든(OEM PendingIntent/채널 등) FCM 콜백 죽지 않게 통째 가드. (2026-06-30 안정성 점검)
         runCatching {
+        // 🔔 협업 관련 FCM 이면 "협업 바뀜" 신호를 올려 **열려 있는 달력이 즉시** 다시 당기게. (2026-11-01 사장님 "협업 일정 바로 안 뜸")
+        //   showXxx 알림과 별개 — 알림은 알림대로 뜨고, 이 신호로 ScheduleViewModel 이 loadCollab() 을 즉시 돌린다(12초 루프 안 기다림).
+        if (data["type"]?.startsWith("collab") == true) {
+            (applicationContext as? CallFollowCrmApplication)?.container?.collabEventCenter?.markCollabChanged()
+        }
         when (data["type"]) {
             "collab_invite" -> {
                 val shareId = data["share_id"].orEmpty()

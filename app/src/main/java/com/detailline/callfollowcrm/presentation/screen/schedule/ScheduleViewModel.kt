@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -392,6 +393,15 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private var partnerNameByShareId: Map<String, String> = emptyMap()
 
     init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
+
+    // 🔔 협업 FCM(초대·수락·일정변경·해제)이 오면 **즉시** 달력을 다시 당긴다 — 12초 루프 안 기다리고. (2026-11-01 사장님 "협업 일정 바로 안 뜸")
+    //   신호는 CollabEventCenter.markCollabChanged(=RingGoFcmService 가 collab* 수신 시 올림). drop(1)=시작값 0 은 건너뜀(init 가 이미 loadCollab 함).
+    init {
+        container.collabEventCenter.collabChanged
+            .drop(1)
+            .onEach { loadCollab() }
+            .launchIn(viewModelScope)
+    }
 
     init {
         // 🏷️ 명부(고객)가 로드/변경되면, 협업 배정의 **번호 이름 → 명부 상호**로 맞춘다. (2026-10-27 사장님)

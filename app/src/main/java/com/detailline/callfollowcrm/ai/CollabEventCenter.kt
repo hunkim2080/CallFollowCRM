@@ -29,6 +29,13 @@ class CollabEventCenter(
     private val _acceptedUpcoming = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
     val acceptedUpcoming: StateFlow<List<SharedSiteRepository.SharedSite>> = _acceptedUpcoming.asStateFlow()
 
+    /** 🔔 **협업이 바뀌었다는 신호(틱).** FCM(초대·수락·일정변경·해제)이 올 때마다 1씩 증가.
+     *   열려 있는 일정 화면(ScheduleViewModel)이 이걸 보고 달력 협업 마커를 **즉시** 다시 당긴다(withMe) —
+     *   전엔 달력이 자기 12초 루프만 봐서 FCM 이 와도 최대 12초 뒤에 떴다. (2026-11-01 사장님 "협업 일정 바로 안 뜸") */
+    private val _collabChanged = MutableStateFlow(0L)
+    val collabChanged: StateFlow<Long> = _collabChanged.asStateFlow()
+    fun markCollabChanged() { _collabChanged.value = _collabChanged.value + 1L }
+
     data class CollabUpdate(
         val eventId: String,
         val shareId: String,

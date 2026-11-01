@@ -15837,3 +15837,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경: 평소엔 작은 한 줄 「＋ 고객 이름 (선택)」, 누르면 입력칸 열림(nameExpanded). 번호 추천을 눌러 이름이 자동으로 차면(name.isNotBlank) 바로 펼쳐 보이고 고칠 수 있음 — 접힘은 '내 고객' 모드 이름칸만, 거래처/주소/금액은 그대로
 - 폰 확인: 못 봄(그 폼 상태로 adb 로 몰아가기 어려움). assembleRelease BUILD=0·가드7통과(style 기준선 2408→2410 = 새 줄 14.sp·RoundedCornerShape 2개). 진단 0
 - 다음 액션: 사장님 — 시공 일정 추가에서 이름칸이 작은 「＋」 한 줄로 접혀 보이는지, 눌러 열리는지, 번호 추천 눌렀을 때 이름 자동으로 펼쳐 뜨는지. 내부배포는 'ㄱ' 기다림
+
+## 2026-11-01 17:40 · android
+협업 일정이 달력에 바로 안 뜨던 것 — FCM 오면 달력 즉시 새로고침 (사장님 질문 2026-11-01)
+- 증상: 상대 사장이 협업 공유해도 내 달력 협업 마커가 바로 안 뜸(최대 12초). 원인: ScheduleScreen 이 열려있는 동안 loadCollab()(withMe)을 **자기 12초 루프**로만 당김. 서버 FCM(collab_invite/collab_event 등)은 이미 오는데 그걸로 달력을 안 깨웠음
+- 서버: 손 안 댐 — main.py §30 이 이미 공유 시 collab_invite, 수락 시 collab_event 를 push_tokens 로 발송 중(라이브). 빠진 건 앱 쪽 하나뿐
+- 변경(앱만): ① CollabEventCenter.collabChanged(StateFlow 틱)+markCollabChanged() ② RingGoFcmService: type 이 collab* 이면 markCollabChanged() 호출(알림은 그대로, 신호만 추가) ③ ScheduleViewModel: collabChanged.drop(1).onEach{loadCollab()} — 열린 달력이 FCM 즉시 다시 당김. 12초 루프는 안전망으로 유지
+- 폰 확인: 못 봄(두 폰/실협업 필요). assembleRelease BUILD=0·가드7통과(style 안 늘어남=하드코딩 값 없음). 진단 0
+- 다음 액션: 사장님 — 다른 폰에서 협업 공유/수락 시 내 달력에 거의 즉시(1~2초, 인터넷 왕복) 뜨는지. 안 뜨면 그 폰이 FCM 토큰 등록됐는지(푸시 수신) 확인 필요
