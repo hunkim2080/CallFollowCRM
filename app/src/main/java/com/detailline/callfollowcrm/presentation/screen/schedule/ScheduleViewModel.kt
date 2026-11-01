@@ -360,6 +360,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private val _collabPartnerNameByPhone = MutableStateFlow<Map<String, String>>(emptyMap())
     val collabPartnerNameByPhone = _collabPartnerNameByPhone.asStateFlow()
 
+    /** 📇 **번호(PhoneKey) → 내 고객/연락처에 저장한 이름.** 명부엔 번호뿐인 협업 사장을 picker 에서 그 이름으로 보이게(①b).
+     *   상대 상호(위 `collabPartnerNameByPhone`, 수락 후)와 다르다 — 이건 **내가 저장한 이름**이라 수락 전에도 쓴다.
+     *   출처는 `resolveCollabNamesFromContacts` 와 **같은 byPhone**(customerRepository.observeAll). 보여줄 때만. (2026-11-01 사장님) */
+    private val _contactNameByPhone = MutableStateFlow<Map<String, String>>(emptyMap())
+    val contactNameByPhone = _contactNameByPhone.asStateFlow()
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
@@ -399,6 +405,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                         if (k.isNotEmpty() && !byPhone.containsKey(k)) byPhone[k] = n
                     }
                 }
+                _contactNameByPhone.value = byPhone   // picker 가 번호→내 연락처 이름으로(①b) — 원본은 안 건드림
                 resolveCollabNamesFromContacts(byPhone)
             }
             .launchIn(viewModelScope)

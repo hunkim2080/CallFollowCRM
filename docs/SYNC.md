@@ -15813,3 +15813,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경: partnerDays(seed-once) → partnerDayEdits(직접 바꾼 것만). 읽기 daysOfPartner = 직접바꾼값 ?: savedPartnerDays[k](매 그림 최신) ?: 건전체. 제출 시 '직접 바꿈(partnerDayEdits.containsKey)'일 때만 onUpdateCollabDays. 날짜카드·전파는 원래 저장값을 직접 읽어 영향 없음(§12-K 연결지점 확인)
 - 폰 확인: 못 봄(사장님 실데이터는 다른 폰에, 디버그폰은 sqlite 편집이 앱권한으로 막혀 동일 시나리오 재현 불가). assembleRelease BUILD=0·가드7통과·CollabAssignmentLine/RequestSelection 테스트 통과. 디버그 빌드 S9 설치함
 - 다음 액션: 사장님 — 그 시트 열어 해시=12·13 둘 다 켜짐 확인 → 13 끄고 저장 → 해시 12만. 그리고 새 사장 초대 시 칩이 실제대로 보이는지. (기본값 '전체' 유지할지 = 아래 질문)
+
+## 2026-11-01 15:10 · android
+협업 picker — ①번호를 내 연락처 이름으로 ②요청함 옆에 요청 날짜 표기 (사장님 실기 2026-11-01)
+- ① 증상: '같이 할 사장님' 시트에서 파인(명부엔 번호뿐, 내 고객엔 '파인 탄성')이 번호로 떴음. 일정 배지·고객상세는 이미 이름으로(resolveCollabNamesFromContacts) — 시트만 안 걸렸음(명부/NotebookContact 를 그리는데 거긴 번호 저장)
+- ① 변경: 공용 CollabDisplayName.merge 에 contactName(①b) 티어 추가 — ①내가지은이름 → ①b내연락처이름 → ②상대상호 → ③번호. VM에 contactNameByPhone(=resolveCollabNamesFromContacts 와 같은 byPhone, customerRepository.observeAll) 노출. picker 표시 2곳(목록 줄·사장님별 오는날·일당) 다 적용. 원본 명부 이름은 안 건드림(보여줄 때만)
+- ② 변경: 요청함 아래에 "요청 · N일 중 M일 · 11/12 …" 한 줄(다일 공사·요청한 사장만). 날짜는 공용 DateTimeUtils.formatMonthDay — 새 raw 날짜 0
+- 폰 확인: 못 봄(사장님 실데이터=다른 폰, 디버그폰은 명부=고객 매칭 시나리오 재현 못 함). assembleRelease BUILD=0·가드7통과(dup 18 그대로·size 안 늘어남·style 2412→2406). CollabDisplayNameTest +①b 케이스 통과
+- 다음 액션: 사장님 — 시트에서 파인이 '파인 탄성'으로 뜨는지, 요청함 아래 날짜가 맞는지. 내부배포는 사장님 'ㄱ' 기다림

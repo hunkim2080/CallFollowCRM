@@ -267,6 +267,7 @@ fun ScheduleScreen(
     val teamMembers by viewModel.teamMembers.collectAsState()
     val collabPartners by viewModel.collabPartners.collectAsState()
     val collabPartnerNames by viewModel.collabPartnerNameByPhone.collectAsState()
+    val contactNames by viewModel.contactNameByPhone.collectAsState()   // 번호→내 연락처 이름(①b)
     val partnerStats by viewModel.partnerStats.collectAsState()
     val partnerLastPlace by viewModel.partnerLastPlace.collectAsState()
     val pickCandidates by viewModel.pickCandidates.collectAsState()
@@ -704,6 +705,7 @@ fun ScheduleScreen(
             members = teamMembers,
             collabPartners = collabPartners,
             collabPartnerNames = collabPartnerNames,
+            contactNames = contactNames,
             assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
             savedPartnerDays = collabAssign[c.id].orEmpty().filter { it.days.isNotEmpty() }
                 .associate { PhoneKey.of(it.phone) to it.days.intersect(assignJobDayStarts.toSet()) }.filterValues { it.isNotEmpty() },
@@ -1371,6 +1373,8 @@ private fun AssignTeamSheet(
     collabPartners: List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>,
     /** 📇 PhoneKey → 상대 상호. 명부 이름이 번호로 저장돼 있으면 이걸로 교정해 보인다(공용 CollabDisplayName). */
     collabPartnerNames: Map<String, String> = emptyMap(),
+    /** 📇 PhoneKey → 내 연락처 이름(①b). 명부엔 번호뿐이어도 내 고객에 있으면 그 이름으로. (2026-11-01) */
+    contactNames: Map<String, String> = emptyMap(),
     assignedCollabPhones: Set<String>,
     initiallySelected: Set<String>,
     initialMemo: String,
@@ -1410,12 +1414,9 @@ private fun AssignTeamSheet(
     //   ⚠️ '내가 부른 일당'(JobCrew) 데이터는 지우지 않고 그대로 둔다(정산 이력 보존·되돌리기 가능) — 이 시트에서
     //      만들지/건드리지 않을 뿐. 그래서 crewKeys 프리선택·onSaveCrew 호출을 뺐다.
     var selectedPartners by remember { mutableStateOf(reqKeys) }   // 협업 사장 phone last8 키
-    // 🔴 **협업 자료는 시트가 그려진 **뒤에** 온다.** (2026-09-27 사장님 "더 추가가안되네")
-    //   위 remember 에 키가 없어 **첫 그림 때의 reqKeys(= 비어 있음)** 로 굳었다.
-    //   그래서 이미 요청한 사장님이 안 골라진 채로 남고, 그대로 보내기를 누르면
-    //   앱은 그걸 **「그 사람을 뺐다」**로 읽어 「보낸 협업을 취소할까요?」를 띄웠다.
-    //   ⚠️ 한 번만 채운다 — 매번 채우면 사장님이 **일부러 뺀 사람이 도로 들어온다.**
-    //   셈은 [CollabRequestSelection.seed] 한 곳에 있다 — 폰에서 못 보는 규칙이라 시험이 본다.
+    // 🔴 협업 자료는 시트가 그려진 **뒤에** 온다 → 첫 그림의 빈 reqKeys 로 굳으면 이미 요청한 사장님이 안 골라져
+    //   보내기 때 「취소할까요?」가 떴다. 그래서 **한 번만** 채운다(매번이면 일부러 뺀 사람이 도로 들어옴).
+    //   셈은 [CollabRequestSelection.seed] 한 곳 — 폰에서 못 보는 규칙이라 시험이 본다. (2026-09-27 사장님)
     var reqSeeded by remember { mutableStateOf(reqKeys.isNotEmpty()) }
     androidx.compose.runtime.LaunchedEffect(reqKeys) {
         val (next, seeded) = com.detailline.callfollowcrm.domain.collab.CollabRequestSelection
@@ -1720,9 +1721,9 @@ private fun AssignTeamSheet(
                 }
                 shown.forEachIndexed { idx, p ->
                     val k = key(p.phone)
-                    // 📇 번호로 저장된 협업 사장도 **이름으로** — 공용 merge(내 이름 → 상대 상호 → 형식번호). 일정 배지와 같은 자리.
+                    // 📇 번호로 저장된 협업 사장도 **이름으로** — 공용 merge(내 이름 → 내 연락처 → 상대 상호 → 형식번호). 일정 배지와 같은 자리.
                     val displayName = com.detailline.callfollowcrm.domain.collab.CollabDisplayName
-                        .merge(p.name, collabPartnerNames[k], accepted = true).ifBlank { p.name }
+                        .merge(p.name, collabPartnerNames[k], accepted = true, contactName = contactNames[k]).ifBlank { p.name }
                     val nameIsPhone = displayName.none { it.isLetter() }   // 이름 없이 번호로만 뜬 경우 → line1 번호 중복 방지
                     val on = k in selectedPartners
                     val wasReq = k in reqKeys
@@ -1761,12 +1762,13 @@ private fun AssignTeamSheet(
                                         color = purple)
                                 }
                             }
-                            // 🤝 **함께 몇 번 했나.** 일당을 정할 때 이게 제일 큰 참고가 된다.
-                            //   ⚠️ 협업으로 부른 것만 세어진다(서버 기록이 그것뿐 — 사장님 확인).
-                            // 📍 「며칠째 호흡」보다 **어디였는지**가 훨씬 잘 떠오른다. (2026-09-26 사장님)
+                            // 🗓️ 어느 날로 요청했나 — 다일 공사에서 열어보지 않아도 한눈에. (2026-11-01 사장님 "요청함 옆에 2일 중 1일")
+                            if (wasReq && multiDayJob) savedPartnerDays[k]?.takeIf { it.isNotEmpty() }?.sorted()?.let { rd ->
+                                Text("요청 · ${jobDayStarts.size}일 중 ${rd.size}일 · " + rd.joinToString(" · ") { DateTimeUtils.formatMonthDay(it) },
+                                    style = AppType.caption, fontWeight = FontWeight.Bold, color = purple, maxLines = 1)
+                            }
+                            // 🤝 함께 몇 번·마지막 어디 — 일당 참고(협업 기록만). 번호 먼저(이름만이면 못 알아봄). (2026-09-26·27 사장님)
                             val place = partnerLastPlace[p.phone.filter { ch -> ch.isDigit() }]
-                            // ☎️ **번호 먼저.** 이름만 적혀 있으면 누구지 못 알아본다.
-                            //   (2026-09-27 사장님 "이 사람 번호가 안 뜼니까 모르겠네")
                             val line1 = buildString {
                                 // 제목이 이미 번호면(이름 없음) 여기선 번호 생략 — 두 줄에 같은 번호 중복 방지.
                                 if (!nameIsPhone) com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(p.phone)
@@ -2001,18 +2003,16 @@ private fun AssignTeamSheet(
                 Text("선택한 모두에게 같이 전달돼요.",
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
 
-                // 💰 **일당이 주인공.** 전엔 「고른 사장님」이라는 섹션이 이름을 또 말하고,
-                //   그 밑 긴 설명 뒤에 일당이 붙어 있었다. 위 목록에 이미 체크가 보인다 —
-                //   같은 말을 두 번 하지 않는다. (2026-09-26 프로토 F1ERiGmCxX)
+                // 💰 **일당이 주인공.** 위 목록에 이미 체크가 보이니 이름을 또 말하지 않는다. (2026-09-26 프로토 F1ERiGmCxX)
                 val selectedPartnerList = collabPartners.filter { key(it.phone) in selectedPartners }
                 if (selectedPartnerList.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
                     SheetFieldLabel(if (multiDayJob) "사장님별 오는 날 · 일당" else "보낼 일당")
                     selectedPartnerList.forEach { p ->
                         val k = key(p.phone)
-                        // 명부 줄과 같은 이름(번호로 저장돼 있으면 상대 상호·형식번호로) — 공용 merge.
+                        // 명부 줄과 같은 이름(번호면 내 연락처·상대 상호·형식번호로) — 공용 merge.
                         val pName = com.detailline.callfollowcrm.domain.collab.CollabDisplayName
-                            .merge(p.name, collabPartnerNames[k], accepted = true).ifBlank { p.name }
+                            .merge(p.name, collabPartnerNames[k], accepted = true, contactName = contactNames[k]).ifBlank { p.name }
                         // 이름 + 일당 (한 줄)
                         Row(
                             Modifier.fillMaxWidth().padding(top = if (multiDayJob) 16.dp else 10.dp),

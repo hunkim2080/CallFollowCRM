@@ -20,6 +20,16 @@ class CollabDisplayNameTest {
         assertEquals("대박줄눈", CollabDisplayName.merge("01022647734", "대박줄눈", accepted = true))
     }
 
+    @Test fun `번호만 저장됐어도 내 연락처 이름이 있으면 그걸로 (①b, 수락 전에도)`() {
+        // 명부엔 번호뿐이지만 내 고객에 「파인 탄성」으로 저장 → 번호 대신 그 이름. 상대 상호·수락 여부와 무관.
+        assertEquals("파인 탄성", CollabDisplayName.merge("01022647734", null, accepted = false, contactName = "파인 탄성"))
+        assertEquals("파인 탄성", CollabDisplayName.merge("협업 사장", "대박줄눈", accepted = true, contactName = "파인 탄성"))
+        // 명부에 내가 지은 진짜 이름이 있으면 그게 ① 우선(연락처 이름보다).
+        assertEquals("김포 김사장", CollabDisplayName.merge("김포 김사장", null, accepted = true, contactName = "파인 탄성"))
+        // 연락처 이름이 비거나 번호뿐이면 ①b 건너뜀 → 번호.
+        assertEquals("010-2264-7734", CollabDisplayName.merge("01022647734", null, accepted = true, contactName = "  "))
+    }
+
     @Test fun `미수락이면 상대 사업자명 안 쓴다 — 내 이름 또는 번호`() {
         assertEquals("김포 김사장", CollabDisplayName.merge("김포 김사장", "대박줄눈", accepted = false))
         assertEquals("010-2264-7734", CollabDisplayName.merge("01022647734", "대박줄눈", accepted = false))

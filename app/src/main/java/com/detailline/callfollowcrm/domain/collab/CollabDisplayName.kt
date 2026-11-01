@@ -5,6 +5,7 @@ package com.detailline.callfollowcrm.domain.collab
  *
  * 우선순위(사장님):
  *   ① **내가 저장/지은 이름** — 명부에 그 번호로 저장한 상호(「탄성 파인」) 또는 꾹 눌러 지은 이름.
+ *   ①b 없으면 **내 고객/연락처에 그 번호로 저장한 이름** — 이것도 「내가 저장한 이름」이라 수락 전에도 보인다. (2026-11-01 사장님 "번호가 파인탄성이면 이름으로")
  *   ② 없으면 **상대가 자기 폰에 등록한 사업자명** — 서버 by-me 의 `partner_name`(수락할 때 채워진다).
  *   ③ 그것도 없으면 **핸드폰 번호**(010-0000-0000).
  *
@@ -35,11 +36,14 @@ object CollabDisplayName {
     /**
      * @param nickname 내가 저장/지은 이름(없으면 번호·자리표시가 들어온다)
      * @param partnerName 상대가 등록한 사업자명(서버, 수락 시)
+     * @param contactName 내 고객/연락처에 그 번호로 저장한 이름(①b — 번호·상대 상호보다 먼저. 이것도 「내가 저장한 이름」)
      */
-    fun merge(nickname: String, partnerName: String?, accepted: Boolean): String {
+    fun merge(nickname: String, partnerName: String?, accepted: Boolean, contactName: String? = null): String {
         val nick = nickname.trim()
         val real = partnerName?.trim().orEmpty()
-        if (isRealName(nick)) return nick                 // ① 내가 저장/지은 이름
+        if (isRealName(nick)) return nick                 // ① 내가 저장/지은 이름(명부)
+        val contact = contactName?.trim().orEmpty()
+        if (isRealName(contact)) return contact           // ①b 내 고객/연락처에 저장한 이름
         if (accepted && isRealName(real)) return real     // ② 상대가 등록한 사업자명
         val digits = nick.filter { it.isDigit() }.ifEmpty { real.filter { it.isDigit() } }
         return if (digits.isNotEmpty()) formatPhone(digits) else ""   // ③ 번호 (없으면 빈 글자 — 부르는 쪽이 거른다)
