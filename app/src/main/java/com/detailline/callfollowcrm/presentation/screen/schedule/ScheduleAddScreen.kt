@@ -35,6 +35,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -403,8 +404,23 @@ fun ScheduleAddScreen(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                FieldLabel("고객 이름 (선택)")
-                SheetTextField(name, { name = it }, placeholder = "안 적어도 돼요 · 예: 강동 서사장")
+                // 고객 이름은 선택 — 안 쓰면 자리 차지 않게 **접어둔다**. 누르면 열림. (2026-11-01 사장님 "안 적어도 되는 게 너무 크게 자리함")
+                //   번호 추천을 누르면 이름이 자동으로 차(위 name=cn) → name.isNotBlank() 로 바로 펼쳐 보이고 고칠 수 있다.
+                var nameExpanded by remember { mutableStateOf(false) }
+                if (nameExpanded || name.isNotBlank()) {
+                    FieldLabel("고객 이름 (선택)")
+                    SheetTextField(name, { name = it }, placeholder = "안 적어도 돼요 · 예: 강동 서사장")
+                } else {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { nameExpanded = true }
+                            .padding(vertical = 9.dp, horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("고객 이름 (선택)", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TossTextTertiary)
+                    }
+                }
             } else {
                 FieldLabel("거래처 (자주 일 주는 곳)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
