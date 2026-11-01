@@ -15805,3 +15805,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경: AppPreferences.lastDepositMode/lastDepositVal 추가. EstimateDraft 생성·reset 시 거기서 시드(기본 fallback ratio/30). 견적 보낼 때(resetEstimateDraft=발행/공유/접수서 3경로) 그 순간 계약금을 저장 → 다음 견적이 거기서 시작. 닫기는 draft 유지라 저장 안 함(실제 '쓴' 것만 기억)
 - 폰 확인: 못 봄(테스트폰 견적 데이터 없어 전송-사이클 미검증) — assembleRelease BUILD=0·가드7통과·전체 1335테스트. 로직 단순(prefs 시드+전송 저장). 사장님 실제 견적서 확인 요청
 - 다음 액션: 사장님 — 정액 10만원으로 한 번 보낸 뒤, 다음 견적이 정액 10에서 시작하는지 확인
+
+## 2026-11-01 11:40 · android
+협업 사장별 '오는 날' 시트가 다 체크로 떠 못 고치던 것 — 저장값을 그때그때 읽게 (사장님 실기 2026-11-01)
+- 증상: 2일 공사(11/12~13)에서 12일만 부르려던 해시가 12·13 둘 다로 저장돼 양일에 뜸. 시트의 '사장님별 오는 날' 칩은 모두 체크로 보여 보지도 고치지도 못함
+- 원인: AssignTeamSheet 가 savedPartnerDays(이미 보낸 사장의 저장된 날)를 **seed-once**(한 번만 베낌)로 담았는데, 협업 자료가 시트 그린 **뒤에 늦게 와** 베낄 때 비어 있으면 영영 '전체'로 남았음. 새 사장 기본이 전체라 안 줄이면 통째 저장됨
+- 변경: partnerDays(seed-once) → partnerDayEdits(직접 바꾼 것만). 읽기 daysOfPartner = 직접바꾼값 ?: savedPartnerDays[k](매 그림 최신) ?: 건전체. 제출 시 '직접 바꿈(partnerDayEdits.containsKey)'일 때만 onUpdateCollabDays. 날짜카드·전파는 원래 저장값을 직접 읽어 영향 없음(§12-K 연결지점 확인)
+- 폰 확인: 못 봄(사장님 실데이터는 다른 폰에, 디버그폰은 sqlite 편집이 앱권한으로 막혀 동일 시나리오 재현 불가). assembleRelease BUILD=0·가드7통과·CollabAssignmentLine/RequestSelection 테스트 통과. 디버그 빌드 S9 설치함
+- 다음 액션: 사장님 — 그 시트 열어 해시=12·13 둘 다 켜짐 확인 → 13 끄고 저장 → 해시 12만. 그리고 새 사장 초대 시 칩이 실제대로 보이는지. (기본값 '전체' 유지할지 = 아래 질문)

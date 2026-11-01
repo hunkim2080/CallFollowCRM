@@ -1431,16 +1431,13 @@ private fun AssignTeamSheet(
     }
     var memo by remember { mutableStateOf(initialMemo) }
     var startHour by remember { mutableStateOf(defaultStartHour) }
-    // '오는 날' — 협업자가 오는 날(startOfDay), **사장별로 따로**. 없으면(기본) 건 전체 날 = 지금까지 동작. (2026-10-31 사장님: 날마다 다른 사장)
-    //   일당(partnerWages)과 **같은 Map 패턴** — key(phone) → 그 사장이 오는 날들. 다일 공사에서만 UI 노출.
-    var partnerDays by remember { mutableStateOf<Map<String, Set<Long>>>(emptyMap()) }
-    // 이미 보낸 사장의 '오는 날'을 저장값으로 한 번만 채운다 — 안 하면 칩이 '전체'로 리셋돼 겹친다(협업 자료는 시트 그린 뒤 옴). (2026-10-31)
-    var partnerDaysSeeded by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(savedPartnerDays) {
-        if (!partnerDaysSeeded && savedPartnerDays.isNotEmpty()) { partnerDays = savedPartnerDays; partnerDaysSeeded = true }
-    }
+    // '오는 날' — 협업자가 오는 날, **사장별로 따로**. (2026-10-31 날마다 다른 사장) 여긴 사장님이 **직접 바꾼 것만** 담는다.
+    //   읽기는 daysOfPartner: ① 직접 바꾼 값 → ② 이미 보낸 사장의 저장된 날(savedPartnerDays, 매 그림 최신) → ③ 새 사장은 건 전체.
+    //   🐞 2026-11-01 사장님 실기: 전엔 savedPartnerDays 를 seed-once 로 베꼈는데 협업 자료가 **늦게 와** 베낄 때 비어 있으면
+    //     영영 '전체'로 남아 칩이 다 체크로 보이고(보지도 고치지도 못함) 한 사장이 건 전체로 저장돼 겹쳤다. 이제 저장값을 그때그때 읽는다.
+    var partnerDayEdits by remember { mutableStateOf<Map<String, Set<Long>>>(emptyMap()) }
     val multiDayJob = jobDayStarts.size > 1
-    fun daysOfPartner(k: String): Set<Long> = partnerDays[k] ?: jobDayStarts.toSet()
+    fun daysOfPartner(k: String): Set<Long> = partnerDayEdits[k] ?: savedPartnerDays[k] ?: jobDayStarts.toSet()
     // 시트 안 "+추가" 인라인 폼 (한 번에 하나만 열림)
     var addTeamOpen by remember { mutableStateOf(false) }
     var addWorkerOpen by remember { mutableStateOf(false) }
@@ -2053,7 +2050,7 @@ private fun AssignTeamSheet(
                                             // 마지막 1개는 못 끄게(최소 하루) — 0일 배정 방지.
                                             .clickable {
                                                 val next = if (on) (bossDays - dayMs).ifEmpty { bossDays } else bossDays + dayMs
-                                                partnerDays = partnerDays + (k to next)
+                                                partnerDayEdits = partnerDayEdits + (k to next)
                                             }
                                             .padding(horizontal = 12.dp, vertical = 7.dp)
                                     ) {
@@ -2102,9 +2099,11 @@ private fun AssignTeamSheet(
                 selectedPartners.forEach { k ->
                     val p = collabPartners.firstOrNull { key(it.phone) == k } ?: return@forEach
                     if (k in reqKeys) {
-                        // 이미 보낸 사장 — 재초대 X(중복 가드), '오는 날'만 바뀌면 그것만 저장(전엔 통째 건너뛰어 전체로 남아 겹쳤다). savedPartnerDays 에 있는(이 건 걸린) 사장만. (2026-10-31)
-                        if (multiDayJob) savedPartnerDays[k]?.let { saved ->
-                            val nd = daysOfPartner(k); if (nd != saved) onUpdateCollabDays(p.phone, nd.toList(), startHour)
+                        // 이미 보낸 사장 — 재초대 X(중복 가드). '오는 날'을 **사장님이 직접 바꿨을 때만**(partnerDayEdits 에 있음)
+                        //   그것만 서버·로컬에 반영(전엔 통째 건너뛰어 전체로 남아 겹쳤다). 저장값과 같으면 쓸데없는 reschedule 안 함. (2026-10-31)
+                        if (multiDayJob && partnerDayEdits.containsKey(k)) {
+                            val nd = daysOfPartner(k)
+                            if (nd != savedPartnerDays[k]) onUpdateCollabDays(p.phone, nd.toList(), startHour)
                         }
                         return@forEach
                     }
