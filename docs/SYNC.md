@@ -15845,3 +15845,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경(앱만): ① CollabEventCenter.collabChanged(StateFlow 틱)+markCollabChanged() ② RingGoFcmService: type 이 collab* 이면 markCollabChanged() 호출(알림은 그대로, 신호만 추가) ③ ScheduleViewModel: collabChanged.drop(1).onEach{loadCollab()} — 열린 달력이 FCM 즉시 다시 당김. 12초 루프는 안전망으로 유지
 - 폰 확인: 못 봄(두 폰/실협업 필요). assembleRelease BUILD=0·가드7통과(style 안 늘어남=하드코딩 값 없음). 진단 0
 - 다음 액션: 사장님 — 다른 폰에서 협업 공유/수락 시 내 달력에 거의 즉시(1~2초, 인터넷 왕복) 뜨는지. 안 뜨면 그 폰이 FCM 토큰 등록됐는지(푸시 수신) 확인 필요
+
+## 2026-11-01 18:20 · android
+일정 탭 로딩 = 스켈레톤 (사장님 지시 2026-11-01 "로딩패턴은 스켈레톤으로", 범위=일정탭만 일단)
+- 문제: 일정 탭은 로딩 신호가 없어 데이터 오기 전 「이 날은 시공 예약이 없어요」를 띄웠다가 협업이 툭 생김("미완성 느낌", 사장님 2026-05-25)
+- 변경: ① ScheduleViewModel.collabLoaded(StateFlow, 협업 한 번이라도 당겼나·성공/실패 무관) ② 일정 날짜목록에서 dayRows·AS·간단 다 비었고 !collabLoaded 면 스켈레톤, 로딩 끝나면 DayEmpty/내용으로 ③ 공용 CardListSkeleton 을 AsyncIndicators 에 추가(기존 ShimmerLine 재사용, §12) — ScheduleScreen 에 안 쌓음(§12-F 큰 파일)
+- 로컬 일정(시공·간단·AS) 있으면 즉시 내용(스켈레톤 X). 스켈레톤은 "아무것도 없고 아직 로딩 중"일 때만 → 깜빡임 최소
+- 폰 확인: 못 봄. assembleRelease BUILD=0·가드7통과(size·style 기준선 안 늘어남 — 스켈레톤은 공용으로 빼고 ScheduleScreen 주석 줄여 천장 유지)
+- 다음 액션: 사장님 — 일정 탭 처음 열 때(특히 협업 있는 날) 유령 카드 떴다가 내용으로 바뀌는지. 다른 탭도 스켈레톤 원하시면 같은 CardListSkeleton 재사용

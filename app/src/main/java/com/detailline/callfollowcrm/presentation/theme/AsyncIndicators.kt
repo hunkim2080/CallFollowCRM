@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -97,6 +98,32 @@ fun ShimmerLine(
             .clip(RoundedCornerShape(cornerRadius))
             .background(brush)
     )
+}
+
+/**
+ * 💀 카드 모양 스켈레톤 n장 — 로딩 중 목록 자리에 띄우는 유령 카드(흰 카드 + 시각 줄 + 제목 + 보조 줄).
+ *   "없었다가 툭 생기는 미완성 느낌"(사장님 2026-05-25) 대신 "곧 떠요"를 보여준다. 일정 탭 등에서 씀. (2026-11-01 사장님 "로딩=스켈레톤")
+ */
+@Composable
+fun CardListSkeleton(count: Int = 2, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        repeat(count) {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)
+            ) {
+                ShimmerLine(Modifier.fillMaxWidth(0.35f), height = 12.dp)
+                ShimmerLine(Modifier.fillMaxWidth(0.7f), height = 15.dp)
+                ShimmerLine(Modifier.fillMaxWidth(0.55f), height = 12.dp)
+            }
+        }
+    }
 }
 
 /**

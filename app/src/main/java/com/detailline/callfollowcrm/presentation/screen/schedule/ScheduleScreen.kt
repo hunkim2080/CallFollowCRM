@@ -269,6 +269,7 @@ fun ScheduleScreen(
     val collabPartnerNames by viewModel.collabPartnerNameByPhone.collectAsState()
     val contactNames by viewModel.contactNameByPhone.collectAsState()   // 번호→내 연락처 이름(①b)
     val partnerStats by viewModel.partnerStats.collectAsState()
+    val collabLoaded by viewModel.collabLoaded.collectAsState()   // 💀 협업 한 번이라도 당겼나 — 로딩 중이면 스켈레톤
     val partnerLastPlace by viewModel.partnerLastPlace.collectAsState()
     val pickCandidates by viewModel.pickCandidates.collectAsState()
     val assignmentsByCustomer by viewModel.assignmentsByCustomer.collectAsState()
@@ -512,33 +513,33 @@ fun ScheduleScreen(
                     }
                 }
             }
-            // 4) 선택된 날 라벨 + 시공 카드 (프로토 cal-day-label + cal-day-jobs)
             item(key = "day-label") {
                 DayLabel(dayMs = selectedDayMs, isToday = selectedDayMs == todayStart)
             }
-            // 🕐 내 현장·협업을 **한 줄로** 세웠으니, 비었는지도 한 줄로 본다.
-            //   전엔 「내 현장이 없다」로만 판단해서 **협업만 있는 날이 턴 빈 칸**으로 보였다.
+            // 내 현장·협업을 한 줄로 세웠으니 비었는지도 한 줄로 본다(전엔 협업만 있는 날이 빈 칸으로 보였다).
             if (dayRows.isEmpty()) {
                 if (asForSelected.isEmpty() && simpleForSelected.isEmpty()) {
-                    item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
-                    // 고른 날이 비었으면 **앞으로 뭐가 있는지**를 보여준다. 전엔 "없어요" 한 줄로 끝나서
-                    //   다음 일정을 보려면 날짜를 하나씩 눌러봐야 했다. (2026-09-21 사장님)
-                    item(key = "upcoming") {
-                        UpcomingSection(
-                            jobs = state.all,
-                            collab = collabSites,
-                            todayStart = todayStart,
-                            onOpenDay = { dayMs -> selectedDayMs = dayMs }
-                        )
+                    if (!collabLoaded) {
+                        // 💀 협업을 아직 못 당겨 '빈 날'인지 '로딩 중'인지 모름 → 스켈레톤("곧 떠요"). 로딩 끝나면 내용/빈 날로. (2026-11-01 사장님 "로딩=스켈레톤")
+                        item(key = "day-skeleton") { com.detailline.callfollowcrm.presentation.theme.CardListSkeleton() }
+                    } else {
+                        item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
+                        // 빈 날이면 앞으로 뭐가 있는지 보여준다 — 날짜 하나씩 눌러보지 않게. (2026-09-21 사장님)
+                        item(key = "upcoming") {
+                            UpcomingSection(
+                                jobs = state.all,
+                                collab = collabSites,
+                                todayStart = todayStart,
+                                onOpenDay = { dayMs -> selectedDayMs = dayMs }
+                            )
+                        }
                     }
                 }
             } else {
                 if (dayRows.size > 1) {
                     item(key = "day-count") { DayCount(dayRows.size) }
                 }
-                // 키 = (고객, 시공일) — 한 고객이 여러 날짜를 잡으면 id 만으론 키가 겹쳐 목록이 깨진다. (Stage A)
-                // 🕐 **시각 하나로 줄 세운 목록.** 내 현장이든 협업이든 먼저 가는 순서대로.
-                //   (2026-09-27 사장님 "협업하는 곳을 항상 아래 배치하는데 시간이 우선이었으면 좋겠어")
+                // 키=(고객,시공일): 한 고객이 여러 날이면 id 만으론 겹쳐 깨짐(Stage A). 🕐 시각 하나로 줄 세움(내 현장·협업 섞어 먼저 갈 순). (2026-09-27 사장님)
                 items(
                     dayRows,
                     key = { r -> r.first?.let { laneKeyOf(it) } ?: ("sh-" + r.second!!.shareId) }

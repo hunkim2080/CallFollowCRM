@@ -115,6 +115,11 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private val _collabSites = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>>(emptyList())
     val collabSites = _collabSites.asStateFlow()
 
+    /** 💀 협업을 **한 번이라도 서버에서 불러왔나**(성공·실패 무관). false=아직 로딩 중 → 일정 화면이 '빈 날'인지 '로딩 중'인지 못 가리니
+     *   그동안 **스켈레톤**을 보여준다. true 가 되면 진짜 내용/빈 날로. (2026-11-01 사장님 "로딩패턴은 스켈레톤으로" · 일정탭) */
+    private val _collabLoaded = MutableStateFlow(false)
+    val collabLoaded = _collabLoaded.asStateFlow()
+
     /** 아직 응답(수락/거절) 안 한 협업 요청의 날짜(startOfDay) — 캘린더 주황 마커. 푸시 놓친 요청도 일정 보다 catch. (2026-07-08 사장님) */
     private val _pendingCollabDayStarts = MutableStateFlow<Set<Long>>(emptySet())
     val pendingCollabDayStarts = _pendingCollabDayStarts.asStateFlow()
@@ -562,6 +567,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 _pendingCollabDayStarts.value = pending.map { DateTimeUtils.startOfDay(it.scheduledAtMs) }.toSet()
                 applyCollabFilter()
             }
+            _collabLoaded.value = true   // 💀 성공·실패 무관 '한 번은 당겨봤다' — 스켈레톤 끝내고 내용/빈 날로. (실패해도 영원히 스켈레톤이면 안 됨)
         }
         // 화면 진입(resume)마다 거절/종료된 협업 배지도 다시 정리 — 앱 켜둔 채 상대가 거절해도 다음 진입에 사라지게.
         reconcileCollabAssignments()
