@@ -2,169 +2,301 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>협업 사장 데모</title>
-<meta name="description" content="일손 급한 현장을 다른 사장님께 협업 부르면 상대 앱에 요청이 떠 수락하고, 같이 시공하고 일당 정산서까지 자동 — 지금 실제 동작 기준. 폰 목업은 접수서 데모와 통일.">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>협업 사장 따라하기</title>
+<meta name="description" content="일손 급한 현장을 다른 사장님께 협업 부르면 상대 앱에 요청이 떠 수락하고, 같이 시공하고 일당 정산서까지 자동 — 인스타 스토리처럼 넘겨보기. 지금 실제 동작 기준.">
 <style>
   :root{
     --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
     --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
-    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --amber:#FF9F0A; --amberSoft:#FFF4E0;
-    --lineSoft:#E7EBF0;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --lineSoft:#E7EBF0;
+    --amber:#FF9F0A; --amberSoft:#FFF4E0;
     --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
-    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+    padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:14px}
   .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
   .lede b{color:var(--ink);font-weight:800}
-  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
-    padding:4px 11px;border-radius:999px;font-weight:700}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);padding:4px 11px;border-radius:999px;font-weight:700}
 
-  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
-    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
-  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .card{width:100%;max-width:360px;background:var(--card);border-radius:20px;padding:16px 16px 14px;box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
   .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
   .chead .t{font-weight:800;font-size:15px}
-  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
 
-  .stage{position:relative;height:306px;border-radius:16px;overflow:hidden;
-    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line)}
+  .stage{position:relative;height:518px;border-radius:18px;overflow:hidden;
+    background:radial-gradient(130% 92% at 50% 0%, #22262E 0%, #121419 72%);border:1px solid #0C0E12;display:flex;justify-content:center;align-items:flex-start}
+  .igbars{position:absolute;top:9px;left:11px;right:11px;z-index:33;display:flex;gap:3px}
+  .igbars .seg{flex:1;height:2.5px;border-radius:999px;background:rgba(255,255,255,.28);overflow:hidden}
+  .igbars .seg .fill{display:block;height:100%;width:0;background:#fff;border-radius:999px}
+  .ighead{position:absolute;top:16px;left:12px;right:12px;z-index:33;display:flex;align-items:center;gap:8px;color:#fff}
+  .ighead .av{width:27px;height:27px;border-radius:50%;padding:2px;flex:none;background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)}
+  .ighead .av i{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#20242C;font-style:normal;font-size:13px}
+  .ighead .nm{font-size:11.5px;font-weight:800}
+  .ighead .tm{font-size:9.5px;color:rgba(255,255,255,.62);font-weight:600}
+  .ighead .x{margin-left:auto;font-size:15px;color:#fff;opacity:.85}
+  .igcap{position:absolute;left:14px;right:14px;bottom:48px;z-index:33;text-align:center;color:#fff;font-size:13px;font-weight:800;line-height:1.4;min-height:34px;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+  .igcap .n{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#fff;color:#20242C;font-size:11px;margin-right:5px;vertical-align:middle;font-weight:900}
+  .igreply{position:absolute;left:12px;right:12px;bottom:11px;z-index:33;display:flex;align-items:center;gap:10px}
+  .igreply .box{flex:1;border:1px solid rgba(255,255,255,.42);border-radius:999px;padding:7px 13px;font-size:10.5px;color:rgba(255,255,255,.72);font-weight:600}
+  .igreply .ic{font-size:16px;color:#fff;opacity:.92;flex:none}
 
-  .phone{position:absolute;top:20px;width:150px;height:262px;border-radius:21px;background:#fff;
-    box-shadow:0 10px 26px rgba(17,24,39,.16);border:1px solid var(--lineSoft);overflow:hidden}
-  .sbar{height:15px;display:flex;align-items:center;padding:0 8px;font-size:7px;font-weight:800;color:#fff}
-  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
-  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
-  .sbar .bat{width:11px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
-  .sbar .bat::after{content:"";position:absolute;inset:1px;right:3px;background:#fff;border-radius:1px}
-  .tbar{height:24px;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--blue)}
-  .body{padding:9px}
-  .pMe{left:16px}
-  .pPartner{right:16px}
+  .phone{position:relative;top:46px;width:224px;height:376px;border-radius:28px;background:#fff;border:none;box-shadow:0 18px 40px rgba(0,0,0,.45), 0 0 0 5px #0B0D11, 0 0 0 6px #2C323B;overflow:hidden}
+  .phone::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:70px;height:17px;background:#10131A;border-radius:0 0 13px 13px;z-index:30;pointer-events:none}
+  .scr{position:absolute;inset:0;opacity:0;transition:opacity .4s ease;display:flex;flex-direction:column;background:#fff}
+  .scr.on{opacity:1;z-index:2}
+  .sbar{height:18px;display:flex;align-items:center;padding:0 11px;font-size:8px;font-weight:800;color:#fff;flex:none}
+  .sbar .sp{margin-left:auto;display:flex;align-items:center;gap:5px}
+  .sbar .bars{display:flex;align-items:flex-end;gap:1.5px;height:8px}
+  .sbar .bars i{width:2px;background:currentColor;border-radius:1px;opacity:.95}
+  .sbar .bars i:nth-child(1){height:3px}.sbar .bars i:nth-child(2){height:5px}.sbar .bars i:nth-child(3){height:8px}
+  .sbar .bat{width:14px;height:7.5px;border:1px solid currentColor;border-radius:2.5px;position:relative;opacity:.95}
+  .sbar .bat::after{content:"";position:absolute;inset:1.5px;right:4px;background:currentColor;border-radius:1px}
+  .sbar .bat::before{content:"";position:absolute;right:-2.5px;top:2.3px;width:1.6px;height:3px;background:currentColor;border-radius:0 2px 2px 0}
+  .tbar{height:30px;display:flex;align-items:center;gap:6px;padding:0 11px;font-size:11px;font-weight:800;color:#fff;flex:none}
+  .tbar .back{font-size:12px}
+  .blueTop .sbar,.blueTop .tbar{background:var(--blue)}
+  .amberTop .sbar,.amberTop .tbar{background:#C98A1E}
+  .body{flex:1;padding:10px;position:relative;overflow:hidden}
 
-  .seclab{font-size:7px;font-weight:800;color:var(--hint);margin-bottom:5px}
+  .introScr{background:linear-gradient(165deg,#EAF2FE 0%,#F7FAFF 72%)}
+  .introInner{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px}
+  .introEmoji{font-size:38px;margin-bottom:15px}
+  .introHook{font-size:17px;font-weight:900;color:var(--ink);line-height:1.55;letter-spacing:-.3px}
+  .introHook b{color:var(--blue)}
+  .introHint{margin-top:18px;font-size:11px;font-weight:800;color:var(--blueDark);background:#fff;padding:8px 15px;border-radius:999px;box-shadow:0 6px 14px rgba(49,130,246,.18)}
+
+  .seclab{font-size:9px;font-weight:800;color:var(--hint);margin-bottom:7px}
   /* 내 현장 카드 */
-  .site{border:1px solid var(--lineSoft);border-radius:10px;padding:8px;box-shadow:0 2px 8px rgba(17,24,39,.05)}
-  .site .d{font-size:9px;font-weight:800;color:var(--ink)}
-  .site .a{font-size:8px;color:var(--sub);margin-top:3px}
-  .site .busy{display:inline-block;margin-top:5px;font-size:7px;font-weight:800;color:#C0362F;background:#FFF0EF;border-radius:6px;padding:2px 6px}
-  .callbtn{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:4px;background:var(--amberSoft);border:1px solid #FFE2AE;border-radius:9px;padding:7px;font-size:8.5px;font-weight:800;color:#9A6A00}
-  .sent{margin-top:7px;background:#F6FAFF;border:1px solid var(--blueSoft);border-radius:9px;padding:6px 7px;font-size:8px;color:var(--blueDark);font-weight:700;opacity:0;animation:fade .4s ease forwards;animation-delay:2.0s}
+  .site{border:1px solid var(--lineSoft);border-radius:13px;padding:11px;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+  .site .d{font-size:12px;font-weight:800;color:var(--ink)}
+  .site .a{font-size:10px;color:var(--sub);margin-top:4px}
+  .busy{display:inline-block;margin-top:8px;font-size:9px;font-weight:800;color:#C0362F;background:#FFF0EF;border-radius:8px;padding:3px 8px}
+  .callbtn{margin-top:11px;display:flex;align-items:center;justify-content:center;gap:5px;background:var(--amberSoft);border:1px solid #FFE2AE;border-radius:11px;padding:10px;font-size:11px;font-weight:800;color:#9A6A00}
+  .sent{margin-top:9px;background:#F6FAFF;border:1px solid var(--blueSoft);border-radius:11px;padding:8px 9px;font-size:9.5px;color:var(--blueDark);font-weight:700}
 
-  /* 상대 사장 — 받은 요청 */
-  .req{border:1px solid #FFE2AE;border-radius:10px;background:#FFFBF2;padding:8px;opacity:0;transform:translateY(8px);animation:pop .45s ease forwards;animation-delay:3.0s}
-  .req .h{display:flex;align-items:center;gap:4px;font-size:8.5px;font-weight:800;color:#9A6A00}
-  .req .h .badge{margin-left:auto;font-size:6.5px;font-weight:700;color:#9A6A00;background:var(--amberSoft);padding:2px 5px;border-radius:999px}
-  .req .l{font-size:8px;color:var(--ink);margin-top:5px;line-height:1.4}
+  /* 받은 요청 카드 */
+  .req{border:1px solid #FFE2AE;border-radius:13px;background:#FFFBF2;padding:11px}
+  .req .h{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#9A6A00}
+  .req .h .badge{margin-left:auto;font-size:8px;font-weight:700;color:#9A6A00;background:var(--amberSoft);padding:2px 7px;border-radius:999px}
+  .req .l{font-size:10.5px;color:var(--ink);margin-top:7px;line-height:1.45}
   .req .l b{color:var(--ink)}
-  .req .wage{font-size:8.5px;font-weight:800;color:var(--ok);margin-top:4px}
-  .req .btns{display:flex;gap:5px;margin-top:7px}
-  .req .btns .acc{flex:1;text-align:center;background:var(--blue);color:#fff;font-size:8px;font-weight:800;border-radius:7px;padding:5px}
-  .req .btns .dec{flex:none;text-align:center;background:#F1F4F7;color:var(--sub);font-size:8px;font-weight:700;border-radius:7px;padding:5px 8px}
-  .accepted{margin-top:7px;background:#E7F7EF;border:1px solid #BFEAD4;border-radius:9px;padding:6px 7px;font-size:8px;color:#0E8F52;font-weight:800;opacity:0;animation:fade .4s ease forwards;animation-delay:5.2s}
+  .req .wage{font-size:11px;font-weight:800;color:var(--ok);margin-top:6px}
+  .req .btns{display:flex;gap:7px;margin-top:11px}
+  .req .btns .acc{flex:1;text-align:center;background:var(--blue);color:#fff;font-size:10.5px;font-weight:800;border-radius:9px;padding:9px}
+  .req .btns .dec{flex:none;text-align:center;background:#F1F4F7;color:var(--sub);font-size:10.5px;font-weight:700;border-radius:9px;padding:9px 12px}
+  .accepted{margin-top:11px;background:#E7F7EF;border:1px solid #BFEAD4;border-radius:11px;padding:10px 11px;font-size:11px;color:#0E8F52;font-weight:800;text-align:center}
+  .schedRow{margin-top:9px;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--lineSoft);border-radius:11px;padding:9px 10px}
+  .schedRow .ic{width:26px;height:26px;border-radius:8px;background:var(--blueSoft);display:grid;place-items:center;font-size:13px;flex:none}
+  .schedRow .tt{font-size:10.5px;font-weight:800;color:var(--ink)}
+  .schedRow .ds{font-size:9px;color:var(--sub);margin-top:1px}
 
-  /* 일당 정산서 미니 */
-  .fly{position:absolute;z-index:6;font-size:15px;top:120px;left:150px;opacity:0;animation:flyRight 1.3s ease forwards;animation-delay:2.5s}
+  /* 일당 정산서 payoff */
+  .poWrap{display:flex;flex-direction:column;align-items:center;padding:12px 6px 0;text-align:center}
+  .poBadge{width:54px;height:54px;border-radius:16px;background:var(--blueSoft);display:grid;place-items:center;font-size:26px;margin-bottom:11px}
+  .poTitle{font-size:14px;font-weight:900;color:var(--ink);letter-spacing:-.3px;line-height:1.4}
+  .poSub{font-size:10px;color:var(--sub);font-weight:700;margin-top:6px}
+  .docCard{align-self:stretch;margin:14px 2px 0;background:#fff;border:1px solid var(--lineSoft);border-radius:13px;padding:11px 12px;text-align:left;box-shadow:0 6px 16px rgba(17,24,39,.08)}
+  .docCard .dt{font-size:11.5px;font-weight:900;color:var(--ink)}
+  .docCard .dp{font-size:9px;color:var(--sub);font-weight:700;margin:2px 0 8px}
+  .docRow{display:flex;align-items:center;justify-content:space-between;font-size:10px;padding:5px 0;border-top:1px solid var(--line)}
+  .docRow .k{color:var(--sub);font-weight:700}
+  .docRow .v{color:var(--ink);font-weight:800}
+  .docSum{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:2px solid var(--lineSoft);font-size:11.5px}
+  .docSum .k{color:var(--ink);font-weight:800}
+  .docSum .v{color:var(--blueDark);font-weight:900}
 
-  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
-  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
-  .steps i.on{background:var(--blue);transform:scale(1.25)}
-  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
-  .caption b{color:var(--ink);font-weight:800}
-  .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
-    border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
-  .alt .k{font-size:14px}
-  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
-  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .cta{margin-top:12px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px;cursor:pointer}
+  .pausemark{position:absolute;z-index:12;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(17,24,39,.78);color:#fff;font-size:11px;font-weight:800;padding:7px 13px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
+  .pausemark.show{opacity:1}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px}
+  .nav button{border:1px solid var(--lineSoft);background:#fff;color:var(--ink);font-family:inherit;font-size:12px;font-weight:800;padding:8px 14px;border-radius:10px;cursor:pointer}
+  .nav button:active{background:var(--blueSoft)}
+  .nav .hint{font-size:10.5px;color:var(--hint);font-weight:700;text-align:center;flex:1}
+  .foot{max-width:360px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:2px}
   .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
 
-  @keyframes fade{to{opacity:1}}
-  @keyframes pop{to{opacity:1;transform:none}}
-  @keyframes flyRight{0%{opacity:0;left:150px;top:120px}15%{opacity:1}100%{opacity:0;left:248px;top:90px}}
-
-  @media (prefers-reduced-motion: reduce){ *{animation:none!important} .sent,.req,.accepted{opacity:1!important;transform:none!important} }
+  .inapp .chead,.inapp .nav{display:none}
+  .inapp .card{background:transparent;border:none;box-shadow:none;padding:0}
 </style>
+<script>if(window.AppBridge)document.documentElement.classList.add('inapp');</script>
 </head>
 <body>
   <div class="lede"><b>협업 사장 — 일손 급할 때 다른 사장님과 함께</b><br>현장 하나를 <b>협업 부르면</b> 상대 앱에 떠서 수락하고, <b>일당 정산까지 자동</b>
-    <br><span class="tag">프로토 · 자동 재생(8초) · 지금 실제 동작 기준</span></div>
+    <br><span class="tag">📱 인스타 스토리처럼 넘겨보기 · 꾹 눌러 멈춤</span></div>
 
   <div class="card">
     <div class="chead"><span class="dot"></span><span class="t">바쁠 땐 사장님끼리 품앗이</span></div>
-    <p class="csub">일손 급한 현장을 <b>다른 사장님께 협업 부르기</b>. 상대가 수락하면 그 현장을 같이 봐요. 끝나면 <b>일당 정산서</b>까지 자동.</p>
 
-    <div class="stage">
-      <!-- 내 폰 -->
-      <div class="phone pMe">
-        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
-        <div class="tbar">내 시공막내</div>
-        <div class="body">
-          <div class="seclab">내 현장</div>
-          <div class="site">
-            <div class="d">10/16(목) 시공</div>
-            <div class="a">강남구 대왕판교로 123</div>
-            <div class="busy">이 날 현장 2곳 — 손 부족</div>
-            <div class="callbtn">🤝 협업 부르기</div>
-            <div class="sent">김하우스 사장님께 요청 보냄 · 연결되면 알려드려요</div>
+    <div class="stage" id="stage">
+      <div class="igbars">
+        <span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span>
+      </div>
+      <div class="ighead">
+        <span class="av"><i>🧢</i></span><span class="nm">시공막내 가이드북</span><span class="tm">방금</span><span class="x">≡</span>
+      </div>
+      <div class="phone">
+        <div class="pausemark" id="pausemark">⏸ 멈춤 — 떼면 계속</div>
+
+        <!-- S0 인트로 -->
+        <div class="scr introScr" data-s="0">
+          <div class="introInner">
+            <div class="introEmoji">🤝📞</div>
+            <div class="introHook">일손 급한 날,<br>다른 사장님께<br><b>전화 돌리셨죠?</b></div>
+            <div class="introHint">앱으로 부르면 정산까지 자동 ↓</div>
           </div>
         </div>
-      </div>
 
-      <!-- 상대 사장 폰 -->
-      <div class="phone pPartner">
-        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
-        <div class="tbar">김하우스 사장님</div>
-        <div class="body">
-          <div class="seclab">받은 요청</div>
-          <div class="req">
-            <div class="h">🤝 협업 요청<span class="badge">23시간 남음</span></div>
-            <div class="l"><b>디테일라인 사장님</b>이 현장을<br>함께하자고 해요</div>
-            <div class="l">📅 10/16(목) · 📍 강남 대왕판교로</div>
-            <div class="wage">💰 일당 25만원</div>
-            <div class="btns"><span class="acc">수락</span><span class="dec">나중에</span></div>
-            <div class="accepted">✓ 수락함 — 내 일정에 추가됐어요</div>
+        <!-- S1 내 현장 — 협업 부르기 -->
+        <div class="scr blueTop" data-s="1">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>내 시공막내</div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="seclab">내 현장</div>
+            <div class="site">
+              <div class="d">10/16(목) 시공</div>
+              <div class="a">강남구 대왕판교로 123</div>
+              <div class="busy">이 날 현장 2곳 — 손 부족</div>
+              <div class="callbtn">🤝 협업 부르기</div>
+              <div class="sent">김하우스 사장님께 요청 보냄 · 연결되면 알려드려요</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="fly">🤝</div>
+        <!-- S2 상대 사장님 앱에 요청 -->
+        <div class="scr amberTop" data-s="2">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>김하우스 사장님</div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="seclab">받은 요청</div>
+            <div class="req">
+              <div class="h">🤝 협업 요청<span class="badge">23시간 남음</span></div>
+              <div class="l"><b>디테일라인 사장님</b>이 현장을 함께하자고 해요</div>
+              <div class="l">📅 10/16(목) · 📍 강남 대왕판교로</div>
+              <div class="wage">💰 일당 25만원</div>
+              <div class="btns"><span class="acc">수락</span><span class="dec">나중에</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S3 수락 — 내 일정에 추가 -->
+        <div class="scr amberTop" data-s="3">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>김하우스 사장님</div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="seclab">받은 요청</div>
+            <div class="req">
+              <div class="h">🤝 협업 요청<span class="badge">수락함</span></div>
+              <div class="l"><b>디테일라인 사장님</b>과 함께하는 현장</div>
+              <div class="l">📅 10/16(목) · 📍 강남 대왕판교로</div>
+              <div class="wage">💰 일당 25만원</div>
+              <div class="accepted">✓ 수락함 — 내 일정에 추가됐어요</div>
+              <div class="schedRow"><span class="ic">📅</span><div><div class="tt">10/16(목) 협업 현장</div><div class="ds">내 일정 · 강남 대왕판교로</div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S4 일당 정산서 payoff -->
+        <div class="scr blueTop" data-s="4">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>끝나면 자동</div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="poWrap">
+              <div class="poBadge">🧾</div>
+              <div class="poTitle">끝나면<br>일당 정산서까지</div>
+              <div class="poSub">완료한 협업 건만 — 기간·합계 자동 · 이미지로 공유</div>
+              <div class="docCard">
+                <div class="dt">일당 정산서</div>
+                <div class="dp">2026년 10월 · 디테일라인 ↔ 김하우스</div>
+                <div class="docRow"><span class="k">10/16 강남 대왕판교로</span><span class="v">25만원</span></div>
+                <div class="docRow"><span class="k">10/09 서초 반포대로</span><span class="v">22만원</span></div>
+                <div class="docSum"><span class="k">합계</span><span class="v">47만원</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="igcap" id="caption">일손 급한 날, 다른 사장님께 전화 돌리셨죠? 📞</div>
+      <div class="igreply"><span class="box">메시지 보내기</span><span class="ic">♡</span><span class="ic">✈</span></div>
     </div>
 
-    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
-    <div class="caption" id="caption">① 일손 급한 현장에서 — 협업 부르기</div>
-
-    <div class="alt"><span class="k">🧾</span>끝나면 — <b style="margin-left:2px">일당 정산서</b>&nbsp;자동 (기간·합계, 이미지로 공유)</div>
-
+    <div class="nav"><button id="prev">‹ 이전</button><span class="hint">좌우로 넘기기 · 꾹 눌러 멈춤 · 인스타처럼 📱</span><button id="next">다음 ›</button></div>
     <div class="cta">협업 부르기</div>
   </div>
 
-  <div class="foot"><span>자동 재생 8초 반복</span><span>24시간 내 수락</span><span>완료 건 일당 정산서 자동</span></div>
+  <div class="foot"><span>좌우로 넘기기 · 꾹 눌러 멈춤</span><span>24시간 내 수락</span><span>완료 건 일당 정산서 자동</span></div>
 
 <script>
-  const caps = [
-    "① 일손 급한 현장에서 — 협업 부르기",
-    "② 다른 사장님 앱에 요청이 떠요",
-    "③ 수락하면 그 현장을 같이 봐요",
-    "④ 끝나면 일당 정산서까지 자동"
+  const steps = [
+    "일손 급한 날, 다른 사장님께 전화 돌리셨죠? 📞",
+    "일손 급한 현장에서 — 협업 부르기",
+    "다른 사장님 앱에 요청이 떠요",
+    "수락하면 그 현장을 같이 봐요",
+    "끝나면 일당 정산서까지 자동"
   ];
-  const atMs = [0, 2500, 4000, 5600];
+  const dur = [3600, 4000, 4400, 4200, 4600];
+  const N = steps.length;
+  const numFor = {1:1, 2:2, 3:3, 4:4};
+  const noNum = i => !(i in numFor);
+  const stepNo = i => numFor[i];
+  const scrs = [...document.querySelectorAll('.scr')];
+  const fills = [...document.querySelectorAll('.igbars .seg .fill')];
   const capEl = document.getElementById('caption');
-  const dots = [...document.querySelectorAll('#steps i')];
-  function cycle(){
-    const t0 = performance.now();
-    function tick(now){
-      const e = (now - t0) % 8000;
-      let idx = 0;
-      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
-      capEl.textContent = caps[idx];
-      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
-      requestAnimationFrame(tick);
+  const pausemark = document.getElementById('pausemark');
+  const stage = document.getElementById('stage');
+  let idx=0, stepElapsed=0, paused=false, lastIdx=-1;
+  const autoplay = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function render(){
+    if(idx!==lastIdx){
+      scrs.forEach(s=>s.classList.toggle('on', +s.dataset.s===idx));
+      capEl.innerHTML = (noNum(idx)?'':'<span class="n">'+stepNo(idx)+'</span>') + steps[idx];
+      lastIdx=idx;
     }
+    const frac = Math.min(1, stepElapsed/dur[idx]);
+    fills.forEach((f,i)=>{ f.style.width = (i<idx?100:(i===idx?frac*100:0))+'%'; });
+    pausemark.classList.toggle('show', paused);
+  }
+  function go(n){ idx=((n%N)+N)%N; stepElapsed=0; render(); }
+
+  let lastT=performance.now();
+  function tick(now){
+    const d=now-lastT; lastT=now;
+    if(autoplay && !paused){ stepElapsed+=d; if(stepElapsed>=dur[idx]){ idx=(idx+1)%N; stepElapsed=0; } }
+    render();
     requestAnimationFrame(tick);
   }
-  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+
+  let downX=0,downT=0,moved=false,holdTimer=null,heldPause=false;
+  function endHold(){ if(holdTimer){clearTimeout(holdTimer);holdTimer=null;} }
+  stage.addEventListener('pointerdown',e=>{
+    downX=e.clientX; downT=performance.now(); moved=false; heldPause=false;
+    holdTimer=setTimeout(()=>{ heldPause=true; paused=true; render(); },220);
+  });
+  stage.addEventListener('pointermove',e=>{ if(Math.abs(e.clientX-downX)>10) moved=true; });
+  function finish(e){
+    endHold();
+    const dt=performance.now()-downT, dx=(e.clientX||downX)-downX;
+    if(heldPause){ paused=false; heldPause=false; render(); return; }
+    if(Math.abs(dx)>40){ go(dx<0?idx+1:idx-1); }
+    else if(dt<260 && !moved){
+      const r=stage.getBoundingClientRect();
+      go((e.clientX-r.left)>r.width/2 ? idx+1 : idx-1);
+    }
+  }
+  stage.addEventListener('pointerup',finish);
+  stage.addEventListener('pointercancel',()=>{ endHold(); if(heldPause){paused=false;heldPause=false;render();} });
+  stage.addEventListener('pointerleave',()=>{ endHold(); if(heldPause){paused=false;heldPause=false;render();} });
+  document.getElementById('prev').addEventListener('click',()=>go(idx-1));
+  document.getElementById('next').addEventListener('click',()=>go(idx+1));
+
+  const _h = (location.hash.match(/s=(\d+)/)||[])[1];
+  if(_h!==undefined){ idx = Math.max(0,Math.min(N-1,+_h)); paused = true; }
+  render();
+  requestAnimationFrame(tick);
 </script>
 </body>
 </html>

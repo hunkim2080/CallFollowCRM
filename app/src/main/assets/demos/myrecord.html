@@ -2,197 +2,307 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>내 기록 데모</title>
-<meta name="description" content="시공 끝내고 완료를 누르면 현장 번호가 쌓이고 지도에 핀이 찍히고 트럭(막내)이 다녀온 길을 달리고 이번 달 성과·유입경로가 한눈에 — 자랑할 만한 내 기록. 지금 실제 동작 기준(RegionMap·트럭).">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>내 기록 따라하기</title>
+<meta name="description" content="시공 끝내고 완료를 누르면 현장 번호가 쌓이고 지도에 핀이 찍히고 트럭(막내)이 다녀온 길을 달리고 이번 달 성과·유입경로가 한눈에 — 인스타 스토리처럼 넘겨보기. 지금 실제 동작 기준.">
 <style>
   :root{
     --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
     --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
-    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --red:#FF5B52;
-    --lineSoft:#E7EBF0; --land:#E3EDE0; --landEdge:#CFE0C7; --water:#DCEAF5; --river:#BBD6EF;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --red:#FF5B52; --lineSoft:#E7EBF0;
     --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
-    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+    padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:14px}
   .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
   .lede b{color:var(--ink);font-weight:800}
-  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
-    padding:4px 11px;border-radius:999px;font-weight:700}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);padding:4px 11px;border-radius:999px;font-weight:700}
 
-  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
-    box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
-  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .card{width:100%;max-width:360px;background:var(--card);border-radius:20px;padding:16px 16px 14px;box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
   .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
   .chead .t{font-weight:800;font-size:15px}
-  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
 
-  .stage{position:relative;height:356px;border-radius:16px;overflow:hidden;
-    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line);display:flex;justify-content:center}
+  .stage{position:relative;height:518px;border-radius:18px;overflow:hidden;
+    background:radial-gradient(130% 92% at 50% 0%, #22262E 0%, #121419 72%);border:1px solid #0C0E12;display:flex;justify-content:center;align-items:flex-start}
+  .igbars{position:absolute;top:9px;left:11px;right:11px;z-index:33;display:flex;gap:3px}
+  .igbars .seg{flex:1;height:2.5px;border-radius:999px;background:rgba(255,255,255,.28);overflow:hidden}
+  .igbars .seg .fill{display:block;height:100%;width:0;background:#fff;border-radius:999px}
+  .ighead{position:absolute;top:16px;left:12px;right:12px;z-index:33;display:flex;align-items:center;gap:8px;color:#fff}
+  .ighead .av{width:27px;height:27px;border-radius:50%;padding:2px;flex:none;background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)}
+  .ighead .av i{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#20242C;font-style:normal;font-size:13px}
+  .ighead .nm{font-size:11.5px;font-weight:800}
+  .ighead .tm{font-size:9.5px;color:rgba(255,255,255,.62);font-weight:600}
+  .ighead .x{margin-left:auto;font-size:15px;color:#fff;opacity:.85}
+  .igcap{position:absolute;left:14px;right:14px;bottom:48px;z-index:33;text-align:center;color:#fff;font-size:13px;font-weight:800;line-height:1.4;min-height:34px;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+  .igcap .n{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#fff;color:#20242C;font-size:11px;margin-right:5px;vertical-align:middle;font-weight:900}
+  .igreply{position:absolute;left:12px;right:12px;bottom:11px;z-index:33;display:flex;align-items:center;gap:10px}
+  .igreply .box{flex:1;border:1px solid rgba(255,255,255,.42);border-radius:999px;padding:7px 13px;font-size:10.5px;color:rgba(255,255,255,.72);font-weight:600}
+  .igreply .ic{font-size:16px;color:#fff;opacity:.92;flex:none}
 
-  .phone{position:relative;top:16px;width:202px;height:322px;border-radius:22px;background:#fff;
-    box-shadow:0 12px 30px rgba(17,24,39,.18);border:1px solid var(--lineSoft);overflow:hidden}
-  .sbar{height:16px;display:flex;align-items:center;padding:0 9px;font-size:7px;font-weight:800;color:#fff}
-  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
-  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
-  .sbar .bat{width:12px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
-  .sbar .bat::after{content:"";position:absolute;inset:1px;right:4px;background:#fff;border-radius:1px}
-  .tbar{height:25px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;background:var(--blue)}
-  .body{padding:9px 10px}
+  .phone{position:relative;top:46px;width:224px;height:376px;border-radius:28px;background:#fff;border:none;box-shadow:0 18px 40px rgba(0,0,0,.45), 0 0 0 5px #0B0D11, 0 0 0 6px #2C323B;overflow:hidden}
+  .phone::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:70px;height:17px;background:#10131A;border-radius:0 0 13px 13px;z-index:30;pointer-events:none}
+  .scr{position:absolute;inset:0;opacity:0;transition:opacity .4s ease;display:flex;flex-direction:column;background:#fff}
+  .scr.on{opacity:1;z-index:2}
+  .sbar{height:18px;display:flex;align-items:center;padding:0 11px;font-size:8px;font-weight:800;color:#fff;flex:none}
+  .sbar .sp{margin-left:auto;display:flex;align-items:center;gap:5px}
+  .sbar .bars{display:flex;align-items:flex-end;gap:1.5px;height:8px}
+  .sbar .bars i{width:2px;background:currentColor;border-radius:1px;opacity:.95}
+  .sbar .bars i:nth-child(1){height:3px}.sbar .bars i:nth-child(2){height:5px}.sbar .bars i:nth-child(3){height:8px}
+  .sbar .bat{width:14px;height:7.5px;border:1px solid currentColor;border-radius:2.5px;position:relative;opacity:.95}
+  .sbar .bat::after{content:"";position:absolute;inset:1.5px;right:4px;background:currentColor;border-radius:1px}
+  .sbar .bat::before{content:"";position:absolute;right:-2.5px;top:2.3px;width:1.6px;height:3px;background:currentColor;border-radius:0 2px 2px 0}
+  .tbar{height:30px;display:flex;align-items:center;gap:6px;padding:0 11px;font-size:11px;font-weight:800;color:#fff;flex:none}
+  .tbar .back{font-size:12px}
+  .blueTop .sbar,.blueTop .tbar{background:var(--blue)}
+  .body{flex:1;padding:12px;position:relative;overflow:hidden}
 
-  /* 번호 주인공 */
-  .hero{display:flex;align-items:baseline;gap:5px}
-  .hero .lab{font-size:9px;font-weight:800;color:var(--sub)}
-  .hero .big{font-size:27px;font-weight:900;color:var(--ink);letter-spacing:-1px;line-height:1}
-  .hero .plus{font-size:7.5px;font-weight:800;color:#fff;background:var(--ok);border-radius:999px;padding:2px 6px;opacity:0;animation:pulse1 .6s ease forwards;animation-delay:2.2s}
-  .subline{font-size:9px;color:var(--sub);font-weight:700;margin-top:3px}
-  .subline b{color:var(--ink)}
+  .introScr{background:linear-gradient(165deg,#EAF2FE 0%,#F7FAFF 72%)}
+  .introInner{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px}
+  .introEmoji{font-size:38px;margin-bottom:15px}
+  .introHook{font-size:17px;font-weight:900;color:var(--ink);line-height:1.55;letter-spacing:-.3px}
+  .introHook b{color:var(--blue)}
+  .introHint{margin-top:18px;font-size:11px;font-weight:800;color:var(--blueDark);background:#fff;padding:8px 15px;border-radius:999px;box-shadow:0 6px 14px rgba(49,130,246,.18)}
 
-  /* 지도 (주인공) */
-  .mapwrap{position:relative;height:138px;border-radius:12px;margin-top:8px;overflow:hidden;border:1px solid var(--lineSoft);background:var(--water)}
+  /* S1 번호 hero */
+  .heroWrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .heroDone{font-size:11px;font-weight:800;color:var(--ok);background:#E7F7EF;border-radius:999px;padding:5px 13px;margin-bottom:16px}
+  .heroLab{font-size:11px;font-weight:800;color:var(--sub)}
+  .heroBig{font-size:64px;font-weight:900;color:var(--ink);letter-spacing:-2px;line-height:1;margin-top:4px}
+  .heroPlus{font-size:10px;font-weight:800;color:#fff;background:var(--ok);border-radius:999px;padding:3px 10px;margin-top:12px}
+  .scr.on .heroPlus{animation:pop1 .6s cubic-bezier(.2,.9,.3,1.4)}
+  @keyframes pop1{0%{opacity:0;transform:scale(.6)}60%{transform:scale(1.15)}100%{opacity:1;transform:scale(1)}}
+
+  /* S2 지도 */
+  .mapCap2{font-size:12px;font-weight:900;color:var(--ink);text-align:center;margin:2px 0 10px}
+  .mapwrap{position:relative;height:300px;border-radius:14px;overflow:hidden;border:1px solid var(--lineSoft);background:#DCEAF5}
   .mapwrap svg{display:block;width:100%;height:100%}
-  .newpin{opacity:0;transform-box:fill-box;transform-origin:50% 100%;animation:drop .5s cubic-bezier(.2,.9,.3,1.3) forwards;animation-delay:2.2s}
-  .ring{opacity:0;animation:ring 0.9s ease-out forwards;animation-delay:2.5s}
-  .mapcap{position:absolute;left:7px;bottom:6px;font-size:7px;font-weight:800;color:#1f5e3a;background:rgba(255,255,255,.82);border-radius:6px;padding:2px 6px}
-  .mapcity{position:absolute;font-size:7px;font-weight:700;color:#7E8B96}
+  .mapcity{position:absolute;font-size:9px;font-weight:700;color:#5E6B76}
+  .mapcap{position:absolute;left:8px;bottom:8px;font-size:9px;font-weight:800;color:#1f5e3a;background:rgba(255,255,255,.85);border-radius:7px;padding:3px 8px}
 
-  /* 유입경로 */
-  .inflow{margin-top:8px}
-  .inflow .h{font-size:8px;font-weight:800;color:var(--sub);margin-bottom:4px}
-  .ibar{display:flex;align-items:center;gap:5px;margin-bottom:4px}
-  .ibar .nm{font-size:8px;font-weight:700;color:var(--ink);width:32px;flex:none}
-  .ibar .tr{flex:1;height:7px;border-radius:999px;background:#EEF1F4;overflow:hidden}
-  .ibar .fl{height:7px;border-radius:999px;background:var(--blue);width:0;animation:grow .7s ease forwards}
-  .ibar .n{font-size:8px;font-weight:800;color:var(--blueDark);width:14px;text-align:right}
-  .ibar:nth-of-type(1) .fl{animation-delay:3.1s}
-  .ibar:nth-of-type(2) .fl{animation-delay:3.3s}
-  .ibar:nth-of-type(3) .fl{animation-delay:3.5s}
+  /* S3 성과 */
+  .statTitle{font-size:12px;font-weight:900;color:var(--ink);text-align:center;margin:2px 0 14px}
+  .statGrid{display:flex;flex-direction:column;gap:10px}
+  .statTile{display:flex;align-items:center;gap:11px;background:#F7F9FB;border:1px solid var(--line);border-radius:14px;padding:13px 14px}
+  .statTile .ic{width:40px;height:40px;border-radius:12px;background:var(--blueSoft);display:grid;place-items:center;font-size:19px;flex:none}
+  .statTile .v{font-size:19px;font-weight:900;color:var(--ink);line-height:1}
+  .statTile .k{font-size:10px;font-weight:700;color:var(--sub);margin-top:3px}
 
-  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
-  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
-  .steps i.on{background:var(--blue);transform:scale(1.25)}
-  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
-  .caption b{color:var(--ink);font-weight:800}
-  .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
-    border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
-  .alt .k{font-size:14px}
-  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
-  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  /* S4 유입 */
+  .inflowTitle{font-size:12px;font-weight:900;color:var(--ink);text-align:center;margin:2px 0 14px}
+  .ibar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .ibar .nm{font-size:11px;font-weight:800;color:var(--ink);width:46px;flex:none}
+  .ibar .tr{flex:1;height:12px;border-radius:999px;background:#EEF1F4;overflow:hidden}
+  .ibar .fl{height:12px;border-radius:999px;background:var(--blue);width:0}
+  .scr.on .ibar .fl{animation:grow .8s ease forwards}
+  .ibar:nth-of-type(2) .fl{animation-delay:.12s}
+  .ibar:nth-of-type(3) .fl{animation-delay:.24s}
+  @keyframes grow{to{width:var(--w)}}
+  .ibar .n{font-size:12px;font-weight:900;color:var(--blueDark);width:18px;text-align:right}
+  .inflowNote{font-size:10px;color:var(--hint);text-align:center;font-weight:700;margin-top:6px}
+
+  .cta{margin-top:12px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px;cursor:pointer}
+  .pausemark{position:absolute;z-index:12;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(17,24,39,.78);color:#fff;font-size:11px;font-weight:800;padding:7px 13px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
+  .pausemark.show{opacity:1}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px}
+  .nav button{border:1px solid var(--lineSoft);background:#fff;color:var(--ink);font-family:inherit;font-size:12px;font-weight:800;padding:8px 14px;border-radius:10px;cursor:pointer}
+  .nav button:active{background:var(--blueSoft)}
+  .nav .hint{font-size:10.5px;color:var(--hint);font-weight:700;text-align:center;flex:1}
+  .foot{max-width:360px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:2px}
   .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
 
-  @keyframes pulse1{0%{opacity:0;transform:scale(.6)}60%{opacity:1;transform:scale(1.15)}100%{opacity:1;transform:scale(1)}}
-  @keyframes drop{0%{opacity:0;transform:translateY(-12px) scale(.6)}70%{opacity:1;transform:translateY(2px) scale(1.1)}100%{opacity:1;transform:translateY(0) scale(1)}}
-  @keyframes ring{0%{opacity:.7;transform:scale(.3)}100%{opacity:0;transform:scale(1.4)}}
-  @keyframes drive{to{offset-distance:100%}}
-  @keyframes grow{to{width:var(--w)}}
+  .inapp .chead,.inapp .nav{display:none}
+  .inapp .card{background:transparent;border:none;box-shadow:none;padding:0}
 
-  @media (prefers-reduced-motion: reduce){ *{animation:none!important}
-    .hero .plus{opacity:1!important} .newpin{opacity:1!important} .truck{offset-distance:62%!important} .ibar .fl{width:var(--w)!important} }
+  @media (prefers-reduced-motion: reduce){ .scr.on .heroPlus{animation:none} .scr.on .ibar .fl{animation:none;width:var(--w)} }
 </style>
+<script>if(window.AppBridge)document.documentElement.classList.add('inapp');</script>
 </head>
 <body>
   <div class="lede"><b>내 기록 — 다녀온 현장이 쌓여요</b><br>시공 끝내고 <b>[완료]</b>를 누르면, 번호·지도·이번 달 성과가 저절로
-    <br><span class="tag">프로토 · 자동 재생(8초) · 지금 실제 동작 기준</span></div>
+    <br><span class="tag">📱 인스타 스토리처럼 넘겨보기 · 꾹 눌러 멈춤</span></div>
 
   <div class="card">
     <div class="chead"><span class="dot"></span><span class="t">쌓이는 내 기록, 자랑할 만해요</span></div>
-    <p class="csub">완료만 누르면 <b>현장 번호가 쌓이고, 지도에 다녀온 길이 그려져요</b>. 이번 달 집수·매출·유입경로도 한눈에.</p>
 
-    <div class="stage">
+    <div class="stage" id="stage">
+      <div class="igbars">
+        <span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span>
+      </div>
+      <div class="ighead">
+        <span class="av"><i>🧢</i></span><span class="nm">시공막내 가이드북</span><span class="tm">방금</span><span class="x">≡</span>
+      </div>
       <div class="phone">
-        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
-        <div class="tbar">내 기록</div>
-        <div class="body">
-          <div class="hero"><span class="lab">현장</span><span class="big" id="bignum">038</span><span class="plus">방금 +1</span></div>
-          <div class="subline">이번 달 <b>7집</b> · 동네 <b>38곳</b> · 매출 <b>500만원</b></div>
+        <div class="pausemark" id="pausemark">⏸ 멈춤 — 떼면 계속</div>
 
-          <!-- 지도: 땅·강·경로·동네 점·출발 집 + 달리는 트럭 -->
-          <div class="mapwrap">
-            <svg viewBox="0 0 202 138" preserveAspectRatio="xMidYMid slice">
-              <!-- 땅 -->
-              <path d="M-5,40 C30,24 70,30 104,22 C140,14 176,24 210,16 L210,145 L-5,145 Z" fill="#E3EDE0" stroke="#CFE0C7" stroke-width="1.2"/>
-              <path d="M-5,40 C30,24 70,30 104,22 C140,14 176,24 210,16" fill="none" stroke="#CFE0C7" stroke-width="1.2"/>
-              <!-- 강 -->
-              <path d="M-5,86 C40,70 70,100 110,84 C150,68 180,96 210,82" fill="none" stroke="#BBD6EF" stroke-width="7" stroke-linecap="round"/>
-              <!-- 도로 몇 개 -->
-              <path d="M16,118 L190,30" stroke="#FFFFFF" stroke-width="2.5" opacity="0.7"/>
-              <path d="M40,20 L70,130" stroke="#FFFFFF" stroke-width="2" opacity="0.6"/>
-              <!-- 다녀온 경로(트럭이 달리는 길) -->
-              <path id="route" d="M24,112 Q58,52 96,78 Q128,98 170,44" fill="none" stroke="#3182F6" stroke-width="2.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.85"/>
-              <!-- 출발 집 -->
-              <g>
-                <circle cx="24" cy="112" r="8" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.5"/>
-                <text x="24" y="115" font-size="9" text-anchor="middle">🏠</text>
-              </g>
-              <!-- 동네 점 (크기=방문 횟수) -->
-              <circle cx="58" cy="52" r="5.5" fill="#3182F6"/>
-              <circle cx="96" cy="78" r="4" fill="#3182F6"/>
-              <circle cx="128" cy="98" r="6.5" fill="#3182F6"/>
-              <circle cx="170" cy="44" r="4.5" fill="#3182F6"/>
-              <circle cx="78" cy="34" r="3.2" fill="#3182F6"/>
-              <!-- 방금 완료된 새 동네 점 -->
-              <circle class="ring" cx="112" cy="60" r="9" fill="none" stroke="#FF5B52" stroke-width="2"/>
-              <circle class="newpin" cx="112" cy="60" r="5" fill="#FF5B52"/>
-              <!-- 🚚 막내 트럭 — 경로(#route)를 그대로 달린다 -->
-              <g>
-                <text y="4" font-size="14" text-anchor="middle">🚚</text>
-                <animateMotion dur="4.2s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1" keyTimes="0;1">
-                  <mpath href="#route"/>
-                </animateMotion>
-              </g>
-            </svg>
-            <div class="mapcity" style="left:30%;top:28%">판교</div>
-            <div class="mapcity" style="left:66%;top:66%">강남</div>
-            <div class="mapcap">내가 다녀온 길 · 동네 38곳</div>
+        <!-- S0 인트로 -->
+        <div class="scr introScr" data-s="0">
+          <div class="introInner">
+            <div class="introEmoji">🧾🗺️</div>
+            <div class="introHook">다녀온 현장,<br>그냥<br><b>흘려보내셨죠?</b></div>
+            <div class="introHint">완료만 누르면 쌓여요 ↓</div>
           </div>
+        </div>
 
-          <div class="inflow">
-            <div class="h">어디서 보셨어요? (유입경로)</div>
+        <!-- S1 완료 → 번호 +1 -->
+        <div class="scr blueTop" data-s="1">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>내 기록</div>
+          <div class="body">
+            <div class="heroWrap">
+              <div class="heroDone">✓ 시공 완료</div>
+              <div class="heroLab">다녀온 현장</div>
+              <div class="heroBig">038</div>
+              <div class="heroPlus">방금 +1</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S2 지도·트럭 -->
+        <div class="scr blueTop" data-s="2">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>내 기록</div>
+          <div class="body">
+            <div class="mapCap2">내가 다녀온 길 🚚</div>
+            <div class="mapwrap">
+              <svg viewBox="0 0 200 300" preserveAspectRatio="xMidYMid slice">
+                <path d="M-5,90 C40,60 90,70 130,52 C165,36 185,52 210,40 L210,320 L-5,320 Z" fill="#E3EDE0" stroke="#CFE0C7" stroke-width="1.4"/>
+                <path d="M-5,90 C40,60 90,70 130,52 C165,36 185,52 210,40" fill="none" stroke="#CFE0C7" stroke-width="1.4"/>
+                <path d="M-5,180 C45,150 80,210 125,180 C160,156 185,196 210,176" fill="none" stroke="#BBD6EF" stroke-width="9" stroke-linecap="round"/>
+                <path d="M18,250 L185,70" stroke="#FFFFFF" stroke-width="3" opacity="0.7"/>
+                <path d="M45,46 L80,275" stroke="#FFFFFF" stroke-width="2.4" opacity="0.6"/>
+                <path id="route" d="M26,238 Q64,120 100,166 Q134,206 172,96" fill="none" stroke="#3182F6" stroke-width="2.8" stroke-dasharray="6 5" stroke-linecap="round" opacity="0.9"/>
+                <g>
+                  <circle cx="26" cy="238" r="10" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.8"/>
+                  <text x="26" y="242" font-size="11" text-anchor="middle">🏠</text>
+                </g>
+                <circle cx="64" cy="120" r="7" fill="#3182F6"/>
+                <circle cx="100" cy="166" r="5" fill="#3182F6"/>
+                <circle cx="134" cy="206" r="8" fill="#3182F6"/>
+                <circle cx="172" cy="96" r="5.5" fill="#3182F6"/>
+                <circle cx="80" cy="74" r="4" fill="#3182F6"/>
+                <circle class="ring2" cx="116" cy="128" r="11" fill="none" stroke="#FF5B52" stroke-width="2.4"/>
+                <circle cx="116" cy="128" r="6" fill="#FF5B52"/>
+                <g>
+                  <text y="5" font-size="17" text-anchor="middle">🚚</text>
+                  <animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1" keyTimes="0;1"><mpath href="#route"/></animateMotion>
+                </g>
+              </svg>
+              <div class="mapcity" style="left:30%;top:36%">판교</div>
+              <div class="mapcity" style="left:66%;top:68%">강남</div>
+              <div class="mapcap">동네 38곳 · 다녀온 길</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S3 이번 달 성과 -->
+        <div class="scr blueTop" data-s="3">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>이번 달</div>
+          <div class="body">
+            <div class="statTitle">이번 달 성과, 한눈에</div>
+            <div class="statGrid">
+              <div class="statTile"><span class="ic">🏠</span><div><div class="v">7집</div><div class="k">이번 달 집수</div></div></div>
+              <div class="statTile"><span class="ic">📍</span><div><div class="v">38곳</div><div class="k">다녀온 동네</div></div></div>
+              <div class="statTile"><span class="ic">💰</span><div><div class="v">500만원</div><div class="k">이번 달 매출</div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S4 유입경로 -->
+        <div class="scr blueTop" data-s="4">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>유입경로</div>
+          <div class="body">
+            <div class="inflowTitle">어디서 보셨어요? 📈</div>
             <div class="ibar"><span class="nm">네이버</span><span class="tr"><span class="fl" style="--w:100%"></span></span><span class="n">12</span></div>
             <div class="ibar"><span class="nm">블로그</span><span class="tr"><span class="fl" style="--w:66%"></span></span><span class="n">8</span></div>
             <div class="ibar"><span class="nm">소개</span><span class="tr"><span class="fl" style="--w:42%"></span></span><span class="n">5</span></div>
+            <div class="inflowNote">접수서 '어디서 보셨어요?'가 저절로 쌓여요</div>
           </div>
         </div>
+
       </div>
+      <div class="igcap" id="caption">다녀온 현장, 그냥 흘려보내셨죠? 🧾</div>
+      <div class="igreply"><span class="box">메시지 보내기</span><span class="ic">♡</span><span class="ic">✈</span></div>
     </div>
 
-    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
-    <div class="caption" id="caption">① 시공 끝내고 [완료]를 누르면</div>
-
-    <div class="alt"><span class="k">🗺️</span>지도는 — <b style="margin-left:2px">남한테 보여주기</b>&nbsp;좋아요 (자랑·홍보)</div>
-
+    <div class="nav"><button id="prev">‹ 이전</button><span class="hint">좌우로 넘기기 · 꾹 눌러 멈춤 · 인스타처럼 📱</span><button id="next">다음 ›</button></div>
     <div class="cta">내 기록 보기</div>
   </div>
 
-  <div class="foot"><span>자동 재생 8초 반복</span><span>트럭=다녀온 길</span><span>완료 찍을수록 쌓임</span></div>
+  <div class="foot"><span>좌우로 넘기기 · 꾹 눌러 멈춤</span><span>트럭=다녀온 길</span><span>완료 찍을수록 쌓임</span></div>
 
 <script>
-  const caps = [
-    "① 시공 끝내고 [완료]를 누르면",
-    "② 현장 번호가 하나 쌓여요 (038)",
-    "③ 지도에 다녀온 길·트럭이 달려요",
-    "④ 이번 달 집수·매출·유입경로까지 한눈에"
+  const steps = [
+    "다녀온 현장, 그냥 흘려보내셨죠? 🧾",
+    "시공 끝내고 [완료]를 누르면 — 번호가 하나 쌓여요",
+    "지도에 다녀온 길·트럭이 달려요",
+    "이번 달 집수·매출이 한눈에",
+    "유입경로까지 — 어디서 왔는지"
   ];
-  const atMs = [0, 2200, 2700, 3100];
+  const dur = [3600, 3800, 4600, 4200, 4400];
+  const N = steps.length;
+  const numFor = {1:1, 2:2, 3:3, 4:4};
+  const noNum = i => !(i in numFor);
+  const stepNo = i => numFor[i];
+  const scrs = [...document.querySelectorAll('.scr')];
+  const fills = [...document.querySelectorAll('.igbars .seg .fill')];
   const capEl = document.getElementById('caption');
-  const dots = [...document.querySelectorAll('#steps i')];
-  const bignum = document.getElementById('bignum');
-  function cycle(){
-    const t0 = performance.now();
-    function tick(now){
-      const e = (now - t0) % 8000;
-      let idx = 0;
-      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
-      capEl.textContent = caps[idx];
-      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
-      bignum.textContent = (e < 2200) ? "037" : "038";
-      requestAnimationFrame(tick);
+  const pausemark = document.getElementById('pausemark');
+  const stage = document.getElementById('stage');
+  let idx=0, stepElapsed=0, paused=false, lastIdx=-1;
+  const autoplay = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function render(){
+    if(idx!==lastIdx){
+      scrs.forEach(s=>s.classList.toggle('on', +s.dataset.s===idx));
+      capEl.innerHTML = (noNum(idx)?'':'<span class="n">'+stepNo(idx)+'</span>') + steps[idx];
+      lastIdx=idx;
     }
+    const frac = Math.min(1, stepElapsed/dur[idx]);
+    fills.forEach((f,i)=>{ f.style.width = (i<idx?100:(i===idx?frac*100:0))+'%'; });
+    pausemark.classList.toggle('show', paused);
+  }
+  function go(n){ idx=((n%N)+N)%N; stepElapsed=0; render(); }
+
+  let lastT=performance.now();
+  function tick(now){
+    const d=now-lastT; lastT=now;
+    if(autoplay && !paused){ stepElapsed+=d; if(stepElapsed>=dur[idx]){ idx=(idx+1)%N; stepElapsed=0; } }
+    render();
     requestAnimationFrame(tick);
   }
-  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+
+  let downX=0,downT=0,moved=false,holdTimer=null,heldPause=false;
+  function endHold(){ if(holdTimer){clearTimeout(holdTimer);holdTimer=null;} }
+  stage.addEventListener('pointerdown',e=>{
+    downX=e.clientX; downT=performance.now(); moved=false; heldPause=false;
+    holdTimer=setTimeout(()=>{ heldPause=true; paused=true; render(); },220);
+  });
+  stage.addEventListener('pointermove',e=>{ if(Math.abs(e.clientX-downX)>10) moved=true; });
+  function finish(e){
+    endHold();
+    const dt=performance.now()-downT, dx=(e.clientX||downX)-downX;
+    if(heldPause){ paused=false; heldPause=false; render(); return; }
+    if(Math.abs(dx)>40){ go(dx<0?idx+1:idx-1); }
+    else if(dt<260 && !moved){
+      const r=stage.getBoundingClientRect();
+      go((e.clientX-r.left)>r.width/2 ? idx+1 : idx-1);
+    }
+  }
+  stage.addEventListener('pointerup',finish);
+  stage.addEventListener('pointercancel',()=>{ endHold(); if(heldPause){paused=false;heldPause=false;render();} });
+  stage.addEventListener('pointerleave',()=>{ endHold(); if(heldPause){paused=false;heldPause=false;render();} });
+  document.getElementById('prev').addEventListener('click',()=>go(idx-1));
+  document.getElementById('next').addEventListener('click',()=>go(idx+1));
+
+  const _h = (location.hash.match(/s=(\d+)/)||[])[1];
+  if(_h!==undefined){ idx = Math.max(0,Math.min(N-1,+_h)); paused = true; }
+  render();
+  requestAnimationFrame(tick);
 </script>
 </body>
 </html>
