@@ -2,220 +2,491 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>접수서 보내기 데모</title>
-<meta name="description" content="앱 안에서 '이렇게 써보세요' — 고객이 날짜·주소를 적으면 자동으로 캘린더에 등록되는 흐름을 도는 미리보기 프로토 (전환율 유도).">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>접수서 따라하기</title>
+<meta name="description" content="처음 쓰는 사장님이 보고 그대로 따라 누를 수 있는 접수서 보내기 단계별 데모 — 앞뒤 후킹 문구 + 실제 앱 화면·탭 위치 그대로.">
 <style>
   :root{
     --blue:#3182F6; --blueSoft:#EAF2FE; --blueDark:#1B64DA;
     --ink:#191F28; --sub:#6B7684; --hint:#8B95A1; --line:#EEF1F4;
-    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886;
+    --bg:#F2F4F6; --card:#FFFFFF; --ok:#12B886; --lineSoft:#E7EBF0;
     --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;
-    padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+    padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:14px}
   .lede{max-width:430px;text-align:center;color:var(--sub);line-height:1.55}
   .lede b{color:var(--ink);font-weight:800}
   .tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--blueDark);background:var(--blueSoft);
     padding:4px 11px;border-radius:999px;font-weight:700}
 
-  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:18px 16px 16px;
+  .card{width:100%;max-width:360px;background:var(--card);border-radius:20px;padding:16px 16px 14px;
     box-shadow:0 8px 28px rgba(17,24,39,.08);border:1px solid var(--line)}
-  .chead{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .chead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
   .chead .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
   .chead .t{font-weight:800;font-size:15px}
-  .csub{color:var(--sub);font-size:12.5px;margin:0 0 12px;line-height:1.5}
 
-  .stage{position:relative;height:312px;border-radius:16px;overflow:hidden;
-    background:linear-gradient(180deg,#F7F9FB,#EDF1F5);border:1px solid var(--line)}
+  /* 스테이지 = 인스타 스토리 뷰어 (어두운 몰입 프레임) */
+  .stage{position:relative;height:518px;border-radius:18px;overflow:hidden;
+    background:radial-gradient(130% 92% at 50% 0%, #22262E 0%, #121419 72%);border:1px solid #0C0E12;
+    display:flex;justify-content:center;align-items:flex-start}
 
-  .phone{position:absolute;top:20px;width:152px;height:270px;border-radius:21px;background:#fff;
-    box-shadow:0 10px 26px rgba(17,24,39,.16);border:1px solid #E4E9EF;overflow:hidden}
-  .sbar{height:15px;display:flex;align-items:center;padding:0 8px;font-size:7px;font-weight:800;color:#fff;opacity:.95}
-  .sbar .sig{margin-left:auto;display:flex;gap:2px;align-items:center}
-  .sbar .sig i{width:3px;height:3px;border-radius:50%;background:#fff;display:block}
-  .sbar .bat{width:11px;height:6px;border:1px solid #fff;border-radius:2px;margin-left:3px;position:relative}
-  .sbar .bat::after{content:"";position:absolute;inset:1px;right:3px;background:#fff;border-radius:1px}
-  .tbar{height:24px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:800;color:#fff}
-  .body{padding:9px 9px 0}
-  .pBoss{left:14px}  .pBoss .sbar,.pBoss .tbar{background:var(--blue)}
-  .pCust{right:14px} .pCust .sbar,.pCust .tbar{background:#30343B}
+  /* 스토리 상단 분절 진행바 */
+  .igbars{position:absolute;top:9px;left:11px;right:11px;z-index:33;display:flex;gap:3px}
+  .igbars .seg{flex:1;height:2.5px;border-radius:999px;background:rgba(255,255,255,.28);overflow:hidden}
+  .igbars .seg .fill{display:block;height:100%;width:0;background:#fff;border-radius:999px}
 
-  .row{display:flex;align-items:flex-end;gap:5px;margin-bottom:7px}
-  .ava{width:17px;height:17px;border-radius:50%;background:var(--blueSoft);flex:none}
-  .ava.g{background:#E7EBF0}
-  .bub{font-size:8.5px;line-height:1.35;padding:5px 7px;border-radius:9px;background:#F1F4F7;color:var(--ink);max-width:96px}
+  /* 스토리 헤더 (막내 아바타 + 이름 + 시간 + ✕) */
+  .ighead{position:absolute;top:16px;left:12px;right:12px;z-index:33;display:flex;align-items:center;gap:8px;color:#fff}
+  .ighead .av{width:27px;height:27px;border-radius:50%;padding:2px;flex:none;
+    background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)}
+  .ighead .av i{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#20242C;font-style:normal;font-size:13px}
+  .ighead .nm{font-size:11.5px;font-weight:800}
+  .ighead .tm{font-size:9.5px;color:rgba(255,255,255,.62);font-weight:600}
+  .ighead .x{margin-left:auto;font-size:15px;color:#fff;opacity:.85}
+
+  /* 스토리 캡션 (아래 몰입 영역, 흰 글씨) */
+  .igcap{position:absolute;left:14px;right:14px;bottom:48px;z-index:33;text-align:center;
+    color:#fff;font-size:13px;font-weight:800;line-height:1.4;min-height:34px;
+    text-shadow:0 1px 6px rgba(0,0,0,.4)}
+  .igcap .n{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;
+    background:#fff;color:#20242C;font-size:11px;margin-right:5px;vertical-align:middle;font-weight:900}
+
+  /* 스토리 하단 리플 바 (메시지 보내기 · ♡ · ✈) — 인스타 그대로 */
+  .igreply{position:absolute;left:12px;right:12px;bottom:11px;z-index:33;display:flex;align-items:center;gap:10px}
+  .igreply .box{flex:1;border:1px solid rgba(255,255,255,.42);border-radius:999px;padding:7px 13px;
+    font-size:10.5px;color:rgba(255,255,255,.72);font-weight:600}
+  .igreply .ic{font-size:16px;color:#fff;opacity:.92;flex:none}
+
+  /* 폰 — 베젤 + 노치 */
+  .phone{position:relative;top:46px;width:224px;height:376px;border-radius:28px;background:#fff;border:none;
+    box-shadow:0 18px 40px rgba(0,0,0,.45), 0 0 0 5px #0B0D11, 0 0 0 6px #2C323B;overflow:hidden}
+  .phone::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:70px;height:17px;background:#10131A;border-radius:0 0 13px 13px;z-index:30;pointer-events:none}
+  .scr{position:absolute;inset:0;opacity:0;transition:opacity .4s ease;display:flex;flex-direction:column;background:#fff}
+  .scr.on{opacity:1;z-index:2}
+
+  /* 상태바 */
+  .sbar{height:18px;display:flex;align-items:center;padding:0 11px;font-size:8px;font-weight:800;color:#fff;flex:none}
+  .sbar .sp{margin-left:auto;display:flex;align-items:center;gap:5px}
+  .sbar .bars{display:flex;align-items:flex-end;gap:1.5px;height:8px}
+  .sbar .bars i{width:2px;background:currentColor;border-radius:1px;opacity:.95}
+  .sbar .bars i:nth-child(1){height:3px}
+  .sbar .bars i:nth-child(2){height:5px}
+  .sbar .bars i:nth-child(3){height:8px}
+  .sbar .bat{width:14px;height:7.5px;border:1px solid currentColor;border-radius:2.5px;position:relative;opacity:.95}
+  .sbar .bat::after{content:"";position:absolute;inset:1.5px;right:4px;background:currentColor;border-radius:1px}
+  .sbar .bat::before{content:"";position:absolute;right:-2.5px;top:2.3px;width:1.6px;height:3px;background:currentColor;border-radius:0 2px 2px 0}
+  .tbar{height:30px;display:flex;align-items:center;gap:6px;padding:0 11px;font-size:11px;font-weight:800;color:#fff;flex:none}
+  .tbar .back{font-size:12px}
+  .blueTop .sbar,.blueTop .tbar{background:var(--blue)}
+  .darkTop .sbar,.darkTop .tbar{background:#30343B}
+  .body{flex:1;padding:10px;position:relative;overflow:hidden}
+
+  /* 인트로 훅 */
+  .introScr{background:linear-gradient(165deg,#EAF2FE 0%,#F7FAFF 72%)}
+  .introInner{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px}
+  .introEmoji{font-size:38px;margin-bottom:15px}
+  .introHook{font-size:17px;font-weight:900;color:var(--ink);line-height:1.55;letter-spacing:-.3px}
+  .introHook b{color:var(--blue)}
+  .introHint{margin-top:18px;font-size:11px;font-weight:800;color:var(--blueDark);background:#fff;padding:8px 15px;border-radius:999px;box-shadow:0 6px 14px rgba(49,130,246,.18)}
+
+  /* 말풍선 */
+  .bub{font-size:10px;line-height:1.4;padding:7px 10px;border-radius:12px;max-width:150px;margin-bottom:7px;box-shadow:0 1px 3px rgba(17,24,39,.06)}
+  .bub.them{background:#F1F4F7;color:var(--ink)}
   .bub.me{background:var(--blue);color:#fff;margin-left:auto}
-  .tm{font-size:6.5px;color:var(--hint);margin:0 2px 1px}
 
-  /* 접수서 링크 카드 */
-  .linkcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 7px;max-width:112px;box-shadow:0 2px 8px rgba(17,24,39,.06)}
-  .linkcard.me{margin-left:auto;border-color:#BFD8FF;background:#F6FAFF}
-  .linkcard .h{font-size:8.5px;font-weight:800;color:var(--ink);display:flex;gap:3px;align-items:center}
-  .linkcard .d{font-size:7px;color:var(--sub);margin:2px 0 4px}
-  .linkcard .go{font-size:7.5px;font-weight:800;color:#fff;background:var(--blue);border-radius:6px;text-align:center;padding:4px}
+  /* 하단 접수서 칩 + 입력줄 */
+  .composer{position:absolute;left:8px;right:8px;bottom:8px}
+  .chipRow{display:flex;gap:6px;margin-bottom:7px}
+  .chip{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:var(--blueDark);
+    background:#fff;border:1.5px solid var(--blue);border-radius:999px;padding:6px 11px;box-shadow:0 2px 8px rgba(49,130,246,.14)}
+  .inputbar{display:flex;align-items:center;gap:6px;background:#F1F4F7;border-radius:999px;padding:7px 10px;font-size:10px;color:var(--hint)}
+  .inputbar .snd{margin-left:auto;width:20px;height:20px;border-radius:50%;background:var(--blue);display:grid;place-items:center;color:#fff;font-size:10px}
 
-  .lab{font-size:8px;color:var(--hint);font-weight:700;margin:2px 0 4px;display:flex;gap:3px;align-items:center}
-  .inp{height:17px;border-radius:5px;background:#F1F4F7;margin-bottom:6px;position:relative;overflow:hidden;border:1px solid #E7EBF0}
-  .inp .txt{position:absolute;left:5px;top:3.5px;font-size:7.5px;color:var(--ink);white-space:nowrap;opacity:0;z-index:2}
-  .inp::after{content:"";position:absolute;inset:0;width:0;background:#DCEAFE}
-  .btn{margin-top:3px;background:var(--blue);color:#fff;font-weight:800;font-size:9px;text-align:center;padding:7px;border-radius:9px}
+  /* 시트 */
+  .sheetDim{position:absolute;inset:0;background:rgba(17,24,39,.28)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:12px 12px 14px;
+    box-shadow:0 -8px 24px rgba(17,24,39,.12)}
+  .grab{width:34px;height:4px;border-radius:999px;background:#D4DAE1;margin:0 auto 10px}
+  .sheet .st{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:10px}
 
-  /* 도착 — 자동 캘린더 */
-  .arrived{margin-top:2px}
-  .calCard{position:relative;border:1px solid #BFD8FF;border-radius:11px;padding:7px 8px;background:#F6FAFF}
-  .calCard .h{display:flex;align-items:center;gap:4px;font-size:8.5px;font-weight:800;color:var(--blueDark)}
-  .calCard .badge{margin-left:auto;display:flex;align-items:center;gap:2px;font-size:6.5px;font-weight:800;color:#fff;background:var(--ok);padding:2px 6px;border-radius:999px}
-  .dateline{font-size:8.5px;font-weight:800;color:var(--ink);margin:4px 0 1px}
-  .addrline{font-size:8px;color:var(--sub)}
-  .miniCal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin:5px 0 2px}
-  .miniCal b{font-size:6px;color:var(--hint);text-align:center;font-weight:700}
-  .miniCal span{font-size:7px;text-align:center;color:var(--sub);padding:2.5px 0;border-radius:5px;line-height:1}
-  .miniCal span.hi{background:#F1F4F7;color:var(--sub);position:relative}
+  /* 달력 */
+  .calLab{font-size:10px;font-weight:800;color:var(--sub);margin-bottom:6px;display:flex;align-items:center;gap:4px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal b{font-size:8px;color:var(--hint);text-align:center;font-weight:700}
+  .cal span{font-size:10px;text-align:center;color:var(--ink);padding:6px 0;border-radius:8px;background:#F6F8FA}
+  .cal span.pick{background:var(--blue);color:#fff;font-weight:800;box-shadow:0 3px 10px rgba(49,130,246,.4)}
+  .calHint{font-size:9px;color:var(--hint);text-align:center;margin-top:8px}
 
-  .fly{position:absolute;z-index:6;font-size:17px;top:120px;left:152px;opacity:0}
-  .spark{position:absolute;z-index:7;left:72px;top:150px;font-size:15px;opacity:0}
+  /* 전송옵션 */
+  .opt{border:1px solid var(--lineSoft);border-radius:12px;padding:10px 11px;margin-top:8px;display:flex;align-items:center;gap:8px}
+  .opt .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;background:#F1F4F7;flex:none}
+  .opt .tt{font-size:10.5px;font-weight:800;color:var(--ink)}
+  .opt .ds{font-size:8.5px;color:var(--sub);margin-top:1px}
+  .opt .pill{margin-left:auto;font-size:7.5px;font-weight:800;color:#fff;background:var(--ok);padding:2px 6px;border-radius:999px}
+  .opt.reco{border-color:var(--blue);background:#F6FAFF;box-shadow:0 4px 14px rgba(49,130,246,.12)}
+  .opt.reco .ic{background:var(--blueSoft)}
 
-  .steps{display:flex;gap:6px;justify-content:center;margin-top:12px}
-  .steps i{width:7px;height:7px;border-radius:50%;background:#D4DAE1;transition:.25s}
-  .steps i.on{background:var(--blue);transform:scale(1.25)}
-  .caption{text-align:center;color:var(--sub);font-size:12.5px;margin-top:9px;min-height:18px;font-weight:600}
-  .caption b{color:var(--ink);font-weight:800}
+  /* 링크카드(문자) */
+  .linkcard{background:#fff;border:1px solid #BFD8FF;border-radius:11px;padding:8px 9px;max-width:150px;margin-left:auto;box-shadow:0 3px 10px rgba(17,24,39,.12)}
+  .linkcard .h{font-size:10px;font-weight:800;color:var(--ink)}
+  .linkcard .d{font-size:8.5px;color:var(--sub);margin:2px 0 4px}
+  .linkcard .lu{font-size:7.5px;color:var(--blueDark);font-family:ui-monospace,Menlo,monospace;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .linkcard .go{font-size:9px;font-weight:800;color:#fff;background:var(--blue);border-radius:7px;text-align:center;padding:5px}
 
-  .alt{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 11px;background:var(--blueSoft);
-    border-radius:11px;font-size:12px;color:var(--blueDark);font-weight:700}
-  .alt .k{font-size:14px}
-  .cta{margin-top:13px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px}
-  .foot{max-width:400px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  /* S4 발행 → 우리 링크(URL) 생성 reveal */
+  .pubWrap{display:flex;flex-direction:column;align-items:center;padding:18px 8px 0;text-align:center}
+  .pubBadge{width:54px;height:54px;border-radius:16px;background:var(--blueSoft);display:grid;place-items:center;font-size:26px;margin-bottom:12px}
+  .scr.on .pubBadge{animation:badgePop .5s cubic-bezier(.2,.9,.3,1.5)}
+  .pubTitle{font-size:14px;font-weight:900;color:var(--ink);letter-spacing:-.3px;line-height:1.4}
+  .pubSub{font-size:10px;color:var(--sub);font-weight:700;margin-top:6px}
+  .urlBox{align-self:stretch;display:flex;align-items:center;gap:7px;margin:15px 2px 0;background:#fff;
+    border:1.5px solid var(--blue);border-radius:12px;padding:10px 11px;box-shadow:0 5px 16px rgba(49,130,246,.16)}
+  .urlBox .u{font-size:10.5px;font-weight:800;color:var(--blueDark);font-family:ui-monospace,Menlo,monospace;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .urlBox .cp{margin-left:auto;font-size:7px;font-weight:800;color:#fff;background:var(--ok);padding:3px 6px;border-radius:999px;flex:none}
+  .pubNote{font-size:9.5px;color:var(--hint);font-weight:700;margin-top:13px;line-height:1.5}
+  .pubNote b{color:var(--blueDark)}
+
+  /* 고객 폰 주소줄 — 우리 링크를 열었다는 표시 */
+  .addrBar{display:flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--lineSoft);border-radius:999px;
+    padding:4px 9px;margin-bottom:9px;font-size:8.5px;font-weight:700;color:var(--sub);font-family:ui-monospace,Menlo,monospace}
+  .addrBar .lock{font-size:8px}
+
+  /* S5 고객 접수서 폼 (전체화면) */
+  .custTop .sbar,.custTop .tbar{background:#2B3038}
+  .tbar .who{margin-left:auto;font-size:8px;font-weight:800;color:#fff;background:rgba(255,255,255,.22);padding:2px 8px;border-radius:999px}
+  .fTitle{font-size:12.5px;font-weight:800;color:var(--ink);margin:2px 2px 8px}
+  .lockRow{display:flex;align-items:center;gap:9px;background:#EDF2F7;border:1px solid var(--lineSoft);border-radius:13px;padding:8px 10px}
+  .lockIc{width:32px;height:32px;border-radius:9px;background:#fff;display:grid;place-items:center;font-size:16px;flex:none;box-shadow:0 2px 6px rgba(17,24,39,.06)}
+  .lockLab{font-size:8.5px;font-weight:700;color:var(--hint)}
+  .lockVal{font-size:11.5px;font-weight:800;color:var(--ink);margin-top:2px}
+  .lockChip{margin-left:auto;font-size:8px;font-weight:800;color:var(--sub);background:#fff;border:1px solid var(--lineSoft);padding:3px 8px;border-radius:999px;flex:none}
+  .fLab{font-size:9.5px;font-weight:800;color:var(--sub);margin:11px 2px 5px}
+  .fField{position:relative;background:#fff;border:1.5px solid var(--blue);border-radius:12px;padding:10px 11px;font-size:11px;font-weight:600;color:var(--ink);box-shadow:0 3px 12px rgba(49,130,246,.14)}
+  .fField .caret{display:inline-block;width:2px;height:13px;background:var(--blue);margin-left:1px;vertical-align:-2px;animation:caretBlink 1s steps(2) infinite}
+  .fSend{margin-top:11px;background:var(--blue);color:#fff;font-size:12px;font-weight:800;text-align:center;padding:11px;border-radius:12px;box-shadow:0 8px 18px rgba(49,130,246,.32)}
+  .custNote{font-size:9px;color:var(--hint);text-align:center;margin-top:7px}
+  .custBanner{display:flex;align-items:center;justify-content:center;gap:5px;background:#FFF4E0;border:1px solid #FFE2AE;color:#9A6A00;
+    font-size:10px;font-weight:800;padding:7px 9px;border-radius:10px;margin-bottom:9px}
+  @keyframes caretBlink{50%{opacity:0}}
+
+  /* S6 완료(성공) 화면 */
+  .doneWrap{display:flex;flex-direction:column;align-items:center;padding:14px 6px 0;text-align:center}
+  .checkBadge{width:60px;height:60px;border-radius:50%;background:linear-gradient(145deg,#1AC884,#0EA968);
+    color:#fff;font-size:31px;font-weight:900;display:grid;place-items:center;box-shadow:0 12px 26px rgba(14,169,104,.42);margin-bottom:12px}
+  .scr.on .checkBadge{animation:badgePop .55s cubic-bezier(.2,.9,.3,1.5)}
+  @keyframes badgePop{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.14)}100%{transform:scale(1);opacity:1}}
+  .doneTitle{font-size:16px;font-weight:900;color:var(--ink);letter-spacing:-.3px}
+  .doneSub{font-size:10.5px;color:var(--blueDark);font-weight:800;margin-top:6px;line-height:1.45}
+  .infoCard{align-self:stretch;background:#fff;border:1px solid var(--lineSoft);border-radius:14px;
+    padding:2px 13px;margin:15px 2px 0;box-shadow:0 5px 16px rgba(17,24,39,.07)}
+  .infoRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .infoRow:last-child{border-bottom:none}
+  .infoRow .k{font-size:9.5px;font-weight:700;color:var(--sub);flex:none}
+  .infoRow .v{font-size:10.5px;font-weight:800;color:var(--ink);text-align:right}
+  .infoRow .v .chk{color:var(--ok)}
+  .doneBtn{align-self:stretch;margin:14px 2px 0;text-align:center;padding:11px;border-radius:12px;font-size:11px;font-weight:800;
+    background:#fff;color:var(--sub);border:1.5px solid var(--lineSoft)}
+
+  /* 탭 제스처 — 누르는 순간만 '톡'(반복), 버튼에 상주 안 함 */
+  .tap{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;
+    background:rgba(49,130,246,.28);border:2px solid var(--blue);pointer-events:none;z-index:28;opacity:0}
+  .tap.go{animation:tapOnce .72s ease-out}
+  .tap.go::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--blue);animation:tapRing .72s ease-out}
+  @keyframes tapOnce{0%{opacity:0;transform:scale(1.3)}20%{opacity:.95;transform:scale(.8)}46%{opacity:.85;transform:scale(1)}100%{opacity:0;transform:scale(1.45)}}
+  @keyframes tapRing{0%{opacity:0;transform:scale(.6)}22%{opacity:.55}100%{opacity:0;transform:scale(2.1)}}
+  .tapPush{transition:transform .13s ease;transform:scale(.93)}
+
+  .pbar{display:flex;gap:4px;margin-top:12px}
+  .pbar .seg{flex:1;height:4px;border-radius:999px;background:#D7DDE3;overflow:hidden}
+  .pbar .seg .fill{display:block;height:100%;width:0;background:var(--blue);border-radius:999px}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px}
+  .nav button{border:1px solid var(--lineSoft);background:#fff;color:var(--ink);font-family:inherit;
+    font-size:12px;font-weight:800;padding:8px 14px;border-radius:10px;cursor:pointer}
+  .nav button:active{background:var(--blueSoft)}
+  .nav .hint{font-size:10.5px;color:var(--hint);font-weight:700;text-align:center;flex:1}
+  .pausemark{position:absolute;z-index:12;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:rgba(17,24,39,.78);color:#fff;font-size:11px;font-weight:800;padding:7px 13px;border-radius:999px;
+    opacity:0;transition:opacity .15s;pointer-events:none}
+  .pausemark.show{opacity:1}
+  .caption{text-align:center;color:var(--ink);font-size:14px;margin-top:10px;min-height:38px;font-weight:800;line-height:1.4}
+  .caption .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;margin-right:5px;vertical-align:middle}
+  .foot{max-width:360px;display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:2px}
   .foot span{font-size:11px;color:var(--hint);background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
 
-  /* ═══ 타임라인 9초 ═══ */
-  .pBoss .msgLink{opacity:0;transform:translateY(6px);animation:pop .4s ease forwards;animation-delay:.6s}
-  .pCust .gotLink{opacity:0;transform:translateY(6px);animation:pop .4s ease forwards;animation-delay:2.4s}
-  .pCust .form{opacity:0;animation:fade .4s ease forwards;animation-delay:3.1s}
-  .inp.a1::after{animation:typefill .5s ease forwards;animation-delay:3.7s}
-  .inp.a1 .txt{animation:fade .3s ease forwards;animation-delay:4.0s}
-  .inp.a2::after{animation:typefill .5s ease forwards;animation-delay:4.4s}
-  .inp.a2 .txt{animation:fade .3s ease forwards;animation-delay:4.7s}
-  .pCust .send{opacity:.5;animation:flash .5s ease forwards;animation-delay:5.1s}
-  .fly.paper{animation:flyRight 1.4s ease forwards;animation-delay:1.0s}
-  .fly.back{animation:flyLeft 1.4s ease forwards;animation-delay:5.4s}
-  .pBoss .arrived{opacity:0;transform:scale(.92);animation:pop .45s ease forwards;animation-delay:6.7s}
-  .miniCal span.hi{animation:dot .5s ease forwards;animation-delay:7.1s}
-  .spark{animation:spark 1s ease forwards;animation-delay:6.9s}
+  /* 앱 팝업(WebView) 안: 바깥 카드·헤더·이전다음 버튼 감추고 순수 스토리만 (웹에선 그대로) */
+  .inapp .chead,.inapp .nav{display:none}
+  .inapp .card{background:transparent;border:none;box-shadow:none;padding:0}
 
-  @keyframes pop{to{opacity:1;transform:none}}
-  @keyframes fade{to{opacity:1}}
-  @keyframes flash{0%{opacity:.5}50%{opacity:1}100%{opacity:.6}}
-  @keyframes typefill{to{width:100%}}
-  @keyframes dot{to{background:var(--blue);color:#fff}}
-  @keyframes spark{0%{opacity:0;transform:scale(.4) rotate(-10deg)}40%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(1) translateY(-8px)}}
-  @keyframes flyRight{0%{opacity:0;left:152px;top:120px}15%{opacity:1}100%{opacity:0;left:250px;top:66px}}
-  @keyframes flyLeft{0%{opacity:0;left:250px;top:120px}15%{opacity:1}100%{opacity:0;left:150px;top:150px}}
-
-  @media (prefers-reduced-motion: reduce){ *{animation:none!important} .inp::after{width:100%!important}
-    .inp .txt,.msgLink,.gotLink,.form,.arrived{opacity:1!important;transform:none!important}
-    .miniCal span.hi{background:var(--blue)!important;color:#fff!important} }
+  @media (prefers-reduced-motion: reduce){ .tap.go{animation:none;opacity:.85} .scr.on .checkBadge{animation:none} .fField .caret{animation:none} }
 </style>
+<script>/* 앱 팝업(WebView)이면 AppBridge 가 미리 주입돼 있다 → 순수 스토리 모드 */
+if(window.AppBridge)document.documentElement.classList.add('inapp');</script>
 </head>
 <body>
-  <div class="lede"><b>접수서 보내기 — 이렇게 써요</b><br>링크 하나 보내면 고객이 <b>날짜·주소</b>를 직접 적고, <b>자동으로 캘린더에</b>
-    <br><span class="tag">프로토 · 자동 재생(GIF식) · 전환율 유도</span></div>
+  <div class="lede"><b>접수서 보내기 — 보고 그대로 따라 하세요</b><br>처음이어도 괜찮아요. <b>누르는 자리</b>를 하나씩 짚어줄게요
+    <br><span class="tag">📱 인스타 스토리처럼 넘겨보기 · 꾹 눌러 멈춤</span></div>
 
   <div class="card">
-    <div class="chead"><span class="dot"></span><span class="t">접수서, 이렇게 받아요</span></div>
-    <p class="csub">고객이 <b>날짜와 주소</b>를 직접 적어줘요. 보내면 <b>자동으로 내 캘린더에</b> 쏙 — 다시 안 물어도 돼요.</p>
+    <div class="chead"><span class="dot"></span><span class="t">이렇게 누르면 돼요</span></div>
 
     <div class="stage" id="stage">
-      <!-- 사장님 폰 -->
-      <div class="phone pBoss">
-        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
-        <div class="tbar">내 시공막내</div>
-        <div class="body">
-          <span class="tm" style="display:block;text-align:right">오후 2:10</span>
-          <div class="row"><span class="bub me">접수서 보내드릴게요</span></div>
-          <div class="msgLink">
-            <div class="linkcard me">
+      <div class="igbars">
+        <span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span><span class="seg"><span class="fill"></span></span>
+      </div>
+      <div class="ighead">
+        <span class="av"><i>🧢</i></span>
+        <span class="nm">시공막내 가이드북</span>
+        <span class="tm">방금</span>
+        <span class="x">≡</span>
+      </div>
+      <div class="phone">
+        <div class="pausemark" id="pausemark">⏸ 멈춤 — 떼면 계속</div>
+        <div class="tap" id="tapRing"></div>
+
+        <!-- S0 인트로 훅 -->
+        <div class="scr introScr" data-s="0">
+          <div class="introInner">
+            <div class="introEmoji">📅😵‍💫</div>
+            <div class="introHook">그동안 캘린더에<br>시공일·주소를<br><b>일일이</b> 넣고 계셨죠?</div>
+            <div class="introHint">접수서 하나면 끝나요 ↓</div>
+          </div>
+        </div>
+
+        <!-- S1 대화 화면 -->
+        <div class="scr blueTop" data-s="1">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>새 고객 · 010-1234-5678</div>
+          <div class="body">
+            <div class="bub them">안녕하세요~ 😊</div>
+            <div class="bub them">혹시 16일날 시공 가능할까요?</div>
+            <div class="composer">
+              <div class="chipRow">
+                <div class="chip" id="t1">📝 접수서 보내기</div>
+                <div class="chip" style="color:var(--sub);border-color:var(--lineSoft);box-shadow:none">＋</div>
+              </div>
+              <div class="inputbar">메시지 입력…<span class="snd">▶</span></div>
+            </div>          </div>
+        </div>
+
+        <!-- S2 시공일 고르기 -->
+        <div class="scr blueTop" data-s="2">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>새 고객</div>
+          <div class="body" style="background:#F1F4F7">
+            <div class="sheetDim"></div>
+            <div class="sheet">
+              <div class="grab"></div>
+              <div class="st">📝 시공 접수서 보내기</div>
+              <div class="calLab">📅 고객이 말한 16일을 시공일로</div>
+              <div class="cal">
+                <b>일</b><b>월</b><b>화</b><b>수</b><b>목</b><b>금</b><b>토</b>
+                <span>12</span><span>13</span><span>14</span><span>15</span><span class="pick" id="t2">16</span><span>17</span><span>18</span>
+              </div>
+              <div class="calHint">고객에게는 '확정 시공일'로 잠겨 보여요</div>
+            </div>          </div>
+        </div>
+
+        <!-- S3 어떻게 보낼까요 -->
+        <div class="scr blueTop" data-s="3">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>새 고객</div>
+          <div class="body" style="background:#F1F4F7">
+            <div class="sheetDim"></div>
+            <div class="sheet">
+              <div class="grab"></div>
+              <div class="st">어떻게 보낼까요?</div>
+              <div class="opt reco" id="t3">
+                <span class="ic">📝</span>
+                <div><div class="tt">접수서로 보내기</div><div class="ds">고객이 주소를 적어요</div></div>
+                <span class="pill">추천</span>
+              </div>
+              <div class="opt">
+                <span class="ic">🧾</span>
+                <div><div class="tt">견적서로 보내기</div><div class="ds">작성한 견적서를 바로 보내요</div></div>
+              </div>
+            </div>          </div>
+        </div>
+
+        <!-- S4 발행 → 우리 링크(URL) 생성 -->
+        <div class="scr blueTop" data-s="4">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>새 고객</div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="pubWrap">
+              <div class="pubBadge">🔗</div>
+              <div class="pubTitle">이 고객만의 링크가<br>만들어졌어요</div>
+              <div class="pubSub">접수서를 발행하면 자동으로 생겨요</div>
+              <div class="urlBox">
+                <span class="u">api.si0in.kr/q/8kd2p</span>
+                <span class="cp">복사됨</span>
+              </div>
+              <div class="pubNote">이 링크를 열면 <b>이 고객 접수서</b>로 바로 가요<br>— 이제 문자로 보내기만 하면 돼요</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S5 문자 보내기 -->
+        <div class="scr darkTop" data-s="5">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>문자 · 새 고객</div>
+          <div class="body" style="background:#0F1115">
+            <div class="bub me" style="background:#2F6FE0">접수서 보내드릴게요 😊</div>
+            <div class="linkcard">
               <div class="h">📝 시공 접수서</div>
-              <div class="d">날짜·주소만 적어주세요</div>
+              <div class="d">주소만 적어주세요</div>
+              <div class="lu">api.si0in.kr/q/8kd2p</div>
               <div class="go">작성하기</div>
             </div>
+            <div class="composer">
+              <div class="inputbar" style="background:#23262B;color:#8A93A0">링크가 담겼어요<span class="snd" id="t4" style="background:var(--ok)">▶</span></div>
+            </div>          </div>
+        </div>
+
+        <!-- S6 고객이 받은 접수서 (전체화면) -->
+        <div class="scr custTop" data-s="6">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>고객이 받은 접수서<span class="who">👤 고객 폰</span></div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="addrBar"><span class="lock">🔒</span>api.si0in.kr/q/8kd2p</div>
+            <div class="custBanner">👤 여기부터 고객 화면 — 주소는 고객이 적어요</div>
+            <div class="fTitle">아래 주소만 적어주세요 🙏</div>
+            <div class="lockRow">
+              <div class="lockIc">📅</div>
+              <div><div class="lockLab">확정 시공일</div><div class="lockVal">10/16(목) 오전 9시</div></div>
+              <div class="lockChip">🔒 확정</div>
+            </div>
+            <div class="fLab">📍 현장 주소</div>
+            <div class="fField">서울 강남구 대왕판교로 123<span class="caret"></span></div>
+            <div class="fSend">보내기</div>
+            <div class="custNote">날짜는 사장님이 정해 잠겨 있어요</div>
           </div>
-          <div class="arrived">
-            <div class="calCard">
-              <div class="h">📅 캘린더에 자동 등록<span class="badge">✓ 완료</span></div>
-              <div class="dateline">10/16(목) 오전 9시</div>
-              <div class="miniCal">
-                <b>일</b><b>월</b><b>화</b><b>수</b><b>목</b><b>금</b><b>토</b>
-                <span>12</span><span>13</span><span>14</span><span>15</span><span class="hi">16</span><span>17</span><span>18</span>
+        </div>
+
+        <!-- S7 완료(성공) + 해방 훅 -->
+        <div class="scr blueTop" data-s="7">
+          <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
+          <div class="tbar"><span class="back">‹</span>새 고객</div>
+          <div class="body" style="background:#F7F9FB">
+            <div class="doneWrap">
+              <div class="checkBadge">✓</div>
+              <div class="doneTitle">접수서 작성 완료!</div>
+              <div class="doneSub">이제 캘린더에 일일이<br>안 적어도 돼요 🙌</div>
+              <div class="infoCard">
+                <div class="infoRow"><span class="k">📍 주소</span><span class="v">강남구 대왕판교로 123</span></div>
+                <div class="infoRow"><span class="k">📅 시공일</span><span class="v">10/16(목) <span class="chk">· 캘린더 등록 ✓</span></span></div>
               </div>
-              <div class="addrline">📍 서울 강남구 …로 123</div>
+              <div class="doneBtn">확인 문자 보내기 (선택)</div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 고객 폰 -->
-      <div class="phone pCust">
-        <div class="sbar">9:41<span class="sig"><i></i><i></i><i></i></span><span class="bat"></span></div>
-        <div class="tbar">고객</div>
-        <div class="body">
-          <div class="gotLink">
-            <span class="tm">오후 2:10</span>
-            <div class="linkcard"><div class="h">📝 시공 접수서</div><div class="d">날짜·주소만 적어주세요</div><div class="go">작성하기</div></div>
-          </div>
-          <div class="form">
-            <div class="lab">📅 시공 날짜</div>
-            <div class="inp a1"><span class="txt">10/16(목) 오전 9시</span></div>
-            <div class="lab">📍 주소</div>
-            <div class="inp a2"><span class="txt">서울 강남구 …로 123</span></div>
-            <div class="btn send">보내기</div>
-          </div>
-        </div>
       </div>
-
-      <div class="fly paper">📨</div>
-      <div class="fly back">📅</div>
-      <div class="spark">✨</div>
+      <div class="igcap" id="caption">그동안 캘린더에 시공일·주소, 일일이 넣고 계셨죠? 👀</div>
+      <div class="igreply"><span class="box">메시지 보내기</span><span class="ic">♡</span><span class="ic">✈</span></div>
     </div>
 
-    <div class="steps" id="steps"><i class="on"></i><i></i><i></i><i></i></div>
-    <div class="caption" id="caption">① 고객에게 접수서 링크를 톡/문자로 보내요</div>
-
-    <div class="alt"><span class="k">📍</span>주소만 급할 땐 — <b style="margin-left:2px">‘주소만 받기’</b>로 주소 한 칸만</div>
-
-    <div class="cta">접수서 보내기</div>
+    <div class="nav"><button id="prev">‹ 이전</button><span class="hint">좌우로 넘기기 · 꾹 눌러 멈춤 · 인스타처럼 📱</span><button id="next">다음 ›</button></div>
   </div>
 
-  <div class="foot">
-    <span>자동 재생 9초 반복</span><span>FirstRunHint 자리 후보</span><span>실제=접수서 보내기 화면</span>
-  </div>
+  <div class="foot"><span>좌우로 넘기기 · 꾹 눌러 멈춤</span><span>탭 위치 = 실제 자리</span><span>실제=접수서 흐름</span></div>
 
 <script>
-  const caps = [
-    "① 고객에게 접수서 링크를 톡/문자로 보내요",
-    "② 고객이 시공 날짜와 주소를 직접 적어요",
-    "③ ‘보내기’ 누르면 끝",
-    "④ 자동으로 내 캘린더에 쏙 — 날짜도 주소도"
+  const steps = [
+    "그동안 캘린더에 시공일·주소, 일일이 넣고 계셨죠? 👀",
+    "고객이 '16일 가능?' 물어요 → '접수서 보내기'를 눌러요",
+    "고객이 말한 16일로 시공일을 설정해요",
+    "'접수서로 보내기'를 눌러요 — 발행!",
+    "발행하면 이 고객만의 링크(URL)가 자동으로 생겨요 🔗",
+    "그 링크를 문자로 보내기 ▶",
+    "고객이 링크를 열어 주소만 적어요 — 사장님은 안 적어도 돼요",
+    "시공접수서 하나면 — 일일이 적어넣지 않아도 돼요! 🙌"
   ];
-  const atMs = [0, 3100, 5100, 6700];
+  const dur = [3800, 3600, 3800, 3200, 4200, 3400, 4400, 5400];
+  const N = steps.length;
+  const numFor = {1:1, 2:2, 3:3, 5:4};           // 탭으로 '따라 하는' 4단계
+  const noNum = i => !(i in numFor);             // 인트로·발행·고객작성·완료는 번호 없음
+  const stepNo = i => numFor[i];
+  const scrs = [...document.querySelectorAll('.scr')];
+  const fills = [...document.querySelectorAll('.igbars .seg .fill')];
   const capEl = document.getElementById('caption');
-  const dots = [...document.querySelectorAll('#steps i')];
-  function cycle(){
-    const t0 = performance.now();
-    function tick(now){
-      const e = (now - t0) % 9000;
-      let idx = 0;
-      for (let i=0;i<atMs.length;i++){ if (e >= atMs[i]) idx = i; }
-      capEl.textContent = caps[idx];
-      dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
-      requestAnimationFrame(tick);
+  const pausemark = document.getElementById('pausemark');
+  const stage = document.getElementById('stage');
+  const phone = document.querySelector('.phone');
+  const tapRing = document.getElementById('tapRing');
+  const targetFor = {1:'t1',2:'t2',3:'t3',5:'t4'};
+  let tapTimer=null, pushEl=null;
+  function fireTap(){
+    const id = targetFor[idx], el = id && document.getElementById(id);
+    if(!el) return;
+    const pr = phone.getBoundingClientRect(), er = el.getBoundingClientRect();
+    tapRing.style.left = (er.left-pr.left+er.width/2)+'px';
+    tapRing.style.top  = (er.top-pr.top+er.height/2)+'px';
+    tapRing.classList.remove('go'); void tapRing.offsetWidth; tapRing.classList.add('go');
+    if(pushEl) pushEl.classList.remove('tapPush');
+    pushEl = el; el.classList.add('tapPush');
+    setTimeout(()=>{ el.classList.remove('tapPush'); if(pushEl===el) pushEl=null; }, 300);
+  }
+  function startTap(){
+    clearInterval(tapTimer); tapTimer=null;
+    tapRing.classList.remove('go');
+    if(pushEl){ pushEl.classList.remove('tapPush'); pushEl=null; }
+    if(targetFor[idx]){ fireTap(); tapTimer=setInterval(fireTap, 1800); }
+  }
+  let idx=0, stepElapsed=0, paused=false, lastIdx=-1;
+  const autoplay = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function render(){
+    if(idx!==lastIdx){
+      scrs.forEach(s=>s.classList.toggle('on', +s.dataset.s===idx));
+      capEl.innerHTML = (noNum(idx)?'':'<span class="n">'+stepNo(idx)+'</span>') + steps[idx];
+      startTap();
+      lastIdx=idx;
     }
+    const frac = Math.min(1, stepElapsed/dur[idx]);
+    fills.forEach((f,i)=>{ f.style.width = (i<idx?100:(i===idx?frac*100:0))+'%'; });
+    pausemark.classList.toggle('show', paused);
+  }
+  function go(n){ idx=((n%N)+N)%N; stepElapsed=0; render(); }
+
+  let lastT=performance.now();
+  function tick(now){
+    const d=now-lastT; lastT=now;
+    if(autoplay && !paused){ stepElapsed+=d; if(stepElapsed>=dur[idx]){ idx=(idx+1)%N; stepElapsed=0; } }
+    render();
     requestAnimationFrame(tick);
   }
-  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) cycle();
+
+  let downX=0,downT=0,moved=false,holdTimer=null,heldPause=false;
+  function endHold(){ if(holdTimer){clearTimeout(holdTimer);holdTimer=null;} }
+  stage.addEventListener('pointerdown',e=>{
+    downX=e.clientX; downT=performance.now(); moved=false; heldPause=false;
+    holdTimer=setTimeout(()=>{ heldPause=true; paused=true; render(); },220);
+  });
+  stage.addEventListener('pointermove',e=>{ if(Math.abs(e.clientX-downX)>10) moved=true; });
+  function finish(e){
+    endHold();
+    const dt=performance.now()-downT, dx=(e.clientX||downX)-downX;
+    if(heldPause){ paused=false; heldPause=false; render(); return; }
+    if(Math.abs(dx)>40){ go(dx<0?idx+1:idx-1); }
+    else if(dt<260 && !moved){
+      const r=stage.getBoundingClientRect();
+      go((e.clientX-r.left)>r.width/2 ? idx+1 : idx-1);
+    }
+  }
+  stage.addEventListener('pointerup',finish);
+  stage.addEventListener('pointercancel',()=>{ endHold(); if(heldPause){paused=false;heldPause=false;render();} });
+  stage.addEventListener('pointerleave',()=>{ endHold(); if(heldPause){paused=false;heldPause=false;render();} });
+  document.getElementById('prev').addEventListener('click',()=>go(idx-1));
+  document.getElementById('next').addEventListener('click',()=>go(idx+1));
+  window.addEventListener('resize', ()=>{ if(targetFor[idx]) fireTap(); });
+
+  const _h = (location.hash.match(/s=(\d+)/)||[])[1];
+  if(_h!==undefined){ idx = Math.max(0,Math.min(N-1,+_h)); paused = true; }
+  render();
+  requestAnimationFrame(tick);
 </script>
 </body>
 </html>
