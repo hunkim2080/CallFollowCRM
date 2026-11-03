@@ -976,9 +976,20 @@ fun CustomerDetailScreen(
             run {
                 val caught = extractedAddress?.takeIf { it.isNotBlank() }
                 val closedJobs = allJobsForTabs.filter { jobClosed(it) }
-                val alreadyUsed = caught != null && allJobsForTabs.any {
-                    it.address?.trim() == caught.trim()
-                } || (caught != null && c.address?.trim() == caught.trim())
+                // 같은 곳인지는 **글자 완전일치로 보면 안 된다.** 등록 주소는 보통 더 길다(경기 + 단지명 + 동호수).
+                //   예: 등록 "경기 수원시 영통구 센트럴타운로 76 (e편한세상 광교) 6117동" vs 뽑힌 "수원시 영통구 센트럴타운로 76".
+                //   → 한쪽이 다른 쪽을 품거나, 양쪽을 **같은 추출기**로 뽑은 핵심 도로주소가 같으면 같은 곳으로 본다.
+                //   (2026-11-03 사장님: 이미 가지고 있는 주소를 "새 현장 주소인가요?"로 잘못 물음)
+                fun sameAsCaught(existing: String?): Boolean {
+                    val c2 = caught?.trim().orEmpty()
+                    val e = existing?.trim().orEmpty()
+                    if (c2.isBlank() || e.isBlank()) return false
+                    if (e.contains(c2) || c2.contains(e)) return true
+                    val ec = com.detailline.callfollowcrm.util.AddressExtractor.extractOne(e)?.trim()
+                    return !ec.isNullOrBlank() && ec == c2
+                }
+                val alreadyUsed = caught != null &&
+                    (allJobsForTabs.any { sameAsCaught(it.address) } || sameAsCaught(c.address))
                 // 주소가 빈 건이 있으면 — **완료(접힌)됐어도** — 새 시공 말고 그 건을 먼저 채운다. 열린 건을 우선. (2026-10-28 사장님)
                 //   "1차에 주소가 안 적혀 있으면 새시공 아니라 1차 빈 주소에 들어가야 함."
                 val emptyAddrJobs = allJobsForTabs.filter { it.address.isNullOrBlank() && !jobCancelled(it) }
