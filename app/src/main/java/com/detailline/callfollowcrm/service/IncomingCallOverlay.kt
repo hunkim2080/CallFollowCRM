@@ -49,6 +49,9 @@ import kotlinx.coroutines.launch
 object IncomingCallOverlay {
 
     private const val SAFETY_TIMEOUT_MS = 60_000L   // 혹시 IDLE 을 놓쳐도 좀비 카드 방지.
+    // 통화 중 파수꾼 — 받으면 60초 타이머를 끄는 대신 '진짜 통화상태'를 재서, 삼성이 IDLE 방송을 놓쳐도 끊김을 보고 내린다.
+    private const val TALK_WATCH_INTERVAL_MS = 4_000L           // 4초마다 통화상태 확인
+    private const val TALK_WATCH_MAX_MS = 2L * 60 * 60 * 1000   // 그래도 못 내리면 최후 안전으로 2시간 뒤 강제 제거
     private const val MAX_MESSAGES = 3
 
     private val main = Handler(Looper.getMainLooper())
@@ -371,9 +374,34 @@ object IncomingCallOverlay {
      *   ⚠️ 삼성 최신 폰은 통화 중 오버레이를 막을 수 있다(Auto Blocker). 막히면 그냥 안 보일 뿐,
      *     앱이 깨지지는 않는다 — 실기로 확인하고 안 되면 '벨 울릴 때만'으로 되돌린다.
      */
-    fun onAnswered(@Suppress("UNUSED_PARAMETER") context: Context) {
-        safetyJob?.cancel(); safetyJob = null   // 통화 중엔 좀비 타이머로 사라지면 안 된다
+    fun onAnswered(context: Context) {
+        // 통화 중엔 60초 좀비 타이머로 사라지면 안 되지만, 그렇다고 타이머만 끄면 IDLE 방송을 놓쳤을 때(삼성 VoLTE·듀얼심)
+        //   카드를 내릴 사람이 아무도 없어 **영원히 남는다**. (2026-11-03 사장님 "통화 끝났는데 이게 왜 안 없어지지")
+        //   → 타이머 대신 '진짜 통화상태'를 보는 파수꾼으로 바꾼다. 통화 중이면 그대로 두고, 끊기면 바로 내린다.
+        startTalkingWatchdog(context.applicationContext)
         _state.update { it?.copy(talking = true) }
+    }
+
+    /**
+     * 통화 중 파수꾼 — 4초마다 `TelephonyManager.callState` 를 직접 재서, IDLE(통화 없음)이면 카드를 내린다.
+     *   IDLE 방송(onCallGone)이 정상이면 그게 먼저 내리고, 방송을 놓쳐도 여기서 확실히 내린다. 둘은 겹쳐도 안전(actuallyHide 멱등).
+     */
+    private fun startTalkingWatchdog(appCtx: Context) {
+        safetyJob?.cancel()
+        safetyJob = ioScope.launch {
+            val tm = appCtx.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+            val startedAt = System.currentTimeMillis()
+            while (true) {
+                delay(TALK_WATCH_INTERVAL_MS)
+                val st = runCatching { tm?.callState }.getOrNull()
+                if (st == android.telephony.TelephonyManager.CALL_STATE_IDLE ||
+                    System.currentTimeMillis() - startedAt > TALK_WATCH_MAX_MS) {
+                    currentNumber = null
+                    main.post { actuallyHide() }
+                    break
+                }
+            }
+        }
     }
 
     /** 통화 종료 — 카드 제거. */

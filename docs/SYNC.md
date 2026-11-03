@@ -15909,3 +15909,12 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경: SharedSiteViewModel.kt·SharedSiteScreen.kt·SharedSiteMyShared.kt (3파일, .kt). 공용 신규 없음(기존 CardListSkeleton 재사용)
 - 폰 확인: 실기기 못 봄 → 내부배포로. 체크: 협업 현장 처음 열 때 스켈레톤·사진 여러 장 고르고 **나갔다 와도** 다 올라가는지·올라가는 동안 썸네일+스피너
 - 다음 액션: 사장님 — 내부테스트에서 협업 현장 로딩·사진 업로드(나갔다 오기) 확인
+
+## 2026-11-03 (통화 끝났는데 카드 안 사라짐) · android
+전화 미리보기 카드가 통화 종료 후에도 안 사라지는 버그 (사장님 현장 사진 제보)
+- 원인: 전화를 받으면(onAnswered) 60초 좀비 타이머(SAFETY_TIMEOUT_MS)를 **꺼버려서**, 통화 중 카드를 내리는 길이 IDLE 방송(onCallGone) **하나뿐**. 삼성이 IDLE 방송을 놓치면(VoLTE·듀얼심) 내릴 사람이 없어 **영원히 남음**. 사진이 딱 그 상태(통화 끝났는데 "통화 중 · 끊을 때까지 남아 있어요" 카드 잔류)
+- 고침: onAnswered 가 타이머를 끄는 대신 **통화상태 파수꾼**(startTalkingWatchdog) 시작 — 4초마다 `TelephonyManager.callState` 직접 확인, IDLE 이면 actuallyHide. IDLE 방송이 정상이면 그게 먼저 내리고(둘 다 안전·actuallyHide 멱등), 방송 놓쳐도 파수꾼이 확실히 내림. 최후 안전 2시간 캡. IncomingCallOverlay.kt 한 곳
+- 느린망·빈값·연타(§13): 통화 중엔 getCallState=OFFHOOK 라 오동작 없음(IDLE일 때만 내림) · tm null/예외면 캡까지 대기 · 새 통화 OFFHOOK 때 파수꾼 재시작(이전 것 cancel)
+- assembleRelease BUILD=0, 가드7 통과. 변경: IncomingCallOverlay.kt 1파일(.kt). 공용 신규 없음
+- 폰 확인: 실기기 못 봄(테스트폰에서 통화 종료 재현 어려움) → 사장님 폰에서 통화 받고 끊은 뒤 카드 사라지는지 확인 필요
+- 다음 액션: 사장님 — 통화 받았다 끊고 카드가 몇 초 내 사라지는지 봐주세요
