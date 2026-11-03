@@ -94,13 +94,16 @@
   .schedRow .ds{font-size:9px;color:var(--sub);margin-top:1px}
 
   /* 일당 정산서 payoff */
-  .poWrap{display:flex;flex-direction:column;align-items:center;padding:12px 6px 0;text-align:center}
-  .poBadge{width:54px;height:54px;border-radius:16px;background:var(--blueSoft);display:grid;place-items:center;font-size:26px;margin-bottom:11px}
-  .poTitle{font-size:14px;font-weight:900;color:var(--ink);letter-spacing:-.3px;line-height:1.4}
-  .poSub{font-size:10px;color:var(--sub);font-weight:700;margin-top:6px}
-  .docCard{align-self:stretch;margin:14px 2px 0;background:#fff;border:1px solid var(--lineSoft);border-radius:13px;padding:11px 12px;text-align:left;box-shadow:0 6px 16px rgba(17,24,39,.08)}
+  .poWrap{display:flex;flex-direction:column;align-items:center;padding:6px 6px 0;text-align:center}
+  .poBadge{width:44px;height:44px;border-radius:14px;background:var(--blueSoft);display:grid;place-items:center;font-size:22px;margin-bottom:8px}
+  .poTitle{font-size:13.5px;font-weight:900;color:var(--ink);letter-spacing:-.3px;line-height:1.35}
+  .poSub{font-size:9.5px;color:var(--sub);font-weight:700;margin-top:5px;line-height:1.4}
+  .docCard{align-self:stretch;margin:11px 2px 0;background:#fff;border:1px solid var(--lineSoft);border-radius:13px;padding:10px 12px;text-align:left;box-shadow:0 6px 16px rgba(17,24,39,.08)}
+  .docCard .dhead{display:flex;align-items:center;gap:6px}
   .docCard .dt{font-size:11.5px;font-weight:900;color:var(--ink)}
-  .docCard .dp{font-size:9px;color:var(--sub);font-weight:700;margin:2px 0 8px}
+  .docCard .exBadge{font-size:7.5px;font-weight:800;color:var(--sub);background:#F1F4F7;border-radius:999px;padding:2px 7px}
+  .docCard .dp{font-size:9px;color:var(--sub);font-weight:700;margin:3px 0 8px}
+  .docCard .docIssuer{font-size:8.5px;color:var(--hint);font-weight:700;margin-top:8px;text-align:right}
   .docRow{display:flex;align-items:center;justify-content:space-between;font-size:10px;padding:5px 0;border-top:1px solid var(--line)}
   .docRow .k{color:var(--sub);font-weight:700}
   .docRow .v{color:var(--ink);font-weight:800}
@@ -208,11 +211,12 @@
               <div class="poTitle">끝나면<br>일당 정산서까지</div>
               <div class="poSub">완료한 협업 건만 — 기간·합계 자동 · 이미지로 공유</div>
               <div class="docCard">
-                <div class="dt">일당 정산서</div>
-                <div class="dp">2026년 10월 · 디테일라인 ↔ 김하우스</div>
-                <div class="docRow"><span class="k">10/16 강남 대왕판교로</span><span class="v">25만원</span></div>
+                <div class="dhead"><span class="dt">일당 정산서</span><span class="exBadge">예시</span></div>
+                <div class="dp">김하우스 사장님 · 2026년 10월</div>
                 <div class="docRow"><span class="k">10/09 서초 반포대로</span><span class="v">22만원</span></div>
+                <div class="docRow"><span class="k">10/16 강남 대왕판교로</span><span class="v">25만원</span></div>
                 <div class="docSum"><span class="k">합계</span><span class="v">47만원</span></div>
+                <div class="docIssuer">발행 · 디테일라인</div>
               </div>
             </div>
           </div>

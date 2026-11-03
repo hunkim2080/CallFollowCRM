@@ -128,6 +128,7 @@
   .smsCard{align-self:stretch;margin:14px 2px 0;background:#F6FAFF;border:1px solid #BFD8FF;border-radius:13px;padding:10px 11px;text-align:left;box-shadow:0 5px 16px rgba(49,130,246,.12)}
   .smsCard .h{font-size:9px;font-weight:800;color:var(--blueDark);margin-bottom:5px}
   .smsCard .m{font-size:10px;color:var(--ink);line-height:1.5}
+  .smsSend{margin-top:9px;background:var(--blue);color:#fff;font-size:10px;font-weight:800;text-align:center;padding:8px;border-radius:9px}
 
   .cta{margin-top:12px;background:var(--blue);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:13px;border-radius:13px;cursor:pointer}
   .pausemark{position:absolute;z-index:12;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -222,15 +223,16 @@
         <!-- S4 정리문자 payoff -->
         <div class="scr blueTop" data-s="4">
           <div class="sbar">9:41<span class="sp"><span class="bars"><i></i><i></i><i></i></span><span class="bat"></span></span></div>
-          <div class="tbar"><span class="back">‹</span>정리 문자도 자동</div>
+          <div class="tbar"><span class="back">‹</span>통화 정리해서 보내기</div>
           <div class="body" style="background:#F7F9FB">
             <div class="poWrap">
               <div class="poBadge">✨</div>
               <div class="poTitle">통화 내용으로<br>보낼 문자까지</div>
-              <div class="poSub">고객에게 보낼 정리 문자도 만들어줘요</div>
+              <div class="poSub">AI가 고객에게 보낼 정리 문자를 만들어줘요 · 확인·수정 후 보내기</div>
               <div class="smsCard">
-                <div class="h">✨ 정리 문자 (초안)</div>
+                <div class="h">✨ AI 초안 — 확인하고 보내기</div>
                 <div class="m">안녕하세요 😊 방금 통화 감사합니다. 10/16(목) 화장실 줄눈 시공, 견적 10만원·계약금 1만원으로 안내드렸어요. 확인 부탁드려요!</div>
+                <div class="smsSend">고객에게 보내기</div>
               </div>
             </div>
           </div>
@@ -253,7 +255,7 @@
     "전화가 와서 통화해요",
     "끊는 순간 — 자동으로 요약돼요",
     "통화 내용이 시간순으로 정리돼요",
-    "통화 내용으로 — 보낼 정리 문자도 자동"
+    "통화 내용으로 — 고객에게 보낼 문자 초안까지"
   ];
   const dur = [3600, 3600, 3200, 4800, 4400];
   const N = steps.length;
