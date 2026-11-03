@@ -70,6 +70,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
+import com.detailline.callfollowcrm.data.repository.CollabPhotoUploadManager
 import com.detailline.callfollowcrm.domain.collab.CollabPartnerGroups
 import com.detailline.callfollowcrm.presentation.component.CollabCommentSection
 import com.detailline.callfollowcrm.ai.siteDisplayName
@@ -105,8 +106,7 @@ fun SharedSiteScreen(
     val loadedOnce by viewModel.loadedOnce.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val photos by viewModel.photos.collectAsState()
-    val photoBusy by viewModel.photoBusy.collectAsState()
-    val pendingPhotos by viewModel.pendingPhotos.collectAsState()   // 올리는 중 썸네일(스피너)
+    val pendingPhotos by viewModel.pendingPhotos.collectAsState()   // 올리는 중 썸네일(스피너) — 앱 수명 매니저가 들고 있음
     val comments by viewModel.comments.collectAsState()
     val commentBusy by viewModel.commentBusy.collectAsState()
     val context = LocalContext.current
@@ -224,6 +224,11 @@ fun SharedSiteScreen(
         if (selectedId == null) openedViaDeepLink = false   // 상세 닫히면 딥링크 플래그도 해제(목록서 다시 탭한 건 정상 동작)
         val s = sites.firstOrNull { it.shareId == selectedId } ?: mySharedSites.firstOrNull { it.shareId == selectedId }
         if (s != null) { viewModel.loadPhotos(s.shareId); viewModel.loadComments(s.shareId) }
+    }
+    // 📸 매니저(앱 수명)가 사진 한 장을 올릴 때마다 — 그 현장이 열려 있으면 새로고침해 썸네일이 실제 사진으로 바뀐다.
+    LaunchedEffect(selectedId) {
+        val id = selectedId ?: return@LaunchedEffect
+        viewModel.photoUploaded.collect { if (it == id) viewModel.loadPhotos(id) }
     }
     // 댓글 자동 새로고침(폴링) — 카톡처럼 상대 댓글이 저절로 올라오게. 상세 열린 동안 4초 간격. (2026-07-01 사장님)
     LaunchedEffect(selectedId) {
@@ -395,7 +400,6 @@ fun SharedSiteScreen(
                     },
                     acceptExpired = viewModel.acceptExpired(selected),
                     photos = photos,
-                    photoBusy = photoBusy,
                     pending = pendingPhotos,
                     comments = comments,
                     commentBusy = commentBusy,
@@ -454,7 +458,6 @@ fun SharedSiteScreen(
                 OwnerSharedDetail(
                     site = mine,
                     photos = photos,
-                    photoBusy = photoBusy,
                     pending = pendingPhotos,
                     comments = comments,
                     commentBusy = commentBusy,
@@ -1032,8 +1035,7 @@ private fun DetailBody(
     onSavePayout: (bank: String, no: String, holder: String) -> Unit,
     acceptExpired: Boolean,
     photos: List<SharedSiteRepository.SharedPhoto>,
-    photoBusy: Boolean,
-    pending: List<SharedSiteViewModel.PendingPhoto>,
+    pending: List<CollabPhotoUploadManager.Pending>,
     comments: List<SharedSiteRepository.SiteComment>,
     commentBusy: Boolean,
     myPhone: String,
@@ -1293,7 +1295,7 @@ private fun DetailBody(
             fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
     }
     Spacer(Modifier.height(10.dp))
-    PhotoGrid(photos = photos, pending = pending, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
+    PhotoGrid(photos = photos, pending = pending.filter { it.shareId == site.shareId }, onAdd = onPickPhoto, onView = onViewPhoto,
         myKind = "partner", onDelete = onDeletePhoto)   // B(협업자) 화면 → 내가 올린 = partner
 
     // 협업 사장끼리 현장 한 줄 논의 (2026-07-01 사장님) — 팀원 화면 코멘트처럼.
@@ -1319,8 +1321,7 @@ private fun DetailBody(
 private fun OwnerSharedDetail(
     site: SharedSiteRepository.SharedSite,
     photos: List<SharedSiteRepository.SharedPhoto>,
-    photoBusy: Boolean,
-    pending: List<SharedSiteViewModel.PendingPhoto>,
+    pending: List<CollabPhotoUploadManager.Pending>,
     comments: List<SharedSiteRepository.SiteComment>,
     commentBusy: Boolean,
     myPhone: String,
@@ -1366,7 +1367,7 @@ private fun OwnerSharedDetail(
     // 📸 현장 사진 — 협업 사장(B)이 올린 증거사진을 A 도 여기서 보고, 필요하면 직접 추가. (2026-07-02 사장님: 사진 푸시 탭 → 여기)
     Spacer(Modifier.height(18.dp))
     SectionSub("현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
-    PhotoGrid(photos = photos, pending = pending, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
+    PhotoGrid(photos = photos, pending = pending.filter { it.shareId == site.shareId }, onAdd = onPickPhoto, onView = onViewPhoto,
         myKind = "owner", onDelete = onDeletePhoto)      // A(주인) 화면 → 내가 올린 = owner
 
     // 협업 사장과 한 줄 논의
@@ -1385,13 +1386,14 @@ private fun OwnerSharedDetail(
 @Composable
 private fun PhotoGrid(
     photos: List<SharedSiteRepository.SharedPhoto>,
-    pending: List<SharedSiteViewModel.PendingPhoto> = emptyList(),   // 올리는 중 썸네일(스피너) — ＋셀 바로 뒤에
-    busy: Boolean,
+    pending: List<CollabPhotoUploadManager.Pending> = emptyList(),   // 올리는 중 썸네일(스피너) — ＋셀 바로 뒤에
     onAdd: () -> Unit,
     onView: (android.graphics.Bitmap) -> Unit,
     myKind: String = "",                                          // "owner"(A) | "partner"(B) — 내가 올린 사진만 ✕ 삭제
     onDelete: (SharedSiteRepository.SharedPhoto) -> Unit = {}
 ) {
+    // 올리는 중(실패 아닌 썸네일)이 있으면 ＋셀을 잠근다 — 배치 중 다시 고르면 목록이 꼬인다.
+    val busy = pending.any { !it.failed }
     val cellMod = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp))
     androidx.compose.foundation.layout.FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),

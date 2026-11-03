@@ -15927,3 +15927,15 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - assembleRelease BUILD=0, 가드7 통과. 변경: CustomerDetailScreen.kt 1파일. 공용 신규 없음(AddressExtractor 재사용)
 - 폰 확인: 실기기 못 봄 → 사장님 폰에서 이미 주소 등록된 완료 고객 열었을 때 그 카드 안 뜨는지 확인
 - 다음 액션: 사장님 — 그 고객(010-3933-6854) 다시 열어 카드 안 뜨는지 봐주세요. 진짜 새 주소일 땐 여전히 떠야 정상
+
+## 2026-11-03 (협업 사진 업로드 = 앱 수명 매니저 + 진행 알림) · android
+협업 현장 사진 업로드를 화면/VM 수명에서 **앱 수명 매니저**로 올림 — 화면 나가도 끝까지 + 진행 알림 (사장님 승인: Play 안전 방식)
+- 왜 FGS 아님: 매니페스트가 FOREGROUND_SERVICE 권한을 일부러 제거(2026-08-31, Play 업로드 검문 #142). 포그라운드 서비스 넣으면 그 권한 되살아나 "업데이트 안 뜸" 재발 위험 → 사장님께 비유로 설명하고 **Play 안전 방식(앱 수명 코루틴 + 일반 진행 알림)** 선택받음
+- 신규 공용: `data/repository/CollabPhotoUploadManager.kt`(applicationScope) — `enqueue`(직렬화 Mutex)·`pending`(현장별 썸네일 StateFlow)·`uploaded`(완료 신호). 진행 알림 ongoing "N/total"(채널 collab_photo_upload IMPORTANCE_LOW·무음, ic_noti_collab), 완료=알림 사라짐, 일부 실패=「일부 못 올림」 알림. §12 표에 등록
+- VM: `uploadPhotos`→매니저 enqueue 위임, `pendingPhotos`/`photoUploaded`=매니저 getter, `_photoBusy` 제거(busy 를 pending 에서 파생). loadPhotos 는 pending 안 비움(매니저가 현장별 보관)
+- 화면: 선택 콜백→`viewModel.uploadPhotos`(appCtx encode 람다), PhotoGrid 에 현장별 pending 필터, 업로드 완료(uploaded)→열린 현장 loadPhotos 로 썸네일→실제 사진. PendingPhoto 타입 제거→CollabPhotoUploadManager.Pending
+- OWNER 현장사진(우체통 SitePhotoHandler)과 **다른 기능**(서버 엔드포인트 다름) — 안 합침(§12-I)
+- 느린망·빈값·연타(§13): 느린망=앱 수명이라 나가도 진행·알림 유지(단 앱 프로세스 완전 사망 시 멈춤—FGS 뺀 대가) / 빈값=uris·shareId 비면 return / 연타=Mutex 직렬화 + 올리는 중 ＋셀 비활성
+- assembleRelease BUILD=0, 가드7 통과(dup 18/18·rules 공용49). 변경: CollabPhotoUploadManager.kt(신규)·AppContainer.kt·SharedSiteViewModel.kt·SharedSiteScreen.kt·CLAUDE.md
+- 폰 확인: 실기기 e2e 어려움(테스트폰 협업현장 없음) → 사장님 폰에서 협업현장 사진 여러 장 고르고 **바로 나갔다 와도** 다 올라가는지·상단 진행 알림 뜨는지
+- 다음 액션: 사장님 — 협업 현장 사진 업로드 확인(나갔다 오기·진행 알림)

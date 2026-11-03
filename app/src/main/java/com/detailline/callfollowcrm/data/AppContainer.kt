@@ -388,6 +388,11 @@ class AppContainer(context: Context) {
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
 
+    /** 📸 협업 현장 사진 업로드 — 앱 수명(화면 나가도 끝까지) + 진행 알림. FGS 아님(Play 안전). */
+    val collabPhotoUploads = com.detailline.callfollowcrm.data.repository.CollabPhotoUploadManager(
+        appContext, sharedSiteRepository, applicationScope
+    )
+
     /** 📡 인터넷 돌아왔다를 듣는 귀 — 공용(우체통·추후 미러/웹피드/캘린더). (설계 §1-D-5) */
     val networkWatch = com.detailline.callfollowcrm.util.NetworkWatch(appContext)
 

@@ -473,6 +473,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 「이 단어가 있으면」 낱말 맞추기·낱말 정리(trim·빈 값) | `domain/inbox/SpamKeywordMatch.kt` — `hit(body, keywords, saved, replied)` 는 **저장 고객·답장한 번호를 안 가린다**. 거는 자리는 `ThreadBucketRepository.classifyLocal` 한 곳, 저장은 `AppPreferences.spamKeywords` | 화면·수신기에서 `body.contains(keyword)` 직접, 낱말 trim 을 따로 |
 | 상담함 「답장 안 함」 한 목록 + 광고 판정(칩 숫자·칩 목록·하단 탭 점프가 **같은 목록**) | `inboxUnanswered` / `isInboxAd` (`presentation/screen/home/HomeScreenHelpers.kt`) | 화면에서 `isUnconfirmed` 와 광고 조건을 직접 조합, VM 에서 따로 세기 (2026-10-15: 셋이 각자 세서 「1인데 열면 빈 목록」) |
 | 사진 업로드 한도 | `util/ImageEncoder.CAP_CHARS` | `1_400_000` 직접 |
+| 협업 현장 사진 올리기(화면 나가도 끝까지·진행 알림·낙관적 썸네일) — **앱 수명 매니저**. FGS 아님(Play 안전). 썸네일은 `pending`(현장별), 완료는 `uploaded` 신호로 새로고침 | `data/repository/CollabPhotoUploadManager.kt` — `enqueue`·`pending`·`uploaded`. 입구: `SharedSiteViewModel.uploadPhotos` → 매니저. OWNER 현장사진(우체통 `SitePhotoHandler`)과는 다른 기능 | 화면·VM scope 에서 사진 업로드 루프 돌리기(나가면 취소), 포그라운드 서비스 새로 만들기 |
 | 문자 보내기 | `util/SmsSender.kt` | `SmsManager` 직접 |
 | 문자앱 열기(내용 미리 채워) | `util/SmsIntentHelper.kt` — **못 열면 화면에 말한다** | `Intent(ACTION_SENDTO)` 직접 |
 | 서버에 말 걸기 | `ai/Net.builder()` — **로그인 토큰이 자동으로 붙는다** | `OkHttpClient.Builder()` 직접 |
