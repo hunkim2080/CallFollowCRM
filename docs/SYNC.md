@@ -15898,3 +15898,14 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 창작이지만 사실과 맞아 둔 것: 전화미리보기 상태색 뜻풀이(원본 색라벨은 11/2 교정본), 협업 "수락→내 일정 추가"(실동작 일치)
 - 변경: callsummary·collab 2개만 추가 수정(asset). health 숫자 불변. 두 교정 프레임 헤드리스 재캡처 확인(넘침 0)
 - 다음 액션: 사장님 — 내부테스트에서 통화요약 ④(초안·보내기)·협업 ④(정산서 예시) 특히 봐주세요
+
+## 2026-11-03 (협업 현장 스켈레톤 + 사진 업로드) · android
+협업 현장 로딩 스켈레톤 + 사진 업로드 2건(나가도 안 끊김·낙관적 썸네일) (사장님 지시)
+- ① 스켈레톤: 협업 현장 처음 당길 때 "불러오는 중…" 빈 카드 → 공용 `CardListSkeleton`(AsyncIndicators.kt, 일정 탭과 같은 것) 3장. 목록이 툭 튀어나오던 걸 "곧 떠요"로. 공유받은/내가 공유한 **두 탭** 각 1곳(SharedSiteScreen ListArea · SharedSiteMyShared). §12-K: "불러오는 중…"은 로딩 분기 2종 — ①진짜 로딩 중(`&& loading`)만 스켈레톤으로, ②못 불러옴(`&& !loadedOnce`, "당겨서 새로고침")은 안내가 맞아 **둬둠**(무한 스켈레톤은 오해)
+- ② 나가면 업로드 끊김: 사진 선택 콜백의 인코딩 루프가 화면 scope(rememberCoroutineScope)에 있어 나가면 취소됨. (전엔 업로드만 viewModelScope 로 옮기고 인코딩 루프는 화면에 남아 미완) → 루프 전체를 `SharedSiteViewModel.uploadPhotos`(viewModelScope)로. encode 는 applicationContext 잡은 람다로 넘김(VM 은 Context 없음). `uploadPhotoBase64` 제거(옛 표기 0곳)
+- ③ 낙관적 썸네일: 고른 즉시 썸네일 먼저 깔고(Coil AsyncImage, 로컬 Uri) 한 장씩 스피너 돌다 올라가면 실제 사진으로. VM `pendingPhotos`(PendingPhoto: id·uri·failed) 추가, loadPhotos 에서 현장 바뀌면 비움. PhotoGrid 한 곳(DetailBody·OwnerSharedDetail 둘이 부름)에 ＋셀 바로 뒤 pending 칸 렌더. 실패분은 "못 올림"으로 남기고(조용히 안 삼킴 §13①) 다음에 고르면 지워짐. 토스트 "N장 올렸어요 / 일부 못 올림"
+- 느린망·빈값·연타(§13 끝내기): 느린망=업로드 viewModelScope 라 나가도 끝까지·스피너로 보임 / 빈값=uris 비면 return / 연타=올리는 중 ＋셀 비활성(busy)
+- assembleRelease BUILD=0, 가드7 통과(dup 18/18·size 18/37812·style 통과). health 2410 불변·공용 46 불변
+- 변경: SharedSiteViewModel.kt·SharedSiteScreen.kt·SharedSiteMyShared.kt (3파일, .kt). 공용 신규 없음(기존 CardListSkeleton 재사용)
+- 폰 확인: 실기기 못 봄 → 내부배포로. 체크: 협업 현장 처음 열 때 스켈레톤·사진 여러 장 고르고 **나갔다 와도** 다 올라가는지·올라가는 동안 썸네일+스피너
+- 다음 액션: 사장님 — 내부테스트에서 협업 현장 로딩·사진 업로드(나갔다 오기) 확인

@@ -6,7 +6,9 @@ import com.detailline.callfollowcrm.ai.SharedSiteRepository
 import com.detailline.callfollowcrm.data.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -66,6 +68,14 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     val photos = _photos.asStateFlow()
     private val _photoBusy = MutableStateFlow(false)
     val photoBusy = _photoBusy.asStateFlow()
+
+    /**
+     * 💀 올리는 중인 사진 — 고른 즉시 썸네일 먼저 보이고, 한 장씩 올라갈 때마다 그 칸이 사라진다(스피너 → 실제 사진). (2026-11-03 사장님)
+     *   화면(갤러리·토스처럼) "다 올라간 뒤 툭" 대신 "선택한 건 바로 보이고 한 장씩 채워짐".
+     */
+    data class PendingPhoto(val id: Int, val uri: android.net.Uri, val failed: Boolean = false)
+    private val _pendingPhotos = MutableStateFlow<List<PendingPhoto>>(emptyList())
+    val pendingPhotos = _pendingPhotos.asStateFlow()
 
     /** 현재 연 협업 현장의 한 줄 댓글(협업 사장끼리 논의). 상세 열 때 loadComments. (2026-07-01 사장님) */
     private val _comments = MutableStateFlow<List<SharedSiteRepository.SiteComment>>(emptyList())
@@ -324,8 +334,9 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     fun navApp(): String = container.preferences.navApp
     fun setNavApp(app: String) { container.preferences.navApp = app }
 
-    /** 상세 열 때 그 현장의 증거 사진 로드(§F). 다른 현장으로 바뀌면 비움. */
+    /** 상세 열 때 그 현장의 증거 사진 로드(§F). 다른 현장으로 바뀌면 비움(올리던 썸네일도 — 다른 현장에 묻지 않게). */
     fun loadPhotos(shareId: String) {
+        _pendingPhotos.value = emptyList()
         if (shareId.isBlank() || noBizPhone) { _photos.value = emptyList(); return }
         viewModelScope.launch { _photos.value = repo.photos(shareId, myPhone).getOrDefault(emptyList()) }
     }
@@ -370,18 +381,38 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 증거 사진 업로드(§F) — base64 는 화면에서 변환해 넘김(VM 은 Context 없음). */
-    fun uploadPhotoBase64(shareId: String, base64: String) {
-        if (shareId.isBlank() || noBizPhone || base64.isBlank()) return
+    /**
+     * 증거 사진 여러 장 업로드(§F) — **viewModelScope** 라 화면을 나가도 끝까지 올라간다. (2026-11-03 사장님 "그 페이지 나가니까 업로드도 안 되더라")
+     *   전엔 화면 scope 에서 한 장씩 인코딩 루프를 돌아, 나가면 남은 사진이 영영 안 올라갔다(업로드만 viewModelScope 였고 인코딩 루프는 화면에 남아 있었음).
+     *   고른 즉시 썸네일(_pendingPhotos)을 먼저 띄우고, 한 장 올라갈 때마다 그 칸을 지운다(스피너 → 실제 사진).
+     *   encode 는 Context 가 필요해 화면이 준 람다로 받는다(VM 은 Context 없음 — 람다는 applicationContext 를 잡는다).
+     */
+    fun uploadPhotos(shareId: String, uris: List<android.net.Uri>, encode: suspend (android.net.Uri) -> String?) {
+        if (shareId.isBlank() || noBizPhone || uris.isEmpty()) return
+        _pendingPhotos.value = uris.mapIndexed { i, u -> PendingPhoto(i, u) }
         _photoBusy.value = true
         viewModelScope.launch {
-            repo.uploadPhoto(shareId, myPhone, base64)
-                .onSuccess {
-                    _toast.value = "현장 사진을 올렸어요"
+            var done = 0
+            uris.forEachIndexed { i, uri ->
+                val b64 = withContext(Dispatchers.IO) { runCatching { encode(uri) }.getOrNull() }
+                val ok = !b64.isNullOrBlank() && repo.uploadPhoto(shareId, myPhone, b64).isSuccess
+                if (ok) {
+                    done++
+                    // 올라간 칸은 지우고, 서버에서 새로 받아 실제 사진으로 바로 채운다.
                     _photos.value = repo.photos(shareId, myPhone).getOrDefault(_photos.value)
+                    _pendingPhotos.value = _pendingPhotos.value.filterNot { it.id == i }
+                } else {
+                    // 실패한 칸은 남겨 "못 올림" 으로 보여준다(조용히 삼키지 않음 §13①). 다음에 다시 고르면 지워짐.
+                    _pendingPhotos.value = _pendingPhotos.value.map { if (it.id == i) it.copy(failed = true) else it }
                 }
-                .onFailure { _toast.value = "사진을 올리지 못했어요 — 잠시 후 다시 해주세요" }
+            }
             _photoBusy.value = false
+            _toast.value = when {
+                done == uris.size && done == 1 -> "현장 사진을 올렸어요"
+                done == uris.size -> "현장 사진 ${done}장을 올렸어요"
+                done == 0 -> "사진을 올리지 못했어요 — 잠시 후 다시 해주세요"
+                else -> "일부 사진을 올리지 못했어요 (${done}/${uris.size})"
+            }
         }
     }
 

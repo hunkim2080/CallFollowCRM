@@ -69,7 +69,8 @@ internal fun MySharedArea(
             "먼저 사업자 전화를 등록해주세요",
             "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면, 내 현장을 다른 사장님께 공유할 수 있어요."
         )
-        sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
+        // 💀 처음 당기는 중 — 빈 카드 대신 스켈레톤("곧 떠요"). 목록이 툭 튀어나오지 않게. (2026-11-03 사장님 "스켈레톤이 어울릴듯")
+        sites.isEmpty() && loading -> com.detailline.callfollowcrm.presentation.theme.CardListSkeleton(count = 3)
         // 🔌 한 번도 못 받아왔는데 비어 있으면 = "없음" 아니라 "못 불러옴". (2026-10-19 사장님: 둘 다 빈 창)
         sites.isEmpty() && !loadedOnce -> EmptyCard(
             "불러오는 중…",

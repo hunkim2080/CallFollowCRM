@@ -53,9 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -108,6 +106,7 @@ fun SharedSiteScreen(
     val toast by viewModel.toast.collectAsState()
     val photos by viewModel.photos.collectAsState()
     val photoBusy by viewModel.photoBusy.collectAsState()
+    val pendingPhotos by viewModel.pendingPhotos.collectAsState()   // 올리는 중 썸네일(스피너)
     val comments by viewModel.comments.collectAsState()
     val commentBusy by viewModel.commentBusy.collectAsState()
     val context = LocalContext.current
@@ -123,17 +122,11 @@ fun SharedSiteScreen(
     ) { uris ->
         val sid = pendingUploadShareId
         if (uris.isNotEmpty() && sid.isNotBlank()) {
-            scope.launch {
-                var ok = 0
-                for (uri in uris) {
-                    val b64 = withContext(Dispatchers.IO) {
-                        com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context, uri)
-                    }
-                    if (b64 != null) { viewModel.uploadPhotoBase64(sid, b64); ok++ }
-                }
-                if (ok < uris.size) {
-                    android.widget.Toast.makeText(context, "일부 사진을 불러오지 못했어요 ($ok/${uris.size})", android.widget.Toast.LENGTH_SHORT).show()
-                }
+            // 인코딩+업로드 루프 전부 viewModelScope 로 — 화면을 나가도 끝까지 올라간다. (2026-11-03 사장님 "나가니까 업로드 안 됨")
+            //   encode 는 Context 가 필요 → applicationContext 를 잡은 람다로 넘긴다(화면 수명과 무관).
+            val appCtx = context.applicationContext
+            viewModel.uploadPhotos(sid, uris) { uri ->
+                com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(appCtx, uri)
             }
         }
     }
@@ -403,6 +396,7 @@ fun SharedSiteScreen(
                     acceptExpired = viewModel.acceptExpired(selected),
                     photos = photos,
                     photoBusy = photoBusy,
+                    pending = pendingPhotos,
                     comments = comments,
                     commentBusy = commentBusy,
                     myPhone = viewModel.myPhoneDigits,
@@ -461,6 +455,7 @@ fun SharedSiteScreen(
                     site = mine,
                     photos = photos,
                     photoBusy = photoBusy,
+                    pending = pendingPhotos,
                     comments = comments,
                     commentBusy = commentBusy,
                     myPhone = viewModel.myPhoneDigits,
@@ -700,7 +695,8 @@ private fun ListArea(
             "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면,\n다른 사장님이 그 번호로 현장을 공유할 수 있어요.",
             tall = true
         )
-        sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
+        // 💀 처음 당기는 중 — 빈 카드 대신 스켈레톤("곧 떠요"). 사장 목록이 툭 튀어나오지 않게. (2026-11-03 사장님 "스켈레톤이 어울릴듯")
+        sites.isEmpty() && loading -> com.detailline.callfollowcrm.presentation.theme.CardListSkeleton(count = 3)
         // 위 inbox 에 응답 안 한 요청이 있으면 큰 빈 카드 대신 가벼운 안내(모순 방지).
         sites.isEmpty() && hasPending -> Text(
             "수락하면 여기 '공유받은 현장'에 쌓여요.",
@@ -1037,6 +1033,7 @@ private fun DetailBody(
     acceptExpired: Boolean,
     photos: List<SharedSiteRepository.SharedPhoto>,
     photoBusy: Boolean,
+    pending: List<SharedSiteViewModel.PendingPhoto>,
     comments: List<SharedSiteRepository.SiteComment>,
     commentBusy: Boolean,
     myPhone: String,
@@ -1296,7 +1293,7 @@ private fun DetailBody(
             fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
     }
     Spacer(Modifier.height(10.dp))
-    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
+    PhotoGrid(photos = photos, pending = pending, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
         myKind = "partner", onDelete = onDeletePhoto)   // B(협업자) 화면 → 내가 올린 = partner
 
     // 협업 사장끼리 현장 한 줄 논의 (2026-07-01 사장님) — 팀원 화면 코멘트처럼.
@@ -1323,6 +1320,7 @@ private fun OwnerSharedDetail(
     site: SharedSiteRepository.SharedSite,
     photos: List<SharedSiteRepository.SharedPhoto>,
     photoBusy: Boolean,
+    pending: List<SharedSiteViewModel.PendingPhoto>,
     comments: List<SharedSiteRepository.SiteComment>,
     commentBusy: Boolean,
     myPhone: String,
@@ -1368,7 +1366,7 @@ private fun OwnerSharedDetail(
     // 📸 현장 사진 — 협업 사장(B)이 올린 증거사진을 A 도 여기서 보고, 필요하면 직접 추가. (2026-07-02 사장님: 사진 푸시 탭 → 여기)
     Spacer(Modifier.height(18.dp))
     SectionSub("현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
-    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
+    PhotoGrid(photos = photos, pending = pending, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
         myKind = "owner", onDelete = onDeletePhoto)      // A(주인) 화면 → 내가 올린 = owner
 
     // 협업 사장과 한 줄 논의
@@ -1387,6 +1385,7 @@ private fun OwnerSharedDetail(
 @Composable
 private fun PhotoGrid(
     photos: List<SharedSiteRepository.SharedPhoto>,
+    pending: List<SharedSiteViewModel.PendingPhoto> = emptyList(),   // 올리는 중 썸네일(스피너) — ＋셀 바로 뒤에
     busy: Boolean,
     onAdd: () -> Unit,
     onView: (android.graphics.Bitmap) -> Unit,
@@ -1398,16 +1397,36 @@ private fun PhotoGrid(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ＋ 추가 셀
+        // ＋ 추가 셀 — 올리는 동안은 못 누르게(배치 중 다시 고르면 썸네일 목록이 꼬임). 진행은 아래 썸네일 스피너가 보여준다.
         Box(
             cellMod.background(CollabPurpleSoft).border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(12.dp))
                 .clickable(enabled = !busy) { onAdd() },
             contentAlignment = Alignment.Center
         ) {
-            if (busy) Text("올리는 중…", fontSize = 10.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
-            else Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("＋", fontSize = 22.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
-                Text("사진", fontSize = 10.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
+            val plusColor = if (busy) CollabPurple.copy(alpha = 0.45f) else CollabPurple
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("＋", fontSize = 22.sp, color = plusColor, fontWeight = FontWeight.Bold)
+                Text("사진", fontSize = 10.sp, color = plusColor, fontWeight = FontWeight.Bold)
+            }
+        }
+        // 💀 올리는 중 — 고른 썸네일을 먼저 띄우고 한 장씩 스피너가 돌다 올라가면 실제 사진으로 바뀐다. (2026-11-03 사장님)
+        pending.forEach { pp ->
+            Box(cellMod.background(AppTheme.colors.surfaceMuted), contentAlignment = Alignment.Center) {
+                coil.compose.AsyncImage(
+                    model = pp.uri, contentDescription = "올리는 중 사진",
+                    modifier = Modifier.fillMaxSize(),   // 모서리는 부모 셀(cellMod)이 이미 클립
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+                if (pp.failed) {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
+                        Text("못 올림", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.33f)))
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(26.dp)
+                    )
+                }
             }
         }
         photos.forEach { p ->
