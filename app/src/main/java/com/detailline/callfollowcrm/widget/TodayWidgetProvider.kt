@@ -13,8 +13,10 @@ import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.MainActivity
 import com.detailline.callfollowcrm.R
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.data.local.entity.JobEntity
 import com.detailline.callfollowcrm.util.AddressExtractor
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.NavApps
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -58,14 +60,20 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val headline: String,   // 이름 있으면 "홍길동 고객님", 없으면 단지명(없으면 주소 한 줄)
             val region: String,     // 작은 회색 줄 (지역 · 단지)
             val unit: String,       // "102동 1203호" — 없으면 ""
-            val memo: String,       // 현장 메모 원문 — 없으면 ""
+            val memo: String,       // 현장 메모(건 memo, 📌비번 포함) — 없으면 ""
+            val timeLabel: String,  // "오전 9시" — 시각 없으면 ""
+            val navAddress: String, // 길찾기 목적지 주소
             val nameAbsent: Boolean // 이름 없는 현장 → '오늘 시공' 칩 + 파란 동호수
         )
         /** 맨 아래 칸 — 오늘 2번째 현장(이어서) 또는 다음 날짜 현장(내일/11/7(금)). */
-        private data class NextSite(val title: String, val headline: String, val region: String)
+        private data class NextSite(
+            val title: String, val headline: String, val region: String,
+            val unit: String, val timeLabel: String
+        )
         private data class Snapshot(
             val today: List<Site>,
             val next: NextSite? = null,
+            val navApp: String = "",
             val unanswered: Int = 0,
             val upName: String = "",
             val upElapsed: String = "",
@@ -89,6 +97,15 @@ class TodayWidgetProvider : AppWidgetProvider() {
         private suspend fun loadSnapshot(context: Context): Snapshot {
             val app = context.applicationContext as? CallFollowCrmApplication ?: return Snapshot(emptyList())
             val customers = runCatching { app.container.customerRepository.allOnce() }.getOrDefault(emptyList())
+            // 🧱 현장 메모·시각·주소는 **그 날짜의 건(job)**이 진짜(§13④) — jobs.memo=현장 메모(📌비번 포함).
+            val allJobs = runCatching { app.container.jobRepository.allOnce() }.getOrDefault(emptyList())
+            val jobsByCustomer = allJobs.groupBy { it.customerId }
+            fun jobForDate(c: CustomerEntity): JobEntity? {
+                val ds = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return null
+                return jobsByCustomer[c.id]?.firstOrNull { j ->
+                    j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) == ds } == true
+                }
+            }
             val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
             val todayEnd = todayStart + DateTimeUtils.DAY_MS
             val todayCustomers = customers
@@ -98,19 +115,20 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     { it.scheduledWorkMinutes ?: Int.MAX_VALUE },
                     { it.name ?: it.phoneNumber }
                 ))
-            val todaySites = todayCustomers.map { siteOf(it) }
+            val todaySites = todayCustomers.map { siteOf(it, jobForDate(it)) }
 
             // 맨 아래 칸: 오늘 2번째 현장이 있으면 "이어서", 없으면 가장 가까운 다음 날짜 현장을 "내일/날짜"로.
             val next: NextSite? = if (todayCustomers.size >= 2) {
-                val s = siteOf(todayCustomers[1])
-                NextSite("이어서", s.headline, s.region)
+                val c = todayCustomers[1]
+                val s = siteOf(c, jobForDate(c))
+                NextSite("이어서", s.headline, s.region, s.unit, s.timeLabel)
             } else {
                 val fut = customers
                     .filter { c -> (c.scheduledWorkDate ?: -1L) >= todayEnd }
                     .minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
                 fut?.let { c ->
-                    val s = siteOf(c)
-                    NextSite(nextDayLabel(c.scheduledWorkDate!!, todayStart), s.headline, s.region)
+                    val s = siteOf(c, jobForDate(c))
+                    NextSite(nextDayLabel(c.scheduledWorkDate!!, todayStart), s.headline, s.region, s.unit, s.timeLabel)
                 }
             }
 
@@ -119,6 +137,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             return Snapshot(
                 today = todaySites,
                 next = next,
+                navApp = runCatching { p.navApp }.getOrDefault(""),
                 unanswered = runCatching { p.widgetUnansweredCount }.getOrDefault(0),
                 upName = runCatching { p.widgetUnansweredName }.getOrDefault(""),
                 upElapsed = runCatching { p.widgetUnansweredElapsed }.getOrDefault(""),
@@ -126,11 +145,17 @@ class TodayWidgetProvider : AppWidgetProvider() {
             )
         }
 
-        /** 한 고객 → 위젯 현장 한 줄. 주소 쪼개기는 AddressExtractor(공용) 한 곳 — 두 벌 금지(§12). */
-        private fun siteOf(c: CustomerEntity): Site {
-            val complex = AddressExtractor.complexName(c.address)
-            val reg = regionPrefix(c.address)
-            val parts = AddressExtractor.splitDongHo(c.address)
+        /**
+         * 한 고객(+그 날짜의 건) → 위젯 현장 한 줄. 건(job)이 있으면 그 건의 주소·시각·현장 메모를 우선.
+         *   주소 쪼개기는 AddressExtractor(공용) 한 곳, 시각 라벨은 DateTimeUtils 한 곳 — 두 벌 금지(§12).
+         */
+        private fun siteOf(c: CustomerEntity, job: JobEntity?): Site {
+            val addr = job?.address?.takeIf { it.isNotBlank() } ?: c.address
+            val minutes = job?.scheduledWorkMinutes ?: c.scheduledWorkMinutes
+            val memoRaw = job?.memo?.takeIf { it.isNotBlank() } ?: c.memo  // 현장 메모(건) 우선, 없으면 손님 메모
+            val complex = AddressExtractor.complexName(addr)
+            val reg = regionPrefix(addr)
+            val parts = AddressExtractor.splitDongHo(addr)
             val unit = when {
                 parts.dong != null && parts.ho != null -> "${parts.dong}동 ${parts.ho}호"
                 parts.ho != null -> "${parts.ho}호"
@@ -141,14 +166,23 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val headline = when {
                 nm != null -> "$nm 고객님"
                 !complex.isNullOrBlank() -> complex
-                else -> AddressExtractor.roughSite(c.address).ifBlank { c.address?.takeIf { it.isNotBlank() } ?: reg }
+                else -> AddressExtractor.roughSite(addr).ifBlank { addr?.takeIf { it.isNotBlank() } ?: reg }
             }
             val region = if (nm != null) {
                 listOfNotNull(complex?.takeIf { it.isNotBlank() }, reg.takeIf { it.isNotBlank() }).joinToString(" · ")
             } else {
                 reg // 이름 없으면 단지명이 헤드라인으로 올라가니 지역만
             }
-            return Site(headline = headline, region = region, unit = unit, memo = c.memo.trim(), nameAbsent = nm == null)
+            val timeLabel = minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
+            return Site(
+                headline = headline,
+                region = region,
+                unit = unit,
+                memo = memoRaw.trim(),
+                timeLabel = timeLabel,
+                navAddress = AddressExtractor.tidyAddress(addr),
+                nameAbsent = nm == null
+            )
         }
 
         /** 다음 날짜 라벨 — 바로 다음 날이면 "내일", 그 외엔 "11/7(금)"(실제 날짜·요일). */
@@ -163,10 +197,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(android.R.id.background, open)
             views.setOnClickPendingIntent(R.id.widget_open, open)
 
-            // 답장 안 함 뱃지(프로토) — N건 + 고객님 + 「문자 · 」 메시지. 뱃지 있으면 구분선1도.
+            // 답장 영역 — 수>0이면 빨간 뱃지, 0이면 '답장할 고객 없음'(초록 완료). 위는 늘 뭔가 있으니 구분선1도 늘 보임.
+            views.setViewVisibility(R.id.widget_div1, View.VISIBLE)
             if (snap.unanswered > 0) {
                 views.setViewVisibility(R.id.widget_badge_box, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_div1, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_badge_done, View.GONE)
                 // 프로토처럼 숫자는 크게, 「건」은 작게.
                 val cnt = "${snap.unanswered}"
                 val cs = android.text.SpannableString("${cnt}건")
@@ -181,7 +216,13 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.widget_badge_box, open)
             } else {
                 views.setViewVisibility(R.id.widget_badge_box, View.GONE)
-                views.setViewVisibility(R.id.widget_div1, View.GONE)
+                views.setViewVisibility(R.id.widget_badge_done, View.VISIBLE)
+                // 둘째 줄: 오늘 현장 있으면 그걸 확인하라고, 없으면 쉬어도 된다고.
+                views.setTextViewText(
+                    R.id.widget_badge_done_sub2,
+                    if (snap.today.isEmpty()) "한숨 돌려도 괜찮아요." else "이제 오늘 현장을 확인해보세요."
+                )
+                views.setOnClickPendingIntent(R.id.widget_badge_done, open)
             }
 
             // ── 오늘 갈 현장 본문 ──
@@ -193,7 +234,21 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_primary, View.VISIBLE)
                 views.setViewVisibility(R.id.widget_empty, View.GONE)
                 views.setTextViewText(R.id.widget_count, "오늘 예정 · ${snap.today.size}곳")
-                renderSite(context, views, snap.today.first())
+                val first = snap.today.first()
+                renderSite(context, views, first)
+                // 길찾기 → 이 현장 위치로 **바로**(설정한 네비). 앱 열기 아님. 미설치면 기본 지도로 구워 둠.
+                val navIntent = NavApps.bakedNavIntent(context, snap.navApp, first.navAddress)
+                if (navIntent != null) {
+                    views.setOnClickPendingIntent(
+                        R.id.widget_open,
+                        PendingIntent.getActivity(
+                            context, 1, navIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
+                } else {
+                    views.setOnClickPendingIntent(R.id.widget_open, open)
+                }
             }
 
             // ── 맨 아래: 이어서(오늘 다음) 또는 내일/다음 날짜 현장 ──
@@ -208,7 +263,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_next_name, next.headline)
                 views.setTextViewText(R.id.widget_next_region, next.region)
                 views.setViewVisibility(R.id.widget_next_region, if (next.region.isBlank()) View.GONE else View.VISIBLE)
-                views.setViewVisibility(R.id.widget_next_time, View.GONE)
+                views.setTextViewText(R.id.widget_next_unit, next.unit)
+                views.setViewVisibility(R.id.widget_next_unit, if (next.unit.isBlank()) View.GONE else View.VISIBLE)
+                if (next.timeLabel.isBlank()) {
+                    views.setViewVisibility(R.id.widget_next_time, View.GONE)
+                } else {
+                    views.setViewVisibility(R.id.widget_next_time, View.VISIBLE)
+                    views.setTextViewText(R.id.widget_next_time, next.timeLabel)
+                }
             }
             return views
         }
@@ -219,20 +281,26 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_today_chip, if (s.nameAbsent) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.widget_name, s.headline)
             views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (s.nameAbsent) 19f else 17f)
+            // 시각(있을 때만) — "오전 9시"
+            if (s.timeLabel.isBlank()) {
+                views.setViewVisibility(R.id.widget_time, View.GONE)
+            } else {
+                views.setViewVisibility(R.id.widget_time, View.VISIBLE)
+                views.setTextViewText(R.id.widget_time, s.timeLabel)
+            }
             views.setTextViewText(R.id.widget_region, s.region)
             views.setViewVisibility(R.id.widget_region, if (s.region.isBlank()) View.GONE else View.VISIBLE)
             // 동·호수(있을 때만, 파랗게)
             views.setTextViewText(R.id.widget_unit, s.unit)
             views.setViewVisibility(R.id.widget_unit, if (s.unit.isBlank()) View.GONE else View.VISIBLE)
-            // 현장 메모(있을 때만) — 원문 그대로, 2줄 미리보기
+            // 현장 메모(있을 때만) — 건 memo 원문(📌비번 포함), 2줄 미리보기
             if (s.memo.isBlank()) {
                 views.setViewVisibility(R.id.widget_memo, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_memo, View.VISIBLE)
                 views.setTextViewText(R.id.widget_memo_text, s.memo)
             }
-            // 내 현장은 시각·시공부위 데이터가 아직 없어 숨긴다(다음 단계).
-            views.setViewVisibility(R.id.widget_time, View.GONE)
+            // 시공부위(견적 itemsText)는 다음 단계.
             views.setViewVisibility(R.id.widget_worktype, View.GONE)
             // 이름 없고 메모도 없는 '최소 현장' → 연파랑 카드로 강조(프로토). 그 외엔 흰 바탕.
             val minimal = s.nameAbsent && s.memo.isBlank()

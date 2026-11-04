@@ -109,7 +109,55 @@
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- 구분선 1 (뱃지 있을 때만) — RemoteViews는 <View> 미지원이라 FrameLayout -->
+    <!-- ── 답장할 고객 없음(완료) — 미답 수=0 일 때 (프로토) ── -->
+    <LinearLayout
+        android:id="@+id/widget_badge_done"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="15dp"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:background="@drawable/widget_done_bg"
+            android:text="✓"
+            android:textColor="#087850"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="11dp"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="답장할 고객 없음"
+                android:textColor="#202E42"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/widget_badge_done_sub1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="고객 답장을 모두 챙겼어요."
+                android:textColor="#15B881"
+                android:textSize="12sp" />
+            <TextView
+                android:id="@+id/widget_badge_done_sub2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#9AA3B0"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 구분선 1 (위에 뱃지/완료 중 하나 늘 있음 — 코드에서 보임) -->
     <FrameLayout
         android:id="@+id/widget_div1"
         android:layout_width="match_parent"
@@ -337,6 +385,17 @@
                 android:ellipsize="end"
                 android:textColor="#9AA3B0"
                 android:textSize="10sp" />
+            <TextView
+                android:id="@+id/widget_next_unit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#2368BE"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
         <TextView
             android:id="@+id/widget_next_time"

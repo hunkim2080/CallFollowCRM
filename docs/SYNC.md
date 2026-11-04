@@ -16011,3 +16011,14 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 빌드: assembleRelease EXIT=0 · 가드 7종 통과([rules] 공용 감시·[save] 0곳·[dup]/[size] 기준선). 테스트 1344개.
 - 폰 확인: 못 봄 — 홈 위젯은 Play서명 pkg라 로컬 릴리즈로 덮기 실패(서명 불일치), 디버그는 .test 별도 pkg라 위젯 미배치. **내부배포로 올려 사장님 실제 폰에서 확인 예정.**
 - 연결 지점(§12-K): 위젯 데이터는 TodayWidgetProvider 한 곳 집계(customerRepository.allOnce). 다른 화면 영향 없음.
+
+## 2026-11-05 01:30 · android
+위젯 v2 실기 보완 5종(사장님 실기 지적) — 현장메모 올바른 필드·시각·네비 직결·완료상태·이어서 동호수.
+- 🩹 **현장 메모 필드 교정:** CustomerEntity.memo(=손님 메모 미러)가 아니라 **현장 메모는 jobs.memo**(건별, 📌비번 포함 — CustomerNoteRepository.mirror). 위젯이 그 날짜의 건(job)을 찾아 memo·시각·주소를 가져오게 함(jobRepository.allOnce groupBy customerId, 날짜 매칭). 없으면 손님 메모 폴백.
+- 🕐 **시각:** job.scheduledWorkMinutes ?: customer — DateTimeUtils.formatWorkMinutes("오전 9시"). 본문·이어서 둘 다.
+- 🧭 **길찾기 네비 직결:** 앱 열기 → 설정한 네비(prefs.navApp)로 그 현장 위치 바로. NavApps에 bakedNavIntent(빌드 시점 Intent 구움 + 미설치면 geo 폴백) 추출 — URI 스킴 한 곳(§12). PendingIntent.getActivity.
+- ✅ **답장할 고객 없음(완료):** 미답=0이면 숨기지 말고 초록 체크 + "답장할 고객 없음 / 고객 답장을 모두 챙겼어요 / (오늘현장 있으면)확인해보세요·(없으면)한숨 돌려도 괜찮아요". widget_badge_done + widget_done_bg.
+- 📍 **이어서 동호수:** 다음 현장 칸에도 동호수·시각 표시(widget_next_unit).
+- layout: widget_badge_done·widget_next_unit 추가, drawable widget_done_bg. brand_guard: "확인해 보세요"→"확인해보세요"(붙여쓰기).
+- assembleRelease EXIT=0 · 가드 7종 통과 · 테스트 1344.
+- 폰: 사장님 실기(내부배포)로 확인 중. 서명 벽으로 로컬 직접설치는 불가(Play서명 pkg).
