@@ -175,6 +175,10 @@ class AppPreferences(context: Context) {
     var googleCalendarSyncedCount: Int
         get() = prefs.getInt("google_calendar_synced_count", 0)
         set(value) = prefs.edit().putInt("google_calendar_synced_count", value).apply()
+    /** 🧱 위젯용 '답장 안 함' 수 — 홈 화면이 센 마지막 값(위젯이 프로세스 재시작 뒤에도 읽게 저장). (2026-11-04) */
+    var widgetUnansweredCount: Int
+        get() = prefs.getInt("widget_unanswered_count", 0)
+        set(value) = prefs.edit().putInt("widget_unanswered_count", value).apply()
     /** 연결된 구글 계정 이메일 — "어느 계정에 올라갔나" 표시용. null = 아직 못 받음(옛 연결/이메일 권한 전). (2026-10-05 사장님) */
     var googleCalendarAccountEmail: String?
         get() = prefs.getString("google_calendar_account_email", null)

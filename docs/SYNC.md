@@ -15966,3 +15966,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경(앱만, 동작 불변): domain/inbox/UnansweredSuffixes.of(...) 신규(순수). HomeViewModel.unconfirmedSuffixes 는 그걸 위임(spamPrefixesFlow.value만 주입). 호출부·시그니처 그대로 → 홈 '답장 안 함' 동작 동일. 단위테스트 UnansweredSuffixesTest 7케이스로 고정.
 - 빌드: assembleRelease EXIT=0·가드 7종 기준선·testDebugUnitTest 통과. size 23줄 감소.
 - 다음 ②: 헤드리스 스냅샷(답장안함 수+가장 오래 기다린 고객) 제공자 + 저장. ③ 위젯 뱃지 + 문자수신·답장 때 갱신.
+
+## 2026-11-04 21:40 · android
+위젯 Phase 2-②③: '답장 안 함' 뱃지 — 홈 계산 재활용(화면밖 재스캔 안 함).
+- 발견: 헤드리스 완전계산은 문자 전체 스캔 필요(무거움) → 화면이 이미 한 계산을 재활용하는 방향으로. 틀린 수가 아니라 '마지막 실제 수'를 보여줌. 앱 열 때마다·답장 때마다 최신화.
+- 변경(앱만): AppPreferences.widgetUnansweredCount(저장). HomeViewModel.publishUnansweredCount 가 값 바뀌면 저장+TodayWidgetProvider.refresh(화면의 그 수 그대로 — 두 벌 0). 위젯 레이아웃에 빨간 뱃지(widget_unanswered)+drawable, provider 가 저장값 읽어 'N명' 표시(수>0만).
+- 빌드: assembleRelease EXIT=0·가드 7종 기준선.
+- 폰 확인: 못 봄. 실기 = 홈 열어 답장안함 수 생기면 위젯 뱃지 뜨는지.
+- 남음(선택): 완전 상시 백그라운드(새 문자 즉시)=가벼운 증분 방식. 협업 현장·대표고객 이름·시각 라벨.

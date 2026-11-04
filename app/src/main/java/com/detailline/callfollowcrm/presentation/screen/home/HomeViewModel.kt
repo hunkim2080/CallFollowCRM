@@ -349,7 +349,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     //   고정·정리(확인)·광고를 안 뺐다. 그 수로 하단 탭이 「답장 안 함」으로 뛰면 목록은 비어 있었다.
     //   이제 화면이 보여주는 칩 숫자(inboxUnanswered 한 목록)를 [publishUnansweredCount] 로 받는다.
     /** 칩이 보여주는 「답장 안 함」 수를 하단 탭 점프용(container.inboxUnansweredCount)으로 넘긴다 — 화면이 센 **그 수** 그대로. */
-    fun publishUnansweredCount(n: Int) { container.inboxUnansweredCount.value = n }
+    fun publishUnansweredCount(n: Int) {
+        container.inboxUnansweredCount.value = n
+        // 🧱 위젯 '답장 안 함' 뱃지 — 화면이 센 **그 수** 그대로 저장 + 위젯 갱신(값이 바뀔 때만). (2026-11-04)
+        //   화면의 계산(문자 스캔 포함)을 재활용 — 위젯은 다시 안 센다(두 벌 방지). 앱을 열 때마다 최신화된다.
+        if (container.preferences.widgetUnansweredCount != n) {
+            container.preferences.widgetUnansweredCount = n
+            com.detailline.callfollowcrm.widget.TodayWidgetProvider.refresh(container.appContext)
+        }
+    }
 
     /** 오늘 ~ 오늘+6일(7일 윈도우) 시공 예약된 고객 수. */
     val thisWeekScheduledCount = customers.map { list ->

@@ -57,7 +57,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 val region = two.first.takeIf { it.isNotBlank() } ?: (c.address ?: "")
                 Row(name = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber, region = region)
             }
-        return Snapshot(rows)
+        // 📥 답장 안 함 수 — 홈 화면이 센 마지막 값(저장). 위젯은 다시 안 센다(두 벌 방지). (Phase 2)
+        val unanswered = runCatching { app.container.preferences.widgetUnansweredCount }.getOrDefault(0)
+        return Snapshot(rows, unanswered)
     }
 
     private fun buildViews(context: Context, snap: Snapshot): RemoteViews {
@@ -65,6 +67,15 @@ class TodayWidgetProvider : AppWidgetProvider() {
         val open = openAppIntent(context)
         views.setOnClickPendingIntent(android.R.id.background, open)
         views.setOnClickPendingIntent(R.id.widget_open, open)
+
+        // 답장 안 함 뱃지 — 수>0일 때만. 오늘 현장과 무관하게 늘 챙긴다.
+        if (snap.unanswered > 0) {
+            views.setViewVisibility(R.id.widget_unanswered, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.widget_unanswered, "답장 안 함 ${snap.unanswered}명")
+            views.setOnClickPendingIntent(R.id.widget_unanswered, open)
+        } else {
+            views.setViewVisibility(R.id.widget_unanswered, android.view.View.GONE)
+        }
 
         if (snap.rows.isEmpty()) {
             views.setViewVisibility(R.id.widget_primary, android.view.View.GONE)
@@ -102,7 +113,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
     }
 
     private data class Row(val name: String, val region: String)
-    private data class Snapshot(val rows: List<Row>)
+    private data class Snapshot(val rows: List<Row>, val unanswered: Int = 0)
 
     companion object {
         /** 어디서든 위젯을 다시 그리게 — 일정 바뀜·완료·자정 등 이벤트에서 부른다(없으면 30분 자동). */

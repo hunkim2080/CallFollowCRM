@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 '답장 안 함' 뱃지 — 빨간 알약. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#F0436A" />
+    <corners android:radius="12dp" />
+</shape>
