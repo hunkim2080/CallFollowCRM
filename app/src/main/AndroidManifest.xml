@@ -326,6 +326,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- 🧱 '오늘 갈 현장' 홈 위젯 (2026-11-04). exported=true 는 런처가 붙이려면 필수. -->
+        <receiver
+            android:name=".widget.TodayWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_today_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+
         <!--
             2026-05-29 Default SMS 앱 자격 컴포넌트 (3/4) — RESPOND_VIA_MESSAGE service.
             자동차/스마트워치/시스템 빠른 답장 UI 가 호출하는 headless 서비스.

@@ -101,6 +101,25 @@ class CallFollowCrmApplication : Application() {
             container.preferences.lastNotifiedMmsMs = System.currentTimeMillis()
         }
 
+        // 🧱 '오늘 갈 현장' 위젯 — 일정이 바뀔 때마다 다시 그린다. (2026-11-04 사장님)
+        //   앱 수명으로 observeScheduled() 를 구독 = 모든 일정 편집을 한 곳에서 커버 + 시작 시 1회.
+        //   오늘 보일 내용(id·이름·주소)이 실제로 바뀔 때만 refresh(연타 방지). 자정 넘김은 30분 자동갱신이 챙긴다.
+        appScope.launch {
+            var lastSig = ""
+            container.customerRepository.observeScheduled().collect { list ->
+                val todayStart = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+                val end = todayStart + com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS
+                val sig = list
+                    .filter { c -> c.scheduledWorkDate?.let { it in todayStart until end } == true }
+                    .sortedBy { it.scheduledWorkDate }
+                    .joinToString("|") { "${it.id}:${it.name}:${it.address}" }
+                if (sig != lastSig) {
+                    lastSig = sig
+                    com.detailline.callfollowcrm.widget.TodayWidgetProvider.refresh(this@CallFollowCrmApplication)
+                }
+            }
+        }
+
         appScope.launch {
             // 2026-07-02 기본 문자 템플릿 자동 시드 중단(사장님). 새 사장님은 빈 템플릿으로 시작 →
             //   설정 → 문자 템플릿 → "✨ 찾기"로 자기 문자에서 자주 쓰는 걸 불러오거나 직접 추가.

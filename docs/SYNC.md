@@ -15953,3 +15953,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 서버 무변경 근거: auto 값이 outbox(CollabProgressHandler optBoolean auto)→repo.progress→서버로 이미 흐름(3km 거의도착이 그 증거). 300m는 auto:false만 보내면 '도착'.
 - 폰 확인: 못 봄(assembleRelease EXIT=0·가드 7종 기준선·brand 이모지 가드 1회 걸려 글자만으로 수정). 실기 확인 필요 = 길찾기 탭→지도+출발, 현장 3km/300m 진입 자동 도착.
 - 미구현(프로토 「가」 대기): 알림 하나가 단계바 채우는 '스텝 인디케이터' UI는 아직 개념(아티팩트 8ZhqCYvhGzbgVA1Vw9hdrw). 이번 건 '자동 트리거'만.
+
+## 2026-11-04 19:30 · android
+'오늘 갈 현장' 홈 위젯 Phase 1 — RemoteViews(새 라이브러리 X). 로컬 일정으로 헤드리스.
+- 변경(앱만): widget/TodayWidgetProvider.kt(AppWidgetProvider, allOnce()→오늘 시공 고객 필터·AddressExtractor.twoLine 재사용·열기=앱 런치·refresh()) + res/layout/widget_today.xml·res/xml/widget_today_info.xml(4x2·30분)·drawable 2·strings widget_today_desc·Manifest receiver(APPWIDGET_UPDATE). CallFollowCrmApplication: observeScheduled() 구독→오늘 내용 바뀌면 위젯 refresh(앱수명 1곳).
+- 갱신: 일정 편집 시 즉시(observeScheduled 훅) + 30분 자동(updatePeriodMillis). 자정넘김은 30분 자동이 커버.
+- 폰 확인: 못 봄(assembleRelease EXIT=0·가드 7종 기준선). 실기 = 런처에서 위젯 추가→오늘 현장 뜨는지.
+- 다음(Phase 2): '답장 안 함' 뱃지(화면밖 계산 공용 추출 필요) + 협업 현장 + 시각 라벨.
