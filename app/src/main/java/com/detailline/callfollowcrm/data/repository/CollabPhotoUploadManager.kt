@@ -51,6 +51,10 @@ class CollabPhotoUploadManager(
     private val _uploaded = MutableSharedFlow<String>(extraBufferCapacity = 32)
     val uploaded: SharedFlow<String> = _uploaded.asSharedFlow()
 
+    /** 사장님께 한 줄 안내(같은 사진 건너뜀 등). 현장 화면이 열려 있으면 토스트로 보여준다. (2026-11-04 사장님) */
+    private val _message = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val message: SharedFlow<String> = _message.asSharedFlow()
+
     private val mutex = Mutex()   // 배치끼리 썸네일 목록이 꼬이지 않게 직렬화(§13③)
     private var nextId = 0
 
@@ -71,14 +75,17 @@ class CollabPhotoUploadManager(
         val items = uris.map { Pending(shareId, nextId++, it) }
         _pending.value = _pending.value + items
         val total = items.size
-        var done = 0
+        var done = 0       // 새로 올라간 장
+        var skipped = 0    // 이미 있는 사진이라 서버가 건너뛴 장(같은 사진 두 번 막기)
         var failed = 0
         notifyProgress(0, total)
         for (item in items) {
             val b64 = withContext(Dispatchers.IO) { runCatching { encode(item.uri) }.getOrNull() }
-            val ok = !b64.isNullOrBlank() && repo.uploadPhoto(shareId, ownerPhone, b64).isSuccess
+            val result = if (b64.isNullOrBlank()) null else repo.uploadPhoto(shareId, ownerPhone, b64)
+            val ok = result?.isSuccess == true          // 새로 올림 또는 중복 스킵 — 둘 다 "사진이 서버에 있음"
+            val dup = result?.getOrNull() == true        // 서버가 '이미 있는 사진'이라 건너뜀
             if (ok) {
-                done++
+                if (dup) skipped++ else done++
                 _pending.value = _pending.value.filterNot { it.id == item.id }
                 _uploaded.tryEmit(shareId)
             } else {
@@ -86,9 +93,9 @@ class CollabPhotoUploadManager(
                 // 실패한 칸은 "못 올림"으로 남긴다(조용히 안 삼킴 §13①). 다음에 다시 고르면 지워진다.
                 _pending.value = _pending.value.map { if (it.id == item.id) it.copy(failed = true) else it }
             }
-            notifyProgress(done + failed, total)
+            notifyProgress(done + skipped + failed, total)
         }
-        finish(done, failed, total)
+        finish(done, skipped, failed, total)
     }
 
     // ── 진행 알림 (ongoing) ──
@@ -120,16 +127,18 @@ class CollabPhotoUploadManager(
         runCatching { NotificationManagerCompat.from(appContext).notify(NOTIF_ID, n) }
     }
 
-    private fun finish(done: Int, failed: Int, total: Int) {
+    private fun finish(done: Int, skipped: Int, failed: Int, total: Int) {
         val nm = NotificationManagerCompat.from(appContext)
         runCatching { nm.cancel(NOTIF_ID) }
+        // 🚫 같은 사진이라 건너뛴 게 있으면 한 줄 안내(현장 화면이 열려 있으면 토스트). (2026-11-04 사장님)
+        if (skipped > 0) _message.tryEmit("이미 올린 사진 ${skipped}장은 건너뛰었어요")
         // 다 올라갔으면 조용히 끝(갤러리처럼 알림이 사라지는 게 '완료'). 일부 실패면 알려준다.
         if (failed > 0) {
             ensureChannel()
             val n = NotificationCompat.Builder(appContext, CHANNEL)
                 .setSmallIcon(R.drawable.ic_noti_collab)
                 .setContentTitle("사진 일부를 못 올렸어요")
-                .setContentText("$done / $total 만 올라갔어요 — 앱에서 다시 올려주세요")
+                .setContentText("${done + skipped} / $total 만 올라갔어요 — 앱에서 다시 올려주세요")
                 .setAutoCancel(true)
                 .setSilent(true)
                 .build()

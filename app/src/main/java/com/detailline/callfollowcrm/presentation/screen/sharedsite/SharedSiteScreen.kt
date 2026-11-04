@@ -230,6 +230,12 @@ fun SharedSiteScreen(
         val id = selectedId ?: return@LaunchedEffect
         viewModel.photoUploaded.collect { if (it == id) viewModel.loadPhotos(id) }
     }
+    // 🚫 같은 사진 건너뜀 안내 — 매니저가 보낸 한 줄을 토스트로. (2026-11-04 사장님)
+    LaunchedEffect(Unit) {
+        viewModel.photoMessage.collect {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
     // 댓글 자동 새로고침(폴링) — 카톡처럼 상대 댓글이 저절로 올라오게. 상세 열린 동안 4초 간격. (2026-07-01 사장님)
     LaunchedEffect(selectedId) {
         val id = selectedId

@@ -71,6 +71,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     val pendingPhotos get() = container.collabPhotoUploads.pending
     /** 한 장 올라갔다는 신호(shareId) — 그 현장이 열려 있으면 화면이 받아 사진을 새로고침. */
     val photoUploaded get() = container.collabPhotoUploads.uploaded
+    /** 사진 올리기 한 줄 안내(같은 사진 건너뜀 등) — 화면이 열려 있으면 토스트. (2026-11-04 사장님) */
+    val photoMessage get() = container.collabPhotoUploads.message
 
     /** 현재 연 협업 현장의 한 줄 댓글(협업 사장끼리 논의). 상세 열 때 loadComments. (2026-07-01 사장님) */
     private val _comments = MutableStateFlow<List<SharedSiteRepository.SiteComment>>(emptyList())

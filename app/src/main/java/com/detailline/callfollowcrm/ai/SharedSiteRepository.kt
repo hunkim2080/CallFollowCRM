@@ -460,20 +460,33 @@ class SharedSiteRepository(
         )
     }
 
-    /** 증거 사진 업로드(§F) — 업로더(owner/partner) 본인 번호 + base64(raw). */
+    /** 증거 사진 업로드(§F) — 업로더(owner/partner) 본인 번호 + base64(raw).
+     *   @return Result<Boolean> — true = **이 현장에 이미 올라간 같은 사진이라 서버가 건너뜀**(중복), false = 새로 올림.
+     *   같은 사진 두 번 올리는 실수 방지는 **서버가 현장별 내용 지문으로 최종 판단**한다(§13②). (2026-11-04 사장님) */
     suspend fun uploadPhoto(
         shareId: String,
         uploaderPhone: String,
         imageBase64: String,
         label: String? = null,
         note: String? = null
-    ): Result<Unit> = post("$baseUrl/api/shared/photo", JSONObject().apply {
-        put("share_id", shareId)
-        put("partner_phone", phoneKey(uploaderPhone))
-        put("image_base64", imageBase64)
-        label?.let { put("label", it) }
-        note?.let { put("note", it) }
-    })
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject().apply {
+                put("share_id", shareId)
+                put("partner_phone", phoneKey(uploaderPhone))
+                put("image_base64", imageBase64)
+                label?.let { put("label", it) }
+                note?.let { put("note", it) }
+            }
+            val req = Request.Builder().url("$baseUrl/api/shared/photo")
+                .post(payload.toString().toRequestBody(jsonMedia)).build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                // 서버가 { "duplicate": true } 를 주면 = 이미 있는 사진이라 저장 안 됨(건너뜀).
+                JSONObject(resp.body?.string().orEmpty()).optBoolean("duplicate", false)
+            }
+        }
+    }
 
     /** 증거 사진 삭제(§F) — 올린 본인만(서버가 uploader 검증). 서버 미구현(404)/거부(403) 시 Result 실패 → 화면이 안내.
      *   partner_phone = 삭제 요청자(=업로더) phone. upload 와 같은 필드명. (2026-07-07 사장님) */

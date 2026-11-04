@@ -15939,3 +15939,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - assembleRelease BUILD=0, 가드7 통과(dup 18/18·rules 공용49). 변경: CollabPhotoUploadManager.kt(신규)·AppContainer.kt·SharedSiteViewModel.kt·SharedSiteScreen.kt·CLAUDE.md
 - 폰 확인: 실기기 e2e 어려움(테스트폰 협업현장 없음) → 사장님 폰에서 협업현장 사진 여러 장 고르고 **바로 나갔다 와도** 다 올라가는지·상단 진행 알림 뜨는지
 - 다음 액션: 사장님 — 협업 현장 사진 업로드 확인(나갔다 오기·진행 알림)
+
+## 2026-11-04 15:10 · android (+ server)
+협업 현장 사진 '같은 사진 두 번 올리기' 막기 — 서버가 현장별 내용 지문(sha256)으로 중복이면 건너뜀 + 앱 안내.
+- 변경: 서버 `POST /api/shared/photo` 가 `duplicate:true/false` 반환(team_site_photos 에 content_hash 컬럼·인덱스 추가, 현장 단위 지연 백필). 앱 `SharedSiteRepository.uploadPhoto` 반환형 Result<Unit>→Result<Boolean>(중복여부). CollabPhotoUploadManager 가 skipped 세고 message 플로우로 "이미 올린 사진 N장은 건너뛰었어요" 토스트.
+- 폰 확인: 못 봄(빌드 assembleRelease EXIT=0·가드 7종 기준선·smoke 10/10까지만). 실기 확인 필요 = 같은 사진 두 번 올려 한 장만 뜨고 토스트.
+- 서버: 라이브에만 반영(repo server/main.py 는 낡아서 안 건드림 — 드리프트 주의). 백업 main.py.bak_crossing_20261104_150605.
+- 다음 액션: 없음. (별건: 협업 출발/도착/완료 푸시 스텝 인디케이터 프로토 진행 중)
