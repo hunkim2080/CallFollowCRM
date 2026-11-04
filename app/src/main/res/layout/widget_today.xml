@@ -194,20 +194,30 @@
             android:textSize="11sp"
             android:visibility="gone" />
 
-        <!-- 꽉 찬 길찾기 버튼 (RemoteViews 안정 위해 TextView 한 개, 아이콘은 이모지) -->
-        <TextView
+        <!-- 꽉 찬 길찾기 버튼 — 내비 화살표 아이콘 + 글자 (구분선 FrameLayout 고친 뒤 ImageView 정상) -->
+        <LinearLayout
             android:id="@+id/widget_open"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center"
             android:layout_marginTop="15dp"
             android:paddingTop="14dp"
             android:paddingBottom="14dp"
-            android:background="@drawable/widget_today_btn"
-            android:text="🧭  길찾기"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:background="@drawable/widget_today_btn">
+            <ImageView
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_widget_nav" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="길찾기"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- 구분선 2 (다음 현장 있을 때만) -->
@@ -281,4 +291,14 @@
         android:textSize="14sp"
         android:textStyle="bold"
         android:visibility="gone" />
+
+    <!-- 하단 캡션 (프로토) -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:text="시공막내"
+        android:textColor="#9AA3B0"
+        android:textSize="10sp" />
 </LinearLayout>

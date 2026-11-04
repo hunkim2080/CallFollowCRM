@@ -84,8 +84,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 .filter { c -> c.scheduledWorkDate?.let { it in todayStart until todayEnd } == true }
                 .sortedWith(compareBy({ it.scheduledWorkDate }, { it.name ?: it.phoneNumber }))
                 .map { c ->
-                    val two = AddressExtractor.twoLine(c.address)
-                    val region = two.first.takeIf { it.isNotBlank() } ?: (c.address ?: "")
+                    val complex = AddressExtractor.twoLine(c.address).first
+                    val reg = regionPrefix(c.address)
+                    // 프로토 지역 표기 = "지역 · 단지". 지역/단지 없으면 자연스럽게 축소.
+                    val region = when {
+                        complex.isNotBlank() && reg.isNotBlank() && reg != complex -> "$reg · $complex"
+                        complex.isNotBlank() -> complex
+                        else -> c.address ?: ""
+                    }
                     Row(name = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber, region = region)
                 }
             // 답장 안 함 수 + 대표 미답 고객 미리보기 — 홈 화면이 센 마지막 값(저장). 위젯은 다시 안 센다(두 벌 방지).
@@ -164,6 +170,18 @@ class TodayWidgetProvider : AppWidgetProvider() {
         /** 이름이면 「고객님」을 붙이고(프로토), 번호면 그대로. */
         private fun nameWithSuffix(n: String): String =
             if (n.isNotBlank() && n.any { it.isLetter() }) "$n 고객님" else n
+
+        /** "수원 영통구 광교…" → "수원 영통"(시/도 + 시/군/구, 접미 떼고 앞 2토큰). 프로토 지역 접두. */
+        private fun regionPrefix(addr: String?): String {
+            val toks = (addr ?: "").trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+            if (toks.isEmpty()) return ""
+            val out = ArrayList<String>(2)
+            out += toks[0].replace(Regex("(시|도)$"), "")
+            if (toks.size > 1 && Regex(".*(시|군|구|읍|면|동|리)$").matches(toks[1])) {
+                out += toks[1].replace(Regex("(시|군|구|읍|면|동|리)$"), "")
+            }
+            return out.joinToString(" ").trim()
+        }
 
         private fun openAppIntent(context: Context): PendingIntent {
             val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
