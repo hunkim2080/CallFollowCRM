@@ -15980,3 +15980,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경(앱만, 리소스): res/layout/widget_today.xml 재구성(연파랑 widget_pcard_bg 카드 안에 이름·지역·길찾기 버튼) + drawable widget_pcard_bg. 버튼 라벨 열기→길찾기(지금은 앱 열기, 실제 네비 연결은 다음).
 - 남음(데이터 필요): 대표고객 이름 미리보기·시각 라벨·협업 보라태그. 답장안함 뱃지는 홈 열어 수 생기면 표시(이미 배선).
 - 폰: S9(100.121.10.111) debug 설치+실행으로 갱신. 빌드 assembleRelease EXIT=0·가드 7종 기준선.
+
+## 2026-11-04 21:45 · android
+위젯 프로토 1:1 + 🐞 refresh 버그 fix + 라벨.
+- 🐞 **버그:** TodayWidgetProvider.refresh 가 ACTION_APPWIDGET_UPDATE 브로드캐스트로 갱신했는데 그건 시스템 보호라 앱이 못 보냄 → 이벤트 갱신이 조용히 실패(30분 자동만 동작). **AppWidgetManager.updateAppWidget 직접 호출로 수정** + 테스트용 커스텀 액션 WIDGET_REFRESH(onReceive).
+- 프로토 맞춤: 뱃지(답장안함 N + 대표 미답 고객 이름·대기·메시지) · '오늘' 태그 · 총 N곳 · 다음 현장(이어서, 지역). 레이아웃 widget_today.xml 재구성 + drawable widget_tag_green. 데이터=AppPreferences.widgetUnansweredName/Elapsed/Msg, HomeViewModel.publishUnansweredWidget, HomeScreen→widgetUnansweredPreview(HomeScreenHelpers, 순수). 라벨 "시공막내 · 오늘 갈 현장"(검색됨).
+- size: HomeScreen 버퍼 끝이라 sizeBaselineUpdate(37882). 무거운 로직은 헬퍼로 뺌.
+- 폰: S9 실기 확인 — 뱃지·연파랑 카드·길찾기·오늘태그 프로토대로 뜸(스샷). 시각은 내 현장 데이터 없어 다음. '이어서' 줄은 4×2 높이에 가림.
+- ⚠️ DB수술 중 테스트고객 id=7 날렸다 주소·날짜로 복구(이름·번호 플레이스홀더). 앞으로 폰 DB 만지기 전 RESTORE_POINT 백업 먼저.

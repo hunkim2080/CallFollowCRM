@@ -363,6 +363,26 @@ internal fun isInboxAd(item: HomeItem, adAllowlist: Set<String>): Boolean {
 internal fun inboxUnanswered(all: List<HomeItem>, adAllowlist: Set<String>): List<HomeItem> =
     all.filter { it.isUnconfirmed && !isInboxAd(it, adAllowlist) }
 
+/** 🧱 위젯 '답장 안 함' 뱃지에 넘길 미리보기 — 수 + 가장 오래 기다린 고객(이름/대기 라벨/마지막 메시지). (프로토 뱃지, 2026-11-04) */
+data class WidgetUnansweredPreview(val count: Int, val name: String, val elapsed: String, val msg: String)
+
+internal fun widgetUnansweredPreview(
+    all: List<HomeItem>, adAllowlist: Set<String>, count: Int, now: Long
+): WidgetUnansweredPreview {
+    val top = inboxUnanswered(all, adAllowlist)
+        .minByOrNull { it.lastActivityMs.takeIf { t -> t > 0L } ?: it.record.endedAt }
+    val name = top?.let { it.customer?.name?.takeIf { s -> s.isNotBlank() } ?: it.record.phoneNumber } ?: ""
+    val ms = top?.let { it.lastActivityMs.takeIf { t -> t > 0L } ?: it.record.endedAt } ?: 0L
+    val mins = if (ms > 0L) ((now - ms) / 60000L).toInt() else -1
+    val elapsed = when {
+        mins < 0 -> ""
+        mins < 60 -> "${mins.coerceAtLeast(1)}분째 대기"
+        mins < 60 * 24 -> "${mins / 60}시간째 대기"
+        else -> "${mins / (60 * 24)}일째 대기"
+    }
+    return WidgetUnansweredPreview(count, name, elapsed, top?.lastBody?.takeIf { it.isNotBlank() } ?: "")
+}
+
 /**
  * 📦 칩이 **처음 나타날 때 딱 한 번** 그 밑에 띄우는 안내. (2026-10-08 사장님 "자연스럽게 스며들게")
  *   나타나는 순간이 궁금한 바로 그때라, 여기서 "이 칸이 뭔지" 한 줄로 알려준다.

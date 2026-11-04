@@ -385,7 +385,14 @@ fun HomeScreen(
     }
     // 📮 하단 [상담함] 탭을 **이미 상담함에서** 눌렀을 때 「답장 안 함」으로 뛸지 — 칩이 보여주는 **그 수**를 그대로 넘긴다.
     //   전엔 VM 이 다른 잣대(고정·정리·광고를 안 뺀 수)로 따로 세서, 뛰었더니 「다 챙기셨네요」가 떴다. (2026-10-15)
-    LaunchedEffect(inboxChipCounts) { viewModel.publishUnansweredCount(inboxChipCounts["unhandled"] ?: 0) }
+    // 🧱 위젯 뱃지 — 수 + 대표 미답 고객 미리보기(프로토). 셈은 widgetUnansweredPreview 한 곳(HomeScreenHelpers).
+    val widgetPreview = remember(timeline, adAllowlist, inboxChipCounts) {
+        val all = timeline.flatMap { it.items }.distinctBy { PhoneKey.of(it.record.phoneNumber) }
+        widgetUnansweredPreview(all, adAllowlist, inboxChipCounts["unhandled"] ?: 0, System.currentTimeMillis())
+    }
+    LaunchedEffect(widgetPreview) {
+        viewModel.publishUnansweredWidget(widgetPreview.count, widgetPreview.name, widgetPreview.elapsed, widgetPreview.msg)
+    }
     // 📦 각 칩에 **멤버가 있나** — 칩을 띄울지 판단(목록 필터와 같은 조건). 셈은 inboxChipMembers 한 곳. (2026-10-08 사장님)
     val chipHasMember = remember(timeline, balanceDues) {
         val all2 = timeline.flatMap { it.items }.distinctBy { PhoneKey.of(it.record.phoneNumber) }

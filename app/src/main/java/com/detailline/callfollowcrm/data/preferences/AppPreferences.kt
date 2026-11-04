@@ -179,6 +179,16 @@ class AppPreferences(context: Context) {
     var widgetUnansweredCount: Int
         get() = prefs.getInt("widget_unanswered_count", 0)
         set(value) = prefs.edit().putInt("widget_unanswered_count", value).apply()
+    /** 🧱 위젯 뱃지 미리보기 — 가장 오래 기다린 미답 고객 이름 / 대기 라벨 / 마지막 메시지(프로토 뱃지). */
+    var widgetUnansweredName: String
+        get() = prefs.getString("widget_unanswered_name", "") ?: ""
+        set(value) = prefs.edit().putString("widget_unanswered_name", value).apply()
+    var widgetUnansweredElapsed: String
+        get() = prefs.getString("widget_unanswered_elapsed", "") ?: ""
+        set(value) = prefs.edit().putString("widget_unanswered_elapsed", value).apply()
+    var widgetUnansweredMsg: String
+        get() = prefs.getString("widget_unanswered_msg", "") ?: ""
+        set(value) = prefs.edit().putString("widget_unanswered_msg", value).apply()
     /** 연결된 구글 계정 이메일 — "어느 계정에 올라갔나" 표시용. null = 아직 못 받음(옛 연결/이메일 권한 전). (2026-10-05 사장님) */
     var googleCalendarAccountEmail: String?
         get() = prefs.getString("google_calendar_account_email", null)

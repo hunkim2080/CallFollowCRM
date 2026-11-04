@@ -349,12 +349,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     //   고정·정리(확인)·광고를 안 뺐다. 그 수로 하단 탭이 「답장 안 함」으로 뛰면 목록은 비어 있었다.
     //   이제 화면이 보여주는 칩 숫자(inboxUnanswered 한 목록)를 [publishUnansweredCount] 로 받는다.
     /** 칩이 보여주는 「답장 안 함」 수를 하단 탭 점프용(container.inboxUnansweredCount)으로 넘긴다 — 화면이 센 **그 수** 그대로. */
-    fun publishUnansweredCount(n: Int) {
-        container.inboxUnansweredCount.value = n
-        // 🧱 위젯 '답장 안 함' 뱃지 — 화면이 센 **그 수** 그대로 저장 + 위젯 갱신(값이 바뀔 때만). (2026-11-04)
-        //   화면의 계산(문자 스캔 포함)을 재활용 — 위젯은 다시 안 센다(두 벌 방지). 앱을 열 때마다 최신화된다.
-        if (container.preferences.widgetUnansweredCount != n) {
-            container.preferences.widgetUnansweredCount = n
+    fun publishUnansweredCount(n: Int) { container.inboxUnansweredCount.value = n }
+
+    /**
+     * 🧱 위젯 '답장 안 함' 뱃지 — 수 + **가장 오래 기다린 고객 미리보기**(이름/대기 라벨/마지막 메시지)를
+     *   저장하고 위젯을 갱신한다(프로토 뱃지). 화면이 이미 한 계산을 재활용 — 위젯은 다시 안 센다(두 벌 방지).
+     *   앱을 열 때마다 최신화. 값이 바뀔 때만 갱신.
+     */
+    fun publishUnansweredWidget(count: Int, name: String, elapsed: String, msg: String) {
+        container.inboxUnansweredCount.value = count
+        val p = container.preferences
+        if (p.widgetUnansweredCount != count || p.widgetUnansweredName != name ||
+            p.widgetUnansweredElapsed != elapsed || p.widgetUnansweredMsg != msg
+        ) {
+            p.widgetUnansweredCount = count
+            p.widgetUnansweredName = name
+            p.widgetUnansweredElapsed = elapsed
+            p.widgetUnansweredMsg = msg
             com.detailline.callfollowcrm.widget.TodayWidgetProvider.refresh(container.appContext)
         }
     }

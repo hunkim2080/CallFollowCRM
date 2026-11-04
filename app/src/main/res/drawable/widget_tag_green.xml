@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 '오늘' 태그 — 초록 알약(프로토 '지금' 태그 자리). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#15B881" />
+    <corners android:radius="999dp" />
+</shape>
