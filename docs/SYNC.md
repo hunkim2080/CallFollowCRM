@@ -16001,3 +16001,13 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 지역 표기 "지역 · 단지"(regionPrefix: 시/도+시/군/구 접미 떼고 앞2토큰). 길찾기 ➤ 벡터 아이콘 복원(ImageView — 구분선 FrameLayout 고친 뒤 RemoteViews 정상). 하단 "시공막내" 캡션.
 - 요소별 대조표: 디자인·구조·글자·간격·아이콘·지역·캡션 1:1. 남은 차이 2개=시각·시공부위(데이터 — 내 현장 미보유, '시공 시각·부위 입력' 기능 필요).
 - 빌드 assembleRelease EXIT=0·가드 기준선. 폰 S9 실기 스샷 확인.
+
+## 2026-11-05 00:21 · android
+위젯 v2 — 동호수·현장메모·이름없음 단지명 헤드라인·'오늘 시공' 칩·파란 동호수·이어서→내일/다음날짜. (프로토 v2 artifact/3qETJaw2zS7uzGHacfxc95)
+- 변경(앱만): widget/TodayWidgetProvider.kt 재구성 — Site(headline/region/unit/memo/nameAbsent)·NextSite(title/headline/region). 주소 쪼개기는 공용 AddressExtractor(complexName·splitDongHo·roughSite) 한 곳, 날짜 라벨은 DateTimeUtils.formatDateLabel·startOfDay(두 벌 0). res/layout/widget_today.xml 에 widget_site_card·widget_today_chip·widget_unit·widget_memo·widget_next_title 추가, drawable 3(widget_chip_bg·widget_memo_bg·widget_site_card_bg).
+  · 이름 있으면 "○○ 고객님", 없으면 단지명 헤드라인(전화번호 안 씀). 동호수 파랑. 메모 있으면 연노랑 박스. 이름없음+메모없음 '최소 현장'만 연파랑 카드.
+  · 맨 아래: 오늘 2번째 현장=이어서 / 없으면 가장 가까운 다음 날짜 현장=내일(바로 다음날) 또는 11/7(금)(실제 날짜·요일) / 다음 시공일 없으면 안내.
+- 시각·시공부위는 다음 단계(데이터 연결 필요 — 사장님 합의). 칸은 GONE으로 둠.
+- 빌드: assembleRelease EXIT=0 · 가드 7종 통과([rules] 공용 감시·[save] 0곳·[dup]/[size] 기준선). 테스트 1344개.
+- 폰 확인: 못 봄 — 홈 위젯은 Play서명 pkg라 로컬 릴리즈로 덮기 실패(서명 불일치), 디버그는 .test 별도 pkg라 위젯 미배치. **내부배포로 올려 사장님 실제 폰에서 확인 예정.**
+- 연결 지점(§12-K): 위젯 데이터는 TodayWidgetProvider 한 곳 집계(customerRepository.allOnce). 다른 화면 영향 없음.

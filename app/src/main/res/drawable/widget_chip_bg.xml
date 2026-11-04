@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- '오늘 시공' 칩 배경 — 연파랑 알약. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#DCEBFF" />
+    <corners android:radius="7dp" />
+</shape>

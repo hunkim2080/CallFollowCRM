@@ -142,57 +142,125 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- ── 지금 현장 (흰 바탕) ── -->
+    <!-- ── 지금 현장 ── -->
     <LinearLayout
         android:id="@+id/widget_primary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginTop="13dp">
+
+        <!-- 본문 카드 — 이름 없는 최소 현장일 때만 연파랑 배경(코드에서 배경·패딩 토글) -->
         <LinearLayout
+            android:id="@+id/widget_site_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:orientation="vertical">
+
+            <!-- '오늘 시공' 칩 — 이름 없는 현장일 때만 (코드에서 보임) -->
             <TextView
-                android:id="@+id/widget_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#202E42"
-                android:textSize="17sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/widget_time"
+                android:id="@+id/widget_today_chip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:textColor="#202E42"
-                android:textSize="15sp"
+                android:layout_marginBottom="7dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="9dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/widget_chip_bg"
+                android:text="● 오늘 시공"
+                android:textColor="#245FA8"
+                android:textSize="10.5sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView
+                    android:id="@+id/widget_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#202E42"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/widget_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:textColor="#202E42"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/widget_region"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#5A6472"
+                android:textSize="13sp" />
+            <!-- 동·호수 (있을 때만) — 파랗게 강조 -->
+            <TextView
+                android:id="@+id/widget_unit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#2368BE"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+            <!-- 현장 메모 (있을 때만) — 연노랑 박스, 원문 2줄 미리보기 -->
+            <LinearLayout
+                android:id="@+id/widget_memo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:paddingLeft="9dp"
+                android:paddingRight="9dp"
+                android:paddingTop="7dp"
+                android:paddingBottom="7dp"
+                android:background="@drawable/widget_memo_bg"
+                android:visibility="gone">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="현장 메모"
+                    android:textColor="#8A5D14"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/widget_memo_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:textColor="#5A4A2A"
+                    android:textSize="12sp" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/widget_worktype"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#087B58"
+                android:textSize="11sp"
+                android:visibility="gone" />
         </LinearLayout>
-        <TextView
-            android:id="@+id/widget_region"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#5A6472"
-            android:textSize="13sp" />
-        <TextView
-            android:id="@+id/widget_worktype"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#087B58"
-            android:textSize="11sp"
-            android:visibility="gone" />
 
         <!-- 꽉 찬 길찾기 버튼 — 내비 화살표 아이콘 + 글자 (구분선 FrameLayout 고친 뒤 ImageView 정상) -->
         <LinearLayout
@@ -239,6 +307,7 @@
         android:layout_marginTop="14dp"
         android:visibility="gone">
         <TextView
+            android:id="@+id/widget_next_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="12dp"
