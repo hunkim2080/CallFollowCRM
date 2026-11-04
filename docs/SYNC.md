@@ -15946,3 +15946,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 폰 확인: 못 봄(빌드 assembleRelease EXIT=0·가드 7종 기준선·smoke 10/10까지만). 실기 확인 필요 = 같은 사진 두 번 올려 한 장만 뜨고 토스트.
 - 서버: 라이브에만 반영(repo server/main.py 는 낡아서 안 건드림 — 드리프트 주의). 백업 main.py.bak_crossing_20261104_150605.
 - 다음 액션: 없음. (별건: 협업 출발/도착/완료 푸시 스텝 인디케이터 프로토 진행 중)
+
+## 2026-11-04 15:40 · android
+협업 진행 자동화 — 길찾기=출발 합침 + 도착 2단계 자동(3km 거의도착 + 300m 도착).
+- 변경(앱만, 서버 변경 없음): ① 협업 상세 ASSIGNED 단계 버튼을 '길찾기 — 누르면 출발 알림' 하나로(지도 열림+출발 자동, 주소없으면 기존 출발버튼 폴백). ② GeofenceManager: 협업 펜스 2개(COLLAB_PREFIX 3km=거의도착 auto + COLLAB_NEAR_PREFIX 300m=도착). removeCollabArrival=둘 다, removeCollabFar=3km만. ③ GeofenceBroadcastReceiver: 300m(near) 먼저 가려 arrived auto:false → '도착'(둘 다 정리), 3km → auto:true '거의 도착'(3km만 정리, 300m 남김).
+- 서버 무변경 근거: auto 값이 outbox(CollabProgressHandler optBoolean auto)→repo.progress→서버로 이미 흐름(3km 거의도착이 그 증거). 300m는 auto:false만 보내면 '도착'.
+- 폰 확인: 못 봄(assembleRelease EXIT=0·가드 7종 기준선·brand 이모지 가드 1회 걸려 글자만으로 수정). 실기 확인 필요 = 길찾기 탭→지도+출발, 현장 3km/300m 진입 자동 도착.
+- 미구현(프로토 「가」 대기): 알림 하나가 단계바 채우는 '스텝 인디케이터' UI는 아직 개념(아티팩트 8ZhqCYvhGzbgVA1Vw9hdrw). 이번 건 '자동 트리거'만.

@@ -33,6 +33,33 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 val prefs = container.preferences
                 val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
                 for (rid in ids) {
+                    // §E 협업 2단계 자동 도착 (2026-11-04 사장님): 300m = "도착", 3km = "거의 도착".
+                    //   ⚠️ 300m prefix("collabnear_")도 "collab"으로 시작하니 **300m 를 먼저** 가린다(안 그러면 3km 로 샘).
+                    if (rid.startsWith(GeofenceManager.COLLAB_NEAR_PREFIX)) {
+                        // 현장 코앞(300m) 진입 — 서버에 arrived(auto=false) → A "도착" + B "알려드렸어요".
+                        val shareId = rid.removePrefix(GeofenceManager.COLLAB_NEAR_PREFIX)
+                        val key = "collab_arrived_near:$shareId"
+                        if (key in prefs.reminderNotifiedKeys) continue // 1회만
+                        val myPhone = prefs.bizPhone.filter { it.isDigit() }
+                        if (myPhone.length < 9) continue
+                        val payload = org.json.JSONObject().apply {
+                            put("step", "arrived")
+                            put("partnerPhone", myPhone)
+                            put("auto", false)   // 코앞 = 진짜 '도착'(auto 아님) → A "도착" 표시
+                        }
+                        val ok = runCatching {
+                            container.outbox.enqueue(
+                                com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS, shareId, payload.toString()
+                            )
+                        }.isSuccess
+                        container.outbox.tryNow()
+                        // 도착했으니 **둘 다** 정리(3km·300m). 우체통에 들어갔을 때만(실패하면 다음 진입 재시도). Fable #9
+                        if (ok) {
+                            prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
+                            GeofenceManager.removeCollabArrival(context, shareId)
+                        }
+                        continue
+                    }
                     // §E 협업 3km 진입 — 서버에 arrived(auto) 발사 → A "거의 도착" + B "알려드렸어요"(서버 푸시).
                     if (rid.startsWith(GeofenceManager.COLLAB_PREFIX)) {
                         val shareId = rid.removePrefix(GeofenceManager.COLLAB_PREFIX)
@@ -52,10 +79,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                             )
                         }.isSuccess
                         container.outbox.tryNow()
-                        // ⚠️ 우체통에 들어갔을 때만 '1회 완료'로 찍고 펜스 정리 — 실패하면 다음 진입에 다시 시도(안 잃게). Fable #9
+                        // ⚠️ 우체통에 들어갔을 때만 '1회 완료'로 찍고 **3km 펜스만** 정리 — 300m "도착" 펜스는 남긴다(코앞에서 또 쏘게). Fable #9
                         if (ok) {
                             prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
-                            GeofenceManager.removeCollabArrival(context, shareId)
+                            GeofenceManager.removeCollabFar(context, shareId)
                         }
                         continue
                     }

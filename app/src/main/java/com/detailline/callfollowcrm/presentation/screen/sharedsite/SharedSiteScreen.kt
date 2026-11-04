@@ -1173,31 +1173,37 @@ private fun DetailBody(
     val hasAddr = !site.addr.isNullOrBlank()
     when (site.progress) {
         SharedSiteRepository.Progress.ASSIGNED -> {
-            // 출발 알리기 = '출발했어요' 알림만. 길찾기 자동 열기와 분리 (2026-06-26).
-            //   ⚠️ 출발은 시공 당일부터 — 그 전엔 버튼을 회색(비활성처럼)으로 보여 '눌러도 될 것처럼' 오해 방지. (2026-07-06 사장님)
-            //   실제 클릭 차단은 onProgress 가 그날 아니면 안내 토스트로 이미 함(억지 클릭 무해).
+            // 🧭 길찾기 = 출발 (2026-11-04 사장님: "수동으로 출발 누르기 번거롭다"). 누르면 지도 열림 + 출발 자동 알림.
+            //   ⚠️ 출발은 시공 당일부터 — 그 전엔 길만 열고 출발은 안 보낸다(onProgress 핸들러가 그날 아니면 안내 토스트).
             val beforeDay = isBeforeScheduledDay(site.scheduledAtMs)
-            // 🗣️ 회색인 이유를 **버튼 스스로** 말한다 — 전엔 버튼 안과 그 밑 두 군데서 말했다.
-            StepActionButton(
-                if (beforeDay) "출발 알리기는 " + dayLabel(site.scheduledAtMs) + "부터" else "출발 알리기",
-                if (beforeDay) Color(0xFFE2E6EC) else ProtoBlue,
-                if (beforeDay) TossTextTertiary else Color.White
-            ) {
-                onProgress(SharedSiteRepository.Progress.DEPARTED)
+            if (hasAddr) {
+                StepActionButton("길찾기 — 누르면 출발 알림", ProtoBlue, Color.White) {
+                    onNavigate(site.addr!!)                            // 지도 열기(처음이면 앱 고르기)
+                    onProgress(SharedSiteRepository.Progress.DEPARTED) // 출발 자동(그날 아니면 핸들러가 안내)
+                }
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    if (beforeDay) "길찾기는 지금도 돼요. 출발 알림은 " + dayLabel(site.scheduledAtMs) + "부터 자동으로 가요."
+                    else "길찾기를 누르면 출발이 자동으로 알려지고, 현장 3km·코앞에 오면 '거의 도착'·'도착'도 저절로 가요.",
+                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 2.dp))
+            } else {
+                // 주소가 없으면 길찾기가 불가 → 기존 '출발 알리기' 버튼으로 폴백(시공 당일부터).
+                StepActionButton(
+                    if (beforeDay) "출발 알리기는 " + dayLabel(site.scheduledAtMs) + "부터" else "출발 알리기",
+                    if (beforeDay) Color(0xFFE2E6EC) else ProtoBlue,
+                    if (beforeDay) TossTextTertiary else Color.White
+                ) {
+                    onProgress(SharedSiteRepository.Progress.DEPARTED)
+                }
             }
-            Spacer(Modifier.height(7.dp))
-            Text(
-                if (beforeDay) ""
-                else "이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요.",
-                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
-                modifier = Modifier.padding(horizontal = 2.dp))
         }
         SharedSiteRepository.Progress.DEPARTED -> {
             StepActionButton("도착 알리기", ProtoBlue, Color.White) {
                 onProgress(SharedSiteRepository.Progress.ARRIVED)
             }
             Spacer(Modifier.height(7.dp))
-            Text("현장 3km에 들어가면 '거의 도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
+            Text("현장 3km·코앞에 들어가면 '거의 도착'·'도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
                 fontSize = 11.5.sp, color = ProtoSuccess, lineHeight = 16.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
         }

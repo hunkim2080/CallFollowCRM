@@ -27,10 +27,13 @@ object GeofenceManager {
 
     private const val RADIUS_M = 5000f
     const val ACTION = "com.detailline.callfollowcrm.ARRIVAL_GEOFENCE"
-    // 협업(§E) — 출발 시 그 현장만 3km. 본인 현장(5km)과 분리된 pendingIntent 라 refresh() 가 안 지움.
+    // 협업(§E) — 출발 시 그 현장만. 본인 현장(5km)과 분리된 pendingIntent 라 refresh() 가 안 지움.
     const val ACTION_COLLAB = "com.detailline.callfollowcrm.COLLAB_ARRIVAL_GEOFENCE"
-    private const val COLLAB_RADIUS_M = 3000f
-    const val COLLAB_PREFIX = "collab_"
+    // 2단계 자동 도착 (2026-11-04 사장님): 3km = "거의 도착"(auto), 300m = "도착"(현장 코앞).
+    private const val COLLAB_RADIUS_M = 3000f        // 거의 도착
+    private const val COLLAB_NEAR_RADIUS_M = 300f    // 도착(현장 코앞)
+    const val COLLAB_PREFIX = "collab_"              // 3km 펜스 id
+    const val COLLAB_NEAR_PREFIX = "collabnear_"     // 300m 펜스 id (※ "collab_" 로 시작 안 함 — 수신기가 가른다)
 
     private fun pendingIntent(context: Context): PendingIntent {
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java).apply { action = ACTION }
@@ -47,7 +50,8 @@ object GeofenceManager {
     }
 
     /**
-     * 협업 출발 시 그 현장 3km 펜스 등록(§E). 진입 시 receiver 가 서버 arrived(auto) 발사 → A "거의 도착" / B "알려드렸어요".
+     * 협업 출발 시 그 현장 펜스 등록(§E) — **2단계**(2026-11-04 사장님): 3km "거의 도착"(auto) + 300m "도착".
+     *   진입 시 receiver 가 서버 arrived 발사 → 3km = A "거의 도착", 300m = A "도착". 둘은 id(prefix)로 가린다.
      *   주소 없거나 위치 권한 없으면 false(수동 도착 버튼 폴백). 백그라운드 발사엔 "항상 허용" 권장.
      */
     suspend fun registerCollabArrival(context: Context, shareId: String, addr: String?): Boolean = withContext(Dispatchers.IO) {
@@ -55,21 +59,34 @@ object GeofenceManager {
         val a = addr?.takeIf { it.isNotBlank() } ?: return@withContext false
         val geocoder = runCatching { Geocoder(context, Locale.KOREA) }.getOrNull() ?: return@withContext false
         val latLng = geocode(geocoder, a) ?: return@withContext false
-        val fence = Geofence.Builder()
-            .setRequestId("$COLLAB_PREFIX$shareId")
-            .setCircularRegion(latLng.first, latLng.second, COLLAB_RADIUS_M)
+        fun fence(id: String, radius: Float) = Geofence.Builder()
+            .setRequestId(id)
+            .setCircularRegion(latLng.first, latLng.second, radius)
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
             .build()
-        val request = GeofencingRequest.Builder().setInitialTrigger(0).addGeofences(listOf(fence)).build()
+        val fences = listOf(
+            fence("$COLLAB_PREFIX$shareId", COLLAB_RADIUS_M),          // 3km 거의 도착
+            fence("$COLLAB_NEAR_PREFIX$shareId", COLLAB_NEAR_RADIUS_M) // 300m 도착
+        )
+        val request = GeofencingRequest.Builder().setInitialTrigger(0).addGeofences(fences).build()
         try {
             LocationServices.getGeofencingClient(context).addGeofences(request, collabPendingIntent(context))
             true
         } catch (_: SecurityException) { false }
     }
 
-    /** 협업 현장 3km 펜스 제거(도착 발사 후/완료 후). requestId 로 콕 집어 제거 → 다른 펜스 무영향. */
+    /** 협업 현장 펜스 제거 — **둘 다**(3km+300m). 도착/완료/휴지통 때. requestId 로 콕 집어 제거 → 다른 펜스 무영향. */
     fun removeCollabArrival(context: Context, shareId: String) {
+        if (shareId.isBlank()) return
+        runCatching {
+            LocationServices.getGeofencingClient(context)
+                .removeGeofences(listOf("$COLLAB_PREFIX$shareId", "$COLLAB_NEAR_PREFIX$shareId"))
+        }
+    }
+
+    /** 3km "거의 도착" 펜스만 제거 — 거의 도착을 쏜 뒤 300m "도착" 펜스는 **남겨둬야** 해서 따로 집어 뺀다. */
+    fun removeCollabFar(context: Context, shareId: String) {
         if (shareId.isBlank()) return
         runCatching {
             LocationServices.getGeofencingClient(context).removeGeofences(listOf("$COLLAB_PREFIX$shareId"))
