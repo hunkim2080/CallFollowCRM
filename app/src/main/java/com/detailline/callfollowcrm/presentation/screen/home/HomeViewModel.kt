@@ -852,6 +852,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *
      * 스팸 마킹된 phone 은 swipe-to-spam 결과로 영구 제외.
      */
+    // 📥 「답장 안 함」 셈은 공용 **UnansweredSuffixes** 한 곳 — 화면·위젯이 같은 걸 쓴다(두 벌 금지 §12, 2026-11-04 추출).
+    //   유일한 화면-전용 비순수 의존이던 스팸 앞자리(spamPrefixesFlow.value)만 여기서 주입한다. 규칙·동작은 그대로.
     private fun unconfirmedSuffixes(
         smsContacts: List<SmsRepository.SmsContact>,
         missed: List<CallRecordEntity>,
@@ -860,34 +862,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         handledCallMs: Map<String, Long> = emptyMap(),
         // 7일 윈도우 시작점도 호출부에서 현재 기준으로 넘김(반응형). 정적이면 앱 오래 켜둘 때 창이 7+N일로 늘어남. (2026-08-13)
         sevenStart: Long = sevenDayWindowStart
-    ): Set<String> {
-        val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
-        val result = HashSet<String>()
-        for (c in smsContacts) {
-            if (c.normalizedSuffix in spam) continue
-            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(c.address, spamPrefixesFlow.value)) continue  // 스팸 앞자리
-            // 시공일정 잡힌 고객도 '새 메시지가 오면' 답장 기다려요에 다시 뜨게. (2026-07-01 사장님 — 새 문의가 묻히지 않게)
-            //   일정만 있고 새 메시지 없으면 아래 freshIncoming 조건이 false 라 자동 제외(= 일정 카드로만 관리). 옛 #scheduled 무조건 제외 제거.
-            // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
-            if (!c.lastSent && c.lastDateMs >= sevenStart) {
-                // 그 문자 이후 전화로 응대(받은전화 응답/내가 콜백)했으면 처리된 것 → 제외. (2026-07-02 사장님)
-                if ((handledCallMs[c.normalizedSuffix] ?: 0L) >= c.lastDateMs) continue
-                result += c.normalizedSuffix
-            }
-        }
-        for (m in missed) {
-            if (m.endedAt < sevenStart) continue
-            val suffix = phoneSuffix(m.phoneNumber)
-            if (suffix in spam) continue
-            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixesFlow.value)) continue  // 스팸 앞자리
-            if (suffix in scheduled) continue  // 2026-05-30 #3
-            // 부재중 이후 전화로 응대(응답/콜백)했으면 처리됨 → 제외. (문자 답장 hasOwnerReply 와 동일 취지) (2026-07-02 사장님)
-            if ((handledCallMs[suffix] ?: 0L) >= m.endedAt) continue
-            val sms = bySuffix[suffix]
-            if (sms == null || !sms.hasOwnerReply) result += suffix
-        }
-        return result
-    }
+    ): Set<String> = com.detailline.callfollowcrm.domain.inbox.UnansweredSuffixes.of(
+        smsContacts, missed, spam, scheduled, handledCallMs, sevenStart, spamPrefixesFlow.value
+    )
 
     /**
      * "오늘 신규" 판정 = phone suffix set.

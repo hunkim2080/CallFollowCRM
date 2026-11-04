@@ -15960,3 +15960,9 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 갱신: 일정 편집 시 즉시(observeScheduled 훅) + 30분 자동(updatePeriodMillis). 자정넘김은 30분 자동이 커버.
 - 폰 확인: 못 봄(assembleRelease EXIT=0·가드 7종 기준선). 실기 = 런처에서 위젯 추가→오늘 현장 뜨는지.
 - 다음(Phase 2): '답장 안 함' 뱃지(화면밖 계산 공용 추출 필요) + 협업 현장 + 시각 라벨.
+
+## 2026-11-04 21:10 · android
+위젯 Phase 2-①: '답장 안 함' 셈을 HomeViewModel 에서 공용으로 추출(화면 밖에서도 돌게 — 위젯용).
+- 변경(앱만, 동작 불변): domain/inbox/UnansweredSuffixes.of(...) 신규(순수). HomeViewModel.unconfirmedSuffixes 는 그걸 위임(spamPrefixesFlow.value만 주입). 호출부·시그니처 그대로 → 홈 '답장 안 함' 동작 동일. 단위테스트 UnansweredSuffixesTest 7케이스로 고정.
+- 빌드: assembleRelease EXIT=0·가드 7종 기준선·testDebugUnitTest 통과. size 23줄 감소.
+- 다음 ②: 헤드리스 스냅샷(답장안함 수+가장 오래 기다린 고객) 제공자 + 저장. ③ 위젯 뱃지 + 문자수신·답장 때 갱신.
