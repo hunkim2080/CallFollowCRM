@@ -105,51 +105,65 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(android.R.id.background, open)
             views.setOnClickPendingIntent(R.id.widget_open, open)
 
-            // 답장 안 함 뱃지(프로토) — 수>0일 때만. 오늘 현장과 무관하게 늘 챙긴다. 이름·대기·메시지 미리보기.
+            // 답장 안 함 뱃지(프로토) — N건 + 고객님 + 「문자 · 」 메시지. 뱃지 있으면 구분선1도.
             if (snap.unanswered > 0) {
                 views.setViewVisibility(R.id.widget_badge_box, View.VISIBLE)
-                views.setTextViewText(R.id.widget_unanswered_count, "${snap.unanswered}")
-                views.setTextViewText(R.id.widget_unanswered_name, snap.upName)
+                views.setViewVisibility(R.id.widget_div1, View.VISIBLE)
+                // 프로토처럼 숫자는 크게, 「건」은 작게.
+                val cnt = "${snap.unanswered}"
+                val cs = android.text.SpannableString("${cnt}건")
+                cs.setSpan(android.text.style.RelativeSizeSpan(1.4f), 0, cnt.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                cs.setSpan(android.text.style.RelativeSizeSpan(0.7f), cnt.length, cs.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                views.setTextViewText(R.id.widget_unanswered_count, cs)
+                views.setTextViewText(R.id.widget_unanswered_name, nameWithSuffix(snap.upName))
                 views.setTextViewText(R.id.widget_unanswered_elapsed, snap.upElapsed)
-                views.setTextViewText(R.id.widget_unanswered_msg, snap.upMsg)
-                views.setViewVisibility(
-                    R.id.widget_unanswered_msg, if (snap.upMsg.isBlank()) View.GONE else View.VISIBLE
-                )
+                val msg = if (snap.upMsg.isBlank()) "" else "문자 · ${snap.upMsg}"
+                views.setTextViewText(R.id.widget_unanswered_msg, msg)
+                views.setViewVisibility(R.id.widget_unanswered_msg, if (msg.isBlank()) View.GONE else View.VISIBLE)
                 views.setOnClickPendingIntent(R.id.widget_badge_box, open)
             } else {
                 views.setViewVisibility(R.id.widget_badge_box, View.GONE)
+                views.setViewVisibility(R.id.widget_div1, View.GONE)
             }
 
             if (snap.rows.isEmpty()) {
                 views.setViewVisibility(R.id.widget_primary, View.GONE)
-                views.setViewVisibility(R.id.widget_next, View.GONE)
+                views.setViewVisibility(R.id.widget_next_box, View.GONE)
+                views.setViewVisibility(R.id.widget_div2, View.GONE)
                 views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
                 views.setTextViewText(R.id.widget_count, "")
                 return views
             }
             views.setViewVisibility(R.id.widget_primary, View.VISIBLE)
             views.setViewVisibility(R.id.widget_empty, View.GONE)
-            views.setTextViewText(R.id.widget_count, "총 ${snap.rows.size}곳")
+            views.setTextViewText(R.id.widget_count, "다음 일정 · 총 ${snap.rows.size}곳")
 
             val first = snap.rows.first()
-            views.setTextViewText(R.id.widget_name, first.name)
+            views.setTextViewText(R.id.widget_name, nameWithSuffix(first.name))
             views.setTextViewText(R.id.widget_region, first.region)
-            // own job 은 정확한 시각 필드가 없어 시각 칸은 비운다(협업·건 시각은 다음).
+            views.setViewVisibility(R.id.widget_region, if (first.region.isBlank()) View.GONE else View.VISIBLE)
+            // 내 현장은 시각·시공부위 데이터가 없어 숨긴다(협업·건 데이터 붙으면 참).
             views.setViewVisibility(R.id.widget_time, View.GONE)
+            views.setViewVisibility(R.id.widget_worktype, View.GONE)
 
-            val rest = snap.rows.drop(1)
-            if (rest.isEmpty()) {
-                views.setViewVisibility(R.id.widget_next, View.GONE)
+            val next = snap.rows.drop(1).firstOrNull()
+            if (next == null) {
+                views.setViewVisibility(R.id.widget_next_box, View.GONE)
+                views.setViewVisibility(R.id.widget_div2, View.GONE)
             } else {
-                views.setViewVisibility(R.id.widget_next, View.VISIBLE)
-                val lines = rest.mapIndexed { i, r ->
-                    val base = if (r.region.isNotBlank()) "${r.name} · ${r.region}" else r.name
-                    if (i == 0) "이어서  $base" else base
-                }.joinToString("\n")
-                views.setTextViewText(R.id.widget_next, lines)
+                views.setViewVisibility(R.id.widget_div2, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_next_box, View.VISIBLE)
+                views.setTextViewText(R.id.widget_next_name, nameWithSuffix(next.name))
+                views.setTextViewText(R.id.widget_next_region, next.region)
+                views.setViewVisibility(R.id.widget_next_region, if (next.region.isBlank()) View.GONE else View.VISIBLE)
+                views.setViewVisibility(R.id.widget_next_time, View.GONE)
             }
             return views
         }
+
+        /** 이름이면 「고객님」을 붙이고(프로토), 번호면 그대로. */
+        private fun nameWithSuffix(n: String): String =
+            if (n.isNotBlank() && n.any { it.isLetter() }) "$n 고객님" else n
 
         private fun openAppIntent(context: Context): PendingIntent {
             val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)

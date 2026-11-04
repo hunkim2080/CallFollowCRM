@@ -1,23 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 시공막내 '오늘 갈 현장 + 답장 안 함' 위젯 (RemoteViews). 프로토 795Z6Xgw 1:1.
-     값은 TodayWidgetProvider 가 채운다. 시각 칩은 내 현장엔 데이터가 없어 숨김(협업·건 시각은 다음). -->
+<!-- 시공막내 '오늘 갈 현장 + 답장 안 함' 위젯 (RemoteViews) — 프로토 68.png 1:1.
+     흰 바탕 + 구분선 + 꽉 찬 길찾기. 시각·시공부위는 데이터 있으면 채움(내 현장은 아직 없어 숨김). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_today_bg"
-    android:padding="16dp">
+    android:padding="18dp">
 
-    <!-- ── 답장 안 함 뱃지 (수>0일 때만) — 프로토 상단 영역 ── -->
+    <!-- 브랜드 줄 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="시공막내"
+            android:textColor="#1765CF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="방금 업데이트"
+            android:textColor="#9AA3B0"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- ── 답장 안 함 뱃지 (수>0일 때만) ── -->
     <LinearLayout
         android:id="@+id/widget_badge_box"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginBottom="12dp"
+        android:layout_marginTop="15dp"
         android:visibility="gone">
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -28,20 +50,20 @@
                 android:layout_height="wrap_content"
                 android:text="답장 안 함"
                 android:textColor="#202E42"
-                android:textSize="14sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
             <TextView
                 android:id="@+id/widget_unanswered_count"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="7dp"
-                android:paddingLeft="9dp"
-                android:paddingRight="9dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
+                android:layout_marginStart="8dp"
+                android:paddingLeft="11dp"
+                android:paddingRight="11dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
                 android:background="@drawable/widget_badge_bg"
                 android:textColor="#FFFFFF"
-                android:textSize="13sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
             <TextView
                 android:layout_width="0dp"
@@ -50,15 +72,14 @@
                 android:gravity="end"
                 android:text="›"
                 android:textColor="#9AA3B0"
-                android:textSize="18sp" />
+                android:textSize="20sp" />
         </LinearLayout>
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginTop="9dp">
+            android:layout_marginTop="12dp">
             <TextView
                 android:id="@+id/widget_unanswered_name"
                 android:layout_width="0dp"
@@ -67,7 +88,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#202E42"
-                android:textSize="13sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
             <TextView
                 android:id="@+id/widget_unanswered_elapsed"
@@ -77,24 +98,33 @@
                 android:textColor="#9AA3B0"
                 android:textSize="11sp" />
         </LinearLayout>
-
         <TextView
             android:id="@+id/widget_unanswered_msg"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="6dp"
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#64748B"
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- ── 머리줄: 제목 + 총 N곳 ── -->
+    <!-- 구분선 1 (뱃지 있을 때만) — RemoteViews는 <View> 미지원이라 FrameLayout -->
+    <FrameLayout
+        android:id="@+id/widget_div1"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="16dp"
+        android:background="#E7EBF1"
+        android:visibility="gone" />
+
+    <!-- ── 머리줄 ── -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:layout_marginTop="16dp">
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -112,101 +142,140 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- ── 지금/다음 현장 — 연파랑 카드 ── -->
+    <!-- ── 지금 현장 (흰 바탕) ── -->
     <LinearLayout
         android:id="@+id/widget_primary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginTop="11dp"
-        android:background="@drawable/widget_pcard_bg"
-        android:padding="13dp">
-
-        <TextView
-            android:id="@+id/widget_tag"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="7dp"
-            android:paddingLeft="9dp"
-            android:paddingRight="9dp"
-            android:paddingTop="3dp"
-            android:paddingBottom="3dp"
-            android:background="@drawable/widget_tag_green"
-            android:text="오늘"
-            android:textColor="#FFFFFF"
-            android:textSize="10.5sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#202E42"
-            android:textSize="17sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_region"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#5A6472"
-            android:textSize="13sp" />
-
+        android:layout_marginTop="13dp">
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="11dp">
+            android:gravity="center_vertical">
             <TextView
-                android:id="@+id/widget_time"
+                android:id="@+id/widget_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="#1765CF"
-                android:textSize="13sp"
+                android:textColor="#202E42"
+                android:textSize="17sp"
                 android:textStyle="bold" />
             <TextView
-                android:id="@+id/widget_open"
+                android:id="@+id/widget_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="길찾기"
-                android:paddingLeft="18dp"
-                android:paddingRight="18dp"
-                android:paddingTop="9dp"
-                android:paddingBottom="9dp"
-                android:background="@drawable/widget_today_btn"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                android:layout_marginStart="8dp"
+                android:textColor="#202E42"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
+        <TextView
+            android:id="@+id/widget_region"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#5A6472"
+            android:textSize="13sp" />
+        <TextView
+            android:id="@+id/widget_worktype"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#087B58"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
+        <!-- 꽉 찬 길찾기 버튼 (RemoteViews 안정 위해 TextView 한 개, 아이콘은 이모지) -->
+        <TextView
+            android:id="@+id/widget_open"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_marginTop="15dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:background="@drawable/widget_today_btn"
+            android:text="🧭  길찾기"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
+    <!-- 구분선 2 (다음 현장 있을 때만) -->
+    <FrameLayout
+        android:id="@+id/widget_div2"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="16dp"
+        android:background="#E7EBF1"
+        android:visibility="gone" />
+
     <!-- ── 다음 현장 (이어서) ── -->
-    <TextView
-        android:id="@+id/widget_next"
+    <LinearLayout
+        android:id="@+id/widget_next_box"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="11dp"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:lineSpacingExtra="3dp"
-        android:textColor="#64748B"
-        android:textSize="12sp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="14dp"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:text="이어서"
+            android:textColor="#9AA3B0"
+            android:textSize="10sp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/widget_next_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#202E42"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/widget_next_region"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#9AA3B0"
+                android:textSize="10sp" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/widget_next_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="#202E42"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <!-- ── 빈 날 ── -->
     <TextView
         android:id="@+id/widget_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="12dp"
         android:text="오늘 갈 현장이 없어요"
         android:textColor="#64748B"
         android:textSize="14sp"
