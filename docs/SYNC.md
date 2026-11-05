@@ -16066,3 +16066,14 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 빌드: assembleRelease EXIT=0 · 가드 7종 통과·기준선 증가 0([dup]18·[size]37946·[style]2410·[save]0·[rules]공용49) · 테스트 1353.
 - 폰 확인: 못 봄 — 위젯이라 내부배포로 올려 사장님 폰에서 확인(현장 적을 때 아래 백지 없이 카드가 내용만큼만 크고 배경화면 비치나, 많을 때 스크롤되나).
 - 정정: 직전 블록 '다음 액션'의 **상담함 알림 묶기 프로토는 폐기** — 사장님 뜻은 그게 아니라 **인앱 「알림」 센터의 협업 알림을 푸시(쿠팡 스텝)처럼** 바꾸는 것. 다음 작업.
+
+## 2026-11-05 16:50 · android
+인앱 「알림」 센터의 **협업 진행 알림을 푸시(쿠팡 스텝)처럼** — 회색 한 줄 → 점·막대·✓·단계시각 스텝 카드. (사장님 "협업알림 푸시처럼", 프로토 Y2p5MZAM 「가」)
+- 공용 셈 한 곳: `domain/collab/CollabProgressSteps.cells(reached)`(DotState·막대·라벨, 순수+시험2) — 푸시(RemoteViews `CollabStepNotifier.buildView`)와 센터(Compose `NotificationCenterScreen.CollabStepCard`)가 **같은 함수**. buildView 도 cells 쓰게 리팩터(두 벌 금지 §12).
+- 묶기: 단계 이벤트는 센터에 **shareId 별 한 줄**로(`AppNotificationRepository.bumpCollabStep` + DAO `latestCollabStep`/`bumpStep`, type="collab_step") — 단계마다 새 줄 X. showCollabEvent 에서 `logToCenter=false` + `NotificationLog.recordCollabStep`. 그 외(거절 등)는 기본 로그로 깔끔한 줄.
+- 진행 기억(reached/times)은 **푸시와 같은 자리** `prefs.collabProgressJson` 에서 `CollabStepNotifier.progressOf` 로 읽음(VM `stepByShareId`). 리셋이면 null → 평범한 줄 폴백.
+- 색은 테마 토큰(done/category/line/textSub…)·AppType·CircleShape 만 — 새 `Color(0x)`·`fontSize`·`RoundedCornerShape` 0 (style 2410 유지).
+- NotificationHelper 가 size 상한(2028)이라 옛 라우팅 주석 9줄→2줄로 줄여 상쇄(2023줄). §12 표에 CollabProgressSteps 한 줄 추가·공용 기준선 49→50.
+- §12-K 소비 지점 전부 확인: DAO·repo·VM 필터·화면 분기·렌더 5곳 다 봄. 화면 안 「배정→출발…」 진행바 2곳(CustomerCollabParts·SharedSiteScreen)은 라벨·맥락 다른 별개라 그대로 둠(§12-I).
+- 빌드: assembleRelease·testDebugUnitTest EXIT=0 · 가드 7종 기준선 증가 0([dup]18·[size]37941·[style]2410·[save]0·[rules]공용50) · 시험 1353→1355.
+- 폰 확인: 못 봄 — 내부배포로 올려 사장님 폰에서(협업 수락→출발→도착→완료가 센터에 **한 카드**로 단계 차나, 거절은 깔끔한 한 줄로 따로 뜨나).

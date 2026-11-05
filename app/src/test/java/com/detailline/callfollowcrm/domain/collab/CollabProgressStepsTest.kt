@@ -35,4 +35,38 @@ class CollabProgressStepsTest {
         assertEquals("", CollabProgressSteps.line(0))
         assertEquals("", CollabProgressSteps.line(-1))
     }
+
+    @Test
+    fun `스텝 칸 — 점 상태(지난 DONE·지금 CURRENT·아직 PENDING·마지막 도달 DONE_FINAL)`() {
+        // reached=2(출발까지): 수락 DONE · 출발 CURRENT · 도착·완료 PENDING
+        val c2 = CollabProgressSteps.cells(2)
+        assertEquals(CollabProgressSteps.DotState.DONE, c2[0].dot)
+        assertEquals(CollabProgressSteps.DotState.CURRENT, c2[1].dot)
+        assertEquals(CollabProgressSteps.DotState.PENDING, c2[2].dot)
+        assertEquals(CollabProgressSteps.DotState.PENDING, c2[3].dot)
+        // reached=4(완료): 앞 셋 DONE · 마지막은 DONE_FINAL(보라)
+        val c4 = CollabProgressSteps.cells(4)
+        assertEquals(CollabProgressSteps.DotState.DONE, c4[0].dot)
+        assertEquals(CollabProgressSteps.DotState.DONE, c4[2].dot)
+        assertEquals(CollabProgressSteps.DotState.DONE_FINAL, c4[3].dot)
+        // 라벨은 공용 이름 그대로
+        assertEquals(listOf("수락", "출발", "도착", "완료"), CollabProgressSteps.cells(1).map { it.label })
+    }
+
+    @Test
+    fun `스텝 칸 — 막대 켜짐(양 끝 동강은 꺼짐·도달 구간만 켜짐)`() {
+        // reached=1: 어떤 연결 막대도 안 켜짐(수락만 찍힘)
+        CollabProgressSteps.cells(1).forEach {
+            assertEquals(false, it.barLeftOn); assertEquals(false, it.barRightOn)
+        }
+        // reached=3(도착까지): 수락→출발→도착 구간 켜짐, 도착→완료 꺼짐
+        val c3 = CollabProgressSteps.cells(3)
+        assertEquals(false, c3[0].barLeftOn)   // 왼쪽 끝 동강
+        assertEquals(true, c3[0].barRightOn)   // 수락→출발
+        assertEquals(true, c3[1].barLeftOn)
+        assertEquals(true, c3[2].barLeftOn)    // 출발→도착
+        assertEquals(false, c3[2].barRightOn)  // 도착→완료 아직
+        assertEquals(false, c3[3].barLeftOn)   // 도착→완료 아직
+        assertEquals(false, c3[3].barRightOn)  // 오른쪽 끝 동강
+    }
 }

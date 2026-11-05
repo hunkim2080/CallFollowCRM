@@ -45,6 +45,14 @@ interface AppNotificationDao {
     @Query("UPDATE app_notifications SET body = :body, createdAt = :at WHERE id = :id")
     suspend fun bumpBody(id: Long, body: String, at: Long)
 
+    /** 🤝 그 협업 현장(shareId)의 **진행 스텝** 한 줄 — 수락→출발→도착→완료가 쌓이지 않고 이 한 줄이 단계만 앞으로. (2026-11-05 사장님) */
+    @Query("SELECT * FROM app_notifications WHERE type = 'collab_step' AND navShareId = :shareId ORDER BY createdAt DESC LIMIT 1")
+    suspend fun latestCollabStep(shareId: String): AppNotificationEntity?
+
+    /** 스텝 묶기 — 제목·본문·시각 갱신 + **다시 안 읽음으로**(새 단계라 불을 켠다). 새 줄 안 만든다. */
+    @Query("UPDATE app_notifications SET title = :title, body = :body, createdAt = :at, readAt = NULL WHERE id = :id")
+    suspend fun bumpStep(id: Long, title: String, body: String, at: Long)
+
     /** 자동삭제는 안 하지만(사장님) 테이블이 무한정 커지지 않게 상한만 — 최신 keep 개만 남기고 옛것 정리. */
     @Query("DELETE FROM app_notifications WHERE id NOT IN (SELECT id FROM app_notifications ORDER BY createdAt DESC LIMIT :keep)")
     suspend fun trimTo(keep: Int)

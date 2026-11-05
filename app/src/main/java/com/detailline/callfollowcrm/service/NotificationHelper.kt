@@ -763,15 +763,8 @@ object NotificationHelper {
         }
         val notifId = if (stepOrder > 0 && shareId.isNotBlank()) famId(FAM_COLLAB, shareId.hashCode())
         else famId(FAM_COLLAB, eventId.hashCode())
-        // 📍 **그 현장 한 곳으로 보낸다.** (2026-09-28 사장님 "여기페이지로 왜보내지? 하는 느낌")
-        //   「○○ 사장님이 출발했어요」를 누른 다음 궁금증은 **어디까지 왔나**인데,
-        //   목록까지만 데려다주면 다섯 줄 중에서 그 현장을 **다시 찾아 눌러야** 한다.
-        //
-        //   🔴 옛 내력: 2026-06-14 에 /shared/{id} 로 보냈더니 주인(A)에겐
-        //      "공유받은 현장이 없어요"가 떴다 — 주인은 '받은 현장' 목록에 그게 없으니까.
-        //      그래서 목록(ACTION_COLLAB_MINE)으로 돌렸는데, 그 뒤 `customerIdForShareId` 가 생겨
-        //      **주인이면 고객정보 협업 탭**(진행 표시가 있는 자리)으로 제대로 간다.
-        //      댓글·사진 알림은 이미 그 길을 쓰고 있었다 — 진행 알림만 옛 길에 남아 있었다.
+        // 📍 **그 현장 한 곳으로 보낸다**(ACTION_COLLAB_SITE) — 목록까지만 데려다주면 그 현장을 다시 찾아 눌러야 한다. (2026-09-28 사장님)
+        //   주인이면 customerIdForShareId 로 고객정보 협업 탭(진행 표시 자리)으로 간다. shareId 없으면 목록이라도(ACTION_COLLAB_MINE).
         val openIntent = Intent(context, MainActivity::class.java).apply {
             if (shareId.isNotBlank()) {
                 action = MainActivity.ACTION_COLLAB_SITE
@@ -829,21 +822,23 @@ object NotificationHelper {
             else -> CHANNEL_REMINDER   // 여기 안 옴(위 when 에서 return) — 방어용
         }
         val baseMsg = accountText?.let { "$msg · 계좌 $it" } ?: msg
-        // 🚚 쿠팡 스텝 그림(프로토 32vgR4Lz) — 단계일 때만. 카드 본문·그리기는 CollabStepNotifier.
+        // 🚚 쿠팡 스텝 그림(프로토 32vgR4Lz) — 단계일 때만. 본문·그리기는 CollabStepNotifier.
+        val stepBody = CollabStepNotifier.cardBody(kind, partnerName, auto, baseMsg)
         val stepView = if (stepReached > 0) CollabStepNotifier.buildView(
-            context, title.ifBlank { "협업 현장" },
-            CollabStepNotifier.cardBody(kind, partnerName, auto, baseMsg), stepReached, stepTimes
+            context, title.ifBlank { "협업 현장" }, stepBody, stepReached, stepTimes
         ) else null
+        // 🔔 센터도 푸시처럼 — 단계는 shareId 별 한 줄로 묶어 기록(화면이 progressOf 로 스텝 그림). 그 외는 아래 기본 로그. (프로토 Y2p5MZAM)
+        if (stepReached > 0 && shareId.isNotBlank()) NotificationLog.recordCollabStep(shareId, "협업 · ${title.ifBlank { "협업 현장" }}", stepBody)
         showProtoPush(
             context, notifId, channel, accent,
             title = pushTitle,
             msg = buildString {
                 append(baseMsg)
-                // 스텝 그림이 못 떠서 글자 폴백으로 갈 때만 막대를 붙인다(그림이 뜨면 중복이라 뺀다).
-                if (stepView == null && progressLine.isNotBlank()) append("\n").append(progressLine)
+                if (stepView == null && progressLine.isNotBlank()) append("\n").append(progressLine)   // 그림 못 뜨면 글자 막대 폴백
             },
             onlyAlertOnce = alertOnce,   // 단계 전진이면 false(울림), 그 외 true
             bigContentView = stepView,
+            logToCenter = stepReached <= 0,   // 단계는 위에서 묶어 기록 — 또 쌓지 않음
             contentIntent = pending,
             navTarget = "collab", navShareId = shareId,   // 🔔 알림센터 탭 → 그 협업 현장. (2026-10-13 사장님)
             // 단추 이름은 **그 알림의 다음 궁금증**을 말한다.

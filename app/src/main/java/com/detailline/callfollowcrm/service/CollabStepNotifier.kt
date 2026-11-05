@@ -55,6 +55,24 @@ internal object CollabStepNotifier {
         }
     }
 
+    /**
+     * 읽기 전용 — 이 현장이 어디까지 왔나(reached)·단계별 시각(times). 인앱 알림센터 스텝 카드가 쓴다.
+     *   bump 와 **같은 JSON 한 곳**(prefs.collabProgressJson)에서 읽는다 — 진행 기억은 한 벌(§12).
+     *   기록이 없거나(아직/리셋) reached 0 이면 null.
+     */
+    fun progressOf(prefs: AppPreferences, shareId: String): Bump? = synchronized(lock) {
+        val root = runCatching { org.json.JSONObject(prefs.collabProgressJson.ifBlank { "{}" }) }
+            .getOrDefault(org.json.JSONObject())
+        val entry = root.optJSONObject(shareId)
+        val reached = entry?.optInt("r", 0) ?: root.optInt(shareId, 0)   // 옛 int 형식도 읽음
+        if (reached <= 0) return null
+        val times = HashMap<Int, Long>()
+        entry?.optJSONObject("t")?.let { t ->
+            t.keys().forEach { k -> k.toIntOrNull()?.let { times[it] = t.optLong(k) } }
+        }
+        return Bump(reached, false, times)
+    }
+
     /** 스텝 카드 본문 한 줄 — 짧게(제목에 주소가 이미 있어 중복 피함). 프로토 32vgR4Lz 본문 그대로. 모르는 kind 면 fallback. */
     fun cardBody(kind: String, partnerName: String, auto: Boolean, fallback: String): String {
         val who = partnerName.ifBlank { "협업 사장" }
@@ -85,47 +103,32 @@ internal object CollabStepNotifier {
             val dotIds = intArrayOf(R.id.collab_dot0, R.id.collab_dot1, R.id.collab_dot2, R.id.collab_dot3)
             val lbIds = intArrayOf(R.id.collab_lb0, R.id.collab_lb1, R.id.collab_lb2, R.id.collab_lb3)
             val tmIds = intArrayOf(R.id.collab_tm0, R.id.collab_tm1, R.id.collab_tm2, R.id.collab_tm3)
-            val labels = CollabProgressSteps.labels
-            val max = CollabProgressSteps.MAX
-            for (i in 0..3) {
-                val order = i + 1
-                when {
-                    order < reached -> {
-                        rv.setInt(dotIds[i], "setBackgroundResource", R.drawable.noti_dot_done)
-                        rv.setTextViewText(dotIds[i], "✓")
-                    }
-                    order == reached && order == max -> {
-                        rv.setInt(dotIds[i], "setBackgroundResource", R.drawable.noti_dot_done_purple)
-                        rv.setTextViewText(dotIds[i], "✓")
-                    }
-                    order == reached -> {
-                        rv.setInt(dotIds[i], "setBackgroundResource", R.drawable.noti_dot_current)
-                        rv.setTextViewText(dotIds[i], "")
-                    }
-                    else -> {
-                        rv.setInt(dotIds[i], "setBackgroundResource", R.drawable.noti_dot_pending)
-                        rv.setTextViewText(dotIds[i], "")
-                    }
-                }
-                rv.setTextViewText(lbIds[i], labels[i])
-                val lbColor = when {
-                    order == max && order <= reached -> purple
-                    order <= reached -> labelOn
-                    else -> labelOff
-                }
-                rv.setTextColor(lbIds[i], lbColor)
-                val t = times[order]
-                rv.setTextViewText(tmIds[i], if (t != null) DateTimeUtils.formatTime(t) else "")
-            }
-            // 연결 막대: 구간 s(점 s↔s+1) = cell(s-1).barR + cell(s).barL. 도달하면 초록, 아니면 회색. 양 끝동강은 투명.
             val barL = intArrayOf(R.id.collab_bar0L, R.id.collab_bar1L, R.id.collab_bar2L, R.id.collab_bar3L)
             val barR = intArrayOf(R.id.collab_bar0R, R.id.collab_bar1R, R.id.collab_bar2R, R.id.collab_bar3R)
-            rv.setInt(barL[0], "setBackgroundColor", Color.TRANSPARENT)
+            // 점·막대·라벨 상태는 **공용 셈** CollabProgressSteps.cells 한 곳에서(센터 Compose 와 같은 함수 — 두 벌 금지 §12).
+            val cells = CollabProgressSteps.cells(reached)
+            rv.setInt(barL[0], "setBackgroundColor", Color.TRANSPARENT)   // 양 끝 동강은 막대 없음
             rv.setInt(barR[3], "setBackgroundColor", Color.TRANSPARENT)
-            for (seg in 1..3) {   // seg = 둘째~넷째 점으로 들어오는 선
-                val col = if (reached >= seg + 1) green else track
-                rv.setInt(barR[seg - 1], "setBackgroundColor", col)
-                rv.setInt(barL[seg], "setBackgroundColor", col)
+            for (i in 0..3) {
+                val c = cells[i]
+                val dotRes = when (c.dot) {
+                    CollabProgressSteps.DotState.DONE -> R.drawable.noti_dot_done
+                    CollabProgressSteps.DotState.DONE_FINAL -> R.drawable.noti_dot_done_purple
+                    CollabProgressSteps.DotState.CURRENT -> R.drawable.noti_dot_current
+                    CollabProgressSteps.DotState.PENDING -> R.drawable.noti_dot_pending
+                }
+                rv.setInt(dotIds[i], "setBackgroundResource", dotRes)
+                rv.setTextViewText(dotIds[i], if (c.dot == CollabProgressSteps.DotState.DONE || c.dot == CollabProgressSteps.DotState.DONE_FINAL) "✓" else "")
+                rv.setTextViewText(lbIds[i], c.label)
+                rv.setTextColor(lbIds[i], when (c.dot) {
+                    CollabProgressSteps.DotState.DONE_FINAL -> purple
+                    CollabProgressSteps.DotState.PENDING -> labelOff
+                    else -> labelOn
+                })
+                val t = times[i + 1]
+                rv.setTextViewText(tmIds[i], if (t != null) DateTimeUtils.formatTime(t) else "")
+                if (i > 0) rv.setInt(barL[i], "setBackgroundColor", if (c.barLeftOn) green else track)
+                if (i < 3) rv.setInt(barR[i], "setBackgroundColor", if (c.barRightOn) green else track)
             }
             rv
         }.getOrNull()

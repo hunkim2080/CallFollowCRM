@@ -36,4 +36,35 @@ object CollabProgressSteps {
             (if (stepOrder <= reached) "●" else "○") + " " + label
         }.joinToString(" ─ ")
     }
+
+    /** 점 하나의 상태 — 지난 단계(DONE)·지금(CURRENT)·아직(PENDING)·완료(마지막 단계 도달 DONE_FINAL). */
+    enum class DotState { PENDING, CURRENT, DONE, DONE_FINAL }
+
+    /** 스텝 그림 한 칸 — 라벨·점 상태·좌/우 연결 막대 켜짐. 양 끝 동강(cell0 왼쪽·cell3 오른쪽)은 막대 없음(false). */
+    data class StepCell(
+        val label: String,
+        val dot: DotState,
+        val barLeftOn: Boolean,
+        val barRightOn: Boolean,
+    )
+
+    /**
+     * reached(1~4)까지 찬 스텝 그림 네 칸 — **푸시(RemoteViews)와 알림센터(Compose)가 같이 쓰는 한 곳**(두 벌 금지 §12).
+     *   점: order<reached 초록✓(DONE) · 마지막 단계 도달 보라✓(DONE_FINAL) · 지금 단계 초록테두리(CURRENT) · 아직 회색(PENDING).
+     *   막대: 구간 s(점 s↔s+1)는 reached≥s+1 이면 켜짐. 그래서 cell 의 왼막대=order>1 && reached≥order, 오른막대=order<MAX && reached≥order+1.
+     */
+    fun cells(reached: Int): List<StepCell> = (1..MAX).map { order ->
+        val dot = when {
+            order < reached -> DotState.DONE
+            order == reached && order == MAX -> DotState.DONE_FINAL
+            order == reached -> DotState.CURRENT
+            else -> DotState.PENDING
+        }
+        StepCell(
+            label = labels[order - 1],
+            dot = dot,
+            barLeftOn = order > 1 && reached >= order,
+            barRightOn = order < MAX && reached >= order + 1,
+        )
+    }
 }

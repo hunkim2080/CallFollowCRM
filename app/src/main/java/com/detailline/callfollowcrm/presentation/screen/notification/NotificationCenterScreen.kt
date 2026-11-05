@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.notification
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.AppNotificationEntity
+import com.detailline.callfollowcrm.domain.collab.CollabProgressSteps
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
@@ -54,6 +57,7 @@ fun NotificationCenterScreen(
     onOpen: (AppNotificationEntity) -> Unit,
 ) {
     val items by viewModel.items.collectAsState()
+    val stepMap by viewModel.stepByShareId.collectAsState()
 
     Column(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
         Row(
@@ -104,10 +108,14 @@ fun NotificationCenterScreen(
                         )
                     }
                     items(rows, key = { it.id }) { n ->
-                        NotiRow(n) {
+                        val tap: () -> Unit = {
                             onOpen(n)
                             viewModel.markRead(n.id)   // 삭제 아님 — 읽음(회색)으로 남긴다
                         }
+                        // 🤝 협업 진행(collab_step)은 **푸시처럼 스텝 카드**로, 나머지는 깔끔한 한 줄. (2026-11-05 사장님, 프로토 Y2p5MZAM)
+                        //   진행 기록이 비면(리셋 등) 스텝이 null → 평범한 줄로 폴백.
+                        val step = if (n.type == "collab_step") n.navShareId?.let { stepMap[it] } else null
+                        if (step != null) CollabStepCard(n, step, tap) else NotiRow(n, tap)
                     }
                 }
             }
@@ -148,6 +156,104 @@ private fun NotiRow(n: AppNotificationEntity, onTap: () -> Unit) {
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+}
+
+/**
+ * 🤝 협업 진행 스텝 카드 — 푸시(쿠팡 스텝)와 **같은 그림**을 인앱 센터에. (2026-11-05 사장님, 프로토 Y2p5MZAM)
+ *   점·막대·라벨 상태는 공용 [CollabProgressSteps.cells] 한 곳(푸시 RemoteViews 와 같은 함수 — 두 벌 금지 §12).
+ *   단계별 시각(times)·어디까지(reached)는 VM 이 진행 기록 한 곳에서 읽어 넘긴다. 읽으면 흐리게.
+ */
+@Composable
+private fun CollabStepCard(
+    n: AppNotificationEntity,
+    step: NotificationCenterViewModel.StepInfo,
+    onTap: () -> Unit,
+) {
+    val read = n.readAt != null
+    val dim = if (read) 0.55f else 1f
+    Column(
+        Modifier.fillMaxWidth().background(AppTheme.colors.surface).clickable { onTap() }
+            .padding(horizontal = 16.dp, vertical = 11.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(30.dp).clip(AppShape.sm).background(AppTheme.colors.categoryBg).alpha(dim),
+                contentAlignment = Alignment.Center
+            ) { Text(iconOf(n.type), style = AppType.body) }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                n.title, style = AppType.label,
+                color = if (read) AppTheme.colors.textHint else AppTheme.colors.text,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(DateTimeUtils.formatShort(n.createdAt), style = AppType.caption, color = AppTheme.colors.textHint)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth().alpha(dim)) {
+            CollabProgressSteps.cells(step.reached).forEachIndexed { i, c ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.Center) {
+                        if (i > 0) Box(
+                            Modifier.align(Alignment.CenterStart).fillMaxWidth(0.5f).height(3.dp)
+                                .background(if (c.barLeftOn) AppTheme.colors.done else AppTheme.colors.line)
+                        )
+                        if (i < 3) Box(
+                            Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.5f).height(3.dp)
+                                .background(if (c.barRightOn) AppTheme.colors.done else AppTheme.colors.line)
+                        )
+                        StepDot(c.dot)
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        c.label, style = AppType.micro,
+                        color = when (c.dot) {
+                            CollabProgressSteps.DotState.DONE_FINAL -> AppTheme.colors.categoryText
+                            CollabProgressSteps.DotState.PENDING -> AppTheme.colors.textHint
+                            else -> AppTheme.colors.textSub
+                        }
+                    )
+                    val t = step.times[i + 1]
+                    Text(
+                        if (t != null) DateTimeUtils.formatTime(t) else "",
+                        style = AppType.caption, color = AppTheme.colors.textHint, maxLines = 1
+                    )
+                }
+            }
+        }
+        if (!n.body.isNullOrBlank()) {
+            Spacer(Modifier.height(9.dp))
+            Text(
+                n.body, style = AppType.caption,
+                color = if (read) AppTheme.colors.textHint else AppTheme.colors.textSub,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(dim)
+            )
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+}
+
+/** 스텝 점 하나 — 지난 초록✓ · 완료 보라✓ · 지금 초록테두리+속점 · 아직 회색테두리. 색은 공용 토큰. */
+@Composable
+private fun StepDot(dot: CollabProgressSteps.DotState) {
+    val done = AppTheme.colors.done
+    val base = Modifier.size(18.dp).clip(CircleShape)
+    when (dot) {
+        CollabProgressSteps.DotState.DONE ->
+            Box(base.background(done), contentAlignment = Alignment.Center) {
+                Text("✓", style = AppType.micro, color = AppTheme.colors.textOnPrimary)
+            }
+        CollabProgressSteps.DotState.DONE_FINAL ->
+            Box(base.background(AppTheme.colors.category), contentAlignment = Alignment.Center) {
+                Text("✓", style = AppType.micro, color = AppTheme.colors.textOnPrimary)
+            }
+        CollabProgressSteps.DotState.CURRENT ->
+            Box(base.background(AppTheme.colors.surface).border(2.dp, done, CircleShape), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(done))
+            }
+        CollabProgressSteps.DotState.PENDING ->
+            Box(base.background(AppTheme.colors.surface).border(2.dp, AppTheme.colors.neutral, CircleShape))
+    }
 }
 
 /** 시간대별 묶음 — 오늘 / 어제 / 지난 7일 / 그 이전. (순수 함수) */

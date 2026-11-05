@@ -58,6 +58,15 @@ object NotificationLog {
     }
 
     /**
+     * 🤝 협업 **진행 스텝** — 같은 현장(shareId)의 수락/출발/도착/완료를 센터에 **한 줄로** 묶어 기록.
+     *   단계마다 따로 쌓지 않는다 — 화면이 reached/times 를 읽어 스텝 카드로 그린다. (2026-11-05 사장님)
+     */
+    fun recordCollabStep(shareId: String, title: String, body: String) {
+        val r = repo ?: return
+        scope.launch { runCatching { r.bumpCollabStep(shareId, title, body) } }
+    }
+
+    /**
      * 🤝 협업 현장 **사진** — 같은 현장 사진을 한 줄(「사진 N장」)로 묶어 센터에 기록하고,
      *   묶인 수를 [onCount] 로 돌려준다(시스템 알림 본문에도 그 수를 쓰게). (2026-10-15 사장님)
      *   repo 가 아직 없으면(앱 아주 초기) 그냥 1장으로 본다.

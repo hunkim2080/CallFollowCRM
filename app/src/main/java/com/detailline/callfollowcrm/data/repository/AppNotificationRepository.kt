@@ -57,6 +57,31 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
         newCount
     }
 
+    /**
+     * 🤝 협업 **진행 스텝** — 같은 현장(shareId)의 수락/출발/도착/완료를 **한 줄로** 묶는다(단계마다 새 줄 X).
+     *   있으면 제목·본문·시각 갱신 + 다시 안 읽음(새 단계라 벨 켜짐), 없으면 새 줄. 화면이 reached/times 를
+     *   CollabStepNotifier.progressOf 로 읽어 스텝 카드로 그린다. (2026-11-05 사장님 "협업 알림 푸시처럼")
+     */
+    suspend fun bumpCollabStep(shareId: String, title: String, body: String) = stepBumpMutex.withLock {
+        if (shareId.isBlank()) return@withLock
+        val now = System.currentTimeMillis()
+        val existing = dao.latestCollabStep(shareId)
+        if (existing != null) {
+            dao.bumpStep(existing.id, title, body, now)
+        } else {
+            dao.insert(
+                AppNotificationEntity(
+                    type = "collab_step", title = title, body = body,
+                    navTarget = "collab", navShareId = shareId, createdAt = now
+                )
+            )
+            runCatching { dao.trimTo(KEEP_MAX) }
+        }
+    }
+
+    /** 같은 현장 단계가 거의 동시에(FCM+폴링) 오면 둘 다 「기존 없음」을 읽고 두 줄을 만든다 → 읽고-쓰기 한 번에(§13③). */
+    private val stepBumpMutex = kotlinx.coroutines.sync.Mutex()
+
     /** 사진 두 장이 거의 동시에 오면(FCM 두 건) 둘 다 「기존 줄 없음」을 읽고 **두 줄**을 만든다 → 읽고-쓰기를 한 번에(§13③). */
     private val photoBumpMutex = kotlinx.coroutines.sync.Mutex()
 
