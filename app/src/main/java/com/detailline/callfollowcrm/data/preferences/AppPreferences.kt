@@ -200,6 +200,10 @@ class AppPreferences(context: Context) {
     var widgetTodayJson: String
         get() = prefs.getString("widget_today_json", "") ?: ""
         set(value) = prefs.edit().putString("widget_today_json", value).apply()
+    /** 🤝 협업 진행 알림 '현장마다 하나로' — shareId→도달한 최고 단계(1수락~4완료) JSON. 단계 전진 때만 울리게. (2026-11-05) */
+    var collabProgressJson: String
+        get() = prefs.getString("collab_progress_json", "") ?: ""
+        set(value) = prefs.edit().putString("collab_progress_json", value).apply()
     /** 연결된 구글 계정 이메일 — "어느 계정에 올라갔나" 표시용. null = 아직 못 받음(옛 연결/이메일 권한 전). (2026-10-05 사장님) */
     var googleCalendarAccountEmail: String?
         get() = prefs.getString("google_calendar_account_email", null)

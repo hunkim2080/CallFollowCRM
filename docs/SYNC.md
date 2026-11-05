@@ -16038,3 +16038,16 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 빌드: compileDebugKotlin EXIT=0 · assembleRelease EXIT=0 · 가드 7종 기준선 증가 0 · testDebugUnitTest EXIT=0.
 - 폰 확인: 못 봄 — 컬렉션 위젯은 Play서명 pkg 라 로컬 직접설치 불가(서명 벽). **내부배포로 올려 사장님 실제 폰에서 확인 예정**(스크롤·줄별 탭·길찾기 하나·⟳·협업 포함 3곳).
 - 다음 액션(사장님): 폰에서 눈으로 — ①오늘 3곳 다 뜨나(협업 포함) ②줄 누르면 그 고객으로 ③답장안함 누르면 그 대화 ④길찾기 하나만 ⑤⟳ 누르면 갱신시각 바뀌나.
+
+## 2026-11-05 10:23 · android
+협업 진행 알림 '현장마다 하나로'(쿠팡 배송추적 스텝) — 흩어진 수락/출발/도착/완료를 **같은 알림 제자리 갱신** + 진행 막대. (사장님 "협업 쿠팡해줘", 의도 A=합치기)
+- 변경(앱만): `service/NotificationHelper.kt` `showCollabEvent` —
+  · **합치기:** notifId 를 이벤트별(eventId.hashCode) → **shareId 별**(단계 이벤트일 때)로. 같은 현장은 알림 하나가 단계만 앞으로. (거절·shareId 없음은 이벤트별 따로 유지)
+  · **진행 막대:** 본문에 `● 수락 ─ ● 출발 ─ ○ 도착 ─ ○ 완료` 한 줄(BigTextStyle). 순수 `domain/collab/CollabProgressSteps.kt`(orderOf·line, +시험 3) 가 만든다.
+  · **단계 전진 때만 울림:** `showProtoPush` 에 `onlyAlertOnce` 파라미터 추가(기본 true 유지 — 다른 알림 영향 0). 협업 단계는 false(갱신이라도 울림). 중복은 이미 2중 차단 — dedup(CollabNotifyDedup, shareId|kind|eventId) + **전진 게이트**(`bumpCollabProgress`: shareId→최고단계, 전진 아니면 return). → FCM+폴링 같은 이벤트·뒤늦은 낮은 단계·같은 단계 재게시 모두 두 번 안 울림.
+  · 도달 단계 기억: `AppPreferences.collabProgressJson`(shareId→1~4). 400개 넘으면 리셋(무해).
+- §12-I 확인: 이건 두 벌 아님 — dedup(같은 이벤트 차단)과 전진게이트(단계 중복 차단)는 **역할 다른 겹겹의 문**. 소리 울림은 둘 다 통과해야.
+- health: 시험 1350→1353(+3) · 2,000줄 파일 7→8(NotificationHelper 가 2000 넘음, 가드 통과) · 가드 7 기준선 증가 0.
+- 빌드: compileDebugKotlin·assembleRelease·testDebugUnitTest 전부 EXIT=0. 가드 7종 통과([dup]18·[style]2410·[save]0·[rules]공용49).
+- 폰 확인: 못 봄 — 내부배포로 올려 사장님 폰에서 확인 예정(같은 현장 수락→출발→도착→완료가 **한 줄로** 단계 차나, 단계마다 소리 나나, 거절은 따로 뜨나).
+- 다음 액션(사장님): 폰에서 협업 현장 한 건으로 수락·출발·도착·완료를 받아보며 알림이 하나로 갱신되는지 확인.

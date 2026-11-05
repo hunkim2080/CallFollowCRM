@@ -716,6 +716,27 @@ object NotificationHelper {
      *   폴링 코루틴이 **같은 순간** 와도 읽고-쓰기가 한 번에(§13③ 연타). 컨테이너가 아직 없으면 막지 않는다.
      */
     private val collabNotifyLock = Any()
+
+    /**
+     * 🤝 이 현장(shareId)을 방금 온 단계로 올린다 — 현장마다 알림 하나, **단계 전진 때만** 울린다. (2026-11-05 사장님 쿠팡 스텝)
+     *   @return (reached=올린 뒤 최고 단계, advanced=이번에 전진했나). advanced=false 면 부르는 쪽이 재알림을 멈춘다
+     *     (뒤늦게 온 낮은 단계·같은 단계 재게시 → 두 번 안 울림). 잠금은 admit 과 같은 collabNotifyLock(§13③ 연타).
+     */
+    private fun bumpCollabProgress(context: Context, shareId: String, stepOrder: Int): Pair<Int, Boolean> {
+        val prefs = prefsOf(context) ?: return stepOrder to true
+        synchronized(collabNotifyLock) {
+            val map = runCatching { org.json.JSONObject(prefs.collabProgressJson.ifBlank { "{}" }) }
+                .getOrDefault(org.json.JSONObject())
+            val old = map.optInt(shareId, 0)
+            if (stepOrder <= old) return old to false
+            map.put(shareId, stepOrder)
+            // 너무 커지지 않게(완료된 옛 현장 등) — 넘치면 통째로 비운다. 기억 리셋이라 재발 알림이 한 번 더 뜰 뿐 무해.
+            prefs.collabProgressJson =
+                if (map.length() > 400) org.json.JSONObject().put(shareId, stepOrder).toString() else map.toString()
+            return stepOrder to true
+        }
+    }
+
     private fun admitCollabEvent(context: Context, key: String): Boolean {
         val prefs = prefsOf(context) ?: return true
         synchronized(collabNotifyLock) {
@@ -743,7 +764,19 @@ object NotificationHelper {
     ) {
         // 🚪 이미 띄운 이벤트(shareId|단계|event_id)면 그만 — 상태바·알림 센터·소리 전부 두 번째는 없다.
         if (!admitCollabEvent(context, com.detailline.callfollowcrm.domain.collab.CollabNotifyDedup.key(shareId, kind, eventId))) return
-        val notifId = famId(FAM_COLLAB, eventId.hashCode())
+        // 🚚 현장마다 알림 하나 — 수락→출발→도착→완료가 **같은 알림을 제자리 갱신**(쿠팡 배송추적). (2026-11-05 사장님)
+        //   단계 전진 때만 울린다(bump.advanced). 거절(order 0)·shareId 없음은 이벤트별 따로.
+        val stepOrder = com.detailline.callfollowcrm.domain.collab.CollabProgressSteps.orderOf(kind)
+        var progressLine = ""
+        var alertOnce = true
+        if (stepOrder > 0 && shareId.isNotBlank()) {
+            val bump = bumpCollabProgress(context, shareId, stepOrder)
+            if (!bump.second) return   // 이미 그 단계까지 알렸음 — 두 번 안 울림
+            progressLine = com.detailline.callfollowcrm.domain.collab.CollabProgressSteps.line(bump.first)
+            alertOnce = false          // 단계가 올라갔으니 갱신이라도 울린다
+        }
+        val notifId = if (stepOrder > 0 && shareId.isNotBlank()) famId(FAM_COLLAB, shareId.hashCode())
+        else famId(FAM_COLLAB, eventId.hashCode())
         // 📍 **그 현장 한 곳으로 보낸다.** (2026-09-28 사장님 "여기페이지로 왜보내지? 하는 느낌")
         //   「○○ 사장님이 출발했어요」를 누른 다음 궁금증은 **어디까지 왔나**인데,
         //   목록까지만 데려다주면 다섯 줄 중에서 그 현장을 **다시 찾아 눌러야** 한다.
@@ -812,7 +845,11 @@ object NotificationHelper {
         showProtoPush(
             context, notifId, channel, accent,
             title = pushTitle,
-            msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
+            msg = buildString {
+                append(accountText?.let { "$msg · 계좌 $it" } ?: msg)
+                if (progressLine.isNotBlank()) append("\n").append(progressLine)   // 🚚 진행 막대: ● 수락 ─ ● 출발 ─ ○ 도착 ─ ○ 완료
+            },
+            onlyAlertOnce = alertOnce,   // 단계 전진이면 false(울림), 그 외 true
             contentIntent = pending,
             navTarget = "collab", navShareId = shareId,   // 🔔 알림센터 탭 → 그 협업 현장. (2026-10-13 사장님)
             // 단추 이름은 **그 알림의 다음 궁금증**을 말한다.
@@ -1182,6 +1219,9 @@ object NotificationHelper {
         navShareId: String? = null,
         // 🤝 협업 사진처럼 **센터 기록을 직접(묶어서) 하는** 경우엔 false — 여기서 또 쌓지 않게. (2026-10-15 사장님)
         logToCenter: Boolean = true,
+        // 🤝 협업 진행 '단계 전진'처럼 같은 알림 id 를 갱신하며 **매번 울려야** 할 땐 false.
+        //   (중복은 부르는 쪽이 이미 걸러서(dedup+전진 게이트) 전진 때만 여기 온다 — 2026-11-05 사장님 쿠팡 스텝)
+        onlyAlertOnce: Boolean = true,
     ) {
         val bigText = buildString {
             append(msg)
@@ -1200,7 +1240,7 @@ object NotificationHelper {
             .setAutoCancel(true)
             // 같은 알림 id(같은 shareId 등)를 FCM·폴링이 각각 띄워도 소리/진동은 한 번만.
             //   협업 초대가 2~3번 울리던 문제 fix (FCM + 앱루프폴링 + ReminderWorker폴링이 같은 건을 재게시).
-            .setOnlyAlertOnce(true)
+            .setOnlyAlertOnce(onlyAlertOnce)
         contentIntent?.let { builder.setContentIntent(it) }
         timeoutMs?.let { builder.setTimeoutAfter(it) }
         actions.forEach { builder.addAction(R.drawable.ic_notification, it.label, it.intent) }
