@@ -1,12 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- '오늘 갈 현장' 위젯 정보. 내용은 ~548dp 고정이라 **셀이 그보다 크면 가운데가 빈다** → 기본을 작게(4x4) 두고
-     **세로 리사이즈 허용**(resizeMode vertical)으로 사장님이 내용에 딱 맞게 줄이게 한다. minHeight=548 이 바닥이라 더 줄면 내용이 안 짤린다.
-     (2026-11-05 사장님 "위젯 사이즈 이게 맞아" — 4x5 기본이 너무 컸다) 자동 갱신 30분(구글 최소). -->
+<!-- '오늘 갈 현장' 위젯 정보.
+     ⚠️ 리사이즈가 되려면 **리사이즈 범위**(minResize..maxResize)가 꼭 있어야 한다. 이게 없으면 범위가
+        minHeight 로 눌려, 삼성 조밀격자(S23U)에선 줄일 칸이 없어 **핸들이 아예 안 뜬다**. (2026-11-05 §11 조사)
+        안드로이드 문서: "위젯은 minResizeWidth×Height 에서 maxResizeWidth×Height 범위를 지원해야 한다."
+     내용은 ~548dp 전후가 알맞다(3단). 기본 4×4, 가로·세로 둘 다 리사이즈 허용 → 사장님이 셀에 딱 맞게 조절.
+     ⚠️ minHeight 는 **구형(API31 미만, 예: S9/Android10)의 기본 크기**다 → 내용 다 보이게 548 유지(낮추면 S9 기본이 짤린다).
+        줄이는 바닥은 **minResizeHeight 를 따로 낮게**(≈180) 줘서, 기본은 꽉 차되 사장님이 더 줄일 수 있게 한다.
+     API31+(S23U)는 기본이 targetCell(4×4)이고, 리사이즈 범위는 minResize..maxResize 가 정한다.
+     ⚠️ 삼성 One UI 7 에는 작은 위젯을 4×4 로 강제확대·고정하는 OS 버그가 있다(One UI 8 에서 수정). 그 경우
+        코드로 완전히는 못 풀고, '위젯 지우고 다시 추가' 뒤 바닥 핸들로 줄이는 게 현재 최선. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="300dp"
     android:minHeight="548dp"
     android:targetCellWidth="4"
     android:targetCellHeight="4"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="180dp"
+    android:maxResizeWidth="720dp"
+    android:maxResizeHeight="1200dp"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_today"
     android:previewLayout="@layout/widget_today"

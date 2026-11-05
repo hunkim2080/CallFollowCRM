@@ -16142,3 +16142,12 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - §12-K 연결 확인: openHomeAddress 신호 쓰는 곳(NavEvents·AppRoot·HomeAddressSetting) 다 봄, 옛 pref 실사용 0곳(주석 1곳도 갱신). 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37958·[style]2410·[save]0·[rules]공용50).
 - 폰 확인: S9 — 동호수 세로쌓기·앱켠상태 주소검색 둘 다 캡처 확인. S23U(읽기전용)는 못 봄.
 - 다음 액션(없음): S23U 위젯 리사이즈 잠김은 Play 반영 지연/조밀그리드 minHeight 제약 추정 — 지우고 재설치 안내로 대응.
+
+## 2026-11-05 22:35 · android
+🧱 위젯 리사이즈 S23U 안 됨 → **리사이즈 범위 속성 추가** (§11 조사). (사장님 "s23u 여전히 크기조절 안됨")
+- 원인: widget_today_info.xml 에 minResize/maxResize 가 **통째로 없어** 범위가 minHeight(548)로 눌림 → 삼성 조밀격자는 줄일 칸이 없어 **핸들이 아예 안 뜸**. S9(성긴격자·API31미만)은 우연히 됐던 것.
+- 안드로이드 문서: "위젯은 minResizeW×H ~ maxResizeW×H 범위를 지원해야 한다." → minResizeWidth/Height=180dp, maxResizeWidth=720/maxResizeHeight=1200dp(API31+) 추가. resizeMode=horizontal|vertical.
+- ⚠️ minHeight 는 **API31 미만(S9/Android10)의 기본 크기**라 548 유지(낮추면 S9 기본이 짤림 — 처음에 260 으로 낮췄다가 되돌림). 줄이는 바닥은 minResizeHeight=180 으로 따로. S23U(API31+)는 기본 targetCell 4×4, 범위는 minResize..maxResize.
+- ⚠️ 별개로 삼성 One UI 7 에 작은 위젯 4×4 강제확대·고정 OS 버그 있음(One UI 8 수정, Android Authority). 그 경우 코드로 완전히는 못 품 — '지우고 다시 추가' 뒤 바닥핸들로 줄이기가 현재 최선.
+- 변경: widget_today_info.xml (리소스만). 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과.
+- 폰 확인: S23U(읽기전용·adb 미연결)라 **직접 못 봄** — 내부배포 반영 후 사장님이 '지우고 다시 추가'로 확인 필요. S9 는 레이아웃 미변경이라 회귀 없음(기본 548 유지).
