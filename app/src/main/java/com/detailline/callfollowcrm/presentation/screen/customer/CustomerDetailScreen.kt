@@ -19,6 +19,7 @@ import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.LightColors
 import com.detailline.callfollowcrm.util.copyToClip
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -170,6 +171,9 @@ fun CustomerDetailScreen(
     onBack: () -> Unit,
     /** "💬 문자 보내기" 탭 시 ChatScreen 으로 이동. customerId 알고 있으므로 같이 전달. */
     onOpenChat: (phone: String, customerId: Long) -> Unit,
+    /** 🔙 뒤로가기(시스템 버튼·상단 화살표) — **어디서 들어왔든 그 고객 채팅으로.** (2026-11-05 사장님 "항상 그 고객 문자메세지")
+     *   고객 홈 베이스 = 채팅이라 한 곳으로 통일(예측 가능). 스택에 그 채팅이 있으면 재사용. 전화 없으면 onBack 폴백. */
+    onBackToChat: (phone: String, customerId: Long) -> Unit = { _, _ -> onBack() },
     /** 발행 이력 "수정" 탭 시 채팅으로 이동하며 그 접수서를 편집기로 재오픈. (2026-07-10 사장님) */
     onOpenChatEditIssued: (phone: String, customerId: Long, issuedId: Long) -> Unit = { _, _, _ -> },
     /** ⏸️ 상담함 [보류] 카드 「일정 잡기」로 들어왔다 — 열리자마자 날짜 창을 띄운다(날짜 없는 그 건에). (2026-10-16) */
@@ -186,6 +190,14 @@ fun CustomerDetailScreen(
     val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // 🔙 뒤로가기 = 그 고객 채팅으로. 상단 화살표·시스템 버튼 둘 다 이걸로. (전화 없으면 평범한 뒤로)
+    //   열린 시트/다이얼로그(AppSheet·Dialog)는 각자 BackHandler 로 먼저 닫히므로(LIFO) 여기까진 안 온다.
+    val leaveToChat: () -> Unit = {
+        val c0 = customer
+        if (c0 != null && !c0.phoneNumber.isNullOrBlank()) onBackToChat(c0.phoneNumber, c0.id) else onBack()
+    }
+    BackHandler { leaveToChat() }
 
     var memoInput by remember(customer?.id) { mutableStateOf(customer?.memo.orEmpty()) }
     // 사용자가 이 고객의 메모를 **실제로 고쳤는지**. 저장은 이게 true 일 때만 한다. (2026-09-16)
@@ -351,7 +363,7 @@ fun CustomerDetailScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = leaveToChat) {
                         Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },

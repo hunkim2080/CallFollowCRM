@@ -16157,3 +16157,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 전엔 삼성 핸들 뜨게 하려고 180~1200 으로 활짝 열었더니, 너무 줄이면 글자 잘리고 너무 늘리면 void 재발.
 - 세로 420~700dp · 가로 260~560dp 로 좁힘(기본 548·300 을 품음). 글자 안 잘리는 바닥 420, 빈칸 적은 천장 700. 삼성 핸들 뜰 폭(세로280·가로300)은 유지.
 - 변경: widget_today_info.xml. 빌드 EXIT=0·가드 통과. S23U 못 봄(미연결) — 사장님 확인.
+
+## 2026-11-05 23:10 · android
+🔙 고객상세 뒤로가기 = **항상 그 고객 채팅으로** (사장님 결정 "어디서 들어왔든 그 고객 문자메세지가 기본 UX"). 
+- 전엔 popBackStack(들어온 곳으로) → 위젯/알림에선 앱이 꺼지고, 어디서 왔냐에 따라 제각각이라 예측 불가였다. 고객 홈베이스=채팅이라 **한 곳으로 통일**(예측 가능).
+- CustomerDetailScreen 에 `onBackToChat` + 화면레벨 `BackHandler` + 상단 화살표를 공용 `leaveToChat` 하나로. 전화 없으면 onBack 폴백. 열린 시트/다이얼로그(AppSheet·Dialog)는 각자 BackHandler(LIFO)로 먼저 닫혀 안전.
+- NavHost: `navigate(chat){ popUpTo(CUSTOMER_DETAIL, inclusive) ; launchSingleTop }` — 상세는 스택에서 빼고, 그 채팅이 이미 밑에 있으면 재사용(스크롤 자리 보존). 루프/중복 없음.
+- §12-K 연결: 뒤로가기 처리 지점은 공용 leaveToChat 한 곳(보통 고객·협업 사장·로딩 분기 다 같은 상단바 공유). onBackToChat 거는 곳은 NavHost 한 곳.
+- 폰 확인(S9 실기 캡처): 상세(채팅 아닌 cold 진입)→뒤로→김영희 채팅 ✅ · 채팅→뒤로→상담함(상세 안 돌아옴, 루프X) ✅. 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37970·[style]2410·[save]0·[rules]공용50).

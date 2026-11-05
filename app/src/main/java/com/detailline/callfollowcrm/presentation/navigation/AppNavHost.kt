@@ -676,6 +676,14 @@ fun AppNavHost(
             CustomerDetailScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
+                // 🔙 뒤로가기 = 그 고객 채팅으로(어디서 들어왔든). detail 은 스택에서 빼고, 그 채팅이 이미
+                //   밑에 있으면 launchSingleTop 으로 재사용(스크롤 자리 보존). (2026-11-05 사장님)
+                onBackToChat = { phone, customerId ->
+                    navController.navigate(Destinations.chat(phone, customerId)) {
+                        popUpTo(Destinations.CUSTOMER_DETAIL_WITH_ARG) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 // ⏸️ 상담함 [보류] 「일정 잡기」 — 날짜 창부터 열린다.
                 autoOpenDatePicker = backStack.arguments?.getBoolean("openDate") ?: false,
                 // CustomerDetail 의 하단 "문자 보내기" 는 이제 ChatScreen 으로 (메인 대화 채널).
