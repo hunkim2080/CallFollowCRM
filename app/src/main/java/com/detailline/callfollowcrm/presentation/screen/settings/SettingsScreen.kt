@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Merge
 import androidx.compose.material.icons.filled.Psychology
@@ -627,6 +628,12 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
                         navLabel) { subPage = "nav" }
                     HomeAddressSetting(container)
+                    // 🏠 위젯 설치 미끼 — 집 주소 바로 밑. "위젯?" 하고 눌러 한 탭에 홈에 설치. (2026-11-05 사장님)
+                    val widgetPinCtx = androidx.compose.ui.platform.LocalContext.current
+                    LockRow(Icons.Filled.AddToHomeScreen, TossBlueSoft, TossBlue, "홈 화면에 위젯 추가",
+                        "위젯을 설치하면 집으로 길찾기·오늘 현장을 홈에서 바로") {
+                        com.detailline.callfollowcrm.widget.TodayWidgetProvider.requestPin(widgetPinCtx)
+                    }
                     LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
                         "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
                     // 보안 설정 — 한 번 켜두면 끝이라 여기가 맞다. 전엔 자동 문자 화면 한가운데 있었다.

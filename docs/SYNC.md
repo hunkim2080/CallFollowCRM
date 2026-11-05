@@ -16110,3 +16110,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 신규 pref `openHomeAddressInput`(1회 플래그). 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37955·[style]2410·[save]0·[rules]공용50)·debug 설치 검증.
 - 교훈: 지난 배포는 **모양만 캡처 확인하고 탭 동작을 안 눌러봐서** 이 배선 버그가 나갔다. 이번엔 adb 인텐트로 탭 목적지까지 확인함. (debug 전용 WidgetPreviewActivity 는 레이아웃만, 탭은 ACTION_* 인텐트로 검증)
 - 폰 확인: S9 인텐트 검증 ✅. 사장님은 실제 위젯 배치해서 최종 눈확인(내부배포 업데이트 뒤).
+
+## 2026-11-05 20:40 · android
+🏠 설정 '홈 화면에 위젯 추가' 행 — 집 주소 바로 밑. (사장님 "위젯? 하고 설치해보게" 미끼)
+- 집 주소는 위젯이 있어야 쓰는 거라, 그 밑에 "홈 화면에 위젯 추가"(AddToHomeScreen 아이콘 + "위젯을 설치하면 집으로 길찾기·오늘 현장을 홈에서 바로") 행을 둬서 발견·설치 유도.
+- 누르면 `TodayWidgetProvider.requestPin(ctx)` → `AppWidgetManager.requestPinAppWidget`(API26+)로 **시스템 위젯 추가창 바로**(한 탭 설치). 런처 미지원이면 안내 토스트.
+- SettingsScreen 에 LockRow 한 줄 + import, TodayWidgetProvider 에 requestPin.
+- 실기 검증(S9): 설정에 행 뜸(집 주소 밑) · 누르니 "홈 화면에 추가 — 시공막내·오늘 갈 현장 4×5" 시스템 창 뜸 ✅.
+- 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37962·[style]2410·[save]0·[rules]공용50).

@@ -244,6 +244,16 @@ class TodayWidgetProvider : AppWidgetProvider() {
             return PendingIntent.getActivity(context, 20, intent, FLAGS)
         }
 
+        /** 🏠 설정 '홈 화면에 위젯 추가' → 시스템 위젯 추가창을 바로 띄운다(한 탭 설치). 런처가 미지원이면 안내만. (2026-11-05 사장님: "위젯? 하고 설치해보게") */
+        fun requestPin(context: Context) {
+            val mgr = AppWidgetManager.getInstance(context) ?: return
+            val comp = ComponentName(context, TodayWidgetProvider::class.java)
+            val supported = android.os.Build.VERSION.SDK_INT >= 26 && runCatching { mgr.isRequestPinAppWidgetSupported }.getOrDefault(false)
+            if (supported) runCatching { mgr.requestPinAppWidget(comp, null, null) }
+                .onFailure { android.widget.Toast.makeText(context, "홈 화면을 길게 눌러 위젯에서 '시공막내'를 추가해주세요.", android.widget.Toast.LENGTH_LONG).show() }
+            else android.widget.Toast.makeText(context, "홈 화면을 길게 눌러 위젯에서 '시공막내'를 추가해주세요.", android.widget.Toast.LENGTH_LONG).show()
+        }
+
         /** 답장 안 함 → 그 고객 대화(ACTION_CHAT). 번호별로 다른 PendingIntent 가 되게 data 로 구분. */
         private fun chatPending(context: Context, phone: String, customerId: Long) = PendingIntent.getActivity(context, 22,
             Intent(context, MainActivity::class.java).apply {
