@@ -117,10 +117,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 it.status == "accepted" && it.scheduledAtMs >= today &&
                     it.shareId !in p.trashedSharedSiteIds && it.shareId !in p.hiddenCollabShareIds
             }.map { collabSiteOf(it) }
-            val todaySites = all.filter { it.day == today }
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
-            val arranged = TodayVisitOrder.arrange(todaySites.map { TodayVisitOrder.Keyed(it, it.minutes, it.completed) },
-                cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE))
+            // 🌙 저녁 6시 이후엔 '내일 갈 현장' 미리보기 — 보통 그 시간이 시공 마지막이라. 자정 지나면 자동으로 다시 '오늘'. (2026-11-05 사장님)
+            val tomorrow = cal.get(java.util.Calendar.HOUR_OF_DAY) >= 18
+            val anchor = if (tomorrow) today + DateTimeUtils.DAY_MS else today
+            val anchorSites = all.filter { it.day == anchor }
+            // 내일 모드는 '지금' 개념이 없으니(시각 null) 첫 현장을 대표로. 오늘 모드는 현재시각으로 '지금 현장'.
+            val arranged = TodayVisitOrder.arrange(anchorSites.map { TodayVisitOrder.Keyed(it, it.minutes, it.completed) },
+                if (tomorrow) null else cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE))
             var current = arranged.ordered.getOrNull(arranged.currentIndex)
             if (current != null && current.customerId > 0) {
                 val docs = app.container.issuedDocRepository.observeByCustomer(current.customerId).first()
@@ -130,9 +134,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 current = current.copy(items = quote?.itemsText.orEmpty())
             }
             val next = arranged.ordered.drop((arranged.currentIndex + 1).coerceAtLeast(0)).firstOrNull { !it.completed }
-                ?: all.filter { it.day > today && !it.completed }.sortedWith(compareBy<Site> { it.day }.thenBy { it.minutes ?: Int.MAX_VALUE }).firstOrNull()
+                ?: all.filter { it.day > anchor && !it.completed }.sortedWith(compareBy<Site> { it.day }.thenBy { it.minutes ?: Int.MAX_VALUE }).firstOrNull()
             if (!tick && networkOk) p.widgetUpdatedAt = now
-            val v = buildViews(app, todaySites.size, current, next, today, now)
+            val v = buildViews(app, anchorSites.size, current, next, anchor, now, tomorrow)
             ids.forEach { manager.updateAppWidget(it, v) }
             // Non-wakeup/inexact: no exact-alarm permission, no API 31 dependency. Doze can defer it.
             (app.getSystemService(Context.ALARM_SERVICE) as AlarmManager).setInexactRepeating(
@@ -161,7 +165,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
         }
 
-        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, next: Site?, today: Long, now: Long): RemoteViews {
+        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, next: Site?, today: Long, now: Long, tomorrow: Boolean): RemoteViews {
             val p = app.container.preferences
             val v = RemoteViews(app.packageName, R.layout.widget_today)
             fun show(id: Int, yes: Boolean) = v.setViewVisibility(id, if (yes) View.VISIBLE else View.GONE)
@@ -183,6 +187,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
             v.setOnClickPendingIntent(R.id.widget_reply,
                 if (p.widgetUnansweredPhone.isNotBlank()) chatPending(app, p.widgetUnansweredPhone, p.widgetUnansweredCustomerId)
                 else routePending(app, "inbox"))
+            // 🌙 저녁 6시 이후면 '내일 갈 현장'으로 (자정 지나면 자동으로 '오늘'로). (2026-11-05 사장님)
+            txt(R.id.widget_today_label, if (tomorrow) "내일 갈 현장" else "오늘 갈 현장")
+            txt(R.id.widget_today_chip, if (tomorrow) "● 내일 시공" else "● 지금 시공")
+            txt(R.id.widget_empty_title, if (tomorrow) "내일 갈 현장이 없어요" else "오늘 갈 현장이 없어요")
             txt(R.id.widget_count, if (count == 0) "" else "· ${count}곳")
             txt(R.id.widget_synced, if (p.widgetUpdatedAt == 0L) "" else {
                 val mins = ((now - p.widgetUpdatedAt) / 60_000L).coerceAtLeast(0)
@@ -191,7 +199,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             v.setOnClickPendingIntent(R.id.widget_refresh, PendingIntent.getBroadcast(app, 8,
                 Intent(app, TodayWidgetProvider::class.java).setAction(ACTION_WIDGET_REFRESH), FLAGS))
             show(R.id.widget_primary, current != null); show(R.id.widget_empty, current == null)
-            txt(R.id.widget_empty_sub, if (reply) "기다리는 고객에게\n여유 있게 답장해보세요." else "오늘은 여유 있게,\n다음 일정을 확인해보세요.")
+            txt(R.id.widget_empty_sub, when {
+                tomorrow -> "내일은 아직 현장이 없어요.\n여유로운 하루가 되겠네요."
+                reply -> "기다리는 고객에게\n여유 있게 답장해보세요."
+                else -> "오늘은 여유 있게,\n다음 일정을 확인해보세요."
+            })
             v.setOnClickPendingIntent(R.id.widget_schedule, routePending(app, "schedule"))
             if (current != null) {
                 val density = TodayWidgetDensity.of(current.memo, current.items)
@@ -209,10 +221,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 show(R.id.widget_memo, !density.featured); txt(R.id.widget_memo_text, current.memo)
                 v.setInt(R.id.widget_memo_text, "setMaxLines", density.memoLines)
                 txt(R.id.widget_items_text, current.items); show(R.id.widget_items, current.items.isNotBlank())
-                show(R.id.widget_motif, density.featured)
-                v.setInt(R.id.widget_site_card, "setBackgroundResource", if (density.featured) R.drawable.widget_site_card_bg else android.R.color.transparent)
-                val h = if (density.featured) dp(app, 13) else 0
-                val pad = if (density.featured) dp(app, 11) else 0
+                show(R.id.widget_motif, density.showMotif)
+                v.setInt(R.id.widget_site_card, "setBackgroundResource", if (density.showMotif) R.drawable.widget_site_card_bg else android.R.color.transparent)
+                val h = if (density.showMotif) dp(app, 13) else 0
+                val pad = if (density.showMotif) dp(app, 11) else 0
                 v.setViewPadding(R.id.widget_card_content, h, pad, h, pad)
                 v.setViewPadding(R.id.widget_items, 0, 0, if (density.featured) dp(app, 62) else 0, 0)
                 v.setOnClickPendingIntent(R.id.widget_site_card, detailPending(app, current))

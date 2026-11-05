@@ -16118,3 +16118,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - SettingsScreen 에 LockRow 한 줄 + import, TodayWidgetProvider 에 requestPin.
 - 실기 검증(S9): 설정에 행 뜸(집 주소 밑) · 누르니 "홈 화면에 추가 — 시공막내·오늘 갈 현장 4×5" 시스템 창 뜸 ✅.
 - 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37962·[style]2410·[save]0·[rules]공용50).
+
+## 2026-11-05 21:00 · android
+위젯·집주소 3종 (사장님 지적, 전부 S9 실기 캡처 확인):
+- **주소 검색 API**: 집 주소를 생 텍스트 → 공용 `AddressSearchDialog`(카카오/다음 우편번호)로 골라 넣게. HomeAddressSetting 재작성. (사장님 "주소 찾는 api 있는데 이렇게 할거니")
+- **compact 빈칸 채움**: `TodayWidgetDensity` 에 `showMotif` 추가 — 메모만 있고 견적 없는 현장(흔함)도 아파트 그림+연파랑 카드로 채워 가운데 안 빔. (featured 는 메모 없을 때만=큰 동호수, 여전히 유지). 프로바이더 motif/카드배경/패딩을 showMotif 기준으로. (사장님 "왜 텅 비어있냐")
+- **저녁 6시 → 내일 갈 현장**: TodayWidgetProvider update() 가 시각 보고 `tomorrow = hour>=18` → anchor=내일, 헤더 "내일 갈 현장"·칩 "● 내일 시공"·빈상태 문구·next 폴백(day>anchor). 자정 지나면 자동으로 '오늘'. 내일 모드는 arrange(nowMinutes=null)로 첫 현장 대표. (사장님 "6시 되면 내일거 미리, 12시 되면 오늘로")
+- XML: widget_today_label·widget_empty_title id 추가. debug WidgetPreviewActivity 에 compactlight·tomorrow 경우 추가.
+- 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37962·[style]2410·[save]0·[rules]공용50). 실기: compactlight(채워짐)·tomorrow(내일 글자)·주소검색(카카오 postcode) 캡처 확인.

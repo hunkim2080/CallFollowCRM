@@ -35,6 +35,8 @@ class WidgetPreviewActivity : Activity() {
         val empty = scenario == "empty"
         val collab = scenario == "collab"
         val compact = scenario == "compact"
+        val compactLight = scenario == "compactlight"  // 메모만 있고 견적 없음 — 빈칸이 생기던 경우(아파트 그림으로 채움 검증)
+        val tmr = scenario == "tomorrow"               // 저녁 6시 이후 '내일 갈 현장' 모드
 
         // ① 답장 안 함
         gone(R.id.widget_reply_check); gone(R.id.widget_reply_done)
@@ -42,7 +44,10 @@ class WidgetPreviewActivity : Activity() {
         set(R.id.widget_unanswered_elapsed, "2시간째 대기")
         set(R.id.widget_unanswered_msg, "문자 · 욕실 줄눈 색상 변경 가능할까요?")
 
-        // ② 오늘 갈 현장 머리
+        // ② 오늘/내일 갈 현장 머리
+        set(R.id.widget_today_label, if (tmr) "내일 갈 현장" else "오늘 갈 현장")
+        set(R.id.widget_today_chip, if (tmr) "● 내일 시공" else "● 지금 시공")
+        set(R.id.widget_empty_title, if (tmr) "내일 갈 현장이 없어요" else "오늘 갈 현장이 없어요")
         set(R.id.widget_count, if (empty) "" else if (collab) "· 1곳" else "· 2곳")
         set(R.id.widget_synced, "2분 전")
 
@@ -58,14 +63,21 @@ class WidgetPreviewActivity : Activity() {
             set(R.id.widget_region, if (collab) "화성 동탄 · 동탄역" else "수원 영통 · 광교")
             set(R.id.widget_name, if (collab) "힐스테이트자이" else "광교자연앤힐스테이트")
             set(R.id.widget_open, if (collab) "길찾기 — 누르면 출발" else "길찾기")
-            if (compact) {
-                // compact: 메모 있는 경우 — 작은 동호수 + 메모 + 견적, 아파트 그림 숨김
-                gone(R.id.widget_featured_address); show(R.id.widget_compact_address); gone(R.id.widget_motif)
+            if (compact || compactLight) {
+                // compact: 작은 동호수 + 메모. compactLight(메모만·견적X)는 아파트 그림+카드배경으로 빈칸 채움.
+                gone(R.id.widget_featured_address); show(R.id.widget_compact_address)
                 gone(R.id.widget_complex); gone(R.id.widget_compact_complex)
                 set(R.id.widget_compact_unit, if (collab) "203동 1504호" else "102동 1203호")
-                v.findViewById<View>(R.id.widget_site_card).setBackgroundColor(Color.TRANSPARENT)
                 show(R.id.widget_memo); set(R.id.widget_memo_text, "욕실 실리콘 상태 먼저 확인\n주차 B1, 세대 1357* 그대로")
-                show(R.id.widget_items); set(R.id.widget_items_text, "욕실 2곳 · 현관 · 베란다")
+                if (compactLight) {
+                    gone(R.id.widget_items); show(R.id.widget_motif)
+                    v.findViewById<View>(R.id.widget_site_card).setBackgroundResource(R.drawable.widget_site_card_bg)
+                    v.findViewById<View>(R.id.widget_card_content).setPadding(dp(13), dp(11), dp(13), dp(11))
+                } else {
+                    show(R.id.widget_items); set(R.id.widget_items_text, "욕실 2곳 · 현관 · 베란다")
+                    gone(R.id.widget_motif)
+                    v.findViewById<View>(R.id.widget_site_card).setBackgroundColor(Color.TRANSPARENT)
+                }
             } else {
                 // featured: 큰 파란 동호수 + 아파트 그림, 메모·견적 없음
                 show(R.id.widget_featured_address); gone(R.id.widget_compact_address); show(R.id.widget_motif)
