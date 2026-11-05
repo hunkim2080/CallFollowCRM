@@ -16126,3 +16126,9 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - **저녁 6시 → 내일 갈 현장**: TodayWidgetProvider update() 가 시각 보고 `tomorrow = hour>=18` → anchor=내일, 헤더 "내일 갈 현장"·칩 "● 내일 시공"·빈상태 문구·next 폴백(day>anchor). 자정 지나면 자동으로 '오늘'. 내일 모드는 arrange(nowMinutes=null)로 첫 현장 대표. (사장님 "6시 되면 내일거 미리, 12시 되면 오늘로")
 - XML: widget_today_label·widget_empty_title id 추가. debug WidgetPreviewActivity 에 compactlight·tomorrow 경우 추가.
 - 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37962·[style]2410·[save]0·[rules]공용50). 실기: compactlight(채워짐)·tomorrow(내일 글자)·주소검색(카카오 postcode) 캡처 확인.
+
+## 2026-11-05 21:25 · android
+🧱 위젯 크기 수정 — 기본 4×5→4×4 + **세로 리사이즈 허용**(resizeMode horizontal→horizontal|vertical). (사장님 "위젯 사이즈 이게 맞아" — 셀이 내용 548dp보다 커서 가운데 빔)
+- 내용은 고정 ~548dp라 셀이 그보다 크면 가운데가 빈다(RemoteViews는 셀을 못 줄임). minHeight=548 을 바닥으로 세로 리사이즈를 열어, 사장님이 내용에 딱 맞게 줄이면 빈칸 사라짐.
+- ⚠️ 적용: 이미 올려둔 위젯은 **지우고 다시 추가**(새 기본 크기·리사이즈 모드) 또는 바닥 핸들을 위로 끌어 줄이면 됨.
+- 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과. (XML 리소스만 변경)
