@@ -1,6 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- '협업' 알약 칩 — 연보라. (위젯 이따 목록) -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#EFEAFC" />
-    <corners android:radius="4dp" />
-</shape>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#F1EDFF"/><corners android:radius="6dp"/></shape>

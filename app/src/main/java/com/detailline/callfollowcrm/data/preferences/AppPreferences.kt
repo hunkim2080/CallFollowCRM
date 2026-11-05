@@ -196,10 +196,19 @@ class AppPreferences(context: Context) {
     var widgetUnansweredCustomerId: Long
         get() = prefs.getLong("widget_unanswered_customer_id", 0L)
         set(value) = prefs.edit().putLong("widget_unanswered_customer_id", value).apply()
-    /** 🧱 위젯 '이따 갈 곳' 리스트 캐시(JSON) — TodayWidgetProvider 가 적고 TodayWidgetService 가 읽는다. (2026-11-05) */
-    var widgetTodayJson: String
-        get() = prefs.getString("widget_today_json", "") ?: ""
-        set(value) = prefs.edit().putString("widget_today_json", value).apply()
+    /** Widget cache only; customer/jobs and withMe remain authoritative. */
+    var widgetCollabJson: String
+        get() = prefs.getString("widget_collab_json", "[]") ?: "[]"
+        set(value) = prefs.edit().putString("widget_collab_json", value).apply()
+    var widgetCollabFetchedAt: Long
+        get() = prefs.getLong("widget_collab_fetched_at", 0)
+        set(value) = prefs.edit().putLong("widget_collab_fetched_at", value).apply()
+    var widgetUpdatedAt: Long
+        get() = prefs.getLong("widget_updated_at", 0)
+        set(value) = prefs.edit().putLong("widget_updated_at", value).apply()
+    var homeAddress: String
+        get() = prefs.getString("home_address", "") ?: ""
+        set(value) { check(prefs.edit().putString("home_address", value.trim()).commit()) { "집 주소 저장 실패" } }
     /** 🤝 협업 진행 알림 '현장마다 하나로' — shareId→도달한 최고 단계(1수락~4완료) JSON. 단계 전진 때만 울리게. (2026-11-05) */
     var collabProgressJson: String
         get() = prefs.getString("collab_progress_json", "") ?: ""

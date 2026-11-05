@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
                         is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
                         is IncomingIntent.OpenCustomer -> container.navEvents.requestCustomerDetail(incoming.customerId)
                         is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
+                        is IncomingIntent.WidgetRoute -> container.navEvents.requestWidgetRoute(incoming.route)
                         is IncomingIntent.OpenTeam -> container.navEvents.requestTeam()
                         is IncomingIntent.OpenRecurringDue -> container.navEvents.requestRecurringDue()
                         is IncomingIntent.WebAuthorize -> {
@@ -206,6 +207,10 @@ class MainActivity : ComponentActivity() {
                 if (bDay > 0L) (application as CallFollowCrmApplication).container.preferences.pendingBriefDayMs = bDay // 자정 넘겨 탭해도 그날 브리핑 (VM 이 읽고 지움)
                 pendingIntentState.value = IncomingIntent.ClosingBrief
             }
+            ACTION_WIDGET_ROUTE -> {
+                val route = intent.getStringExtra("widget_route").orEmpty()
+                if (route in setOf("inbox", "schedule", "settings")) pendingIntentState.value = IncomingIntent.WidgetRoute(route)
+            }
             ACTION_TEAM -> { pendingIntentState.value = IncomingIntent.OpenTeam }
             ACTION_RECURRING_DUE -> { pendingIntentState.value = IncomingIntent.OpenRecurringDue }
             ACTION_COLLAB_MINE -> {
@@ -330,6 +335,7 @@ class MainActivity : ComponentActivity() {
         /** 협업 해제 알림 탭 → 무엇이/누가 해제했는지 안내 + 목록. (2026-06-21 사장님) */
         data class CollabEnded(val title: String, val byName: String) : IncomingIntent
         /** 팀원 진행 알림 탭 → 팀 관리(현황). (2026-08-13) */
+        data class WidgetRoute(val route: String) : IncomingIntent
         object OpenTeam : IncomingIntent
         /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13) */
         object OpenRecurringDue : IncomingIntent
@@ -354,6 +360,7 @@ class MainActivity : ComponentActivity() {
         const val ACTION_CUSTOMER = "com.detailline.callfollowcrm.ACTION_CUSTOMER"
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
         /** 팀원 진행 알림 탭 → 팀 관리(현황). (2026-08-13 알림 위치점검) */
+        const val ACTION_WIDGET_ROUTE = "com.detailline.callfollowcrm.ACTION_WIDGET_ROUTE"
         const val ACTION_TEAM = "com.detailline.callfollowcrm.ACTION_TEAM"
         /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13 알림 위치점검) */
         const val ACTION_RECURRING_DUE = "com.detailline.callfollowcrm.ACTION_RECURRING_DUE"

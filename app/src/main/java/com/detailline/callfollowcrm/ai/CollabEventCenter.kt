@@ -34,7 +34,10 @@ class CollabEventCenter(
      *   전엔 달력이 자기 12초 루프만 봐서 FCM 이 와도 최대 12초 뒤에 떴다. (2026-11-01 사장님 "협업 일정 바로 안 뜸") */
     private val _collabChanged = MutableStateFlow(0L)
     val collabChanged: StateFlow<Long> = _collabChanged.asStateFlow()
-    fun markCollabChanged() { _collabChanged.value = _collabChanged.value + 1L }
+    fun markCollabChanged() {
+        preferences.widgetCollabFetchedAt = 0
+        _collabChanged.value = _collabChanged.value + 1L
+    }
 
     data class CollabUpdate(
         val eventId: String,

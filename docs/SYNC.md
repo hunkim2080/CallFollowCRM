@@ -16077,3 +16077,27 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - §12-K 소비 지점 전부 확인: DAO·repo·VM 필터·화면 분기·렌더 5곳 다 봄. 화면 안 「배정→출발…」 진행바 2곳(CustomerCollabParts·SharedSiteScreen)은 라벨·맥락 다른 별개라 그대로 둠(§12-I).
 - 빌드: assembleRelease·testDebugUnitTest EXIT=0 · 가드 7종 기준선 증가 0([dup]18·[size]37941·[style]2410·[save]0·[rules]공용50) · 시험 1353→1355.
 - 폰 확인: 못 봄 — 내부배포로 올려 사장님 폰에서(협업 수락→출발→도착→완료가 센터에 **한 카드**로 단계 차나, 거절은 깔끔한 한 줄로 따로 뜨나).
+
+## 2026-11-05 18:17 · android
+홈 위젯 셀 채움·리스트형 프로토 수정 중 외부 원복 감지 — 코드 반영 및 배포 미완료
+- 출처: 사장님 지정 로컬 widget_proto_todaylist.html(.wg-un/.wg-head/.row.now/.wg-sub/.row.mini). 795Z6Xgw 프로토는 이번 작업에서 제외. 하단 캡션 및 .wg-scroll-note 설명문은 넣지 않는 지시 확인.
+- 진행했던 변경: 루트 match_parent, list/empty 0dp+weight=1, 분홍 답장 박스·가로 now 카드·협업 미니 줄·상대시간, 기본 250x310dp/4x4. 그러나 18:10:45에 코드·리소스·PROTOTYPES 수정분이 동시에 원래 HEAD(d500e9ae)의 내용으로 돌아감. 누가/왜 되돌렸는지 확인되지 않아 재덮어쓰기 보류. 현재 이 수정은 코드에 남아 있지 않음.
+- 검증: 원복 전 리소스 12개 AAPT2 컴파일 0, 정적 XML/리소스 ID 점검 통과. 빌드 가드 7종 실행 당시 통과(dup 18/style 2410/size 37941/save 0/공용 50). 최종 assembleRelease는 Crashlytics mapping 업로드의 네트워크 권한 오류로 BUILD=1. 빌드 중 소스가 바뀌었으므로 최종 변경 검증으로 인정하지 않음. 가드 우회 없음.
+- 환경: PowerShell + Android Studio jbr. 기본 Gradle 다운로드는 네트워크 차단; 기존 배포본을 build/gradle-home에 복사하고 기존 의존성 캐시를 읽기 전용으로 써 오프라인 빌드 진행. .git은 읽기 전용이라 pull부터 FETCH_HEAD Permission denied. commit/push/upload 태그/Actions 배포는 실행하지 않음.
+- 프로토와 기존 동작 차이(별도 수정하지 않음): 상대시간은 갱신 시점의 정적 표시, 시간 기준 다음 현장 승격 미연결(완료 기준은 동작), 내 현장 집계는 고객별 대표 날짜를 따라 여러 건을 전부 열거하지 않음. CSS 그림자·폰트/런처 치수는 실기 대조 필요.
+- 폰 확인: 못 봄. docs/PHONE_CHECK_TODO.md에 확인 항목 기록(코드 미반영 상태임). Chrome 시각 대조는 자동 승인 검토에서 Google Chrome 사용 승인 없음으로 거절됨; HTML 소스는 직접 읽음.
+- 다음 액션: 원복이 의도된 것인지 사장님 답변 필요. 재적용 후 새 빌드/7가드/폰 확인 필요. .git 쓰기 및 배포 네트워크가 허용된 환경에서 SYNC/health 포함 커밋(Claude 공저자 없이), main push, upload-YYYYMMDD-HHMM 태그 push, 내부배포 Actions 완료 확인까지 이어갈 것.
+- health: HEALTH=0 (원복 뒤 현재 저장소 기준). 코드 501파일/119,580줄, 2천줄 파일 8개, 시험 선언 1355개/144파일(이번 세션에서 시험 전체를 실행한 뜻 아님), 가드 7개, 중복 18, 스타일 2410, 공용 50, 조용한 저장 0. docs/HEALTH.md 갱신됨.
+
+## 2026-11-05 19:05 · android (+ codex + fable)
+🧱 홈 위젯 **고정형 v2 업그레이드** 완성 — 위 18:17 블록(리스트형 1차 시도·'원복' 오해)은 **폐기**. 사장님이 리스트형 대신 **고정형 v2로 교체 + 업그레이드** 결정, 그대로 구현·실기 1:1 확인.
+- 설계/프로토: Fable 이 256조합 헤드리스 실측으로 겹침 0 검증한 「업그레이드 v2」 프로토(3qETJaw2) 하나로 확정. featured(메모 없음=큰 파란 동호수+아파트 그림)/compact(메모 있음) 밀도 규칙.
+- 코드: Codex 가 RemoteViews 위젯 재작성(4칸 고정: 답장안함/오늘현장/이어서/🏠집가기). Codex 샌드박스 네트워크로 빌드 검증 불가 → android(Opus)가 인수해 고침:
+  · brand_guard 4곳(위젯 이모지 🤝→brand_allow·띄어쓰기·`ringgo-widget`→`sgmwidget` 스킴)
+  · dup_guard `dialog-white`(HomeAddressSetting AlertDialog 에 containerColor=White·tonalElevation=0)
+  · **Gson 환각 제거(§13)** — 이 앱은 org.json 만 씀. `widgetCollabJson` Gson 직렬화를 버리고 **withMe 직접 당기기**(옛 위젯 방식)로. (TodayWidgetProvider·WidgetNavigationActivity)
+- 신규: `domain/ui/TodayWidgetDensity.kt`(+시험) · `settings/HomeAddressSetting.kt`(집 주소 설정) · `widget/WidgetNavigationActivity.kt`(협업 길찾기=출발) · drawable `ic_widget_buildings`(아파트 그림)·widget_home/empty/secondary_btn. 삭제: `TodayWidgetService.kt`·`widget_today_item.xml`(리스트형 컬렉션 폐기). debug 전용 `WidgetPreviewActivity`(위젯 실기 캡처 하네스).
+- 업그레이드 4 전부: ⟳ 새로고침+갱신시각 · 협업 포함(협업칩·길찾기=출발) · 지금 시공 자동 따라감 · 🏠 집 가기(설정 저장 주소).
+- **실기 1:1 확인(S9 100.121.10.111)**: WidgetPreviewActivity 로 featured·compact·협업·빈 날 4경우 캡처 → 프로토와 폰트·줄간격·색·아파트 그림 1:1, 겹침 0. 사장님께 캡처 보고함.
+- 빌드: assembleRelease(--offline) EXIT=0 · 가드 7종 통과·기준선 증가 0([dup]18·[size]37951·[style]2410·[save]0·[rules]공용50) · testDebugUnitTest 1357 통과.
+- 다음: 내부배포 올려 사장님이 **실제 홈 위젯 배치**로 최종 확인(미리보기 하네스는 레이아웃 렌더만, 실제 배치·탭·길찾기·집주소 동작은 폰에서).

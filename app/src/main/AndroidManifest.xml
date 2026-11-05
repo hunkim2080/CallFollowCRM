@@ -333,17 +333,18 @@
             android:label="@string/widget_today_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_today_info" />
         </receiver>
 
-        <!-- 🧱 '이따 갈 곳' 스크롤 리스트 데이터 공급자 (2026-11-05). 시스템(RemoteViews 호스트)만 바인드. -->
-        <service
-            android:name=".widget.TodayWidgetService"
-            android:permission="android.permission.BIND_REMOTEVIEWS"
-            android:exported="false" />
+        <activity android:name=".widget.WidgetNavigationActivity"
+            android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!--
             2026-05-29 Default SMS 앱 자격 컴포넌트 (3/4) — RESPOND_VIA_MESSAGE service.

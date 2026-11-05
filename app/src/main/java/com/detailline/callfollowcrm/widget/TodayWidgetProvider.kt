@@ -1,13 +1,13 @@
 package com.detailline.callfollowcrm.widget
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.util.TypedValue
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import com.detailline.callfollowcrm.CallFollowCrmApplication
@@ -20,398 +20,243 @@ import com.detailline.callfollowcrm.data.local.entity.JobEntity
 import com.detailline.callfollowcrm.domain.job.Completion
 import com.detailline.callfollowcrm.domain.schedule.DayOrder
 import com.detailline.callfollowcrm.domain.schedule.TodayVisitOrder
+import com.detailline.callfollowcrm.domain.ui.TodayWidgetDensity
 import com.detailline.callfollowcrm.util.AddressExtractor
 import com.detailline.callfollowcrm.util.DateTimeUtils
-import com.detailline.callfollowcrm.util.NavApps
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-/**
- * 🧱 '오늘 갈 현장 + 답장 안 함' 홈 위젯 — 2026-11-05 사장님 개편(리스트형 컬렉션 위젯).
- *
- *   앱을 안 열어도 홈 화면에서 **오늘 시공 현장 전부(협업 포함)**와 **답장 안 함**을 본다.
- *   - 오늘 목록 = 일정 '이 날 시공'과 같은 소스: 내 건(customers+jobs) + 협업(sharedSiteRepository.withMe).
- *   - 줄마다 그 고객으로: 답장 안 함 → 그 대화(ACTION_CHAT) · 현장 줄 → 고객 상세(ACTION_CUSTOMER)/협업(ACTION_COLLAB_SITE).
- *   - 길찾기는 **'지금 갈 곳' 하나만**(정적 카드). 완료/다음 시간이면 다음 현장으로 자동 이동(TodayVisitOrder).
- *   - 맨 위 ⟳ 새로고침(ACTION_WIDGET_REFRESH 브로드캐스트) + 갱신 시각.
- *   '이따 갈 곳'은 컬렉션(ListView) — 데이터는 여기서 prefs(widgetTodayJson)에 적고 TodayWidgetService 가 읽는다.
- *
- *   ⚠️ 갱신은 AppWidgetManager.updateAppWidget 로 **직접** 그린다(ACTION_APPWIDGET_UPDATE 는 시스템 보호).
- *      리스트는 updateAppWidget 뒤 notifyAppWidgetViewDataChanged 로 다시 읽힌다.
- */
+/** Fixed v2 RemoteViews. Prototype: widget_v2_upgraded.html .wg / render(). API 29 safe. */
 class TodayWidgetProvider : AppWidgetProvider() {
-
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        if (ids.isEmpty()) return
-        val pending = goAsync()
-        val appCtx = context.applicationContext
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val snap = loadSnapshot(appCtx)
-                val views = buildViews(appCtx, snap)
-                ids.forEach { manager.updateAppWidget(it, views) }
-                manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_today_list)
-            } finally {
-                pending.finish()
-            }
-        }
+        receiveRefresh(context, force = true)
+    }
+
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
+        receiveRefresh(context, force = false)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        // 🔧 ⟳ 새로고침 / 강제 갱신 — 앱 안에서 보낼 수 있는 커스텀 액션(보호 브로드캐스트 아님).
-        if (intent.action == ACTION_WIDGET_REFRESH) refresh(context)
+        when (intent.action) {
+            ACTION_WIDGET_REFRESH -> receiveRefresh(context, force = true)
+            ACTION_TICK, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
+            Intent.ACTION_DATE_CHANGED, Intent.ACTION_BOOT_COMPLETED -> receiveRefresh(context, force = false, tick = true)
+        }
+    }
+
+    private fun receiveRefresh(context: Context, force: Boolean, tick: Boolean = false) {
+        val pending = goAsync()
+        val app = context.applicationContext as CallFollowCrmApplication
+        app.applicationScope.launch {
+            try { update(app, force, tick) }
+            catch (e: Exception) { android.util.Log.w("TodayWidget", "Refresh failed", e) }
+            finally { pending.finish() }
+        }
+    }
+
+    override fun onDisabled(context: Context) {
+        (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(tickPending(context))
     }
 
     companion object {
         const val ACTION_WIDGET_REFRESH = "com.detailline.callfollowcrm.WIDGET_REFRESH"
+        private const val ACTION_TICK = "com.detailline.callfollowcrm.WIDGET_TICK"
+        private val mutex = Mutex()
+        private const val FLAGS = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
-        /** 위젯 현장 한 줄 — 내 건이면 customerId, 협업이면 shareId 로 딥링크. */
         private data class Site(
-            val headline: String,
-            val region: String,
-            val unit: String,
-            val memo: String,
-            val timeLabel: String,
-            val navAddress: String,
-            val nameAbsent: Boolean,
-            val minutes: Int?,       // 정렬용(시각 미정 null)
-            val completed: Boolean,
-            val isCollab: Boolean,
-            val customerId: Long,    // 내 건 (협업=0)
-            val shareId: String      // 협업 (내 건="")
+            val headline: String, val region: String, val complex: String, val unit: String,
+            val memo: String, val items: String, val timeLabel: String, val navAddress: String,
+            val minutes: Int?, val day: Long, val completed: Boolean,
+            val customerId: Long = 0, val shareId: String = "", val partner: String = ""
         )
 
-        private data class Snapshot(
-            val today: List<Site>,       // 시간순(안 끝난 것 먼저). 지금 갈 곳 = today[currentIndex].
-            val currentIndex: Int,       // -1 = 지금 갈 곳 없음(전부 완료/빈 날)
-            val navApp: String = "",
-            val updatedAtMs: Long = System.currentTimeMillis(),
-            val unanswered: Int = 0,
-            val upName: String = "",
-            val upElapsed: String = "",
-            val upMsg: String = "",
-            val upPhone: String = "",
-            val upCustomerId: Long = 0
-        )
-
-        /** 어디서든 위젯을 다시 그린다 — 일정 바뀜·완료·자정·⟳ 에서 부른다. (직접 updateAppWidget + 리스트 재로드) */
         fun refresh(context: Context) {
-            val appCtx = context.applicationContext
-            val mgr = AppWidgetManager.getInstance(appCtx) ?: return
-            val ids = runCatching {
-                mgr.getAppWidgetIds(ComponentName(appCtx, TodayWidgetProvider::class.java))
-            }.getOrNull() ?: return
-            if (ids.isEmpty()) return
-            CoroutineScope(Dispatchers.IO).launch {
-                val views = buildViews(appCtx, loadSnapshot(appCtx))
-                ids.forEach { runCatching { mgr.updateAppWidget(it, views) } }
-                runCatching { mgr.notifyAppWidgetViewDataChanged(ids, R.id.widget_today_list) }
+            val app = context.applicationContext as? CallFollowCrmApplication ?: return
+            app.applicationScope.launch {
+                try { update(app, force = false, tick = false) }
+                catch (e: Exception) { android.util.Log.w("TodayWidget", "Refresh failed", e) }
             }
         }
 
-        private suspend fun loadSnapshot(context: Context): Snapshot {
-            val app = context.applicationContext as? CallFollowCrmApplication ?: return Snapshot(emptyList(), -1)
-            val customers = runCatching { app.container.customerRepository.allOnce() }.getOrDefault(emptyList())
-            // 🧱 현장 메모·시각·주소는 그 날짜의 건(job)이 진짜(§13④) — jobs.memo=현장 메모(📌비번 포함).
-            val allJobs = runCatching { app.container.jobRepository.allOnce() }.getOrDefault(emptyList())
-            val jobsByCustomer = allJobs.groupBy { it.customerId }
-            fun jobForDate(c: CustomerEntity): JobEntity? {
-                val ds = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return null
-                return jobsByCustomer[c.id]?.firstOrNull { j ->
-                    j.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) == ds } == true
-                }
-            }
-            val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
-            val todayEnd = todayStart + DateTimeUtils.DAY_MS
+        private fun tickPending(context: Context) = PendingIntent.getBroadcast(context, 9,
+            Intent(context, TodayWidgetProvider::class.java).setAction(ACTION_TICK), FLAGS)
 
-            // ① 내 건(own) — 오늘 날짜 고객
-            val ownSites = customers
-                .filter { c -> c.scheduledWorkDate?.let { it in todayStart until todayEnd } == true }
-                .map { siteOf(it, jobForDate(it)) }
-
-            // ② 협업(collab) — 일정 화면과 같은 소스(sharedSiteRepository.withMe). 네트워크·실패 시 빈 목록(graceful degrade).
-            //    일정 화면과 같은 필터: accepted · 시각 있음 · 버린 것/숨긴 것 제외 · 오늘.
+        private suspend fun update(app: CallFollowCrmApplication, force: Boolean, tick: Boolean) = mutex.withLock {
+            val manager = AppWidgetManager.getInstance(app)
+            val ids = manager.getAppWidgetIds(ComponentName(app, TodayWidgetProvider::class.java))
+            if (ids.isEmpty()) return@withLock
+            val now = System.currentTimeMillis()
             val p = app.container.preferences
-            val bizPhone = runCatching { p.bizPhone.trim() }.getOrDefault("")
-            val trashed = runCatching { p.trashedSharedSiteIds }.getOrDefault(emptySet())
-            val hidden = runCatching { p.hiddenCollabShareIds }.getOrDefault(emptySet())
-            val collabSites: List<Site> = if (bizPhone.isBlank()) emptyList() else runCatching {
-                app.container.sharedSiteRepository.withMe(bizPhone).getOrDefault(emptyList())
-                    .filter { s ->
-                        s.status == "accepted" && s.scheduledAtMs > 0L &&
-                            s.shareId !in trashed && s.shareId !in hidden &&
-                            DateTimeUtils.startOfDay(s.scheduledAtMs) == todayStart
-                    }
-                    .map { collabSiteOf(it) }
-            }.getOrDefault(emptyList())
+            val customers = app.container.customerRepository.allOnce()
+            val jobs = app.container.jobRepository.allOnce().groupBy { it.customerId }
+            val today = DateTimeUtils.startOfDay(now)
+            val all = customers.flatMap { c ->
+                val ownJobs = jobs[c.id].orEmpty()
+                // Jobs are authoritative; a customer mirror is only a legacy fallback with no jobs.
+                if (ownJobs.isEmpty()) listOf(siteOf(c, null))
+                else ownJobs.filter { it.cancelledAt == null }.map { siteOf(c, it) }
+            }.filter { it.day >= today }.toMutableList()
 
-            // ③ 합쳐서 시간순 + 지금 갈 곳 고르기 (완료한 것은 아래로, 지금 갈 곳 = 안 끝난 것 중 가장 이른 것)
-            val all = ownSites + collabSites
-            val arranged = TodayVisitOrder.arrange(all.map { TodayVisitOrder.Keyed(it, it.minutes, it.completed) })
-
-            // ④ '이따 갈 곳'(지금 갈 곳 제외)을 리스트용 캐시에 적는다 — TodayWidgetService 가 읽는다.
-            val later = arranged.ordered.filterIndexed { i, _ -> i != arranged.currentIndex }
-            writeTodayCache(app, later)
-
-            return Snapshot(
-                today = arranged.ordered,
-                currentIndex = arranged.currentIndex,
-                navApp = runCatching { p.navApp }.getOrDefault(""),
-                updatedAtMs = System.currentTimeMillis(),
-                unanswered = runCatching { p.widgetUnansweredCount }.getOrDefault(0),
-                upName = runCatching { p.widgetUnansweredName }.getOrDefault(""),
-                upElapsed = runCatching { p.widgetUnansweredElapsed }.getOrDefault(""),
-                upMsg = runCatching { p.widgetUnansweredMsg }.getOrDefault(""),
-                upPhone = runCatching { p.widgetUnansweredPhone }.getOrDefault(""),
-                upCustomerId = runCatching { p.widgetUnansweredCustomerId }.getOrDefault(0L)
-            )
+            // 협업 현장 = 일정 화면과 같은 소스(withMe)를 **매 갱신 직접** 당긴다(옛 위젯과 같은 방식).
+            //   이 앱은 org.json 만 쓰고 Gson 의존성이 없어, SharedSite 를 JSON 캐시하지 않는다(§13 환각 패키지 방지).
+            var collab = emptyList<SharedSiteRepository.SharedSite>()
+            var networkOk = true
+            if (p.bizPhone.isNotBlank()) {
+                app.container.sharedSiteRepository.withMe(p.bizPhone, sinceMs = today, limit = 200)
+                    .onSuccess { collab = it }
+                    .onFailure { networkOk = false }
+            }
+            // Optimistic progress from the existing outbox path wins until the next server poll.
+            val local = app.container.collabEventCenter.acceptedUpcoming.value.associateBy { it.shareId }
+            collab = collab.map { s -> local[s.shareId]?.let { s.copy(progress = it.progress) } ?: s }
+            all += collab.filter {
+                it.status == "accepted" && it.scheduledAtMs >= today &&
+                    it.shareId !in p.trashedSharedSiteIds && it.shareId !in p.hiddenCollabShareIds
+            }.map { collabSiteOf(it) }
+            val todaySites = all.filter { it.day == today }
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+            val arranged = TodayVisitOrder.arrange(todaySites.map { TodayVisitOrder.Keyed(it, it.minutes, it.completed) },
+                cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE))
+            var current = arranged.ordered.getOrNull(arranged.currentIndex)
+            if (current != null && current.customerId > 0) {
+                val docs = app.container.issuedDocRepository.observeByCustomer(current.customerId).first()
+                val date = current.day
+                val quote = docs.filter { it.kind == "quote" && it.workDateMs?.let(DateTimeUtils::startOfDay) == date }
+                    .maxByOrNull { it.issuedAtMs }
+                current = current.copy(items = quote?.itemsText.orEmpty())
+            }
+            val next = arranged.ordered.drop((arranged.currentIndex + 1).coerceAtLeast(0)).firstOrNull { !it.completed }
+                ?: all.filter { it.day > today && !it.completed }.sortedWith(compareBy<Site> { it.day }.thenBy { it.minutes ?: Int.MAX_VALUE }).firstOrNull()
+            if (!tick && networkOk) p.widgetUpdatedAt = now
+            val v = buildViews(app, todaySites.size, current, next, today, now)
+            ids.forEach { manager.updateAppWidget(it, v) }
+            // Non-wakeup/inexact: no exact-alarm permission, no API 31 dependency. Doze can defer it.
+            (app.getSystemService(Context.ALARM_SERVICE) as AlarmManager).setInexactRepeating(
+                AlarmManager.RTC, now + 60_000L, 60_000L, tickPending(app))
         }
 
-        /** '이따 갈 곳' 목록을 prefs JSON 으로 — 컬렉션 서비스(TodayWidgetService)가 읽을 유일한 자리. */
-        private fun writeTodayCache(app: CallFollowCrmApplication, rows: List<Site>) {
-            val arr = JSONArray()
-            rows.forEach { s ->
-                arr.put(JSONObject().apply {
-                    put("t", s.timeLabel)
-                    put("h", s.headline)
-                    put("s", listOf(s.region, s.unit).filter { it.isNotBlank() }.joinToString(" · "))
-                    put("d", if (s.completed) 1 else 0)
-                    put("cl", if (s.isCollab) 1 else 0)
-                    put("ci", s.customerId)
-                    put("si", s.shareId)
-                })
-            }
-            runCatching { app.container.preferences.widgetTodayJson = arr.toString() }
-        }
-
-        /**
-         * 내 고객(+그 날짜의 건) → 위젯 현장 한 줄. 주소 쪼개기는 AddressExtractor(공용) 한 곳, 시각·날짜는 DateTimeUtils — 두 벌 금지(§12).
-         */
-        private fun siteOf(c: CustomerEntity, job: JobEntity?): Site {
-            val addr = job?.address?.takeIf { it.isNotBlank() } ?: c.address
-            val memoRaw = job?.memo?.takeIf { it.isNotBlank() } ?: c.memo
-            val min = DayOrder.jobMinutes(job?.scheduledWorkMinutes ?: c.scheduledWorkMinutes)
-            val complex = AddressExtractor.complexName(addr)
-            val reg = regionPrefix(addr)
-            val parts = AddressExtractor.splitDongHo(addr)
-            val unit = unitOf(parts)
-            val nm = c.name?.takeIf { s -> s.isNotBlank() && s.any { it.isLetter() } }
-            val headline = when {
-                nm != null -> "$nm 고객님"
-                !complex.isNullOrBlank() -> complex
-                else -> AddressExtractor.roughSite(addr).ifBlank { addr?.takeIf { it.isNotBlank() } ?: reg }
-            }
-            val region = if (nm != null) {
-                listOfNotNull(complex?.takeIf { it.isNotBlank() }, reg.takeIf { it.isNotBlank() }).joinToString(" · ")
-            } else reg
+        private fun siteOf(c: CustomerEntity, j: JobEntity?): Site {
+            val addr = j?.address?.takeIf { it.isNotBlank() } ?: c.address
+            val name = c.name?.takeIf { it.isNotBlank() && it.any(Char::isLetter) }
+            val complex = AddressExtractor.complexName(addr).orEmpty()
+            val minutes = DayOrder.jobMinutes(if (j != null) j.scheduledWorkMinutes else c.scheduledWorkMinutes).takeIf { it != DayOrder.UNKNOWN }
             return Site(
-                headline = headline,
-                region = region,
-                unit = unit,
-                memo = memoRaw.trim(),
-                timeLabel = min.takeIf { it != DayOrder.UNKNOWN }?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "",
-                navAddress = AddressExtractor.tidyAddress(addr),
-                nameAbsent = nm == null,
-                minutes = min.takeIf { it != DayOrder.UNKNOWN },
-                completed = job?.let { Completion.isDone(it) } ?: Completion.isDone(c),
-                isCollab = false,
-                customerId = c.id,
-                shareId = ""
-            )
+                headline = name?.let { "$it 고객님" } ?: complex.ifBlank { AddressExtractor.roughSite(addr).ifBlank { "현장" } },
+                region = regionPrefix(addr), complex = if (name != null) complex else "",
+                unit = unitOf(AddressExtractor.splitDongHo(addr)), memo = (j?.memo ?: c.memo).trim(), items = "",
+                timeLabel = minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(), navAddress = AddressExtractor.tidyAddress(addr),
+                minutes = minutes, day = (if (j != null) j.scheduledWorkDate else c.scheduledWorkDate)?.let(DateTimeUtils::startOfDay) ?: 0,
+                completed = j?.let(Completion::isDone) ?: Completion.isDone(c), customerId = c.id)
         }
 
-        /** 협업 현장(공유받음) → 위젯 현장 한 줄. 고객 번호 없음 — shareId 로만 딥링크(협업 현장 상세). */
         private fun collabSiteOf(s: SharedSiteRepository.SharedSite): Site {
-            val min = DayOrder.collabMinutes(s.timeLabel, s.scheduledAtMs)
-            val parts = AddressExtractor.splitDongHo(s.addr)
-            return Site(
-                headline = siteDisplayName(s),
-                region = regionPrefix(s.addr),
-                unit = unitOf(parts),
-                memo = s.memo?.trim().orEmpty(),
-                timeLabel = min.takeIf { it != DayOrder.UNKNOWN }?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "",
-                navAddress = AddressExtractor.tidyAddress(s.addr),
-                nameAbsent = true,
-                minutes = min.takeIf { it != DayOrder.UNKNOWN },
-                completed = s.progress == SharedSiteRepository.Progress.COMPLETED,
-                isCollab = true,
-                customerId = 0L,
-                shareId = s.shareId
-            )
+            val minutes = DayOrder.collabMinutes(s.timeLabel, s.scheduledAtMs).takeIf { it != DayOrder.UNKNOWN }
+            return Site(siteDisplayName(s), regionPrefix(s.addr), "", unitOf(AddressExtractor.splitDongHo(s.addr)),
+                s.memo.orEmpty().trim(), s.workSummary.orEmpty(), minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(),
+                AddressExtractor.tidyAddress(s.addr), minutes, DateTimeUtils.startOfDay(s.scheduledAtMs),
+                s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
         }
 
+        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, next: Site?, today: Long, now: Long): RemoteViews {
+            val p = app.container.preferences
+            val v = RemoteViews(app.packageName, R.layout.widget_today)
+            fun show(id: Int, yes: Boolean) = v.setViewVisibility(id, if (yes) View.VISIBLE else View.GONE)
+            fun txt(id: Int, value: String) = v.setTextViewText(id, value)
+            val reply = p.widgetUnansweredCount > 0
+            show(R.id.widget_reply_check, !reply); show(R.id.widget_unanswered_count, reply)
+            show(R.id.widget_reply_preview, reply); show(R.id.widget_reply_done, !reply)
+            txt(R.id.widget_reply_title, if (reply) "답장 안 함" else "답장할 고객 없음")
+            val n = p.widgetUnansweredCount.toString()
+            val badge = android.text.SpannableString("${n}건").apply {
+                setSpan(android.text.style.AbsoluteSizeSpan(10, true), n.length, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            v.setTextViewText(R.id.widget_unanswered_count, badge)
+            txt(R.id.widget_unanswered_name, p.widgetUnansweredName.takeIf { it.any(Char::isLetter) }?.let { "$it 고객님" } ?: "이름 미등록 고객")
+            txt(R.id.widget_unanswered_elapsed, p.widgetUnansweredElapsed)
+            txt(R.id.widget_unanswered_msg, p.widgetUnansweredMsg.takeIf { it.isNotBlank() }?.let { "문자 · $it" }.orEmpty())
+            txt(R.id.widget_reply_done_sub, if (current == null) "한숨 돌려도 괜찮아요." else "이제 오늘 현장을 확인해보세요.")
+            v.setOnClickPendingIntent(R.id.widget_reply, routePending(app, "inbox"))
+            txt(R.id.widget_count, if (count == 0) "" else "· ${count}곳")
+            txt(R.id.widget_synced, if (p.widgetUpdatedAt == 0L) "" else {
+                val mins = ((now - p.widgetUpdatedAt) / 60_000L).coerceAtLeast(0)
+                if (mins == 0L) "방금" else "${mins}분 전"
+            })
+            v.setOnClickPendingIntent(R.id.widget_refresh, PendingIntent.getBroadcast(app, 8,
+                Intent(app, TodayWidgetProvider::class.java).setAction(ACTION_WIDGET_REFRESH), FLAGS))
+            show(R.id.widget_primary, current != null); show(R.id.widget_empty, current == null)
+            txt(R.id.widget_empty_sub, if (reply) "기다리는 고객에게\n여유 있게 답장해보세요." else "오늘은 여유 있게,\n다음 일정을 확인해보세요.")
+            v.setOnClickPendingIntent(R.id.widget_schedule, routePending(app, "schedule"))
+            if (current != null) {
+                val density = TodayWidgetDensity.of(current.memo, current.items)
+                txt(R.id.widget_name, current.headline); txt(R.id.widget_time, current.timeLabel)
+                show(R.id.widget_time, current.timeLabel.isNotBlank())
+                txt(R.id.widget_region, current.region)
+                txt(R.id.widget_collab_chip, "🤝 협업 · ${current.partner}")
+                show(R.id.widget_collab_chip, current.shareId.isNotBlank())
+                show(R.id.widget_featured_address, density.featured && (current.unit.isNotBlank() || current.complex.isNotBlank()))
+                show(R.id.widget_compact_address, !density.featured && (current.unit.isNotBlank() || current.complex.isNotBlank()))
+                txt(R.id.widget_complex, current.complex); show(R.id.widget_complex, current.complex.isNotBlank())
+                txt(R.id.widget_unit, current.unit); show(R.id.widget_unit, current.unit.isNotBlank())
+                txt(R.id.widget_compact_complex, current.complex); show(R.id.widget_compact_complex, current.complex.isNotBlank())
+                txt(R.id.widget_compact_unit, current.unit); show(R.id.widget_compact_unit, current.unit.isNotBlank())
+                show(R.id.widget_memo, !density.featured); txt(R.id.widget_memo_text, current.memo)
+                v.setInt(R.id.widget_memo_text, "setMaxLines", density.memoLines)
+                txt(R.id.widget_items_text, current.items); show(R.id.widget_items, current.items.isNotBlank())
+                show(R.id.widget_motif, density.featured)
+                v.setInt(R.id.widget_site_card, "setBackgroundResource", if (density.featured) R.drawable.widget_site_card_bg else android.R.color.transparent)
+                val h = if (density.featured) dp(app, 13) else 0
+                val pad = if (density.featured) dp(app, 11) else 0
+                v.setViewPadding(R.id.widget_card_content, h, pad, h, pad)
+                v.setViewPadding(R.id.widget_items, 0, 0, if (density.featured) dp(app, 62) else 0, 0)
+                v.setOnClickPendingIntent(R.id.widget_site_card, detailPending(app, current))
+                txt(R.id.widget_open, if (current.shareId.isBlank()) "길찾기" else "길찾기 — 누르면 출발")
+                v.setOnClickPendingIntent(R.id.widget_open, navigationPending(app, current.navAddress, current.shareId))
+            }
+            txt(R.id.widget_next_label, when {
+                next == null || next.day == today -> "이어서"
+                next.day == DateTimeUtils.startOfDay(today + 36 * 60 * 60_000L) -> "내일"
+                else -> DateTimeUtils.formatShort(next.day)
+            })
+            txt(R.id.widget_next_name, next?.headline ?: "예정된 현장이 없어요")
+            txt(R.id.widget_next_sub, next?.let { listOf(if (it.day > today) DateTimeUtils.formatShort(it.day) else "", it.region, it.unit).filter(String::isNotBlank).joinToString(" · ") }.orEmpty())
+            txt(R.id.widget_next_time, next?.timeLabel.orEmpty())
+            show(R.id.widget_next_collab, next?.shareId?.isNotBlank() == true)
+            v.setOnClickPendingIntent(R.id.widget_next, next?.let { detailPending(app, it) } ?: routePending(app, "schedule"))
+            v.setOnClickPendingIntent(R.id.widget_home, if (p.homeAddress.isBlank()) routePending(app, "settings") else navigationPending(app, p.homeAddress))
+            return v
+        }
+
+        private fun detailPending(context: Context, s: Site): PendingIntent {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = if (s.shareId.isNotBlank()) MainActivity.ACTION_COLLAB_SITE else MainActivity.ACTION_CUSTOMER
+                putExtra(MainActivity.EXTRA_SHARE_ID, s.shareId); putExtra(MainActivity.EXTRA_CUSTOMER_ID, s.customerId)
+                data = android.net.Uri.parse("sgmwidget://detail/${s.customerId}/${android.net.Uri.encode(s.shareId)}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            return PendingIntent.getActivity(context, 20, intent, FLAGS)
+        }
+
+        private fun routePending(context: Context, route: String) = PendingIntent.getActivity(context, route.hashCode(),
+            Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_WIDGET_ROUTE).putExtra("widget_route", route)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP), FLAGS)
+
+        private fun navigationPending(context: Context, address: String, shareId: String = "") = PendingIntent.getActivity(context, 21,
+            Intent(context, WidgetNavigationActivity::class.java).apply {
+                data = android.net.Uri.parse("sgmwidget://nav/${android.net.Uri.encode(address)}/${android.net.Uri.encode(shareId)}")
+                putExtra("address", address); putExtra("share_id", shareId)
+            }, FLAGS)
+
+        private fun dp(context: Context, value: Int) = (value * context.resources.displayMetrics.density).toInt()
         private fun unitOf(parts: AddressExtractor.Parts): String = when {
             parts.dong != null && parts.ho != null -> "${parts.dong}동 ${parts.ho}호"
             parts.ho != null -> "${parts.ho}호"
             parts.dong != null -> "${parts.dong}동"
             else -> ""
         }
-
-        private fun buildViews(context: Context, snap: Snapshot): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_today)
-            val open = openAppIntent(context)
-            views.setOnClickPendingIntent(android.R.id.background, open)
-
-            // ── 답장 안 함 뱃지 / 완료 ──
-            views.setViewVisibility(R.id.widget_div1, View.VISIBLE)
-            if (snap.unanswered > 0) {
-                views.setViewVisibility(R.id.widget_badge_box, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_badge_done, View.GONE)
-                val cnt = "${snap.unanswered}"
-                val cs = android.text.SpannableString("${cnt}건")
-                cs.setSpan(android.text.style.RelativeSizeSpan(1.4f), 0, cnt.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                cs.setSpan(android.text.style.RelativeSizeSpan(0.7f), cnt.length, cs.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                views.setTextViewText(R.id.widget_unanswered_count, cs)
-                views.setTextViewText(R.id.widget_unanswered_name, nameWithSuffix(snap.upName))
-                views.setTextViewText(R.id.widget_unanswered_elapsed, snap.upElapsed)
-                val msg = if (snap.upMsg.isBlank()) "" else "문자 · ${snap.upMsg}"
-                views.setTextViewText(R.id.widget_unanswered_msg, msg)
-                views.setViewVisibility(R.id.widget_unanswered_msg, if (msg.isBlank()) View.GONE else View.VISIBLE)
-                // 👉 답장 안 함 탭 → 그 고객 대화(답장하러). 번호 없으면 앱 열기 폴백.
-                views.setOnClickPendingIntent(R.id.widget_badge_box, chatPending(context, snap.upPhone, snap.upCustomerId) ?: open)
-            } else {
-                views.setViewVisibility(R.id.widget_badge_box, View.GONE)
-                views.setViewVisibility(R.id.widget_badge_done, View.VISIBLE)
-                views.setTextViewText(
-                    R.id.widget_badge_done_sub2,
-                    if (snap.today.isEmpty()) "한숨 돌려도 괜찮아요." else "이제 오늘 현장을 확인해보세요."
-                )
-                views.setOnClickPendingIntent(R.id.widget_badge_done, open)
-            }
-
-            // ── 머리줄: N곳 + 갱신 시각 + ⟳ ──
-            views.setTextViewText(R.id.widget_count, if (snap.today.isEmpty()) "" else "· ${snap.today.size}곳")
-            views.setTextViewText(R.id.widget_synced, DateTimeUtils.timeLabel(snap.updatedAtMs))
-            views.setOnClickPendingIntent(R.id.widget_refresh, refreshPending(context))
-
-            val current = snap.currentIndex.takeIf { it >= 0 }?.let { snap.today.getOrNull(it) }
-
-            // ── 지금 갈 곳 (정적 카드) ──
-            if (current == null) {
-                views.setViewVisibility(R.id.widget_primary, View.GONE)
-                views.setViewVisibility(R.id.widget_empty, if (snap.today.isEmpty()) View.VISIBLE else View.GONE)
-            } else {
-                views.setViewVisibility(R.id.widget_primary, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_empty, View.GONE)
-                renderCurrent(context, views, current)
-                // 카드 탭 → 그 고객 상세(내 건)/협업 현장(협업)
-                views.setOnClickPendingIntent(R.id.widget_site_card, detailPending(context, current))
-                // 길찾기 → 이 현장 위치로 바로(설정한 네비). 미설치면 기본 지도.
-                val navIntent = NavApps.bakedNavIntent(context, snap.navApp, current.navAddress)
-                views.setOnClickPendingIntent(
-                    R.id.widget_open,
-                    if (navIntent != null) PendingIntent.getActivity(
-                        context, 1, navIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    ) else detailPending(context, current)
-                )
-            }
-
-            // ── 이따 갈 곳 (스크롤 리스트) ──
-            val laterCount = snap.today.size - (if (current != null) 1 else 0)
-            if (laterCount > 0) {
-                views.setViewVisibility(R.id.widget_sub_label, View.VISIBLE)
-                views.setTextViewText(R.id.widget_sub_label, if (current != null) "이따 갈 곳" else "오늘 현장")
-                views.setViewVisibility(R.id.widget_today_list, View.VISIBLE)
-                val svc = Intent(context, TodayWidgetService::class.java)
-                svc.data = Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME))  // 어댑터가 다른 RemoteViews 와 안 섞이게
-                views.setRemoteAdapter(R.id.widget_today_list, svc)
-                views.setEmptyView(R.id.widget_today_list, R.id.widget_empty_list)
-                views.setPendingIntentTemplate(R.id.widget_today_list, listTemplate(context))
-            } else {
-                views.setViewVisibility(R.id.widget_sub_label, View.GONE)
-                views.setViewVisibility(R.id.widget_today_list, View.GONE)
-            }
-            return views
-        }
-
-        /** '지금 갈 곳' 카드 그리기 — 칩·헤드라인·시각·지역·동호수·메모. 현재 현장은 연파랑 카드로 강조. */
-        private fun renderCurrent(context: Context, views: RemoteViews, s: Site) {
-            views.setViewVisibility(R.id.widget_today_chip, View.VISIBLE)
-            views.setTextViewText(R.id.widget_name, s.headline)
-            views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, 17f)
-            if (s.timeLabel.isBlank()) {
-                views.setViewVisibility(R.id.widget_time, View.GONE)
-            } else {
-                views.setViewVisibility(R.id.widget_time, View.VISIBLE)
-                views.setTextViewText(R.id.widget_time, s.timeLabel)
-            }
-            views.setTextViewText(R.id.widget_region, s.region)
-            views.setViewVisibility(R.id.widget_region, if (s.region.isBlank()) View.GONE else View.VISIBLE)
-            views.setTextViewText(R.id.widget_unit, s.unit)
-            views.setViewVisibility(R.id.widget_unit, if (s.unit.isBlank()) View.GONE else View.VISIBLE)
-            if (s.memo.isBlank()) {
-                views.setViewVisibility(R.id.widget_memo, View.GONE)
-            } else {
-                views.setViewVisibility(R.id.widget_memo, View.VISIBLE)
-                views.setTextViewText(R.id.widget_memo_text, s.memo)
-            }
-            views.setViewVisibility(R.id.widget_worktype, View.GONE)
-            // 현재 현장은 연파랑 카드로 강조.
-            views.setInt(R.id.widget_site_card, "setBackgroundResource", R.drawable.widget_site_card_bg)
-            val padH = dp(context, 13)
-            val padV = dp(context, 12)
-            views.setViewPadding(R.id.widget_site_card, padH, padV, padH, padV)
-        }
-
-        /** 그 고객 상세(내 건)/협업 현장(협업)로 여는 PendingIntent. */
-        private fun detailPending(context: Context, s: Site): PendingIntent {
-            val i = Intent(context, MainActivity::class.java).apply {
-                if (s.isCollab) {
-                    action = MainActivity.ACTION_COLLAB_SITE
-                    putExtra(MainActivity.EXTRA_SHARE_ID, s.shareId)
-                } else {
-                    action = MainActivity.ACTION_CUSTOMER
-                    putExtra(MainActivity.EXTRA_CUSTOMER_ID, s.customerId)
-                }
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            val rc = if (s.isCollab) 300 + (s.shareId.hashCode() and 0xFFFF) else 200 + (s.customerId.toInt() and 0xFFFF)
-            return PendingIntent.getActivity(
-                context, rc, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        }
-
-        /** 답장 안 함 → 그 고객 대화. 번호 없으면 null(폴백). */
-        private fun chatPending(context: Context, phone: String, customerId: Long): PendingIntent? {
-            if (phone.isBlank()) return null
-            val i = Intent(context, MainActivity::class.java).apply {
-                action = MainActivity.ACTION_CHAT
-                putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
-                if (customerId > 0) putExtra(MainActivity.EXTRA_CUSTOMER_ID, customerId)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            return PendingIntent.getActivity(
-                context, 2, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        }
-
-        /** ⟳ 새로고침 — provider 로 커스텀 브로드캐스트. */
-        private fun refreshPending(context: Context): PendingIntent {
-            val i = Intent(context, TodayWidgetProvider::class.java).apply { action = ACTION_WIDGET_REFRESH }
-            return PendingIntent.getBroadcast(
-                context, 8, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        }
-
-        /** 리스트 줄 탭 템플릿 — action 없이(각 줄 fill-in 이 ACTION_CUSTOMER/COLLAB_SITE 를 채운다). FLAG_MUTABLE 필수. */
-        private fun listTemplate(context: Context): PendingIntent {
-            val i = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            return PendingIntent.getActivity(
-                context, 7, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
-        }
-
-        private fun dp(context: Context, v: Int): Int =
-            (v * context.resources.displayMetrics.density).toInt()
-
-        private fun nameWithSuffix(n: String): String =
-            if (n.isNotBlank() && n.any { it.isLetter() }) "$n 고객님" else n
 
         /** "수원 영통구 광교…" → "수원 영통"(시/도 + 시/군/구, 접미 떼고 앞 2토큰). */
         private fun regionPrefix(addr: String?): String {
@@ -425,12 +270,5 @@ class TodayWidgetProvider : AppWidgetProvider() {
             return out.joinToString(" ").trim()
         }
 
-        private fun openAppIntent(context: Context): PendingIntent {
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                ?: Intent(context, MainActivity::class.java)
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            return PendingIntent.getActivity(context, 0, launch, flags)
-        }
     }
 }

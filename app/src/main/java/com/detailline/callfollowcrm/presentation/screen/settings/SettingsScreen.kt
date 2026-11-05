@@ -626,6 +626,7 @@ fun SettingsScreen(
                         .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
                     LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
                         navLabel) { subPage = "nav" }
+                    HomeAddressSetting(container)
                     LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
                         "PC에서 시공 사진 보기·내려받기") { subPage = "web" }
                     // 보안 설정 — 한 번 켜두면 끝이라 여기가 맞다. 전엔 자동 문자 화면 한가운데 있었다.

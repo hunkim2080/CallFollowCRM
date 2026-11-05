@@ -150,6 +150,14 @@ fun AppRoot(container: AppContainer) {
                                 launchSingleTop = true
                             }
                         }
+                        is NavEvent.OpenWidgetRoute -> {
+                            val destination = when (event.route) {
+                                "settings" -> Destinations.SETTINGS
+                                "schedule" -> Destinations.SCHEDULE
+                                else -> Destinations.HOME
+                            }
+                            navController.navigate(destination) { launchSingleTop = true }
+                        }
                         is NavEvent.OpenTeam -> {
                             navController.navigate(Destinations.TEAM) { launchSingleTop = true }
                         }

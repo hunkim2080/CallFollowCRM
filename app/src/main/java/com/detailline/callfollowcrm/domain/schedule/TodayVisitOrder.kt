@@ -25,11 +25,17 @@ object TodayVisitOrder {
      *   안 끝난 게 하나도 없으면 currentIndex = -1 (전부 완료/빈 날).
      * (Kotlin sortedBy 는 안정 정렬이라 같은 시각은 넣은 순서 유지.)
      */
-    fun <T> arrange(items: List<Keyed<T>>): Result<T> {
+    fun <T> arrange(items: List<Keyed<T>>, nowMinutes: Int? = null): Result<T> {
         val notDone = items.filter { !it.completed }.sortedBy { it.minutes ?: Int.MAX_VALUE }
         val done = items.filter { it.completed }.sortedBy { it.minutes ?: Int.MAX_VALUE }
         val ordered = (notDone + done).map { it.item }
-        return Result(ordered, if (notDone.isEmpty()) -1 else 0)
+        // Same-time jobs keep their stable order. Unknown times never displace a timed job.
+        val dueMinute = nowMinutes?.let { now ->
+            notDone.mapNotNull { it.minutes }.filter { isDue(it, now) }.maxOrNull()
+        }
+        val current = if (notDone.isEmpty()) -1 else
+            dueMinute?.let { minute -> notDone.indexOfFirst { it.minutes == minute } } ?: 0
+        return Result(ordered, current)
     }
 
     /** 이 현장이 지금 '갈 때가 됐나' — 시각 미정이면 지금 갈 곳이면 바로 true. 아니면 시작 30분 전부터 true. */
