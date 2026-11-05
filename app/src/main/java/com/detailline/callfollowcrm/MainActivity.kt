@@ -191,6 +191,11 @@ class MainActivity : ComponentActivity() {
                 }
                 pendingIntentState.value = IncomingIntent.Chat(phone, customerId)
             }
+            ACTION_CUSTOMER -> {
+                // 홈 위젯 현장 줄 → 그 고객 상세로 바로. (고객정보 화면이 열려 있는 길과 동일: OpenCustomer)
+                val cid = intent.getLongExtra(EXTRA_CUSTOMER_ID, -1L).takeIf { it > 0 }
+                if (cid != null) pendingIntentState.value = IncomingIntent.OpenCustomer(cid)
+            }
             ACTION_CALL_SUMMARY -> {
                 val phone = intent.getStringExtra(EXTRA_PHONE_NUMBER).orEmpty()
                 val name = intent.getStringExtra(EXTRA_DISPLAY_NAME)?.takeIf { it.isNotBlank() }
@@ -345,6 +350,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_FOLLOW_UP = "com.detailline.callfollowcrm.ACTION_FOLLOW_UP"
         const val ACTION_CHAT = "com.detailline.callfollowcrm.ACTION_CHAT"
+        /** 홈 위젯의 현장 줄 탭 → 그 고객 상세(IncomingIntent.OpenCustomer). EXTRA_CUSTOMER_ID 필요. (2026-11-05 위젯 리스트 개편) */
+        const val ACTION_CUSTOMER = "com.detailline.callfollowcrm.ACTION_CUSTOMER"
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
         /** 팀원 진행 알림 탭 → 팀 관리(현황). (2026-08-13 알림 위치점검) */
         const val ACTION_TEAM = "com.detailline.callfollowcrm.ACTION_TEAM"

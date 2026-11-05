@@ -189,6 +189,17 @@ class AppPreferences(context: Context) {
     var widgetUnansweredMsg: String
         get() = prefs.getString("widget_unanswered_msg", "") ?: ""
         set(value) = prefs.edit().putString("widget_unanswered_msg", value).apply()
+    /** 🧱 위젯 '답장 안 함' 탭 → 그 고객 대화로 딥링크용 번호·id. (2026-11-05 위젯 리스트 개편) */
+    var widgetUnansweredPhone: String
+        get() = prefs.getString("widget_unanswered_phone", "") ?: ""
+        set(value) = prefs.edit().putString("widget_unanswered_phone", value).apply()
+    var widgetUnansweredCustomerId: Long
+        get() = prefs.getLong("widget_unanswered_customer_id", 0L)
+        set(value) = prefs.edit().putLong("widget_unanswered_customer_id", value).apply()
+    /** 🧱 위젯 '이따 갈 곳' 리스트 캐시(JSON) — TodayWidgetProvider 가 적고 TodayWidgetService 가 읽는다. (2026-11-05) */
+    var widgetTodayJson: String
+        get() = prefs.getString("widget_today_json", "") ?: ""
+        set(value) = prefs.edit().putString("widget_today_json", value).apply()
     /** 연결된 구글 계정 이메일 — "어느 계정에 올라갔나" 표시용. null = 아직 못 받음(옛 연결/이메일 권한 전). (2026-10-05 사장님) */
     var googleCalendarAccountEmail: String?
         get() = prefs.getString("google_calendar_account_email", null)

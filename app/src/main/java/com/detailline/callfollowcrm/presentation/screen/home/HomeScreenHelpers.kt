@@ -364,7 +364,10 @@ internal fun inboxUnanswered(all: List<HomeItem>, adAllowlist: Set<String>): Lis
     all.filter { it.isUnconfirmed && !isInboxAd(it, adAllowlist) }
 
 /** 🧱 위젯 '답장 안 함' 뱃지에 넘길 미리보기 — 수 + 가장 오래 기다린 고객(이름/대기 라벨/마지막 메시지). (프로토 뱃지, 2026-11-04) */
-data class WidgetUnansweredPreview(val count: Int, val name: String, val elapsed: String, val msg: String)
+data class WidgetUnansweredPreview(
+    val count: Int, val name: String, val elapsed: String, val msg: String,
+    val phone: String = "", val customerId: Long = 0L   // 위젯 뱃지 탭 → 그 고객 대화 딥링크용
+)
 
 internal fun widgetUnansweredPreview(
     all: List<HomeItem>, adAllowlist: Set<String>, count: Int, now: Long
@@ -380,7 +383,10 @@ internal fun widgetUnansweredPreview(
         mins < 60 * 24 -> "${mins / 60}시간째 대기"
         else -> "${mins / (60 * 24)}일째 대기"
     }
-    return WidgetUnansweredPreview(count, name, elapsed, top?.lastBody?.takeIf { it.isNotBlank() } ?: "")
+    return WidgetUnansweredPreview(
+        count, name, elapsed, top?.lastBody?.takeIf { it.isNotBlank() } ?: "",
+        phone = top?.record?.phoneNumber ?: "", customerId = top?.customer?.id ?: 0L
+    )
 }
 
 /**

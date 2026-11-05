@@ -356,16 +356,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   저장하고 위젯을 갱신한다(프로토 뱃지). 화면이 이미 한 계산을 재활용 — 위젯은 다시 안 센다(두 벌 방지).
      *   앱을 열 때마다 최신화. 값이 바뀔 때만 갱신.
      */
-    fun publishUnansweredWidget(count: Int, name: String, elapsed: String, msg: String) {
+    fun publishUnansweredWidget(
+        count: Int, name: String, elapsed: String, msg: String,
+        phone: String = "", customerId: Long = 0L
+    ) {
         container.inboxUnansweredCount.value = count
         val p = container.preferences
         if (p.widgetUnansweredCount != count || p.widgetUnansweredName != name ||
-            p.widgetUnansweredElapsed != elapsed || p.widgetUnansweredMsg != msg
+            p.widgetUnansweredElapsed != elapsed || p.widgetUnansweredMsg != msg ||
+            p.widgetUnansweredPhone != phone || p.widgetUnansweredCustomerId != customerId
         ) {
             p.widgetUnansweredCount = count
             p.widgetUnansweredName = name
             p.widgetUnansweredElapsed = elapsed
             p.widgetUnansweredMsg = msg
+            p.widgetUnansweredPhone = phone
+            p.widgetUnansweredCustomerId = customerId
             com.detailline.callfollowcrm.widget.TodayWidgetProvider.refresh(container.appContext)
         }
     }

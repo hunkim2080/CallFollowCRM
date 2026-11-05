@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 이따 목록 줄 누름 피드백 — 투명 위 옅은 파랑 리플. (위젯 컬렉션 아이템) -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#222368BE">
+    <item android:drawable="@android:color/transparent" />
+</ripple>

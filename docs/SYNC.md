@@ -16022,3 +16022,19 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - layout: widget_badge_done·widget_next_unit 추가, drawable widget_done_bg. brand_guard: "확인해 보세요"→"확인해보세요"(붙여쓰기).
 - assembleRelease EXIT=0 · 가드 7종 통과 · 테스트 1344.
 - 폰: 사장님 실기(내부배포)로 확인 중. 서명 벽으로 로컬 직접설치는 불가(Play서명 pkg).
+
+## 2026-11-05 09:24 · android
+위젯 리스트형 전면 개편(사장님 실기 지적 8종) — 정적 위젯 → 스크롤 컬렉션 위젯. 오늘 현장 전부(협업 포함)·줄마다 딥링크·길찾기 하나·자동 이동·⟳ 새로고침.
+- 변경(앱만):
+  · **데이터(A — "3곳인데 1곳"):** 오늘 목록을 일정 '이 날 시공'과 같은 소스로 — 내 건(customers+jobs) + **협업**(`sharedSiteRepository.withMe(bizPhone)`, 네트워크·실패시 own-only graceful). 필터는 일정과 동일(accepted·시각있음·trashed/hidden 제외·오늘). 협업 완료=`progress==COMPLETED`, 내 건=`Completion.isDone`. 정렬=`DayOrder.jobMinutes/collabMinutes`.
+  · **지금 갈 곳 자동 이동(E):** 새 순수함수 `domain/schedule/TodayVisitOrder.kt`(+시험 6개) — 안 끝난 것 시간순, 지금 갈 곳=맨 앞(완료 찍으면 다음). 길찾기는 '지금' 정적 카드에만 하나.
+  · **스크롤(D):** 컬렉션 위젯 — 새 `widget/TodayWidgetService.kt`(RemoteViewsFactory)가 '이따 갈 곳'을 그림. 데이터는 provider 가 prefs(`widgetTodayJson`)에 적고 service 가 읽음(네트워크 중복 0).
+  · **배선(F·G·H):** 현장 줄 탭 → 그 고객 상세(`ACTION_CUSTOMER` 신규, MainActivity)·협업현장(`ACTION_COLLAB_SITE`). 답장 안 함 탭 → 그 고객 대화(`ACTION_CHAT`) — 번호/ID 발행 추가(`widgetUnansweredPhone/CustomerId`, HomeScreenHelpers·HomeViewModel·HomeScreen 한 줄 확인 §12-K). 리스트 줄은 템플릿+fill-in.
+  · **새로고침(⟳):** 머리줄 ⟳ → `ACTION_WIDGET_REFRESH` 브로드캐스트 → 즉시 최신화 + 갱신 시각(`DateTimeUtils.timeLabel`) 표시.
+  · **모양(B·C):** 하단 "시공막내" 캡션 제거, 여백 축소(padding 18→14 등), 위젯 기본 높이 ↑(minHeight 110→150, targetCellHeight 2→3, 리스트 스크롤 여유).
+  · 파일: `widget/TodayWidgetProvider.kt`(전면 재작성) · `widget/TodayWidgetService.kt`(신규) · `domain/schedule/TodayVisitOrder.kt`(+Test) · `res/layout/widget_today.xml`(재구성)·`widget_today_item.xml`(신규) · drawable 3(widget_collab_chip_bg·widget_item_ripple·widget_refresh_bg) · `AndroidManifest`(service) · `AppPreferences`(3칸) · `MainActivity`(ACTION_CUSTOMER).
+- ⚠️ 알아둘 점(소프트 두 벌): 협업 '오늘 수락' 필터가 ScheduleViewModel.loadCollab/applyCollabFilter 와 **같은 규칙 두 곳**(위젯·일정). 지금은 주석으로 서로 가리킴 — 필터 규칙 바뀌면 둘 다 고쳐야. 공용 추출은 VM 상태와 얽혀 있어 추후(§12-I 겹겹의 문 아님, 진짜 두 벌이니 합치는 게 맞음).
+- health: 시험 1344→1350(+6) · 2,000줄 파일 7 · 가드 7 · 두 벌 18(기준선) · 조용한 저장 0 · 공용 46.
+- 빌드: compileDebugKotlin EXIT=0 · assembleRelease EXIT=0 · 가드 7종 기준선 증가 0 · testDebugUnitTest EXIT=0.
+- 폰 확인: 못 봄 — 컬렉션 위젯은 Play서명 pkg 라 로컬 직접설치 불가(서명 벽). **내부배포로 올려 사장님 실제 폰에서 확인 예정**(스크롤·줄별 탭·길찾기 하나·⟳·협업 포함 3곳).
+- 다음 액션(사장님): 폰에서 눈으로 — ①오늘 3곳 다 뜨나(협업 포함) ②줄 누르면 그 고객으로 ③답장안함 누르면 그 대화 ④길찾기 하나만 ⑤⟳ 누르면 갱신시각 바뀌나.

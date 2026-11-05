@@ -391,7 +391,10 @@ fun HomeScreen(
         widgetUnansweredPreview(all, adAllowlist, inboxChipCounts["unhandled"] ?: 0, System.currentTimeMillis())
     }
     LaunchedEffect(widgetPreview) {
-        viewModel.publishUnansweredWidget(widgetPreview.count, widgetPreview.name, widgetPreview.elapsed, widgetPreview.msg)
+        viewModel.publishUnansweredWidget(
+            widgetPreview.count, widgetPreview.name, widgetPreview.elapsed, widgetPreview.msg,
+            widgetPreview.phone, widgetPreview.customerId
+        )
     }
     // 📦 각 칩에 **멤버가 있나** — 칩을 띄울지 판단(목록 필터와 같은 조건). 셈은 inboxChipMembers 한 곳. (2026-10-08 사장님)
     val chipHasMember = remember(timeline, balanceDues) {
