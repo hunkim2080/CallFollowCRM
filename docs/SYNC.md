@@ -16058,3 +16058,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
   신규: `service/CollabStepNotifier.kt`(bump·buildView·cardBody, NotificationHelper 2천줄이라 잎 분리 §12-F), `res/layout/notification_collab_step.xml`, dot drawable 4종, colors 8, brand_allow 5줄.
 - 폰 확인: 못 봄 — 커스텀 알림이라 폰마다 미세차 가능(실기 확인 필요). 빌드 7가드 통과·기준선 증가 0·테스트 1353.
 - 다음 액션: (사장님) 폰에서 협업 수락→출발→도착→완료가 한 알림에 스텝으로 차는지 눈확인. / (나) 상담함 알림 묶기 프로토 만들어 「가」 받기.
+
+## 2026-11-05 16:10 · android
+위젯 '오늘 갈 현장' 아래가 **허연 백지**로 뜨던 것 수정 — 흰 카드가 **내용만큼만**(wrap) 크게. (사장님 폰 사진 "프로토는 이렇게 텅빈적 없어", 프로토 BFrs7Rsr)
+- 원인: `res/layout/widget_today.xml` 루트가 `match_parent`(흰 bg) + 리스트가 `0dp·weight=1` → 현장 2곳뿐이면 남는 세로를 다 먹어 흰 백지.
+- 변경(레이아웃 1파일만, 렌더·데이터 로직 무변경): 루트 높이 `match_parent`→`wrap_content`, `widget_today_list`·`widget_empty_list` `0dp·weight` → `wrap_content`. 셀보다 길면 호스트 AT_MOST 로 묶여 스크롤(많을 때만).
+- 빌드: assembleRelease EXIT=0 · 가드 7종 통과·기준선 증가 0([dup]18·[size]37946·[style]2410·[save]0·[rules]공용49) · 테스트 1353.
+- 폰 확인: 못 봄 — 위젯이라 내부배포로 올려 사장님 폰에서 확인(현장 적을 때 아래 백지 없이 카드가 내용만큼만 크고 배경화면 비치나, 많을 때 스크롤되나).
+- 정정: 직전 블록 '다음 액션'의 **상담함 알림 묶기 프로토는 폐기** — 사장님 뜻은 그게 아니라 **인앱 「알림」 센터의 협업 알림을 푸시(쿠팡 스텝)처럼** 바꾸는 것. 다음 작업.

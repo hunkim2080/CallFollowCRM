@@ -2,10 +2,12 @@
 <!-- 시공막내 '오늘 갈 현장 + 답장 안 함' 위젯 (RemoteViews + 컬렉션 ListView).
      2026-11-05 사장님 개편: 오늘 현장 전부(협업 포함) 리스트, 줄마다 그 고객으로 딥링크,
      길찾기는 '지금 갈 곳' 하나만, 맨 위 ⟳ 새로고침 + 갱신 시각, compact·하단 캡션 제거. -->
+<!-- 높이 = wrap_content: 흰 카드가 **내용만큼만** 크고 남는 셀은 투명(배경화면 비침) —
+     전엔 match_parent + 리스트 weight=1 이라 현장 2곳이면 아래가 허연 백지였다. (2026-11-05 사장님 "프로토는 이렇게 텅빈적 없어", 프로토 BFrs7Rsr 처럼) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/widget_today_bg"
     android:padding="14dp">
@@ -331,11 +333,12 @@
         android:textSize="10sp"
         android:textStyle="bold"
         android:visibility="gone" />
+    <!-- 높이 = wrap_content(weight 제거): 내용만큼만 → 흰 카드가 안 늘어나 백지 안 생김.
+         셀보다 길면 호스트가 AT_MOST 로 묶어 스크롤된다(많을 때만). (2026-11-05 사장님) -->
     <ListView
         android:id="@+id/widget_today_list"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:layout_marginTop="3dp"
         android:divider="#F0F2F5"
         android:dividerHeight="1dp"
@@ -344,8 +347,7 @@
     <TextView
         android:id="@+id/widget_empty_list"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:visibility="gone" />
 
     <!-- ── 빈 날 ── -->

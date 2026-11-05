@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#faf9f6">
+  <meta name="description" content="시공은 사장님이, 챙기는 일은 막내와. 문의 문자부터 통화 요약, 일정, 협업 사장, 견적과 잔금까지. 실제 화면으로 따라 하는 시공막내 사용 가이드.">
+  <title>시공막내 — 현장에선 사장님, 폰 안에선 막내</title>
+  <link rel="icon" type="image/svg+xml" href="assets/maknae.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">본문으로 바로 가기</a>
+<header class="header">
+  <div class="nav-wrap">
+    <a class="brand" href="#top" aria-label="시공막내 처음으로"><img src="assets/maknae.svg" width="37" height="40" alt=""><span>시공막내<small>RING-GO</small></span></a>
+    <nav aria-label="주 메뉴"><a href="#day">막내와 하루</a><a href="#together">협업 사장</a><a href="#guide">사용설명서</a><a href="#pricing">요금 안내</a></nav>
+    <a class="button small dark" href="#start">막내와 시작하기 <span aria-hidden="true">↗</span></a>
+  </div>
+</header>
+<main id="main">
+  <section class="hero wrap" id="top">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="live-dot"></span> 문자앱으로는 못 하던 일</p>
+      <h1>대충 쓴 문자가,<br><span class="blue">프로의 답장으로.</span></h1>
+      <p class="hero-description">바쁜 현장, 장갑 낀 손으로 대충 적어도 괜찮아요. <br><b>‘다듬기’</b> 한 번이면 정중한 답장이 됩니다. <br>대화 속 날짜·주소를 누르면 <b>시공일이 바로 등록</b>돼요.</p>
+      <div class="hero-actions"><a class="button primary" href="#start">시공막내 시작하기 <span aria-hidden="true">↗</span></a><a class="text-link" href="#day">하루 사용법 보기 <span aria-hidden="true">↓</span></a></div>
+      <p class="micro hero-note">Android 앱 · 옆(또는 아래) 대화를 직접 눌러보세요</p>
+    </div>
+    <div class="hero-stage simple" aria-label="고객 대화에서 다듬기와 시공일 등록을 직접 눌러보는 화면 예시">
+      <div class="try-hint" aria-hidden="true">직접 눌러보세요</div>
+      <div class="phone-mount hero-phone" data-hero-demo></div>
+      <span class="stage-caption">앱 화면 재현 · 인물·대화·주소는 가상 예시 · 실제 전송되지 않습니다</span>
+    </div>
+  </section>
+  <div class="trade-strip"><div class="wrap"><p>하는 일은 달라도,<br><strong>챙겨야 할 일은 비슷하니까.</strong></p><div class="trades"><span>타일</span><span>도배</span><span>필름</span><span>방수</span><span>마루</span><span>욕실 리모델링</span><span>줄눈</span><span>그리고 모든 현장</span></div></div></div>
+
+  <section class="day-section wrap section" id="day">
+    <div class="section-heading"><p class="eyebrow blue">A DAY WITH 막내</p><h2>사장님의 하루에<br>막내가 들어오면.</h2><p>아침에 현장을 확인하고, 작업 사이에 문의를 챙기고.<br>퇴근 전에는 오늘 끝낸 일과 받을 돈을 정리합니다.</p></div>
+    <div class="day-tabs" role="tablist" aria-label="시간별 사용 장면">
+      <button id="tab-morning" role="tab" aria-selected="true" aria-controls="panel-morning" data-scene="morning"><span>07:30</span>어디부터 가지?</button>
+      <button id="tab-inquiry" role="tab" aria-selected="false" aria-controls="panel-inquiry" tabindex="-1" data-scene="inquiry"><span>09:40</span>문의가 밀렸네</button>
+      <button id="tab-call" role="tab" aria-selected="false" aria-controls="panel-call" tabindex="-1" data-scene="call"><span>11:20</span>뭐라고 하셨지?</button>
+      <button id="tab-quote" role="tab" aria-selected="false" aria-controls="panel-quote" tabindex="-1" data-scene="quote"><span>12:30</span>견적 보내드릴게요</button>
+    </div>
+    <div class="day-panel" id="panel-morning" role="tabpanel" aria-labelledby="tab-morning">
+      <div class="scenario-copy"><span class="scene-number">01 / 출발 전</span><h3>“오늘 두 군데인데,<br>어디부터 가더라?”</h3><p>내 시공도, 다른 사장님과 함께하는 현장도.<br>날짜를 누르면 그날 일이 시간순으로 보입니다.</p><ol class="steps"><li><b>아래의 ‘일정’을 누르세요.</b><span>달력에서 오늘 날짜를 고릅니다.</span></li><li><b>첫 현장의 시간과 주소를 확인하세요.</b><span>내 현장과 수락한 협업 현장을 같이 볼 수 있어요.</span></li><li><b>‘길찾기’로 출발하세요.</b><span>처음에는 사용할 내비 앱을 고르면 됩니다.</span></li></ol><div class="tip"><span>막내 팁</span> 다른 사람에게 달력을 보여줄 땐 ‘금액’을 꺼두세요.</div></div>
+      <div class="scenario-visual blue-surface"><div class="visual-label">아침엔 이 화면 하나부터</div><div class="phone-mount" data-screen="schedule" data-time="07:30"></div><div class="screen-caption">일정 → 날짜 선택 → 현장 확인</div></div>
+    </div>
+    <div class="day-panel" id="panel-inquiry" role="tabpanel" aria-labelledby="tab-inquiry" hidden>
+      <div class="scenario-copy"><span class="scene-number">02 / 작업 중</span><h3>“문자는 봤는데,<br>답장을 했던가?”</h3><p>상담함에서 ‘답장 안 함’을 누르세요.<br>아직 응대하지 않은 문의부터 차례로 챙길 수 있습니다.</p><ol class="steps"><li><b>상담함 → ‘답장 안 함’을 누르세요.</b><span>광고가 아닌 상담 중, 아직 답하지 않은 사람을 봅니다.</span></li><li><b>고객을 눌러 대화를 여세요.</b><span>추천 답장이 있으면 내용과 금액을 확인하고 고쳐 보내세요.</span></li><li><b>전화로 끝냈다면 ‘확인’을 누르세요.</b><span>답장 안 함 목록에서만 빠져요. 고객과 대화는 남습니다.</span></li></ol><div class="tip"><span>전화도 놓쳤다면</span> 더보기 → 자동으로 챙기기에서 부재중 문자를 켜두세요. 정해둔 안내로 첫 응대를 이어갑니다.</div></div>
+      <div class="scenario-visual cream-surface"><div class="visual-label">읽은 문자도, 답하지 않았다면</div><div class="phone-mount" data-screen="inquiry" data-time="09:40"></div><div class="screen-caption">상담함 → 답장 안 함 → 고객 대화</div></div>
+    </div>
+    <div class="day-panel" id="panel-call" role="tabpanel" aria-labelledby="tab-call" hidden>
+      <div class="scenario-copy"><span class="scene-number">03 / 통화 직후</span><h3>“무광이었나?<br>토요일이었나?”</h3><p>작업하면서 받은 전화, 기억으로 견적 내지 마세요.<br>연결해둔 녹음으로 통화 내용을 시간 구간별로 확인합니다.</p><ol class="steps"><li><b>먼저 통화 녹음을 연결하세요.</b><span>시작 설정에서 ‘자동으로 찾기’. 녹음이 없다면 전화 앱의 자동 녹음을 켜세요.</span></li><li><b>고객 대화에서 통화 요약을 여세요.</b><span>자재, 작업 범위, 약속한 날짜를 다시 읽어보세요.</span></li><li><b>애매한 내용은 시각을 눌러 들으세요.</b><span>AI 요약은 틀릴 수 있어요. 중요한 금액과 일정은 원래 통화로 확인하세요.</span></li></ol><div class="tip"><span>기억 대신 기록</span> 시공막내가 직접 통화를 녹음하는 것은 아니에요. 휴대폰에 저장된 통화 녹음이 필요합니다.</div></div>
+      <div class="scenario-visual blue-surface"><div class="visual-label">“아, 이 얘기였지.”</div><div class="phone-mount" data-screen="call" data-time="11:24"></div><div class="screen-caption">고객 대화 → 통화 요약 → 시각을 눌러 재생</div></div>
+    </div>
+    <div class="day-panel" id="panel-quote" role="tabpanel" aria-labelledby="tab-quote" hidden>
+      <div class="scenario-copy"><span class="scene-number">04 / 점심시간</span><h3>“견적서요?<br>지금 보내드릴게요.”</h3><p>노트북을 켤 때까지 미루지 마세요.<br>대화에서 견적을 만들고, 내 상호와 도장이 담긴 문서를 문자에 붙입니다.</p><ol class="steps"><li><b>더보기에서 사업자 정보·가격표를 적으세요.</b><span>상호, 대표, 직인과 자주 쓰는 시공 항목을 준비합니다.</span></li><li><b>고객 대화에서 ‘/견적’을 고르세요.</b><span>품목·금액·계약금 확인 → ‘견적서(직인)로 보내기’를 누릅니다.</span></li><li><b>‘문자에 첨부’ 후 보내세요.</b><span>예약을 받을 땐 ‘/접수서’. 고객이 적은 날짜와 주소를 확인하세요.</span></li></ol><div class="tip"><span>한 번 더 확인</span> 접수서 카드의 일정 등록 상태를 확인하세요. 이미 정한 날짜가 있으면 그대로 지킬 수 있어요.</div></div>
+      <div class="scenario-visual cream-surface"><div class="visual-label">내 상호와 도장까지, 한 장에</div><div class="phone-mount" data-screen="quote" data-time="12:30"></div><div class="screen-caption">고객 대화 → /견적 → 견적서 → 문자에 첨부</div></div>
+    </div>
+    <div class="day-continuation"><span>오후엔 혼자 하기 버거운 현장으로.</span><a href="#together">같이 할 사장님 부르기 <span aria-hidden="true">↓</span></a></div>
+  </section>
+
+  <section class="collab-section section" id="together">
+    <div class="wrap"><div class="collab-heading"><div><p class="eyebrow yellow">05 / 13:00 · 같이하는 현장</p><h2>혼자 하는 일이어도,<br>늘 혼자 할 필요는 없으니까.</h2></div><p>“토요일 현장, 같이 하실 수 있어요?”<br>아는 사장님을 부르고, 현장 정보를 전하고,<br>일을 마친 뒤 일당 정산서까지 이어갑니다.</p></div>
+      <div class="collab-flow"><span>현장 선택</span><i>→</i><span>사장님에게 요청</span><i>→</i><span>상대가 수락</span><i>→</i><span>작업·일당 정리</span></div>
+      <div class="collab-showcase">
+        <div class="collab-side"><div class="person-label"><span class="person-dot blue-dot"></span>부르는 사장님</div><div class="phone-mount" data-screen="invite" data-time="13:00"></div><p>‘협업 부르기’에서 사장님과 일당을 고르세요.</p></div>
+        <div class="handoff"><span class="handoff-line">→</span><img src="assets/maknae.svg" width="84" height="90" alt=""><b>같은 현장,<br>같은 약속.</b><span>주소 · 날짜 · 시간<br>사진 · 전해둘 말</span></div>
+        <div class="collab-side"><div class="person-label"><span class="person-dot purple-dot"></span>함께하는 사장님</div><div class="phone-mount" data-screen="partner" data-time="13:02"></div><p>받은 요청을 확인하고 ‘수락’하면 시작됩니다.</p></div>
+      </div>
+      <div class="collab-manual"><article><span>1</span><h3>현장부터 고르세요</h3><p>고객 대화 → 오른쪽 위 고객 카드 → 해당 시공 건 → <b>협업 부르기</b>. 날짜와 현장 주소를 확인하세요.</p></article><article><span>2</span><h3>일당과 도착 시간을 전하세요</h3><p>목록에서 사장님을 선택하세요. 처음이라면 <b>번호로 부르기</b>. 사람별 일당, 시간, 주차 안내를 적어 요청합니다.</p></article><article><span>3</span><h3>완료한 현장을 정산하세요</h3><p>협업 업체의 <b>정산서</b>에서 달을 고르면 완료된 현장의 일당을 모아볼 수 있어요. 이미지로 저장하거나 공유하세요.</p></article></div>
+      <p class="collab-boundary">함께할 사장님을 직접 고르는 기능입니다. 고객 전화번호와 고객 대화는 상대에게 보이지 않습니다.</p>
+    </div>
+  </section>
+
+  <section class="field-section wrap section" id="field">
+    <div class="field-visual"><div class="phone-mount" data-screen="field" data-time="16:10"></div><div class="field-sticker"><span>메모도 사진도</span><b>그 현장 안에.</b></div></div>
+    <div class="scenario-copy"><p class="eyebrow blue">06 / 16:10 · 마감 전</p><h2>“현관 비번이 어디 있지?”<br>대화를 다시 뒤지지 않게.</h2><p>같은 고객의 다른 시공도 건별로 구분합니다.<br>주차, 출입 방법, 작업 사진을 해당 현장에 남기세요.</p><ol class="steps"><li><b>대화 → 고객 카드 → 해당 시공 건을 여세요.</b><span>‘현장 메모’에 공동현관·세대 출입 방법, 자재 위치를 적어요.</span></li><li><b>현장 사진을 추가하세요.</b><span>작업 전 상태와 마감 사진을 그 현장에 모아둡니다.</span></li><li><b>사진에 설명이 필요하면 ‘표시’를 누르세요.</b><span>크게 보기에서 펜으로 표시하고 완료. 원본은 두고 표시한 사진을 새로 추가합니다.</span></li></ol><div class="tip"><span>다음 방문에도</span> A/S가 생기면 해당 건의 ‘A/S 잡기’로 날짜를 정하고 이전 기록을 다시 확인하세요.</div></div>
+  </section>
+
+  <section class="closing-section section" id="closing"><div class="wrap">
+    <div class="section-heading"><p class="eyebrow blue">07 / 18:30 · 오늘의 마무리</p><h2>시공 끝.<br>받을 돈까지 챙겨야 진짜 끝.</h2><p>시공 완료와 입금 완료는 다릅니다.<br>잔금은 받았을 때 표시하고, 협업 일당은 완료한 현장별로 정리하세요.</p></div>
+    <div class="closing-grid"><article class="closing-card"><div class="closing-title"><span class="tag pink">고객에게 받을 돈</span><h3>잔금 85만원, 아직 남아 있어요.</h3><p>상담함 ‘잔금 대기’ 또는 정산에서 확인하세요.<br>“작업 마무리했습니다. 잔금 85만원 입금 부탁드립니다.”<br>안내 후 실제 입금을 확인하고 ‘네, 완납’.</p></div><div class="phone-mount" data-screen="money" data-time="18:30"></div></article><article class="closing-card lilac"><div class="closing-title"><span class="tag purple">함께한 사장님 일당</span><h3>“이번 달 얼마였죠?”도 한 장으로.</h3><p>협업 사장님 → 정산서 → 달 선택.<br>완료된 현장만 모인 정산서를 저장·공유하세요.</p></div><div class="phone-mount" data-screen="statement" data-time="18:40"></div></article></div>
+    <div class="record-loop"><img src="assets/maknae.svg" width="74" height="80" alt=""><div><span class="eyebrow">오늘 챙긴 일이, 내일의 기록으로</span><h3>완료 한 건. 사진 한 장. 내 기록이 쌓입니다.</h3><p>마친 현장을 ‘완료’로 남겨보세요. ‘내 기록’에서 쌓인 시공 기록과 성과를 돌아볼 수 있어요.<br>오늘 정리한 만큼, 다음 고객에게 더 빨리 답할 수 있습니다.</p></div><a class="text-link" href="#guide">기록 남기는 법 ↗</a></div>
+  </div></section>
+
+  <section class="start-section wrap section" id="start"><div class="start-heading"><p class="eyebrow blue">처음 켰다면, 이 순서대로</p><h2>막내 출근 준비.<br>하나씩 연결하면 됩니다.</h2><p>처음부터 모든 설정을 끝낼 필요는 없어요.<br>오늘 쓸 기능부터 준비하세요.</p><a class="button primary store-link" href="https://play.google.com/store/apps/details?id=com.detailline.callfollowcrm" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 15 9L5 21Z" fill="currentColor"/></svg>Google Play에서 보기 ↗</a><p class="micro">Android용 시공막내 · 스토어에서 설치 가능 여부를 확인하세요.</p></div>
+    <ol class="setup-list"><li><span>01</span><div><h3>업종, 상호, 활동 지역을 알려주세요.</h3><p>앱의 ‘시작하기’에서 업종을 고르고 상호와 지역을 적으세요. 목록에 없는 업종은 직접 입력할 수 있어요.</p></div></li><li><span>02</span><div><h3>전화와 문자를 연결하세요.</h3><p>기본 문자 앱 설정과 전화·문자·연락처·알림 권한을 안내에 따라 허용하세요. 이름과 대화를 불러오고 필요한 알림을 받는 데 쓰입니다.</p></div></li><li><span>03</span><div><h3>통화 녹음은 ‘자동으로 찾기’.</h3><p>녹음이 없다면 삼성 전화 → ⋮ → 통화 설정 → 통화 녹음 → 통화 자동 녹음을 켜세요. 앱으로 돌아와 ‘다 켰어요 · 다시 찾기’를 누릅니다. 나중에 연결해도 돼요.</p></div></li><li><span>04</span><div><h3>내 문구와 견적 정보를 준비하세요.</h3><p>더보기 → ‘자동으로 챙기기’에서 쓸 기능을 켜고, ‘문자 템플릿’에 자주 쓰는 문구를 저장하세요. 견적을 보낼 땐 ‘견적서·사업자 정보’와 ‘가격표’도 확인합니다.</p></div></li></ol>
+  </section>
+
+  <section class="guide-section section" id="guide"><div class="wrap"><div class="guide-heading"><div><p class="eyebrow blue">필요할 때 다시 보는 사용설명서</p><h2>지금 하려는 일을 찾아보세요.</h2></div><label class="guide-search"><span aria-hidden="true">⌕</span><span class="sr-only">사용법 검색</span><input id="guide-search" type="search" placeholder="예: 비번, 견적, 협업, 잔금" autocomplete="off"></label></div>
+    <p class="guide-count" id="guide-count" aria-live="polite">8가지 사용법</p>
+    <div class="guide-list">
+      <details data-guide="문의 문자 답장 부재중 전화 자동"><summary><span>01</span>놓친 문의와 부재중 전화 챙기기<i aria-hidden="true">+</i></summary><div class="guide-body"><p><b>상담함 → 답장 안 함 → 고객 선택</b>으로 대화를 여세요. 답장하면 해당 목록에서 빠집니다. 전화로 해결한 건은 고객 줄의 ‘확인’을 눌러 정리하세요.</p><p><b>더보기 → 자동으로 챙기기 → 부재중 응답</b>에서 기능을 켜고 보낼 안내 문구를 확인하세요. 문자 발송 권한이 필요합니다. 발송 실패 표시가 뜨면 대화에서 직접 연락하세요.</p><div class="example-text">문구 예시 · “안녕하세요, 바른시공입니다. 지금 작업 중이라 전화를 못 받았습니다. 시공 지역과 원하시는 작업을 문자로 남겨주시면 확인하고 연락드릴게요.”</div></div></details>
+      <details data-guide="통화 녹음 요약 재생"><summary><span>02</span>통화 내용을 다시 확인하기<i aria-hidden="true">+</i></summary><div class="guide-body"><p>시작 설정의 <b>통화 녹음 연결 → 자동으로 찾기</b>로 저장된 녹음을 연결하세요. 이후 고객 대화의 통화 요약을 열고, 시간 구간을 눌러 해당 녹음을 다시 들을 수 있어요.</p><p>녹음이 없다면 먼저 전화 앱의 자동 녹음을 켜세요. 요약이 사실과 다르거나 날짜·금액이 애매하면 녹음과 고객 확인을 기준으로 처리하세요.</p></div></details>
+      <details data-guide="견적 가격표 도장 직인 접수서 예약"><summary><span>03</span>견적서와 접수서 보내기<i aria-hidden="true">+</i></summary><div class="guide-body"><p><b>더보기 → 견적서·사업자 정보</b>에 상호·대표·직인을, <b>가격표</b>에 항목을 적으세요. 고객 대화에서 <b>/견적</b>을 고른 뒤 품목, 금액, 계약금, 시공일을 확인하고 <b>견적서(직인)로 보내기 → 문자에 첨부</b>를 누릅니다.</p><p>접수를 받을 땐 대화에서 <b>/접수서</b>를 선택해 링크를 보내세요. 고객이 적은 내용을 받은 뒤 접수 카드에서 날짜와 일정 등록 상태를 확인하세요. ‘/’ 대신 입력줄의 ‘⊕’ 메뉴로도 기능을 열 수 있어요.</p><div class="example-text">예시 견적 · 욕실 벽면 보수 900,000원 + 자재·운반 300,000원 − 할인 50,000원 = 1,150,000원. 계약금 300,000원 / 잔금 850,000원. 부가세 포함 예시입니다.</div></div></details>
+      <details data-guide="일정 달력 길찾기 주소 오늘 시공"><summary><span>04</span>오늘 일정 확인하고 현장으로 출발하기<i aria-hidden="true">+</i></summary><div class="guide-body"><p><b>일정 → 날짜 선택</b>. 내 시공과 수락한 협업 현장을 시간순으로 확인하세요. 현장 카드의 <b>길찾기</b>를 누르고, 처음이면 사용할 내비 앱을 고르세요.</p><p>직접 등록할 땐 일정 화면 오른쪽 위 <b>＋</b> 또는 날짜를 길게 누르세요. 달력의 <b>금액</b>을 켜면 시공 건 총액을 만원 단위로 볼 수 있어요.</p></div></details>
+      <details data-guide="협업 사장 일당 요청 수락 정산서"><summary><span>05</span>협업 사장님 부르고 일당 정리하기<i aria-hidden="true">+</i></summary><div class="guide-body"><p><b>고객 대화 → 고객 카드 → 해당 건 → 협업 부르기</b>. 내 전화번호는 더보기의 사업자 정보에 먼저 등록하세요. 현장 주소와 날짜를 확인하고 사장님을 고릅니다. 목록에 없으면 <b>번호로 부르기</b>를 사용하세요.</p><p>사람별 일당, 도착 시간, 전해둘 말을 적어 요청하세요. <b>상대가 수락해야 협업이 시작</b>됩니다. 상대는 더보기 → 협업 현장에서 받은 요청을 확인할 수 있어요.</p><p>협업 사장님 상세의 <b>정산서 → 달 선택</b>에서 완료된 현장을 모아 저장·공유하세요. 정산서를 만들거나 지급을 기록하는 동작은 은행 송금이 아닙니다.</p></div></details>
+      <details data-guide="현장 메모 비번 비밀번호 주차 사진 펜 표시"><summary><span>06</span>현관 비번, 자재 메모, 현장 사진 남기기<i aria-hidden="true">+</i></summary><div class="guide-body"><p><b>고객 대화 → 고객 카드 → 해당 시공 건 → 현장 메모</b>에 그 현장에서 기억할 내용을 적으세요. 같은 고객이라도 시공 날짜와 건을 확인하고 기록하세요.</p><p>현장 사진을 추가한 뒤 크게 보기의 <b>표시</b>에서 펜으로 동그라미나 화살표를 그릴 수 있어요. 색·굵기를 고르고, 실수한 획은 되돌리기. 완료하면 원본을 유지한 채 표시한 사진이 새로 추가됩니다.</p></div></details>
+      <details data-guide="완료 잔금 계약금 미수 정산 입금 돈"><summary><span>07</span>시공 완료와 잔금 받음을 따로 표시하기<i aria-hidden="true">+</i></summary><div class="guide-body"><p>작업을 마치면 해당 시공을 <b>완료</b>로 표시하세요. 아직 잔금을 받지 않았다면 완납으로 표시하지 마세요. <b>상담함 → 잔금 대기</b> 또는 <b>정산</b>에서 남은 금액을 확인합니다.</p><p>고객에게 안내한 뒤 실제 입금을 확인하고 <b>전액 받았어요? → 네, 완납</b>으로 기록하세요. 계약금은 <b>계약금 받았어요</b>로 별도 표시합니다. 금액을 잘못 적었다면 먼저 해당 시공 건의 금액을 바로잡으세요.</p></div></details>
+      <details data-guide="예약 문자 내일 안내 내 기록 성과 사진 보류 AS A/S"><summary><span>08</span>내일 할 일과 다음 방문까지 챙기기<i aria-hidden="true">+</i></summary><div class="guide-body"><p>보내기 창의 작은 <b>시계</b>에서 시간을 고르면 문자를 예약할 수 있어요. 상담함 위 <b>예약한 문자</b>에서 확인하고, 대화의 대기 말풍선에서 <b>예약취소</b>할 수 있습니다. 사진 예약 발송은 기본 문자 앱 설정이 필요해요.</p><p>날짜를 미룬 고객은 해당 건의 <b>더보기 → 일정 보류</b>, 다시 방문할 일은 <b>A/S 잡기</b>로 구분하세요. 마친 현장과 사진은 아래 <b>내 기록</b>에서 돌아보세요.</p></div></details>
+    </div><div class="search-empty" id="search-empty" hidden>맞는 사용법이 없어요. ‘문자’, ‘사진’, ‘일당’처럼 짧게 찾아보세요. <button type="button" id="clear-search">전체 보기</button></div>
+  </div></section>
+
+  <section class="pricing-section wrap section" id="pricing"><div class="section-heading"><p class="eyebrow blue">요금 안내</p><h2>사장님에게 맞는 구성으로.</h2><p>요금과 제공 범위는 확정 후 안내합니다.<br>아래는 요금제 안내를 위한 자리이며, 구매·결제는 진행되지 않습니다.</p></div><div class="pricing-grid"><article class="price-card"><span class="plan-index">PLAN 01</span><h3>요금제명 안내 예정</h3><div class="price-placeholder">—<small>원 / 월</small></div><ul><li>제공 기능 · 안내 예정</li><li>이용 한도 · 안내 예정</li><li>지원 범위 · 안내 예정</li></ul><span class="plan-status">요금 확정 후 안내</span></article><article class="price-card"><span class="plan-index">PLAN 02</span><h3>요금제명 안내 예정</h3><div class="price-placeholder">—<small>원 / 월</small></div><ul><li>제공 기능 · 안내 예정</li><li>이용 한도 · 안내 예정</li><li>지원 범위 · 안내 예정</li></ul><span class="plan-status">요금 확정 후 안내</span></article><article class="price-card"><span class="plan-index">PLAN 03</span><h3>요금제명 안내 예정</h3><div class="price-placeholder">—<small>원 / 월</small></div><ul><li>제공 기능 · 안내 예정</li><li>이용 한도 · 안내 예정</li><li>지원 범위 · 안내 예정</li></ul><span class="plan-status">요금 확정 후 안내</span></article></div></section>
+
+  <section class="faq-section wrap section" id="faq"><div><p class="eyebrow blue">시작하기 전 궁금한 것</p><h2>이것만 알아두세요.</h2></div><div class="faq-list"><details><summary>줄눈을 하지 않아도 쓸 수 있나요?<i aria-hidden="true">+</i></summary><p>네. 타일, 도배, 필름, 방수, 마루, 욕실 리모델링 등 업종을 선택할 수 있고 직접 입력도 가능합니다. 고객과 전화·문자로 약속하고 현장에 가는 사장님을 위한 앱입니다.</p></details><details><summary>막내가 모든 문자를 알아서 보내나요?<i aria-hidden="true">+</i></summary><p>추천 답장은 사장님이 확인하고 보냅니다. 부재중 문자 등 자동 기능은 ‘더보기 → 자동으로 챙기기’에서 설정한 동작을 따릅니다. 예약 문자는 정한 시각에 발송되므로 예약 내용을 확인하세요.</p></details><details><summary>아이폰에서도 쓸 수 있나요?<i aria-hidden="true">+</i></summary><p>이 사용설명서는 Android 앱 기준입니다. 통화 요약에는 휴대폰에 저장된 녹음이 필요하고, 전화 앱·기기 설정에 따라 녹음 연결 상태가 달라질 수 있습니다.</p></details><details><summary>협업 사장님에게 고객 대화도 보이나요?<i aria-hidden="true">+</i></summary><p>고객 전화번호와 고객 대화는 보이지 않습니다. 협업에 필요한 현장 주소·날짜·시간·사진과 전해둔 말을 확인합니다. 보낼 내용을 살펴본 뒤 요청하고, 상대가 수락하면 협업이 시작됩니다.</p></details><details><summary>입금은 자동으로 확인해주나요?<i aria-hidden="true">+</i></summary><p>입금 여부는 사장님이 실제 내역을 확인하고 기록하세요. 시공 완료, 계약금 받음, 잔금 완납은 각각 확인하는 항목입니다. 일당 정산서를 공유하는 것도 실제 송금과는 별개입니다.</p></details></div></section>
+
+  <section class="final-cta"><div class="wrap"><img src="assets/maknae.svg" width="114" height="122" alt="노란 안전모를 쓴 시공막내"><p class="eyebrow">현장에선 사장님, 폰 안에선 막내.</p><h2>내일 현장 갈 땐,<br>막내도 같이 데려가세요.</h2><a class="button dark" href="#start">시공막내 시작하기 <span aria-hidden="true">↗</span></a><a class="text-link" href="#guide">사용설명서 다시 보기</a></div></section>
+</main>
+<footer class="footer wrap"><a class="brand" href="#top"><img src="assets/maknae.svg" width="33" height="36" alt=""><span>시공막내<small>RING-GO</small></span></a><p>혼자 일하는 사장님 곁의 똑똑한 막내.<br><small>화면은 실제 앱 구성을 바탕으로 재현했습니다. 인물·대화·주소·금액은 사용법 설명을 위한 가상 예시입니다.</small></p><a href="#top">맨 위로 ↑</a></footer>
+<noscript><p class="noscript-note">휴대폰 화면 예시와 시간별 장면 전환은 JavaScript를 켜면 볼 수 있습니다. 아래 사용설명서는 그대로 읽을 수 있습니다.</p></noscript>
+</body>
+</html>
