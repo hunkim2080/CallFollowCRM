@@ -7,6 +7,9 @@
      ⚠️ minHeight 는 **구형(API31 미만, 예: S9/Android10)의 기본 크기**다 → 내용 다 보이게 548 유지(낮추면 S9 기본이 짤린다).
         줄이는 바닥은 **minResizeHeight 를 따로 낮게**(≈180) 줘서, 기본은 꽉 차되 사장님이 더 줄일 수 있게 한다.
      API31+(S23U)는 기본이 targetCell(4×4)이고, 리사이즈 범위는 minResize..maxResize 가 정한다.
+     ⚠️ 범위는 **보기 좋은 선으로 울타리**를 친다 — 너무 줄이면 글자가 잘리고(…), 너무 늘리면 빈칸(void)이
+        다시 생긴다. 내용 자연높이 ≈ 548dp 전후. 아래로는 글자 안 잘리는 420dp, 위로는 빈칸 적은 700dp 까지만.
+        (2026-11-05 사장님 "제한없이 움직이던데" → band 로 좁힘. 그래도 삼성 핸들 뜰 만큼은 넓다: 가로 300, 세로 280 폭)
      ⚠️ 삼성 One UI 7 에는 작은 위젯을 4×4 로 강제확대·고정하는 OS 버그가 있다(One UI 8 에서 수정). 그 경우
         코드로 완전히는 못 풀고, '위젯 지우고 다시 추가' 뒤 바닥 핸들로 줄이는 게 현재 최선. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
@@ -14,10 +17,10 @@
     android:minHeight="548dp"
     android:targetCellWidth="4"
     android:targetCellHeight="4"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="180dp"
-    android:maxResizeWidth="720dp"
-    android:maxResizeHeight="1200dp"
+    android:minResizeWidth="260dp"
+    android:minResizeHeight="420dp"
+    android:maxResizeWidth="560dp"
+    android:maxResizeHeight="700dp"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_today"
     android:previewLayout="@layout/widget_today"
