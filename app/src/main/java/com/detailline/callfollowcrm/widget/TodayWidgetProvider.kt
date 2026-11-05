@@ -179,7 +179,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
             txt(R.id.widget_unanswered_elapsed, p.widgetUnansweredElapsed)
             txt(R.id.widget_unanswered_msg, p.widgetUnansweredMsg.takeIf { it.isNotBlank() }?.let { "문자 · $it" }.orEmpty())
             txt(R.id.widget_reply_done_sub, if (current == null) "한숨 돌려도 괜찮아요." else "이제 오늘 현장을 확인해보세요.")
-            v.setOnClickPendingIntent(R.id.widget_reply, routePending(app, "inbox"))
+            // 답장 안 함 탭 → **그 고객 대화로 바로**(답장하러). 번호 없으면 상담함 폴백. (2026-11-05 사장님 "눌러서 바로 답장")
+            v.setOnClickPendingIntent(R.id.widget_reply,
+                if (p.widgetUnansweredPhone.isNotBlank()) chatPending(app, p.widgetUnansweredPhone, p.widgetUnansweredCustomerId)
+                else routePending(app, "inbox"))
             txt(R.id.widget_count, if (count == 0) "" else "· ${count}곳")
             txt(R.id.widget_synced, if (p.widgetUpdatedAt == 0L) "" else {
                 val mins = ((now - p.widgetUpdatedAt) / 60_000L).coerceAtLeast(0)
@@ -226,7 +229,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
             txt(R.id.widget_next_time, next?.timeLabel.orEmpty())
             show(R.id.widget_next_collab, next?.shareId?.isNotBlank() == true)
             v.setOnClickPendingIntent(R.id.widget_next, next?.let { detailPending(app, it) } ?: routePending(app, "schedule"))
-            v.setOnClickPendingIntent(R.id.widget_home, if (p.homeAddress.isBlank()) routePending(app, "settings") else navigationPending(app, p.homeAddress))
+            // 🏠 집으로 길찾기 — 주소 있으면 바로 네비, 없으면 **집 주소 입력창으로 바로** 보낸다. (2026-11-05 사장님)
+            v.setOnClickPendingIntent(R.id.widget_home, if (p.homeAddress.isBlank()) routePending(app, "home_address") else navigationPending(app, p.homeAddress))
             return v
         }
 
@@ -239,6 +243,16 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
             return PendingIntent.getActivity(context, 20, intent, FLAGS)
         }
+
+        /** 답장 안 함 → 그 고객 대화(ACTION_CHAT). 번호별로 다른 PendingIntent 가 되게 data 로 구분. */
+        private fun chatPending(context: Context, phone: String, customerId: Long) = PendingIntent.getActivity(context, 22,
+            Intent(context, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_CHAT
+                putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+                if (customerId > 0) putExtra(MainActivity.EXTRA_CUSTOMER_ID, customerId)
+                data = android.net.Uri.parse("sgmwidget://chat/${android.net.Uri.encode(phone)}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }, FLAGS)
 
         private fun routePending(context: Context, route: String) = PendingIntent.getActivity(context, route.hashCode(),
             Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_WIDGET_ROUTE).putExtra("widget_route", route)

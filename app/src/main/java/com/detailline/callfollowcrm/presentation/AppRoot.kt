@@ -152,7 +152,7 @@ fun AppRoot(container: AppContainer) {
                         }
                         is NavEvent.OpenWidgetRoute -> {
                             val destination = when (event.route) {
-                                "settings" -> Destinations.SETTINGS
+                                "settings", "home_address" -> Destinations.SETTINGS   // home_address: 설정 열고 집주소 입력창 자동 오픈(HomeAddressSetting 플래그)
                                 "schedule" -> Destinations.SCHEDULE
                                 else -> Destinations.HOME
                             }

@@ -16101,3 +16101,12 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - **실기 1:1 확인(S9 100.121.10.111)**: WidgetPreviewActivity 로 featured·compact·협업·빈 날 4경우 캡처 → 프로토와 폰트·줄간격·색·아파트 그림 1:1, 겹침 0. 사장님께 캡처 보고함.
 - 빌드: assembleRelease(--offline) EXIT=0 · 가드 7종 통과·기준선 증가 0([dup]18·[size]37951·[style]2410·[save]0·[rules]공용50) · testDebugUnitTest 1357 통과.
 - 다음: 내부배포 올려 사장님이 **실제 홈 위젯 배치**로 최종 확인(미리보기 하네스는 레이아웃 렌더만, 실제 배치·탭·길찾기·집주소 동작은 폰에서).
+
+## 2026-11-05 20:25 · android
+🧱 위젯 **탭 배선 3곳 수정 + 실기 검증**(사장님 지적: 답장 눌러도 답장 못 감·집주소 설정 바닥에 생각없이·집버튼 동작). Codex 배선이 틀렸던 걸 android(Opus)가 고치고 **S9에서 인텐트 쏴서 눈으로 확인**.
+- **답장 안 함 탭 → 그 고객 대화로 바로**: TodayWidgetProvider `widget_reply` 가 `routePending("inbox")` → `chatPending(widgetUnansweredPhone, ...Id)`(ACTION_CHAT). 번호 없으면 상담함 폴백. (검증: ACTION_CHAT → 대화 화면 열림)
+- **집 주소 설정 = 제대로 된 카드**: `HomeAddressSetting` 를 바텀 TextButton 에서 공용 `LockRow`(🏠 아이콘+제목+부제) 로. LockRow `private`→`internal`. 위치는 기본 네비 앱 바로 밑. (검증: 다른 설정과 같은 카드 행)
+- **집 버튼(주소 미등록) → 입력창 바로**: `widget_home` 블랭크 시 `routePending("settings")` → `"home_address"` 라우트. MainActivity 가 그 라우트에 `openHomeAddressInput` 플래그 세팅 → AppRoot 설정 화면 이동 → HomeAddressSetting `LaunchedEffect` 가 입력창 자동 오픈. 주소 있으면 바로 네비. (검증: home_address 라우트 → 설정+입력창 자동 뜸)
+- 신규 pref `openHomeAddressInput`(1회 플래그). 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37955·[style]2410·[save]0·[rules]공용50)·debug 설치 검증.
+- 교훈: 지난 배포는 **모양만 캡처 확인하고 탭 동작을 안 눌러봐서** 이 배선 버그가 나갔다. 이번엔 adb 인텐트로 탭 목적지까지 확인함. (debug 전용 WidgetPreviewActivity 는 레이아웃만, 탭은 ACTION_* 인텐트로 검증)
+- 폰 확인: S9 인텐트 검증 ✅. 사장님은 실제 위젯 배치해서 최종 눈확인(내부배포 업데이트 뒤).

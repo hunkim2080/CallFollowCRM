@@ -1958,7 +1958,7 @@ private const val SHOW_TIER_BADGES = false
  *   ⚠️ 배지 표시 여부는 [SHOW_TIER_BADGES].
  */
 @Composable
-private fun LockRow(
+internal fun LockRow(
     icon: ImageVector,
     iconBg: Color,
     iconTint: Color,
