@@ -209,10 +209,6 @@ class AppPreferences(context: Context) {
     var homeAddress: String
         get() = prefs.getString("home_address", "") ?: ""
         set(value) { check(prefs.edit().putString("home_address", value.trim()).commit()) { "집 주소 저장 실패" } }
-    /** 🏠 위젯 집 버튼(주소 미등록)이 설정을 열 때 — 집 주소 입력창을 자동으로 띄우라는 1회 플래그. (2026-11-05 사장님) */
-    var openHomeAddressInput: Boolean
-        get() = prefs.getBoolean("open_home_address_input", false)
-        set(value) = prefs.edit().putBoolean("open_home_address_input", value).apply()
     /** 🤝 협업 진행 알림 '현장마다 하나로' — shareId→도달한 최고 단계(1수락~4완료) JSON. 단계 전진 때만 울리게. (2026-11-05) */
     var collabProgressJson: String
         get() = prefs.getString("collab_progress_json", "") ?: ""

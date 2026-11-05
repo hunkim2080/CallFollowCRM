@@ -66,8 +66,12 @@ class WidgetPreviewActivity : Activity() {
             if (compact || compactLight) {
                 // compact: 작은 동호수 + 메모. compactLight(메모만·견적X)는 아파트 그림+카드배경으로 빈칸 채움.
                 gone(R.id.widget_featured_address); show(R.id.widget_compact_address)
-                gone(R.id.widget_complex); gone(R.id.widget_compact_complex)
-                set(R.id.widget_compact_unit, if (collab) "203동 1504호" else "102동 1203호")
+                gone(R.id.widget_complex)
+                if (compact) {  // 이름 있는 현장 — 단지명 밑에 동호수(세로)
+                    set(R.id.widget_name, "탄성 수원 푸르지오 고객 고객님"); set(R.id.widget_region, "경기 수원")
+                    show(R.id.widget_compact_complex); set(R.id.widget_compact_complex, "수원역푸르지오자이")
+                } else gone(R.id.widget_compact_complex)
+                set(R.id.widget_compact_unit, if (collab) "203동 1504호" else "137동 203호")
                 show(R.id.widget_memo); set(R.id.widget_memo_text, "욕실 실리콘 상태 먼저 확인\n주차 B1, 세대 1357* 그대로")
                 if (compactLight) {
                     gone(R.id.widget_items); show(R.id.widget_motif)

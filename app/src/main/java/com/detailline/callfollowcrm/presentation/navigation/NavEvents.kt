@@ -1,6 +1,9 @@
 package com.detailline.callfollowcrm.presentation.navigation
 
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
@@ -9,6 +12,14 @@ import kotlinx.coroutines.flow.receiveAsFlow
 class NavEvents {
     private val channel = Channel<NavEvent>(Channel.BUFFERED)
     val events = channel.receiveAsFlow()
+
+    /** 🏠 위젯 집 버튼(주소 미등록) → 설정 열고 **집 주소 검색창을 띄우라는 신호**.
+     *   StateFlow(반응형)라 앱이 이미 켜져 있어도(설정이 떠 있어도) 값이 true 로 바뀌면 입력창이 뜬다.
+     *   전에 LaunchedEffect(Unit) 한 번만 읽어서 앱 켜져 있을 땐 안 뜨던 버그 수정. (2026-11-05 사장님) */
+    private val _openHomeAddress = MutableStateFlow(false)
+    val openHomeAddress: StateFlow<Boolean> = _openHomeAddress.asStateFlow()
+    fun requestOpenHomeAddress() { _openHomeAddress.value = true }
+    fun clearOpenHomeAddress() { _openHomeAddress.value = false }
 
     fun requestFollowUp(phoneNumber: String, callRecordId: Long? = null, templateId: Long? = null) {
         channel.trySend(NavEvent.OpenFollowUp(phoneNumber, callRecordId, templateId))

@@ -209,11 +209,9 @@ class MainActivity : ComponentActivity() {
             }
             ACTION_WIDGET_ROUTE -> {
                 val route = intent.getStringExtra("widget_route").orEmpty()
-                if (route in setOf("inbox", "schedule", "settings", "home_address")) {
-                    // 🏠 집 주소 미등록 상태로 위젯 집 버튼 → 설정 열며 **집 주소 입력창 바로** 뜨게 플래그. (2026-11-05 사장님)
-                    if (route == "home_address") (application as CallFollowCrmApplication).container.preferences.openHomeAddressInput = true
+                // home_address: 설정 열고 집 주소 검색창을 띄운다(신호는 AppRoot 가 requestOpenHomeAddress 로 — 반응형). (2026-11-05 사장님)
+                if (route in setOf("inbox", "schedule", "settings", "home_address"))
                     pendingIntentState.value = IncomingIntent.WidgetRoute(route)
-                }
             }
             ACTION_TEAM -> { pendingIntentState.value = IncomingIntent.OpenTeam }
             ACTION_RECURRING_DUE -> { pendingIntentState.value = IncomingIntent.OpenRecurringDue }

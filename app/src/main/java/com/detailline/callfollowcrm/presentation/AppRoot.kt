@@ -152,11 +152,14 @@ fun AppRoot(container: AppContainer) {
                         }
                         is NavEvent.OpenWidgetRoute -> {
                             val destination = when (event.route) {
-                                "settings", "home_address" -> Destinations.SETTINGS   // home_address: 설정 열고 집주소 입력창 자동 오픈(HomeAddressSetting 플래그)
+                                "settings", "home_address" -> Destinations.SETTINGS
                                 "schedule" -> Destinations.SCHEDULE
                                 else -> Destinations.HOME
                             }
                             navController.navigate(destination) { launchSingleTop = true }
+                            // 🏠 집 주소 미등록 상태로 위젯 집 버튼 → 설정 열고 **집 주소 검색창 띄우라는 반응형 신호**.
+                            //   앱이 켜져 있어 설정이 이미 떠 있어도 값이 바뀌어 입력창이 뜬다. (2026-11-05 사장님)
+                            if (event.route == "home_address") container.navEvents.requestOpenHomeAddress()
                         }
                         is NavEvent.OpenTeam -> {
                             navController.navigate(Destinations.TEAM) { launchSingleTop = true }

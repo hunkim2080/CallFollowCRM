@@ -16132,3 +16132,13 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 내용은 고정 ~548dp라 셀이 그보다 크면 가운데가 빈다(RemoteViews는 셀을 못 줄임). minHeight=548 을 바닥으로 세로 리사이즈를 열어, 사장님이 내용에 딱 맞게 줄이면 빈칸 사라짐.
 - ⚠️ 적용: 이미 올려둔 위젯은 **지우고 다시 추가**(새 기본 크기·리사이즈 모드) 또는 바닥 핸들을 위로 끌어 줄이면 됨.
 - 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과. (XML 리소스만 변경)
+
+## 2026-11-05 22:05 · android
+위젯·집주소 마무리 3종 (사장님 지적, 전부 S9 실기 캡처 확인):
+- **동호수 위치**: compact 현장의 동호수가 오른쪽으로 떠있던 것(가로 배치, complex weight=1 가 unit 을 밀어냄) → **세로 쌓기**로. widget_today.xml `widget_compact_address` 가로→세로(단지명 compact_complex 12sp 위, 동호수 compact_unit 15sp #2368BE 아래). 실기: "수원역푸르지오자이" 밑에 "137동 203호" ✅. (사장님 "동 호수가 왜 저 위치로")
+- **집버튼 앱상태 불일치**: 앱 **켜져 있을 땐** 집버튼이 더보기창만 가고 주소검색이 안 뜨던 것(원인=1회성 LaunchedEffect(Unit)+pref 플래그) → **반응형 NavEvents.openHomeAddress StateFlow**로. AppRoot 의 OpenWidgetRoute 가 route==home_address 면 `requestOpenHomeAddress()`, HomeAddressSetting 이 `collectAsState`로 받아 검색창 띄움. 옛 pref(openHomeAddressInput)·MainActivity 플래그셋 제거. 실기: 앱 켠 상태에서 라우트 쏘니 주소검색 창 바로 뜸 ✅. (사장님 "앱 켜있을땐 더보기창으로, 꺼졌을땐 주소검색이 바로 뜨는데 뭐지")
+- **저장 안내 없음**: 주소 골라도 말없이 더보기로 나가 "된 건가?" 싶던 것 → onPicked 성공 시 **토스트** "집 주소 저장했어요 · 위젯 '집으로 길찾기'가 여기로 안내해요". 실패 시도 토스트. (사장님 "아무말 안내 없이 나가지니까 정상인지 못느끼겠네")
+- 변경: widget_today.xml · NavEvents.kt · AppRoot.kt · HomeAddressSetting.kt · MainActivity.kt · AppPreferences.kt(pref 제거) · debug WidgetPreviewActivity(compact 세로쌓기 검증).
+- §12-K 연결 확인: openHomeAddress 신호 쓰는 곳(NavEvents·AppRoot·HomeAddressSetting) 다 봄, 옛 pref 실사용 0곳(주석 1곳도 갱신). 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37958·[style]2410·[save]0·[rules]공용50).
+- 폰 확인: S9 — 동호수 세로쌓기·앱켠상태 주소검색 둘 다 캡처 확인. S23U(읽기전용)는 못 봄.
+- 다음 액션(없음): S23U 위젯 리사이즈 잠김은 Play 반영 지연/조밀그리드 minHeight 제약 추정 — 지우고 재설치 안내로 대응.
