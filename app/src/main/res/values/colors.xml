@@ -2,4 +2,14 @@
 <resources>
     <color name="brand_primary">#2E7D32</color>
     <color name="bg_default">#F8F9FA</color>
+
+    <!-- 🤝 협업 진행 알림 스텝(쿠팡 배송추적) — 프로토 32vgR4Lz 색 그대로. (2026-11-05 사장님) -->
+    <color name="collab_step_green">#15B36B</color>
+    <color name="collab_step_purple">#6A53E6</color>
+    <color name="collab_step_track">#E3E7EC</color>
+    <color name="collab_step_dot_border">#D8DDE4</color>
+    <color name="collab_step_title">#1B2027</color>
+    <color name="collab_step_body">#49515D</color>
+    <color name="collab_step_label_on">#3A4350</color>
+    <color name="collab_step_label_off">#9AA2AD</color>
 </resources>

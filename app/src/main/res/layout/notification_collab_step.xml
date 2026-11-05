@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  🤝 협업 진행 알림 — 펼쳤을 때 '쿠팡 배송추적' 스텝. 프로토 32vgR4Lz 그대로.
+  DecoratedCustomViewStyle 이 위에 앱 머리(아이콘·시각)를 붙이고, 이 뷰가 본문이 된다.
+  점/막대 색·✓·시각은 NotificationHelper.buildCollabStepView 가 단계에 맞게 얹는다.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="4dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/collab_step_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@color/collab_step_title"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <!-- 스텝 막대(점 + 연결선) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="22dp"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <!-- cell 0 -->
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+            <TextView android:id="@+id/collab_dot0"
+                android:layout_width="18dp" android:layout_height="18dp"
+                android:layout_centerInParent="true"
+                android:gravity="center" android:textSize="9sp"
+                android:textColor="#FFFFFF" android:textStyle="bold"
+                android:background="@drawable/noti_dot_pending" />
+            <FrameLayout android:id="@+id/collab_bar0L"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/collab_dot0" />
+            <FrameLayout android:id="@+id/collab_bar0R"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_toEndOf="@id/collab_dot0"
+                android:layout_alignParentEnd="true" />
+        </RelativeLayout>
+
+        <!-- cell 1 -->
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+            <TextView android:id="@+id/collab_dot1"
+                android:layout_width="18dp" android:layout_height="18dp"
+                android:layout_centerInParent="true"
+                android:gravity="center" android:textSize="9sp"
+                android:textColor="#FFFFFF" android:textStyle="bold"
+                android:background="@drawable/noti_dot_pending" />
+            <FrameLayout android:id="@+id/collab_bar1L"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/collab_dot1" />
+            <FrameLayout android:id="@+id/collab_bar1R"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_toEndOf="@id/collab_dot1"
+                android:layout_alignParentEnd="true" />
+        </RelativeLayout>
+
+        <!-- cell 2 -->
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+            <TextView android:id="@+id/collab_dot2"
+                android:layout_width="18dp" android:layout_height="18dp"
+                android:layout_centerInParent="true"
+                android:gravity="center" android:textSize="9sp"
+                android:textColor="#FFFFFF" android:textStyle="bold"
+                android:background="@drawable/noti_dot_pending" />
+            <FrameLayout android:id="@+id/collab_bar2L"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/collab_dot2" />
+            <FrameLayout android:id="@+id/collab_bar2R"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_toEndOf="@id/collab_dot2"
+                android:layout_alignParentEnd="true" />
+        </RelativeLayout>
+
+        <!-- cell 3 -->
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+            <TextView android:id="@+id/collab_dot3"
+                android:layout_width="18dp" android:layout_height="18dp"
+                android:layout_centerInParent="true"
+                android:gravity="center" android:textSize="9sp"
+                android:textColor="#FFFFFF" android:textStyle="bold"
+                android:background="@drawable/noti_dot_pending" />
+            <FrameLayout android:id="@+id/collab_bar3L"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/collab_dot3" />
+            <FrameLayout android:id="@+id/collab_bar3R"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:layout_centerVertical="true"
+                android:layout_toEndOf="@id/collab_dot3"
+                android:layout_alignParentEnd="true" />
+        </RelativeLayout>
+    </LinearLayout>
+
+    <!-- 단계 이름 + 시각 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:orientation="horizontal">
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/collab_lb0" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="10sp"
+                android:textStyle="bold" android:textColor="@color/collab_step_label_off" />
+            <TextView android:id="@+id/collab_tm0" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="8sp"
+                android:textColor="@color/collab_step_label_off" android:layout_marginTop="1dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/collab_lb1" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="10sp"
+                android:textStyle="bold" android:textColor="@color/collab_step_label_off" />
+            <TextView android:id="@+id/collab_tm1" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="8sp"
+                android:textColor="@color/collab_step_label_off" android:layout_marginTop="1dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/collab_lb2" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="10sp"
+                android:textStyle="bold" android:textColor="@color/collab_step_label_off" />
+            <TextView android:id="@+id/collab_tm2" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="8sp"
+                android:textColor="@color/collab_step_label_off" android:layout_marginTop="1dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/collab_lb3" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="10sp"
+                android:textStyle="bold" android:textColor="@color/collab_step_label_off" />
+            <TextView android:id="@+id/collab_tm3" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="8sp"
+                android:textColor="@color/collab_step_label_off" android:layout_marginTop="1dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/collab_step_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:textSize="12sp"
+        android:textColor="@color/collab_step_body"
+        android:maxLines="2"
+        android:ellipsize="end" />
+</LinearLayout>

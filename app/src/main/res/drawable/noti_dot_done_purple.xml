@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 협업 스텝 점 — 마지막 '완료' 단계: 보라 꽉 참(가운데 ✓ 글자는 코드가 얹음). 프로토대로 완료만 보라. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/collab_step_purple" />
+</shape>

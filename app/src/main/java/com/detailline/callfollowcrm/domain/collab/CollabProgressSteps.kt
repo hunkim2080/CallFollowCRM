@@ -21,7 +21,8 @@ object CollabProgressSteps {
     }
 
     const val MAX = 4
-    private val LABELS = listOf("수락", "출발", "도착", "완료")
+    /** 단계 이름 한 곳 — 글자 막대([line])와 커스텀 알림 스텝 그림이 같은 이름을 쓴다(두 벌 금지 §12). */
+    val labels = listOf("수락", "출발", "도착", "완료")
 
     /**
      * 진행 막대 한 줄 — 도달한 단계까지 ●, 아직은 ○.
@@ -30,7 +31,7 @@ object CollabProgressSteps {
      */
     fun line(reached: Int): String {
         if (reached <= 0) return ""
-        return LABELS.mapIndexed { i, label ->
+        return labels.mapIndexed { i, label ->
             val stepOrder = i + 1
             (if (stepOrder <= reached) "●" else "○") + " " + label
         }.joinToString(" ─ ")

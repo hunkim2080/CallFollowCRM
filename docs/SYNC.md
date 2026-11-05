@@ -16051,3 +16051,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 빌드: compileDebugKotlin·assembleRelease·testDebugUnitTest 전부 EXIT=0. 가드 7종 통과([dup]18·[style]2410·[save]0·[rules]공용49).
 - 폰 확인: 못 봄 — 내부배포로 올려 사장님 폰에서 확인 예정(같은 현장 수락→출발→도착→완료가 **한 줄로** 단계 차나, 단계마다 소리 나나, 거절은 따로 뜨나).
 - 다음 액션(사장님): 폰에서 협업 현장 한 건으로 수락·출발·도착·완료를 받아보며 알림이 하나로 갱신되는지 확인.
+
+## 2026-11-05 14:30 · android
+협업 진행 알림을 **프로토(32vgR4Lz)대로 커스텀 뷰**로 — 쿠팡 스텝 그림(점·초록막대·✓·단계시각). 글자 막대는 폴백.
+- 변경: 알림만(서버·UI 영향 없음). `collabProgressJson` 형식 int→{"r","t"} (옛 int 자동 읽음, 단일 reader=CollabStepNotifier).
+  신규: `service/CollabStepNotifier.kt`(bump·buildView·cardBody, NotificationHelper 2천줄이라 잎 분리 §12-F), `res/layout/notification_collab_step.xml`, dot drawable 4종, colors 8, brand_allow 5줄.
+- 폰 확인: 못 봄 — 커스텀 알림이라 폰마다 미세차 가능(실기 확인 필요). 빌드 7가드 통과·기준선 증가 0·테스트 1353.
+- 다음 액션: (사장님) 폰에서 협업 수락→출발→도착→완료가 한 알림에 스텝으로 차는지 눈확인. / (나) 상담함 알림 묶기 프로토 만들어 「가」 받기.

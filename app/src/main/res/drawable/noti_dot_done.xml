@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 협업 스텝 점 — 지나온 단계: 초록 꽉 참(가운데 ✓ 글자는 코드가 얹음). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/collab_step_green" />
+</shape>

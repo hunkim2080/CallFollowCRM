@@ -717,26 +717,6 @@ object NotificationHelper {
      */
     private val collabNotifyLock = Any()
 
-    /**
-     * 🤝 이 현장(shareId)을 방금 온 단계로 올린다 — 현장마다 알림 하나, **단계 전진 때만** 울린다. (2026-11-05 사장님 쿠팡 스텝)
-     *   @return (reached=올린 뒤 최고 단계, advanced=이번에 전진했나). advanced=false 면 부르는 쪽이 재알림을 멈춘다
-     *     (뒤늦게 온 낮은 단계·같은 단계 재게시 → 두 번 안 울림). 잠금은 admit 과 같은 collabNotifyLock(§13③ 연타).
-     */
-    private fun bumpCollabProgress(context: Context, shareId: String, stepOrder: Int): Pair<Int, Boolean> {
-        val prefs = prefsOf(context) ?: return stepOrder to true
-        synchronized(collabNotifyLock) {
-            val map = runCatching { org.json.JSONObject(prefs.collabProgressJson.ifBlank { "{}" }) }
-                .getOrDefault(org.json.JSONObject())
-            val old = map.optInt(shareId, 0)
-            if (stepOrder <= old) return old to false
-            map.put(shareId, stepOrder)
-            // 너무 커지지 않게(완료된 옛 현장 등) — 넘치면 통째로 비운다. 기억 리셋이라 재발 알림이 한 번 더 뜰 뿐 무해.
-            prefs.collabProgressJson =
-                if (map.length() > 400) org.json.JSONObject().put(shareId, stepOrder).toString() else map.toString()
-            return stepOrder to true
-        }
-    }
-
     private fun admitCollabEvent(context: Context, key: String): Boolean {
         val prefs = prefsOf(context) ?: return true
         synchronized(collabNotifyLock) {
@@ -769,11 +749,17 @@ object NotificationHelper {
         val stepOrder = com.detailline.callfollowcrm.domain.collab.CollabProgressSteps.orderOf(kind)
         var progressLine = ""
         var alertOnce = true
+        var stepReached = 0
+        var stepTimes: Map<Int, Long> = emptyMap()
         if (stepOrder > 0 && shareId.isNotBlank()) {
-            val bump = bumpCollabProgress(context, shareId, stepOrder)
-            if (!bump.second) return   // 이미 그 단계까지 알렸음 — 두 번 안 울림
-            progressLine = com.detailline.callfollowcrm.domain.collab.CollabProgressSteps.line(bump.first)
-            alertOnce = false          // 단계가 올라갔으니 갱신이라도 울린다
+            val prefs = prefsOf(context)
+            val bump = if (prefs != null) CollabStepNotifier.bump(prefs, shareId, stepOrder)
+                else CollabStepNotifier.Bump(stepOrder, true, mapOf(stepOrder to System.currentTimeMillis()))
+            if (!bump.advanced) return   // 이미 그 단계까지 알렸음 — 두 번 안 울림
+            progressLine = com.detailline.callfollowcrm.domain.collab.CollabProgressSteps.line(bump.reached)
+            alertOnce = false            // 단계가 올라갔으니 갱신이라도 울린다
+            stepReached = bump.reached
+            stepTimes = bump.times
         }
         val notifId = if (stepOrder > 0 && shareId.isNotBlank()) famId(FAM_COLLAB, shareId.hashCode())
         else famId(FAM_COLLAB, eventId.hashCode())
@@ -842,14 +828,22 @@ object NotificationHelper {
             "completed" -> CHANNEL_COLLAB_COMPLETED
             else -> CHANNEL_REMINDER   // 여기 안 옴(위 when 에서 return) — 방어용
         }
+        val baseMsg = accountText?.let { "$msg · 계좌 $it" } ?: msg
+        // 🚚 쿠팡 스텝 그림(프로토 32vgR4Lz) — 단계일 때만. 카드 본문·그리기는 CollabStepNotifier.
+        val stepView = if (stepReached > 0) CollabStepNotifier.buildView(
+            context, title.ifBlank { "협업 현장" },
+            CollabStepNotifier.cardBody(kind, partnerName, auto, baseMsg), stepReached, stepTimes
+        ) else null
         showProtoPush(
             context, notifId, channel, accent,
             title = pushTitle,
             msg = buildString {
-                append(accountText?.let { "$msg · 계좌 $it" } ?: msg)
-                if (progressLine.isNotBlank()) append("\n").append(progressLine)   // 🚚 진행 막대: ● 수락 ─ ● 출발 ─ ○ 도착 ─ ○ 완료
+                append(baseMsg)
+                // 스텝 그림이 못 떠서 글자 폴백으로 갈 때만 막대를 붙인다(그림이 뜨면 중복이라 뺀다).
+                if (stepView == null && progressLine.isNotBlank()) append("\n").append(progressLine)
             },
             onlyAlertOnce = alertOnce,   // 단계 전진이면 false(울림), 그 외 true
+            bigContentView = stepView,
             contentIntent = pending,
             navTarget = "collab", navShareId = shareId,   // 🔔 알림센터 탭 → 그 협업 현장. (2026-10-13 사장님)
             // 단추 이름은 **그 알림의 다음 궁금증**을 말한다.
@@ -1222,6 +1216,8 @@ object NotificationHelper {
         // 🤝 협업 진행 '단계 전진'처럼 같은 알림 id 를 갱신하며 **매번 울려야** 할 땐 false.
         //   (중복은 부르는 쪽이 이미 걸러서(dedup+전진 게이트) 전진 때만 여기 온다 — 2026-11-05 사장님 쿠팡 스텝)
         onlyAlertOnce: Boolean = true,
+        // 🤝 펼쳤을 때 쓸 커스텀 본문(협업 진행 스텝 그림). 있으면 BigText 대신 이걸 그린다 — 접힌 모습은 그대로 제목+한 줄.
+        bigContentView: RemoteViews? = null,
     ) {
         val bigText = buildString {
             append(msg)
@@ -1235,12 +1231,16 @@ object NotificationHelper {
             .setColorized(true)
             .setContentTitle(shownTitle)
             .setContentText(msg)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             // 같은 알림 id(같은 shareId 등)를 FCM·폴링이 각각 띄워도 소리/진동은 한 번만.
             //   협업 초대가 2~3번 울리던 문제 fix (FCM + 앱루프폴링 + ReminderWorker폴링이 같은 건을 재게시).
             .setOnlyAlertOnce(onlyAlertOnce)
+        // 🤝 스텝 그림이 있으면 펼침 본문으로(앱 머리는 DecoratedCustomViewStyle). 없으면 긴 글. 접힌 모습은 둘 다 제목+한 줄.
+        if (bigContentView != null) {
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            builder.setCustomBigContentView(bigContentView)
+        } else builder.setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
         contentIntent?.let { builder.setContentIntent(it) }
         timeoutMs?.let { builder.setTimeoutAfter(it) }
         actions.forEach { builder.addAction(R.drawable.ic_notification, it.label, it.intent) }
