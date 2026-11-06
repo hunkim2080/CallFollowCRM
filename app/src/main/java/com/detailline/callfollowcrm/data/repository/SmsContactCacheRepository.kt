@@ -20,6 +20,16 @@ class SmsContactCacheRepository(private val dao: SmsContactCacheDao) {
     suspend fun findBySuffix(suffix: String): SmsRepository.SmsContact? =
         dao.findBySuffix(suffix)?.toContact()
 
+    /**
+     * 💬 이 수신 문자·사진이 **「신규 문의」**인가 — 알림 소리·제목을 가른다. (판정은 [NewInquiry] 한 곳, §12)
+     *   세 수신 경로(SmsReceiver·MMS 훅·MMS 폴링)가 이걸 부른다. firstDateMsInScan(가장 오래된 시각)으로 보므로
+     *   이 메시지가 이미 캐시에 upsert 됐든(폴링) 안 됐든 같은 답 — 순서에 안전.
+     */
+    suspend fun isNewInquiry(suffix: String, customerExists: Boolean, thisMessageMs: Long): Boolean {
+        val firstMs = runCatching { dao.findBySuffix(suffix)?.firstDateMsInScan }.getOrNull()
+        return com.detailline.callfollowcrm.domain.inbox.NewInquiry.isNew(customerExists, firstMs, thisMessageMs)
+    }
+
     /** 풀스캔 결과로 통째 rebuild — 앱 첫 실행 또는 정기 정합성 체크. */
     suspend fun rebuildFromFullScan(contacts: List<SmsRepository.SmsContact>) {
         dao.deleteAll()

@@ -44,6 +44,16 @@ val dupRules = listOf(
         instead = "WorkRangePickerDialog(...) / WorkRangeCalendar(...)  (presentation/component)",
         homes = listOf()
     ),
+    // 💬 「신규 문의」 판정 — 세 수신 경로(SMS·MMS훅·MMS폴링)가 제각각이라 **같은 셈이 세 글자**로 갈렸다.
+    //   2026-08-02 에 SMS 만 `!seenBefore` 를 넣고, 폴링은 `isNewCustomer = customer == null` 로 남아
+    //   「대화 중인데 사진 보낼 때마다 신규음」이 났다(2026-11-06 사장님). → 공용 NewInquiry 하나로.
+    //   (주석에 옛 표기를 쓰면 가드가 세니, NewInquiry.kt 를 집으로 빼 거기 역사만 남긴다.)
+    DupRule(
+        id = "new-inquiry",
+        regex = Regex("""isNewCustomer\s*=\s*customer\s*==\s*null|\bseenBefore\b"""),
+        instead = "smsContactCacheRepository.isNewInquiry(suffix, customer != null, ms)  (판정은 domain/inbox/NewInquiry)",
+        homes = listOf("/domain/inbox/NewInquiry.kt")
+    ),
     // ⑦ ⌨️ 키보드 여백 — **세 번째로 터진 자리.** (2026-10-02 사장님 "이것도 두벌이다 뭐다 하는거 아니니")
     //   9/26 에 18곳을 고쳤는데 다른 표기 12곳이 남아 하루 만에 다시 났고,
     //   10/2 엔 `keyboardPadding()` 만 고쳤더니 `windowInsetsPadding(keyboardClearance)` 16곳이

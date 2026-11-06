@@ -16165,3 +16165,9 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - NavHost: `navigate(chat){ popUpTo(CUSTOMER_DETAIL, inclusive) ; launchSingleTop }` — 상세는 스택에서 빼고, 그 채팅이 이미 밑에 있으면 재사용(스크롤 자리 보존). 루프/중복 없음.
 - §12-K 연결: 뒤로가기 처리 지점은 공용 leaveToChat 한 곳(보통 고객·협업 사장·로딩 분기 다 같은 상단바 공유). onBackToChat 거는 곳은 NavHost 한 곳.
 - 폰 확인(S9 실기 캡처): 상세(채팅 아닌 cold 진입)→뒤로→김영희 채팅 ✅ · 채팅→뒤로→상담함(상세 안 돌아옴, 루프X) ✅. 빌드 assembleRelease(--offline) EXIT=0·가드 7종 통과([dup]18·[size]37970·[style]2410·[save]0·[rules]공용50).
+
+## 2026-11-06 13:30 · android
+신규 문의 알림 오판 고침 — 대화 중(미저장) 번호가 사진 보낼 때마다 「신규」음이 울리던 버그. "신규냐" 판정이 세 수신 경로에 제각각(SMS만 2026-08-02에 고쳐지고 MMS훅·MMS폴링은 옛 로직)이라 §12 두 벌이었다 → 공용 NewInquiry 하나로 합침(firstDate 로 봐 폴링 순서에 안전).
+- 변경: domain/inbox/NewInquiry.kt(신규) · SmsContactCacheRepository.isNewInquiry · 3경로 배선 · dup_guard new-inquiry 규칙 · §12 표/목록. 알림 외 인터페이스 영향 없음
+- 폰 확인: 못 봄 (미저장+대화이력 있는 번호로 MMS 수신을 즉석 재현 어려움). 단위테스트 5건으로 판정 커버. 실기는 사장님 내부배포 확인
+- 다음 액션: 없음 (서버 무관)

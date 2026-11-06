@@ -251,6 +251,10 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
                     body = displayBody,
                     receivedAtMs = receivedAtMs,
                     categoryLabel = categoryLabel,
+                    // 신규 문의음·제목 — SMS·폴링과 **같은 판정**(NewInquiry, §12). 전엔 안 넘겨 사진은 신규가 영영 안 울렸다.
+                    isNewCustomer = runCatching {
+                        runBlocking { container.smsContactCacheRepository.isNewInquiry(sameNum, customerForNotif != null, receivedAtMs) }
+                    }.getOrDefault(false),
                     customerId = customerForNotif?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
                 )
             }

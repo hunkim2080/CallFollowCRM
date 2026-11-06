@@ -364,8 +364,8 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 26가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `deposit-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker`
+**`dup_guard` 가 지금 막는 27가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `deposit-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker` · `new-inquiry`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -472,6 +472,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 상담함/문자함 가르기 | `domain/inbox/InboxClassifier.kt` · `BucketPolicy.kt` | 화면에서 직접 판단 |
 | 「확실한 광고」 판정 — 알림 안 울리기(앞자리·뻔한 본문·적어둔 단어 중 하나 + 저장 고객 아님 + **인증·입금·택배면 절대 아님**) | `domain/inbox/DefiniteAd.kt` (`reason`/`isDefiniteAd`, 보호 낱말은 `util/AdHeuristics.kt` 의 `isProtectedNotice`) — 수신 알림 3곳(SmsReceiver·Application MMS 폴링·MmsDownloadedReceiver)이 부름 | 알림 자리에서 `SpamPrefix.isSpam`·`isLikelyAd`·`SpamKeywordMatch` 를 직접 조합 (2026-10-16: 인증문자를 끄면 로그인·결제를 못 한다) |
 | 「이 단어가 있으면」 낱말 맞추기·낱말 정리(trim·빈 값) | `domain/inbox/SpamKeywordMatch.kt` — `hit(body, keywords, saved, replied)` 는 **저장 고객·답장한 번호를 안 가린다**. 거는 자리는 `ThreadBucketRepository.classifyLocal` 한 곳, 저장은 `AppPreferences.spamKeywords` | 화면·수신기에서 `body.contains(keyword)` 직접, 낱말 trim 을 따로 |
+| 「신규 문의」 알림음·제목(미저장 **AND** 이 번호의 더 오래된 메시지 없음) — SMS·MMS훅·MMS폴링 **3경로 같은 판정** | `domain/inbox/NewInquiry.kt` — `isNew(customerExists, cachedFirstMs, thisMs)`(순수+시험). 입구는 `SmsContactCacheRepository.isNewInquiry(suffix, customer!=null, ms)`. `firstDateMsInScan`(가장 오래된 시각)으로 봐 폴링이 먼저 upsert 해도 안전 | 수신기에서 `isNewCustomer = customer == null` 직접, `seenBefore` 를 경로마다 또 (2026-11-06: 통화+문자 왕래 중인 미저장 번호가 사진 보낼 때마다 「신규」음) |
 | 상담함 「답장 안 함」 한 목록 + 광고 판정(칩 숫자·칩 목록·하단 탭 점프가 **같은 목록**) | `inboxUnanswered` / `isInboxAd` (`presentation/screen/home/HomeScreenHelpers.kt`) | 화면에서 `isUnconfirmed` 와 광고 조건을 직접 조합, VM 에서 따로 세기 (2026-10-15: 셋이 각자 세서 「1인데 열면 빈 목록」) |
 | 사진 업로드 한도 | `util/ImageEncoder.CAP_CHARS` | `1_400_000` 직접 |
 | 협업 현장 사진 올리기(화면 나가도 끝까지·진행 알림·낙관적 썸네일) — **앱 수명 매니저**. FGS 아님(Play 안전). 썸네일은 `pending`(현장별), 완료는 `uploaded` 신호로 새로고침 | `data/repository/CollabPhotoUploadManager.kt` — `enqueue`·`pending`·`uploaded`. 입구: `SharedSiteViewModel.uploadPhotos` → 매니저. OWNER 현장사진(우체통 `SitePhotoHandler`)과는 다른 기능 | 화면·VM scope 에서 사진 업로드 루프 돌리기(나가면 취소), 포그라운드 서비스 새로 만들기 |

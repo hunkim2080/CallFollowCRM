@@ -771,7 +771,13 @@ class CallFollowCrmApplication : Application() {
                     body = m.preview,
                     receivedAtMs = m.dateMs,
                     categoryLabel = categoryLabel,
-                    isNewCustomer = customer == null,
+                    // 신규 문의음·제목 — SMS·MMS훅과 **같은 판정**(NewInquiry, §12). 전엔 `customer == null` 만 봐서
+                    //   대화 중(미저장) 번호가 사진 보낼 때마다 신규로 떴다. (2026-11-06 사장님) firstDate 로 봐 순서에 안전.
+                    isNewCustomer = runCatching {
+                        container.smsContactCacheRepository.isNewInquiry(
+                            com.detailline.callfollowcrm.util.PhoneKey.of(m.sender), customer != null, m.dateMs
+                        )
+                    }.getOrDefault(customer == null),
                     customerId = customer?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
                 )
             }
