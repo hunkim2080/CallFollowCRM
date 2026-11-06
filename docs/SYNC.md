@@ -16171,3 +16171,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경: domain/inbox/NewInquiry.kt(신규) · SmsContactCacheRepository.isNewInquiry · 3경로 배선 · dup_guard new-inquiry 규칙 · §12 표/목록. 알림 외 인터페이스 영향 없음
 - 폰 확인: 못 봄 (미저장+대화이력 있는 번호로 MMS 수신을 즉석 재현 어려움). 단위테스트 5건으로 판정 커버. 실기는 사장님 내부배포 확인
 - 다음 액션: 없음 (서버 무관)
+
+## 2026-11-06 13:40 · android · ❓다음 액션(서버)
+통화 전문 말풍선 탭 → **0초(맨 앞)부터 재생** 버그. 근본원인 추적 끝, 사장님 "나중에"로 배포 보류.
+- 증상: 어느 말풍선을 눌러도 처음부터 재생. 화면 눈금도 「0:00」 하나뿐. 힌트(「말풍선 누르면…」)는 뜸(start_ms=0 은 null 이 아니라 clickable).
+- 범인: **각 줄 start_ms 가 전부 0**. 앱(ChatSmallParts.seekAndPlay·ChatScreen 배선)·repo 서버(_parse_stt_json ×1000 ms)·repo whisper_worker.py(:66 "start" 방출) **전부 정상**. → 라이브 서버의 받아쓰기가 start 를 안 붙이는 것(단일청크면 start_ms=offset=0). LIVE_ONLY_auth_sms.py:7 에 "whisper_worker.py 가 낡은 사본에 덮여 되돌아간 사고" 기록 있음 = 라이브 워커가 옛 버전으로 추정.
+- 미확정: 프로덕션 읽기 차단으로 라이브 직접 확인 못 함(강한 추정).
+- 고치는 법: ① 확인=이 통화 '다시 요약'(force_refresh) → 시각 제대로면 옛 캐시, 여전히 0 이면 라이브 워커 옛 버전. ② 고침=GOTCHAS §3 로 server/whisper_worker.py 라이브 교체 + smoke. **새/재요약 통화부터** 적용(옛 캐시는 0 유지).
