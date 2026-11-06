@@ -1128,7 +1128,6 @@ private fun AutoSmsSection(
     var d1Hour by remember { mutableStateOf(prefs.d1SendHour) }
     var d1Text by remember { mutableStateOf(prefs.d1AutoText) }
     var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
-    var aiPrepOn by remember { mutableStateOf(prefs.aiReplyPrepEnabled) }
     var wakeOn by remember { mutableStateOf(prefs.wakeScreenOnSms) }
     var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
     // 광고·스팸 번호 앞자리는 여기 없다 — 더보기 「스팸·광고 거르기」(SpamHubScreen) 로 옮겼다. (2026-10-16)
@@ -1492,30 +1491,10 @@ private fun AutoSmsSection(
                 Switch(checked = wakeOn, onCheckedChange = { wakeOn = it; prefs.wakeScreenOnSms = it })
             }
         }
-        // AI 답변 준비 (2026-07-16 사장님) — 문자 오면 막내가 추천 답변을 미리 만들지 여부. '받은 문자 알림'과 별개.
-        //   OFF = 마스코트 '답변 준비 중' 애니·홈 "AI 답변 준비 중"·서버 호출 전부 없음.
-        AutoRow {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.categoryBg),
-                        contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AppTheme.colors.category, modifier = Modifier.size(15.dp)) }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("AI 답변 준비", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                        Text(
-                            if (aiPrepOn) "문자가 오면 막내가 추천 답변을 미리 만들어둬요 (문자방 열면 바로 보여요)"
-                            else "꺼짐 — 추천을 안 만들어요. 마스코트 '준비 중' 애니도 안 떠요",
-                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Switch(checked = aiPrepOn, onCheckedChange = {
-                        aiPrepOn = it
-                        prefs.aiReplyPrepEnabled = it
-                    })
-                }
-            }
-        }
+        // 'AI 답변 준비' 토글 제거 (2026-11-06 사장님: "문자방에 ai답변 추천받기 현재 없잖아").
+        //   문자방 '✨ AI 답변 추천' 띠는 2026-10-13 삭제됨(ChatScreen) → 이 토글은 들어갈 문이 없는 빈 스위치였다.
+        //   preferences.aiReplyPrepEnabled 자체와 서버 배선은 기본 ON 으로 둠 — 수신 시 미리생성은 이미 꺼져 있어
+        //   새 문자가 와도 추천을 안 만든다(서버비 0). 완전 제거는 나중에 플럼빙까지 정리할 때.
     }
 }
 
