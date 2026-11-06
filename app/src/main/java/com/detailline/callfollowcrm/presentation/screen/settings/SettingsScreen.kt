@@ -1129,6 +1129,7 @@ private fun AutoSmsSection(
     var d1Text by remember { mutableStateOf(prefs.d1AutoText) }
     var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
     var aiPrepOn by remember { mutableStateOf(prefs.aiReplyPrepEnabled) }
+    var wakeOn by remember { mutableStateOf(prefs.wakeScreenOnSms) }
     var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
     // 광고·스팸 번호 앞자리는 여기 없다 — 더보기 「스팸·광고 거르기」(SpamHubScreen) 로 옮겼다. (2026-10-16)
 
@@ -1478,6 +1479,17 @@ private fun AutoSmsSection(
                     com.detailline.callfollowcrm.presentation.component.HelpText("고객 문자가 오면 알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)")
                 }
                 Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
+            }
+        }
+        // 📳 문자 오면 화면 켜기 (카톡식) — 꺼진 화면을 잠깐 켠다. 기본 ON. (2026-11-06 사장님)
+        //   '받은 문자 알림'이 켜져 있어야 의미 있음(알림이 떠야 화면도 켠다).
+        AutoRow {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("문자 오면 화면 켜기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    com.detailline.callfollowcrm.presentation.component.HelpText("카톡처럼 — 고객 문자가 오면 꺼진 화면을 잠깐 켜요 (광고·스팸·야간 방해금지엔 안 켜요)")
+                }
+                Switch(checked = wakeOn, onCheckedChange = { wakeOn = it; prefs.wakeScreenOnSms = it })
             }
         }
         // AI 답변 준비 (2026-07-16 사장님) — 문자 오면 막내가 추천 답변을 미리 만들지 여부. '받은 문자 알림'과 별개.

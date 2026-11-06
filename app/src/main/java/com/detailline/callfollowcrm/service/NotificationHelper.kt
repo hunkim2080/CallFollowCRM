@@ -1597,6 +1597,11 @@ object NotificationHelper {
             NotificationManagerCompat.from(context)
                 .notify(smsNotificationId(phone), builder.build())
         }
+        // 📳 카톡처럼 — 진짜 문의·답장이 **실제로 울릴 때** 꺼진 화면을 잠깐 켠다. (2026-11-06 사장님)
+        //   토글 ON(기본) + 야간 방해금지 아닐 때만. 광고·스팸은 showGeneralSms 로 가 여기 안 온다. 셈은 ScreenWaker 한 곳.
+        if (!isQuietNow(context) && prefsOf(context)?.wakeScreenOnSms == true) {
+            com.detailline.callfollowcrm.util.ScreenWaker.wake(context)
+        }
         // (알림 센터엔 안 쌓는다 — 문자·문의는 상담함에 이미 보인다. 알림센터는 협업만. 2026-10-13 사장님)
     }
 

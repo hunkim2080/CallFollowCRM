@@ -131,6 +131,15 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean("auto_summary_enabled", value).apply()
 
     /**
+     * 📳 문자(진짜 문의·답장) 오면 꺼진 화면을 잠깐 켜기 — 카톡 '화면 켜기' 와 같음. 기본 ON. (2026-11-06 사장님)
+     *   full-screen intent(전화·알람 전용, Play 제한) 아님 — 화면 깨우기 wakelock(일반 권한). 야간 방해금지엔 안 켜짐.
+     *   광고·스팸(showGeneralSms)엔 적용 안 함. 실제 켜기는 [com.detailline.callfollowcrm.util.ScreenWaker] 한 곳.
+     */
+    var wakeScreenOnSms: Boolean
+        get() = prefs.getBoolean("wake_screen_on_sms", true)
+        set(value) = prefs.edit().putBoolean("wake_screen_on_sms", value).apply()
+
+    /**
      * 통화 녹음을 **서버로 보내는 것**에 대한 명시적 동의. 기본 **false**. (2026-09-17 플레이 정책 점검)
      *
      * 왜 토글과 따로 두나 — [autoSummaryEnabled] 는 기본 ON 이라, 그것만 보면
