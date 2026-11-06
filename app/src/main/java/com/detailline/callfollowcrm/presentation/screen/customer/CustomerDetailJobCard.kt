@@ -128,6 +128,8 @@ internal class JobCardHost(
     val onCancelBooking: () -> Unit,
     /** ✅ 이 건 하나 시공 완료 — 지난/오늘 날짜의 **진행중** 건에만 버튼이 뜬다(미래 건은 X, 안 한 일). (2026-11-06 사장님) */
     val onJobComplete: (jobId: Long) -> Unit,
+    /** 💵 받은 날짜 고르기 — 과거 시공 건에서 '받음'을 찍을 때 "언제 받으셨어요?" 달력(기본=시공일). 고르면 그 날짜로 도장. (2026-11-06 사장님) */
+    val onChoosePaidDate: (defaultMs: Long, onPicked: (Long) -> Unit) -> Unit,
     val onDeleteJob: (JobEntity?) -> Unit,
     val onEditNote: (CustomerNoteEntity) -> Unit,
     /** 크게 보기 — **그 건 사진 전부**를 넘겨 좌우 스와이프. startIndex=탭한 사진. (2026-10-15) */
@@ -389,6 +391,14 @@ internal fun JobDetailCard(
                                     }
                                 }
                             }
+                            // 💵 받은 **날짜** — 과거 시공 건이면 "언제 받으셨어요?" 달력(기본=시공일)로 묻고, 아니면 오늘. (2026-11-06 사장님)
+                            //   과거 손님을 뒤늦게 등록하며 '받음'을 찍으면 받은 날이 **오늘로 박혀** 정산·현금흐름이 이번 달로 틀어지던 것(§13④) 방지.
+                            //   ("5월에 받고 끝낸 사람인데 11월 정산에 남아") — 받음 칩 둘 다 이걸 거친다.
+                            val paidPastWork = scheduled != null && scheduled < DateTimeUtils.startOfDay(System.currentTimeMillis())
+                            fun markPaid(apply: (atMs: Long?) -> Unit) {
+                                if (paidPastWork && scheduled != null) host.onChoosePaidDate(scheduled) { picked -> apply(picked) }
+                                else apply(null)
+                            }
                             androidx.compose.foundation.layout.Row(
                                 // 위 14 / 아래 0 → 위 선(딱붙음)에서 14dp, 아래 선(CdCardDivider 앞 14dp)에서 14dp = 선과 선 사이 정중앙. 전엔 9/9라 아래14 때문에 위로 치우침. (2026-10-20 사장님)
                                 Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 0.dp),
@@ -423,8 +433,10 @@ internal fun JobDetailCard(
                                     if (!depPaid) {
                                         Spacer(Modifier.width(9.dp))
                                         CdUndoChip("계약금 받았어요", danger = false, filled = true) {
-                                            if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true)
-                                            else viewModel.setDepositPaid(true)
+                                            markPaid { atMs ->
+                                                if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true, atMs)
+                                                else viewModel.setDepositPaid(true, atMs)
+                                            }
                                         }
                                     }
                                 } else {
@@ -443,22 +455,24 @@ internal fun JobDetailCard(
                                         //   (2026-10-17 사장님 실기: 계약금 받음 ≠ 잔금 완납)
                                         val paidLabel = if (depositWon > 0L && !depPaid) "계약금 받았어요" else "잔금 받았어요"
                                         CdUndoChip(paidLabel, danger = false, filled = true) {
-                                            when {
-                                                depositWon > 0L && !depPaid ->
-                                                    if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true)
-                                                    else viewModel.setDepositPaid(true)
-                                                depositWon > 0L ->
-                                                    if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true)
-                                                    else {
-                                                        if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
-                                                        viewModel.setBalancePaid(true)
-                                                    }
-                                                else ->
-                                                    if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true)
-                                                    else {
-                                                        if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
-                                                        viewModel.setBalancePaid(true)
-                                                    }
+                                            markPaid { atMs ->
+                                                when {
+                                                    depositWon > 0L && !depPaid ->
+                                                        if (editJobId != null) viewModel.setJobDepositPaid(editJobId, true, atMs)
+                                                        else viewModel.setDepositPaid(true, atMs)
+                                                    depositWon > 0L ->
+                                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true, atMs)
+                                                        else {
+                                                            if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
+                                                            viewModel.setBalancePaid(true, atMs)
+                                                        }
+                                                    else ->
+                                                        if (editJobId != null) viewModel.setJobBalancePaid(editJobId, true, atMs)
+                                                        else {
+                                                            if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
+                                                            viewModel.setBalancePaid(true, atMs)
+                                                        }
+                                                }
                                             }
                                         }
                                     }

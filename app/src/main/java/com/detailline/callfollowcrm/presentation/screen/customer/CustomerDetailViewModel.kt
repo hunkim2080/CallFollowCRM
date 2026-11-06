@@ -245,23 +245,25 @@ class CustomerDetailViewModel(
         }
     }
 
-    fun setJobDepositPaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
+    // @param atMs 받은 날짜(ms). null = 오늘. 과거 시공 건을 등록하며 '받음' 찍으면 **받은 날이 시공일 등 과거**여야
+    //   정산·현금흐름이 그 달로 가 이번 달이 안 틀어진다. (2026-11-06 사장님 "5월에 받고 끝낸 사람인데 11월에 남아")
+    fun setJobDepositPaid(jobId: Long, paid: Boolean, atMs: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             SaveGuard.run("계약금 받음", _toast) {
                 // 고객 카드(요약) 동기화는 setDepositPaid 안에서 자동(도장 기계). (2026-10-13)
-                container.jobRepository.setDepositPaid(jobId, if (paid) System.currentTimeMillis() else null)
+                container.jobRepository.setDepositPaid(jobId, if (paid) (atMs ?: System.currentTimeMillis()) else null)
             }
             container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
-    /** 잔금 받음 — **완료도 자동**(JobRepository.setBalancePaid 안에서). */
-    fun setJobBalancePaid(jobId: Long, paid: Boolean) = viewModelScope.launch {
+    /** 잔금 받음 — **완료도 자동**(JobRepository.setBalancePaid 안에서). @param atMs 받은 날짜(null=오늘). */
+    fun setJobBalancePaid(jobId: Long, paid: Boolean, atMs: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             SaveGuard.run("잔금 받음", _toast) {
                 // 🔒 고객 카드(요약)·배지 동기화는 setBalancePaid 안에서 자동(도장 기계) — 전엔 여기서 빠져
                 //   고객정보는 "완납"인데 배지는 "잔금미수"로 남았다. (2026-10-13 사장님)
-                container.jobRepository.setBalancePaid(jobId, if (paid) System.currentTimeMillis() else null)
+                container.jobRepository.setBalancePaid(jobId, if (paid) (atMs ?: System.currentTimeMillis()) else null)
             }
             container.autoCategoryClassifier.reclassify(customerId)
         }
@@ -691,12 +693,13 @@ class CustomerDetailViewModel(
     // 체크박스 토글 → "지금" 받음/안 받음 으로 시각 기록.
     // 금액 입력 → 별도 필드. 두 개 분리해서 사장님이 "금액만 정함 / 받기까진 안 함" 케이스도 가능.
 
-    fun setDepositPaid(paid: Boolean) = viewModelScope.launch {
+    /** @param atMs 받은 날짜(null=오늘). 과거 건 등록 시 받은 달로 — §13④ 정산 틀어짐 방지. (2026-11-06 사장님) */
+    fun setDepositPaid(paid: Boolean, atMs: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             // 💵 도장은 WorkCompletionManager.setDepositPaid 한 곳 — 카드+건 같이. (2026-10-30 §13④)
             container.workCompletionManager.setDepositPaid(
                 customerId,
-                if (paid) System.currentTimeMillis() else null
+                if (paid) (atMs ?: System.currentTimeMillis()) else null
             )
         }
     }
@@ -711,13 +714,14 @@ class CustomerDetailViewModel(
         }
     }
 
-    fun setBalancePaid(paid: Boolean) = viewModelScope.launch {
+    /** @param atMs 받은 날짜(null=오늘). 과거 건 등록 시 받은 달로 — §13④ 정산 틀어짐 방지. (2026-11-06 사장님) */
+    fun setBalancePaid(paid: Boolean, atMs: Long? = null) = viewModelScope.launch {
         withContext(NonCancellable) {
             // 🤫 **여기가 Fable 1순위였다.** 고객 카드엔 '받음'이 찍히는데 건 미러가 조용히
             //   실패하면 건 전표는 '미수' 로 남아 다음 날 잘못된 미수 알람이 뜬다. (2026-10-02)
             // 💵 도장은 WorkCompletionManager.setBalancePaid 한 곳 — 카드·대표 건을 같이 찍고, 되돌릴 때도 같이. (2026-10-15)
             SaveGuard.run("잔금 받음", _toast) {
-                container.workCompletionManager.setBalancePaid(customerId, if (paid) System.currentTimeMillis() else null)
+                container.workCompletionManager.setBalancePaid(customerId, if (paid) (atMs ?: System.currentTimeMillis()) else null)
             }
             container.autoCategoryClassifier.reclassify(customerId)
         }

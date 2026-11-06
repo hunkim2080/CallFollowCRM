@@ -217,6 +217,10 @@ fun CustomerDetailScreen(
     var dateEditStart by remember { mutableStateOf<Long?>(null) }   // 그 건의 현재 예약일(달력 미리채움·축하 판단용)
     var dateEditDays by remember { mutableStateOf(1) }              // 그 건의 현재 기간
     var dateEditMinutes by remember { mutableStateOf<Int?>(null) }  // 그 건의 현재 시간(시간창 미리채움용)
+    // 💵 받은 날짜 달력 — 과거 시공 건에서 '받음' 찍을 때 "언제 받으셨어요?"(기본=시공일). 고르면 onPicked 로 그 날짜 도장. (2026-11-06 사장님)
+    var paidDateOpen by remember { mutableStateOf(false) }
+    var paidDateDefault by remember { mutableStateOf<Long?>(null) }
+    var paidDateOnPicked by remember { mutableStateOf<((Long) -> Unit)?>(null) }
     // (selectedPastJobId 제거 — 건 탭에서 하나를 고르던 상태. 이제 건마다 자기 카드가 다 보인다. 2026-10-15)
     // 빈 메모 카드를 폈나 — 빈 공백 줄이려 접어두고, 누르면 펼친다. (2026-10-07 사장님 "허전해")
     var memoExpanded by remember(customer?.id) { mutableStateOf(false) }
@@ -1103,6 +1107,7 @@ fun CustomerDetailScreen(
                         if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.markJobCompleted(jid, false)
                     }
                 },
+                onChoosePaidDate = { defaultMs, onPicked -> paidDateDefault = defaultMs; paidDateOnPicked = onPicked; paidDateOpen = true },
                 onDeleteJob = { deletePastJobConfirm = it },
                 onEditNote = { editingNote = it },
                 onOpenPhoto = { photos, start -> fullscreenPhotos = photos; fullscreenStart = start },
@@ -1369,6 +1374,17 @@ fun CustomerDetailScreen(
                 addingNewJob = false
             },
             onDismiss = { addingNewJob = false; datePickerOpen = false }
+        )
+    }
+
+    // 💵 받은 날짜(기본=시공일) — 과거 손님을 뒤늦게 등록하며 '받음'을 찍으면 받은 날이 오늘로 박혀 이번 달 정산이 틀어졌다(§13④). 돈 받음이라 **초록**(done) 강조. (2026-11-06 사장님)
+    if (paidDateOpen && customer != null) {
+        com.detailline.callfollowcrm.presentation.component.WorkRangePickerDialog(
+            title = "언제 받으셨어요? — 받은 날 (지난 시공은 시공일이 기본)",
+            initialStart = paidDateDefault, initialDays = 1,
+            accent = AppTheme.colors.done, rangeBg = AppTheme.colors.doneBg, titleColor = AppTheme.colors.doneText,
+            onConfirm = { start, _ -> paidDateOnPicked?.invoke(com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(start)); paidDateOpen = false },
+            onDismiss = { paidDateOpen = false }
         )
     }
 
