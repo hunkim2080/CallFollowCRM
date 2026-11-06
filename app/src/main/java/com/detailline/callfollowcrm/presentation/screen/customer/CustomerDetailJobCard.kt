@@ -126,6 +126,8 @@ internal class JobCardHost(
     /** ⏸️ 일정 보류 창 — 찍기(이유 입력) / 보류 중이면 메모 고치기·풀기. 창은 화면에 한 벌. (2026-10-16) */
     val onHold: () -> Unit,
     val onCancelBooking: () -> Unit,
+    /** ✅ 이 건 하나 시공 완료 — 지난/오늘 날짜의 **진행중** 건에만 버튼이 뜬다(미래 건은 X, 안 한 일). (2026-11-06 사장님) */
+    val onJobComplete: (jobId: Long) -> Unit,
     val onDeleteJob: (JobEntity?) -> Unit,
     val onEditNote: (CustomerNoteEntity) -> Unit,
     /** 크게 보기 — **그 건 사진 전부**를 넘겨 좌우 스와이프. startIndex=탭한 사진. (2026-10-15) */
@@ -367,6 +369,25 @@ internal fun JobDetailCard(
                                     },
                                     containerColor = Color.White
                                 )
+                            }
+                            // ✅ **시공 완료** — 지난/오늘 날짜의 **진행 중** 건에만. 미래 건은 완료 불가(안 한 일 · healFutureFalseCompletions 가 떼냄). (2026-11-06 사장님 "건별 시공완료 버튼")
+                            //   전엔 완료를 찍는 입구가 문자방 「네 끝났어요」·홈 「오늘 시공」뿐이라, 나흘 전 2차는 찍을 데가 없었다("UI가 헷갈린다").
+                            //   큰 파란 버튼은 길찾기 하나뿐 규칙이라 완료는 초록 톤(doneBg/doneText) 보조 버튼. 멀티 건이면 2차·3차 **각각** 이 버튼으로.
+                            if (job != null && job.workCompletedAt == null && !jobCancelled(job) &&
+                                scheduled != null && scheduled <= DateTimeUtils.startOfDay(System.currentTimeMillis())
+                            ) {
+                                Spacer(Modifier.height(14.dp))
+                                androidx.compose.foundation.layout.Box(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(AppTheme.colors.doneBg)
+                                        .clickable { host.onJobComplete(job.id) }.padding(vertical = 12.dp),
+                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                ) {
+                                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        androidx.compose.material3.Icon(Icons.Default.Check, null, tint = AppTheme.colors.doneText, modifier = Modifier.size(17.dp))
+                                        Spacer(Modifier.width(7.dp))
+                                        Text("시공 완료", color = AppTheme.colors.doneText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                             androidx.compose.foundation.layout.Row(
                                 // 위 14 / 아래 0 → 위 선(딱붙음)에서 14dp, 아래 선(CdCardDivider 앞 14dp)에서 14dp = 선과 선 사이 정중앙. 전엔 9/9라 아래14 때문에 위로 치우침. (2026-10-20 사장님)

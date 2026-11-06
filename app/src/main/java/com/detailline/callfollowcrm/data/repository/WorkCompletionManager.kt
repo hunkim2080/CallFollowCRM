@@ -49,6 +49,17 @@ class WorkCompletionManager(
     }
 
     /**
+     * 🔨 **이 건 하나**를 완료/되돌리기 — 건 카드의 「시공 완료」 버튼. (2026-11-06 사장님 "건별 시공완료 버튼")
+     *   고객 경로([setCompleted])는 '방금 끝낸 건' **하나**만 찍는다(멀티 건이면 가장 최근 지난 건). 그래서
+     *   2차·3차를 **각각** 완료로 찍을 데가 없었다 — 이게 **지목한 건**에 찍는 길이다.
+     *   건 도장·현장 번호·고객 카드 미러(배지)는 [JobRepository.setWorkCompleted] 한 곳이 다 한다(§12). @param at null = 되돌리기.
+     */
+    suspend fun setJobCompleted(jobId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
+        jobRepository.setWorkCompleted(jobId, at, now)
+        onChanged()
+    }
+
+    /**
      * 완료 + **잔금까지 다 받음**. (완료 팝업의 「잔금 다 받았어요」)
      *   잔금 도장은 [setBalancePaid] 한 곳 — 카드와 대표 건 둘 다 찍힌다.
      */

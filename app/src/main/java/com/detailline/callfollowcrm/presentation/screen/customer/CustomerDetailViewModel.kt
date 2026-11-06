@@ -267,6 +267,17 @@ class CustomerDetailViewModel(
         }
     }
 
+    /** 🔨 **이 건 하나** 시공 완료/되돌리기 — 건 카드 「시공 완료」 버튼. 멀티 건 손님이 2차·3차를 **각각** 완료. (2026-11-06 사장님)
+     *   도장은 WorkCompletionManager.setJobCompleted 한 곳 — 건 도장·현장 번호·고객 카드 배지까지. @param done false = 되돌리기. */
+    fun markJobCompleted(jobId: Long, done: Boolean) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            SaveGuard.run("시공 완료", _toast) {
+                container.workCompletionManager.setJobCompleted(jobId, if (done) System.currentTimeMillis() else null)
+            }
+            container.autoCategoryClassifier.reclassify(customerId)
+        }
+    }
+
     fun setJobAddress(jobId: Long, address: String?) = viewModelScope.launch {
         withContext(NonCancellable) {
             val job = SaveGuard.run("현장 주소", _toast) {

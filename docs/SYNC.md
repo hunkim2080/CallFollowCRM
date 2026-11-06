@@ -16212,3 +16212,11 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 변경: 더보기 → 자동 문자 → 'AI 답변 준비' 토글 삭제. 문자방 '✨ AI 답변 추천' 띠는 2026-10-13 이미 삭제됐는데 설정 토글만 남아 있었음(들어갈 문 없는 빈 스위치). preferences.aiReplyPrepEnabled·서버 prepare-reply 배선은 기본 ON으로 둠 — 수신 시 미리생성은 이미 꺼져 있어(2026-08-14) 새 문자 와도 추천 안 만듦(서버비 0). UI만 제거, 플럼빙 완전정리는 나중.
 - 폰 확인: 못 봄 (내부배포 후 설정 화면에서 토글 사라졌는지 눈확인 필요)
 - 다음 액션: 없음
+
+## 2026-11-06 19:20 · android
+건별 '시공 완료' 버튼 — 지난/오늘 날짜 진행중 건 카드에 추가
+- 변경: 고객상세 건 카드(CustomerDetailJobCard)에 ✅ '시공 완료' 보조 버튼(초록 doneBg/doneText, 길찾기 밑·잔금 줄 위). 조건=그 건 workCompletedAt==null·취소아님·예정일<=오늘(미래 건은 X — 안 한 일, healFutureFalseCompletions가 떼냄). 멀티 건 손님이 2차·3차를 각각 완료 가능. 도장은 WorkCompletionManager.setJobCompleted 신규(한 곳) → jobRepository.setWorkCompleted(건 도장·현장번호·고객 카드 미러) + onChanged. VM markJobCompleted(SaveGuard). 되돌리기 스낵바.
+- 왜: 완료 입구가 문자방 '네 끝났어요'·홈 '오늘 시공'뿐이라 나흘 전 2차는 찍을 데가 없었다(사장님 "일 다 했는데 완료 어디서 눌러? 만든 나조차 UI 헷갈린다"). 완료가 고객 단위로 '가장 최근 지난 건' 하나만 찍혀 3차만 완료·2차는 진행중으로 남음.
+- 연결 지점(§12-K): 건 딱지(진행중→완료)·잔금 대기 목록(overdueDays, 2차가 이제 뜸)·정산(건별)·현장번호·고객 카드 배지·오늘의 현장 알림·카테고리 — 전부 setWorkCompleted/recomputeMirror/onChanged/reclassify로 반영.
+- 폰 확인: 못 봄 (내부배포 후: 린 인테리어 2차 카드에서 '시공 완료' 눌러 잔금 대기 2건·150만 되는지 눈확인 필요)
+- 다음 액션: 없음 (하남 '시공 대기 D-day 2개' 질문은 별건 — 요약 카드가 대표 건 하나만 표시, 설계 확인 중)

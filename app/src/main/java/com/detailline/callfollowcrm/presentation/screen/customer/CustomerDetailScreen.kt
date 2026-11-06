@@ -1095,6 +1095,14 @@ fun CustomerDetailScreen(
                 onAsPicker = { asPickerOpen = true },
                 onHold = { holdDialog = true },
                 onCancelBooking = { cancelBookingConfirm = true },
+                // ✅ 건별 시공 완료 — 찍고 바로 되돌리기 스낵바(실수·연타 대비). 완료 도장은 VM→WorkCompletionManager 한 곳. (2026-11-06 사장님)
+                onJobComplete = { jid ->
+                    viewModel.markJobCompleted(jid, true)
+                    scope.launch {
+                        val r = snackbar.showBrief("시공 완료로 바꿨어요", actionLabel = "되돌리기")
+                        if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.markJobCompleted(jid, false)
+                    }
+                },
                 onDeleteJob = { deletePastJobConfirm = it },
                 onEditNote = { editingNote = it },
                 onOpenPhoto = { photos, start -> fullscreenPhotos = photos; fullscreenStart = start },
