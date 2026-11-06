@@ -500,15 +500,9 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         return shown to (hits.size - shown.size).coerceAtLeast(0)
     }
 
-    /** 매칭 단어 주변을 잘라 스니펫으로(…앞뒤…). 어느 문장에서 걸렸는지 사장님이 알아보게. */
-    private fun snippetAround(body: String, q: String, window: Int = 22): String {
-        val flat = body.replace("\n", " ").trim()
-        val idx = flat.indexOf(q, ignoreCase = true)
-        if (idx < 0) return flat.take(60)
-        val start = (idx - window).coerceAtLeast(0)
-        val end = (idx + q.length + window).coerceAtMost(flat.length)
-        return (if (start > 0) "…" else "") + flat.substring(start, end) + (if (end < flat.length) "…" else "")
-    }
+    /** 매칭 단어 주변을 잘라 스니펫으로(…앞뒤…). 셈은 공용 `SearchSnippet` 한 곳 — 통화 카드도 같은 자. */
+    private fun snippetAround(body: String, q: String, window: Int = 22): String =
+        com.detailline.callfollowcrm.domain.search.SearchSnippet.around(body, q, window)
 
     /** 본문 매칭 한 건 — 대화 식별용 번호 + 매칭된 문장. */
     private data class SmsHit(val address: String, val body: String)

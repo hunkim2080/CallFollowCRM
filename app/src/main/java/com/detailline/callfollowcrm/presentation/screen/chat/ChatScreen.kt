@@ -1078,7 +1078,9 @@ fun ChatScreen(
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
                                     onRedoSummary = { redoTarget = ti.record },
                                     recordingConnected = recordingConnected,
-                                    onConnectRecording = onOpenRecordingSettings
+                                    onConnectRecording = onOpenRecordingSettings,
+                                    highlight = hlQuery,
+                                    isCurrentMatch = isCurrentMatch
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
@@ -2379,7 +2381,11 @@ private fun CallSegment(
     /** 찾아봤는데 **녹음이 없던** 통화인가. (2026-09-28 사장님) */
     noRecordingHere: Boolean = false,
     /** 왜 못 찾았는지 한 줄. null 이면 일반적인 안내. */
-    noRecordingWhy: String? = null
+    noRecordingWhy: String? = null,
+    /** 대화 안 검색 — 이 통화가 걸렸을 때 걸린 글자에 형광펜. 문자 말풍선과 같은 자(highlightBody). (2026-11-06 사장님 "그 통화에서 보여야") */
+    highlight: String = "",
+    /** ▲▼ 로 지금 보고 있는 매칭인가 — 진한 형광펜. */
+    isCurrentMatch: Boolean = false
 ) {
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
@@ -2416,6 +2422,19 @@ private fun CallSegment(
         }.map { it.trim() }.filter { it.isNotBlank() }.take(3)
     }
     val transcript = summary?.transcriptText?.trim()?.takeIf { it.isNotBlank() }
+    // 🔎 대화 안 검색 — 이 통화가 걸렸으면 **걸린 문장 한 줄**을 뽑는다. 진짜 말(전사)을 맨 앞에.
+    //   스니펫 셈은 전역 검색과 같은 공용(SearchSnippet). "그 통화에서 보여야" (2026-11-06 사장님)
+    val searchQ = highlight.trim()
+    val searchHit = remember(summary?.id, searchQ) {
+        if (searchQ.isEmpty() || summary == null) null
+        else com.detailline.callfollowcrm.domain.search.SearchSnippet.firstHit(
+            listOf(
+                summary.transcriptText, summary.summaryText, summary.customerNeed,
+                summary.problem, summary.nextAction, summary.title, summary.tagsJson
+            ),
+            searchQ
+        )
+    }
     // 프로토 08352d6e: 통화카드 탭 → 아래에서 통화상세 '시트'가 올라옴(인라인 펼침 X). (2026-08-15 사장님 지적 재수정)
     var sheetOpen by remember(record.id, summary?.id) { mutableStateOf(false) }
     // 프로토 .chat-call — 전체폭 teal 카드 + cc-ch(아이콘·유형·시각) + 에이닷 요약 버튼.
@@ -2474,6 +2493,15 @@ private fun CallSegment(
                             )
                         }
                     }
+                }
+                // 🔎 검색에 걸린 문장 한 줄 — 걸린 글자에 형광펜(문자 말풍선과 같은 자). (2026-11-06 사장님)
+                if (searchHit != null) {
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        highlightBody(AnnotatedString(searchHit), searchQ, isCurrentMatch),
+                        fontSize = 11.5.sp, color = AppTheme.colors.textSub,
+                        maxLines = 2, lineHeight = 15.sp
+                    )
                 }
             }
             if (hasDetail) {
