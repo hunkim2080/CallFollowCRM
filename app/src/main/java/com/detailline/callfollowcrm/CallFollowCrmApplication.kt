@@ -37,6 +37,22 @@ class CallFollowCrmApplication : Application() {
     val applicationScope: CoroutineScope get() = appScope
 
     /**
+     * 📋 설정 스냅샷을 **지금 즉시** 서버로 — 업종·상호·지역 등을 저장한 그 순간 관제실에 바로 뜨게.
+     *   (2026-11-06 사장님: "업종 고르면 즉시 반영돼야". 전엔 앱 켤 때만 올라가 재시작해야 보였다.)
+     *   [SetupSnapshotReporter.report] 가 **바뀐 것만** 보내므로(지문 비교) 자주 불러도 안전·중복 전송 없음. 셈은 한 곳.
+     */
+    fun reportSetupSnapshot() {
+        appScope.launch {
+            runCatching {
+                val n = container.customerRepository.count()
+                com.detailline.callfollowcrm.util.SetupSnapshotReporter.report(
+                    this@CallFollowCrmApplication, container.preferences, container.journeyEventRepository, n
+                )
+            }
+        }
+    }
+
+    /**
      * 이 앱을 **어디서 깔았나** — 플레이스토어냐 APK 직접이냐. (2026-09-23 사장님)
      *
      * 서버가 "진짜 바깥 회원" 과 "내부 테스터" 를 갈라 세려면 이게 있어야 한다.

@@ -680,6 +680,8 @@ class ChatViewModel(
     /** 후보를 골랐다 → 저장하고, 그 자리에서 답변을 다시 만든다(고른 보상이 눈앞에 보이게). */
     fun pickTrade(trade: String) {
         container.preferences.ownerTrades = listOf(trade)
+        // 📋 업종 저장 즉시 설정 스냅샷을 서버로 → 관제실에 바로 반영(앱 재시작 안 기다림). (2026-11-06 사장님 "즉시")
+        (container.appContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.reportSetupSnapshot()
         _tradeAskVisible.value = false
         regenerateSuggestions()
     }

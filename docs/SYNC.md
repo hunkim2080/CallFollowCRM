@@ -16185,3 +16185,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - ② 못 올린 「못 올림」 썸네일 → **탭하면 그 한 장만 다시 올림**(↻ "다시 올리기"). CollabPhotoUploadManager.retry(그 썸네일만 올리는중으로, 나머지 실패 썸네일 유지, 화면 안이라 알림 안 띄움) → VM.retryPhoto → PhotoGrid onRetry.
 - 변경: CollabPhotoUploadManager(retry 신규·finish 에 shareId) · SharedSiteViewModel.retryPhoto · SharedSiteScreen PhotoGrid onRetry 배선. 서버·데이터모델 영향 없음. style 기준선 2410→2411(↻ 라벨 새 UI).
 - 폰 확인: 못 봄 — 협업 현장+업로드 실패를 S9에서 즉석 재현 어려움. 사장님 폰에 지금 실제 '4/8' 실패 알림 떠 있어 실전 확인 가능(알림 탭→그 현장, 못올림 썸네일 탭→재업로드).
+
+## 2026-11-06 14:30 · android
+업종 고르면 관제실 **즉시** 반영 — 전엔 설정 스냅샷이 앱 켤 때만 올라가 재시작해야 보였다. (사장님 "즉시")
+- 변경: CallFollowCrmApplication.reportSetupSnapshot() 공용 입구 신규(appScope 에서 SetupSnapshotReporter.report 1회). 업종 저장 3곳에서 호출 — OnboardingScreen(온보딩)·TradeSelectScreen.save(업종화면)·ChatViewModel.pickTrade(채팅 업종칩). report() 가 지문 비교로 **바뀐 것만** 보내 중복 없음.
+- 주의: 이 스냅샷 기능은 신버전(~2606+)만 보냄 — 관제실에서 옛 버전(예: 2570) 유저가 「스냅샷 없음」인 건 정상(그 유저가 업데이트하면 채워짐). 여정의 '업종 고르기'는 다른 통로(이벤트 로그)라 화면 방문만 찍힘.
+- 서버 영향: /api/event 로 setup_snapshot 이벤트가 **더 자주** 올 수 있음(업종 저장 시마다 1회, 단 바뀐 것만). 관제실 집계는 기존대로.
+- 폰 확인: 못 봄 — 빌드 검증. 사장님 내부배포로 업종 바꿔보며 관제실 즉시 반영 확인 가능(신버전끼리).

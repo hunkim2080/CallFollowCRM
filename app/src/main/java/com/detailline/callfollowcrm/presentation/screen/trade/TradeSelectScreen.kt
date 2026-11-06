@@ -83,6 +83,8 @@ fun TradeSelectScreen(
      */
     fun save(list: List<String>) {
         prefs.ownerTrades = list
+        // 📋 업종 저장 즉시 설정 스냅샷을 서버로 → 관제실 바로 반영. (2026-11-06 사장님 "즉시")
+        (context.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.reportSetupSnapshot()
         android.widget.Toast.makeText(
             context,
             if (list.isEmpty()) "업종을 지웠어요" else "${list.first()} 으로 저장했어요",

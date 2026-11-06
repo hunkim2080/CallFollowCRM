@@ -168,6 +168,8 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
                     onNext = {
                         val trade = selectedTrades.toList().take(1)
                         prefs.ownerTrades = trade  // 하나만(라디오) — 대표 업종 1개
+                        // 📋 업종 저장 즉시 설정 스냅샷을 서버로 → 관제실 바로 반영. (2026-11-06 사장님 "즉시")
+                        (context.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.reportSetupSnapshot()
                         // 가격표는 '빈 표로 시작'. (2026-07-17 사장님) 예전엔 업종 스타터로 예시가격을 깔았는데,
                         //   그 줄눈 예시가 사장님(junjun) 실제 가격이라 "다른 사장님 폰에 내 가격이 등록돼 있다" 문제.
                         //   → 시드 안 함. 빈 화면의 "✨ 문자에서 자동으로 채우기"로 각자 본인 가격을 채운다.
