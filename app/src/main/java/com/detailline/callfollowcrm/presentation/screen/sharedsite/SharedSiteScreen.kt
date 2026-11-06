@@ -417,6 +417,7 @@ fun SharedSiteScreen(
                     },
                     onViewPhoto = { fullscreenPhoto = it },
                     onDeletePhoto = { confirmDeletePhoto = selected.shareId to it },
+                    onRetryPhoto = { pp -> viewModel.retryPhoto(pp) { uri -> com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context.applicationContext, uri) } },
                     onNavigate = { addr ->
                         // 처음이면 지도앱 선택받고 기억, 다음부터 바로 그 앱으로. (2026-06-14 사장님)
                         val saved = viewModel.navApp()
@@ -471,6 +472,7 @@ fun SharedSiteScreen(
                     onPickPhoto = { pendingUploadShareId = mine.shareId; showPhotoPicker = true },
                     onViewPhoto = { fullscreenPhoto = it },
                     onDeletePhoto = { confirmDeletePhoto = mine.shareId to it },
+                    onRetryPhoto = { pp -> viewModel.retryPhoto(pp) { uri -> com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context.applicationContext, uri) } },
                     onSendComment = { body, onResult -> viewModel.postComment(mine.shareId, body, onResult) },
                     onCancel = { confirmCancelMine = mine }
                 )
@@ -1049,6 +1051,7 @@ private fun DetailBody(
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onDeletePhoto: (SharedSiteRepository.SharedPhoto) -> Unit,
+    onRetryPhoto: (CollabPhotoUploadManager.Pending) -> Unit = {},
     onNavigate: (String) -> Unit,
     onProgress: (SharedSiteRepository.Progress) -> Unit,
     onRespond: (Boolean) -> Unit,
@@ -1308,7 +1311,7 @@ private fun DetailBody(
     }
     Spacer(Modifier.height(10.dp))
     PhotoGrid(photos = photos, pending = pending.filter { it.shareId == site.shareId }, onAdd = onPickPhoto, onView = onViewPhoto,
-        myKind = "partner", onDelete = onDeletePhoto)   // B(협업자) 화면 → 내가 올린 = partner
+        myKind = "partner", onDelete = onDeletePhoto, onRetry = onRetryPhoto)   // B(협업자) 화면 → 내가 올린 = partner
 
     // 협업 사장끼리 현장 한 줄 논의 (2026-07-01 사장님) — 팀원 화면 코멘트처럼.
     Spacer(Modifier.height(18.dp))
@@ -1340,6 +1343,7 @@ private fun OwnerSharedDetail(
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onDeletePhoto: (SharedSiteRepository.SharedPhoto) -> Unit,
+    onRetryPhoto: (CollabPhotoUploadManager.Pending) -> Unit = {},
     onSendComment: (String, onResult: (Boolean) -> Unit) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -1380,7 +1384,7 @@ private fun OwnerSharedDetail(
     Spacer(Modifier.height(18.dp))
     SectionSub("현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
     PhotoGrid(photos = photos, pending = pending.filter { it.shareId == site.shareId }, onAdd = onPickPhoto, onView = onViewPhoto,
-        myKind = "owner", onDelete = onDeletePhoto)      // A(주인) 화면 → 내가 올린 = owner
+        myKind = "owner", onDelete = onDeletePhoto, onRetry = onRetryPhoto)      // A(주인) 화면 → 내가 올린 = owner
 
     // 협업 사장과 한 줄 논의
     Spacer(Modifier.height(18.dp))
@@ -1402,7 +1406,8 @@ private fun PhotoGrid(
     onAdd: () -> Unit,
     onView: (android.graphics.Bitmap) -> Unit,
     myKind: String = "",                                          // "owner"(A) | "partner"(B) — 내가 올린 사진만 ✕ 삭제
-    onDelete: (SharedSiteRepository.SharedPhoto) -> Unit = {}
+    onDelete: (SharedSiteRepository.SharedPhoto) -> Unit = {},
+    onRetry: (CollabPhotoUploadManager.Pending) -> Unit = {}       // 🔁 못 올린 썸네일 탭 → 그 한 장만 다시
 ) {
     // 올리는 중(실패 아닌 썸네일)이 있으면 ＋셀을 잠근다 — 배치 중 다시 고르면 목록이 꼬인다.
     val busy = pending.any { !it.failed }
@@ -1425,15 +1430,20 @@ private fun PhotoGrid(
         }
         // 💀 올리는 중 — 고른 썸네일을 먼저 띄우고 한 장씩 스피너가 돌다 올라가면 실제 사진으로 바뀐다. (2026-11-03 사장님)
         pending.forEach { pp ->
-            Box(cellMod.background(AppTheme.colors.surfaceMuted), contentAlignment = Alignment.Center) {
+            // 못 올린 썸네일은 **탭하면 그 한 장만 다시** 올린다 — 카톡처럼(수백 장 다시 안 고름). (2026-11-06 사장님)
+            val cellM = if (pp.failed) cellMod.clickable { onRetry(pp) } else cellMod
+            Box(cellM.background(AppTheme.colors.surfaceMuted), contentAlignment = Alignment.Center) {
                 coil.compose.AsyncImage(
-                    model = pp.uri, contentDescription = "올리는 중 사진",
+                    model = pp.uri, contentDescription = if (pp.failed) "못 올린 사진 — 눌러서 다시 올리기" else "올리는 중 사진",
                     modifier = Modifier.fillMaxSize(),   // 모서리는 부모 셀(cellMod)이 이미 클립
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
                 if (pp.failed) {
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-                        Text("못 올림", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("↻", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("다시 올리기", fontSize = 10.5.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 } else {
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.33f)))

@@ -2,9 +2,12 @@ package com.detailline.callfollowcrm.data.repository
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import com.detailline.callfollowcrm.MainActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.detailline.callfollowcrm.R
@@ -95,7 +98,32 @@ class CollabPhotoUploadManager(
             }
             notifyProgress(done + skipped + failed, total)
         }
-        finish(done, skipped, failed, total)
+        finish(shareId, done, skipped, failed, total)
+    }
+
+    /**
+     * 🔁 **못 올린 썸네일 한 장만** 다시 올린다 — 카톡처럼 그 썸네일만 눌러 재시도.
+     *   수백 장에서 **다시 안 고른다**(2026-11-06 사장님 "실패해서 또 골라야 하니 어려워. 카톡은 섬네일만 눌러도 다시 올라가").
+     *   그 실패 썸네일만 '올리는 중'으로 바꾸고 **다른 실패 썸네일은 그대로** 둔다(enqueue 와 달리 통째로 안 지움).
+     *   화면에 있을 때 누르는 길이라 알림은 안 띄운다 — 셀 스피너/「못 올림」이 결과를 말한다(§13①).
+     */
+    fun retry(shareId: String, ownerPhone: String, failedId: Int, uri: Uri, encode: suspend (Uri) -> String?) {
+        if (shareId.isBlank() || ownerPhone.isBlank()) return
+        scope.launch {
+            mutex.withLock {
+                val myId = nextId++
+                // 그 실패 썸네일 → '올리는 중'(스피너) 한 장으로 교체. 나머지 실패 썸네일은 유지.
+                _pending.value = _pending.value.filterNot { it.id == failedId } + Pending(shareId, myId, uri)
+                val b64 = withContext(Dispatchers.IO) { runCatching { encode(uri) }.getOrNull() }
+                val result = if (b64.isNullOrBlank()) null else repo.uploadPhoto(shareId, ownerPhone, b64)
+                if (result?.isSuccess == true) {              // 새로 올림 또는 중복 스킵 — 둘 다 '서버에 있음'
+                    _pending.value = _pending.value.filterNot { it.id == myId }
+                    _uploaded.tryEmit(shareId)
+                } else {
+                    _pending.value = _pending.value.map { if (it.id == myId) it.copy(failed = true) else it }
+                }
+            }
+        }
     }
 
     // ── 진행 알림 (ongoing) ──
@@ -127,7 +155,7 @@ class CollabPhotoUploadManager(
         runCatching { NotificationManagerCompat.from(appContext).notify(NOTIF_ID, n) }
     }
 
-    private fun finish(done: Int, skipped: Int, failed: Int, total: Int) {
+    private fun finish(shareId: String, done: Int, skipped: Int, failed: Int, total: Int) {
         val nm = NotificationManagerCompat.from(appContext)
         runCatching { nm.cancel(NOTIF_ID) }
         // 🚫 같은 사진이라 건너뛴 게 있으면 한 줄 안내(현장 화면이 열려 있으면 토스트). (2026-11-04 사장님)
@@ -135,10 +163,27 @@ class CollabPhotoUploadManager(
         // 다 올라갔으면 조용히 끝(갤러리처럼 알림이 사라지는 게 '완료'). 일부 실패면 알려준다.
         if (failed > 0) {
             ensureChannel()
+            // 📍 탭 → **그 협업 현장 상세**로 바로. 거기 '못 올림' 빨간 썸네일이 있어 다시 고르면 재업로드.
+            //   "앱에서 다시 올려주세요"라 해놓고 목적지가 없으면 어디로 가야 할지 모른다. (2026-11-06 사장님)
+            //   기존 협업 딥링크(ACTION_COLLAB_SITE+shareId) 재사용 — showCollabEvent 와 같은 길(§12). shareId 없으면 목록이라도.
+            val openIntent = Intent(appContext, MainActivity::class.java).apply {
+                if (shareId.isNotBlank()) {
+                    action = MainActivity.ACTION_COLLAB_SITE
+                    putExtra(MainActivity.EXTRA_SHARE_ID, shareId)
+                } else {
+                    action = MainActivity.ACTION_COLLAB_MINE
+                }
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            val pending = PendingIntent.getActivity(
+                appContext, (NOTIF_ID + 1) * 31 + shareId.hashCode(), openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
             val n = NotificationCompat.Builder(appContext, CHANNEL)
                 .setSmallIcon(R.drawable.ic_noti_collab)
                 .setContentTitle("사진 일부를 못 올렸어요")
-                .setContentText("${done + skipped} / $total 만 올라갔어요 — 앱에서 다시 올려주세요")
+                .setContentText("${done + skipped} / $total 만 올라갔어요 — 눌러서 다시 올려주세요")
+                .setContentIntent(pending)
                 .setAutoCancel(true)
                 .setSilent(true)
                 .build()

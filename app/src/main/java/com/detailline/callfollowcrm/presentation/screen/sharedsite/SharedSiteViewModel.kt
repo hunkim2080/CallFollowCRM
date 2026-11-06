@@ -386,6 +386,12 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         container.collabPhotoUploads.enqueue(shareId, myPhone, uris, encode)
     }
 
+    /** 🔁 못 올린 썸네일 한 장만 다시 올린다 — 카톡식(수백 장 다시 안 고름). (2026-11-06 사장님) */
+    fun retryPhoto(failed: com.detailline.callfollowcrm.data.repository.CollabPhotoUploadManager.Pending, encode: suspend (android.net.Uri) -> String?) {
+        if (failed.shareId.isBlank() || noBizPhone) return
+        container.collabPhotoUploads.retry(failed.shareId, myPhone, failed.id, failed.uri, encode)
+    }
+
     /** 증거 사진 삭제 — 올린 본인만(서버가 uploader 검증). 성공 시 목록 새로고침. (2026-07-07 사장님) */
     fun deletePhoto(shareId: String, photoId: Long) {
         if (shareId.isBlank() || noBizPhone || photoId <= 0L) return

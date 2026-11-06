@@ -16178,3 +16178,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 범인: **각 줄 start_ms 가 전부 0**. 앱(ChatSmallParts.seekAndPlay·ChatScreen 배선)·repo 서버(_parse_stt_json ×1000 ms)·repo whisper_worker.py(:66 "start" 방출) **전부 정상**. → 라이브 서버의 받아쓰기가 start 를 안 붙이는 것(단일청크면 start_ms=offset=0). LIVE_ONLY_auth_sms.py:7 에 "whisper_worker.py 가 낡은 사본에 덮여 되돌아간 사고" 기록 있음 = 라이브 워커가 옛 버전으로 추정.
 - 미확정: 프로덕션 읽기 차단으로 라이브 직접 확인 못 함(강한 추정).
 - 고치는 법: ① 확인=이 통화 '다시 요약'(force_refresh) → 시각 제대로면 옛 캐시, 여전히 0 이면 라이브 워커 옛 버전. ② 고침=GOTCHAS §3 로 server/whisper_worker.py 라이브 교체 + smoke. **새/재요약 통화부터** 적용(옛 캐시는 0 유지).
+
+## 2026-11-06 14:10 · android
+협업 사진 '일부 못 올림' UX — 수백 장 다시 안 고르게. (사장님: "실패해서 또 골라야 하니 어려워. 카톡은 섬네일만 눌러도 다시 올라가")
+- ① 「사진 일부를 못 올렸어요」 알림에 탭 목적지 생김 — 그 협업 현장 상세로(ACTION_COLLAB_SITE+shareId 재사용, showCollabEvent 와 같은 길). 전엔 눌러도 안 갔다. 글자 "앱에서"→"눌러서 다시 올려주세요".
+- ② 못 올린 「못 올림」 썸네일 → **탭하면 그 한 장만 다시 올림**(↻ "다시 올리기"). CollabPhotoUploadManager.retry(그 썸네일만 올리는중으로, 나머지 실패 썸네일 유지, 화면 안이라 알림 안 띄움) → VM.retryPhoto → PhotoGrid onRetry.
+- 변경: CollabPhotoUploadManager(retry 신규·finish 에 shareId) · SharedSiteViewModel.retryPhoto · SharedSiteScreen PhotoGrid onRetry 배선. 서버·데이터모델 영향 없음. style 기준선 2410→2411(↻ 라벨 새 UI).
+- 폰 확인: 못 봄 — 협업 현장+업로드 실패를 S9에서 즉석 재현 어려움. 사장님 폰에 지금 실제 '4/8' 실패 알림 떠 있어 실전 확인 가능(알림 탭→그 현장, 못올림 썸네일 탭→재업로드).
