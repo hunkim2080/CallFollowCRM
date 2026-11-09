@@ -396,10 +396,10 @@ object RecordReel {
         return (withBefore + withPhoto).take(FEAT_MAX).sorted()
     }
 
-    private class Warp(val driveT: Float, val revealIdx: Int, val revealProg: Float)
+    internal class Warp(val driveT: Float, val revealIdx: Int, val revealProg: Float)
 
     /** 🎬 여정 진행도(0..1)를 (트럭 driveT, 리빌중인 핵심 순번, 리빌 진행)로. 핵심 현장마다 [rf] 만큼 **멈춘다**. [featDriveT] 오름차순. */
-    private fun warpTime(frameT: Float, featDriveT: FloatArray, rf: Float): Warp {
+    internal fun warpTime(frameT: Float, featDriveT: FloatArray, rf: Float): Warp {
         val m = featDriveT.size
         if (m == 0) return Warp(frameT.coerceIn(0f, 1f), -1, 0f)
         val driveTime = (1f - m * rf).coerceAtLeast(0.08f)
@@ -415,6 +415,54 @@ object RecordReel {
             prev = fdt
         }
         return Warp((prev + (frameT - acc) / driveTime).coerceIn(0f, 1f), -1, 0f)
+    }
+
+    /**
+     * 🎵 각 핵심 리빌이 **시작되는** 여정-진행도(jT, 0..1). [warpTime] 과 **같은 셈**(span 달린 뒤 rf 멈춤) —
+     *   소리(벨 '짠')를 그림 리빌에 맞추는 데 쓴다. 순수 함수라 테스트가 지킨다([RevealOnsetsTest]).
+     */
+    internal fun revealOnsets(featDriveT: FloatArray, rf: Float): FloatArray {
+        val m = featDriveT.size
+        if (m == 0) return FloatArray(0)
+        val driveTime = (1f - m * rf).coerceAtLeast(0.08f)
+        val out = FloatArray(m)
+        var acc = 0f; var prev = 0f
+        for (i in 0 until m) {
+            val fdt = featDriveT[i].coerceIn(0f, 1f)
+            acc += (fdt - prev) * driveTime      // 이 리빌 전까지 달린 시간
+            out[i] = acc                          // 리빌 시작
+            acc += rf                             // 리빌 멈춤 길이
+            prev = fdt
+        }
+        return out
+    }
+
+    /**
+     * 🎵 **영상에 깔 소리의 '자리표'** — 그림과 **같은 경로·리빌 셈**으로 뽑는다([ReelMusic] 가 이걸로 합성).
+     *   핵심 sync 로직([pickFeatured]·[warpTime] 과 같은 [REVEAL_FRAC]·[revealOnsets])은 **그림과 같은 함수**를 쓴다 —
+     *   두 벌로 만들면 소리와 그림이 어긋난다.
+     */
+    private fun reelCues(ctx: Context, d: Data, seconds: Float): ReelMusic.Cues {
+        val ordered = d.dots.sortedBy { it.order }
+        val trip0 = if (ordered.size >= 2) MapGeo.fullRoute(ctx, ordered.map { it.lon to it.lat }) else null
+        val wayLL0 = trip0?.pts ?: FloatArray(ordered.size * 2) {
+            if (it % 2 == 0) ordered[it / 2].lon.toFloat() else ordered[it / 2].lat.toFloat()
+        }
+        val tripStops = trip0?.stops ?: IntArray(ordered.size) { it }
+        val refRide = if (ordered.isEmpty()) null
+            else com.detailline.callfollowcrm.util.MapRide.at(wayLL0, tripStops, 1f)
+        val featIdx = pickFeatured(ordered)
+        val featDriveT = FloatArray(featIdx.size) { refRide?.arriveAt?.getOrNull(featIdx[it]) ?: 0f }
+        val jSpan = 1f - INTRO - ENDCARD
+        val onsets = revealOnsets(featDriveT, REVEAL_FRAC)
+        val reveals = FloatArray(onsets.size) { i -> (INTRO + onsets[i] * jSpan) * seconds }   // 여정-진행도 → 영상 초
+        return ReelMusic.Cues(
+            seconds = seconds,
+            introClimax = 0.72f * INTRO * seconds,   // 오프닝 숫자가 다 차오르는 지점
+            journeyStart = INTRO * seconds,
+            reveals = reveals,
+            endcard = (1f - ENDCARD) * seconds
+        )
     }
 
     /** 바닥 가운데 알약 "현장 N · 동네". */
@@ -683,10 +731,15 @@ object RecordReel {
             if (beforePhotos.containsKey(dot.name)) continue
             RecordShot.loadPhoto(bp, 400, 400)?.let { beforePhotos[dot.name] = it }
         }
+        // 🔊 '어른' 소리를 미리 굽는다 — 그림과 **같은 타임라인**에서 자리표를 뽑아([reelCues]) 합성·AAC.
+        //   실패해도 **무음 영상으로** 나가게(소리는 덤, 영상이 본체). 세 인코딩 경로가 같은 소리를 쓴다.
+        val audio = runCatching { AacEncoder.encode(ReelMusic.build(reelCues(ctx, d, seconds)), ReelMusic.SAMPLE_RATE) }
+            .onFailure { android.util.Log.e("RecordReel", "소리 합성 실패(무음으로): " + it.message, it) }
+            .getOrNull()
         try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
-            outFile = out, width = W, height = H, fps = 24, seconds = seconds, progress = forward
+            outFile = out, width = W, height = H, fps = 24, seconds = seconds, audio = audio, progress = forward
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, beforePhotos, END_HOLD) }
             ?.let { lastMadeSize = "$W × $H"; return it }
         retrying = true   // 여기부터는 "다른 방법으로 다시 만드는 중"
@@ -695,7 +748,7 @@ object RecordReel {
         VideoMaker.softwareEncoder()?.let { sw ->
             VideoMaker.make(
                 outFile = out, width = W, height = H, fps = 24, seconds = seconds,
-                codecName = sw, progress = forward
+                codecName = sw, audio = audio, progress = forward
             ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, beforePhotos, END_HOLD) }
                 ?.let { lastMadeSize = "$W × $H"; return it }
         }
@@ -708,7 +761,7 @@ object RecordReel {
         val h2 = 960
         return VideoMaker.make(
             outFile = out, width = w2, height = h2, fps = 24, seconds = seconds,
-            bitRate = 4_200_000, progress = forward
+            bitRate = 4_200_000, audio = audio, progress = forward
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos, beforePhotos, END_HOLD) }
             ?.also { lastMadeSize = "$w2 × $h2" }
         } finally {

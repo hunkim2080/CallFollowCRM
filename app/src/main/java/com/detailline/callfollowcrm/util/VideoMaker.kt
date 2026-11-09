@@ -57,6 +57,8 @@ object VideoMaker {
         bitRate: Int = 6_000_000,
         /** 쓸 인코더 이름. null 이면 폰이 고르는 대로(보통 하드웨어). */
         codecName: String? = null,
+        /** 🔊 미리 구운 소리([AacEncoder]). null 이면 지금처럼 **무음 영상**(기존 경로 그대로). */
+        audio: AacEncoder.Encoded? = null,
         progress: Progress? = null,
         draw: (canvas: Canvas, t: Float) -> Unit
     ): File? = withContext(Dispatchers.Default) {
@@ -66,6 +68,7 @@ object VideoMaker {
         var codec: MediaCodec? = null
         var muxer: MediaMuxer? = null
         var track = -1
+        var audioTrack = -1
         var started = false
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
@@ -136,7 +139,18 @@ object VideoMaker {
                 when {
                     outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         track = muxer!!.addTrack(codec!!.outputFormat)
+                        // 🔊 소리가 있으면 **start() 전에** 오디오 트랙도 같이 등록(muxer 규칙).
+                        if (audio != null) audioTrack = muxer!!.addTrack(audio.format)
                         muxer!!.start(); started = true
+                        // 소리 조각을 먼저 다 써 넣는다 — 15초면 작아서(≈260KB) 한 번에 OK.
+                        //   영상·소리 둘 다 pts 0 에서 시작하니 처음부터 맞는다.
+                        if (audio != null && audioTrack >= 0) {
+                            val ai = MediaCodec.BufferInfo()
+                            for (p in audio.packets) {
+                                ai.set(0, p.data.size, p.ptsUs, MediaCodec.BUFFER_FLAG_KEY_FRAME)
+                                muxer!!.writeSampleData(audioTrack, ByteBuffer.wrap(p.data), ai)
+                            }
+                        }
                     }
                     outIdx >= 0 -> {
                         val buf: ByteBuffer? = codec!!.getOutputBuffer(outIdx)
