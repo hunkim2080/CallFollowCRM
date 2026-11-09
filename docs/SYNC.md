@@ -16236,3 +16236,10 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 두 벌(§12): 소리 시점은 그림과 **같은 함수**(pickFeatured·warpTime·REVEAL_FRAC) 재사용. 동기 셈만 순수 revealOnsets 로 떼 테스트(warpTime과 같은 결과임을 테스트로 고정). ReelMusic 1곳·AacEncoder 2곳 사용(공용 3곳 미만 → §12표 불요). 가드: dup 18·style 2412·size·save 전부 안 늘음(릴리즈 빌드 통과). 단위테스트 +10(ReelMusic 6·RevealOnsets 4).
 - 폰 확인: S9+ 에서 영상 생성·저장·**mux 눈으로 확인**(꺼내서 mp4probe → trak 2개·avc1+mp4a·10.00초). **소리 품질(유치/어른)은 사장님 귀 확인 대기** — 영상 파일 전달함. S23U 하드웨어 인코더+AAC mux 는 디버그 설치 불가라 **내부배포로 확인 필요**.
 - 다음 액션: 사장님 소리 들어보고 톤(더 차분/더 밝게) 조정 요청 가능. S23U 에서 소리 나는지 확인.
+
+## 2026-11-09 16:25 · android
+내 기록 영상 = 지도 → **만화**(프로토 record-cartoon 그대로). 실제 동네·단지·사진·달 + 소리까지 **한 HTML**에서.
+- 변경: `RecordReel.make` 가 **`WebReelRenderer`**(오프스크린 software WebView)로 프로토 HTML을 한 컷씩 구워 영상 생성(열기 실패/현장 0이면 **지도로 폴백** — 옛 `drawFrame` 유지). **그림 코드는 한 벌**: `assets/reel/record_cartoon.html` = 아티팩트 `ME2TXRa45YU3KeAXa5uCba` **글자 그대로 복사 + 실사진/오프라인오디오 훅만** 추가(standalone 에선 inert). 조종(720×1280·N·동네/단지/사진/달 주입·프레임 뽑기)은 Kotlin 이 `evaluateJavascript` 로만. 소리 = 프로토 **OfflineAudioContext→PCM→AAC→mux**(§12 소리·그림 한 소스). 미리보기도 **같은 렌더러 한 컷**(`CartoonReelPreview` — 라이브 rAF 재생은 S9 WebView 가 AndroidView 위에서 2D 캔버스 **합성 실패**(HW=안뜸·SW=안갱신)라 정지 이미지로). 공용 `RecordReel.cartoonSites`·`monthOf`(저장·미리보기 **같은 규칙**). 내 기록 설명글·미리보기 캡션 만화에 맞춤.
+- 두 벌(§12): 그림 1벌(HTML)·소리 1소스(HTML)·현장목록/달 공용 1곳. 가드 전부 안 늘음 — `[dup]18/18 [style]2412/2412 [size]안늘음 [save]0/0 [rules]OK`. 릴리즈 빌드 통과.
+- 폰 확인: S9(100.121.10.111) 디버그 설치 → 생성·run-as 로 꺼냄. **영상+소리 2트랙(avc1+mp4a)·실제 「화성·레이크힐」·11월·올린 사진** = mp4probe + 프레임 추출 **눈확인**. 미리보기 만화 한 컷 **눈확인**(스샷). (라이브 재생은 두 레이어 다 시도했으나 이 기기 합성 실패 → 한 컷 확정)
+- 다음 액션: ① **아티팩트 `ME2TXRa` 에 같은 훅 반영해 동기화** 필요(`__drawRealPhoto`·site idx·filmstrip 훅·`playEvt(e,t0)`·`__renderAudio/__audioReady/__audioGet`). 안 하면 아티팩트 고쳐 자산 재복사할 때 훅이 날아감. ② 카드 캡션이 카드보다 살짝 넘침(프로토 자체 특성 · 미세 폴리시). ③ S23U(릴리즈·내부배포)에서 소리·생성 확인.

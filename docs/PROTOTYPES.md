@@ -30,6 +30,7 @@ CLAUDE.md §0 이 가리키는 문서. **화면을 만들기 전 여기서 그 �
 | 견적 — 0원은 「서비스」 · 「할인」은 빨간 빼기 | `artifact/8HULwjz16TeRcxPR98jgWZ` | 2026-10-02 | 「프로토대로 가자 딱 좋아」 |
 | 통화 요약 = 시간 구간 | `artifact/C9u4cizR` | 2026-09-25 | 그리는 곳은 `CallSummaryBody` 한 군데 |
 | 「내 기록」 (통계 탭) | `artifact/EDcGwV4F` · `artifact/WuAifNxe` | 1단계 배포됨 | 진짜 데이터 버전이 앞것 |
+| 내 기록 **영상 = 만화**(트럭이 한 달을 달림·낮→밤·돌파/피니쉬/사진벽/클리어) | `artifact/ME2TXRa45YU3KeAXa5uCba` | 2026-11-09 구현됨 | 앱이 이 HTML을 **그대로** 구워 영상 생성(`WebReelRenderer` 오프스크린 WebView). 앱 자산 `assets/reel/record_cartoon.html` = 이 아티팩트 **복사본 + 실사진/오프라인오디오 훅**(standalone 엔 inert). ⚠️ **아티팩트 고치면 자산 다시 복사 + 훅 재적용**(`__drawRealPhoto`·site idx·filmstrip·`playEvt(e,t0)`·`__renderAudio`). 소리도 이 HTML `OfflineAudioContext`. 저장·미리보기 **같은 렌더러**. 지도 영상은 폴백으로만 남음 |
 | 챗 입력줄 — ⊕ 풍선 메뉴 | `artifact/9bb5e35a` | 구현 중 | 상시 3칩 제거 |
 | 전환율 — **입력하면 이렇게 나와요**(사업자정보 → 라이브 도장 견적서 미리보기) | `artifact/13jzAj2BDnbZAXCWfD448x` | 2026-10-24 「가」(v1·굿굿) 구현됨 | 사업자정보 폼 맨 위 `BizEstimatePreview` — 상호·대표·직인 치는 대로 반영 · 천천히 **자동 스크롤**(머리말→도장→합계) · **빨간 네모 음각 도장이 톡 찍힘**(실제 QuoteDocScreen 과 같은 모양). "입력하세요"→"내 도장 견적서 완성됨". **전환 TOP5 중 ①** — 나머지(통화요약 샘플·연락처 전후·티저 썸네일·문자 말풍선)는 [[project_conversion_show_reward_on_setup]] |
 | 대화창 **"/" 명령** (자동완성 + 바로 실행) | `artifact/5nhqznJqPqXLtyfeTaHULA` | 2026-10-24 「가」(v2) | 카톡 봇 벤치마킹. "/" 치면 명령 목록(📋접수서·🧾견적·📅일정·💬문구·🖼️사진·👤고객) 걸러져 뜸(「넣기」라벨 없음). 누르면 **바로 그 화면**(탭 최소), 👤고객만 요약 카드. ⊕ 메뉴는 그대로 두고 "/" 얹음. 셈 `domain/chat/SlashCommand.kt` · 드롭다운 `SlashCommandMenu.kt` · 요약시트 `CustomerSummarySheet.kt`. **✅1단계(5기능 바로실행) ✅2단계(/고객 요약카드 — 전화·현장·시공일·받을돈 + [전화/일정/문구/접수서])** |

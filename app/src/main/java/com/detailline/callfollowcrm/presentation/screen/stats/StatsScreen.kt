@@ -510,10 +510,7 @@ private fun MyRecordMap(
                     Spacer(Modifier.height(2.dp))
                     // **무엇이 나오는지** 적는다. 눌러야만 아는 건 안 누른다.
                     Text(
-                        "지도 위를 트럭이 달리는 " +
-                            com.detailline.callfollowcrm.util.RecordReel
-                                .secondsFor(rec.dots.size).toInt() +
-                            "초짜리\n그대로 인스타·블로그에 올리면 돼요",
+                        "트럭이 한 달을 달리는 짧은 만화 영상\n그대로 인스타·블로그에 올리면 돼요",
                         style = AppType.caption, color = Color.White.copy(alpha = 0.92f)
                     )
                 }
@@ -667,19 +664,14 @@ private fun ShotPreviewDialog(
     androidx.compose.runtime.DisposableEffect(previewBeforePhotos) {
         onDispose { for (b in previewBeforePhotos.values) runCatching { b.recycle() } }
     }
-    // 한 바퀴 도는 데 걸리는 시간 = **진짜 영상 길이.**
-    //   영상과 같은 길이라야 "이대로 나오겠구나" 가 맞는다 — 그렇게 적어두고도
-    //   10초로 박아두어, 곳이 많은 달은 미리보기가 **진짜보다 빨리** 돌았다.
-    //   (2026-09-30 폰에서 발견 — 미리보기 10초 / 실제 15초)
-    val reelMs = (com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size) * 1000f).toInt()
-    val reelT by androidx.compose.animation.core.rememberInfiniteTransition(label = "reelPrev")
-        .animateFloat(
-            initialValue = 0f, targetValue = 1f,
-            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                animation = tween(reelMs, easing = androidx.compose.animation.core.LinearEasing)
-            ),
-            label = "t"
-        )
+    // 🎬 만화 미리보기용 — 저장과 **같은 규칙**([RecordReel.cartoonSites]·[monthOf])으로 현장·달을 만든다(§12).
+    val cartoonSites = remember(reelData.dots, previewPhotos) {
+        com.detailline.callfollowcrm.util.RecordReel.cartoonSites(reelData.dots, previewPhotos)
+    }
+    val cartoonMonth = remember(reelData.monthLabel) {
+        com.detailline.callfollowcrm.util.RecordReel.monthOf(reelData.monthLabel)
+    }
+    // (미리보기는 이제 만화 HTML 을 직접 틀어 보여준다 — [CartoonReelPreview]. 옛 Compose 애니(reelT)는 지웠다.)
 
     // 영상 만들기 — **한 군데.** 아래 버튼도, 지도 밑 [영상 만들기] 도 여기를 부른다.
     fun startReel() {
@@ -758,30 +750,12 @@ private fun ShotPreviewDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     if (previewVideo) {
-                        // 🎬 **영상을 그리는 그 코드 그대로** 돌린다 — 따로 흉내내면 결과가 달라진다.
-                        //   (오늘 지도에서 미리보기와 영상이 달라 한 번 밟았다)
-                        androidx.compose.foundation.Canvas(
-                            Modifier.fillMaxWidth(0.62f).aspectRatio(9f / 16f)
-                                .clip(AppShape.md)
-                        ) {
-                            drawIntoCanvas { cv ->
-                                val nc = cv.nativeCanvas
-                                val sx = size.width / com.detailline.callfollowcrm.util.RecordReel.W
-                                val sy = size.height / com.detailline.callfollowcrm.util.RecordReel.H
-                                nc.save()
-                                nc.scale(sx, sy)
-                                com.detailline.callfollowcrm.util.RecordReel.drawFrame(
-                                    ctx, nc, reelData, reelT,
-                                    com.detailline.callfollowcrm.util.RecordReel.W,
-                                    com.detailline.callfollowcrm.util.RecordReel.H,
-                                    previewPhotos, previewBeforePhotos,
-                                    // 🔒 저장되는 영상과 **같은 값**. 끝 박자를 여기 빼먹으면
-                                    //   미리보기에선 마지막 사진이 스치고 저장본은 머문다. (2026-09-25)
-                                    com.detailline.callfollowcrm.util.RecordReel.END_HOLD
-                                )
-                                nc.restore()
-                            }
-                        }
+                        // 🎬 저장되는 **그 영상(만화 HTML)** 을 그대로 틀어 보여준다 — 따로 그리면 또 두 벌(§12).
+                        //   (멈추지 않고 재생·소리는 없음. 저장과 같은 규칙의 cartoonSites/cartoonMonth 를 넘긴다)
+                        CartoonReelPreview(
+                            sites = cartoonSites, month = cartoonMonth,
+                            modifier = Modifier.fillMaxWidth(0.62f).aspectRatio(9f / 16f).clip(AppShape.md)
+                        )
                     } else {
                         androidx.compose.foundation.Image(
                             bitmap = bmp.asImageBitmap(),
@@ -801,11 +775,9 @@ private fun ShotPreviewDialog(
                 if (previewVideo) {
                     Spacer(Modifier.height(AppSpace.s4))
                     Text(
-                        // 길이는 **곳 수에 따라** 달라진다(10~15초) — 「10초」로 박아두면
-                        //   화면과 실제가 다른 말을 한다. (2026-09-30 폰에서 발견)
-                        "저장되는 영상과 같은 그림이에요 · 릴스용 9:16 · " +
-                            com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size)
-                                .toInt().toString() + "초",
+                        // 미리보기는 **한 컷(정지)** — 저장하면 트럭이 달리고 소리도 난다.
+                        //   (라이브 재생은 이 기기 WebView 합성 문제로 빈 화면이라 한 컷으로 보여줌)
+                        "▶ 저장하면 움직이고 소리도 나와요 · 릴스 9:16",
                         style = AppType.caption, color = TossTextTertiary,
                         modifier = Modifier.padding(start = 2.dp)
                     )

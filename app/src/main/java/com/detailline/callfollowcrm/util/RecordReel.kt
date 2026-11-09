@@ -694,6 +694,17 @@ object RecordReel {
     var retrying: Boolean = false
         private set
 
+    /** 만화 영상에 넣을 현장 목록 — **저장·미리보기가 같은 규칙**으로(§12): 출발지 빼고·순서대로·사진 base64. */
+    fun cartoonSites(dots: List<RegionDot>, photos: Map<String, android.graphics.Bitmap>): List<WebReelRenderer.Site> =
+        dots.filter { !it.isStart }.sortedBy { it.order }.take(30).map { dot ->
+            WebReelRenderer.Site(dot.name, dot.apartment ?: "", photos[dot.name]?.let { WebReelRenderer.bitmapToJpegDataUrl(it) })
+        }
+
+    /** monthLabel("11월"·"2026년 11월")에서 달 숫자만. 못 읽으면 이번 달. */
+    fun monthOf(label: String): Int =
+        Regex("(\\d+)월").find(label)?.groupValues?.get(1)?.toIntOrNull()
+            ?: (java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1)
+
     suspend fun make(
         ctx: Context,
         d: Data,
@@ -731,12 +742,55 @@ object RecordReel {
             if (beforePhotos.containsKey(dot.name)) continue
             RecordShot.loadPhoto(bp, 400, 400)?.let { beforePhotos[dot.name] = it }
         }
+        try {
+        // 🎬 **만화 영상** (프로토 `record_cartoon.html` 그대로, 웹뷰로 그림) — 지도를 대신한다.
+        //   그리기 코드는 한 벌만(§12): 아티팩트를 글자 그대로 복사해 품고 여기선 조종만 한다([WebReelRenderer]).
+        //   열기(웹뷰 준비)가 실패하면 **아래 지도 영상으로 폴백**해서 "영상이 아예 안 나오는" 일은 막는다.
+        //   🔊 소리도 **같은 HTML** 에서 오프라인으로 구워 함께 넣는다(§12 — 소리·그림 한 소스).
+        // 실제 동네·단지·사진·달을 만화에 — 미리보기와 **같은 규칙**([cartoonSites]·[monthOf]).
+        val reelSites = cartoonSites(d.dots, photos)
+        val reelMonth = monthOf(d.monthLabel)
+        val web = runCatching { WebReelRenderer.open(ctx, reelSites, reelMonth) }
+            .onFailure { android.util.Log.e("RecordReel", "만화 렌더러 열기 실패(지도로): " + it.message, it) }
+            .getOrNull()
+        if (web != null) {
+            try {
+                val secW = web.durationSec
+                // 🔊 만화 소리 — 프로토의 **같은 HTML** 에서 구운 PCM 을 AAC 로. 세 인코딩 경로가 같은 소리.
+                val webAudio = web.audioPcm?.let {
+                    runCatching { AacEncoder.encode(it, ReelMusic.SAMPLE_RATE) }
+                        .onFailure { android.util.Log.e("RecordReel", "만화 소리 AAC 실패(무음): " + it.message) }
+                        .getOrNull()
+                }
+                // ① 하드웨어 인코더
+                VideoMaker.make(
+                    outFile = out, width = W, height = H, fps = 24, seconds = secW, audio = webAudio, progress = forward
+                ) { canvas, t -> web.drawFrame(canvas, t, W, H) }
+                    ?.let { lastMadeSize = "$W × $H"; return it }
+                retrying = true
+                // ② 소프트웨어 인코더
+                VideoMaker.softwareEncoder()?.let { sw ->
+                    VideoMaker.make(
+                        outFile = out, width = W, height = H, fps = 24, seconds = secW, codecName = sw, audio = webAudio, progress = forward
+                    ) { canvas, t -> web.drawFrame(canvas, t, W, H) }
+                        ?.let { lastMadeSize = "$W × $H"; return it }
+                }
+                // ③ 작게 한 번 더
+                val w3 = 540; val h3 = 960
+                VideoMaker.make(
+                    outFile = out, width = w3, height = h3, fps = 24, seconds = secW, bitRate = 4_200_000, audio = webAudio, progress = forward
+                ) { canvas, t -> web.drawFrame(canvas, t, w3, h3) }
+                    ?.let { lastMadeSize = "$w3 × $h3"; return it }
+                android.util.Log.e("RecordReel", "만화 인코딩 세 길 모두 실패 — 지도로 폴백")
+            } finally { web.close() }
+        }
+
+        // ↓↓↓ 지도 폴백 — 웹뷰를 못 쓰거나 만화 인코딩이 다 실패했을 때만 여기로. ↓↓↓
         // 🔊 '어른' 소리를 미리 굽는다 — 그림과 **같은 타임라인**에서 자리표를 뽑아([reelCues]) 합성·AAC.
         //   실패해도 **무음 영상으로** 나가게(소리는 덤, 영상이 본체). 세 인코딩 경로가 같은 소리를 쓴다.
         val audio = runCatching { AacEncoder.encode(ReelMusic.build(reelCues(ctx, d, seconds)), ReelMusic.SAMPLE_RATE) }
             .onFailure { android.util.Log.e("RecordReel", "소리 합성 실패(무음으로): " + it.message, it) }
             .getOrNull()
-        try {
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
             outFile = out, width = W, height = H, fps = 24, seconds = seconds, audio = audio, progress = forward
