@@ -60,15 +60,22 @@ class WebReelRenderer private constructor(
      * [VideoMaker] 의 draw 람다에서 부른다(Default 스레드). `t` 는 0~1 로 흐르는 영상 전체 위치.
      *   WebView 가 그린 720×1280 한 컷을 받아 [canvas]([dstW]×[dstH]) 에 맞춰 그린다(작은 폴백은 줄여서).
      */
+    /** 연속으로 한 컷도 못 받은 횟수 — 너무 쌓이면 "웹뷰가 죽은 것"으로 보고 던져서 지도 폴백으로 넘긴다. */
+    private var consecFails = 0
+
     fun drawFrame(canvas: Canvas, t: Float, dstW: Int, dstH: Int) {
         val elapsed = t * durationSec
         val bmp = renderBlocking(elapsed)
         if (bmp != null) {
             canvas.drawBitmap(bmp, src, Rect(0, 0, dstW, dstH), null)
             bmp.recycle()
+            consecFails = 0
         } else {
-            // 한 컷 못 받으면 **까만 칸을 그대로 두지 않는다** — 바로 위에서 drawColor(BLACK) 했으니
-            //   최소한 하늘색이라도 깔아 "고장난 검은 영상"을 피한다.
+            // 한 컷 못 받으면 하늘색이라도 깔아 "검은 영상"을 피한다. 단 **연속으로 많이 실패하면**
+            //   웹뷰가 죽은 것 → 던져서 VideoMaker 를 실패시키고 **지도 폴백**으로 넘긴다
+            //   (전엔 전 컷 실패해도 단색 영상이 '성공'으로 저장됐다 — 코덱스 P2).
+            consecFails++
+            if (consecFails >= 8) throw IllegalStateException("만화 프레임 연속 $consecFails 회 실패 — 렌더 중단")
             canvas.drawColor(android.graphics.Color.rgb(0xbf, 0xe3, 0xff))
         }
     }
@@ -119,6 +126,10 @@ class WebReelRenderer private constructor(
             if (sites.isEmpty()) return@withContext null
             val main = Handler(Looper.getMainLooper())
             val wv = runCatching { WebView(ctx) }.getOrNull() ?: return@withContext null
+            // 소유권을 [WebReelRenderer] 로 넘기기 전에 **어느 경로로든**(타임아웃·셋업실패·취소·예외)
+            //   끝나면 WebView 를 반드시 치운다 — 미리보기를 자주 열고 닫아 누수가 치명적(코덱스 P1).
+            var success = false
+            try {
             runCatching {
                 wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 wv.settings.javaScriptEnabled = true
@@ -139,7 +150,7 @@ class WebReelRenderer private constructor(
             wv.loadUrl("file:///android_asset/reel/record_cartoon.html")
 
             val ok = withTimeoutOrNull(8_000) { loaded.await() }
-            if (ok == null) { runCatching { wv.destroy() }; android.util.Log.e(TAG, "페이지 로드 타임아웃"); return@withContext null }
+            if (ok == null) { android.util.Log.e(TAG, "페이지 로드 타임아웃"); return@withContext null }
 
             delay(600)   // 폰트 자리잡을 시간
 
@@ -180,7 +191,6 @@ class WebReelRenderer private constructor(
             val durationSec = parseLoop(res)
             if (durationSec == null) {
                 android.util.Log.e(TAG, "셋업 실패: $res")
-                runCatching { wv.destroy() }
                 return@withContext null
             }
             // 실제 사진 decode 끝날 때까지 잠깐 기다린다(최대 ~2.4초). data: URL 이라 보통 즉시 끝난다.
@@ -200,13 +210,21 @@ class WebReelRenderer private constructor(
                 TAG,
                 "만화 렌더러 준비 — N=$n 길이=${durationSec}s 사진=${use.count { it.photoDataUrl != null }} 소리=${audioPcm?.size ?: 0}샘플"
             )
-            WebReelRenderer(wv, durationSec, audioPcm, main)
+            val renderer = WebReelRenderer(wv, durationSec, audioPcm, main)
+            success = true
+            renderer
+            } finally {
+                // 성공(소유권 이전)이 아니면 — 실패·취소·예외 — WebView 를 여기서 반드시 해제.
+                if (!success) { runCatching { wv.loadUrl("about:blank") }; runCatching { wv.destroy() } }
+            }
         }
 
-        /** open() 은 메인 스레드에서 돌므로 바로 호출하고 콜백만 기다린다. */
+        /** open() 은 메인 스레드에서 돌므로 바로 호출하고 콜백만 기다린다. 응답이 영영 안 오면 8초에 포기(무한대기 방지, 코덱스 P2). */
         private suspend fun evalOnMain(wv: WebView, js: String): String? =
-            suspendCancellableCoroutine { cont ->
-                wv.evaluateJavascript(js) { r -> if (cont.isActive) cont.resume(r) }
+            withTimeoutOrNull(8_000) {
+                suspendCancellableCoroutine { cont ->
+                    wv.evaluateJavascript(js) { r -> if (cont.isActive) cont.resume(r) }
+                }
             }
 
         /** 프로토의 오프라인 오디오 렌더를 돌려 16비트 PCM(mono 44.1k)으로 받아온다. 실패면 null→무음. */
@@ -231,6 +249,8 @@ class WebReelRenderer private constructor(
                 if (s.isEmpty()) break
                 sb.append(s); off += chunk
             }
+            // 조각을 다 못 받았으면 **반쪽 소리를 쓰지 않는다** — 뒷부분만 무음인 영상보다 통째로 무음이 안전(코덱스 P2).
+            if (sb.length != total) { android.util.Log.e(TAG, "소리 조각 부족 ${sb.length}/$total — 무음으로"); return null }
             val bytes = runCatching { Base64.decode(sb.toString(), Base64.DEFAULT) }.getOrNull() ?: return null
             val shorts = ShortArray(bytes.size / 2)
             java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shorts)

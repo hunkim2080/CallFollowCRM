@@ -16251,3 +16251,9 @@ UI 3건 — 시간 알약 겹침·메모 범용화·번호 추천 자동 스크�
 - 두 벌(§12): 미리보기·저장 같은 렌더러·같은 `cartoonSites`/`monthOf`. 가드 전부 통과(`bundleRelease` SUCCESSFUL, style 55 유지).
 - 폰 확인: S9 — 맨 위·영상창 둘 다 **움직임**(스샷 해시 다름)·인증샷 옵션 유지 **눈확인**. 맨 위 플립북이 페이지 열 때마다 몇 초 로딩(느리면 캐시 추가 예정).
 - 다음 액션: 코덱스 전체 플로우 점검(사장님 지시) · 느리면 프리뷰 프레임 캐시.
+
+## 2026-11-09 19:45 · android
+코덱스 전체 플로우 리뷰(gpt) 받고 **심각 결함 수정** — 크래시·ANR·누수 등.
+- 코덱스 지적 P1 4·P2 8·P3 2. **고친 것**: ① `WebReelRenderer.open` 모든 종료 경로(타임아웃·셋업실패·취소·예외)에서 WebView destroy(try/finally + success 플래그) — 미리보기 반복 open/close 누수(P1). ② `startReel` 를 `Dispatchers.Default` 로 — 사진읽기·base64·AAC 인코딩이 Main 막아 ANR(P1). 토스트·공유(Intent)만 `withContext(Main)`. ③ `CartoonReelPreview` **비트맵 교체-후-해제**(그리던 걸 먼저 recycle 안 함)+취소 시 조각 해제+빈/실패는 글자(무한 로딩 방지)(P1·P2). ④ `drawFrame` 연속 8회 실패 시 throw→VideoMaker 실패→**지도 폴백**(전엔 단색 영상이 '성공' 저장)(P2). ⑤ `evalOnMain` 8초 타임아웃(무한대기)(P2). ⑥ `fetchAudioPcm` 길이 검증—조각 부족이면 무음(반쪽 소리 방지)(P2).
+- **보류**: P1 「현장 N곳=사실 동네 수」(옛 `dots` 구조·사장님 결정 필요) · P2 MP4 `muxer.stop()`/코덱 정리 누락(옛 VideoMaker 공통) · P3 미리보기 속도 라벨·월 0/13 범위.
+- 폰 확인: S9 재생성 — **2트랙(avc1+mp4a)·소리 337365샘플·크래시/ANR 로그 없음**. 릴리즈 가드 통과.

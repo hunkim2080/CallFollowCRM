@@ -625,7 +625,9 @@ private fun ShotPreviewDialog(
     // 영상 만들기 — **한 군데.** 아래 버튼도, 지도 밑 [영상 만들기] 도 여기를 부른다.
     fun startReel() {
         if (reelJob != null) return   // 연타 막기
-        reelJob = scope.launch {
+        // ⚙️ **무거운 일(사진 읽기·base64·AAC 인코딩)은 메인 밖에서** — 전엔 Main 에서 돌아 ANR 위험(코덱스 P1).
+        //   토스트·공유(Intent)만 Main 으로 되돌린다.
+        reelJob = scope.launch(kotlinx.coroutines.Dispatchers.Default) {
             making = 0f
             // 🔒 **미리보기가 쓰는 그 자료(reelData)를 그대로** 넘긴다.
             //   여기서 Data 를 또 만들면 미리보기와 결과가 갈린다 —
@@ -640,23 +642,27 @@ private fun ShotPreviewDialog(
                 )
                 savedUri = uri
                 savedMime = "video/mp4"
-                if (uri == null) {
-                    android.widget.Toast.makeText(
-                        ctx, "저장하지 못했어요 — 바로 올려볼게요",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    if (uri == null) {
+                        android.widget.Toast.makeText(
+                            ctx, "저장하지 못했어요 — 바로 올려볼게요",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
                 }
-                com.detailline.callfollowcrm.util.RecordShot.shareVideo(ctx, reel)
             } else {
                 // 실패는 **이유를 말해야** 한다 — 한 줄로 끝내면 아무것도 못 고친다.
                 val why = com.detailline.callfollowcrm.util.VideoMaker.lastError
-                android.widget.Toast.makeText(
-                    ctx,
-                    if (why.isNullOrBlank()) "영상을 만들지 못했어요"
-                    else "영상을 만들지 못했어요 — " + why,
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
                 android.util.Log.e("VideoMaker", "실패: " + why)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        ctx,
+                        if (why.isNullOrBlank()) "영상을 만들지 못했어요"
+                        else "영상을 만들지 못했어요 — " + why,
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }
