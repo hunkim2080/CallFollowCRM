@@ -367,17 +367,7 @@ private fun MyRecordMap(
     /** 🏠 출발지를 정한다. 빈 값 = 사업자 주소로 되돌리기. (2026-09-27 사장님) */
     onSetStart: (String) -> Unit = {}
 ) {
-    var startEditOpen by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(false)
-    }
-    if (startEditOpen) {
-        StartPointDialog(
-            current = rec.startAddr,
-            bizAddr = rec.bizAddr,
-            onDismiss = { startEditOpen = false },
-            onSave = { startEditOpen = false; onSetStart(it) }
-        )
-    }
+    // (지도를 뺐으니 '출발지 정하기'(StartPointDialog)도 더 쓰지 않는다 — 만화는 출발지 개념이 없다.)
     Column(
         modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp)).background(Color.White).padding(10.dp)
@@ -389,60 +379,22 @@ private fun MyRecordMap(
                 Text("이 달은 다녀온 기록이 없어요", style = AppType.body, color = TossTextTertiary)
             }
         } else {
-        // **주인공이니까 크게.** 190 → 260dp (프로토 185 → 255 와 같은 비율)
-        com.detailline.callfollowcrm.presentation.component.RegionMap(
-            spots = rec.dots,
-            height = 260.dp,
-            zoom = zoom, panX = panX, panY = panY,
-            onTransform = onTransform
+        // 🎬 **만화 영상 미리보기(움직임)** — 지도 대신, 저장될 그 영상을 그대로 돌려 보여준다.
+        //   (2026-11-09 사장님 "지도 뺀 만화로"·"움직이는 만화로"). 저장·미리보기 같은 렌더러([CartoonReelPreview]).
+        CartoonReelPreview(
+            dots = rec.dots,
+            month = com.detailline.callfollowcrm.util.RecordReel.monthOf(rec.monthLabel),
+            modifier = Modifier.height(300.dp).aspectRatio(9f / 16f)
+                .clip(AppShape.md)
+                .align(Alignment.CenterHorizontally)
         )
         Spacer(Modifier.height(AppSpace.s8))
-        // 🧭 **다닌 순서로.** 여긴 혼자 `많이 간 순`으로 놓고 있었다 —
-        //   바로 밑에 "🚛 가 간 순서대로 달려요" 라고 적어두고. (2026-09-26 업무폰에서 발견)
-        //   🔒 영상·그림과 **같은 곳**에서 만든다 — 이 줄이 여섯 번째 복사본이었다.
+        // 🧭 다닌 동네 — 영상·그림과 **같은 곳**에서 만든다(§12).
         Text(
             com.detailline.callfollowcrm.util.RecordShot.townLine(rec.towns),
             style = AppType.label, color = TossTextSecondary, lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 2.dp)
         )
-        Spacer(Modifier.height(AppSpace.s4))
-        Text(
-            buildString {
-                append("🚛 가 간 순서대로 달려요 · 톡 치면 다시 · 두 손가락으로 확대")
-                // 이 카드는 **그 달** 지도다. 전엔 여기 「올해 48개 동네」를 붙였다 —
-                //   9월을 보는데 1년치가 섞였다. (2026-09-30 사장님
-                //   "아니 9월데이터를 보는데 왜 1년치가나오냐고")
-                //   자리를 없앤 게 아니라 **그 달 숫자로** 바꿼다 —
-                //   윗줄은 「… 외 4곳」이라 모두 몇 곳인지 안 보인다.
-                if (rec.towns.size > 1) append(" · ").append(rec.towns.size).append("개 동네")
-            },
-            style = AppType.caption, color = TossTextTertiary,
-            modifier = Modifier.padding(horizontal = 2.dp)
-        )
-        // 🏠 **어디서 나서나.** (2026-09-27 사장님 "내가 출발하는 위치를 정해야하는데")
-        //   설정 깊이 넣지 않고 **그 값이 쓰이는 자리**에 둔다 — 여기 말고는 쓰이는 데가 없다.
-        Spacer(Modifier.height(AppSpace.s8))
-        androidx.compose.foundation.layout.Row(
-            Modifier.fillMaxWidth().clip(AppShape.sm)
-                .clickable { startEditOpen = true }
-                .padding(horizontal = 2.dp, vertical = AppSpace.s4),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                when {
-                    rec.startTown.isNotBlank() -> "출발 · " + rec.startTown
-                    rec.startAddr.isNotBlank() -> "출발 · 적어주신 주소의 동네를 못 찾았어요"
-                    else -> "출발지를 정하면 첫 현장까지 가는 길도 그려요"
-                },
-                style = AppType.caption, color = TossTextTertiary,
-                modifier = Modifier.weight(1f), maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-            Text(
-                if (rec.startAddr.isBlank()) "정하기" else "바꾸기",
-                style = AppType.label, color = TossBlue
-            )
-        }
         }   // ── if (dots 비었음) … else 끝
 
         // 기록이 없는 달이면 **숫자도 만들기도 없다.** 없다고 말해놓고 0곳·0일·0만을 또 보여주고,
@@ -664,10 +616,7 @@ private fun ShotPreviewDialog(
     androidx.compose.runtime.DisposableEffect(previewBeforePhotos) {
         onDispose { for (b in previewBeforePhotos.values) runCatching { b.recycle() } }
     }
-    // 🎬 만화 미리보기용 — 저장과 **같은 규칙**([RecordReel.cartoonSites]·[monthOf])으로 현장·달을 만든다(§12).
-    val cartoonSites = remember(reelData.dots, previewPhotos) {
-        com.detailline.callfollowcrm.util.RecordReel.cartoonSites(reelData.dots, previewPhotos)
-    }
+    // 🎬 만화 미리보기 달 — 저장과 **같은 규칙**([RecordReel.monthOf]). 현장·사진은 CartoonReelPreview 가 안에서 준비.
     val cartoonMonth = remember(reelData.monthLabel) {
         com.detailline.callfollowcrm.util.RecordReel.monthOf(reelData.monthLabel)
     }
@@ -753,7 +702,7 @@ private fun ShotPreviewDialog(
                         // 🎬 저장되는 **그 영상(만화 HTML)** 을 그대로 틀어 보여준다 — 따로 그리면 또 두 벌(§12).
                         //   (멈추지 않고 재생·소리는 없음. 저장과 같은 규칙의 cartoonSites/cartoonMonth 를 넘긴다)
                         CartoonReelPreview(
-                            sites = cartoonSites, month = cartoonMonth,
+                            dots = rec.dots, month = cartoonMonth,
                             modifier = Modifier.fillMaxWidth(0.62f).aspectRatio(9f / 16f).clip(AppShape.md)
                         )
                     } else {
@@ -801,6 +750,8 @@ private fun ShotPreviewDialog(
                         )
                     }
                 }
+                // 숫자 고르기는 **인증샷(그림)에만** — 만화 영상은 곳수만 보여줘 안 쓴다(깔끔하게 영상일 땐 숨김).
+                if (!previewVideo) {
                 Spacer(Modifier.height(AppSpace.s12))
                 // ── 무엇을 자랑할까요? ── 자랑할 숫자는 사람마다 다르다. (2026-09-24 사장님)
                 //   "크게 넣을 숫자" 는 **기능 설명**이었다. 시안 문구가 사람 말이다.
@@ -833,34 +784,9 @@ private fun ShotPreviewDialog(
                         monthPicks.forEach { (i, p) -> ShotChip(p.chipText(), on = i == pick) { pick = i } }
                     }
                 }
-                // ── 영상 모양 ── 영상은 **둘 중 하나**다. 그림의 다섯 갈래를 그대로 보여주면
-                //   네 개가 같은 영상으로 나온다 — 고르라고 해놓고 안 먹히는 게 제일 나쁘다.
-                //   (2026-09-26) 사진 갈래가 생겼으니 **영상에도 고를 자리**를 둔다.
-                if (previewVideo) {
-                    Spacer(Modifier.height(AppSpace.s12))
-                    Text("영상 모양", style = AppType.caption, color = TossTextTertiary,
-                        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
-                    val hasPhotoV = rec.photoPath != null
-                    androidx.compose.foundation.layout.FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ShotChip("지도가 주인공", shape != ShotShape.PHOTO) { shape = ShotShape.MAP_PHOTO }
-                        if (hasPhotoV) {
-                            ShotChip("현장 사진이 주인공", shape == ShotShape.PHOTO) { shape = ShotShape.PHOTO }
-                        }
-                    }
-                    Spacer(Modifier.height(AppSpace.s4))
-                    Text(
-                        if (!hasPhotoV)
-                            "고객 상세에서 현장 사진을 올리면 「현장 사진이 주인공」도 고를 수 있어요"
-                        else if (shape == ShotShape.PHOTO)
-                            "현장 사진이 화면을 꺢 채우고, 지도는 오른쪽 위에서 작게 달려요"
-                        else "지도가 크게 나오고, 현장 사진은 오른쪽 위에 작게 들어가요",
-                        style = AppType.caption, color = TossTextTertiary, lineHeight = 16.sp,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
-                }
+                }   // ── 숫자 고르기 끝 (인증샷 전용) ──
+                // (옛 「영상 모양: 지도가 주인공 / 현장 사진이 주인공」 토글은 지웠다 —
+                //  영상은 이제 **다 만화**라 고를 모양이 없다. 지도·사진배경 영상은 사라졌다.)
                 // ── 아래는 **그림 전용 설정**이다. 영상엔 하나도 안 먹히니 영상일 땐 아예 안 보여준다.
                 //   고르라고 해놓고 안 먹히는 게 제일 나쁘다. (2026-09-25 사장님)
                 if (!previewVideo) {
@@ -908,7 +834,9 @@ private fun ShotPreviewDialog(
                     }
                 }
                 }   // ── 그림 전용 설정 끝 ──
-                // ── 업체명·연락처 표시 ── 그림·영상 **둘 다** 따른다. (사장님 시안)
+                // ── 업체명·연락처 · 저장 크기 ── **인증샷(그림)에만.** 만화 영상엔 상호가 안 나오고,
+                //   크기는 위 캡션(릴스 9:16)으로 충분해서 영상일 땐 깔끔하게 숨긴다.
+                if (!previewVideo) {
                 Spacer(Modifier.height(AppSpace.s12))
                 Row(
                     Modifier.fillMaxWidth().clip(AppShape.md).background(TossGrayBg)
@@ -926,18 +854,14 @@ private fun ShotPreviewDialog(
                         checked = sign, onCheckedChange = { sign = it }
                     )
                 }
-                // 저장하면 몇 픽셀인지 — 올리기 전에 알면 자르지 않는다. (시안 "1080 × 1350")
                 Spacer(Modifier.height(AppSpace.s8))
                 Text(
-                    // 길이는 **곳 수에 따라** 달라진다 — 「10초」을 두 군데에 박아두고 있었다.
-                    //   (2026-09-30 폰에서 발견 — 화면은 10초라는데 실제는 15초)
-                    if (previewVideo) "저장 크기 · 720 × 1280 (릴스 9:16) · " +
-                        com.detailline.callfollowcrm.util.RecordReel.secondsFor(rec.dots.size).toInt() + "초"
-                    else if (shape == ShotShape.STICKER) "저장 크기 · 배경 없는 스티커 (1080 폭)"
+                    if (shape == ShotShape.STICKER) "저장 크기 · 배경 없는 스티커 (1080 폭)"
                     else "저장 크기 · 1080 × ${ratio.h}",
                     style = AppType.caption, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp)
                 )
+                }
                 Spacer(Modifier.height(AppSpace.s12))
                 // 그림을 보는 중일 때만 그림 버튼. 영상일 땐 아래 [이 영상으로 저장] 하나뿐이다.
                 if (!previewVideo) {
