@@ -451,6 +451,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
 | 대표 건 고르기 | `domain/job/RepresentativeJob.kt` | `firstOrNull { … >= today } ?: last()` 를 직접 |
 | 그날 갈 곳 순서 | `domain/schedule/DayOrder.kt` | 화면에서 직접 시각 파싱 |
+| A/S 가 그 날을 덮나·덮는 날 목록(무료·시공과 **별개**) | `domain/schedule/AsSchedule.kt` — `coversDay` · `coveredDayStarts`. 홈 띠·일정 탭(`asCoversDay` 입구)·위젯이 같은 판정 | 화면·위젯마다 `asScheduledDate..+days` 직접 전개, `asScheduledDate != null` 로 직접 판정(2026-11-11: 홈이 A/S 를 안 봐 "오늘 일정 없어요") |
 | 한 건(JobEntity)을 **그 건의 고객 카드 사본**으로(일정·날짜·주소·**돈·완료까지 그 건 것**) | `domain/job/JobCardRow.kt` — `rowOf(customer, job)` (일정 탭·달력·고객 상세 건 카드가 부름) | 화면·VM 에서 `c.copy(scheduledWorkDate = j.…)` 를 직접(돈을 안 옮기면 2차 날짜에 1차 돈·완납이 묻어난다 — 2026-10-05 짬뽕 전표) |
 | 달력 칸 「지역 [금액]」(금액 토글 — 만원 숫자만·없으면 「–」) | `domain/schedule/CalendarMoneyLabel.kt` — `moneyOf(totalWon, show)` · `plain(region, money)`. 토글 기억은 `AppPreferences.scheduleShowMoney` 한 칸, 그리기는 `CalRegionBar(…, money)` 한 곳 | 화면에서 `totalAmount / 10000`·`"[–]"` 직접, 토글을 화면 상태로만 들고 있기 |
 | 홈 띠 쪽 넘기기·「(1/2)」 | `domain/schedule/TodayBandPages.kt` | 화면에서 `if (total > 1) "(${page+1}/$total)"` 를 직접 |

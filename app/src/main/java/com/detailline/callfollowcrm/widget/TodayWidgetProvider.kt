@@ -18,6 +18,7 @@ import com.detailline.callfollowcrm.ai.siteDisplayName
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.JobEntity
 import com.detailline.callfollowcrm.domain.job.Completion
+import com.detailline.callfollowcrm.domain.schedule.AsSchedule
 import com.detailline.callfollowcrm.domain.schedule.DayOrder
 import com.detailline.callfollowcrm.domain.schedule.TodayVisitOrder
 import com.detailline.callfollowcrm.domain.ui.TodayWidgetDensity
@@ -71,7 +72,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val headline: String, val region: String, val complex: String, val unit: String,
             val memo: String, val items: String, val timeLabel: String, val navAddress: String,
             val minutes: Int?, val day: Long, val completed: Boolean,
-            val customerId: Long = 0, val shareId: String = "", val partner: String = ""
+            val customerId: Long = 0, val shareId: String = "", val partner: String = "",
+            /** A/S 현장(무료·시간 미정) 표시용. 시공·협업과 구분. (2026-11-11) */
+            val isAs: Boolean = false
         )
 
         fun refresh(context: Context) {
@@ -117,6 +120,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 it.status == "accepted" && it.scheduledAtMs >= today &&
                     it.shareId !in p.trashedSharedSiteIds && it.shareId !in p.hiddenCollabShareIds
             }.map { collabSiteOf(it) }
+            // 🔧 A/S 도 '오늘 갈 데' — 무료·시간 미정. 덮는 날마다 한 줄(공용 AsSchedule). (2026-11-11 사장님)
+            all += customers.flatMap { c ->
+                AsSchedule.coveredDayStarts(c.asScheduledDate, c.asScheduledDays, today).map { asSiteOf(c, it) }
+            }
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
             // 🌙 저녁 6시 이후엔 '내일 갈 현장' 미리보기 — 보통 그 시간이 시공 마지막이라. 자정 지나면 자동으로 다시 '오늘'. (2026-11-05 사장님)
             val tomorrow = cal.get(java.util.Calendar.HOUR_OF_DAY) >= 18
@@ -155,6 +162,19 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 timeLabel = minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(), navAddress = AddressExtractor.tidyAddress(addr),
                 minutes = minutes, day = (if (j != null) j.scheduledWorkDate else c.scheduledWorkDate)?.let(DateTimeUtils::startOfDay) ?: 0,
                 completed = j?.let(Completion::isDone) ?: Completion.isDone(c), customerId = c.id)
+        }
+
+        /** 🔧 A/S 현장 한 줄 — 무료·시간 미정(minutes null). day = 덮는 그 날. 시공(siteOf)과 별개. */
+        private fun asSiteOf(c: CustomerEntity, day: Long): Site {
+            val addr = c.address
+            val name = c.name?.takeIf { it.isNotBlank() && it.any(Char::isLetter) }
+            val complex = AddressExtractor.complexName(addr).orEmpty()
+            return Site(
+                headline = name?.let { "$it 고객님" } ?: complex.ifBlank { AddressExtractor.roughSite(addr).ifBlank { "현장" } },
+                region = regionPrefix(addr), complex = if (name != null) complex else "",
+                unit = unitOf(AddressExtractor.splitDongHo(addr)), memo = c.memo.trim(), items = "",
+                timeLabel = "", navAddress = AddressExtractor.tidyAddress(addr),
+                minutes = null, day = day, completed = false, customerId = c.id, isAs = true)
         }
 
         private fun collabSiteOf(s: SharedSiteRepository.SharedSite): Site {
@@ -210,8 +230,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 txt(R.id.widget_name, current.headline); txt(R.id.widget_time, current.timeLabel)
                 show(R.id.widget_time, current.timeLabel.isNotBlank())
                 txt(R.id.widget_region, current.region)
-                txt(R.id.widget_collab_chip, "🤝 협업 · ${current.partner}")
-                show(R.id.widget_collab_chip, current.shareId.isNotBlank())
+                // 협업 칩 자리에 A/S 면 「🔧 A/S · 무료」(무료라 돈 얘기 없음). 둘 다 아니면 숨김.
+                txt(R.id.widget_collab_chip, if (current.isAs) "🔧 A/S · 무료" else "🤝 협업 · ${current.partner}")
+                show(R.id.widget_collab_chip, current.shareId.isNotBlank() || current.isAs)
                 show(R.id.widget_featured_address, density.featured && (current.unit.isNotBlank() || current.complex.isNotBlank()))
                 show(R.id.widget_compact_address, !density.featured && (current.unit.isNotBlank() || current.complex.isNotBlank()))
                 txt(R.id.widget_complex, current.complex); show(R.id.widget_complex, current.complex.isNotBlank())

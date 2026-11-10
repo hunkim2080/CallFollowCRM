@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.domain.schedule
 
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,5 +46,15 @@ class AsScheduleTest {
         // asScheduledDate 가 startOfDay 가 아니라 한낮이어도 그날을 덮어야 한다
         val noon = day0 + 13 * 60 * 60 * 1000L
         assertTrue(AsSchedule.coversDay(noon, 1, day0))
+    }
+
+    @Test
+    fun `덮는 날 목록 — 여러 날 A_S 가 from 이후만`() {
+        // 3일짜리, from=day0 → day0,day1,day2 세 날
+        assertEquals(listOf(day0, day1, day2), AsSchedule.coveredDayStarts(day0, 3, day0))
+        // from=day1 → 지난 day0 는 빠지고 day1,day2
+        assertEquals(listOf(day1, day2), AsSchedule.coveredDayStarts(day0, 3, day1))
+        // A/S 없으면 빈 목록
+        assertEquals(emptyList<Long>(), AsSchedule.coveredDayStarts(null, 1, day0))
     }
 }

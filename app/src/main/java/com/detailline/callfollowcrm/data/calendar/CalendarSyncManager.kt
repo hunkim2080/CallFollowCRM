@@ -490,10 +490,13 @@ class CalendarSyncManager(
         val who = c.name?.takeIf { it.isNotBlank() }
         val base = region ?: who ?: c.phoneNumber
         // 캘린더 제목은 자리가 좁다 → 내림해서 만 단위 숫자만. (2026-09-28 사장님 「내림」)
-        val moneyTag = c.totalAmount?.takeIf { it > 0L }
-            ?.let { "[" + com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(it, "") + "]" } ?: ""
-        val summary = if (type == ScheduleType.WORK) "🏗️$moneyTag $base".trim()
-        else "🔧$moneyTag $base (A/S)".trim()
+        // ⚠️ A/S 는 **무료**(정산 무관) — 금액을 붙이지 않는다. 전엔 시공 금액이 A/S 제목·본문에 묻어나
+        //   동기화된 구글 캘린더 A/S 에 「[금액]」이 떴다. (2026-11-11 사장님)
+        val isWork = type == ScheduleType.WORK
+        val moneyTag = if (isWork) c.totalAmount?.takeIf { it > 0L }
+            ?.let { "[" + com.detailline.callfollowcrm.util.MoneyFormatter.manwonShort(it, "") + "]" } ?: "" else ""
+        val summary = if (isWork) "🏗️$moneyTag $base".trim()
+        else "🔧 $base (A/S · 무료)".trim()
 
         val start = JSONObject()
         val end = JSONObject()
@@ -513,7 +516,8 @@ class CalendarSyncManager(
         fun section(title: String, body: String?) = body?.trim()?.takeIf { it.isNotBlank() }?.let {
             title + nl + it.lines().joinToString(nl) { ln -> "- " + ln.trim() } + nl
         }
-        val money = buildList {
+        // A/S 는 무료 → 금액 줄 자체를 넣지 않는다(시공일 때만).
+        val money = if (!isWork) "" else buildList {
             c.totalAmount?.takeIf { it > 0L }?.let { add("총금액 ${won(it)}") }
             c.depositAmount?.takeIf { it > 0L }?.let { add("계약금 ${won(it)}") }
             c.balanceAmount?.takeIf { it > 0L }?.let {

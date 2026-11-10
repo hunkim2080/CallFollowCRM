@@ -27,4 +27,11 @@ object AsSchedule {
     /** 고객 카드 버전 — 위 순수 셈에 위임. */
     fun coversDay(c: CustomerEntity, dayStart: Long): Boolean =
         coversDay(c.asScheduledDate, c.asScheduledDays, dayStart)
+
+    /** 이 A/S 가 덮는 날(startOfDay) 목록 — fromDayStart 이후만. 여러 날 A/S(asScheduledDays). */
+    fun coveredDayStarts(asScheduledDate: Long?, asScheduledDays: Int, fromDayStart: Long): List<Long> {
+        val start = asScheduledDate?.let { DateTimeUtils.startOfDay(it) } ?: return emptyList()
+        val days = asScheduledDays.coerceAtLeast(1)
+        return (0 until days).map { start + it * DateTimeUtils.DAY_MS }.filter { it >= fromDayStart }
+    }
 }
