@@ -699,14 +699,9 @@ internal fun jobCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
     return dayStart in s..end
 }
 
-/** 이 A/S 예약이 dayStart 날을 포함하는가 — 여러 날 A/S(asScheduledDays) 고려. 시공과 별개. (DB v43) */
-internal fun asCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
-    val start = c.asScheduledDate ?: return false
-    val s = DateTimeUtils.startOfDay(start)
-    val days = c.asScheduledDays.coerceAtLeast(1)
-    val end = s + (days - 1) * DateTimeUtils.DAY_MS
-    return dayStart in s..end
-}
+/** 이 A/S 예약이 dayStart 날을 포함하는가 — 셈은 공용 [AsSchedule] 한 곳(홈·일정·캘린더 같은 판정). (DB v43) */
+internal fun asCoversDay(c: CustomerEntity, dayStart: Long): Boolean =
+    com.detailline.callfollowcrm.domain.schedule.AsSchedule.coversDay(c, dayStart)
 
 /** fromAnchor → toAnchor 사이의 달 수(부호 있음). page 인덱스 계산용. */
 internal fun monthsBetween(fromAnchor: Long, toAnchor: Long): Int {

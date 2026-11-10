@@ -865,6 +865,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 🔧 오늘 A/S 예약이 덮는 고객 — **무료·시간 미정**. 시공과 별개 필드(asScheduledDate)라
+     *   전엔 홈이 아예 안 봐서, 오늘 A/S 가 있어도 "오늘은 일정이 없어요" 라 떴다. (2026-11-11 사장님)
+     *   덮는지 판정은 공용 [com.detailline.callfollowcrm.domain.schedule.AsSchedule] 한 곳.
+     *   A/S 는 완료 개념이 없어(그냥 방문) 거르지 않는다. 시각이 없어 띠에선 '시간 미정'으로 맨 뒤.
+     */
+    val asToday: StateFlow<List<CustomerEntity>> = combine(customers, todayStartFlow) { list, ts ->
+        list.filter { com.detailline.callfollowcrm.domain.schedule.AsSchedule.coversDay(it, ts) }
+            .sortedBy { it.asScheduledDate ?: 0L }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * "미확인" 판정 = phone suffix set.
      *
      * 정의 (2026-05-28 사장님 결정):

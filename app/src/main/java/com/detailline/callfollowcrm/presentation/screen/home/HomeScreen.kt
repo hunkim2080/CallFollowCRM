@@ -326,6 +326,7 @@ fun HomeScreen(
     val todayJobs by viewModel.todayJobs.collectAsState()
     val nextJobs by viewModel.nextJobs.collectAsState()
     val upcomingJobs by viewModel.upcomingJobs.collectAsState()
+    val asToday by viewModel.asToday.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
     val teamUpdates by viewModel.teamUpdates.collectAsState()
     val collabUpdates by viewModel.collabUpdates.collectAsState()
@@ -1115,6 +1116,7 @@ fun HomeScreen(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
                         upcomingJobs = upcomingJobs,
+                        asToday = asToday,
                         collabUpcomingAll = collabUpcoming,
                         collabTodayCount = collabTodaySites.size,
                         collabTodaySites = collabTodaySites,
@@ -2297,6 +2299,13 @@ private data class UpcomingBandItem(
     val collab: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite?
 )
 
+/** 오늘 띠 한 쪽이 가리키는 것 — 시공(job) / 협업(collab) / A/S(asCustomer) 중 하나. (2026-11-11 A/S 추가) */
+private data class TodayBandSlot(
+    val job: com.detailline.callfollowcrm.data.local.entity.CustomerEntity? = null,
+    val collab: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite? = null,
+    val asCustomer: com.detailline.callfollowcrm.data.local.entity.CustomerEntity? = null
+)
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TodayBand(
@@ -2304,6 +2313,11 @@ private fun TodayBand(
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     /** 내일 이후 **모든** 예약 시공(가까운 순) — 다음 일정을 여러 개 넘겨 보려고. (2026-10-14 사장님) */
     upcomingJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity> = emptyList(),
+    /**
+     * 오늘 A/S 예약이 덮는 고객(무료·시간 미정). A/S 도 **오늘 갈 데**다 — 전엔 홈이 안 봐서
+     *   오늘 A/S 가 있어도 "오늘은 일정이 없어요" 라 떴다. (2026-11-11 사장님)
+     */
+    asToday: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity> = emptyList(),
     /** 내일 이후 모든 협업 현장 — 다음 일정 페이지에 내 시공과 시간순으로 섞는다. (2026-10-14) */
     collabUpcomingAll: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList(),
     collabTodayCount: Int,
@@ -2329,17 +2343,20 @@ private fun TodayBand(
     //   전엔 **「내 시공 먼저, 그 뒤에 협업」**이었다 — 일정 탭은 2026-09-27 에 고쳤는데
     //   **홈은 안 고쳤다.** 같은 규칙을 두 곳에 적어놓았으니 한 곳만 고쳐진 것이다.
     //   🔒 세는 자는 [DayOrder] 한 곳이다. 아침에 보는 건 **먼저 가는 곳**이지 누구 것이 아니다.
-    val ordered = remember(todayJobs, collabTodaySites) {
+    val ordered = remember(todayJobs, collabTodaySites, asToday) {
         val mine = todayJobs.map {
             com.detailline.callfollowcrm.domain.schedule.DayOrder
-                .jobMinutes(it.scheduledWorkMinutes) to (it to null)
+                .jobMinutes(it.scheduledWorkMinutes) to TodayBandSlot(job = it)
         }
         val theirs = collabTodaySites.map {
             com.detailline.callfollowcrm.domain.schedule.DayOrder
-                .collabMinutes(it.timeLabel, it.scheduledAtMs) to
-                (null to it)
+                .collabMinutes(it.timeLabel, it.scheduledAtMs) to TodayBandSlot(collab = it)
         }
-        (mine + theirs).sortedBy { it.first }.map { it.second }
+        // A/S 는 시각이 없다 → '시간 미정'(UNKNOWN)으로 맨 뒤. A/S 끼리는 예약일 순.
+        val asRows = asToday.map {
+            com.detailline.callfollowcrm.domain.schedule.DayOrder.UNKNOWN to TodayBandSlot(asCustomer = it)
+        }
+        (mine + theirs + asRows).sortedBy { it.first }.map { it.second }
     }
     val total = ordered.size
     val target = ordered.firstOrNull()
@@ -2381,10 +2398,11 @@ private fun TodayBand(
     Column(Modifier.fillMaxWidth()) {
         androidx.compose.foundation.pager.HorizontalPager(state = pager) { page ->
             if (page < todaySlots) {
-                // 이 쪽이 가리키는 오늘 현장. 내 시공을 먼저, 그 뒤에 협업 현장.
+                // 이 쪽이 가리키는 오늘 현장. 시간순(시공·협업·A/S 섞음).
                 val row = ordered.getOrNull(page)
-                val slot = row?.first
-                val collabHere = row?.second
+                val slot = row?.job
+                val collabHere = row?.collab
+                val asHere = row?.asCustomer
                 if (slot != null) {
                     val mins = slot.scheduledWorkMinutes
                     val timeText = mins?.let { DateTimeUtils.formatWorkMinutes(it) } ?: "시간 미정"
@@ -2431,6 +2449,9 @@ private fun TodayBand(
                         onAction = { onNavigateAddr(cAddr) },
                         onTap = onOpenSchedule
                     )
+                } else if (asHere != null) {
+                    // 🔧 오늘 A/S 한 쪽 — 셈·그림은 공용 AsTodayBandCell(§12-F, HomeScreen 안 키우려 뗌).
+                    AsTodayBandCell(asHere, page, total, dayStart, onNavigateAddr, onOpenChat)
                 } else if (doneToday) {
                     BandShell(
                         bg = AppTheme.colors.doneBg, fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),
