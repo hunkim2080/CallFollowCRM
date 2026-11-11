@@ -16334,3 +16334,10 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 시각 정보 자체는 유지(사장님 "사진 찍은 시간" 살리고 싶어함).
 - S9 눈확인: 타일 「오후 9시 49분」 등 시계 시각으로 표시. assembleRelease BUILD=0.
 - 참고: 같은 턴에서 S23U 네비바 짤림은 사장님 스샷으로 해결 확인됨(「2장 올리기」 바가 네비바 위로 뜸). 디자인 완성도(세그먼트 알약·구분선)도 확인됨.
+
+## 2026-11-11 19:50 · android
+① 타일 시각 제거(사장님 "오전 몇시몇분 올릴 필요 없어") — 갤러리 표준(사진 썸네일엔 시각 X). commit 717d721b. S9 빌드 통과.
+② 신고서 가이드 아티팩트 발행 — claude.ai/artifact/87uG3wCRpC4EdVzPoGceac (Play 앱콘텐츠→사진·동영상 권한 경로·사유 복붙문구·시연영상 안내).
+③ 🔴 **장문 문자 쪼개짐(엄청 큰 문제)** 진단: 한국 통신사는 concatenated SMS 미지원 → 지금 sendMultipartTextMessage(SmsSender.sendDirect) 가 장문을 낱개로 쪼개 순서뒤섞고 URL끊어 전달(사장님 아이폰 수신 스샷 확인). **해결案 = 장문(divideMessage>1 또는 한글40자/90byte 초과)은 LMS(텍스트 전용 MMS)로.** buildSendReq 가 이미 text part 지원 → text-only MMS 경로 추가 필요. ⚠️ 발송 후 기록(Sent provider)·자동응답 쿨다운·MmsSentReceiver 와 얽혀 신중히. 사장님 confirm 후 구현 예정.
+④ A/S '완료처리' 버튼 없음 지적 — 「시공 완료」는 건(job)에만, A/S 는 고객단위 asScheduledDate 라 완료 개념/필드 없음. 위치·동작 확인 필요(신규 필드 asCompletedAt?).
+- 폰 확인: picker 시각 라벨 버전은 S9 확인됨. 시각 '제거' 버전은 빌드만(트리비얼 삭제).
