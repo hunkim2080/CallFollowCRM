@@ -1028,6 +1028,9 @@ class ChatViewModel(
             val ok = withContext(Dispatchers.IO) {
                 SmsSender.sendDirect(context, phoneNumber, trimmed, persistLocalOnFail = false)
             }
+            // 📵 장문이 LMS(텍스트 MMS)로 나갔으면 **MMS 발신함이 정본** → 아래 SMS 캐시 보존을 건너뛴다.
+            //   안 그러면 발신함+캐시 두 곳에 같은 글이 저장돼 화면에 **두 번** 보인다(사진 MMS 경로와 같게 맞춤). (2026-11-12 사장님 신고)
+            val viaMms = withContext(Dispatchers.IO) { SmsSender.willSendAsMms(context, trimmed) }
 
             // 3) optimistic UI: 보낸 메시지 즉시 리스트 맨 앞에. id 충돌 피하려 음수 임시 id.
             //    ⚠️ 보존본(localSent)을 *동기로 먼저* 저장한 뒤 화면에 올린다 — 직후 loadMessages 가 돌아도 안 지워지게.
@@ -1042,7 +1045,7 @@ class ChatViewModel(
                     dateMs = nowMs,
                     sent = true
                 )
-                withContext(Dispatchers.IO + NonCancellable) {
+                if (!viaMms) withContext(Dispatchers.IO + NonCancellable) {
                     runCatching {
                         val digits = phoneNumber.filter { it.isDigit() }
                         val suffix = PhoneKey.of(digits)

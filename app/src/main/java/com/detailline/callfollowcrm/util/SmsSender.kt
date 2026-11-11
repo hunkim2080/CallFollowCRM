@@ -44,6 +44,22 @@ object SmsSender {
     ) == PackageManager.PERMISSION_GRANTED
 
     /**
+     * 이 본문이 **장문이라 LMS(텍스트 MMS)로 나갈지** — 발송([sendDirect])과 화면 표시(ChatViewModel) 가
+     *   **같은 판정**을 쓰게 하는 한 곳(§12). MMS 로 나가면 발신함이 정본이라 **화면은 SMS 캐시에 또 저장하면 안 된다**
+     *   (두 벌 = 같은 글이 두 번 보임, 2026-11-12 사장님 신고).
+     */
+    fun willSendAsMms(context: Context, body: String): Boolean {
+        if (body.isBlank() || !isDefaultSmsApp(context)) return false
+        val sms = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION") SmsManager.getDefault()
+        }) ?: return false
+        val parts = runCatching { sms.divideMessage(body) }.getOrNull()
+        return (parts?.size ?: 1) > 1
+    }
+
+    /**
      * @return **넘기기까지** 성공했는지. 통신사가 실제로 보냈는지는 여기서 알 수 없다 —
      *         그건 [SmsSentReceiver] 가 나중에 듣고, 실패면 사장님께 알리고 기록을 되돌린다.
      *
@@ -68,7 +84,9 @@ object SmsSender {
         //   지원하지 않아, 멀티파트로 보내면 **낱개 문자로 쪼개** 순서를 뒤섞고 URL 도 끊어 전달한다
         //   (2026-11-11 사장님 아이폰 수신 확인). LMS 는 한 통으로 온다. 단 MMS 는 **기본 문자앱일 때만** →
         //   기본앱이 아니면 어쩔 수 없이 멀티파트로 폴백(쪼개질 수 있음).
-        if ((parts?.size ?: 1) > 1 && isDefaultSmsApp(context)) {
+        //   🔒 「장문이면 MMS 로」 판정은 [willSendAsMms] 한 곳 — 화면 쪽(ChatViewModel)이 **같은 판정**으로
+        //      캐시 중복 저장을 피한다(안 그러면 발신함+캐시 두 벌로 같은 글이 두 번 보임, §12). (2026-11-12)
+        if (willSendAsMms(context, body)) {
             return sendTextMms(context, phoneNumber, body)
         }
 
