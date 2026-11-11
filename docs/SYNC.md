@@ -16341,3 +16341,13 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 ③ 🔴 **장문 문자 쪼개짐(엄청 큰 문제)** 진단: 한국 통신사는 concatenated SMS 미지원 → 지금 sendMultipartTextMessage(SmsSender.sendDirect) 가 장문을 낱개로 쪼개 순서뒤섞고 URL끊어 전달(사장님 아이폰 수신 스샷 확인). **해결案 = 장문(divideMessage>1 또는 한글40자/90byte 초과)은 LMS(텍스트 전용 MMS)로.** buildSendReq 가 이미 text part 지원 → text-only MMS 경로 추가 필요. ⚠️ 발송 후 기록(Sent provider)·자동응답 쿨다운·MmsSentReceiver 와 얽혀 신중히. 사장님 confirm 후 구현 예정.
 ④ A/S '완료처리' 버튼 없음 지적 — 「시공 완료」는 건(job)에만, A/S 는 고객단위 asScheduledDate 라 완료 개념/필드 없음. 위치·동작 확인 필요(신규 필드 asCompletedAt?).
 - 폰 확인: picker 시각 라벨 버전은 S9 확인됨. 시각 '제거' 버전은 빌드만(트리비얼 삭제).
+
+## 2026-11-11 20:30 · android
+🔴 **장문 문자 쪼개짐 수정(사장님 "엄청 큰 문제" · "네 바로 고쳐줘")** — 장문을 LMS(텍스트 전용 MMS)로.
+- 원인: 한국 통신사는 연결(concatenated) SMS 미지원 → sendMultipartTextMessage 가 장문을 낱개로 쪼개 순서뒤섞고 URL끊어 전달(사장님 아이폰 수신 스샷).
+- 고침: `SmsSender.sendDirect` 가 `divideMessage(body).size>1 && 기본문자앱` 이면 **`sendTextMms`(텍스트 전용 MMS=LMS)** 로. 한 통에 온다. 기본앱 아니면 멀티파트 폴백.
+- 공용화(§12): PDU 작성·발송을 `composeAndSend` 하나로(sendMms·sendTextMms 공용). 실패 롤백은 `service/TextSendFailure.kt` 하나로(SmsSentReceiver·MmsSentReceiver 공용 — SMS 안전망을 LMS 에도).
+- MmsSentReceiver: imageCount==0=텍스트 LMS 가지 추가 → 실패면 기록 되돌림+알림(쿨다운 안 걸리게, 2026-09-28 거짓성공 방지 LMS 에도 적용).
+- `[dup]18 [brand]OK [size]안늘음 [style]OK` assembleRelease BUILD=0.
+- ⚠️ 폰 확인 불가(S9 SIM/수신자 없음·LMS 배송이 실측) → **사장님이 실제 장문 보내 확인** 필요(기본 문자앱 상태에서).
+- 다음: A/S 홈 '오늘 일정' 완료처리 버튼(asCompletedAt 칸 추가) — 사장님 확정분, 이어서.

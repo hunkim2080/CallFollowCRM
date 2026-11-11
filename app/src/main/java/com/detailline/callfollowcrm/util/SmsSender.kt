@@ -57,21 +57,29 @@ object SmsSender {
         if (!hasPermission(context)) return false
         if (phoneNumber.isBlank() || body.isBlank()) return false
 
-        val sent = runCatching {
-            val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.getSystemService(SmsManager::class.java)
-            } else {
-                @Suppress("DEPRECATION") SmsManager.getDefault()
-            } ?: return false
+        val sms = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION") SmsManager.getDefault()
+        }) ?: return false
+        val parts = runCatching { sms.divideMessage(body) }.getOrNull()
 
-            val parts = sms.divideMessage(body)
+        // 📵 장문(한 통 초과)은 **LMS(텍스트 전용 MMS)** 로 보낸다. 한국 통신사는 연결(concatenated) SMS 를
+        //   지원하지 않아, 멀티파트로 보내면 **낱개 문자로 쪼개** 순서를 뒤섞고 URL 도 끊어 전달한다
+        //   (2026-11-11 사장님 아이폰 수신 확인). LMS 는 한 통으로 온다. 단 MMS 는 **기본 문자앱일 때만** →
+        //   기본앱이 아니면 어쩔 수 없이 멀티파트로 폴백(쪼개질 수 있음).
+        if ((parts?.size ?: 1) > 1 && isDefaultSmsApp(context)) {
+            return sendTextMms(context, phoneNumber, body)
+        }
+
+        val sent = runCatching {
             val sentPi = com.detailline.callfollowcrm.service.SmsSentReceiver
                 .pendingIntent(context, phoneNumber, body)
-            if (parts.size <= 1) {
+            if (parts == null || parts.size <= 1) {
                 sms.sendTextMessage(phoneNumber, null, body, sentPi, null)
             } else {
-                // 길어서 쪼갠 문자는 조각마다 결과가 온다. 같은 쪽지를 주고 **한 조각만 실패해도**
-                //   실패로 본다 — 손님이 반쪽짜리 문자를 받는 것도 못 받은 것과 같다.
+                // 기본앱이 아니라 LMS 를 못 쓰는 폴백 — 쪼개질 수 있다. 조각마다 결과를 받아
+                //   **한 조각만 실패해도** 실패로 본다(반쪽짜리 문자도 못 받은 것과 같다).
                 sms.sendMultipartTextMessage(
                     phoneNumber, null, parts, ArrayList(List(parts.size) { sentPi }), null
                 )
@@ -188,47 +196,82 @@ object SmsSender {
 
         return runCatching {
             val sendReq = buildSendReq(phoneNumber, body, jpegs)
-            val pdu = PduComposer(context, sendReq).make()
-            if (pdu == null || pdu.isEmpty()) { Log.e(TAG, "PduComposer produced empty PDU"); return@runCatching false }
-
-            // PDU 를 캐시파일에 쓰고 mmsdownload provider(읽기 모드)로 시스템에 넘긴다(AOSP MmsFileProvider 패턴).
-            val fileName = "mms_send_${System.currentTimeMillis()}.pdu"
-            File(context.cacheDir, fileName).writeBytes(pdu)
-            val contentUri = Uri.parse("content://${context.packageName}.mmsdownload/$fileName")
-
-            val sentIntent = Intent(context, MmsSentReceiver::class.java).apply {
-                action = MmsSentReceiver.ACTION_MMS_SENT
-                putExtra(MmsSentReceiver.EXTRA_PHONE, phoneNumber)
-                putExtra(MmsSentReceiver.EXTRA_BODY_PREVIEW, body.take(80))
-                putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, jpegs.size)
-                putExtra(MmsSentReceiver.EXTRA_SEND_FILE, fileName)   // 완료 후 임시 PDU 삭제용
+            composeAndSend(context, sendReq) { intent ->
+                intent.putExtra(MmsSentReceiver.EXTRA_PHONE, phoneNumber)
+                intent.putExtra(MmsSentReceiver.EXTRA_BODY_PREVIEW, body.take(80))
+                intent.putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, jpegs.size)
+            }.also { ok ->
+                if (ok) Log.i(TAG, "MMS (official) send requested: to=${LogRedact.phone(phoneNumber)} images=${jpegs.size} body=${body.length}")
             }
-            val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or
-                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
-            val sentPI = PendingIntent.getBroadcast(
-                context, (System.currentTimeMillis() and 0xffffff).toInt(), sentIntent, piFlags
-            )
-
-            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                context.getSystemService(SmsManager::class.java)
-            else @Suppress("DEPRECATION") SmsManager.getDefault()
-            smsManager.sendMultimediaMessage(context, contentUri, null, null, sentPI)
-
-            // best-effort: 발신함에 저장(스레드 표시·durable). 실패해도 발송엔 영향 없음.
-            runCatching {
-                val subId = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) SmsManager.getDefaultSmsSubscriptionId() else -1
-                } catch (e: Exception) { -1 }
-                PduPersister.getPduPersister(context)
-                    .persist(sendReq, Telephony.Mms.Sent.CONTENT_URI, true, true, null, subId)
-            }.onFailure { Log.w(TAG, "sent-box persist failed (non-fatal)", it) }
-
-            Log.i(TAG, "MMS (official) send requested: to=${LogRedact.phone(phoneNumber)} images=${jpegs.size} body=${body.length}")
-            true
         }.getOrElse { e ->
             Log.e(TAG, "MMS (official) send request failed", e)
             false
         }
+    }
+
+    /**
+     * 📧 장문(LMS) — **텍스트 전용 MMS**. 한국 통신사가 멀티파트 SMS 를 쪼개므로 긴 글은 이 길로 **한 통에** 보낸다.
+     *   [sendDirect] 가 장문일 때 부른다. **기본 문자앱일 때만** 가능.
+     *   결과는 [MmsSentReceiver] 가 받아 — 실패면 기록 되돌리고([com.detailline.callfollowcrm.service.TextSendFailure]) 사장님께 알린다.
+     *   반환값은 "요청을 시스템에 넘겼다"(비동기). PduPersister 가 발신함에 저장해 스레드에도 뜬다.
+     */
+    private fun sendTextMms(context: Context, phoneNumber: String, body: String): Boolean {
+        if (!isDefaultSmsApp(context)) return false
+        return runCatching {
+            val sendReq = buildSendReq(phoneNumber, body, emptyList())
+            composeAndSend(context, sendReq) { intent ->
+                intent.putExtra(MmsSentReceiver.EXTRA_PHONE, phoneNumber)
+                intent.putExtra(MmsSentReceiver.EXTRA_BODY, body)
+                intent.putExtra(MmsSentReceiver.EXTRA_SENT_AT, System.currentTimeMillis())
+                intent.putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, 0)
+            }.also { ok ->
+                if (ok) Log.i(TAG, "LMS(text MMS) send requested: to=${LogRedact.phone(phoneNumber)} len=${body.length}")
+            }
+        }.getOrElse { e ->
+            Log.e(TAG, "LMS(text MMS) send request failed", e)
+            false
+        }
+    }
+
+    /**
+     * 완성한 SendReq 를 PDU 로 만들어 시스템에 넘긴다(공식 API). [sendMms]·[sendTextMms] 공용 — 두 벌 금지(§12).
+     *   PDU 를 캐시파일에 쓰고 mmsdownload provider(읽기)로 넘긴다(AOSP MmsFileProvider 패턴). 결과는 [MmsSentReceiver].
+     *   발신함(Mms.Sent)에도 best-effort 저장 → 재실행 후에도 스레드에 남는다("발신 사라짐" 방지).
+     *   @param configureSentIntent 결과 콜백 Intent 에 발송별 extra(이미지 수·본문 등)를 붙인다. EXTRA_SEND_FILE 은 공용이 붙인다.
+     */
+    private fun composeAndSend(context: Context, sendReq: SendReq, configureSentIntent: (Intent) -> Unit): Boolean {
+        val pdu = PduComposer(context, sendReq).make()
+        if (pdu == null || pdu.isEmpty()) { Log.e(TAG, "PduComposer produced empty PDU"); return false }
+
+        val fileName = "mms_send_${System.currentTimeMillis()}.pdu"
+        File(context.cacheDir, fileName).writeBytes(pdu)
+        val contentUri = Uri.parse("content://${context.packageName}.mmsdownload/$fileName")
+
+        val sentIntent = Intent(context, MmsSentReceiver::class.java).apply {
+            action = MmsSentReceiver.ACTION_MMS_SENT
+            configureSentIntent(this)
+            putExtra(MmsSentReceiver.EXTRA_SEND_FILE, fileName)   // 완료 후 임시 PDU 삭제용
+        }
+        val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        val sentPI = PendingIntent.getBroadcast(
+            context, (System.currentTimeMillis() and 0xffffff).toInt(), sentIntent, piFlags
+        )
+
+        val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            context.getSystemService(SmsManager::class.java)
+        else @Suppress("DEPRECATION") SmsManager.getDefault()
+        smsManager.sendMultimediaMessage(context, contentUri, null, null, sentPI)
+
+        // best-effort: 발신함에 저장(스레드 표시·durable). 실패해도 발송엔 영향 없음.
+        runCatching {
+            val subId = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) SmsManager.getDefaultSmsSubscriptionId() else -1
+            } catch (e: Exception) { -1 }
+            PduPersister.getPduPersister(context)
+                .persist(sendReq, Telephony.Mms.Sent.CONTENT_URI, true, true, null, subId)
+        }.onFailure { Log.w(TAG, "sent-box persist failed (non-fatal)", it) }
+        return true
     }
 
     /** 발신 MMS 의 SendReq PDU 구성 — 수신자 + (본문 텍스트 파트) + 이미지 파트들. */

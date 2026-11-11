@@ -13,7 +13,6 @@ import com.detailline.callfollowcrm.util.PhoneKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -58,21 +57,9 @@ class SmsSentReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                // ⏱ **실패 통보가 기록보다 먼저 올 수 있다.** (2026-09-28 테스트폰 실측)
-                //   비행기 모드처럼 즉시 실패하면 통신사 통보가 밀리초 안에 온다. 그런데 「보냄」 기록은
-                //   보낸 **다음에** 저장된다 — 한 번만 찾아보면 아직 없어서 **못 되돌린다.**
-                //   그러면 알림만 뜨고 쿨다운은 그대로 걸려, 다음 통화에도 안 보내는 옛 병이 남는다.
-                //   그래서 잠깐씩 쉬며 몇 번 더 본다(goAsync 가 주는 10초 안에서).
-                var flipped = false
-                repeat(FLIP_TRIES) { attempt ->
-                    if (flipped) return@repeat
-                    if (attempt > 0) delay(FLIP_WAIT_MS)
-                    flipped = runCatching {
-                        app?.container?.messageHistoryRepository?.markLastSendFailed(
-                            phone, sentAt - CLOCK_SLACK_MS, body
-                        )
-                    }.getOrNull() == true
-                }
+                // 실패 통보가 기록보다 먼저 올 수 있어 잠깐씩 쉬며 몇 번 더 본다 — 셈은 [TextSendFailure] 한 곳(§12).
+                //   (SMS·LMS 공용. 안 되돌리면 알림만 뜨고 쿨다운이 걸려 다음에도 안 보내는 옛 병이 남는다.)
+                val flipped = TextSendFailure.rollbackLastSend(app, phone, sentAt, body)
                 Log.i(TAG, "기록 되돌림=$flipped to=${LogRedact.phone(phone)}")
                 runCatching { NotificationHelper.showSmsSendFailed(context, phone, why) }
             } finally {
@@ -96,13 +83,6 @@ class SmsSentReceiver : BroadcastReceiver() {
         const val EXTRA_BODY = "extra_body"
         const val EXTRA_SENT_AT = "extra_sent_at"
         private const val TAG = "SmsSentReceiver"
-
-        /** 기록은 발송 **뒤**에 적힌다. 시계가 살짝 어긋나도 놓치지 않을 만큼만 앞을 본다. */
-        private const val CLOCK_SLACK_MS = 5_000L
-
-        /** 기록이 아직 안 저장됐을 수 있어 몇 번 더 본다. 3회 × 1.5초 = 3초 — goAsync 10초 안. */
-        private const val FLIP_TRIES = 3
-        private const val FLIP_WAIT_MS = 1500L
 
         /**
          * 보낼 때 같이 줄 「결과 알려줘」 쪽지.
