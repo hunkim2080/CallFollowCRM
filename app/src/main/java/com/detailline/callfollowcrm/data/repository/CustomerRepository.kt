@@ -371,6 +371,10 @@ class CustomerRepository(
     suspend fun updateWorkCompletedAt(id: Long, completedAt: Long?) =
         mutate(id) { it.copy(workCompletedAt = completedAt) }
 
+    /** 🔧 A/S 방문 완료/취소 (2026-11-11 사장님). null = 되돌리기. 홈 '오늘 일정' A/S 띠 [완료]에서 호출. */
+    suspend fun updateAsCompletedAt(id: Long, completedAt: Long?) =
+        mutate(id) { it.copy(asCompletedAt = completedAt) }
+
     /** 시공 시간만 설정/변경(자정부터 분, null=미정). 기간(days)은 그대로 보존. 채팅·고객정보 날짜선택 후 시간 칩에서 호출. (2026-06-23 사장님) */
     suspend fun updateScheduledWorkMinutes(id: Long, minutes: Int?) =
         mutate(id) { it.copy(scheduledWorkMinutes = minutes) }

@@ -58,6 +58,12 @@ data class CustomerEntity(
     /** A/S 기간(며칠). 기본 1. 여러 날 A/S면 2+. DB v43. */
     val asScheduledDays: Int = 1,
     /**
+     * 🔧 **A/S 방문 완료** 처리 시각(ms). null = 미완료. DB v72 (2026-11-11 사장님 "A/S도 완료처리").
+     *   홈 '오늘 일정' A/S 띠 [완료] → set → 오늘 갈 데 목록(홈 띠·위젯)에서 빠진다(시공 완료와 같은 결).
+     *   시공 완료(workCompletedAt)와 **별개** — A/S 는 무료·시공과 무관한 방문이라 자기 완료 칸을 둔다.
+     */
+    val asCompletedAt: Long? = null,
+    /**
      * 🔧 **A/S 해줘야 하는 손님**으로 찍은 시각. null = 아님. DB v61 (2026-09-27 사장님)
      *
      * 사장님: "고객이 연락와서 as 해달라고 하면 as 태그를 붙이고. 그 태그는 칩으로 넘어가는 걸로"

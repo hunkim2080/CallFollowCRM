@@ -260,7 +260,9 @@ internal fun BandShell(
     iconVector: androidx.compose.ui.graphics.vector.ImageVector? = null,
     /** 아이콘 칸 바탕·그림 색. 안 주면 띠 색에 맞춰 알아서. */
     iconBg: Color? = null,
-    iconTint: Color? = null
+    iconTint: Color? = null,
+    /** 두 번째 버튼 — 한 띠에 버튼이 둘 필요할 때(예: A/S 「길찾기」+「완료」). 없으면 안 그린다. */
+    action2: String? = null, onAction2: () -> Unit = {}
 ) {
     Row(
         Modifier
@@ -297,22 +299,34 @@ internal fun BandShell(
             Text(line2, color = subFg, style = AppType.caption,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
-        if (action != null) {
-            Text(
-                action,
-                color = if (border != null) TossTextSecondary else Color.White,
-                style = AppType.micro,
-                modifier = Modifier
-                    .padding(end = 11.dp)
-                    .clip(AppShape.sm)
-                    .background(if (border != null) TossGrayBg else Color(0x29FFFFFF))
-                    .clickable { onAction() }
-                    .padding(horizontal = 10.dp, vertical = 7.dp)
-            )
+        if (action != null || action2 != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(end = 11.dp)
+            ) {
+                if (action != null) BandActionPill(action, border != null, onAction)
+                if (action2 != null) BandActionPill(action2, border != null, onAction2)
+            }
         } else {
             Spacer(Modifier.width(13.dp))
         }
     }
+}
+
+/** 띠 오른쪽 작은 버튼 하나(알약). 여러 개면 BandShell 이 가로로 늘어놓는다. */
+@Composable
+private fun BandActionPill(label: String, onLight: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (onLight) TossTextSecondary else Color.White,
+        style = AppType.micro,
+        modifier = Modifier
+            .clip(AppShape.sm)
+            .background(if (onLight) TossGrayBg else Color(0x29FFFFFF))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 7.dp)
+    )
 }
 
 /**

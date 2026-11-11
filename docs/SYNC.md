@@ -16351,3 +16351,13 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - `[dup]18 [brand]OK [size]안늘음 [style]OK` assembleRelease BUILD=0.
 - ⚠️ 폰 확인 불가(S9 SIM/수신자 없음·LMS 배송이 실측) → **사장님이 실제 장문 보내 확인** 필요(기본 문자앱 상태에서).
 - 다음: A/S 홈 '오늘 일정' 완료처리 버튼(asCompletedAt 칸 추가) — 사장님 확정분, 이어서.
+
+## 2026-11-11 21:40 · android
+🔧 **A/S 완료처리 버튼(홈 '오늘 일정' 띠)** — 사장님 "AS 완료처리 상담함에 똑같이 떠야하는데 길찾기만 뜨냐".
+- 원인: 시공 건은 띠에서 지나면 [완료] 뜨는데 A/S 는 완료 개념·칸이 없어 [길찾기]만. → A/S 에 완료 개념 추가.
+- DB v72: customers.asCompletedAt(nullable) ADD COLUMN(NOT NULL 함정 없음). S9 v71→v72 무크래시 확인.
+- 공용: 완료 찍는 길 `WorkCompletionManager.setAsCompleted`(고객단위·건 무관) 하나. 띠 버튼은 `BandShell.action2` 추가해 재사용(§12) — A/S 는 [길찾기][완료] 둘, 주소 없으면 [완료]만.
+- 홈 띠: `TodayAsBandCell` 완료 버튼 → `HomeViewModel.markAsCompleted`(+되돌리기 스낵바). asToday 가 asCompletedAt==null 만.
+- §12-K 연결지점 전부 확인 — **바꾼 곳 5**: asToday·위젯(asSiteOf)·고객상세 A/S줄(「완료」 초록)·ReminderWorker('오늘 A/S' 알림 제외)·CustomerMergeManager(병합 시 칸 보존). **둬도 됨 3**: 일정 탭 달력·구글캘린더 sync·수신전화 오버레이(그 날짜 기록이라 유지).
+- `[dup][style][size][brand][rules][save][compose]` assembleRelease BUILD=0.
+- ⚠️ 완료 버튼 **render 눈확인 못 함**(S9 에 오늘 A/S 손님 없음·sqlite 시드 불가) → 사장님 실제 A/S 손님에서 확인(완료 누르면 오늘 띠에서 빠지고 고객상세 「완료」).

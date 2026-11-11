@@ -49,6 +49,16 @@ class WorkCompletionManager(
     }
 
     /**
+     * 🔧 **A/S 방문 완료/되돌리기** — 홈 '오늘 일정' A/S 띠 [완료]. (2026-11-11 사장님)
+     *   A/S 는 고객 단위(asCompletedAt) — 건(job)과 무관하므로 카드만 찍는다(시공 완료처럼 건까지 안 감).
+     *   완료하면 홈 띠·위젯의 '오늘 갈 데'에서 빠진다(asToday·asSiteOf 가 asCompletedAt==null 만). @param at null = 되돌리기.
+     */
+    suspend fun setAsCompleted(customerId: Long, at: Long?, now: Long = System.currentTimeMillis()) {
+        customerRepository.updateAsCompletedAt(customerId, if (at != null) now else null)
+        onChanged()
+    }
+
+    /**
      * 🔨 **이 건 하나**를 완료/되돌리기 — 건 카드의 「시공 완료」 버튼. (2026-11-06 사장님 "건별 시공완료 버튼")
      *   고객 경로([setCompleted])는 '방금 끝낸 건' **하나**만 찍는다(멀티 건이면 가장 최근 지난 건). 그래서
      *   2차·3차를 **각각** 완료로 찍을 데가 없었다 — 이게 **지목한 건**에 찍는 길이다.

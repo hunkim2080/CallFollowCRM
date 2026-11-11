@@ -327,8 +327,9 @@ internal fun JobDetailCard(
                                 CdKv(
                                     "A/S 예약",
                                     DateTimeUtils.formatShortKoreanDate(c.asScheduledDate!!) +
-                                        (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료",
-                                    valueColor = AppTheme.colors.text,
+                                        (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") +
+                                        (if (c.asCompletedAt != null) " · 완료" else " · 무료"),
+                                    valueColor = if (c.asCompletedAt != null) AppTheme.colors.doneText else AppTheme.colors.text,
                                     trailing = Icons.Default.Edit,
                                     onClick = { host.onAsPicker() }
                                 )

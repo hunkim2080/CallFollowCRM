@@ -1124,6 +1124,14 @@ fun HomeScreen(
                         onOpenChat = { phone, cid -> onOpenChat(phone, cid) },
                         onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
                         onComplete = { c -> completeTarget = c },
+                        onCompleteAs = { c ->
+                            val nm = c.name?.takeIf { it.isNotBlank() } ?: "고객"
+                            viewModel.markAsCompleted(c.id)
+                            scope.launch {
+                                val r = snackbarHostState.showBrief("$nm A/S 완료", actionLabel = "되돌리기")
+                                if (r == SnackbarResult.ActionPerformed) viewModel.undoAsCompleted(c.id)
+                            }
+                        },
                         onAddSchedule = onAddSchedule,
                         onOpenSchedule = onOpenSchedule
                     )
@@ -2331,6 +2339,8 @@ private fun TodayBand(
     onOpenChat: (phone: String, customerId: Long?) -> Unit,
     onNavigateAddr: (String?) -> Unit,
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
+    /** A/S 띠 [완료] — 시공 완료(onComplete)와 달리 asCompletedAt 을 찍는다(별개 개념). (2026-11-11) */
+    onCompleteAs: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit = {},
     onAddSchedule: () -> Unit,
     /** 1쪽(오늘)을 누르면 갈 곳 — 일정 화면. 손님 대화가 아니다. */
     onOpenSchedule: () -> Unit
@@ -2451,7 +2461,7 @@ private fun TodayBand(
                     )
                 } else if (asHere != null) {
                     // 🔧 오늘 A/S 한 쪽 — 셈·그림은 공용 AsTodayBandCell(§12-F, HomeScreen 안 키우려 뗌).
-                    AsTodayBandCell(asHere, page, total, dayStart, onNavigateAddr, onOpenChat)
+                    AsTodayBandCell(asHere, page, total, dayStart, onNavigateAddr, onOpenChat, onCompleteAs)
                 } else if (doneToday) {
                     BandShell(
                         bg = AppTheme.colors.doneBg, fg = Color(0xFF0B6B51), subFg = Color(0xFF3E8C74),

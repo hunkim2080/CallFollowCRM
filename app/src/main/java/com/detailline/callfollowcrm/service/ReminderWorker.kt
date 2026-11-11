@@ -300,6 +300,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
 
         val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
         for (c in customers) {
+            if (c.asCompletedAt != null) continue   // 완료 찍은 A/S 는 '오늘 A/S' 알림 안 울린다 (2026-11-11 사장님)
             val asStart = c.asScheduledDate ?: continue
             val s = DateTimeUtils.startOfDay(asStart)
             val days = c.asScheduledDays.coerceAtLeast(1)

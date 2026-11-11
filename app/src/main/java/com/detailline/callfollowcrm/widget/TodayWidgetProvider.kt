@@ -121,7 +121,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     it.shareId !in p.trashedSharedSiteIds && it.shareId !in p.hiddenCollabShareIds
             }.map { collabSiteOf(it) }
             // 🔧 A/S 도 '오늘 갈 데' — 무료·시간 미정. 덮는 날마다 한 줄(공용 AsSchedule). (2026-11-11 사장님)
-            all += customers.flatMap { c ->
+            //   **완료 찍은 A/S(asCompletedAt)는 뺀다** — 갔다 온 건 안 띄운다(홈 asToday 와 같은 규칙).
+            all += customers.filter { it.asCompletedAt == null }.flatMap { c ->
                 AsSchedule.coveredDayStarts(c.asScheduledDate, c.asScheduledDays, today).map { asSiteOf(c, it) }
             }
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }

@@ -277,6 +277,7 @@ class CustomerMergeManager(
             totalAmount = keep.totalAmount ?: other.totalAmount,
             scheduledWorkMinutes = keep.scheduledWorkMinutes ?: other.scheduledWorkMinutes,
             asScheduledDate = keep.asScheduledDate ?: other.asScheduledDate,
+            asCompletedAt = keep.asCompletedAt ?: other.asCompletedAt,
             workCompletedAt = keep.workCompletedAt ?: other.workCompletedAt,
             workCalendarEventId = keep.workCalendarEventId ?: other.workCalendarEventId,
             asCalendarEventId = keep.asCalendarEventId ?: other.asCalendarEventId,

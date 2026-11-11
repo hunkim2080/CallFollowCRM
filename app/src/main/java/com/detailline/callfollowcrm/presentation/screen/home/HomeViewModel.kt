@@ -868,11 +868,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 🔧 오늘 A/S 예약이 덮는 고객 — **무료·시간 미정**. 시공과 별개 필드(asScheduledDate)라
      *   전엔 홈이 아예 안 봐서, 오늘 A/S 가 있어도 "오늘은 일정이 없어요" 라 떴다. (2026-11-11 사장님)
      *   덮는지 판정은 공용 [com.detailline.callfollowcrm.domain.schedule.AsSchedule] 한 곳.
-     *   A/S 는 완료 개념이 없어(그냥 방문) 거르지 않는다. 시각이 없어 띠에선 '시간 미정'으로 맨 뒤.
+     *   **완료 찍은 A/S(asCompletedAt)는 뺀다** — 오늘 갔다 온 건 '오늘 갈 데'가 아니다. (2026-11-11 사장님 "A/S도 완료처리")
+     *   시각이 없어 띠에선 '시간 미정'으로 맨 뒤.
      */
     val asToday: StateFlow<List<CustomerEntity>> = combine(customers, todayStartFlow) { list, ts ->
-        list.filter { com.detailline.callfollowcrm.domain.schedule.AsSchedule.coversDay(it, ts) }
-            .sortedBy { it.asScheduledDate ?: 0L }
+        list.filter {
+            it.asCompletedAt == null &&
+                com.detailline.callfollowcrm.domain.schedule.AsSchedule.coversDay(it, ts)
+        }.sortedBy { it.asScheduledDate ?: 0L }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -1361,6 +1364,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         // 💾 **못 찍으면 말한다.** 전엔 조용해서, 완료가 안 됐는데 끝난 줄 알고 넘어갔다. (2026-10-02)
         SaveGuard.run("완료", _toast) {
             container.workCompletionManager.setCompleted(customerId, System.currentTimeMillis())
+        }
+    }
+    /** 🔧 오늘 A/S 띠 [완료] → A/S 방문 완료. 오늘 갈 데(홈 띠·위젯)에서 빠진다. (2026-11-11 사장님) */
+    fun markAsCompleted(customerId: Long) = viewModelScope.launch {
+        SaveGuard.run("A/S 완료", _toast) {
+            container.workCompletionManager.setAsCompleted(customerId, System.currentTimeMillis())
+        }
+    }
+    /** A/S 완료 되돌리기 (스낵바 '되돌리기'). */
+    fun undoAsCompleted(customerId: Long) = viewModelScope.launch {
+        SaveGuard.run("A/S 완료 되돌리기", _toast) {
+            container.workCompletionManager.setAsCompleted(customerId, null)
         }
     }
     /** 완료 처리 되돌리기 (스낵바 '되돌리기'). */

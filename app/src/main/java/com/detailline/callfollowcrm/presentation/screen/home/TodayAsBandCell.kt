@@ -22,7 +22,8 @@ internal fun AsTodayBandCell(
     total: Int,
     dayStart: Long,
     onNavigateAddr: (String?) -> Unit,
-    onOpenChat: (String, Long?) -> Unit
+    onOpenChat: (String, Long?) -> Unit,
+    onComplete: (CustomerEntity) -> Unit
 ) {
     val who = asC.name?.takeIf { it.isNotBlank() }
         ?: PhoneNumberFormatter.format(asC.phoneNumber)
@@ -40,8 +41,12 @@ internal fun AsTodayBandCell(
             (if (totalDays > 1) " · ${totalDays}일 중 ${dayN}일차" else "") +
             com.detailline.callfollowcrm.domain.schedule.TodayBandPages.label(page, total),
         line2 = who + " · " + (addr ?: "주소 아직 없어요"),
-        action = if (addr != null) "길찾기" else null,
-        onAction = { onNavigateAddr(addr) },
+        // 시공 건처럼 **완료 버튼**을 준다 — 주소 있으면 [길찾기][완료], 없으면 [완료]만. (2026-11-11 사장님)
+        //   완료하면 asCompletedAt 찍혀 오늘 갈 데(홈 띠·위젯)에서 빠진다.
+        action = if (addr != null) "길찾기" else "완료",
+        onAction = { if (addr != null) onNavigateAddr(addr) else onComplete(asC) },
+        action2 = if (addr != null) "완료" else null,
+        onAction2 = { onComplete(asC) },
         onTap = { onOpenChat(asC.phoneNumber, asC.id) }
     )
 }
