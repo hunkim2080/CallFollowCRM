@@ -645,10 +645,14 @@ fun SharedSiteScreen(
     // 📷 협업 현장 사진 — **돌려 보기만** 된다(남의 사진). 공용 뷰어. (2026-10-01)
     //   전엔 크게 보기만 되고 돌릴 수가 없었다 — 누운 사진은 누운 채로 봐야 했다.
     fullscreenPhoto?.let { bmp ->
+        // 크게보기는 원본(dataUrl)에서 고해상 재디코딩 — 512 썸네일을 키워 흐리던 것 수정. (2026-11-11)
+        //   클릭된 비트맵으로 그 SharedPhoto 를 찾아 dataUrl 을 얻는다(서브 컴포저블 시그니처 안 바꿈).
+        val dataUrl = photos.firstOrNull { it.bitmap === bmp }?.dataUrl.orEmpty()
+        val viewerPhoto = if (dataUrl.isNotBlank())
+            com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfRemote(bmp, dataUrl)
+        else com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(bmp)
         com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
-            photos = listOf(
-                com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(bmp)
-            ),
+            photos = listOf(viewerPhoto),
             onDismiss = { fullscreenPhoto = null }
         )
     }

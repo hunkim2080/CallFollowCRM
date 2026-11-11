@@ -16290,3 +16290,12 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 연결 지점: `CustomerDetailJobCard.kt:548` 의 `PickMultipleVisualMedia(20)`→`addSitePhotos(uris,jobId)` 를 새 picker 로 교체, 뒤쪽(filesDir·Room·서버업로드·20장캡)은 그대로.
 - 변경: 코드 없음(문서·계획만). 빌드 미착수.
 - 다음 액션: 사장님이 "빌드 가" 하면 → 작업쪼개기(문서 §8)대로. 권한/플레이 심사는 전용 내부배포로.
+
+## 2026-11-11 09:30 · android
+협업/팀 사진 **크게 볼 때 선명하게** (사장님 "협업사장 사진 너무 줄여놔서 화질저하 심해, 최소 1280").
+- 왜: 서버 사진을 받아 **표시할 때 ImageDownsample 로 최장변 512px 로 줄여** 썸네일·크게보기에 같은 비트맵을 썼다(구형폰 OOM 방지용). 그래서 크게 보면 512 를 키워 흐렸다. 업로드는 이미 2048(ImageEncoder)이라 멀쩡.
+- 수정(two-tier, 사장님 "크게보기만 선명하게"): 썸네일은 512 유지(메모리 안전) + **크게보기는 원본 dataUrl 에서 그 한 장만 2048 재디코딩**. `ViewerPhoto.OfRemote(thumb, dataUrl)` 신설 → PhotoViewer 가 LaunchedEffect 로 2048 디코딩·나가면 recycle. 모델 2개(`SharedPhoto`·`RemotePhoto`)에 dataUrl 보관.
+- 표시·소비 지점(§12-K): 크게보기 매핑 3곳 교체 — 팀사진 `CustomerDetailJobCard`(+start index) · 협업 `CustomerCollabParts` · 협업 `SharedSiteScreen`(클릭 bmp→SharedPhoto 로 dataUrl 찾음). **로컬 정산서 페이지(SharedSiteSettlement)는 OfBitmap 유지**(이미 고해상 로컬, dataUrl 없음·안 바꿈).
+- 두 벌(§12): `ImageDownsample` 가 3곳이 돼 공용 등록(§12 표 + rulesBaselineUpdate 52). `[dup]18/18 [style]2412/2412 [size]안늘음 [save]0/0 [rules]공용52 OK` — BUILD=0, 시험 통과.
+- 폰 확인: **실데이터(협업/팀 서버 사진) 사장님 폰에서 확인 필요** — 시드가 어려워(서버 GET) 미검증. 내부배포로 올림.
+- 다음 액션: 사장님 폰에서 협업 현장 사진 크게 봤을 때 선명해졌는지 확인. 그다음 「시공한 날 사진만」 picker 빌드 착수(사장님 "지금 권한 포함해 만들자").

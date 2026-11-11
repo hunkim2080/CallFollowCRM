@@ -78,7 +78,10 @@ import kotlinx.coroutines.withContext
  * 📷 **크게 볼 사진 한 장.**
  *
  *   [OfFile] 은 **내 폰에 있는 내 사진** — [photoId] 가 있으면 돌린 것을 파일에 저장할 수 있다.
- *   [OfBitmap] 은 **서버에서 받아온 남의 사진**(팀원·협업) — 내 파일이 아니라 **돌려 보기만** 된다.
+ *   [OfBitmap] 은 **이미 가진 비트맵**(로컬 생성물 — 정산서 페이지 등). 돌려 보기만.
+ *   [OfRemote] 은 **서버에서 받은 남의 사진**(팀원·협업) — 목록 썸네일은 작게([thumb]) 두고,
+ *     **크게 볼 때 그 한 장만 [dataUrl](원본 base64)에서 고해상으로 다시 디코딩**한다. (2026-11-11 사장님
+ *     "협업 사진 너무 줄여놔서 화질 저하가 심해") 전엔 512 썸네일을 그대로 키워 흐렸다. 돌려 보기만.
  */
 sealed interface ViewerPhoto {
     data class OfFile(
@@ -88,6 +91,12 @@ sealed interface ViewerPhoto {
     ) : ViewerPhoto
 
     data class OfBitmap(val bitmap: android.graphics.Bitmap) : ViewerPhoto
+
+    /** [thumb] = 목록용 작은 비트맵(메모리 안전). [dataUrl] = 크게보기 고해상 재디코딩용 원본 base64. */
+    data class OfRemote(
+        val thumb: android.graphics.Bitmap,
+        val dataUrl: String
+    ) : ViewerPhoto
 }
 
 /**
@@ -498,6 +507,25 @@ private fun ViewerPage(
                 bitmap = photo.bitmap.asImageBitmap(), contentDescription = "사진",
                 modifier = imgMod, contentScale = ContentScale.Fit
             )
+            // 🔍 크게 볼 때만 **그 한 장**을 고해상(최대 2048)으로 다시 디코딩 — 흐린 썸네일 대신 선명하게.
+            //   현재 쪽 + 양옆만 합성되므로 20장 통째 고해상이 아니라 메모리 안전. 나가면 recycle. (2026-11-11)
+            is ViewerPhoto.OfRemote -> {
+                var hi by androidx.compose.runtime.remember(photo.dataUrl) {
+                    androidx.compose.runtime.mutableStateOf<android.graphics.Bitmap?>(null)
+                }
+                androidx.compose.runtime.LaunchedEffect(photo.dataUrl) {
+                    hi = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(photo.dataUrl, 2048)
+                    }
+                }
+                androidx.compose.runtime.DisposableEffect(photo.dataUrl) {
+                    onDispose { hi?.let { runCatching { it.recycle() } } }
+                }
+                Image(
+                    bitmap = (hi ?: photo.thumb).asImageBitmap(), contentDescription = "사진",
+                    modifier = imgMod, contentScale = ContentScale.Fit
+                )
+            }
         }
         // (회전/펜/저장 도구바는 부모 FullscreenPhotoViewer 가 바닥에 고정으로 그린다 — 2026-10-26 기본 UX)
     }

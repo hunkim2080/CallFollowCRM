@@ -660,7 +660,10 @@ internal fun JobDetailCard(
                                     android.net.Uri.fromFile(java.io.File(cell.filePath)), cell.id
                                 )
                             is com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto ->
-                                cell.bitmap?.let { com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(it) }
+                                cell.bitmap?.let {
+                                    // 크게보기는 원본(dataUrl)에서 고해상 재디코딩 — 512 썸네일을 키워 흐리던 것 수정. (2026-11-11)
+                                    com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfRemote(it, cell.dataUrl)
+                                }
                             else -> null
                         }
                     }
@@ -766,7 +769,7 @@ internal fun JobDetailCard(
                                                                     else pickedTeam + cell.photoId
                                                             } else {
                                                                 val start = viewerCells.indexOfFirst {
-                                                                    it is com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap && it.bitmap === bmp
+                                                                    it is com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfRemote && it.thumb === bmp
                                                                 }.coerceAtLeast(0)
                                                                 host.onOpenPhoto(viewerCells, start)
                                                             }

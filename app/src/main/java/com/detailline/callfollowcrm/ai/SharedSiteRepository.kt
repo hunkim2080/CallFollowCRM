@@ -70,12 +70,14 @@ class SharedSiteRepository(
     /** 협업 현장 증거 사진 1장 — 서버 §F (POST /api/shared/photo, GET /api/shared/photos). */
     data class SharedPhoto(
         val photoId: Long,
-        val bitmap: android.graphics.Bitmap?,
+        val bitmap: android.graphics.Bitmap?,   // 목록 썸네일(작게 디코딩, 메모리 안전)
         val label: String?,          // "시공 전" 등
         val note: String?,
         val uploaderKind: String,    // "owner" | "partner"
         val uploaderName: String,
-        val uploadedAtMs: Long
+        val uploadedAtMs: Long,
+        /** 크게보기에서 고해상으로 다시 디코딩할 원본 base64(data URL). 썸네일만 키우면 흐려서. (2026-11-11) */
+        val dataUrl: String = ""
     )
 
     /** 협업 현장 한 줄 댓글 1건 — 협업 사장끼리 현장 논의. (2026-07-01, 서버 shared_comments) */
@@ -513,14 +515,16 @@ class SharedSiteRepository(
                     val arr = JSONObject(resp.body?.string().orEmpty()).optJSONArray("photos") ?: JSONArray()
                     (0 until arr.length()).mapNotNull { i ->
                         val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                        val dataUrl = o.optString("image_data_url")
                         SharedPhoto(
                             photoId = o.optLong("photo_id"),
-                            bitmap = decodeDataUrl(o.optString("image_data_url")),
+                            bitmap = decodeDataUrl(dataUrl),
                             label = o.optString("label").takeIf { it.isNotBlank() && it != "null" },
                             note = o.optString("note").takeIf { it.isNotBlank() && it != "null" },
                             uploaderKind = o.optString("uploader_kind"),
                             uploaderName = o.optString("uploader_name").ifBlank { "사장님" },
-                            uploadedAtMs = o.optLong("uploaded_at_ms")
+                            uploadedAtMs = o.optLong("uploaded_at_ms"),
+                            dataUrl = dataUrl
                         )
                     }
                 }

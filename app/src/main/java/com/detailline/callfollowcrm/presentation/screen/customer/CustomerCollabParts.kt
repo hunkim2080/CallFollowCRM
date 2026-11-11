@@ -469,12 +469,13 @@ internal fun CollabAfterCard(
     //   2026-10-01 공용 뷰어로 옮김 — 전엔 여기도 돌리기가 없었다.
     //   사장님 "사진 회전기능 왜 추가안됐니" — 크게 보는 자리가 다섯인데 한 군데에만 넣었었다.
     viewerIdx?.let { startIdx ->
-        val bmps = remember(photos) { photos.mapNotNull { it.bitmap } }
-        if (bmps.isNotEmpty()) {
+        // 크게보기는 원본(dataUrl)에서 고해상 재디코딩 — 512 썸네일을 키워 흐리던 것 수정. (2026-11-11)
+        val viewer = remember(photos) {
+            photos.mapNotNull { p -> p.bitmap?.let { com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfRemote(it, p.dataUrl) } }
+        }
+        if (viewer.isNotEmpty()) {
             com.detailline.callfollowcrm.presentation.component.FullscreenPhotoViewer(
-                photos = bmps.map {
-                    com.detailline.callfollowcrm.presentation.component.ViewerPhoto.OfBitmap(it)
-                },
+                photos = viewer,
                 startIndex = startIdx,
                 onDismiss = { viewerIdx = null }
             )

@@ -29,10 +29,12 @@ class SitePhotoServerRepository(
 
     data class RemotePhoto(
         val photoId: Long,
-        val bitmap: Bitmap?,
+        val bitmap: Bitmap?,        // 목록 썸네일(작게 디코딩, 메모리 안전)
         val uploaderName: String,   // "사장님" | 팀원 이름
         val isOwner: Boolean,
-        val uploadedAtMs: Long
+        val uploadedAtMs: Long,
+        /** 크게보기에서 고해상으로 다시 디코딩할 원본 base64(data URL). 썸네일만 키우면 흐려서. (2026-11-11) */
+        val dataUrl: String = ""
     )
 
     /** 팀원이 그 고객(현장)에 남긴 현장 메모 한 건. readAtMs/replyText = 양방향 확인·답글. */
@@ -157,12 +159,14 @@ class SitePhotoServerRepository(
                         ?: org.json.JSONArray()
                     (0 until arr.length()).map { i ->
                         val o = arr.getJSONObject(i)
+                        val dataUrl = o.optString("image_data_url")
                         RemotePhoto(
                             photoId = o.optLong("photo_id"),
-                            bitmap = decodeDataUrl(o.optString("image_data_url")),
+                            bitmap = decodeDataUrl(dataUrl),
                             uploaderName = o.optString("uploader_name").ifBlank { "팀원" },
                             isOwner = o.optString("uploader_kind") == "owner",
-                            uploadedAtMs = o.optLong("uploaded_at_ms")
+                            uploadedAtMs = o.optLong("uploaded_at_ms"),
+                            dataUrl = dataUrl
                         )
                     }
                 }

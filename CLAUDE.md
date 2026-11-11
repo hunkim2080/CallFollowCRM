@@ -447,6 +447,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 사진 크게 보기·돌리기 | `presentation/component/PhotoViewer.kt` | 화면마다 Dialog 새로 만들기 |
 | 사진에 **펜 표시**(크게 보기 펜 모드 · 완료 뒤 한 번 묻기) — **그린 걸로 그 자리 교체**. ① 현장사진: 「저장할까요?」 → 교체+갤러리 저장(진짜 원본은 갤러리에 있어 안전) ② 보낼 첨부: 「표시할까요?」 → 그 보낼 사진만 교체(2026-10-25) | 좌표 `domain/ui/PhotoFit.kt`(순수+시험) · 획 `domain/ui/PhotoMark.kt`(`MarkStroke`) · 합성 `util/PhotoMarkRenderer.kt`(`render`(경로/URI)→비트맵 · `renderToFileUri`(URI, FileProvider)) · 색 `presentation/theme/PenPalette.kt` · 드로잉·확인창은 `FullscreenPhotoViewer`(PenStage) 한 곳. 입구: 현장사진 `onSaveMarked` → `CustomerDetailViewModel.saveMarkedPhoto` → `SitePhotoRepository.markReplaceAndSave`(교체 `replaceWithBitmap`+`RecordShot.save`) · 보낼 첨부 `onMarkAttachment` → `renderToFileUri` 로 `attachedPhotos` 그 자리 교체(ChatScreen) | 화면마다 Canvas 그리기·좌표 변환 새로, 펜 색 hex 직접 박기, 화면에서 사진 파일 직접 덮어쓰기, 첨부 드로잉 뷰어 따로 만들기 |
 | 사진 불러오기(돌린 게 반영되게) | `util/PhotoModel.of(context, 경로)` | `ImageRequest` 직접 |
+| 서버 base64 사진 → **목표 크기로 축소 디코딩**(OOM 방지 · 썸네일은 작게 `targetPx=512`, 크게보기는 `2048`) | `util/ImageDownsample.kt` — `decodeDataUrl`·`decodeBytes`. 협업·팀 사진이 같은 방식. 크게보기는 `ViewerPhoto.OfRemote` 가 원본 dataUrl 에서 2048 재디코딩(썸네일만 키우면 흐림, 2026-11-11) | `BitmapFactory.decodeByteArray` 로 inSampleSize 없이 통째 디코딩(구형폰 OOM), 512 썸네일을 크게보기까지 그대로 쓰기 |
 | 전화 걸기 | `util/PhoneDialer.kt` | `"tel:" ` URI 직접 |
 | 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
 | 대표 건 고르기 | `domain/job/RepresentativeJob.kt` | `firstOrNull { … >= today } ?: last()` 를 직접 |
