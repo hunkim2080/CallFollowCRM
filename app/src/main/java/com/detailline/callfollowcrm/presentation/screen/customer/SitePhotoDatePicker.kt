@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -176,6 +177,7 @@ fun SitePhotoDatePicker(
                 Spacer(Modifier.width(4.dp))
                 Text("현장 사진 올리기", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
             // 맥락 배너
             val who = customerName?.takeIf { it.isNotBlank() }?.let { "$it 고객님" } ?: "현장"
             val where = AddressExtractor.tidyAddress(address).takeIf { it.isNotBlank() }
@@ -185,12 +187,16 @@ fun SitePhotoDatePicker(
             }
             // 날짜 토글
             if (workRange != null) {
-                Row(
-                    Modifier.fillMaxWidth().background(AppTheme.colors.surface).padding(16.dp, 4.dp, 16.dp, 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    SegButton("📅 시공한 날만 ($workDateLabel)", on = dayMode, modifier = Modifier.weight(1f)) { dayMode = true }
-                    SegButton("전체 보기", on = !dayMode, modifier = Modifier.weight(1f)) { dayMode = false }
+                // 날짜 토글 — 회색 알약 박스 안 세그먼트 (프로토 .seg: 눌린 쪽만 흰 칩으로 떠오름)
+                Row(Modifier.fillMaxWidth().background(AppTheme.colors.surface).padding(16.dp, 6.dp, 16.dp, 10.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(AppTheme.colors.surfaceMuted).padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        SegButton("📅 시공한 날만 ($workDateLabel)", on = dayMode, modifier = Modifier.weight(1f)) { dayMode = true }
+                        SegButton("전체 보기", on = !dayMode, modifier = Modifier.weight(1f)) { dayMode = false }
+                    }
                 }
                 if (dayMode) {
                     val tip = if (scheduledWorkDays > 1)
@@ -211,7 +217,7 @@ fun SitePhotoDatePicker(
                 morePhotosLauncher.launch(PermissionHelper.galleryImagePermissions())
             }
 
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(AppTheme.colors.surface)) {
                 when {
                     loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     sections.all { it.photos.isEmpty() } -> EmptyPhotos(dayMode, partial) {
@@ -235,10 +241,11 @@ fun SitePhotoDatePicker(
                 }
             }
 
-            // 하단바 (네비바 위로)
+            // 하단바 — 위 구분선으로 '고정 바'임을 보이고, 네비바 위로 넉넉히 띄운다(S23U 짤림 방지).
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
             Row(
                 Modifier.fillMaxWidth().background(AppTheme.colors.surface)
-                    .bottomBarClearance(0.dp).padding(16.dp, 12.dp),
+                    .bottomBarClearance(extra = 16.dp).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 몇 장 골랐나 + 한도 안내(한도에 닿으면 왜 더 안 되는지 말한다 — 코덱스 P2-6)
@@ -325,9 +332,10 @@ private fun EmptyPhotos(dayMode: Boolean, partial: Boolean, onMore: () -> Unit) 
 @Composable
 private fun SegButton(text: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.clip(RoundedCornerShape(9.dp))
+        modifier
+            .then(if (on) Modifier.shadow(2.dp, RoundedCornerShape(8.dp)) else Modifier)
+            .clip(RoundedCornerShape(8.dp))
             .background(if (on) AppTheme.colors.surface else Color.Transparent)
-            .then(if (on) Modifier.border(1.dp, AppTheme.colors.line, RoundedCornerShape(9.dp)) else Modifier)
             .clickable { onClick() }
             .padding(vertical = 9.dp),
         contentAlignment = Alignment.Center
