@@ -371,13 +371,7 @@ private fun PhotoTile(photo: GalleryPhoto, selected: Boolean, onClick: () -> Uni
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        // 좌하단 찍은 시각 — 「오후 4시 20분」 꼴(공용 DateTimeUtils.timeLabel). 「16:20」은 영상 길이로 보여 바꿈.
-        Text(
-            DateTimeUtils.timeLabel(photo.takenMs),
-            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White,
-            modifier = Modifier.align(Alignment.BottomStart).padding(5.dp)
-                .clip(RoundedCornerShape(5.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp, vertical = 2.dp)
-        )
+        // 타일엔 시각 안 붙인다 — 갤러리 표준(사진 썸네일엔 길이/시각 없음). 날짜는 섹션 머리가 말한다. (사장님 2026-11-11)
         // 우상단 선택 동그라미
         Box(
             Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape)
