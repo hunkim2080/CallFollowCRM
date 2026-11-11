@@ -62,7 +62,6 @@ import com.detailline.callfollowcrm.util.AddressExtractor
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 
 /**
  * 📅 「시공한 날 사진만」 현장사진 선택창. (프로토 EBpuEujiPoUvxLdwXPsSd1 — docs/DESIGN_site_photo_date_picker.md)
@@ -372,12 +371,12 @@ private fun PhotoTile(photo: GalleryPhoto, selected: Boolean, onClick: () -> Uni
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        // 좌하단 촬영 시각(작게). SimpleDateFormat 안 씀(§12) — 시/분만 조립.
+        // 좌하단 찍은 시각 — 「오후 4시 20분」 꼴(공용 DateTimeUtils.timeLabel). 「16:20」은 영상 길이로 보여 바꿈.
         Text(
-            timeTag(photo.takenMs),
+            DateTimeUtils.timeLabel(photo.takenMs),
             fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White,
             modifier = Modifier.align(Alignment.BottomStart).padding(5.dp)
-                .clip(RoundedCornerShape(5.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 5.dp, vertical = 2.dp)
+                .clip(RoundedCornerShape(5.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp, vertical = 2.dp)
         )
         // 우상단 선택 동그라미
         Box(
@@ -390,10 +389,4 @@ private fun PhotoTile(photo: GalleryPhoto, selected: Boolean, onClick: () -> Uni
                 tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
-}
-
-/** "H:mm" 시각표 — 타일 좌하단용. 날짜는 섹션이 말하니 시·분만(§12 SimpleDateFormat 안 씀). */
-private fun timeTag(ms: Long): String {
-    val c = Calendar.getInstance().apply { timeInMillis = ms }
-    return "%d:%02d".format(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
 }
