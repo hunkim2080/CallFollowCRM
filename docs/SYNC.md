@@ -16282,3 +16282,11 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 두 벌(§12): A/S 날짜 셈 = 공용 `AsSchedule`(coversDay·coveredDayStarts) 한 곳 — 일정탭·홈·위젯 셋이 같은 판정. CLAUDE.md §12 표에 한 줄 추가. `[dup]18/18 [style]2412/2412 [size]안늘음 [save]0/0 [rules]공용51 OK` — BUILD=0, 시험 1385 통과. brand_allow 에 구글캘린더 A/S 제목·위젯 A/S 칩 2줄(이모지 자리, 기존 캘린더·위젯 예외와 같은 맥락).
 - 폰 확인: 홈 띠 A/S 는 S9 눈확인함(앞 블록). 위젯·구글캘린더 갱신은 **실데이터(사장님 폰)에서 확인 필요** — 내부배포로 올림.
 - 다음 액션: 사장님 폰에서 ① 구글 캘린더 A/S 이벤트에 금액 사라졌나 ② 「오늘 갈 현장」 위젯에 오늘 A/S 뜨나 확인.
+
+## 2026-11-11 09:00 · android
+「시공한 날 사진만」 현장사진 선택창 — **설계·계획만** 확정(사장님 "빌드 X, 계획만").
+- 프로토 `EBpuEujiPoUvxLdwXPsSd1`(스펙 원본) 1:1. 계획 문서 = `docs/DESIGN_site_photo_date_picker.md`.
+- 핵심 벽: 날짜필터 = MediaStore DATE_TAKEN = **READ_MEDIA_IMAGES 권한**(2026-07-05 플레이 때문에 뺐던 것) + **플레이 민감권한 신고서**(초안 문서에 있음). 권한 없는 버전 불가(날짜 거르기가 기능 전부).
+- 연결 지점: `CustomerDetailJobCard.kt:548` 의 `PickMultipleVisualMedia(20)`→`addSitePhotos(uris,jobId)` 를 새 picker 로 교체, 뒤쪽(filesDir·Room·서버업로드·20장캡)은 그대로.
+- 변경: 코드 없음(문서·계획만). 빌드 미착수.
+- 다음 액션: 사장님이 "빌드 가" 하면 → 작업쪼개기(문서 §8)대로. 권한/플레이 심사는 전용 내부배포로.
