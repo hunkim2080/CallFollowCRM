@@ -16299,3 +16299,12 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 두 벌(§12): `ImageDownsample` 가 3곳이 돼 공용 등록(§12 표 + rulesBaselineUpdate 52). `[dup]18/18 [style]2412/2412 [size]안늘음 [save]0/0 [rules]공용52 OK` — BUILD=0, 시험 통과.
 - 폰 확인: **실데이터(협업/팀 서버 사진) 사장님 폰에서 확인 필요** — 시드가 어려워(서버 GET) 미검증. 내부배포로 올림.
 - 다음 액션: 사장님 폰에서 협업 현장 사진 크게 봤을 때 선명해졌는지 확인. 그다음 「시공한 날 사진만」 picker 빌드 착수(사장님 "지금 권한 포함해 만들자").
+
+## 2026-11-11 10:35 · android
+「시공한 날 사진만」 현장사진 선택창 **구현·S9 눈확인** (사장님 "지금 권한 포함해 만들자"). ⚠️플레이 민감권한 신고서 필요.
+- 프로토 EBpuEujiPoUvxLdwXPsSd1 1:1. 현장사진 "+" → 날짜 선택창(권한 있으면 바로·없으면 요청→거부 시 시스템 피커 폴백).
+- 새 파일: `SitePhotoDatePicker.kt`(선택창+`rememberSitePhotoPickerLaunch` 컨트롤러) · `DeviceGalleryRepository.kt`(MediaStore DATE_TAKEN 쿼리·DATE_ADDED 폴백) · `domain/schedule/WorkDateRange.kt`(시공일 범위·시험). `PermissionHelper.galleryImagePermissions/hasGalleryImages`(33+ READ_MEDIA_IMAGES·34+ 부분허용·≤32 READ_EXTERNAL_STORAGE). 진입 `CustomerDitailJobCard`(:548 교체) → 고른 URI `addSitePhotos` 그대로.
+- 매니페스트: READ_MEDIA_IMAGES + READ_MEDIA_VISUAL_USER_SELECTED 추가(2026-07-05 뺐던 것 복원). ≤32 READ_EXTERNAL_STORAGE 주석에 이미지도 추가.
+- 두 벌(§12): 시공일 범위 = `WorkDateRange` 한 곳(jobCoversDay 위임). style 기준선 2430(새 화면). brand_allow 📅·💡(프로토 글자). `[dup]18 [size]안늘음 [rules]52 [save]0` BUILD=0·시험 통과.
+- 폰 확인: **S9 디버그 설치+권한부여 → 고객7 상세 → 현장사진 + → 선택창 뜸**. 「시공한 날만(11/23)」 빈 상태·「전체 보기」 날짜묶음(11/11·11/4) 그리드·타일 시각·선택 ✓·「2장 올리기」 활성 전부 눈확인(스샷).
+- 다음 액션: ① **플레이 "사진·동영상 접근" 민감권한 신고서**(초안 docs/DESIGN_site_photo_date_picker.md §2) 내고 전용 심사. ② 플레이 콘솔에서 권한 선언. (내부배포는 올림)

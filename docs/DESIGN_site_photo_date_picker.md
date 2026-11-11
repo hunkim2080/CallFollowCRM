@@ -1,6 +1,12 @@
 # 설계 — 「시공한 날 사진만」 현장사진 선택창
 
-> 상태: **설계·계획 확정, 빌드 대기** (2026-11-11 사장님 "설계·계획만 먼저, 빌드 X")
+> 상태: **✅ 구현·S9 눈확인 완료** (2026-11-11 사장님 "지금 권한 포함해 만들자"). 내부배포 + 플레이 민감권한 신고서 필요.
+> 구현: `presentation/screen/customer/SitePhotoDatePicker.kt`(선택창 + `rememberSitePhotoPickerLaunch` 컨트롤러) ·
+> `data/repository/DeviceGalleryRepository.kt`(MediaStore DATE_TAKEN 쿼리) · `domain/schedule/WorkDateRange.kt`(시공일 범위·시험) ·
+> `util/PermissionHelper.galleryImagePermissions/hasGalleryImages` · 진입 `CustomerDetailJobCard`(+tile) · 권한 거부 시 시스템 피커 폴백.
+> 아래는 원래 설계 기록(참고).
+
+> (원래) 상태: 설계·계획 확정, 빌드 대기 (2026-11-11 사장님 "설계·계획만 먼저, 빌드 X")
 > 프로토(스펙 원본): `artifact/EBpuEujiPoUvxLdwXPsSd1` "시공날 사진 고르기" (docs/PROTOTYPES.md 등록)
 > 관련 메모: project_instagram_photo_picker_deferred · project_site_photos
 

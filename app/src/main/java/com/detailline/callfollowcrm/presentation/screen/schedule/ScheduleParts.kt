@@ -688,16 +688,11 @@ internal fun CalMoneyToggle(on: Boolean, onToggle: () -> Unit, modifier: Modifie
 }
 
 /**
- * 이 시공이 dayStart 날을 포함하는가 — 여러 날 시공(scheduledWorkDays) 고려.
- *   기간 = [시공일, 시공일 + (days-1)일]. days 기본 1 = 당일만.
+ * 이 시공이 dayStart 날을 포함하는가 — 기간 셈은 공용 [WorkDateRange] 한 곳(선택창·캘린더 같은 범위).
+ *   dayStart 는 그 날 자정이므로 범위 안에 들면 그 날을 덮는다.
  */
-internal fun jobCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
-    val start = c.scheduledWorkDate ?: return false
-    val s = DateTimeUtils.startOfDay(start)
-    val days = c.scheduledWorkDays.coerceAtLeast(1)
-    val end = s + (days - 1) * DateTimeUtils.DAY_MS
-    return dayStart in s..end
-}
+internal fun jobCoversDay(c: CustomerEntity, dayStart: Long): Boolean =
+    com.detailline.callfollowcrm.domain.schedule.WorkDateRange.covers(c.scheduledWorkDate, c.scheduledWorkDays, dayStart)
 
 /** 이 A/S 예약이 dayStart 날을 포함하는가 — 셈은 공용 [AsSchedule] 한 곳(홈·일정·캘린더 같은 판정). (DB v43) */
 internal fun asCoversDay(c: CustomerEntity, dayStart: Long): Boolean =

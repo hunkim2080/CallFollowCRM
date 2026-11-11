@@ -60,8 +60,13 @@
         "다른 앱 위에 표시"를 허용해야만 뜬다. (특수 권한 — Settings.canDrawOverlays 로 확인/요청)
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- 사진 선택은 시스템 사진 선택기(Photo Picker)로만 — READ_MEDIA_IMAGES 제거(Play 정책: 가끔 쓰는 이미지 선택은 권한 없이 Photo Picker). (2026-07-05)
-         아래 READ_EXTERNAL_STORAGE(<=32) 는 구형 기기(갤S9 등)의 통화녹음(오디오) 스캔용으로 유지. -->
+    <!-- 📷 「시공한 날 사진만」 현장사진 선택창 — 촬영 날짜(DATE_TAKEN)로 걸러야 해서 사진첩을 직접 읽는다.
+         시스템 Photo Picker 는 날짜 필터가 안 돼 이 기능엔 쓸 수 없다. CRM 핵심(현장 기록)에만 사용, 사용자가
+         "사진 올리기" 누를 때만 접근. (2026-11-11 사장님 "지금 권한 포함해 만들자" — 플레이 민감권한 신고서 동반)
+         33+ READ_MEDIA_IMAGES, 34+ 부분허용 VISUAL_USER_SELECTED, ≤32 는 아래 READ_EXTERNAL_STORAGE. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- ≤32(갤S9 등): 이미지(사진첩 날짜 쿼리) + 통화녹음(오디오) 스캔 공용. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!--
         통화녹음 자동 찾기 (2026-06-30) — 오디오 권한 한 번 허용하면 MediaStore 에서 통화녹음(.m4a)을 앱이

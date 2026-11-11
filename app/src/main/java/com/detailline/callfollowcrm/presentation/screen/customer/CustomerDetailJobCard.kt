@@ -538,16 +538,11 @@ internal fun JobDetailCard(
                     p.jobId == jobId || (p.jobId == null && jobId == host.repJobId)
                 }
             }
-            // 카톡식 사진 첨부 시트(아래→위) — 기존 시스템 "내 파일" 피커는 권한 거부/구형 fallback 으로만 유지. (2026-06-11)
-            var showPhotoPicker by remember { mutableStateOf(false) }
-            // 사진 첨부 = 시스템 Photo Picker(권한 없음, Play 정책 + 사진 우선 화면).
-            //   기존 GetMultipleContents(ACTION_GET_CONTENT)는 삼성 "항목 선택" 폴더 탐색기라 연세 있으신 분들이 헤맴
-            //   → PickMultipleVisualMedia(깔끔한 사진 그리드)로 교체. (2026-07-06 사장님)
+            // 📅 사진첩 권한 거부/구형(≤32) fallback = 시스템 Photo Picker(권한 없음). (2026-07-06·2026-11-11)
             val photoPicker = rememberLauncherForActivityResult(
                 // 2026-08-24 사장님: 본인 현장 사진도 한 번에 10 → 20장 (협업과 통일, 총량 sitePhotoMax=20).
                 ActivityResultContracts.PickMultipleVisualMedia(20)
             ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris, jobId) }
-            val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
             val photoTotal = sitePhotos.size + teamPhotos.size
             // 📸 한도(20장)는 **내 사진만** — 협업 사장 사진은 그 사장의 20장(각 사장마다 따로). (2026-10-15 사장님)
@@ -567,12 +562,18 @@ internal fun JobDetailCard(
                 com.detailline.callfollowcrm.data.repository.SitePhotoRepository
                     .beforeOf(sitePhotos, repCustomerId, jobId)?.id
             }
-            LaunchedEffect(showPhotoPicker) {
-                if (showPhotoPicker) {
-                    showPhotoPicker = false
+            // 📅 「시공한 날 사진만」 선택창 열기 — 권한·요청·렌더는 컨트롤러 한 곳(§12-F, 카드 안 키움).
+            val launchPhotoPicker = rememberSitePhotoPickerLaunch(
+                customerName = c.name,
+                address = cShown.address,
+                scheduledWorkDate = cShown.scheduledWorkDate,
+                scheduledWorkDays = cShown.scheduledWorkDays,
+                maxPick = (photoMax - photoMine).coerceAtLeast(1),
+                onFallbackSystemPicker = {
                     photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-            }
+                },
+                onPicked = { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris, jobId) }
+            )
             // 사진이 많아도 카드가 화면을 통째로 먹지 않게 — 두 줄까지만 보이고 나머지는 접는다.
             var photosExpanded by remember(jobId) { mutableStateOf(false) }
             // [고르기] 를 눌렀을 때만 동그라미가 뜬다. 평소엔 사진을 눌러 크게 본다. (2026-09-22 사장님)

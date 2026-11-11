@@ -35,6 +35,31 @@ object PermissionHelper {
     /** 저장된 연락처 이름 반영용 READ_CONTACTS 보유 여부(선택 권한). */
     fun hasContacts(context: Context) = isGranted(context, Manifest.permission.READ_CONTACTS)
 
+    /** READ_MEDIA_VISUAL_USER_SELECTED(34+ 부분 허용) — 문자열 리터럴(구 compileSdk 안전). */
+    private const val READ_MEDIA_VISUAL_USER_SELECTED = "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+
+    /**
+     * 📷 「시공한 날 사진만」 선택창 — 사진첩(이미지) 읽기 권한.
+     *   33+ READ_MEDIA_IMAGES, 34+ 부분 허용 VISUAL_USER_SELECTED 도 함께 요청, ≤32 READ_EXTERNAL_STORAGE.
+     */
+    fun galleryImagePermissions(): Array<String> = when {
+        Build.VERSION.SDK_INT >= 34 ->
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, READ_MEDIA_VISUAL_USER_SELECTED)
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+        else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
+    /** 사진첩에서 이미지를 읽을 수 있나 — 전체 또는 (34+) 부분 허용. */
+    fun hasGalleryImages(context: Context): Boolean = when {
+        Build.VERSION.SDK_INT >= 34 ->
+            isGranted(context, Manifest.permission.READ_MEDIA_IMAGES) ||
+                isGranted(context, READ_MEDIA_VISUAL_USER_SELECTED)
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+            isGranted(context, Manifest.permission.READ_MEDIA_IMAGES)
+        else -> isGranted(context, Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
     fun isGranted(context: Context, permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
