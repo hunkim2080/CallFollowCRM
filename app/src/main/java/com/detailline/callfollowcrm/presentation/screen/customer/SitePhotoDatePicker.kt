@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -122,23 +125,43 @@ fun SitePhotoDatePicker(
     var dayMode by remember { mutableStateOf(workRange != null) }
     var loading by remember { mutableStateOf(true) }
     var all by remember { mutableStateOf<List<GalleryPhoto>>(emptyList()) }
-    var selected by remember { mutableStateOf<Set<Uri>>(emptySet()) }
+    // 🔴 선택은 **GalleryPhoto 로** 들고 있는다 — 모드를 바꿔도 다른 날 선택이 안 사라지게(P1).
+    //   전엔 Uri Set 이라, 올릴 땐 '현재 모드 목록'으로 걸러 고른 수보다 적게 올라갔다. (코덱스 P1-1)
+    var selected by remember { mutableStateOf<List<GalleryPhoto>>(emptyList()) }
+    val selectedUris = remember(selected) { selected.map { it.uri }.toSet() }
+    // 🔁 34+ '사진 더 고르기' 로 접근 범위가 바뀌면 다시 불러오게 하는 키.
+    var reloadKey by remember { mutableStateOf(0) }
+    val partial = remember(reloadKey) { PermissionHelper.isPartialGallery(ctx) }
+    val morePhotosLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { reloadKey++ }
 
-    LaunchedEffect(dayMode) {
+    LaunchedEffect(dayMode, reloadKey) {
         loading = true
         val range = if (dayMode) workRange else null
         all = withContext(Dispatchers.Default) { DeviceGalleryRepository.query(ctx, range) }
         loading = false
     }
 
-    // 섹션 = (머리글, 시공한날?, 사진들). 시공한 날만 모드는 한 섹션, 전체 보기는 날짜별로 묶는다.
-    val sections = remember(all, dayMode, workRange) { buildSections(all, dayMode, workRange) }
-    val workDateLabel = remember(scheduledWorkDate) {
-        scheduledWorkDate?.let { DateTimeUtils.formatMonthDay(it) } ?: ""
+    // 섹션 = 날짜별 묶음. 시공한 날만 모드는 범위 안 날들, 전체 보기는 전부(시공 기간 날은 '시공한 날' 표시).
+    val sections = remember(all, workRange) { buildSections(all, workRange) }
+    // 토글/안내 라벨 — 여러 날 시공이면 "11/11~11/13". (코덱스 P1-3)
+    val workDateLabel = remember(scheduledWorkDate, scheduledWorkDays) {
+        val s = scheduledWorkDate ?: return@remember ""
+        val startMd = DateTimeUtils.formatMonthDay(s)
+        if (scheduledWorkDays <= 1) startMd
+        else startMd + "~" + DateTimeUtils.formatMonthDay(s + (scheduledWorkDays - 1).toLong() * DateTimeUtils.DAY_MS)
     }
 
-    val statusTop = androidx.compose.foundation.layout.WindowInsets.statusBars
-        .asPaddingValues().calculateTopPadding()
+    fun toggle(p: GalleryPhoto) {
+        selected = when {
+            p.uri in selectedUris -> selected.filterNot { it.uri == p.uri }
+            selected.size >= maxPick -> selected   // 자리 초과면 무시(아래 하단바가 이유를 말한다)
+            else -> selected + p
+        }
+    }
+
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
             // 상단바 (상태바 밑으로)
@@ -147,8 +170,10 @@ fun SitePhotoDatePicker(
                     .padding(top = statusTop).padding(16.dp, 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("✕", fontSize = 22.sp, color = TossTextTertiary,
-                    modifier = Modifier.clickable { onDismiss() }.padding(end = 10.dp))
+                Box(Modifier.size(44.dp).clip(CircleShape).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
+                    Text("✕", fontSize = 22.sp, color = TossTextSecondary)
+                }
+                Spacer(Modifier.width(4.dp))
                 Text("현장 사진 올리기", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }
             // 맥락 배너
@@ -156,7 +181,7 @@ fun SitePhotoDatePicker(
             val where = AddressExtractor.tidyAddress(address).takeIf { it.isNotBlank() }
             Column(Modifier.fillMaxWidth().background(AppTheme.colors.surface).padding(16.dp, 0.dp, 16.dp, 12.dp)) {
                 Text(who, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                if (where != null) Text(where, fontSize = 12.5.sp, color = TossTextTertiary)
+                if (where != null) Text(where, fontSize = 13.5.sp, color = TossTextSecondary)
             }
             // 날짜 토글
             if (workRange != null) {
@@ -167,27 +192,31 @@ fun SitePhotoDatePicker(
                     SegButton("📅 시공한 날만 ($workDateLabel)", on = dayMode, modifier = Modifier.weight(1f)) { dayMode = true }
                     SegButton("전체 보기", on = !dayMode, modifier = Modifier.weight(1f)) { dayMode = false }
                 }
-                if (dayMode) Text(
-                    "💡 $workDateLabel 시공한 날 찍은 사진만 모아봤어요 — 며칠 치 안 뒤져도 돼요.",
-                    fontSize = 11.5.sp, color = TossTextTertiary,
-                    modifier = Modifier.background(AppTheme.colors.surface).fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 10.dp)
-                )
+                if (dayMode) {
+                    val tip = if (scheduledWorkDays > 1)
+                        "💡 시공 기간($workDateLabel)에 찍은 사진을 모았어요 — 며칠 치 안 뒤져도 돼요."
+                    else "💡 $workDateLabel 시공한 날 찍은 사진만 모아봤어요 — 며칠 치 안 뒤져도 돼요."
+                    Text(tip, fontSize = 13.sp, color = TossTextSecondary,
+                        modifier = Modifier.background(AppTheme.colors.surface).fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 10.dp))
+                }
             } else {
                 Text(
                     "시공일이 아직 없어요 — 전체 사진에서 골라주세요.",
-                    fontSize = 11.5.sp, color = TossTextTertiary,
+                    fontSize = 13.sp, color = TossTextSecondary,
                     modifier = Modifier.background(AppTheme.colors.surface).fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 10.dp)
                 )
+            }
+            // 🔒 34+ 부분 허용 안내 — '전체 보기'가 폰 전체가 아니라 허용한 사진만이라는 걸 알린다. (코덱스 P1-2)
+            if (partial) PartialAccessBar {
+                morePhotosLauncher.launch(PermissionHelper.galleryImagePermissions())
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                    sections.all { it.photos.isEmpty() } -> Text(
-                        if (dayMode) "시공한 날 찍은 사진이 없어요.\n위 '전체 보기'로 골라주세요." else "사진이 없어요.",
-                        fontSize = 13.sp, color = TossTextTertiary, textAlign = TextAlign.Center,
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp)
-                    )
+                    sections.all { it.photos.isEmpty() } -> EmptyPhotos(dayMode, partial) {
+                        morePhotosLauncher.launch(PermissionHelper.galleryImagePermissions())
+                    }
                     else -> LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
                         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
@@ -199,17 +228,7 @@ fun SitePhotoDatePicker(
                             if (sec.photos.isEmpty()) return@forEach
                             item(span = { GridItemSpan(maxLineSpan) }) { DayHeader(sec.label, sec.isWork, sec.photos.size) }
                             items(sec.photos, key = { it.uri.toString() }) { p ->
-                                PhotoTile(
-                                    photo = p,
-                                    selected = p.uri in selected,
-                                    onClick = {
-                                        selected = when {
-                                            p.uri in selected -> selected - p.uri
-                                            selected.size >= maxPick -> selected   // 자리 초과면 무시
-                                            else -> selected + p.uri
-                                        }
-                                    }
-                                )
+                                PhotoTile(photo = p, selected = p.uri in selectedUris, onClick = { toggle(p) })
                             }
                         }
                     }
@@ -222,19 +241,19 @@ fun SitePhotoDatePicker(
                     .bottomBarClearance(0.dp).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    buildString { append(selected.size); append("장 선택됨") },
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary
-                )
+                // 몇 장 골랐나 + 한도 안내(한도에 닿으면 왜 더 안 되는지 말한다 — 코덱스 P2-6)
+                Column {
+                    Text("${selected.size}장 선택됨", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                    if (selected.size >= maxPick) Text("이 현장은 ${maxPick}장까지예요", fontSize = 11.5.sp, color = TossTextTertiary)
+                }
                 Box(Modifier.weight(1f))
                 val can = selected.isNotEmpty()
                 Box(
                     Modifier.clip(RoundedCornerShape(13.dp))
                         .background(if (can) AppTheme.colors.primary else AppTheme.colors.line)
                         .clickable(enabled = can) {
-                            // 고른 순서가 아니라 화면 순서(최신순)대로 넘긴다.
-                            val order = all.map { it.uri }.filter { it in selected }
-                            onPicked(order)
+                            // 모드와 무관하게 **고른 것 전부**를 최신순으로 넘긴다(P1-1).
+                            onPicked(selected.sortedByDescending { it.takenMs }.map { it.uri })
                         }
                         .padding(horizontal = 22.dp, vertical = 13.dp)
                 ) {
@@ -251,18 +270,55 @@ fun SitePhotoDatePicker(
 
 private data class PhotoSection(val label: String, val isWork: Boolean, val photos: List<GalleryPhoto>)
 
-/** 시공한 날만 모드 = 한 섹션. 전체 보기 = 날짜별 묶음(시공한 날 섹션이 맨 위). */
-private fun buildSections(all: List<GalleryPhoto>, dayMode: Boolean, workRange: LongRange?): List<PhotoSection> {
-    if (dayMode) {
-        val label = workRange?.let { DateTimeUtils.formatDateLabel(it.first) } ?: ""
-        return listOf(PhotoSection("$label · 시공한 날", true, all))
-    }
-    // 전체: 촬영일(startOfDay)별로 묶어 최신순. 시공 기간에 든 날은 '시공한 날' 표시.
+/** 날짜별 묶음(최신순). 시공 기간에 든 날은 '시공한 날' 표시. 여러 날 시공도 날짜별로 나뉜다(코덱스 P1-3). */
+private fun buildSections(all: List<GalleryPhoto>, workRange: LongRange?): List<PhotoSection> {
     val byDay = all.groupBy { DateTimeUtils.startOfDay(it.takenMs) }
     return byDay.entries.sortedByDescending { it.key }.map { (day, photos) ->
         val isWork = workRange != null && day in workRange
-        val label = DateTimeUtils.formatDateLabel(day) + if (isWork) " · 시공한 날" else ""
+        // 날짜 머리 = "11월 11일 (수)"(올해 아니면 연도까지) — 프로토 표기 복원(코덱스 P3). formatScheduledDate 재사용.
+        val label = DateTimeUtils.formatScheduledDate(day) + if (isWork) " · 시공한 날" else ""
         PhotoSection(label, isWork, photos)
+    }
+}
+
+/** 34+ 부분 허용 안내 띠 — '허용한 사진만 보여요' + '사진 더 고르기'. */
+@Composable
+private fun PartialAccessBar(onMore: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(AppTheme.colors.cautionBg).padding(16.dp, 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("허용한 사진만 보여요", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = AppTheme.colors.cautionText, modifier = Modifier.weight(1f))
+        Box(
+            Modifier.clip(RoundedCornerShape(9.dp)).background(AppTheme.colors.caution)
+                .clickable { onMore() }.padding(horizontal = 12.dp, vertical = 7.dp)
+        ) { Text("사진 더 고르기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+    }
+}
+
+/** 빈 화면 — 시공한날/전체·부분허용을 구분해 안내 + 바로 행동 버튼. (코덱스 P2-8) */
+@Composable
+private fun EmptyPhotos(dayMode: Boolean, partial: Boolean, onMore: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        val msg = when {
+            partial && dayMode -> "허용한 사진 중엔 시공한 날 사진이 없어요."
+            partial -> "허용한 사진이 없어요."
+            dayMode -> "시공한 날 찍은 사진이 없어요."
+            else -> "사진이 없어요."
+        }
+        Text(msg, fontSize = 14.sp, color = TossTextSecondary, textAlign = TextAlign.Center)
+        if (partial) {
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(11.dp)).background(AppTheme.colors.primary)
+                    .clickable { onMore() }.padding(horizontal = 18.dp, vertical = 11.dp)
+            ) { Text("사진 더 고르기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        }
     }
 }
 
@@ -288,9 +344,9 @@ private fun DayHeader(label: String, isWork: Boolean, count: Int) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Box(Modifier.size(6.dp).clip(CircleShape)
+        Box(Modifier.size(7.dp).clip(CircleShape)
             .background(if (isWork) AppTheme.colors.primary else AppTheme.colors.line))
-        Text("$label · ${count}장", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+        Text("$label · ${count}장", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
     }
 }
 
@@ -311,9 +367,9 @@ private fun PhotoTile(photo: GalleryPhoto, selected: Boolean, onClick: () -> Uni
         // 좌하단 촬영 시각(작게). SimpleDateFormat 안 씀(§12) — 시/분만 조립.
         Text(
             timeTag(photo.takenMs),
-            fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White,
             modifier = Modifier.align(Alignment.BottomStart).padding(5.dp)
-                .clip(RoundedCornerShape(5.dp)).background(Color.Black.copy(alpha = 0.4f)).padding(horizontal = 5.dp, vertical = 1.dp)
+                .clip(RoundedCornerShape(5.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 5.dp, vertical = 2.dp)
         )
         // 우상단 선택 동그라미
         Box(

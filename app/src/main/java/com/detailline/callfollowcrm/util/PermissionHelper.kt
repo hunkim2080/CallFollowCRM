@@ -50,6 +50,12 @@ object PermissionHelper {
         else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
+    /** 34+ **부분 허용**("선택한 사진만") 상태인가 — 전체는 아니고 선택 사진만 접근 가능. */
+    fun isPartialGallery(context: Context): Boolean =
+        Build.VERSION.SDK_INT >= 34 &&
+            !isGranted(context, Manifest.permission.READ_MEDIA_IMAGES) &&
+            isGranted(context, READ_MEDIA_VISUAL_USER_SELECTED)
+
     /** 사진첩에서 이미지를 읽을 수 있나 — 전체 또는 (34+) 부분 허용. */
     fun hasGalleryImages(context: Context): Boolean = when {
         Build.VERSION.SDK_INT >= 34 ->
