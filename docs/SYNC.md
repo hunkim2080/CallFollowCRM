@@ -16361,3 +16361,12 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - §12-K 연결지점 전부 확인 — **바꾼 곳 5**: asToday·위젯(asSiteOf)·고객상세 A/S줄(「완료」 초록)·ReminderWorker('오늘 A/S' 알림 제외)·CustomerMergeManager(병합 시 칸 보존). **둬도 됨 3**: 일정 탭 달력·구글캘린더 sync·수신전화 오버레이(그 날짜 기록이라 유지).
 - `[dup][style][size][brand][rules][save][compose]` assembleRelease BUILD=0.
 - ⚠️ 완료 버튼 **render 눈확인 못 함**(S9 에 오늘 A/S 손님 없음·sqlite 시드 불가) → 사장님 실제 A/S 손님에서 확인(완료 누르면 오늘 띠에서 빠지고 고객상세 「완료」).
+
+## 2026-11-12 19:58 · android (+ server)
+🔧 **통화 전문 "네 네 네 …" 반복 폭주 접기** — 사장님 신고(전문 첫 구간이 '네' 수백 번, AI 요약은 정상).
+- 원인: 한 세그먼트 **안**의 Whisper 반복 루프. 기존 가드(VAD·condition_on_previous_text=False)는 세그먼트 **사이** 루프만 막아 못 걸렀다.
+- 고침: `server/whisper_worker.py` 에 순수함수 `collapse_runaway` 추가 — 길이 1~3토막이 **4회+ 연속** 반복되면 **3회만** 남김(뜻 있는 반복 보존). 세그먼트 빌드 루프에서 적용. 순수 문자열이라 faster-whisper 버전 무관·STT 안 깨짐.
+- 검증: 단위 6/6 통과 · py_compile OK(3.9 호환, PEP604 안 씀).
+- 🚀 **라이브 배포함**(§1 예외 — 서버 담당 부재, android 가 직접): scp→py_compile→백업(`whisper_worker.py.bak-20261112-195735`)→교체→재검증→`smoke.sh` **10/10 정상**. 워커는 통화별 subprocess라 **서버 재시작 불필요**(다음 통화부터 적용).
+- ⚠️ **기존 캐시 전문**(이 통화·과거분)은 그대로 — `force_refresh`(다시 요약) 해야 깨끗해짐. 새 통화부터는 자동으로 안 뚫림.
+- 다음 액션: (선택) 사장님이 그 통화 「다시 요약」 눌러 확인.

@@ -19,6 +19,42 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 
+def collapse_runaway(text: str) -> str:
+    """무음·노이즈 구간에서 Whisper 가 같은 토막을 수백 번 반복하는 폭주("네 네 네 …")를 접는다.
+
+    한 세그먼트 **안**의 반복 루프는 VAD·condition_on_previous_text=False 로 못 막는다
+    (그 둘은 세그먼트 **사이** 루프만 막음). 2026-11-12 사장님 신고: 전문 첫 구간이 '네' 수백 번.
+
+    규칙: 길이 1~3 토막이 **4번 이상 연속** 반복되면 **3번만** 남긴다(뜻 있는 반복은 보존).
+    순수 문자열 처리라 faster-whisper 버전과 무관하게 안전(파라미터 추가로 STT 자체가 깨질 위험 없음).
+    """
+    toks = (text or "").split()
+    n = len(toks)
+    if n < 8:               # 짧은 세그먼트는 손대지 않는다(오탐 방지)
+        return text
+    out = []
+    i = 0
+    while i < n:
+        best_w, best_reps = 1, 1
+        for w in (1, 2, 3):
+            if i + w > n:
+                break
+            unit = toks[i:i + w]
+            reps, j = 1, i + w
+            while j + w <= n and toks[j:j + w] == unit:
+                reps += 1
+                j += w
+            if reps >= 4 and reps > best_reps:
+                best_w, best_reps = w, reps
+        if best_reps >= 4:
+            out.extend(toks[i:i + best_w] * 3)   # 폭주 → 3번만 남김
+            i += best_w * best_reps
+        else:
+            out.append(toks[i])
+            i += 1
+    return " ".join(out)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("usage: whisper_worker.py <audio_path>", file=sys.stderr)
@@ -60,7 +96,7 @@ def main() -> int:
         import json as _json
         segs_out = []
         for seg in segments:
-            t = (seg.text or "").strip()
+            t = collapse_runaway((seg.text or "").strip())   # 반복 폭주("네 네 네 …") 접기 (2026-11-12)
             if t:
                 segs_out.append({
                     "start": round(float(getattr(seg, "start", 0) or 0), 2),
