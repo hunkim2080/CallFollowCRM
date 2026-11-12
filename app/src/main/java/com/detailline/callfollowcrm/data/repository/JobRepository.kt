@@ -494,6 +494,27 @@ class JobRepository(
     }
 
     /**
+     * 📅 **여러 날 시공의 그 날 완료/해제 토글.** (2026-11-12 사장님 "1일차 완료했는데 2일차까지 완료돼버림")
+     *   날짜 셈은 [com.detailline.callfollowcrm.domain.job.JobDayCompletion] 한 곳. **모든 날이 완료되면** 건 전체 완료
+     *   ([setWorkCompleted] 재사용 — 번호·카드 미러까지), 하나라도 빠지면 완료 해제. 완료 상태가 바뀔 때만 도장을 건드린다.
+     */
+    suspend fun toggleDayComplete(jobId: Long, dayStart: Long, now: Long = System.currentTimeMillis()) {
+        val j = jobDao.findById(jobId) ?: return
+        val csv = com.detailline.callfollowcrm.domain.job.JobDayCompletion
+            .withDayToggled(j.completedDayStarts, dayStart, j.scheduledWorkDate, j.scheduledWorkDays)
+        jobDao.update(j.copy(completedDayStarts = csv, updatedAt = now))
+        val nowComplete = com.detailline.callfollowcrm.domain.job.JobDayCompletion
+            .allDone(csv, j.scheduledWorkDate, j.scheduledWorkDays)
+        val wasComplete = j.workCompletedAt != null
+        if (nowComplete != wasComplete) {
+            setWorkCompleted(jobId, if (nowComplete) now else null, now)
+        } else {
+            // 완료 상태는 그대로여도 카드 배지(며칠째)·달력이 바뀌게 미러만 갱신.
+            recomputeMirror(j.customerId, now)
+        }
+    }
+
+    /**
      * 현장 번호를 **시공한 날짜 순**으로 다시 매긴다. (2026-09-24 사장님)
      *
      * 전엔 '완료를 누른 순서'로 박고 안 바꿨다. 그런데 그날 앱을 못 열면 며칠 뒤에 누르신다 —

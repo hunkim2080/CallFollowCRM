@@ -280,6 +280,16 @@ class CustomerDetailViewModel(
         }
     }
 
+    /** 📅 **여러 날 시공의 그 날 완료/해제 토글** — 건 카드 날짜별 줄. 전부 완료되면 건 전체 완료로. (2026-11-12 사장님) */
+    fun markJobDayToggled(jobId: Long, dayStart: Long) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            SaveGuard.run("완료 표시", _toast) {
+                container.workCompletionManager.toggleJobDayComplete(jobId, dayStart)
+            }
+            container.autoCategoryClassifier.reclassify(customerId)
+        }
+    }
+
     fun setJobAddress(jobId: Long, address: String?) = viewModelScope.launch {
         withContext(NonCancellable) {
             val job = SaveGuard.run("현장 주소", _toast) {

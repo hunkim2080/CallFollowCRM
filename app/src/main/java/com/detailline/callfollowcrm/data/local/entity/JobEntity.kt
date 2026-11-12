@@ -64,6 +64,13 @@ data class JobEntity(
      *   null = 아직 완료 안 한 건(또는 옛 데이터 중 완료 시각이 없는 건).
      */
     val recordNo: Int? = null,
+    /**
+     * 📅 **날짜별 완료** — 여러 날 시공에서 완료한 날의 **자정 ms** 를 콤마로 이어붙인 문자열. (v73, 2026-11-12 사장님)
+     *   "1일차 완료했는데 2일차까지 완료돼버림" → 날마다 따로 완료. 셈은 `domain/job/JobDayCompletion` 한 곳.
+     *   **모든 날이 완료되면** [workCompletedAt] 을 찍는다 → 기존 딱지·정산·목록 로직은 그대로(건 전체 완료 기준은 안 바뀜).
+     *   "" = 아무 날도 완료 안 함. 1일 건은 그 하루만 완료하면 전체 완료.
+     */
+    val completedDayStarts: String = "",
     val createdAt: Long,
     val updatedAt: Long
 ) : com.detailline.callfollowcrm.domain.job.RepresentativeJob.Completable

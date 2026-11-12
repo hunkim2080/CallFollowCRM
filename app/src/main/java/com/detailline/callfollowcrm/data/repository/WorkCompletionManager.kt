@@ -70,6 +70,15 @@ class WorkCompletionManager(
     }
 
     /**
+     * 📅 **여러 날 시공의 그 날 완료/해제 토글** — 건 카드의 날짜별 줄. (2026-11-12 사장님)
+     *   데이터·전체완료 판정은 [JobRepository.toggleDayComplete] 한 곳. 완료가 바뀌면 '오늘 갈 현장' 알림/위젯도 갱신(onChanged).
+     */
+    suspend fun toggleJobDayComplete(jobId: Long, dayStart: Long, now: Long = System.currentTimeMillis()) {
+        jobRepository.toggleDayComplete(jobId, dayStart, now)
+        onChanged()
+    }
+
+    /**
      * 완료 + **잔금까지 다 받음**. (완료 팝업의 「잔금 다 받았어요」)
      *   잔금 도장은 [setBalancePaid] 한 곳 — 카드와 대표 건 둘 다 찍힌다.
      */

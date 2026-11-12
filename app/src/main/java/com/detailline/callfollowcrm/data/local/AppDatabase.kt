@@ -71,7 +71,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ScheduledSmsEntity::class,
         com.detailline.callfollowcrm.data.local.entity.AppNotificationEntity::class
     ],
-    version = 72,
+    version = 73,
     // 🗄️ **DB 모양을 파일로 내보낸다.** (2026-10-02 Fable 점검 🔥2)
     //   전엔 false 였다 — 그래서 **지금 DB 가 어떤 모양인지 git 에 아무 기록이 없었다.**
     //   2026-09-17 에 마이그레이션 INSERT 가 NOT NULL 칸을 빼먹어 **새로 깐 폰에서 앱이
@@ -1274,6 +1274,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v72 -> v73: jobs 에 completedDayStarts — 여러 날 시공의 **날짜별 완료**(완료한 날 자정 ms 콤마). (2026-11-12 사장님)
+         *   NOT NULL DEFAULT '' 라 옛 행은 빈 문자열(= 아무 날도 완료 안 함). 전체 완료는 여전히 workCompletedAt 로 본다. */
+        private val MIGRATION_72_73 = object : Migration(72, 73) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE jobs ADD COLUMN completedDayStarts TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         private val MIGRATION_59_60 = object : Migration(59, 60) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 runCatching {
@@ -1418,7 +1426,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58,
                     MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62,
                     MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67,
-                    MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72
+                    MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72,
+                    MIGRATION_72_73
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

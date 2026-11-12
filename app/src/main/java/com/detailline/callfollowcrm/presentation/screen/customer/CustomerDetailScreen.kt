@@ -1107,6 +1107,8 @@ fun CustomerDetailScreen(
                         if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.markJobCompleted(jid, false)
                     }
                 },
+                // 📅 여러 날 시공 — 그 날 완료/해제 토글(날짜별 줄). 전부 완료되면 건 전체 완료. (2026-11-12 사장님)
+                onJobDayToggle = { jid, dayStart -> viewModel.markJobDayToggled(jid, dayStart) },
                 onChoosePaidDate = { defaultMs, onPicked -> paidDateDefault = defaultMs; paidDateOnPicked = onPicked; paidDateOpen = true },
                 onDeleteJob = { deletePastJobConfirm = it },
                 onEditNote = { editingNote = it },

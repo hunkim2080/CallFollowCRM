@@ -128,6 +128,8 @@ internal class JobCardHost(
     val onCancelBooking: () -> Unit,
     /** ✅ 이 건 하나 시공 완료 — 지난/오늘 날짜의 **진행중** 건에만 버튼이 뜬다(미래 건은 X, 안 한 일). (2026-11-06 사장님) */
     val onJobComplete: (jobId: Long) -> Unit,
+    /** 📅 여러 날 시공의 **그 날** 완료/해제 토글 — 건 카드 날짜별 줄. (2026-11-12 사장님) */
+    val onJobDayToggle: (jobId: Long, dayStart: Long) -> Unit,
     /** 💵 받은 날짜 고르기 — 과거 시공 건에서 '받음'을 찍을 때 "언제 받으셨어요?" 달력(기본=시공일). 고르면 그 날짜로 도장. (2026-11-06 사장님) */
     val onChoosePaidDate: (defaultMs: Long, onPicked: (Long) -> Unit) -> Unit,
     val onDeleteJob: (JobEntity?) -> Unit,
@@ -376,7 +378,11 @@ internal fun JobDetailCard(
                             // ✅ **시공 완료** — 지난/오늘 날짜의 **진행 중** 건에만. 미래 건은 완료 불가(안 한 일 · healFutureFalseCompletions 가 떼냄). (2026-11-06 사장님 "건별 시공완료 버튼")
                             //   전엔 완료를 찍는 입구가 문자방 「네 끝났어요」·홈 「오늘 시공」뿐이라, 나흘 전 2차는 찍을 데가 없었다("UI가 헷갈린다").
                             //   큰 파란 버튼은 길찾기 하나뿐 규칙이라 완료는 초록 톤(doneBg/doneText) 보조 버튼. 멀티 건이면 2차·3차 **각각** 이 버튼으로.
-                            if (job != null && job.workCompletedAt == null && !jobCancelled(job) &&
+                            // 📅 **여러 날 시공이면 날짜별로 따로 완료**(1일차/2일차 …) — 줄 그리기는 JobDayCompleteRows 한 곳(§12-F).
+                            //   1일 건은 아래 단일 「시공 완료」 버튼 그대로. (2026-11-12 사장님)
+                            if (job != null && !jobCancelled(job) && job.scheduledWorkDays.coerceAtLeast(1) > 1) {
+                                JobDayCompleteRows(job) { d -> host.onJobDayToggle(job.id, d) }
+                            } else if (job != null && job.workCompletedAt == null && !jobCancelled(job) &&
                                 scheduled != null && scheduled <= DateTimeUtils.startOfDay(System.currentTimeMillis())
                             ) {
                                 Spacer(Modifier.height(14.dp))
