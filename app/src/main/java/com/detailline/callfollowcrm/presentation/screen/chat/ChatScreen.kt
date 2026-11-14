@@ -206,6 +206,8 @@ fun ChatScreen(
     onOpenCustomerDetail: (Long) -> Unit,
     /** >0 이면 그 발행 이력(접수서)을 "수정하기"로 EstSheet 재오픈. 고객상세 발행이력 수정에서 넘어옴. (2026-07-10 사장님) */
     editIssuedId: Long = -1L,
+    /** 비어있지 않으면 **대화 안 검색**을 이 말로 켜고 연다 — 검색 결과(통화·문자)를 눌렀을 때 그 자리로 점프+형광펜. (2026-11-14 사장님) */
+    initialSearch: String = "",
     /** 통화녹음 미연결 시 통화카드 "연결 설정하러 가기" → 설정(자동 문자/녹음) 열기. (2026-07-12 사장님) */
     onOpenRecordingSettings: () -> Unit = {},
     /** 추천답변 위 '어느 쪽 일 하세요?' 에서 [다른 업종] → 업종 선택 화면. (2026-09-16 사장님) */
@@ -415,8 +417,9 @@ fun ChatScreen(
 
     // 대화 안 검색 (카톡식 ▲▼) — 이 대화의 문자 + 통화 내용(요약·전문·태그)에서 찾아 위아래로 점프. (2026-09-02 사장님)
     val listState = rememberLazyListState()
-    var searchMode by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    // 검색에서 말을 들고 들어오면 그 말로 대화 안 검색을 켠 채 연다 → searchMatches 가 그 자리로 점프(아래 LaunchedEffect).
+    var searchMode by remember { mutableStateOf(initialSearch.isNotBlank()) }
+    var searchQuery by remember { mutableStateOf(initialSearch) }
     var currentMatchIdx by remember { mutableStateOf(0) }
     val renderRows = remember(timelineItems) { withDateDividers(timelineItems) }
     val searchMatches = remember(renderRows, searchQuery, recordSummary) {
@@ -836,7 +839,8 @@ fun ChatScreen(
                 if (timelineItems.isNotEmpty()) {
                     val grew = timelineItems.size > prevTimelineSize && prevTimelineSize > 0
                     when {
-                        !grew -> listState.scrollToItem(0)                         // 첫 로드/번호 전환 → 최신으로
+                        // 검색 결과로 들어와 대화 안 검색이 켜져 있으면 최신으로 끌어내리지 않는다 — 검색 점프가 자리를 잡게 둔다. (2026-11-14)
+                        !grew -> if (!searchMode) listState.scrollToItem(0)         // 첫 로드/번호 전환 → 최신으로
                         listState.firstVisibleItemIndex <= 2 -> {                  // 이미 최신 근처 → 부드럽게 따라 내려감
                             listState.animateScrollToItem(0); hasNewBelow = false
                         }

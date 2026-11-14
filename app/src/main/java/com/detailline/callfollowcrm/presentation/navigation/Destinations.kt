@@ -31,12 +31,17 @@ object Destinations {
      * customerId = -1 sentinel = 없음.
      * editIssuedId = 발행 이력 id — 채팅 열면서 그 접수서를 "수정하기"로 바로 EstSheet 재오픈. -1=없음. (2026-07-10 사장님)
      */
-    const val CHAT_WITH_ARG = "chat?phone={phone}&customerId={customerId}&editIssuedId={editIssuedId}"
-    fun chat(phone: String, customerId: Long? = null, editIssuedId: Long? = null): String {
+    const val CHAT_WITH_ARG = "chat?phone={phone}&customerId={customerId}&editIssuedId={editIssuedId}&search={search}"
+    /**
+     * @param search 검색에서 들어올 때 걸렸던 말 — 채팅이 열리면서 **대화 안 검색**을 그 말로 켜서
+     *   그 문자/통화로 바로 점프+형광펜. (2026-11-14 사장님 — 검색 결과를 눌러도 최신 대화로만 떨어지던 것)
+     */
+    fun chat(phone: String, customerId: Long? = null, editIssuedId: Long? = null, search: String? = null): String {
         val safePhone = phone.ifBlank { "" }
         val cid = customerId ?: -1L
         val eid = editIssuedId ?: -1L
-        return "chat?phone=${android.net.Uri.encode(safePhone)}&customerId=$cid&editIssuedId=$eid"
+        val s = search?.takeIf { it.isNotBlank() }?.let { "&search=${android.net.Uri.encode(it)}" }.orEmpty()
+        return "chat?phone=${android.net.Uri.encode(safePhone)}&customerId=$cid&editIssuedId=$eid$s"
     }
 
     const val TEMPLATE_LIST = "templates"

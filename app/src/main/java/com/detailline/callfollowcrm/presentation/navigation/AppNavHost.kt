@@ -440,12 +440,14 @@ fun AppNavHost(
             arguments = listOf(
                 navArgument("phone") { type = NavType.StringType; defaultValue = "" },
                 navArgument("customerId") { type = NavType.LongType; defaultValue = -1L },
-                navArgument("editIssuedId") { type = NavType.LongType; defaultValue = -1L }
+                navArgument("editIssuedId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("search") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStack ->
             val phone = backStack.arguments?.getString("phone").orEmpty()
             val customerId = backStack.arguments?.getLong("customerId")?.takeIf { it > 0 }
             val editIssuedId = backStack.arguments?.getLong("editIssuedId") ?: -1L
+            val initialSearch = backStack.arguments?.getString("search").orEmpty()
             val vm: ChatViewModel = viewModel(
                 factory = viewModelFactory { ChatViewModel(container, phone, customerId) }
             )
@@ -454,6 +456,7 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
                 editIssuedId = editIssuedId,
+                initialSearch = initialSearch,
                 // 통화녹음 미연결 통화카드 "연결 설정하러 가기" → 자동 문자/녹음 설정. (2026-07-12 사장님)
                 onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
@@ -611,7 +614,7 @@ fun AppNavHost(
             com.detailline.callfollowcrm.presentation.screen.search.SearchScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
+                onOpenChat = { phone, customerId, search -> navController.navigate(Destinations.chat(phone, customerId, search = search)) }
             )
         }
 

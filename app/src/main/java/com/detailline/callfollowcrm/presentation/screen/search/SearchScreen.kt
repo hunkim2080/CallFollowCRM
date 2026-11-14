@@ -70,7 +70,11 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 fun SearchScreen(
     viewModel: SearchViewModel,
     onBack: () -> Unit,
-    onOpenChat: (phone: String, customerId: Long?) -> Unit
+    /**
+     * @param anchor 통화·문자·메모 **내용**에서 걸린 결과면 그 말 — 채팅이 열리면서 그 자리로 점프+형광펜.
+     *   이름·번호·현장(장부) 매칭은 null → 평소처럼 최신 대화로 연다. (2026-11-14 사장님)
+     */
+    onOpenChat: (phone: String, customerId: Long?, anchor: String?) -> Unit
 ) {
     val query by viewModel.queryState.collectAsState()
     val results by viewModel.results.collectAsState()
@@ -218,7 +222,7 @@ fun SearchScreen(
                     Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))) {
                         todayCallers.forEachIndexed { i, r ->
                             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                            SearchRow(r, "") { keyboard?.hide(); onOpenChat(r.phone, r.customerId) }
+                            SearchRow(r, "") { keyboard?.hide(); onOpenChat(r.phone, r.customerId, null) }
                         }
                     }
                 }
@@ -235,7 +239,8 @@ fun SearchScreen(
             ) {
                 // 💰 못 받은 돈 · 📅 그달 시공 — **장부에서 나온 것**이라 말보다 위. (2026-09-19 사장님)
                 val pick: (SiteHit) -> Unit = { s ->
-                    keyboard?.hide(); viewModel.rememberQuery(query); onOpenChat(s.phone, s.customerId)
+                    // 현장·미수·그달 = 장부에서 나온 것. 대화 속 말이 아니니 앵커 없이 평소대로 연다.
+                    keyboard?.hide(); viewModel.rememberQuery(query); onOpenChat(s.phone, s.customerId, null)
                 }
                 siteGroup("못 받은 돈", unpaid, unpaidOpen, query, pick)
                 siteGroup("그달 시공", period, periodOpen, query, pick)
@@ -269,7 +274,7 @@ fun SearchScreen(
                                 SiteRow(s, query) {
                                     keyboard?.hide()
                                     viewModel.rememberQuery(query)
-                                    onOpenChat(s.phone, s.customerId)
+                                    onOpenChat(s.phone, s.customerId, null)
                                 }
                             }
                         }
@@ -318,7 +323,12 @@ fun SearchScreen(
                                 SearchRow(r, query) {
                                     keyboard?.hide()
                                     viewModel.rememberQuery(query)
-                                    onOpenChat(r.phone, r.customerId)
+                                    // 통화·문자·메모 **내용**에서 걸린 결과면 그 말을 앵커로 — 채팅이 그 자리로 점프.
+                                    //   이름·번호 매칭(CUSTOMER/CONTACT)은 걸린 말풍선이 없으니 앵커 없이 연다. (2026-11-14 사장님)
+                                    val anchor = query.takeIf {
+                                        r.source == SearchSource.CALL || r.source == SearchSource.MESSAGE || r.source == SearchSource.MEMO
+                                    }
+                                    onOpenChat(r.phone, r.customerId, anchor)
                                 }
                             }
                         }

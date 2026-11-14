@@ -16370,3 +16370,14 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 🚀 **라이브 배포함**(§1 예외 — 서버 담당 부재, android 가 직접): scp→py_compile→백업(`whisper_worker.py.bak-20261112-195735`)→교체→재검증→`smoke.sh` **10/10 정상**. 워커는 통화별 subprocess라 **서버 재시작 불필요**(다음 통화부터 적용).
 - ⚠️ **기존 캐시 전문**(이 통화·과거분)은 그대로 — `force_refresh`(다시 요약) 해야 깨끗해짐. 새 통화부터는 자동으로 안 뚫림.
 - 다음 액션: (선택) 사장님이 그 통화 「다시 요약」 눌러 확인.
+
+## 2026-11-14 · android
+🔧 **검색 결과를 누르면 그 메시지로 점프** — 사장님 "대화를 누르면 그 대화로 가야 하는데 그 사람 최근 대화로만 떨어진다"(기본 UX).
+- 원인: `SearchResult` 에 걸린 메시지 **앵커가 없음** → `onOpenChat(phone, customerId)` 만 넘겨 챗이 맨 아래(최신)로 열렸다.
+- 고침: **기존 "대화 안 검색"(searchMode/searchQuery → animateScrollToItem+형광펜) 재사용**(§12 두 벌 금지 — 새 스크롤/하이라이트 안 만듦). 검색어를 챗 라우트로 실어 보내 진입 시 그 말로 검색 켬 → 걸린 문자/통화로 자동 점프.
+  - `Destinations.chat(…, search=)` 인자 추가(라우트 `&search=`). `ChatScreen(initialSearch=)` 로 진입 시 검색모드 ON. 첫 로드 `scrollToItem(0)` 은 `searchMode`면 비켜 점프가 자리잡게.
+  - 앵커는 **내용 매칭(통화·문자·메모)만** 전달 — 이름·번호·현장(장부) 매칭은 null(평소처럼 최신으로).
+- 변경 인터페이스: `SearchScreen.onOpenChat` 3번째 인자(anchor) 추가(호출부 1곳=AppNavHost). 챗 라우트 `search` navArgument 추가. 다른 `Destinations.chat` 호출 15곳 positional 호환(안 바꿈).
+- §12-K 연결: onOpenChat 호출 4곳 전부 확인(바꾼 것 4·둬도 됨 라우트15).
+- `[dup]18 [size] [style]2441 [brand] [rules] [save]0 [compose]` assembleRelease **BUILD=0** · health EXIT=0.
+- 폰 확인: **못 봄**(한글 adb 입력 불가 — 검색은 한글 타이핑 필요). 사장님 실기 확인 필요(검색 결과 통화/문자 누르면 그 자리로 점프+파란 형광펜).
