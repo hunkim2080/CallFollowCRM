@@ -55,6 +55,43 @@ def collapse_runaway(text: str) -> str:
     return " ".join(out)
 
 
+def _is_hangul(ch: str) -> bool:
+    o = ord(ch)
+    return (0xAC00 <= o <= 0xD7A3) or (0x1100 <= o <= 0x11FF) or (0x3130 <= o <= 0x318F)
+
+
+def _ascii_latin(ch: str) -> bool:
+    return ("A" <= ch <= "Z") or ("a" <= ch <= "z")
+
+
+def strip_foreign_hallucination(text: str) -> str:
+    """무음·노이즈 구간에서 Whisper 가 한국어 울타리(language="ko")를 넘어 뱉는 외국어 환각을 걸러낸다.
+
+    실제 신고(2026-11-14 사장님): 대화가 없던 통화 전문에 '先生 / immigrant / Pode' 가 섞여 나옴.
+    한국어로 고정된 전문에 **한자·외톨이 영어 단어**가 나오면 거의 100% 받아쓰기 환각이다.
+
+    규칙(순수 문자열 처리 — collapse_runaway 와 같은 자리, faster-whisper 버전 무관·STT 안 깨짐):
+      ① 글자 단위: 한글도 ASCII 영문도 아닌 **다른 나라 글자**(한자·가나·키릴 등)는 지운다.
+         ('에先生' 처럼 한글에 붙어 나와도 한자만 떨어낸다 → '에')
+      ② 토막 단위: **순수 영문 단어**(길이 2+·숫자 없음)는 통째로 뺀다 (immigrant·Pode).
+         숫자가 섞인 토막(10cm·A4)·기호 섞인 토막(A/S)은 **남긴다** — 치수·용어 보존.
+    """
+    if not text:
+        return text
+    # ① 글자 단위 — 비한글·비ASCII 글자(한자 등) 제거
+    cleaned = "".join(
+        ch for ch in text
+        if not (ch.isalpha() and not _is_hangul(ch) and not _ascii_latin(ch))
+    )
+    # ② 토막 단위 — 순수 영문 단어(길이 2+) 제거
+    out = []
+    for tok in cleaned.split():
+        if len(tok) >= 2 and all(_ascii_latin(c) for c in tok):
+            continue
+        out.append(tok)
+    return " ".join(out)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("usage: whisper_worker.py <audio_path>", file=sys.stderr)
@@ -97,6 +134,7 @@ def main() -> int:
         segs_out = []
         for seg in segments:
             t = collapse_runaway((seg.text or "").strip())   # 반복 폭주("네 네 네 …") 접기 (2026-11-12)
+            t = strip_foreign_hallucination(t)               # 외국어 환각(先生·immigrant·Pode) 걸러내기 (2026-11-14)
             if t:
                 segs_out.append({
                     "start": round(float(getattr(seg, "start", 0) or 0), 2),

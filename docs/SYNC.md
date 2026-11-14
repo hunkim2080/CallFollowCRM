@@ -16381,3 +16381,12 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - §12-K 연결: onOpenChat 호출 4곳 전부 확인(바꾼 것 4·둬도 됨 라우트15).
 - `[dup]18 [size] [style]2441 [brand] [rules] [save]0 [compose]` assembleRelease **BUILD=0** · health EXIT=0.
 - 폰 확인: **못 봄**(한글 adb 입력 불가 — 검색은 한글 타이핑 필요). 사장님 실기 확인 필요(검색 결과 통화/문자 누르면 그 자리로 점프+파란 형광펜).
+
+## 2026-11-14 · android (+ server)
+🔧 **통화 전문 외국어 환각(先生·immigrant·Pode) 걸러내기** — 사장님 신고(대화 없던 통화 전문에 중국어·영어·포르투갈어 섞임).
+- 원인: 요약도 "전파 고르지 못함·대화 진행 안 되고 종료"인 **무음/노이즈 통화**. Whisper 가 받아쓸 말이 없으면 한국어 울타리(language="ko")를 넘어 외국어를 환각. "네 네 네 반복"(11-12 collapse_runaway)과 같은 뿌리의 다른 얼굴.
+- 고침: `server/whisper_worker.py` 에 순수 후처리 `strip_foreign_hallucination` 추가(collapse_runaway 옆) — ①비한글·비ASCII 글자(한자·가나 등) 제거(한글에 붙은 것도 떼어냄) ②순수 영문 단어(길이2+·숫자無) 제거. 숫자/기호 섞인 토막(10cm·A/S·3D·A4)은 보존. 순수 문자열이라 faster-whisper 버전 무관·STT 안 깨짐.
+- 검증: 로컬 단위 5/5 · 라이브 py_compile(3.9) OK · 라이브 함수 ALL_PASS(先生·immigrant·Pode 제거, 한글·10cm·A/S 보존).
+- 🚀 **라이브 배포함**(§1 예외 — 서버 담당 부재, 선례 11-12): scp .new→py_compile→백업(`whisper_worker.py.bak-20261114-123903`)→교체→`smoke.sh` **10/10**. 워커는 통화별 subprocess라 **재시작 불필요**.
+- repo == 라이브 확인 후 배포(드리프트 없음). repo 에도 커밋·push.
+- ⚠️ **이 통화 등 기존 캐시 전문은 그대로** — 「다시 요약」(force_refresh) 눌러야 깨끗. 새 통화부터 자동.
