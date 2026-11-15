@@ -7437,7 +7437,7 @@ _SITE_JSONLD = (
     '{"@context":"https://schema.org","@type":"Organization",'
     '"name":"시공막내","alternateName":"막내컴퍼니","url":"https://si0in.kr",'
     '"logo":"https://si0in.kr/static/thumbs/default.png",'
-    '"description":"시공 사장님을 위한 전화·문자·견적·일정·정산 올인원 비서 앱",'
+    '"description":"시공 사장님을 위한 전화·문자·견적·일정·정산 올인원 관리 앱",'
     '"contactPoint":{"@type":"ContactPoint","email":"hello@si0in.kr","contactType":"customer support"}}'
     '</script>'
     '<script type="application/ld+json">'
@@ -13563,7 +13563,7 @@ _ADMIN_HOME_HTML = """<!doctype html>
 
     <textarea class="share-msg" id="shareMsg" rows="14">🛠️ 시공막내가 등장했어요!
 
-1인 시공 사장님을 위한 운영 비서.
+1인 시공 사장님을 위한 운영 관리 앱.
 
 📞 통화하면 알아서 요약해줘요
    "그때 25만원 말했었나..?" 더 이상 헷갈리지 마세요

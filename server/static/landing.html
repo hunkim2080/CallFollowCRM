@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#3182F6">
 <title>시공막내 — 1인 시공 사장님의 문자 AI (전화·문자·견적·일정·정산)</title>
-<meta name="description" content="혼자 뛰는 시공 사장님의 문자 AI. 전화 놓쳐도 자동 문자, 문자 오면 답장 초안, 견적·접수서·일정·정산까지 막내가 대신 챙겨요. 현역 줄눈 사장이 만들었어요.">
+<meta name="description" content="혼자 뛰는 시공 사장님의 업무 앱. 전화 놓쳐도 자동 문자, 통화는 AI가 요약, 견적·접수서·일정·정산까지 막내가 대신 챙겨요. 현역 줄눈 사장이 만들었어요.">
 <link rel="canonical" href="https://si0in.kr/">
 <meta property="og:title" content="시공막내 — 1인 시공 사장님의 문자 AI">
 <meta property="og:description" content="혼자 뛰는 시공 사장님의 문자 AI. 전화·문자·견적·일정·정산을 막내가 대신 챙겨요. 현역 줄눈 사장이 만들었어요.">
@@ -133,7 +133,7 @@
   .demo-card .dc-title{font-size:12px;font-weight:800;color:var(--t3);margin-bottom:11px;letter-spacing:.04em;text-transform:uppercase;}
   .raw-msg{background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:12.5px;color:var(--t2);position:relative;padding-left:32px;transform:translateX(-12px);opacity:0;transition:transform .5s ease,opacity .5s ease;}
   .raw-msg.on{transform:translateX(0);opacity:1;}
-  .raw-msg::before{content:"📩";position:absolute;left:9px;top:9px;font-size:14px;}
+  .raw-msg::before{content:"📞";position:absolute;left:9px;top:9px;font-size:14px;}
   .raw-msg .rm-from{font-weight:800;color:var(--t1);font-size:11.5px;display:block;margin-bottom:2px;}
   .arrow-down{text-align:center;font-size:22px;color:var(--blue);margin:8px 0;animation:bounceDown 1.6s ease-in-out infinite;}
   @keyframes bounceDown{0%,100%{transform:translateY(0);}50%{transform:translateY(6px);}}
@@ -181,7 +181,7 @@
   .br-item.urgent{border-left-color:var(--amber);}
   .br-item.good{border-left-color:var(--success);}
 
-  /* Demo 4 — 톤 학습 비교 슬라이더 */
+  /* Demo 4 — 문자 다듬기 비교 슬라이더 */
   .compare-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:0;overflow:hidden;box-shadow:var(--shadow-md);}
   .compare-tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line);}
   .compare-tab{flex:1;padding:13px 10px;font-size:13px;font-weight:800;color:var(--t3);text-align:center;cursor:pointer;transition:all .2s ease;border-bottom:2px solid transparent;}
@@ -321,10 +321,10 @@
   <div class="kicker reveal"><span class="dot"></span>현역 줄눈 사장이 직접 만들었어요</div>
   <h1 class="reveal d1">
     혼자 뛰는 시공 사장님,<br>
-    <span class="big">문자는 막내(AI)가 대신</span>
+    <span class="big">전화·문자, 막내가 챙겨요</span>
   </h1>
   <p class="sub reveal d2">
-    <b>문자하면 답장 초안 준비.</b> <b>시공 전날 알림 카드까지.</b><br>
+    <b>통화하면 AI가 요약.</b> <b>시공 전날 알림 카드까지.</b><br>
     접수서 보내면 <b>고객이 알아서 입력</b>까지 막내가.
   </p>
   <div class="cta-row reveal d4">
@@ -385,34 +385,27 @@
 <section id="how">
   <div class="wrap">
     <div class="sec-title reveal">막내가 일하는 법 ①</div>
-    <h2 class="reveal d1"><span class="b">문자 받으면</span><br>답장 초안 3가지로</h2>
-    <p class="lead reveal d2">현장 가 계신 동안 문의가 오면, 막내가 사장님 톤으로 답장 3개를 미리 준비해놔요. 마음에 드는 거 골라서 ▶ 보내기만.</p>
+    <h2 class="reveal d1"><span class="b">통화가 끝나면</span><br>알아서 글로 정리해줘요</h2>
+    <p class="lead reveal d2">현장에서 받은 통화, 끊고 나면 막내가 무슨 얘기였는지 요약해놔요. "그때 얼마 불렀더라…" 더 이상 안 헷갈려요.</p>
 
     <div class="demo-block">
       <div class="demo-card reveal d3">
-        <div class="dc-title">▼ 시공막내가 답장 초안을 준비하는 중</div>
-        <div class="raw-msg" data-rm="1"><span class="rm-from">010-2345-1234 · 김지영 고객님</span>24평 아파트 화장실 줄눈 얼마예요?</div>
+        <div class="dc-title">▼ 시공막내가 통화를 요약하는 중</div>
+        <div class="raw-msg" data-rm="1"><span class="rm-from">📞 방금 통화 · 2분 34초 · 김지영 고객님</span>"화장실 2개 줄눈인데요, 평수는 24평이고 이번 주 토요일 오전에 가능할까요? 금액도 좀…"</div>
         <div class="arrow-down">↓</div>
         <div class="org-card" data-oc="1" style="display:block;padding:13px 15px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
-            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;">①</div>
-            <div style="font-size:11.5px;font-weight:800;color:var(--blue-dark);letter-spacing:.04em;">친근하게</div>
+            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;">🤖</div>
+            <div style="font-size:11.5px;font-weight:800;color:var(--blue-dark);letter-spacing:.04em;">AI 통화 요약</div>
           </div>
-          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">아 24평 화장실이시구나~ 보통 28~32만원선이에요 😊 사진 몇 장만 주시면 정확히 봐드릴게요!</div>
+          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">• 24평 아파트 · 화장실 2곳 줄눈<br>• 희망일: 이번 주 토요일 오전<br>• 금액 문의 — 견적 안내 필요</div>
         </div>
         <div class="org-card" data-oc="2" style="margin-top:7px;display:block;padding:13px 15px;background:linear-gradient(135deg,var(--success-tint),#fff);border-color:rgba(22,193,114,.2);">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
-            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;background:#fff;color:var(--success);">②</div>
-            <div style="font-size:11.5px;font-weight:800;color:#0a8f44;letter-spacing:.04em;">자세하게</div>
+            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;background:#fff;color:var(--success);">✓</div>
+            <div style="font-size:11.5px;font-weight:800;color:#0a8f44;letter-spacing:.04em;">고객 카드에 자동 저장</div>
           </div>
-          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">안녕하세요 고객님! 24평 화장실 줄눈은 보통 28~32만원입니다. 사진(타일/상태/면적) 몇 장만 보내주시면 정확한 견적 안내해 드릴게요~</div>
-        </div>
-        <div class="org-card" data-oc="3" style="margin-top:7px;display:block;padding:13px 15px;background:linear-gradient(135deg,var(--amber-tint),#fff);border-color:rgba(246,166,9,.25);">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
-            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;background:#fff;color:var(--amber);">③</div>
-            <div style="font-size:11.5px;font-weight:800;color:#C9820B;letter-spacing:.04em;">간단하게</div>
-          </div>
-          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">28~32만원선이에요~ 사진 보내주시면 정확히 알려드릴게요!</div>
+          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">요약이 고객 카드에 남아요. 통화 내용까지 검색돼서 "그때 곰팡이 얘기한 분"도 바로 찾습니다.</div>
         </div>
       </div>
     </div>
@@ -492,20 +485,20 @@
       </div>
     </div>
 
-    <!-- 기능 데모 4 — 톤 학습 -->
+    <!-- 기능 데모 4 — 문자 다듬기 -->
     <div class="sec-title reveal d1" style="margin-top:48px;">막내가 일하는 법 ④</div>
-    <h2 class="reveal d2"><span class="b">상담 자신없어?</span><br>내 말투 그대로 답해줘요</h2>
-    <p class="lead reveal d3">사장님이 평소 보낸 문자 학습해서 ~요체, 이모티콘, 인사말까지 똑같이.</p>
+    <h2 class="reveal d2"><span class="b">급하게 쓴 문자도</span><br>깔끔하게 다듬어줘요</h2>
+    <p class="lead reveal d3">현장서 급히 친 답장, <b>✨다듬기</b> 한 번이면 오타·딱딱한 말투 없이 전문 상담사 톤으로. 보내기 전에 사장님이 확인만.</p>
 
     <div class="compare-card reveal d3">
       <div class="compare-tabs">
-        <div class="compare-tab active" data-cmp="mine">사장님 톤 (시공막내)</div>
-        <div class="compare-tab" data-cmp="plain">일반 AI 답변</div>
+        <div class="compare-tab active" data-cmp="mine">✨ 다듬은 문자</div>
+        <div class="compare-tab" data-cmp="plain">원래 쓴 문자</div>
       </div>
       <div class="compare-body">
         <div class="compare-q">화장실 2개 줄눈하면 얼마예요?</div>
-        <div class="compare-a mine" id="cmpMine">아 화장실 2개시구나~ 보통 28~32만원선이에요 😊 사진 몇 장만 주시면 딱 맞게 봐드릴게요! 편하게 문의주세요~</div>
-        <div class="compare-a plain" id="cmpPlain" style="display:none;">안녕하세요. 화장실 2개 줄눈 시공은 28~32만원입니다. 정확한 견적을 위해 현장 사진을 보내주시면 안내해 드리겠습니다.</div>
+        <div class="compare-a mine" id="cmpMine">안녕하세요 고객님~ 화장실 2개 줄눈은 보통 28~32만원선이에요 😊 사진 몇 장만 보내주시면 정확하게 봐드릴게요! 편하게 문의 주세요~</div>
+        <div class="compare-a plain" id="cmpPlain" style="display:none;">아 2개요? 28~32 사진주세요</div>
       </div>
     </div>
   </div>
@@ -535,8 +528,8 @@
           <li>문자 오면 즉시 정리</li>
           <li>D-1 자동 안내 문자</li>
           <li>정산 마감 자동 브리핑</li>
-          <li>사장님 톤 그대로 답장 초안</li>
-          <li>현장 집중, 답장은 막내가</li>
+          <li>통화 끝나면 바로 AI 요약</li>
+          <li>현장 집중, 기록은 막내가</li>
         </ul>
       </div>
     </div>
@@ -660,10 +653,10 @@
     <h2 class="reveal d1">궁금한 거 <span class="b">먼저</span> 풀어드려요</h2>
 
     <div class="faq-list reveal d2" style="margin-top:18px;">
-      <div class="faq-item"><div class="faq-q">자동 발송인가요? 막내가 마음대로 답장하나요? <span class="faq-ic">+</span></div><div class="faq-a">절대 아니에요. 막내는 답장 초안만 만들어드리고, 발송은 항상 사장님이 ▶ 버튼 한 번 누르셔야 나가요. 실수로 어색한 답장이 나갈 일 0.</div></div>
-      <div class="faq-item"><div class="faq-q">제 톤이랑 다르게 답장하면 어쩌죠? <span class="faq-ic">+</span></div><div class="faq-a">평소 보내신 문자 (혹은 보내실 예시 몇 개) 를 막내가 학습해요. 처음엔 어색해도 며칠 쓰면 사장님 톤 그대로 답장합니다. 사장님이 손보신 내용도 학습돼요.</div></div>
+      <div class="faq-item"><div class="faq-q">문자가 제 맘대로 자동 발송되나요? <span class="faq-ic">+</span></div><div class="faq-a">자동으로 나가는 건 <b>부재중 안내 문자</b>뿐이에요. 통화 요약·견적·다듬은 문자 같은 건 항상 사장님이 확인하고 ▶ 보내기를 눌러야 나갑니다. 실수로 엉뚱한 게 나갈 일 0.</div></div>
+      <div class="faq-item"><div class="faq-q">✨다듬기 하면 제 말투가 이상해지나요? <span class="faq-ic">+</span></div><div class="faq-a">아니요. 다듬기는 사장님이 쓴 문장을 그대로 두고 오타·급하게 쓴 말투만 자연스럽게 정리해줘요. 결과가 맘에 안 들면 그냥 안 보내시면 됩니다.</div></div>
       <div class="faq-item"><div class="faq-q">문자만? 카톡·전화는요? <span class="faq-ic">+</span></div><div class="faq-a">현재는 SMS·MMS 만 지원. 통화 정리 (받은 통화 요약·후속 문자 작성) 도 지원해요. 카톡은 검토 중.</div></div>
-      <div class="faq-item"><div class="faq-q">개인정보·문자 내용 안전한가요? <span class="faq-ic">+</span></div><div class="faq-a">SMS 원문은 서버에 저장 안 함. 학습은 사장님이 직접 업로드하신 답장 예시만 사용. 서비스 종료 시 모든 데이터 즉시 파기.</div></div>
+      <div class="faq-item"><div class="faq-q">개인정보·문자 내용 안전한가요? <span class="faq-ic">+</span></div><div class="faq-a">SMS 원문은 서버에 저장 안 함. 통화 녹음도 받아쓰기 직후 바로 지워요. 서비스 종료 시 모든 데이터 즉시 파기.</div></div>
       <div class="faq-item"><div class="faq-q">요금은 얼마예요? <span class="faq-ic">+</span></div><div class="faq-a">요금제는 상단 [요금제] 메뉴에서 확인하실 수 있어요. 초기부터 함께해주신 사장님께 드린 혜택은 계속 지켜드립니다.</div></div>
     </div>
   </div>
@@ -675,7 +668,7 @@
 <!-- ─── Footer ─── -->
 <footer>
   <div class="ft-logo"><span class="dot"></span>시공막내 · RING-GO</div>
-  <div>혼자 일하는 시공 사장님의 막내 비서</div>
+  <div>혼자 일하는 시공 사장님의 막내</div>
   <div style="margin-top:10px;">서비스 문의: <a href="mailto:hello@si0in.kr">hello@si0in.kr</a></div>
   <div style="margin-top:10px;color:var(--t3);">상호: 막내컴퍼니 | 대표: 김상훈 | 사업자등록번호: 454-07-03372<br>
   주소: 경기도 화성시 동탄지성로 11, 동탄에스알골드프라자 7층 714-D128호 | 전화: 010-8005-6674</div>

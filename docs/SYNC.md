@@ -16390,3 +16390,13 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 🚀 **라이브 배포함**(§1 예외 — 서버 담당 부재, 선례 11-12): scp .new→py_compile→백업(`whisper_worker.py.bak-20261114-123903`)→교체→`smoke.sh` **10/10**. 워커는 통화별 subprocess라 **재시작 불필요**.
 - repo == 라이브 확인 후 배포(드리프트 없음). repo 에도 커밋·push.
 - ⚠️ **이 통화 등 기존 캐시 전문은 그대로** — 「다시 요약」(force_refresh) 눌러야 깨끗. 새 통화부터 자동.
+
+## 2026-11-15 12:30 · android (+ server)
+🌐 **사이트(si0in.kr) 정식출시 점검 수정 — 라이브 배포함** (사장님 "라이브 ㄱ"). 아스트라(Codex) 점검 → RED 전부 처리.
+- 고침(공개 페이지): 요금(`home_pricing`) 베타·월5만/10만 제거→"무료·유료 요금제 추후 안내"(요금 미정) · 메인랜딩(`landing`) 휴면AI 두 섹션 재작성(답장초안3개→AI통화요약, 말투학습비교→문자다듬기비교)+히어로·FAQ · 기능소개(`home_features`) 휴면AI→살아있는AI · 금칙어 **"비서" 공개 전 페이지 0** · 운영사 `account_delete` 디테일라인→막내컴퍼니(+공개된 개인Gmail 제거) · 가입연령 `privacy` 18→**19세**(약관과 일치) · 약관 `terms` "초안" 표시·통신판매 빈번호(미신고) 제거.
+- 개인정보/동의서 모순(코드 근거로 통일): `summary_cache`=전문+요약 저장(요약만 아님) · `_DELETE_BY_CUSTOMER`에 summary_cache 있어 **계정삭제=서버 파기O** · 기록 개별삭제 API 없어 **앱삭제=폰에서만**. → `privacy`·`consent_required` 문구를 실제 동작에 맞춤.
+- main.py: 공통 JSON-LD(`_SITE_JSONLD`) + 관리자 공유메시지 "비서"→"관리 앱" **2줄만 수술 패치**(통짜 X).
+- 배포(§1 예외·§3 절차): 라이브 백업(`*.bak-sitereview-20261115-121725`) → static 9개 scp 교체(정적은 요청마다 read라 **재시작 불필요**) · main.py 는 **라이브본 받아 2줄만 치환**→로컬·원격 py_compile→교체→`launchctl kickstart` → **smoke.sh 10/10**.
+- 검증: si0in.kr 공개 URL curl — 나쁜 문자열(베타·5만·비서·답장초안·약관초안·신고빈칸) **0**, 좋은 문자열(추후안내·통화가끝나면·관리앱·만19세) present.
+- ⚠️ drift: 배포 전 live↔repo 대조 — `privacy`·`consent_required`·`home_features` 는 **라이브가 옛버전**(repo 미배포분)이라 사장님 "다 최신본" 지시로 repo 최신본 반영. `home_pricing`·`landing` 은 **줄바꿈(CRLF)만** 차이(내용 동일).
+- 다음 액션(RED 아님): `home_updates` 정식출시 공지 · CTA `/`→`/install` · DB 블로그 본문 추천답장/말투학습 문구 · (법적) 통신판매업 신고 시 번호 기입 · `/privacy/v1`(옛 동의 기록)은 그대로 둠.
