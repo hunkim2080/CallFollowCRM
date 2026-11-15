@@ -16416,3 +16416,8 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 변경: 앱 AddressSearchDialog.kt WebView 스크립트 1줄 / 서버 main.py 접수서 웹페이지 스크립트 1줄. 둘 다 postcode.v2.js 호스트만 교체. postcode.map.daum.net(서비스 origin)은 그대로 둠(미종료)
 - 폰 확인: 못 봄 (내부배포 올림, 폰에서 주소검색 확인 필요)
 - 다음 액션: 서버 main.py 라이브(si0in.kr) 배포는 사장님 승인 대기 — 접수서 /q·/intake 웹 주소검색도 11/30 전 교체 필요
+
+##  · android (+ server)
+↑ 위 CDN 교체건 서버 라이브 배포 완료 (사장님 승인 후)
+- 변경: 라이브 /Users/hun/ringgo-server/main.py 그 한 줄만 교체(GOTCHAS §3). 백업 main.py.bak-cdn-20261115-194243. py_compile OK · kickstart · smoke 10/10. daumcdn 0 / kakaocdn 1
+- 폰 확인: 서버는 smoke 통과. 앱은 내부배포(upload-20261115-1941) 올림 — 폰 주소검색 눈확인 남음
