@@ -21045,7 +21045,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
   </div>
 </div>
 
-<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
   var TOKEN = "{token_js}";
   var BIZ = {biz_js};

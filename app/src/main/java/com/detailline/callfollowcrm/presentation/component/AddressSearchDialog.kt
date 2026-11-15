@@ -157,7 +157,7 @@ private const val DAUM_POSTCODE_HTML = """
 </head>
 <body style="margin:0;padding:0">
   <div id="wrap" style="width:100%;height:100vh"></div>
-  <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <script src="https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   <script>
     function startPostcode(){
       new daum.Postcode({

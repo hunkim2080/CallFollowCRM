@@ -16410,3 +16410,9 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - `[dup]18=기준선 [brand] OK [size]/[style]/[save] 안늘어남 [rules] OK` assembleRelease **BUILD=0** · health EXIT=0.
 - 폰 확인: **못 봄** — 재현에 「예약/자동 발송 후 그 번호의 첫 수신 답장」이 필요(실기 재현 어려움). 로직·빌드로 검증. 사장님: 다음에 예약/자동문자 보낸 번호가 답할 때 신규음 안 뜨는지 봐주세요.
 - 📍 60초 폴링 메모(옛 성능감사)는 이미 포그라운드 게이트로 고쳐진 상태 — 메모 정정함.
+
+##  · android (+ server)
+카카오 우편번호 CDN 도메인 교체 (t1.daumcdn.net → t1.kakaocdn.net) — Kakao 공지 #1562, 2026-11-30 이후 옛 도메인 종료
+- 변경: 앱 AddressSearchDialog.kt WebView 스크립트 1줄 / 서버 main.py 접수서 웹페이지 스크립트 1줄. 둘 다 postcode.v2.js 호스트만 교체. postcode.map.daum.net(서비스 origin)은 그대로 둠(미종료)
+- 폰 확인: 못 봄 (내부배포 올림, 폰에서 주소검색 확인 필요)
+- 다음 액션: 서버 main.py 라이브(si0in.kr) 배포는 사장님 승인 대기 — 접수서 /q·/intake 웹 주소검색도 11/30 전 교체 필요
