@@ -87,7 +87,9 @@ object SmsSender {
         //   🔒 「장문이면 MMS 로」 판정은 [willSendAsMms] 한 곳 — 화면 쪽(ChatViewModel)이 **같은 판정**으로
         //      캐시 중복 저장을 피한다(안 그러면 발신함+캐시 두 벌로 같은 글이 두 번 보임, §12). (2026-11-12)
         if (willSendAsMms(context, body)) {
-            return sendTextMms(context, phoneNumber, body)
+            val mmsOk = sendTextMms(context, phoneNumber, body)
+            if (mmsOk) recordOutgoingToContactCache(context, phoneNumber, body)
+            return mmsOk
         }
 
         val sent = runCatching {
@@ -125,6 +127,9 @@ object SmsSender {
             if (!insertedToProvider && persistLocalOnFail) {
                 persistToLocalCache(context, phoneNumber, body)
             }
+            // 📇 보낸 사실을 연락처 요약 캐시(sms_contacts_cache)에도 기록 → firstDateMsInScan 을 채워
+            //   뒤에 고객이 답해도 「신규 문의」로 오인되지 않게. 예약·자동·통화후 발송이 여기로 다 지난다. (2026-11-15)
+            recordOutgoingToContactCache(context, phoneNumber, body)
         }
 
         return sent
@@ -178,6 +183,36 @@ object SmsSender {
     }
 
     /**
+     * 📇 보낸 문자를 **연락처 요약 캐시(sms_contacts_cache)에도 기록** — 모든 발송이 지나는 급소(§12).
+     *   핵심은 `firstDateMsInScan`(이 번호의 가장 오래된 메시지)을 채우는 것 → 뒤에 고객이 **답장**해도
+     *   「이게 이 번호 최초 메시지」로 오인돼 **신규 문의음**이 울리는 걸 막는다.
+     *   (예약문자·부재중 자동문자·통화후 템플릿은 content://sms/sent 엔 적어도 이 캐시엔 안 적혀서,
+     *    먼저 보낸 번호가 답하면 「신규」로 떴다. 2026-11-15 사장님 신고.)
+     *   upsertOne 은 lastDateMs=max·firstDateMsInScan=min·hasOwnerReply=OR 로 **idempotent** — 여러 번 불러도 안전
+     *   (수동 챗 발신은 ChatViewModel 도 같은 upsert 를 하지만 min-merge 라 겹쳐도 무해).
+     *   fire-and-forget — 앱 수명 IO 스코프에서 비동기 저장.
+     */
+    private fun recordOutgoingToContactCache(context: Context, phoneNumber: String, body: String) {
+        val app = context.applicationContext as? CallFollowCrmApplication ?: return
+        val digits = phoneNumber.filter { it.isDigit() }
+        val suffix = PhoneKey.of(digits)
+        if (suffix.length < 7) return
+        val nowMs = System.currentTimeMillis()
+        val contact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
+            address = phoneNumber,
+            normalizedSuffix = suffix,
+            lastBody = body,
+            lastDateMs = nowMs,
+            lastSent = true,
+            hasOwnerReply = true,
+            firstDateMsInScan = nowMs,
+        )
+        app.applicationScope.launch {
+            runCatching { app.container.smsContactCacheRepository.upsertOne(contact) }
+        }
+    }
+
+    /**
      * 사진 첨부 메시지(MMS)를 우리 앱 안에서 직접 발송한다 — 안드로이드 **공식 API** 경로.
      *   (2026-07-08) 예전 klinker Transaction 경로가 기본앱 실전에서 사진 유실(6/17) → 수신 fix 와 동일 철학으로 재구현.
      *
@@ -219,7 +254,10 @@ object SmsSender {
                 intent.putExtra(MmsSentReceiver.EXTRA_BODY_PREVIEW, body.take(80))
                 intent.putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, jpegs.size)
             }.also { ok ->
-                if (ok) Log.i(TAG, "MMS (official) send requested: to=${LogRedact.phone(phoneNumber)} images=${jpegs.size} body=${body.length}")
+                if (ok) {
+                    recordOutgoingToContactCache(context, phoneNumber, body.ifBlank { "사진" })
+                    Log.i(TAG, "MMS (official) send requested: to=${LogRedact.phone(phoneNumber)} images=${jpegs.size} body=${body.length}")
+                }
             }
         }.getOrElse { e ->
             Log.e(TAG, "MMS (official) send request failed", e)

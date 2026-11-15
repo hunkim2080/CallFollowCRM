@@ -16400,3 +16400,13 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 검증: si0in.kr 공개 URL curl — 나쁜 문자열(베타·5만·비서·답장초안·약관초안·신고빈칸) **0**, 좋은 문자열(추후안내·통화가끝나면·관리앱·만19세) present.
 - ⚠️ drift: 배포 전 live↔repo 대조 — `privacy`·`consent_required`·`home_features` 는 **라이브가 옛버전**(repo 미배포분)이라 사장님 "다 최신본" 지시로 repo 최신본 반영. `home_pricing`·`landing` 은 **줄바꿈(CRLF)만** 차이(내용 동일).
 - 다음 액션(RED 아님): `home_updates` 정식출시 공지 · CTA `/`→`/install` · DB 블로그 본문 추천답장/말투학습 문구 · (법적) 통신판매업 신고 시 번호 기입 · `/privacy/v1`(옛 동의 기록)은 그대로 둠.
+
+## 2026-11-15 13:40 · android
+🐛 **「계속 대화하던 고객인데 답장이 '신규 문의'로 알림」 버그 수정** (사장님 신고 — 11/14 내가 먼저 보냄 → 11/15 고객 첫 답장이 신규음).
+- 원인: `SmsSender`(모든 발송 급소)가 보낸 문자를 `content://sms/sent` 엔 INSERT 하지만 **연락처 요약 캐시(`sms_contacts_cache`)엔 안 적음**. 그 캐시 upsert 는 수동 챗(ChatViewModel)·수신만 했음 → **예약문자·부재중 자동문자·통화후 템플릿**으로 먼저 보낸 번호는 캐시에 row 없음 → 고객 답장 시 수신기가 `firstDateMsInScan`=받은시각으로 새 row 생성 → `NewInquiry.isNew` 가 「이게 최초」=신규 판정.
+- 고침: `SmsSender.recordOutgoingToContactCache(ctx, phone, body)` helper 추가 → 발송 성공 **3지점**(sendDirect 일반·willSendAsMms→sendTextMms·sendMms)에서 호출. `firstDateMsInScan` 채워 **어떤 발송 경로든** 답장이 신규로 안 뜸. 급소 한 곳이라 미래 경로도 자동 커버(§12). `upsertOne` min-merge 라 idempotent(ChatViewModel 기존 upsert 와 겹쳐도 무해).
+- 변경 인터페이스: 없음(SmsSender 내부 private helper). 다른 쪽 영향 0.
+- §12-K: 발송 경로 전수 확인 — `sendDirect`(ChatViewModel·AutoReplyScheduler·ScheduledSmsSender·PostCallTemplateOverlay)·`sendMms` 전부 급소 통과.
+- `[dup]18=기준선 [brand] OK [size]/[style]/[save] 안늘어남 [rules] OK` assembleRelease **BUILD=0** · health EXIT=0.
+- 폰 확인: **못 봄** — 재현에 「예약/자동 발송 후 그 번호의 첫 수신 답장」이 필요(실기 재현 어려움). 로직·빌드로 검증. 사장님: 다음에 예약/자동문자 보낸 번호가 답할 때 신규음 안 뜨는지 봐주세요.
+- 📍 60초 폴링 메모(옛 성능감사)는 이미 포그라운드 게이트로 고쳐진 상태 — 메모 정정함.
