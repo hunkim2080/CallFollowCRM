@@ -374,7 +374,7 @@ internal fun widgetUnansweredPreview(
 ): WidgetUnansweredPreview {
     val top = inboxUnanswered(all, adAllowlist)
         .minByOrNull { it.lastActivityMs.takeIf { t -> t > 0L } ?: it.record.endedAt }
-    val name = top?.let { it.customer?.name?.takeIf { s -> s.isNotBlank() } ?: it.record.phoneNumber } ?: ""
+    val name = top?.let { it.customer?.name?.takeIf { s -> s.isNotBlank() } ?: it.contactName ?: it.record.phoneNumber } ?: ""
     val ms = top?.let { it.lastActivityMs.takeIf { t -> t > 0L } ?: it.record.endedAt } ?: 0L
     val mins = if (ms > 0L) ((now - ms) / 60000L).toInt() else -1
     val elapsed = when {

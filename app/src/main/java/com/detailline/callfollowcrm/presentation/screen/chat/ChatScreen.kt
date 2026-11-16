@@ -654,7 +654,15 @@ fun ChatScreen(
         com.detailline.callfollowcrm.recording.CallSummaryProgress.consumeDone()
     }
 
-    val displayName = customer?.name?.takeIf { it.isNotBlank() }
+    // 📇 비고객이어도 폰 연락처에 저장한 이름을 헤더에 — IO 에서 조회(컴포지션 밖), customer 이름 있으면 skip. (2026-11-16 §12-K)
+    val nameCtx = androidx.compose.ui.platform.LocalContext.current
+    val phoneContactName by androidx.compose.runtime.produceState<String?>(null, viewModel.phoneNumber, customer?.name) {
+        value = if (!customer?.name.isNullOrBlank()) null
+        else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.detailline.callfollowcrm.util.ContactNameResolver.lookup(nameCtx, viewModel.phoneNumber)
+        }
+    }
+    val displayName = customer?.name?.takeIf { it.isNotBlank() } ?: phoneContactName
         ?: PhoneNumberFormatter.format(viewModel.phoneNumber)
     val displayPhone = PhoneNumberFormatter.format(viewModel.phoneNumber)
     // 🧾 견적서 "받는 분" — 이름 있으면 이름, 없으면 주소의 아파트+동·호수("수원 하늘채 더퍼스트2단지 224동 101호"), 그것도 없으면 번호. (2026-10-25 사장님)

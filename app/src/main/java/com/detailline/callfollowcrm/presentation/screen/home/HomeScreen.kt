@@ -1844,7 +1844,7 @@ fun HomeScreen(
             // 방 꾹 누름 → 맨 위에 고정 / 해제. (2026-08-24 사장님)
             pinTarget?.let { target ->
                 val phone = target.record.phoneNumber
-                val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
+                val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: target.contactName ?: PhoneNumberFormatter.format(phone)
                 val isPinnedNow = PhoneKey.of(phone) in pinnedSuffixes
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { pinTarget = null },
@@ -2898,7 +2898,7 @@ private fun HomeRow(
                 CallTypeIndicator(callType = item.record.callType)
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    item.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(item.record.phoneNumber),
+                    item.customer?.name?.takeIf { it.isNotBlank() } ?: item.contactName ?: PhoneNumberFormatter.format(item.record.phoneNumber),
                     style = MaterialTheme.typography.titleLarge,
                     color = TossTextPrimary,
                     modifier = Modifier.weight(1f)
@@ -3198,7 +3198,7 @@ private fun RecentRow(
     onOpenChat: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
-    val name = item.customer?.name?.takeIf { it.isNotBlank() }
+    val name = item.customer?.name?.takeIf { it.isNotBlank() } ?: item.contactName
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
     // A안 (2026-08-04 사장님): "최근 무슨 말 했는지"가 먼저 보이게 — 마지막 실제 문자를 주(위)로,
     //   ✨AI 요약은 보조(아래 회색)로. 문자 없이 통화만이면 요약을 주로.

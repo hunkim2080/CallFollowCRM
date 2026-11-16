@@ -87,7 +87,17 @@ class CallFollowCrmApplication : Application() {
     private fun registerForegroundTracking() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var started = 0
-            override fun onActivityStarted(activity: Activity) { started++; isForeground = true }
+            override fun onActivityStarted(activity: Activity) {
+                val cameToForeground = started <= 0
+                started++; isForeground = true
+                // 📇 앱이 앞으로 올 때(백→포) 폰 연락처 이름 새로고침 — 폰에 막 저장한 이름을 바로 비춰준다.
+                //   (2026-11-16 사장님: "폰에 저장된 이름이 여전히 번호로 뜬다") 캐시 비우고 빈 고객 이름만 채움(공용, §12).
+                //   권한 없으면 no-op·수동 이름은 안 건드림. 60초 폴링이 아니라 복귀 때만이라 낭비 없음.
+                if (cameToForeground) appScope.launch {
+                    com.detailline.callfollowcrm.util.ContactNameResolver.clearCache()
+                    runCatching { container.customerRepository.fillBlankNamesFromContacts(this@CallFollowCrmApplication) }
+                }
+            }
             override fun onActivityStopped(activity: Activity) { started--; if (started <= 0) { started = 0; isForeground = false } }
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityResumed(activity: Activity) {}

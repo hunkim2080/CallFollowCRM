@@ -969,6 +969,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.callRecordRepository.observeRecent(limit = lim)
     }
 
+    /** 📇 suffix → 폰 연락처 저장 이름. 일 고객 아니어도 저장한 이름을 목록에 비춰줌(§12 ContactNameResolver 한 곳). 권한 없으면 빈 지도. (2026-11-16 사장님) */
+    private val contactNameBySuffix: StateFlow<Map<String, String>> =
+        combine(smsContactsState, recentRecords) { contacts, records ->
+            if (!com.detailline.callfollowcrm.util.ContactNameResolver.hasPermission(container.appContext))
+                return@combine emptyMap<String, String>()
+            val out = HashMap<String, String>()
+            val seen = HashSet<String>()
+            fun add(phone: String?) {
+                if (phone.isNullOrBlank()) return
+                val suf = phoneSuffix(phone)
+                if (suf.isBlank() || !seen.add(suf)) return
+                com.detailline.callfollowcrm.util.ContactNameResolver.lookup(container.appContext, phone)
+                    ?.let { out[suf] = it }
+            }
+            contacts.forEach { add(it.address) }
+            records.forEach { add(it.phoneNumber) }
+            out
+        }.flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /**
      * 미확인/신규 plus 다른 타임라인 입력을 한 번에 묶기 위해 derived state 로 미리 묶음.
      * combine 의 인자 수 제한 회피 + 한 번 계산해 캐시.
@@ -1052,14 +1072,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))
 
     /** timelineFlags + 스팸 게이트 + 문자함(GENERAL) — combine 5개 한도 안에서 목록 필터를 함께 적용. (2026-06-17 / 2026-07-11) */
-    private val timelineFlagsAndSpam = combine(timelineFlags, spamGate, generalSuffixes) { flags, spam, general ->
-        Triple(flags, spam, general)
-    }
+    private data class TimelineBundle(
+        val flags: TimelineFlags,
+        val spam: SpamGate,
+        val general: Set<String>,
+        val contactNames: Map<String, String>,
+    )
+    private val timelineFlagsAndSpam = combine(
+        timelineFlags, spamGate, generalSuffixes, contactNameBySuffix
+    ) { flags, spam, general, names -> TimelineBundle(flags, spam, general, names) }
 
     val timeline = combine(
         recentRecords, customers, filter, smsContactsState, timelineFlagsAndSpam
-    ) { records, custs, f, smsContacts, flagsAndSpam ->
-        val (flags, spam, general) = flagsAndSpam
+    ) { records, custs, f, smsContacts, bundle ->
+        val (flags, spam, general, contactNames) = bundle
         val byPhone = custs.associateBy { it.phoneNumber }
         // ☎️ **번호는 숫자만 보고 맞춘다.** (2026-09-27 사장님 "as 명단 올렸지만 칩이 안생김")
         //   `byPhone` 은 글자 그대로 비교라 '010-4805-2630' 과 '01048052630' 을 딴 사람으로 봤다.
@@ -1083,6 +1109,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 HomeItem(
                     record = sorted.first(),
                     customer = customerOf(phone),
+                    contactName = contactNames[suffix],
                     callCount = list.size,
                     isUnconfirmed = suffix in flags.unconfirmedSuffixes,
                     isNewToday = suffix in flags.newTodaySuffixes,
@@ -1109,6 +1136,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 HomeItem(
                     record = fakeRecord,
                     customer = customerOf(sms.address),
+                    contactName = contactNames[sms.normalizedSuffix],
                     callCount = 0,
                     isUnconfirmed = sms.normalizedSuffix in flags.unconfirmedSuffixes,
                     isNewToday = sms.normalizedSuffix in flags.newTodaySuffixes,
@@ -1160,9 +1188,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     // ── 문자함(고객 아님) 목록 + 배지 (2026-07-11 사장님) ─────────────────────────
     /** 문자함 스레드 — GENERAL 분류된 SMS 연락처. 삼성 기본 메시지처럼 단순 목록. 스팸은 숨기지 않고 isSpam 으로 태그만(칩에서 본다). */
+    private val generalGateAndNames = combine(generalGate, contactNameBySuffix) { gate, names -> gate to names }
     val generalThreads: StateFlow<List<GeneralThread>> = combine(
-        smsContactsState, bucketMap, customers, readStates, generalGate
-    ) { contacts, buckets, custs, reads, gate ->
+        smsContactsState, bucketMap, customers, readStates, generalGateAndNames
+    ) { contacts, buckets, custs, reads, gateAndNames ->
+        val (gate, contactNames) = gateAndNames
         val spam = gate.spam
         val personal = gate.personal
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
@@ -1189,7 +1219,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 isSpam = isSpamNo,
                 phone = c.address,
                 suffix = c.normalizedSuffix,
-                displayName = custBySuffix[c.normalizedSuffix]?.name?.takeIf { it.isNotBlank() },
+                displayName = custBySuffix[c.normalizedSuffix]?.name?.takeIf { it.isNotBlank() }
+                    ?: contactNames[c.normalizedSuffix],
                 lastBody = c.lastBody,
                 lastDateMs = c.lastDateMs,
                 lastSent = c.lastSent,
@@ -1822,6 +1853,7 @@ data class GeneralThread(
 data class HomeItem(
     val record: CallRecordEntity,
     val customer: CustomerEntity?,
+    val contactName: String? = null,   // 📇 폰 연락처 저장 이름(고객 아님). customer 이름 비면 번호 대신. (2026-11-16)
     val callCount: Int = 1,
     val isUnconfirmed: Boolean = false,
     val isNewToday: Boolean = false,

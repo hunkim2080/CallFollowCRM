@@ -16421,3 +16421,10 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 ↑ 위 CDN 교체건 서버 라이브 배포 완료 (사장님 승인 후)
 - 변경: 라이브 /Users/hun/ringgo-server/main.py 그 한 줄만 교체(GOTCHAS §3). 백업 main.py.bak-cdn-20261115-194243. py_compile OK · kickstart · smoke 10/10. daumcdn 0 / kakaocdn 1
 - 폰 확인: 서버는 smoke 통과. 앱은 내부배포(upload-20261115-1941) 올림 — 폰 주소검색 눈확인 남음
+
+##  · android
+폰 연락처 저장 이름이 목록에 번호로 뜨던 것 수정 — 일 고객이 아니어도 폰 연락처 이름 비춰줌 (2026-11-16 사장님: 와이프 번호가 번호로 뜸, 010-4805-2630)
+- 원인: 문자함/상담함/통화 목록이 customer.name 만 보고 폰 연락처는 안 봄 → 고객 없으면 번호. 권한은 켜져 있었음(원인 B=비고객 경로)
+- 변경: HomeViewModel 에 contactNameBySuffix(IO, suffix→폰이름) 지도 추가 → 문자함(generalThreads)·타임라인(HomeItem.contactName) + 위젯미리보기·고정창·통화카드2·채팅헤더(produceState) 폴백. 앱 포그라운드 복귀 시 ContactNameResolver 캐시 비우고 fillBlankNamesFromContacts(고객 경로)도 재실행. 공용 ContactNameResolver.lookup 한 곳(§12)
+- 표시·소비 지점: 7곳 다 확인(문자함·타임라인·위젯미리보기·고정창·통화카드2·채팅헤더). customer.name 우선이라 기존 고객 이름 표시 안 바뀜(폴백만 추가)
+- 폰 확인: 못 봄 — 테스트폰 S9엔 "비고객+연락처저장+문자이력" 겹치는 번호가 없어 재현 불가. 와이프 번호는 폰 연락처 조회로 이름 정상 반환 확인. 내부배포 올림 → 사장님 폰에서 눈확인 필요
