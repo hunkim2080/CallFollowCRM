@@ -4925,45 +4925,26 @@ private fun EstimateBuilderDialog(
                     )
                 }
             }
-            // 항목 리스트 (프로토 est-row + 평당 est-area)
-            // 전체 시트가 한 번에 스크롤되도록 항목은 일반 Column(내부 LazyColumn 제거).
-            if (orderMode) {
-                EstOrderList(items = visibleItems, onDone = { onReorderItems(it) })
-            } else
-            Column(Modifier.fillMaxWidth()) {
-                visibleItems.forEachIndexed { idx, item ->
-                    if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                    val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
-                    EstimateItemRow(
-                        title = item.title,
-                        price = item.price,
-                        unit = item.unit,
-                        quantity = selectedQty[item.id] ?: 0,
-                        onToggle = {
-                            val cur = selectedQty[item.id] ?: 0
-                            if (cur > 0) selectedQty.remove(item.id)
-                            else selectedQty[item.id] = if (isPyeong) 24 else 1
-                        },
-                        onIncrement = { selectedQty[item.id] = (selectedQty[item.id] ?: 0) + 1 },
-                        onDecrement = {
-                            val cur = selectedQty[item.id] ?: 0
-                            if (cur > 1) selectedQty[item.id] = cur - 1
-                        },
-                        onEditPrice = { manwon ->
-                            val won = manwon * 10_000L
-                            draft.priceOverrides[item.id] = won   // 이번 세션 즉시 반영(레이스 없음)
-                            onUpdatePrice(item.id, won)           // DB 저장 — 다음에도 기억
-                        },
-                        onEditTitle = { newTitle ->
-                            val t = newTitle.trim()
-                            if (t.isNotBlank()) {
-                                draft.titleOverrides[item.id] = t   // 이번 세션 즉시 반영
-                                onUpdateTitle(item.id, t)           // DB 저장 — 다음에도 기억
-                            }
-                        }
-                    )
+            // 🔍 시공 항목 — 검색(초성·글자) + 고른 항목 맨 위 고정. 줄 틀·검색·순서바꾸기 전부 [EstItemSection].
+            //   (ChatScreen 비대화 방지로 조각 분리 — §12-F. 프로토 estimate-item-search '검색(맨 위 고정)'. 2026-11-17 사장님)
+            EstItemSection(
+                items = visibleItems,
+                selectedQty = selectedQty,
+                orderMode = orderMode,
+                onReorder = { onReorderItems(it) },
+                onEditPrice = { item, manwon ->
+                    val won = manwon * 10_000L
+                    draft.priceOverrides[item.id] = won   // 이번 세션 즉시 반영(레이스 없음)
+                    onUpdatePrice(item.id, won)           // DB 저장 — 다음에도 기억
+                },
+                onEditTitle = { item, newTitle ->
+                    val t = newTitle.trim()
+                    if (t.isNotBlank()) {
+                        draft.titleOverrides[item.id] = t   // 이번 세션 즉시 반영
+                        onUpdateTitle(item.id, t)           // DB 저장 — 다음에도 기억
+                    }
                 }
-            }
+            )
             // ➕ **다 적은 줄은 가격표로 올라간다.** (2026-09-27 사장님 "저장안되고 지워짐")
             //   올리고 나서 목록에 들어오는 걸 보고서야 체크하고 임시 줄을 뺀다 —
             //   먼저 빼면 방 안에서 사라졌다가 잠시 뒤 나타나 깜빡인다.
@@ -5293,7 +5274,7 @@ private fun EstSegTab(label: String, on: Boolean, modifier: Modifier = Modifier,
 
 
 @Composable
-private fun EstimateItemRow(
+internal fun EstimateItemRow(
     title: String,
     price: Long,
     unit: String,

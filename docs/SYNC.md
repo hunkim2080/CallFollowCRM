@@ -16428,3 +16428,10 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 변경: HomeViewModel 에 contactNameBySuffix(IO, suffix→폰이름) 지도 추가 → 문자함(generalThreads)·타임라인(HomeItem.contactName) + 위젯미리보기·고정창·통화카드2·채팅헤더(produceState) 폴백. 앱 포그라운드 복귀 시 ContactNameResolver 캐시 비우고 fillBlankNamesFromContacts(고객 경로)도 재실행. 공용 ContactNameResolver.lookup 한 곳(§12)
 - 표시·소비 지점: 7곳 다 확인(문자함·타임라인·위젯미리보기·고정창·통화카드2·채팅헤더). customer.name 우선이라 기존 고객 이름 표시 안 바뀜(폴백만 추가)
 - 폰 확인: 못 봄 — 테스트폰 S9엔 "비고객+연락처저장+문자이력" 겹치는 번호가 없어 재현 불가. 와이프 번호는 폰 연락처 조회로 이름 정상 반환 확인. 내부배포 올림 → 사장님 폰에서 눈확인 필요
+
+## 2026-11-17 · android
+견적 만들기에 **시공 항목 검색(초성·글자) + 고른 항목 맨 위 고정** 추가 — 가격표가 길어 항목을 일일이 찾기 힘들어 '만나서 정하기'만 쓰게 되던 불편 해결 (2026-11-17 사장님, 배민식 반려→맨위고정안 채택)
+- 변경: 신규 공용 `domain/search/HangulSearch`(초성·글자 맞춤, 단위시험 9개) · 신규 조각 `presentation/screen/chat/ChatEstimateItemSection.kt`(`EstItemSection` — 검색창+고정+결과, ChatScreen 비대화 방지로 분리 §12-F) · ChatScreen.kt 견적시트 항목목록을 EstItemSection 호출로 교체(5702→5609줄). `EstimateItemRow` private→internal. 줄 틀은 EstimateItemRow 한 곳(전체·고정·결과 공유). UI만, API·DB·서버 변경 없음
+- 표시·소비 지점: 견적 만들기 시트 1곳(ChatScreen). 빈 검색=전체 목록 그대로(기존 동작 보존)·순서바꾸기 중엔 검색창 숨김. 프로토 `artifact/A2nwGJs5YsnPqB1VVGPxWx` → docs/PROTOTYPES.md 등재
+- 폰 확인: S9에 디버그 설치 → 견적 만들기 열어 **검색창 렌더·위치·플레이스홀더 눈확인 OK, 크래시 0**. 단 S9엔 가격표 항목이 없어 **필터링·고정 실동작은 못 봄** → 사장님 업무폰(항목 많은 화면)에서 「ㅅ」→실리콘 확인 필요. 단위시험 9개 통과·release 7가드 통과(style 2441 안 늘음)
+- 다음 액션: 내부배포 올림 — 사장님 업무폰에서 실제 검색·고정 눈확인
