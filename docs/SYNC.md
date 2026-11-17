@@ -16443,3 +16443,8 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 표시·소비 지점: 2곳 바꿈(가입기기 _ua_device / 쓰는폰 profile.devices) · 1곳 둬도 됨(_web_device_from_ua=브라우저·OS 표시라 모델코드 안 씀)
 - 검증: py_compile OK · prefix/대소문자/통신사변종/모르는코드 폴백/빈값 로직 테스트 ALL_PASS
 - 다음 액션: **서버 라이브(si0in.kr/admin) 배포는 사장님 승인 대기** — 승인 시 GOTCHAS §3 (scp→패치→백업→교체→smoke)로 그 블록만 교체. 라이브는 git 아님(통짜 금물)
+
+##  · android (+ server)
+↑ 위 기기 이름 통일건 서버 라이브(si0in.kr/admin) 배포 완료 (사장님 "ㄱㄱ" 승인)
+- 변경: 라이브 /Users/hun/ringgo-server/main.py 그 3곳만 교체(GOTCHAS §3, 라이브==repo 이미 일치). 백업 main.py.bak-devicename-20261117-1857. 37662→37709줄(+47). 원격 py_compile OK · kickstart · smoke 10/10. LF 보존(CRLF 사고 방지)
+- 폰 확인: 서버 smoke 통과. 관제실 '쓰는 폰'·'가입 기기'가 이제 갤럭시 이름으로 표시 — 사장님 관제실 새로고침해 눈확인만 남음
