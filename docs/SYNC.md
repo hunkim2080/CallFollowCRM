@@ -16435,3 +16435,11 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 표시·소비 지점: 견적 만들기 시트 1곳(ChatScreen). 빈 검색=전체 목록 그대로(기존 동작 보존)·순서바꾸기 중엔 검색창 숨김. 프로토 `artifact/A2nwGJs5YsnPqB1VVGPxWx` → docs/PROTOTYPES.md 등재
 - 폰 확인: S9에 디버그 설치 → 견적 만들기 열어 **검색창 렌더·위치·플레이스홀더 눈확인 OK, 크래시 0**. 단 S9엔 가격표 항목이 없어 **필터링·고정 실동작은 못 봄** → 사장님 업무폰(항목 많은 화면)에서 「ㅅ」→실리콘 확인 필요. 단위시험 9개 통과·release 7가드 통과(style 2441 안 늘음)
 - 다음 액션: 내부배포 올림 — 사장님 업무폰에서 실제 검색·고정 눈확인
+
+## 2026-11-17 · android (+ server)
+관제실 '쓰는 폰'이 모델코드(SM-S911N)로 떠서 헷갈리던 것 → **사람이 읽는 이름(갤럭시 S23)** 으로 통일 (2026-11-17 사장님)
+- 원인: ①번역표 `_SAMSUNG_MODELS` 는 있었으나 **전체코드 정확매칭**이라 통신사 변종(SM-S911B/0)을 못 잡음 ②'쓰는 폰' 줄(profile["devices"].model)은 그 표를 **안 거치고 코드 날것**으로 표시. '가입 기기'(_ua_device)만 번역됨 → 두 표시가 어긋남
+- 변경: 새 표 안 만들고 기존 `_SAMSUNG_MODELS` 를 **prefix(앞7자) 키로 전환+확장(89개)**, 공용 `_model_name`(이름 or "")·`_friendly_device`(이름 or 원래코드) 추가. 두 곳이 같은 함수를 거치게 합침 — `_ua_device`(가입기기)=`_model_name`, `profile["devices"].model`(쓰는 폰)=`_friendly_device`. 표시 전용(원본 코드는 app_devices.model 그대로 저장). server/main.py만, API 스키마·DB 변경 없음
+- 표시·소비 지점: 2곳 바꿈(가입기기 _ua_device / 쓰는폰 profile.devices) · 1곳 둬도 됨(_web_device_from_ua=브라우저·OS 표시라 모델코드 안 씀)
+- 검증: py_compile OK · prefix/대소문자/통신사변종/모르는코드 폴백/빈값 로직 테스트 ALL_PASS
+- 다음 액션: **서버 라이브(si0in.kr/admin) 배포는 사장님 승인 대기** — 승인 시 GOTCHAS §3 (scp→패치→백업→교체→smoke)로 그 블록만 교체. 라이브는 git 아님(통짜 금물)

@@ -11980,7 +11980,7 @@ async def admin_user_detail_data(
             ).fetchone()
             profile["last_open_ms"] = _lo[0] if _lo else None
             profile["devices"] = [
-                {"device_id": d[0], "model": d[1] or "", "install_source": d[2] or "",
+                {"device_id": d[0], "model": _friendly_device(d[1]), "install_source": d[2] or "",
                  "app_version": d[3] or "", "last_ms": d[4], "opens": d[5] or 0}
                 for d in con.execute(
                     """SELECT device_id, model, install_source, app_version, last_ms, opens
@@ -22948,7 +22948,7 @@ def _ua_device(ua: Optional[str]) -> str:
     elif "iPhone" in u:
         model = "iPhone"
     parts = []
-    nice = _SAMSUNG_MODELS.get(model)
+    nice = _model_name(model)
     if nice:
         parts.append(f"{nice} ({model})")
     elif model:
@@ -22962,16 +22962,67 @@ def _ua_device(ua: Optional[str]) -> str:
     return u[:60]
 
 
-# 사장님이 아는 이름으로. 없으면 모델명 그대로 보여준다(틀린 이름보다 낫다).
+# 사장님이 아는 이름으로. 없으면 모델코드 그대로 보여준다(틀린 이름보다 낫다).
+#   폰은 자기 별명을 안 알려주고 모델코드(Build.MODEL)만 준다 → 여기서 번역한다.
+#   끝의 통신사/지역 글자(N·U·0·B·S·W…)는 떼고 **앞자리 7글자 prefix** 로 맞춘다
+#   → 같은 폰의 다른 통신사판(SM-S911N / SM-S911B / SM-S9110)도 한 줄로 다 잡힌다.
+#   새 기종이 보이면 여기 한 줄만 추가. (표시 전용 — 원본 코드는 app_devices.model 에 그대로 저장)
 _SAMSUNG_MODELS = {
-    "SM-S911N": "갤럭시 S23", "SM-S916N": "갤럭시 S23+", "SM-S918N": "갤럭시 S23 울트라",
-    "SM-S921N": "갤럭시 S24", "SM-S926N": "갤럭시 S24+", "SM-S928N": "갤럭시 S24 울트라",
-    "SM-S931N": "갤럭시 S25", "SM-S938N": "갤럭시 S25 울트라",
-    "SM-G965N": "갤럭시 S9+", "SM-G991N": "갤럭시 S21", "SM-G998N": "갤럭시 S21 울트라",
-    "SM-A325N": "갤럭시 A32", "SM-A536N": "갤럭시 A53", "SM-A546S": "갤럭시 A54",
-    "SM-F731N": "갤럭시 Z 플립5", "SM-F946N": "갤럭시 Z 폴드5",
-    "SM-F741N": "갤럭시 Z 플립6", "SM-F956N": "갤럭시 Z 폴드6",
+    # 갤럭시 S
+    "SM-G960": "갤럭시 S9", "SM-G965": "갤럭시 S9+",
+    "SM-G970": "갤럭시 S10e", "SM-G973": "갤럭시 S10", "SM-G975": "갤럭시 S10+", "SM-G977": "갤럭시 S10 5G",
+    "SM-G980": "갤럭시 S20", "SM-G981": "갤럭시 S20", "SM-G985": "갤럭시 S20+", "SM-G986": "갤럭시 S20+",
+    "SM-G988": "갤럭시 S20 울트라", "SM-G780": "갤럭시 S20 FE", "SM-G781": "갤럭시 S20 FE",
+    "SM-G991": "갤럭시 S21", "SM-G996": "갤럭시 S21+", "SM-G998": "갤럭시 S21 울트라", "SM-G990": "갤럭시 S21 FE",
+    "SM-S901": "갤럭시 S22", "SM-S906": "갤럭시 S22+", "SM-S908": "갤럭시 S22 울트라",
+    "SM-S711": "갤럭시 S23 FE", "SM-S911": "갤럭시 S23", "SM-S916": "갤럭시 S23+", "SM-S918": "갤럭시 S23 울트라",
+    "SM-S721": "갤럭시 S24 FE", "SM-S921": "갤럭시 S24", "SM-S926": "갤럭시 S24+", "SM-S928": "갤럭시 S24 울트라",
+    "SM-S731": "갤럭시 S25 FE", "SM-S931": "갤럭시 S25", "SM-S936": "갤럭시 S25+",
+    "SM-S937": "갤럭시 S25 엣지", "SM-S938": "갤럭시 S25 울트라",
+    # 갤럭시 노트
+    "SM-N960": "갤럭시 노트9", "SM-N970": "갤럭시 노트10", "SM-N971": "갤럭시 노트10 5G",
+    "SM-N975": "갤럭시 노트10+", "SM-N976": "갤럭시 노트10+ 5G",
+    "SM-N980": "갤럭시 노트20", "SM-N981": "갤럭시 노트20 5G",
+    "SM-N985": "갤럭시 노트20 울트라", "SM-N986": "갤럭시 노트20 울트라",
+    # 갤럭시 Z 폴드 / 플립
+    "SM-F900": "갤럭시 폴드", "SM-F907": "갤럭시 폴드 5G",
+    "SM-F916": "갤럭시 Z 폴드2", "SM-F926": "갤럭시 Z 폴드3", "SM-F936": "갤럭시 Z 폴드4",
+    "SM-F946": "갤럭시 Z 폴드5", "SM-F956": "갤럭시 Z 폴드6", "SM-F966": "갤럭시 Z 폴드7",
+    "SM-F700": "갤럭시 Z 플립", "SM-F707": "갤럭시 Z 플립 5G", "SM-F711": "갤럭시 Z 플립3",
+    "SM-F721": "갤럭시 Z 플립4", "SM-F731": "갤럭시 Z 플립5", "SM-F741": "갤럭시 Z 플립6", "SM-F766": "갤럭시 Z 플립7",
+    # 갤럭시 A (보급형 — 현장에서 많이 씀)
+    "SM-A505": "갤럭시 A50", "SM-A515": "갤럭시 A51", "SM-A516": "갤럭시 A51 5G",
+    "SM-A525": "갤럭시 A52", "SM-A526": "갤럭시 A52 5G", "SM-A528": "갤럭시 A52s",
+    "SM-A536": "갤럭시 A53", "SM-A546": "갤럭시 A54", "SM-A556": "갤럭시 A55", "SM-A566": "갤럭시 A56",
+    "SM-A315": "갤럭시 A31", "SM-A325": "갤럭시 A32", "SM-A336": "갤럭시 A33",
+    "SM-A346": "갤럭시 A34", "SM-A356": "갤럭시 A35", "SM-A366": "갤럭시 A36",
+    "SM-A135": "갤럭시 A13", "SM-A137": "갤럭시 A13", "SM-A145": "갤럭시 A14",
+    "SM-A146": "갤럭시 A14 5G", "SM-A156": "갤럭시 A15", "SM-A166": "갤럭시 A16",
+    "SM-A235": "갤럭시 A23", "SM-A245": "갤럭시 A24", "SM-A256": "갤럭시 A25", "SM-A266": "갤럭시 A26",
+    "SM-A716": "갤럭시 A71", "SM-A736": "갤럭시 A73",
+    # 갤럭시 Xcover (방수·방진 현장용)
+    "SM-G525": "갤럭시 Xcover5", "SM-G715": "갤럭시 Xcover 프로",
+    "SM-G556": "갤럭시 Xcover6 프로", "SM-G766": "갤럭시 Xcover7",
 }
+# prefix 매칭용 — 길이 내림차순(더 구체적인 것 먼저). 지금은 다 7글자지만 안전하게.
+_SAMSUNG_MODEL_PREFIXES = sorted(_SAMSUNG_MODELS.keys(), key=len, reverse=True)
+
+
+def _model_name(model: Optional[str]) -> str:
+    """모델코드 → 사장님이 아는 이름. 끝의 통신사 글자는 떼고 앞자리로 맞춘다.
+    모르면 빈 문자열(부르는 쪽이 원래 코드로 폴백한다)."""
+    raw = (model or "").strip().upper()
+    if not raw:
+        return ""
+    for prefix in _SAMSUNG_MODEL_PREFIXES:
+        if raw.startswith(prefix):
+            return _SAMSUNG_MODELS[prefix]
+    return ""
+
+
+def _friendly_device(model: Optional[str]) -> str:
+    """기기 표시용 — 이름 알면 이름, 모르면 원래 코드 그대로(빈칸은 빈칸)."""
+    return _model_name(model) or (model or "").strip()
 
 
 def _ensure_and_touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = None) -> None:
