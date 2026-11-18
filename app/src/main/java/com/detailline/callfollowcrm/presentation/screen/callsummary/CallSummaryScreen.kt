@@ -307,7 +307,7 @@ fun CallSummaryScreen(
                             textColor = TossTextSecondary,
                             timeColor = TossTextTertiary,
                             ownerDot = AppTheme.colors.primary,
-                            customerDot = TossBlue
+                            customerDot = TossTextSecondary   // 손님=회색·나=파랑으로 구분(전엔 둘 다 파랑이라 똑같았음, 2026-11-18)
                         )
                         // 🔒 점 범례와 "AI 짐작" 안내는 **CallSummaryBody 안**에 있다.
                         //   여기서 또 적으면 두 벌이 되고, 한쪽만 고쳐진다. (2026-09-25 점검)

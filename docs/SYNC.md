@@ -16468,3 +16468,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 앱 검증: 컴파일 0에러·testDebugUnitTest 통과·assembleRelease 7가드 통과(dup 18·size·style 2441·save 0·rules·compose·brand)
 - 폰 확인: **아직** — 내부배포 후 사장님이 진단창에서 사진 여러 장 첨부 눈확인 필요
 - 다음 액션: 앱 내부배포(upload-*) → 사장님 폰 업데이트 후 더보기>문제신고>사진 2장+ 첨부 확인
+
+## 2026-11-18 · android
+통화 요약 개편 **1단계-1차**(가독성·화자·버그) — 디자인 확정([[project_call_summary_redesign_adot_style]], 프로토 SCpXieKcjBfxvRB5db9RP9, A안)
+- `CallSummaryBody.kt`: 글씨↑(14→15·줄높이 20→22·rowGap 7→9), 화자를 **점 대신 "손님/나" 글자**로(색은 보조), 범례 점 제거하고 "AI 짐작" 안내만. 미쓰는 import(size·CircleShape) 정리
+- `CallSummaryScreen.kt`: 🐞 **같은파랑 버그 수정** — customerDot TossBlue→TossTextSecondary(손님=회색·나=파랑 구분). 전엔 ownerDot=primary·customerDot=TossBlue 둘 다 #3182F6
+- `ChatScreen.kt` 통화카드: CallSummaryBody 글씨 12→14·줄 18→21·시각 11→12
+- 코덱스 디자인 리뷰 반영(글씨·화자 글자표시). 공용 `CallSummaryBody` 한 곳이라 요약 두 화면 같이 개선됨
+- 검증: 컴파일 0에러·testDebugUnitTest 통과·assembleRelease 7가드 통과(style 2441 그대로·dup 18·size)
+- 폰 확인: 아직 — 내부배포 후 통화 요약 또렷해졌는지·손님/나 구분 눈확인
+- 다음: 1단계-2차(통화전문=기록형/문자=좌우 말풍선 ChatScreen 손보기) → 2단계 '할 일' 기능 → 3단계 서버 AI 추출

@@ -2748,9 +2748,9 @@ private fun CallSegment(
                         timeColor = Color(0xFF7B9A9A),
                         ownerDot = teal,
                         customerDot = TossBlue,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        timeFontSize = 11.sp,
+                        fontSize = 14.sp,
+                        lineHeight = 21.sp,
+                        timeFontSize = 12.sp,
                         timeWidth = 64.dp,
                         // 👆 알약이 커진 만큼 줄 사이도 띄운다(오탭 방지).
                         rowGap = 8.dp

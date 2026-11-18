@@ -8,10 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -55,11 +53,11 @@ fun CallSummaryBody(
     ownerDot: Color,
     customerDot: Color,
     modifier: Modifier = Modifier,
-    fontSize: TextUnit = 14.sp,
-    lineHeight: TextUnit = 20.sp,
-    timeFontSize: TextUnit = 11.5.sp,
+    fontSize: TextUnit = 15.sp,
+    lineHeight: TextUnit = 22.sp,
+    timeFontSize: TextUnit = 12.sp,
     timeWidth: Dp = 66.dp,
-    rowGap: Dp = 7.dp,
+    rowGap: Dp = 9.dp,
     skipText: String? = null,
     onSeek: ((Long) -> Unit)? = null,
     /** 누를 수 있는 시각 알약의 바탕색. 부르는 쪽 카드 색에 맞춰 넘긴다. */
@@ -104,9 +102,16 @@ fun CallSummaryBody(
                         }
                     }
                     if (row.speaker.isNotBlank()) {
-                        Box(
-                            Modifier.padding(top = 6.dp, end = 7.dp).size(6.dp).clip(CircleShape)
-                                .background(if (row.speaker == "손님") customerDot else ownerDot)
+                        // 색 점만으론 누가 말했는지 헷갈린다(요약화면은 양쪽 같은 파랑이기도 했다) →
+                        //   **글자로** 보여준다. 색은 보조. (2026-11-18 코덱스 리뷰)
+                        val isCustomer = row.speaker == "손님"
+                        Text(
+                            row.speaker,
+                            fontSize = timeFontSize,
+                            color = if (isCustomer) customerDot else ownerDot,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(top = 1.dp, end = 8.dp)
                         )
                     }
                 }
@@ -122,19 +127,10 @@ fun CallSummaryBody(
         //   그리는 곳이 하나니 여기 두면 **두 화면이 같이 갖는다.** (2026-09-25 점검)
         //   후속 문자가 고객에게 나가니, 미심쩍으면 전문을 보시라고 적어둔다.
         if (rows.any { it.speaker.isNotBlank() }) {
+            // 화자를 줄마다 글자로 보여주니, 범례 점은 뺀다. "AI 짐작" 안내만 남긴다. (2026-11-18)
             Spacer(Modifier.height(rowGap + 2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(6.dp).clip(CircleShape).background(customerDot))
-                Spacer(Modifier.width(4.dp))
-                Text("손님", fontSize = timeFontSize, color = timeColor, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(9.dp))
-                Box(Modifier.size(6.dp).clip(CircleShape).background(ownerDot))
-                Spacer(Modifier.width(4.dp))
-                Text("나", fontSize = timeFontSize, color = timeColor, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(8.dp))
-                Text("· AI 짐작이에요 (통화 전문에서 확인)",
-                    fontSize = timeFontSize, color = timeColor, maxLines = 1)
-            }
+            Text("· 손님·나 는 AI 짐작이에요 (통화 전문에서 확인)",
+                fontSize = timeFontSize, color = timeColor, maxLines = 1)
         }
     }
 }
