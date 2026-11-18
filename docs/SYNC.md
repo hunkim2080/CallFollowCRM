@@ -16478,3 +16478,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: 컴파일 0에러·testDebugUnitTest 통과·assembleRelease 7가드 통과(style 2441 그대로·dup 18·size)
 - 폰 확인: 아직 — 내부배포 후 통화 요약 또렷해졌는지·손님/나 구분 눈확인
 - 다음: 1단계-2차(통화전문=기록형/문자=좌우 말풍선 ChatScreen 손보기) → 2단계 '할 일' 기능 → 3단계 서버 AI 추출
+
+## 2026-11-18 · server
+통화 요약 AI에 **꼭 챙겨야 할 일(todos) + 분류(category)** 추가 — 프로토 구현 "서버부터"([[project_call_summary_redesign_adot_style]])
+- `_call_gemini_json_for_summary` responseSchema + `CALL_SUMMARY_SYSTEM` 프롬프트 + `_coerce_call_summary` 에 `todos`(사장님이 할 일 0~4·각≤40자)·`category`(견적 문의/시공 상담/일정/수금·입금/A/S/개인·안부/기타) 추가. 응답 `{**coerced,...}` 로 그대로 앱까지 감(캐시 포함)
+- **설명형 제목은 안 건드림** — 이미 `one_line`(18~28자 결과문장)이 있어 앱이 그걸 헤더로 쓰면 됨. title(짧은 제목)도 유지. 구버전 앱 무해(새 키 무시)
+- 라이브 배포: GOTCHAS §3. live(37765) 받아 미커밋 diff patch --fuzz=3(+2492 보정)·거절0·원격 py_compile OK(3.9)·백업 main.py.bak-callsummary-20261118-2250·kickstart·**smoke 10/10**. LF 보존
+- 폰 확인 불필요(서버). 새 통화 요약부터 todos/category 내려옴 — **앱이 아직 안 그림**(다음 증분)
+- 다음 액션: 앱 — CallSummaryEntity 에 todosJson·category 칸 추가(nullable 마이그레이션) + 서버응답 파싱 저장 + 카드에 분류칩·설명형제목(one_line)·요점 A안·꼭 챙겨야 할 일 렌더

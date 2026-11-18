@@ -15775,6 +15775,11 @@ async def _call_gemini_json_for_summary(
                         "type": "ARRAY",
                         "items": {"type": "STRING"},
                     },
+                    "category": {"type": "STRING"},  # 분류 1개 (2026-11-18)
+                    "todos": {  # 꼭 챙겨야 할 일(사장님이 처리할 것 0~4) (2026-11-18)
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"},
+                    },
                 },
                 "required": ["title", "one_line", "bullets"],
             },
@@ -16347,6 +16352,8 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
 - 통화 방향(direction): missed 면 one_line 에 "부재중" 명시.
 - 원문에 명시된 가격·일정·약속만 답에 박아라. 추측·창작 일절 금지.
 - tags: 통화 카드용 짧은 키워드 최대 3개(각 2~7자). 부위·문제·일정 위주 (예: ["화장실","줄눈","다음주"]). 통화에 나온 것만. '#' 없이 단어만.
+- category: 이 통화의 **분류 한 개**. 아래 중 하나만 그대로 골라라: "견적 문의" / "시공 상담" / "일정" / "수금·입금" / "A/S" / "개인·안부" / "기타".
+- todos: 통화 뒤 **사장님이 처리해야 할 일** 0~4개. 짧은 동사형(예: "욕실 사진 받기", "견적 금액 문자 보내기", "다음 주 오전 일정 잡기"). **고객이 아니라 사장님이 할 일**만. 통화에 근거 있을 때만 — 없으면 빈 배열 []. 창작 금지.
 
 ────── 상호 (비어 있으면 문자에 이름을 안 씁니다) ──────
 __BIZ_NAME__
@@ -16363,7 +16370,7 @@ __OWNER_TONE_SAMPLES__
 
 답 형식 — 반드시:
 - 응답 첫 글자는 '{' 로. 다른 텍스트 X.
-- {"title":"...","one_line":"...","bullets":["0:00-0:35|손님|...","0:35-1:20|나|..."],"suggested_followup_sms":"...","tags":["화장실","줄눈","다음주"]}
+- {"title":"...","one_line":"...","bullets":["0:00-0:35|손님|...","0:35-1:20|나|..."],"category":"견적 문의","todos":["욕실 사진 받기","견적 문자 보내기"],"suggested_followup_sms":"...","tags":["화장실","줄눈","다음주"]}
 """
 
 
@@ -16484,6 +16491,23 @@ def _coerce_call_summary(parsed: dict, duration_sec: int = 0) -> dict:
             if len(tags) >= 3:
                 break
 
+    # 꼭 챙겨야 할 일(사장님이 처리) 0~4개, 각 ≤40자. (2026-11-18)
+    todos: list[str] = []
+    raw_todos = parsed.get("todos")
+    if isinstance(raw_todos, list):
+        for t in raw_todos:
+            s = str(t).strip().lstrip("-•").strip()
+            if not s:
+                continue
+            if len(s) > 40:
+                s = s[:40].rstrip() + "…"
+            todos.append(s)
+            if len(todos) >= 4:
+                break
+    # 분류 1개(짧게). 비거나 너무 길면 빈 문자열(앱이 태그로 폴백). (2026-11-18)
+    _cat = str(parsed.get("category") or "").strip().lstrip("#").strip()
+    category = _cat if (_cat and len(_cat) <= 12) else ""
+
     return {
         "title": title,  # 추가61 — 6~12자 짧은 제목
         "one_line": one_line,
@@ -16491,6 +16515,8 @@ def _coerce_call_summary(parsed: dict, duration_sec: int = 0) -> dict:
         "bullet_rows": bullet_rows,  # 새 앱용 — [{time,speaker,text}] (2026-09-24)
         "suggested_followup_sms": fup,
         "tags": tags,   # 통화 카드 해시태그 (프로토)
+        "category": category,  # 분류 1개 (2026-11-18)
+        "todos": todos,        # 꼭 챙겨야 할 일 (2026-11-18)
     }
 
 
