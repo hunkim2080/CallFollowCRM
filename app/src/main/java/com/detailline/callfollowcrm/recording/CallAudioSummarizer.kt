@@ -121,6 +121,8 @@ object CallAudioSummarizer {
                 transcriptText = res.transcript ?: existing?.transcriptText,
                 transcriptSegmentsJson = res.transcriptSegmentsJson ?: existing?.transcriptSegmentsJson,
                 tagsJson = res.tags.takeIf { it.isNotEmpty() }?.let { org.json.JSONArray(it).toString() } ?: existing?.tagsJson,
+                category = res.category ?: existing?.category,
+                todosJson = res.todos.takeIf { it.isNotEmpty() }?.let { org.json.JSONArray(it).toString() } ?: existing?.todosJson,
                 rawText = res.transcript ?: existing?.rawText,
                 sourceType = SummarySourceType.AI_SERVER.name,
                 updatedAt = now

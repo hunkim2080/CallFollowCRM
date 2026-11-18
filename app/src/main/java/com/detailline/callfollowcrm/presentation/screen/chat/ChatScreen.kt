@@ -2491,9 +2491,19 @@ private fun CallSegment(
                 }
                 // 태그(부위·문제·일정) — 제목 바로 아래. 아주 연한 딱지(흰 면 + 테두리 한 줄).
                 //   사장님이 세 단계(진한/연한/아주 연한) 중 **아주 연한** 것을 고르심. (2026-09-20)
-                if (tags.isNotEmpty()) {
+                // 분류 칩(견적 문의 등, 서버 category) + 해시태그. 분류는 연한 파란 칩으로 살짝 강조. (2026-11-18)
+                val callCategory = summary?.category?.takeIf { it.isNotBlank() }
+                if (callCategory != null || tags.isNotEmpty()) {
                     Spacer(Modifier.height(5.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        if (callCategory != null) {
+                            Text(
+                                callCategory, style = AppType.micro, color = AppTheme.colors.primary, maxLines = 1,
+                                modifier = Modifier.clip(AppShape.sm)
+                                    .background(AppTheme.colors.primaryBg)
+                                    .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                            )
+                        }
                         tags.forEach { t ->
                             Text(
                                 t, color = AppTheme.colors.textSub, fontSize = 10.5.sp,
@@ -2754,6 +2764,11 @@ private fun CallSegment(
                         timeWidth = 64.dp,
                         // 👆 알약이 커진 만큼 줄 사이도 띄운다(오탭 방지).
                         rowGap = 8.dp
+                    )
+                    // 📋 꼭 챙겨야 할 일(서버 todos) — 요약 본문 아래. 비면 아무것도 안 그림. (2026-11-18)
+                    com.detailline.callfollowcrm.presentation.component.CallTodoChecklist(
+                        summary?.todosJson,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
                 }
             }

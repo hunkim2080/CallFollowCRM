@@ -8,9 +8,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.style.TextDecoration
+import com.detailline.callfollowcrm.presentation.theme.AppShape
+import com.detailline.callfollowcrm.presentation.theme.AppSpace
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
+import com.detailline.callfollowcrm.presentation.theme.AppType
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -138,3 +147,52 @@ fun CallSummaryBody(
 /** 이 요약에 시각·화자가 들어 있나 — "손님/나 는 AI 짐작" 안내를 띄울지 판단할 때. */
 fun hasSpeakerGuess(rawLines: List<String>): Boolean =
     rawLines.any { it.count { c -> c == '|' } >= 2 }
+
+/**
+ * 📋 **꼭 챙겨야 할 일** — 통화에서 뽑은 할 일(서버 todos) 체크리스트. (2026-11-18 통화요약 개편 프로토)
+ *
+ * 🔒 통화 할 일을 그리는 곳도 여기 하나다(요약 그리기와 한집 — §12).
+ * ⚠️ 체크는 **지금은 보기용**(이 화면 안에서만 줄 그어짐). 고객 카드·홈 '할 일'로의 **연동은 '할 일'
+ *   기능을 붙일 때** 한다(어디 붙일지 추후, 사장님). todos 가 비면 **아무것도 안 그린다.**
+ *
+ * @param todosJson 서버가 준 `["욕실 사진 받기", …]` JSON 배열 문자열(엔티티 `todosJson`). null/빈 = 안 그림.
+ */
+@Composable
+fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier) {
+    val todos = remember(todosJson) {
+        if (todosJson.isNullOrBlank()) emptyList()
+        else runCatching {
+            val arr = org.json.JSONArray(todosJson)
+            (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotBlank() } }
+        }.getOrDefault(emptyList())
+    }
+    if (todos.isEmpty()) return
+    val c = AppTheme.colors
+    val checked = remember(todosJson) { mutableStateListOf(*Array(todos.size) { false }) }
+    Column(modifier) {
+        Text("꼭 챙겨야 할 일", style = AppType.label, color = c.textSub)
+        todos.forEachIndexed { i, t ->
+            Spacer(Modifier.height(AppSpace.s8))
+            val on = checked.getOrElse(i) { false }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { if (i < checked.size) checked[i] = !on }
+            ) {
+                Box(
+                    Modifier.size(20.dp).clip(AppShape.sm)
+                        .background(if (on) c.primary else Color.Transparent)
+                        .border(1.5.dp, if (on) c.primary else c.textSub, AppShape.sm),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (on) Text("✓", style = AppType.caption, color = c.surface)
+                }
+                Spacer(Modifier.width(AppSpace.s8))
+                Text(
+                    t, style = AppType.headline, color = c.text,
+                    textDecoration = if (on) TextDecoration.LineThrough else null,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}

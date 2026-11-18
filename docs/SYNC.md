@@ -16486,3 +16486,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 라이브 배포: GOTCHAS §3. live(37765) 받아 미커밋 diff patch --fuzz=3(+2492 보정)·거절0·원격 py_compile OK(3.9)·백업 main.py.bak-callsummary-20261118-2250·kickstart·**smoke 10/10**. LF 보존
 - 폰 확인 불필요(서버). 새 통화 요약부터 todos/category 내려옴 — **앱이 아직 안 그림**(다음 증분)
 - 다음 액션: 앱 — CallSummaryEntity 에 todosJson·category 칸 추가(nullable 마이그레이션) + 서버응답 파싱 저장 + 카드에 분류칩·설명형제목(one_line)·요점 A안·꼭 챙겨야 할 일 렌더
+
+## 2026-11-18 · android
+통화요약 프로토 앱 렌더 — **분류 칩 + 꼭 챙겨야 할 일**(서버 todos/category 소비)
+- DB v73→v74: `call_summaries` 에 `category`·`todosJson`(둘 다 nullable, MIGRATION_73_74). 옛 요약은 NULL
+- 파서 2곳(`CallAudioSummaryRepository`·`CallSummaryServerRepository`): category·todos 파싱. 저장 2곳(`CallAudioSummarizer`·`AdotSummaryImporter`): 엔티티에 채움
+- 렌더: `CallSummaryBody.kt` 에 공용 `CallTodoChecklist`(토큰으로만·하드코딩0, 체크=보기용 로컬·연동 추후) 추가 · 채팅 통화카드(`ChatScreen`)에 **분류 칩**(category, 연한 파랑)+ 요약 아래 **꼭 챙겨야 할 일**. CallSummary 보조화면은 버그만(체크리스트 생략)
+- 설명형 제목은 기존 title 유지(one_line 헤더 전환은 추후). 체크 지속/고객카드·홈 연동 = '할 일' 기능 때(어디 붙일지 추후, 사장님)
+- 검증: 컴파일 0에러·testDebugUnitTest 통과·assembleRelease 7가드 통과(**style 2441 그대로**·dup 18·size·save0). Room v74 OK
+- 폰 확인: 아직 — 내부배포 후 **새 통화** 요약에 분류 칩·꼭 챙겨야 할 일 뜨는지 눈확인(마이그레이션=기존 폰 업데이트 안깨지는지도)
+- 다음: 태그 '의미 있게' 개편(프로토 SCpXieKcjBfxvRB5db9RP9 §③ A안 핵심사실/B안 상태 — 사장님 선택 대기) · 1단계-2차 말풍선 · one_line 헤더

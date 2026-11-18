@@ -45,7 +45,11 @@ class CallSummaryServerRepository(
         val bullets: List<String>,
         val followupSms: String?,
         /** 한눈에 보는 짧은 제목(서버 LLM). 없으면 앱이 oneLine 으로 폴백. (2026-06-28 사장님) */
-        val title: String? = null
+        val title: String? = null,
+        /** 통화 분류 1개. 서버 category. (2026-11-18) */
+        val category: String? = null,
+        /** 꼭 챙겨야 할 일(사장님이 처리). 서버 todos[]. (2026-11-18) */
+        val todos: List<String> = emptyList()
     )
 
     suspend fun summarize(
@@ -97,11 +101,16 @@ class CallSummaryServerRepository(
                     (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }
                 } ?: emptyList()
                 val bullets = rows.ifEmpty { legacy }
+                val todos = obj.optJSONArray("todos")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotBlank() } }
+                } ?: emptyList()
                 Summary(
                     oneLine = obj.optString("one_line").takeIf { it.isNotBlank() },
                     bullets = bullets,
                     followupSms = obj.optString("suggested_followup_sms").takeIf { it.isNotBlank() && it != "null" },
-                    title = obj.optString("title").takeIf { it.isNotBlank() && it != "null" }
+                    title = obj.optString("title").takeIf { it.isNotBlank() && it != "null" },
+                    category = obj.optString("category").takeIf { it.isNotBlank() && it != "null" },
+                    todos = todos
                 )
             }
         }

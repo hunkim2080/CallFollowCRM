@@ -27,6 +27,10 @@ data class CallSummaryEntity(
     val transcriptSegmentsJson: String? = null,
     // 통화 키워드 태그(JSON 배열 문자열, 예 ["화장실","누수"]). 통화카드 해시태그. 서버 tags[]. (2026-08-17)
     val tagsJson: String? = null,
+    // 통화 분류(견적 문의/시공 상담/일정/수금·입금/A/S/개인·안부/기타). 서버 category. (2026-11-18)
+    val category: String? = null,
+    // 꼭 챙겨야 할 일 JSON 배열 문자열(예 ["욕실 사진 받기","견적 문자 보내기"]). 서버 todos[]. (2026-11-18)
+    val todosJson: String? = null,
     val summaryText: String? = null,
     val customerNeed: String? = null,
     val space: String? = null,

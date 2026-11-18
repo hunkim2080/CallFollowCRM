@@ -174,6 +174,9 @@ object AdotSummaryImporter {
                 summaryText = enrichedSummaryText ?: existingNear.summaryText,
                 recommendedMessage = enrichedFollowup ?: existingNear.recommendedMessage,
                 transcriptText = parsed.transcriptText ?: existingNear.transcriptText,
+                category = serverSummary?.category ?: existingNear.category,
+                todosJson = serverSummary?.todos?.takeIf { it.isNotEmpty() }
+                    ?.let { org.json.JSONArray(it).toString() } ?: existingNear.todosJson,
                 rawText = parsed.rawText,
                 sourceType = source.name,
                 updatedAt = now
@@ -188,6 +191,9 @@ object AdotSummaryImporter {
                 summaryText = enrichedSummaryText,
                 recommendedMessage = enrichedFollowup,
                 transcriptText = parsed.transcriptText,
+                category = serverSummary?.category,
+                todosJson = serverSummary?.todos?.takeIf { it.isNotEmpty() }
+                    ?.let { org.json.JSONArray(it).toString() },
                 rawText = parsed.rawText,
                 sourceType = source.name,
                 createdAt = now,

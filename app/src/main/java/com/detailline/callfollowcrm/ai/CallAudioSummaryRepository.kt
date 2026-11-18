@@ -50,7 +50,11 @@ class CallAudioSummaryRepository(
         /** 서버가 DB 캐시에서 즉시 응답했는지(=이미 처리된 통화). force_refresh 로 재처리 가능. */
         val cached: Boolean = false,
         /** 통화 키워드 태그(부위·문제·일정 ≤3, # 없이). 통화카드 해시태그용. 서버 tags[]. (2026-08-17) */
-        val tags: List<String> = emptyList()
+        val tags: List<String> = emptyList(),
+        /** 통화 분류 1개(견적 문의/시공 상담/...). 서버 category. (2026-11-18) */
+        val category: String? = null,
+        /** 꼭 챙겨야 할 일(사장님이 처리할 것). 서버 todos[]. (2026-11-18) */
+        val todos: List<String> = emptyList()
     )
 
     suspend fun summarize(
@@ -140,6 +144,10 @@ class CallAudioSummaryRepository(
                 arr.optString(it).trim().removePrefix("#").trim().takeIf { s -> s.isNotBlank() }
             }
         } ?: emptyList()
+        // 꼭 챙겨야 할 일 + 분류 (2026-11-18). 옛 서버/옛 통화는 없음 → 빈 값(표시 안 함).
+        val todos = obj.optJSONArray("todos")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotBlank() } }
+        } ?: emptyList()
         return Result(
             oneLine = obj.optString("one_line").takeIf { it.isNotBlank() },
             bullets = bullets,
@@ -149,7 +157,9 @@ class CallAudioSummaryRepository(
                 ?.takeIf { it.length() > 0 }?.toString(),
             title = obj.optString("title").takeIf { it.isNotBlank() && it != "null" },
             cached = obj.optBoolean("cached", false),
-            tags = tags
+            tags = tags,
+            category = obj.optString("category").takeIf { it.isNotBlank() && it != "null" },
+            todos = todos
         )
     }
 
