@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -724,6 +725,20 @@ fun SettingsScreen(
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고.
                     LockRow(Icons.Filled.BugReport, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "문제 신고 / 진단 보내기",
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
+                    // 📦 깨진 사진 원본(PDU) 보내기 (2026-11-18 사장님) — 사진이 '지지직' 왔을 때 원인 찾기용.
+                    LockRow(Icons.Filled.BrokenImage, AppTheme.colors.unpaidBg, AppTheme.colors.unpaid, "깨진 사진 원본 보내기 (진단)",
+                        "사진이 지지직 왔을 때 눌러주세요 · 원인 찾는 데 써요") {
+                        Toast.makeText(context, "깨진 사진 원본을 보내는 중…", Toast.LENGTH_SHORT).show()
+                        settingsScope.launch {
+                            val n = com.detailline.callfollowcrm.util.DiagnosticsReporter
+                                .sendBadMmsSamples(context, container.preferences)
+                            Toast.makeText(
+                                context,
+                                if (n > 0) "깨진 사진 ${n}개를 보냈어요. 고맙습니다." else "보관된 깨진 사진이 없어요",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 }
 
                 // 배지를 숨기는 동안엔 이 안내도 설명할 대상이 없다. (2026-09-20 사장님)

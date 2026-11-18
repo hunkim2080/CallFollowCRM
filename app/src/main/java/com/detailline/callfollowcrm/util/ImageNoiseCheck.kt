@@ -23,6 +23,10 @@ import java.io.ByteArrayInputStream
  *
  * ⚠️ **가로·세로 둘 다** 본다. 줄눈 사진은 **격자무늬**라 한 방향만 튈 수 있다.
  *   노이즈는 어느 방향이든 똑같이 튀므로 **작은 쪽**이 기준을 넘어야 깨진 걸로 친다.
+ *
+ * ⚠️ **위·가운데·아래 세 군데**를 본다(2026-11-18 사장님: "위는 멀쩡·아래만 지지직"으로 온 사진이
+ *   가운데만 보던 옛 검사를 통과해 그냥 표시됐다). MMS 손상은 **보통 뒤쪽(아래)부터** 깨지므로
+ *   한 군데만 보면 놓친다. 세 조각 중 **가장 나쁜 점수**로 판정한다 — 한 곳만 깨져도 깨진 사진.
  */
 object ImageNoiseCheck {
 
@@ -56,7 +60,7 @@ object ImageNoiseCheck {
         return s >= THRESHOLD
     }
 
-    /** 점수. 못 읽으면 null. */
+    /** 점수 — **위·가운데·아래 세 조각 중 가장 나쁜(높은) 쪽**. 못 읽으면 null. */
     fun scoreOfJpeg(bytes: ByteArray?): Double? {
         if (bytes == null || bytes.size < 1000) return null
         return runCatching {
@@ -68,24 +72,34 @@ object ImageNoiseCheck {
             val side = minOf(PATCH, w, h)
             if (side < 16) return null
 
-            // 원본 해상도 그대로 가운데 조각만. 큰 사진도 이 조각만 읽으니 가볍다.
             val left = (w - side) / 2
-            val top = (h - side) / 2
+            // 위·가운데·아래 세 군데 top 좌표. 작은 사진이면 겹쳐서 중복 제거(한 번만 본다).
+            val tops = intArrayOf(0, (h - side) / 2, h - side)
+                .map { it.coerceIn(0, h - side) }.distinct()
+
             @Suppress("DEPRECATION")
             val dec = BitmapRegionDecoder.newInstance(ByteArrayInputStream(bytes), false) ?: return null
-            val bmp = dec.decodeRegion(Rect(left, top, left + side, top + side), null) ?: return null
-            runCatching { dec.recycle() }
-
-            val px = IntArray(side * side)
-            bmp.getPixels(px, 0, side, 0, 0, side, side)
-            runCatching { bmp.recycle() }
-
-            val lum = IntArray(px.size) {
-                val c = px[it]
-                // 사람 눈 기준 밝기 — 정수만 써서 빠르게
-                ((c shr 16 and 0xFF) * 77 + (c shr 8 and 0xFF) * 151 + (c and 0xFF) * 28) shr 8
+            try {
+                var worst = 0.0
+                var any = false
+                for (top in tops) {
+                    // 원본 해상도 그대로 한 조각만. 큰 사진도 이 조각만 읽으니 가볍다.
+                    val bmp = dec.decodeRegion(Rect(left, top, left + side, top + side), null) ?: continue
+                    val px = IntArray(side * side)
+                    bmp.getPixels(px, 0, side, 0, 0, side, side)
+                    runCatching { bmp.recycle() }
+                    val lum = IntArray(px.size) {
+                        val c = px[it]
+                        // 사람 눈 기준 밝기 — 정수만 써서 빠르게
+                        ((c shr 16 and 0xFF) * 77 + (c shr 8 and 0xFF) * 151 + (c and 0xFF) * 28) shr 8
+                    }
+                    worst = maxOf(worst, scoreOf(lum, side))
+                    any = true
+                }
+                if (any) worst else null
+            } finally {
+                runCatching { dec.recycle() }
             }
-            scoreOf(lum, side)
         }.getOrNull()
     }
 }

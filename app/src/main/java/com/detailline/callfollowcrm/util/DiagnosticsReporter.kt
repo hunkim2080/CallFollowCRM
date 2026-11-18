@@ -129,6 +129,53 @@ object DiagnosticsReporter {
         keyboard: String? = null
     ): Boolean =
         withContext(Dispatchers.IO) {
+            val imageDataUrl = imageUri?.let { uri ->
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { ins ->
+                        val bytes = ins.readBytes()
+                        if (bytes.isNotEmpty() && bytes.size <= 5_000_000)
+                            "data:image/*;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        else null
+                    }
+                }.getOrNull()
+            }
+            postReport(prefs, note, imageDataUrl, keyboard)
+        }
+
+    /**
+     * 📦 폰에 보관된 **'깨진 MMS 원본(PDU)'** 을 진단 서버로 보낸다 — 깨짐 원인(통신망이 반만 줬나 vs
+     *   우리가 뜯다 깨뜨렸나)을 **실제 바이트로** 가리려고. (2026-11-18 사장님 "샘플부터 뜯어보기")
+     *   [com.detailline.callfollowcrm.service.MmsDownloadedReceiver] 가 `filesDir/mms_bad/` 에 최근 3개를 둔다.
+     *   ⚠️ 깨진 PDU 안엔 **손님 사진**이 들어있다 → 설정에서 **사장님이 직접 누를 때만** 보낸다.
+     *   서버는 `image` 바이트를 그대로 디스크에 저장한다(이미지 검증 안 함) → .jpg 로 저장되지만 실제론 PDU.
+     * @return 실제로 보낸 개수 (0 = 보관된 게 없거나 전부 실패).
+     */
+    suspend fun sendBadMmsSamples(context: Context, prefs: AppPreferences): Int =
+        withContext(Dispatchers.IO) {
+            val dir = java.io.File(context.filesDir, "mms_bad")
+            val files = runCatching {
+                dir.listFiles { f -> f.isFile && f.name.endsWith(".pdu") }
+                    ?.sortedByDescending { it.lastModified() }?.take(3)
+            }.getOrNull().orEmpty()
+            if (files.isEmpty()) return@withContext 0
+            var sent = 0
+            files.forEachIndexed { i, f ->
+                val bytes = runCatching { f.readBytes() }.getOrNull() ?: return@forEachIndexed
+                if (bytes.isEmpty() || bytes.size > 5_000_000) return@forEachIndexed
+                // 서버 strip 함수가 image mime 를 확실히 처리하므로 mime 은 image 로 둔다(내용은 PDU).
+                val dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                val note = "[MMS 깨짐 샘플 ${i + 1}/${files.size}] ${f.name} · ${bytes.size}바이트 · " +
+                    "PDU 원본(.jpg 로 저장되지만 실제론 MMS PDU — 받은 양 vs 있어야 할 양 비교용)"
+                if (postReport(prefs, note, dataUrl)) sent++
+            }
+            sent
+        }
+
+    /** 진단 리포트 직송 — **보내는 통로는 여기 한 곳**(§12). 이미지(또는 PDU)는 dataURL 로 받는다. */
+    private suspend fun postReport(
+        prefs: AppPreferences, note: String, imageDataUrl: String?, keyboard: String? = null
+    ): Boolean =
+        withContext(Dispatchers.IO) {
             runCatching {
                 val body = JSONObject().apply {
                     put("phone", prefs.bizPhone.filter { it.isDigit() })
@@ -137,16 +184,7 @@ object DiagnosticsReporter {
                     put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
                     put("note", note.trim())
                     put("report", buildReport(prefs, note, keyboard))
-                    if (imageUri != null) {
-                        runCatching {
-                            context.contentResolver.openInputStream(imageUri)?.use { ins ->
-                                val bytes = ins.readBytes()
-                                if (bytes.isNotEmpty() && bytes.size <= 5_000_000) {
-                                    put("image", "data:image/*;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP))
-                                }
-                            }
-                        }
-                    }
+                    if (imageDataUrl != null) put("image", imageDataUrl)
                 }
                 val req = Request.Builder()
                     .url("${AppConfig.BASE_URL}/api/diagnostics/report")

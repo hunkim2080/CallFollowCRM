@@ -16448,3 +16448,12 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 ↑ 위 기기 이름 통일건 서버 라이브(si0in.kr/admin) 배포 완료 (사장님 "ㄱㄱ" 승인)
 - 변경: 라이브 /Users/hun/ringgo-server/main.py 그 3곳만 교체(GOTCHAS §3, 라이브==repo 이미 일치). 백업 main.py.bak-devicename-20261117-1857. 37662→37709줄(+47). 원격 py_compile OK · kickstart · smoke 10/10. LF 보존(CRLF 사고 방지)
 - 폰 확인: 서버 smoke 통과. 관제실 '쓰는 폰'·'가입 기기'가 이제 갤럭시 이름으로 표시 — 사장님 관제실 새로고침해 눈확인만 남음
+
+## 2026-11-18 · android
+손님 MMS 사진이 '지지직'으로 깨져 오는 것(2026-11-18 사장님 실기) — **원인 진단 1단계: 샘플 수집 + 깨짐 감지 강화**
+- 증상: 저장된 손님이 편집한(=큰) 사진 보내면 위만 보이고 아래는 노이즈. 편집 안 하고 재전송하면 멀쩡. 우리가 기본문자앱이라 MMS 를 직접 파싱(PduParser)하는 구조적 한계([[reference_mms_image_corrupt_custom_pipeline]])
+- 변경① `util/ImageNoiseCheck.scoreOfJpeg`: 가운데 1조각만 보던 것 → **위·가운데·아래 3조각 중 최악 점수**로 판정. '위 멀쩡·아래 지지직'이 옛 검사를 통과하던 틈을 막음. `scoreOf`(순수·단위시험) 그대로 → 기존 테스트 영향 없음. 소비처 1곳(MmsDownloadedReceiver.isNoisy)
+- 변경② `util/DiagnosticsReporter`: **깨진 PDU 원본 보내기**(`sendBadMmsSamples`) 추가 — `filesDir/mms_bad/` 최근 3개를 기존 /api/diagnostics/report 로 직송(image 필드 재사용, **서버·DB 무변경**). 보내는 통로는 `postReport` 한 곳으로 합침(§12). ⚠️ 깨진 PDU 엔 손님 사진 → 설정에서 사장님이 직접 누를 때만
+- 변경③ `SettingsScreen` 더보기: "깨진 사진 원본 보내기 (진단)" 줄 추가(LockRow 재사용). 성공/없음 Toast
+- 검증: 컴파일 0에러 · testDebugUnitTest 통과 · assembleRelease 7가드 통과(dup 18/18·size·style 2441·rules·save 0·compose·brand)
+- 다음 액션: 내부배포 → 사장님이 다음에 사진 깨질 때 버튼 탭 → 진단서버로 PDU 수신 → **받은 양 vs 있어야 할 양** 비교해 원인 확정(통신망 truncation vs 우리 파싱) → 진짜 고침. 별건으로 '보고 있는 문자방은 알림 안 울리기'(현재 그 억제 코드 0건) 사장님께 제안 예정
