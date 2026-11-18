@@ -121,15 +121,24 @@ object DiagnosticsReporter {
     /**
      * 버튼 한 번에 진단 리포트를 **서버로 직접 전송**한다. 성공하면 true.
      * @param imageUri 스크린샷 등(선택) — 있으면 base64(dataURL)로 함께 전송(5MB 이하).
-     * 서버: POST /api/diagnostics/report {phone, version, device, android, note, report, image?}
+     * 서버: POST /api/diagnostics/report {phone, version, device, android, note, report, image?/images?}
      */
     suspend fun sendToServer(
         context: Context, prefs: AppPreferences, note: String, imageUri: Uri?,
         /** ⌨️ 이 폰에서 키보드가 어떻게 잡히는지 — 기종마다 다른 문제를 폰 없이 고치려고. (2026-09-29) */
         keyboard: String? = null
+    ): Boolean = sendReport(context, prefs, note, listOfNotNull(imageUri), keyboard)
+
+    /**
+     * 진단 리포트 + **스크린샷 여러 장**(선택) 직송. (2026-11-18 사장님 "여러 장 올리고 싶다")
+     * @param imageUris 첨부 이미지들 — 각 5MB 이하만 보냄. 1장이면 `image`, 여러 장이면 `images` 로.
+     */
+    suspend fun sendReport(
+        context: Context, prefs: AppPreferences, note: String, imageUris: List<Uri>,
+        keyboard: String? = null
     ): Boolean =
         withContext(Dispatchers.IO) {
-            val imageDataUrl = imageUri?.let { uri ->
+            val dataUrls = imageUris.mapNotNull { uri ->
                 runCatching {
                     context.contentResolver.openInputStream(uri)?.use { ins ->
                         val bytes = ins.readBytes()
@@ -139,7 +148,7 @@ object DiagnosticsReporter {
                     }
                 }.getOrNull()
             }
-            postReport(prefs, note, imageDataUrl, keyboard)
+            postReport(prefs, note, dataUrls, keyboard)
         }
 
     /**
@@ -166,14 +175,15 @@ object DiagnosticsReporter {
                 val dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
                 val note = "[MMS 깨짐 샘플 ${i + 1}/${files.size}] ${f.name} · ${bytes.size}바이트 · " +
                     "PDU 원본(.jpg 로 저장되지만 실제론 MMS PDU — 받은 양 vs 있어야 할 양 비교용)"
-                if (postReport(prefs, note, dataUrl)) sent++
+                if (postReport(prefs, note, listOf(dataUrl))) sent++
             }
             sent
         }
 
-    /** 진단 리포트 직송 — **보내는 통로는 여기 한 곳**(§12). 이미지(또는 PDU)는 dataURL 로 받는다. */
+    /** 진단 리포트 직송 — **보내는 통로는 여기 한 곳**(§12). 이미지(또는 PDU)는 dataURL 목록으로 받는다.
+     *  1장이면 `image`(구버전 서버 호환), 2장 이상이면 `images` 배열로 보낸다. */
     private suspend fun postReport(
-        prefs: AppPreferences, note: String, imageDataUrl: String?, keyboard: String? = null
+        prefs: AppPreferences, note: String, imageDataUrls: List<String>, keyboard: String? = null
     ): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -184,7 +194,10 @@ object DiagnosticsReporter {
                     put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
                     put("note", note.trim())
                     put("report", buildReport(prefs, note, keyboard))
-                    if (imageDataUrl != null) put("image", imageDataUrl)
+                    when {
+                        imageDataUrls.size == 1 -> put("image", imageDataUrls[0])
+                        imageDataUrls.size > 1 -> put("images", org.json.JSONArray(imageDataUrls))
+                    }
                 }
                 val req = Request.Builder()
                     .url("${AppConfig.BASE_URL}/api/diagnostics/report")

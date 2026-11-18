@@ -16457,3 +16457,14 @@ A/S 무료인데 **구글 캘린더에 시공 금액**이 붙던 것 수정 + **
 - 변경③ `SettingsScreen` 더보기: "깨진 사진 원본 보내기 (진단)" 줄 추가(LockRow 재사용). 성공/없음 Toast
 - 검증: 컴파일 0에러 · testDebugUnitTest 통과 · assembleRelease 7가드 통과(dup 18/18·size·style 2441·rules·save 0·compose·brand)
 - 다음 액션: 내부배포 → 사장님이 다음에 사진 깨질 때 버튼 탭 → 진단서버로 PDU 수신 → **받은 양 vs 있어야 할 양** 비교해 원인 확정(통신망 truncation vs 우리 파싱) → 진짜 고침. 별건으로 '보고 있는 문자방은 알림 안 울리기'(현재 그 억제 코드 0건) 사장님께 제안 예정
+
+## 2026-11-18 · android (+ server)
+MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장**(앱+서버)
+- 깨짐 원인: 사장님 S9+ 깨진 PDU 3개 받아 분석 → **잘림 아님**(FFD9 완결·구조 100% 정상, 스캔데이터만 노이즈)·3개 바이트동일(재다운로드도 동일)·**삼성 메시지도 같은 사진 깨짐**(사장님 확인) → **보낸사람/통신사에서 이미 깨져 옴**(편집한 사진), 앱 복구불가. 2026-08-24 TRUNCATE 가설 이 케이스엔 해당없음. 기록 [[reference_mms_image_corrupt_custom_pipeline]]
+- 버그신고 사진 여러장: 지금껏 **1장만** 가능(앱 단일picker·서버 image 1칸)이라 사장님 요청으로 **최대 5장**. 변경:
+  - 앱 `DiagnosticsReporter`: `sendReport(uris:List)`·`postReport(List)` 1장=image/2장+=images. `sendToServer`는 wrapper(호환). `SettingsScreen` 진단창 `PickMultipleVisualMedia(5)`·"N장 첨부됨"
+  - 서버 `main.py`: `DiagnosticsReport.images:Optional[List[str]]`(image 호환유지) · DB **무손실 컬럼 `image_paths`(JSON)** 추가 · 저장은 image+images 합쳐 N장 디스크저장(diag_{now}_{k}.jpg) · 관제실 렌더 N장 표시 · `/admin/diagnostics/image/{rid}/{idx}` 라우트 신설 · `/admin/diagnostics/data` images 개수
+- 서버 배포: **라이브 완료**(GOTCHAS §3). 미커밋 diff를 live(37709줄)에 patch --fuzz=3(드리프트 +2765 자동보정)·거절0·원격py_compile OK(3.9)·백업 main.py.bak-diagmulti-20261118-2143·kickstart·**smoke 10/10**·image_paths 컬럼 생성 확인·기존 신고 fallback OK. LF 보존
+- 앱 검증: 컴파일 0에러·testDebugUnitTest 통과·assembleRelease 7가드 통과(dup 18·size·style 2441·save 0·rules·compose·brand)
+- 폰 확인: **아직** — 내부배포 후 사장님이 진단창에서 사진 여러 장 첨부 눈확인 필요
+- 다음 액션: 앱 내부배포(upload-*) → 사장님 폰 업데이트 후 더보기>문제신고>사진 2장+ 첨부 확인

@@ -276,23 +276,23 @@ fun SettingsScreen(
     if (showDiagnostics) {
         DiagnosticsDialog(
             onDismiss = { showDiagnostics = false },
-            onSend = { note, shotUri ->
+            onSend = { note, shotUris ->
                 showDiagnostics = false
                 Toast.makeText(context, "진단을 보내는 중…", Toast.LENGTH_SHORT).show()
                 settingsScope.launch {
                     val ok = com.detailline.callfollowcrm.util.DiagnosticsReporter
-                        .sendToServer(context, container.preferences, note, shotUri, keyboardDiag)
+                        .sendReport(context, container.preferences, note, shotUris, keyboardDiag)
                     if (ok) {
                         Toast.makeText(context, "진단을 보냈어요. 고맙습니다.", Toast.LENGTH_LONG).show()
                     } else {
-                        // 서버 전송 실패 → 공유 시트로 폴백(리포트 유실 방지)
+                        // 서버 전송 실패 → 공유 시트로 폴백(리포트 유실 방지). 공유는 1장만 — 첫 장.
                         Toast.makeText(context, "바로 전송이 안 돼 공유로 열었어요", Toast.LENGTH_LONG).show()
                         com.detailline.callfollowcrm.util.DiagnosticsReporter.share(
                             context,
                             com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(
                                 container.preferences, note, keyboardDiag
                             ),
-                            shotUri
+                            shotUris.firstOrNull()
                         )
                     }
                 }
@@ -2575,13 +2575,14 @@ private fun ToneInputDialog(
 /** 문제 신고 / 진단 보내기 (2026-07-22 사장님). 메모(선택) + 스크린샷 첨부(선택) + '보내기' → 공유 시트로 전송. */
 @Composable
 private fun DiagnosticsDialog(
-    onDismiss: () -> Unit, onSend: (String, android.net.Uri?) -> Unit
+    onDismiss: () -> Unit, onSend: (String, List<android.net.Uri>) -> Unit
 ) {
     var note by remember { mutableStateOf("") }
-    var shot by remember { mutableStateOf<android.net.Uri?>(null) }
+    var shots by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    // 스크린샷 여러 장(최대 5) 첨부 — 버그 신고에 화면 여러 장 올리기. (2026-11-18 사장님)
     val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri -> if (uri != null) shot = uri }
+        ActivityResultContracts.PickMultipleVisualMedia(5)
+    ) { uris -> if (uris.isNotEmpty()) shots = uris }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("문제 신고 / 진단 보내기", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -2608,11 +2609,11 @@ private fun DiagnosticsDialog(
                             )
                         )
                     }) {
-                        Text(if (shot == null) "스크린샷 첨부" else "스크린샷 첨부됨 ✓",
+                        Text(if (shots.isEmpty()) "스크린샷 첨부 (여러 장 가능)" else "스크린샷 ${shots.size}장 첨부됨 ✓",
                             color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
-                    if (shot != null) {
-                        TextButton(onClick = { shot = null }) {
+                    if (shots.isNotEmpty()) {
+                        TextButton(onClick = { shots = emptyList() }) {
                             Text("빼기", color = TossTextTertiary, fontSize = 12.sp)
                         }
                     }
@@ -2620,7 +2621,7 @@ private fun DiagnosticsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSend(note, shot) }) {
+            TextButton(onClick = { onSend(note, shots) }) {
                 Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
             }
         },

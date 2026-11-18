@@ -35,7 +35,7 @@ import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import anthropic
 import httpx
@@ -982,6 +982,9 @@ def db_init() -> None:
             con.execute("ALTER TABLE diagnostics_reports ADD COLUMN resolved INTEGER DEFAULT 0")
         if "resolved_at_ms" not in _dc:
             con.execute("ALTER TABLE diagnostics_reports ADD COLUMN resolved_at_ms INTEGER")
+        # 추가 (2026-11-18) — 첨부 사진 여러 장. 무손실 컬럼(JSON 경로 배열). image_path 는 첫 장(호환).
+        if "image_paths" not in _dc:
+            con.execute("ALTER TABLE diagnostics_reports ADD COLUMN image_paths TEXT")
         # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
         con.execute(
             """
@@ -30677,7 +30680,8 @@ class DiagnosticsReport(BaseModel):
     device: Optional[str] = None
     android: Optional[str] = None
     note: Optional[str] = None
-    image: Optional[str] = None   # dataURL base64 (선택, 5MB↓)
+    image: Optional[str] = None   # dataURL base64 (선택, 5MB↓) — 1장(구버전 앱 호환)
+    images: Optional[List[str]] = None  # dataURL 여러 장(2026-11-18) — image 와 합쳐 저장
 
 
 @app.post("/api/diagnostics/report")
@@ -30690,28 +30694,33 @@ async def diagnostics_report(req: DiagnosticsReport, request: Request) -> dict:
     if not _ip_day_quota(_client_ip(request), "diag", 30):
         raise HTTPException(429, "신고가 많아 잠시 뒤 다시 시도해 주세요")
     now = _now_ms()
-    image_path = None
-    # 첨부 이미지(선택) → 디스크 저장 (base64 는 DB 에 안 넣음)
-    if req.image:
-        try:
-            import base64
-            _, b64 = _expo_ocr_strip_dataurl(req.image)
-            raw = base64.b64decode(b64, validate=False) if b64 else b""
-            if 0 < len(raw) <= 5 * 1024 * 1024:
-                ddir = BASE_DIR / "diag_images"
-                ddir.mkdir(exist_ok=True)
-                fp = ddir / f"diag_{now}.jpg"
-                fp.write_bytes(raw)
-                image_path = str(fp)
-        except Exception as e:  # noqa: BLE001 — 이미지 실패해도 리포트는 저장
-            print(f"[diag] image save fail (ignored): {type(e).__name__}: {e}")
+    # 첨부 이미지(선택, 여러 장) → 디스크 저장 (base64 는 DB 에 안 넣음).
+    #   image(구버전 앱 1장) + images(여러 장) 합쳐서 처리. 안전 상한 10장.
+    _durls = ([req.image] if req.image else []) + [x for x in (req.images or []) if x]
+    image_paths = []
+    if _durls:
+        import base64
+        ddir = BASE_DIR / "diag_images"
+        for _k, _durl in enumerate(_durls[:10]):
+            try:
+                _, b64 = _expo_ocr_strip_dataurl(_durl)
+                raw = base64.b64decode(b64, validate=False) if b64 else b""
+                if 0 < len(raw) <= 5 * 1024 * 1024:
+                    ddir.mkdir(exist_ok=True)
+                    fp = ddir / f"diag_{now}_{_k}.jpg"
+                    fp.write_bytes(raw)
+                    image_paths.append(str(fp))
+            except Exception as e:  # noqa: BLE001 — 이미지 실패해도 리포트는 저장
+                print(f"[diag] image save fail (ignored): {type(e).__name__}: {e}")
+    image_path = image_paths[0] if image_paths else None   # 첫 장(구버전 관제실·호환)
     with db_conn() as con:
         cur = con.execute(
             "INSERT INTO diagnostics_reports "
-            "(phone, version, device, android, note, report, image_path, created_at_ms) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(phone, version, device, android, note, report, image_path, image_paths, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (_norm_phone(req.phone), (req.version or "")[:40], (req.device or "")[:80],
-             (req.android or "")[:40], (req.note or "")[:500], report[:20000], image_path, now),
+             (req.android or "")[:40], (req.note or "")[:500], report[:20000], image_path,
+             (json.dumps(image_paths) if image_paths else None), now),
         )
         rid = cur.lastrowid
         con.commit()
@@ -30724,8 +30733,8 @@ async def diagnostics_report(req: DiagnosticsReport, request: Request) -> dict:
     if (req.note or "").strip():
         body_txt += f"메모: {req.note.strip()[:300]}\n"
     body_txt += "```" + report[:1500] + "```"
-    if image_path:
-        body_txt += "\n📎 스크린샷 첨부됨"
+    if image_paths:
+        body_txt += f"\n📎 스크린샷 {len(image_paths)}장 첨부됨"
     await _slack_post(head + "\n" + body_txt)
     return {"ok": True, "id": rid}
 
@@ -30812,7 +30821,7 @@ def _render_diag_html(rows, token: str = "") -> str:
     unresolved = sum(1 for r in rows if not r[9])
     cards = []
     for r in rows:
-        rid, phone, version, device, android, note, report, image_path, cms, resolved = r
+        rid, phone, version, device, android, note, report, image_path, cms, resolved, image_paths_json = r
         when = _kst((cms or 0)).strftime("%m/%d %H:%M")
         done = bool(resolved)
         cls = "done" if done else "open"
@@ -30825,9 +30834,20 @@ def _render_diag_html(rows, token: str = "") -> str:
         note_html = (f'<div class="note">{_h.escape(note)}</div>' if (note or "").strip() else '')
         rep = _h.escape((report or "")[:8000])
         _tq = ("?t=" + urllib.parse.quote(token)) if token else ""
-        img = (f'<a class="shot" href="/admin/diagnostics/image/{rid}{_tq}" target="_blank">'
-               f'<img src="/admin/diagnostics/image/{rid}{_tq}" loading="lazy" alt="첨부 스크린샷"></a>'
-               if image_path else '')
+        # 첨부 사진 — 여러 장(image_paths) 전부, 없으면 옛 단일(image_path) 호환.
+        _paths = []
+        if image_paths_json:
+            try:
+                _paths = json.loads(image_paths_json) or []
+            except Exception:
+                _paths = []
+        if not _paths and image_path:
+            _paths = [image_path]
+        img = "".join(
+            f'<a class="shot" href="/admin/diagnostics/image/{rid}/{_k}{_tq}" target="_blank">'
+            f'<img src="/admin/diagnostics/image/{rid}/{_k}{_tq}" loading="lazy" alt="첨부 {_k + 1}"></a>'
+            for _k in range(len(_paths))
+        )
         cards.append(
             f'<div class="card {cls}" data-done="{1 if done else 0}">'
             f'<div class="top">{pill}<div class="meta">{meta}</div></div>'
@@ -30862,7 +30882,7 @@ async def admin_diagnostics(limit: int = 50, t: Optional[str] = None) -> HTMLRes
     with db_conn() as con:
         rows = con.execute(
             "SELECT id, phone, version, device, android, note, report, image_path, created_at_ms, "
-            "COALESCE(resolved, 0) FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
+            "COALESCE(resolved, 0), image_paths FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
     return HTMLResponse(content=_render_diag_html(rows, t))
@@ -30877,13 +30897,20 @@ async def admin_diagnostics_data(limit: int = 50,
     with db_conn() as con:
         rows = con.execute(
             "SELECT id, phone, version, device, android, note, report, image_path, created_at_ms, "
-            "COALESCE(resolved, 0) FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
+            "COALESCE(resolved, 0), image_paths FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
+    def _imgcount(rr):
+        if rr[10]:
+            try:
+                return len(json.loads(rr[10]) or [])
+            except Exception:
+                pass
+        return 1 if rr[7] else 0
     out = [{
         "id": r[0], "phone": _fmt_phone(r[1]), "version": r[2], "device": r[3],
         "android": r[4], "note": r[5] or "", "report": (r[6] or "")[:4000],
-        "has_image": bool(r[7]), "created_at_ms": r[8], "resolved": bool(r[9]),
+        "has_image": bool(r[7]), "images": _imgcount(r), "created_at_ms": r[8], "resolved": bool(r[9]),
     } for r in rows]
     return {"ok": True, "count": len(out), "reports": out}
 
@@ -30917,6 +30944,35 @@ async def admin_diagnostics_image(rid: int, t: Optional[str] = None):
         raise HTTPException(404, "이미지 없음")
     p = str(row[0])
     # 안전: diag_images 폴더 안의 실제 파일만 서빙(경로 탈출 방지).
+    safe_dir = os.path.realpath(str(BASE_DIR / "diag_images"))
+    if not (os.path.realpath(p).startswith(safe_dir) and os.path.isfile(p)):
+        raise HTTPException(404, "파일 없음")
+    return FileResponse(p, media_type="image/jpeg")
+
+
+@app.get("/admin/diagnostics/image/{rid}/{idx}")
+async def admin_diagnostics_image_idx(rid: int, idx: int, t: Optional[str] = None):
+    """진단 첨부 사진 **여러 장 중 idx 번째** 서빙 (2026-11-18). ?t= 토큰 인증(보안 §A)."""
+    if not _admin_ok(t):
+        raise HTTPException(401, "관리자 토큰 필요")
+    import os
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT image_path, image_paths FROM diagnostics_reports WHERE id = ?", (rid,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "없음")
+    paths = []
+    if row[1]:
+        try:
+            paths = json.loads(row[1]) or []
+        except Exception:
+            paths = []
+    if not paths and row[0]:
+        paths = [row[0]]
+    if idx < 0 or idx >= len(paths):
+        raise HTTPException(404, "이미지 없음")
+    p = str(paths[idx])
     safe_dir = os.path.realpath(str(BASE_DIR / "diag_images"))
     if not (os.path.realpath(p).startswith(safe_dir) and os.path.isfile(p)):
         raise HTTPException(404, "파일 없음")
