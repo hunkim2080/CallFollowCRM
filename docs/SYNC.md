@@ -16518,6 +16518,16 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - **남음(서버·사장님 확인 후)**: 통화요약 AI 프롬프트가 핵심어를 `**…**` 로 감싸게 — 라이브 서버 수정이라야 실제 통화도 굵게
 - 다음: 챗 화면 '꼭 챙겨야 할 일' 노출 프로토(artifact NNu2u24GLxuzqZ1SJztkJZ · A 카드칩/B 상단바/C 묶음카드) — 사장님 선택 대기
 
+## 2026-11-19 · android (4)
+챗 통화카드에 '꼭 챙겨야 할 일' 노출 (A안, 사장님 택 — 프로토 NNu2u24GLxuzqZ1SJztkJZ)
+- 타임라인 통화 카드에 **할 일 칩**(◻ pill) — 통화 안 열어도 바로. 공용 `CallTodoChips`(CallSummaryBody) · ChatScreen 안 커지게 component 로 뺌(§12-F size 가드)
+- **칩 탭 = 완료**: todosJson 에서 빼고 저장(repo.update) → 다시 안 뜸. 실패 시 토스트(§13①). `ChatViewModel.completeCallTodo`
+- 카드 칩·시트 체크리스트 **같은 동작**(onComplete=completeCallTodo) — 두 벌 아님. 공용 `parseCallTodos` 3곳(체크리스트·칩·VM) 공유
+- 카드에서 **분류칩(시공 상담) 제거** — 상세 시트엔 유지. 사장님 "같은 태그 안 붙어도 될 듯"(카드엔 할 일 칩만 깔끔)
+- 에뮬 실기 확인: 칩 보임·탭하면 완료/사라짐(저장)·카드는 안 열림(inner click)
+- 검증: assembleRelease BUILD=0 · dup18 · style2423 · save0 · compose OK · size 통과
+- 남음(Phase 2 '할 일' 기능): 홈 '오늘 할 일' 집계·되돌리기·cross-screen 동기화. 지금은 통화카드 한정
+
 ## 2026-11-19 · android (2)
 통화요약 카드 **프로토 1:1 보강** — 사장님 폰 확인 "간격도 그렇고 칸도 그렇고" 반영
 - **설명형 제목**: `one_line`(요약 첫 줄, CallAudioSummarizer 가 `one_line+불릿`으로 저장)을 **제목으로 올림** + 불릿에서 뺌(skipText) → 짧은 title 대신 프로토 .ttl 처럼 "제목=한 문장". 첫 불릿 중복 사라짐. **안전장치:** 첫 줄이 시간·화자 있는 시간구간형이면 올리지 않고 짧은 title 유지

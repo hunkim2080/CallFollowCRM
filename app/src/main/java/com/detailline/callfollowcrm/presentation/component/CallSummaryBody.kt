@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -191,6 +192,44 @@ private fun boldMd(text: String): androidx.compose.ui.text.AnnotatedString =
 fun hasSpeakerGuess(rawLines: List<String>): Boolean =
     rawLines.any { it.count { c -> c == '|' } >= 2 }
 
+/** 서버 todos JSON 배열 → 문자열 목록(빈 값 제거). 체크리스트(시트)·챗 카드 칩이 **같이 쓴다**. (2026-11-19) */
+fun parseCallTodos(todosJson: String?): List<String> =
+    if (todosJson.isNullOrBlank()) emptyList()
+    else runCatching {
+        val arr = org.json.JSONArray(todosJson)
+        (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotBlank() } }
+    }.getOrDefault(emptyList())
+
+/**
+ * 챗 통화카드용 '꼭 챙겨야 할 일' 칩(◻ pill). 탭 = 완료(onComplete → 부르는 쪽이 저장).
+ * 시트의 회색 박스(CallTodoChecklist)와 **같은 데이터·parseCallTodos**, 모양만 다름(§12-I). (2026-11-19 사장님 A안)
+ * 🔒 챗 카드에서 그리는 곳도 여기 하나 — ChatScreen 이 커지지 않게 component 로 뺐다(§12-F).
+ */
+@Composable
+fun CallTodoChips(todosJson: String?, onComplete: (String) -> Unit, modifier: Modifier = Modifier) {
+    val todos = parseCallTodos(todosJson)
+    if (todos.isEmpty()) return
+    val c = AppTheme.colors
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        todos.forEach { t ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.widthIn(max = 240.dp).clip(AppShape.pill)
+                    .border(1.3.dp, c.primary.copy(alpha = 0.4f), AppShape.pill)
+                    .clickable { onComplete(t) }
+                    .padding(horizontal = 9.dp, vertical = 4.dp)
+            ) {
+                Box(Modifier.size(13.dp).clip(AppShape.sm).border(1.5.dp, c.primary.copy(alpha = 0.45f), AppShape.sm))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    t, style = AppType.label, color = c.primaryText, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
 /**
  * 📋 **꼭 챙겨야 할 일** — 통화에서 뽑은 할 일(서버 todos) 체크리스트. (2026-11-18 통화요약 개편 프로토)
  *
@@ -201,14 +240,8 @@ fun hasSpeakerGuess(rawLines: List<String>): Boolean =
  * @param todosJson 서버가 준 `["욕실 사진 받기", …]` JSON 배열 문자열(엔티티 `todosJson`). null/빈 = 안 그림.
  */
 @Composable
-fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier) {
-    val todos = remember(todosJson) {
-        if (todosJson.isNullOrBlank()) emptyList()
-        else runCatching {
-            val arr = org.json.JSONArray(todosJson)
-            (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotBlank() } }
-        }.getOrDefault(emptyList())
-    }
+fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier, onComplete: ((String) -> Unit)? = null) {
+    val todos = remember(todosJson) { parseCallTodos(todosJson) }
     if (todos.isEmpty()) return
     val c = AppTheme.colors
     val checked = remember(todosJson) { mutableStateListOf(*Array(todos.size) { false }) }
@@ -224,7 +257,7 @@ fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .clip(AppShape.md)
                     .background(c.bg)
-                    .clickable { if (i < checked.size) checked[i] = !on }
+                    .clickable { if (onComplete != null) onComplete(t) else if (i < checked.size) checked[i] = !on }
                     .heightIn(min = 48.dp)
                     .padding(horizontal = AppSpace.s12, vertical = AppSpace.s12)
             ) {

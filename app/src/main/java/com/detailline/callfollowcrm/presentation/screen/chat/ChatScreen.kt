@@ -1088,6 +1088,7 @@ fun ChatScreen(
                                         else pendingSummarizeRecord = ti.record
                                     },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
+                                    onCompleteTodo = { todo -> matched?.let { viewModel.completeCallTodo(it, todo) } },
                                     onRedoSummary = { redoTarget = ti.record },
                                     recordingConnected = recordingConnected,
                                     onConnectRecording = onOpenRecordingSettings,
@@ -2386,6 +2387,7 @@ private fun CallSegment(
     onUseAsDraft: (String) -> Unit = {},
     onSummarizeCall: () -> Unit = {},
     onEditSummary: (String) -> Unit = {},
+    onCompleteTodo: (String) -> Unit = {},
     /** 「다시 요약」 — 요약이 엉뚱할 때 처음부터 다시. 녹음이 연결돼 있을 때만 보인다. */
     onRedoSummary: () -> Unit = {},
     recordingConnected: Boolean = true,
@@ -2494,18 +2496,10 @@ private fun CallSegment(
                 // 태그(부위·문제·일정) — 제목 바로 아래. 아주 연한 딱지(흰 면 + 테두리 한 줄).
                 //   사장님이 세 단계(진한/연한/아주 연한) 중 **아주 연한** 것을 고르심. (2026-09-20)
                 // 분류 칩(견적 문의 등, 서버 category) + 해시태그. 분류는 연한 파란 칩으로 살짝 강조. (2026-11-18)
-                val callCategory = summary?.category?.takeIf { it.isNotBlank() }
-                if (callCategory != null || tags.isNotEmpty()) {
+                // 분류칩(시공 상담 등)은 카드에선 뺀다 — 상세 시트에 이미 있어 카드엔 중복. 키워드 해시태그만. (2026-11-19 사장님)
+                if (tags.isNotEmpty()) {
                     Spacer(Modifier.height(5.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        if (callCategory != null) {
-                            Text(
-                                callCategory, style = AppType.micro, color = AppTheme.colors.primary, maxLines = 1,
-                                modifier = Modifier.clip(AppShape.sm)
-                                    .background(AppTheme.colors.primaryBg)
-                                    .padding(horizontal = 6.dp, vertical = 1.5.dp)
-                            )
-                        }
                         tags.forEach { t ->
                             Text(
                                 t, color = AppTheme.colors.textSub, fontSize = 10.5.sp,
@@ -2518,6 +2512,8 @@ private fun CallSegment(
                         }
                     }
                 }
+                // 📋 꼭 챙겨야 할 일 칩(A안) — component 에서 그림(§12-F). 탭=완료·저장.
+                com.detailline.callfollowcrm.presentation.component.CallTodoChips(summary?.todosJson, onCompleteTodo, Modifier.padding(top = 6.dp))
                 // 🔎 검색에 걸린 문장 한 줄 — 걸린 글자에 형광펜(문자 말풍선과 같은 자). (2026-11-06 사장님)
                 if (searchHit != null) {
                     Spacer(Modifier.height(5.dp))
@@ -2780,7 +2776,8 @@ private fun CallSegment(
                 // 📋 꼭 챙겨야 할 일(서버 todos) — 회색 둥근 박스. 비면 아무것도 안 그림. (2026-11-18)
                 com.detailline.callfollowcrm.presentation.component.CallTodoChecklist(
                     summary?.todosJson,
-                    modifier = Modifier.padding(top = AppSpace.s16)
+                    modifier = Modifier.padding(top = AppSpace.s16),
+                    onComplete = onCompleteTodo
                 )
             }
             // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
