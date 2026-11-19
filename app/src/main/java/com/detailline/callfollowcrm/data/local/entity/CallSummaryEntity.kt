@@ -31,6 +31,8 @@ data class CallSummaryEntity(
     val category: String? = null,
     // 꼭 챙겨야 할 일 JSON 배열 문자열(예 ["욕실 사진 받기","견적 문자 보내기"]). 서버 todos[]. (2026-11-18)
     val todosJson: String? = null,
+    // 완료한 할 일(취소선 표시용) JSON 배열 문자열. 삭제가 아니라 '완료 표시' — 다시 탭하면 해제. (2026-11-19)
+    val todosDoneJson: String? = null,
     val summaryText: String? = null,
     val customerNeed: String? = null,
     val space: String? = null,

@@ -430,19 +430,19 @@ class ChatViewModel(
      *   + 후속문자(recommendedMessage)도 **수정본 기준으로 재생성**. (2026-06-23 요약 교체 / 2026-07-22 버그fix)
      *   ⚠️ fix 전: 요약을 고쳐도 '이 통화 내용으로 후속 문자 쓰기'가 통화 직후 만든 recommendedMessage(원본)를 써서
      *      수정 전 내용으로 문자가 나왔음(베타 신고). → 요약 수정 시 후속문자도 새 요약으로 다시 정리한다. */
-    /** 챗 통화카드 '꼭 챙겨야 할 일' 칩 체크 = 완료 → todosJson 에서 빼고 저장(다시 안 뜸). (2026-11-19 사장님 A안)
-     *   ⚠️ 사장님이 누른 완료다 — 조용히 삼키지 않는다(§13①). 실패하면 토스트로 알린다. */
-    fun completeCallTodo(summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity, todoText: String) {
+    /** 챗 통화카드 '꼭 챙겨야 할 일' 탭 = **완료 표시 토글**(취소선). 삭제가 아니라 todosDoneJson 에 넣다 뺐다 → 다시 탭하면 해제.
+     *   (2026-11-19 사장님 "아예 없어지니 당황 — 취소선으로 남아야") ⚠️ 저장 실패하면 토스트(§13①). */
+    fun toggleCallTodo(summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity, todoText: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val rest = com.detailline.callfollowcrm.presentation.component.parseCallTodos(summary.todosJson)
-                .filter { it != todoText }
-            val json = if (rest.isEmpty()) null else org.json.JSONArray(rest).toString()
+            val done = com.detailline.callfollowcrm.presentation.component.parseCallTodos(summary.todosDoneJson).toMutableList()
+            if (todoText in done) done.remove(todoText) else done.add(todoText)
+            val json = if (done.isEmpty()) null else org.json.JSONArray(done).toString()
             val ok = runCatching {
                 container.callSummaryRepository.update(
-                    summary.copy(todosJson = json, updatedAt = System.currentTimeMillis())
+                    summary.copy(todosDoneJson = json, updatedAt = System.currentTimeMillis())
                 )
             }.isSuccess
-            if (!ok) _toast.value = "할 일 완료 저장에 실패했어요. 다시 해주세요"
+            if (!ok) _toast.value = "할 일 표시 저장에 실패했어요. 다시 해주세요"
         }
     }
 

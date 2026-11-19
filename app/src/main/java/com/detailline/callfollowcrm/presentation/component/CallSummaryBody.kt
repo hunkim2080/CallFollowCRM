@@ -206,23 +206,34 @@ fun parseCallTodos(todosJson: String?): List<String> =
  * 🔒 챗 카드에서 그리는 곳도 여기 하나 — ChatScreen 이 커지지 않게 component 로 뺐다(§12-F).
  */
 @Composable
-fun CallTodoChips(todosJson: String?, onComplete: (String) -> Unit, modifier: Modifier = Modifier) {
+fun CallTodoChips(todosJson: String?, doneJson: String?, onToggle: (String) -> Unit, modifier: Modifier = Modifier) {
     val todos = parseCallTodos(todosJson)
     if (todos.isEmpty()) return
+    val done = remember(doneJson) { parseCallTodos(doneJson).toSet() }
     val c = AppTheme.colors
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         todos.forEach { t ->
+            val isDone = t in done
+            // 탭 = 완료 표시(취소선). 지우지 않고 남는다 — 다시 탭하면 해제. (2026-11-19 사장님)
+            val edge = if (isDone) c.textHint else c.primary
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.widthIn(max = 240.dp).clip(AppShape.pill)
-                    .border(1.3.dp, c.primary.copy(alpha = 0.4f), AppShape.pill)
-                    .clickable { onComplete(t) }
+                    .border(1.3.dp, edge.copy(alpha = 0.4f), AppShape.pill)
+                    .clickable { onToggle(t) }
                     .padding(horizontal = 9.dp, vertical = 4.dp)
             ) {
-                Box(Modifier.size(13.dp).clip(AppShape.sm).border(1.5.dp, c.primary.copy(alpha = 0.45f), AppShape.sm))
+                Box(
+                    Modifier.size(13.dp).clip(AppShape.sm)
+                        .background(if (isDone) c.primary else Color.Transparent)
+                        .border(1.5.dp, if (isDone) c.primary else c.primary.copy(alpha = 0.45f), AppShape.sm),
+                    contentAlignment = Alignment.Center
+                ) { if (isDone) Text("✓", style = AppType.micro, color = c.surface) }
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    t, style = AppType.label, color = c.primaryText, maxLines = 1,
+                    t, style = AppType.label, maxLines = 1,
+                    color = if (isDone) c.textHint else c.primaryText,
+                    textDecoration = if (isDone) TextDecoration.LineThrough else null,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
@@ -240,24 +251,26 @@ fun CallTodoChips(todosJson: String?, onComplete: (String) -> Unit, modifier: Mo
  * @param todosJson 서버가 준 `["욕실 사진 받기", …]` JSON 배열 문자열(엔티티 `todosJson`). null/빈 = 안 그림.
  */
 @Composable
-fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier, onComplete: ((String) -> Unit)? = null) {
+fun CallTodoChecklist(todosJson: String?, doneJson: String? = null, modifier: Modifier = Modifier, onToggle: ((String) -> Unit)? = null) {
     val todos = remember(todosJson) { parseCallTodos(todosJson) }
     if (todos.isEmpty()) return
     val c = AppTheme.colors
-    val checked = remember(todosJson) { mutableStateListOf(*Array(todos.size) { false }) }
+    val persistedDone = remember(doneJson) { parseCallTodos(doneJson).toSet() }
+    // onToggle 없으면(미리보기) 로컬 토글, 있으면 저장된 완료표시(todosDoneJson)로 취소선
+    val localChecked = remember(todosJson) { mutableStateListOf(*Array(todos.size) { false }) }
     Column(modifier) {
         Text("꼭 챙겨야 할 일", style = AppType.label, color = c.textSub)
         todos.forEachIndexed { i, t ->
             Spacer(Modifier.height(AppSpace.s8))
-            val on = checked.getOrElse(i) { false }
-            // 회색 둥근 박스(프로토 ① .trow) — 흰 카드 위에서 할 일을 한 줄씩 또렷이. (2026-11-19)
+            val on = if (onToggle != null) (t in persistedDone) else localChecked.getOrElse(i) { false }
+            // 회색 둥근 박스(프로토 ① .trow). 탭=완료 표시(취소선), 다시 탭하면 해제. (2026-11-19)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(AppShape.md)
                     .background(c.bg)
-                    .clickable { if (onComplete != null) onComplete(t) else if (i < checked.size) checked[i] = !on }
+                    .clickable { if (onToggle != null) onToggle(t) else if (i < localChecked.size) localChecked[i] = !on }
                     .heightIn(min = 48.dp)
                     .padding(horizontal = AppSpace.s12, vertical = AppSpace.s12)
             ) {
@@ -271,7 +284,8 @@ fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier, onCompl
                 }
                 Spacer(Modifier.width(AppSpace.s12))
                 Text(
-                    t, style = AppType.headline, color = c.text,
+                    t, style = AppType.headline,
+                    color = if (on) c.textHint else c.text,
                     textDecoration = if (on) TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f)
                 )

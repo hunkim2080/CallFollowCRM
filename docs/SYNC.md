@@ -16536,6 +16536,16 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - repo `server/main.py` 에도 같은 패치 push(라이브는 git 아님)
 - 폰 확인: **새 통화** 요약 받아 핵심어 굵은지 (앱쪽 굵게 렌더는 에뮬서 확인됨)
 
+## 2026-11-19 14:20 · android
+챗 할 일 칩 '완료 = **취소선**'(안 사라짐) + DB v75
+- 사장님 "탭하면 아예 없어져 당황" → 삭제가 아니라 **완료 표시(취소선)**. 다시 탭하면 해제(토글)
+- DB v74→v75: `call_summaries.todosDoneJson`(완료한 할 일 JSON, nullable) ADD COLUMN(안전). MIGRATION_74_75
+- `ChatViewModel.completeCallTodo`→`toggleCallTodo`(todosDoneJson 토글·저장, 실패 토스트 §13①)
+- 공용 `CallTodoChips`/`CallTodoChecklist`: doneJson 받아 완료=체크✓+취소선+흐림, onToggle(저장 반영). 카드·시트 같은 동작
+- 에뮬 확인: 탭하면 취소선 남음(안 사라짐)·저장 유지·다시 탭 해제
+- 검증: assembleRelease BUILD=0 · dup18 · style2423 · save0 · compose OK · size 통과
+- 다음(기획중): 통화 중 오버레이 = CRM 고객카드 중심·가로 꽉·일정(달력) 보여주기+바로가기 (프로토 48QS3CHiEpdcmA3cnptWUT)
+
 ## 2026-11-19 · android (2)
 통화요약 카드 **프로토 1:1 보강** — 사장님 폰 확인 "간격도 그렇고 칸도 그렇고" 반영
 - **설명형 제목**: `one_line`(요약 첫 줄, CallAudioSummarizer 가 `one_line+불릿`으로 저장)을 **제목으로 올림** + 불릿에서 뺌(skipText) → 짧은 title 대신 프로토 .ttl 처럼 "제목=한 문장". 첫 불릿 중복 사라짐. **안전장치:** 첫 줄이 시간·화자 있는 시간구간형이면 올리지 않고 짧은 title 유지

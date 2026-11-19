@@ -1088,7 +1088,7 @@ fun ChatScreen(
                                         else pendingSummarizeRecord = ti.record
                                     },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
-                                    onCompleteTodo = { todo -> matched?.let { viewModel.completeCallTodo(it, todo) } },
+                                    onToggleTodo = { todo -> matched?.let { viewModel.toggleCallTodo(it, todo) } },
                                     onRedoSummary = { redoTarget = ti.record },
                                     recordingConnected = recordingConnected,
                                     onConnectRecording = onOpenRecordingSettings,
@@ -2387,7 +2387,7 @@ private fun CallSegment(
     onUseAsDraft: (String) -> Unit = {},
     onSummarizeCall: () -> Unit = {},
     onEditSummary: (String) -> Unit = {},
-    onCompleteTodo: (String) -> Unit = {},
+    onToggleTodo: (String) -> Unit = {},
     /** 「다시 요약」 — 요약이 엉뚱할 때 처음부터 다시. 녹음이 연결돼 있을 때만 보인다. */
     onRedoSummary: () -> Unit = {},
     recordingConnected: Boolean = true,
@@ -2513,7 +2513,7 @@ private fun CallSegment(
                     }
                 }
                 // 📋 꼭 챙겨야 할 일 칩(A안) — component 에서 그림(§12-F). 탭=완료·저장.
-                com.detailline.callfollowcrm.presentation.component.CallTodoChips(summary?.todosJson, onCompleteTodo, Modifier.padding(top = 6.dp))
+                com.detailline.callfollowcrm.presentation.component.CallTodoChips(summary?.todosJson, summary?.todosDoneJson, onToggleTodo, Modifier.padding(top = 6.dp))
                 // 🔎 검색에 걸린 문장 한 줄 — 걸린 글자에 형광펜(문자 말풍선과 같은 자). (2026-11-06 사장님)
                 if (searchHit != null) {
                     Spacer(Modifier.height(5.dp))
@@ -2776,8 +2776,9 @@ private fun CallSegment(
                 // 📋 꼭 챙겨야 할 일(서버 todos) — 회색 둥근 박스. 비면 아무것도 안 그림. (2026-11-18)
                 com.detailline.callfollowcrm.presentation.component.CallTodoChecklist(
                     summary?.todosJson,
+                    summary?.todosDoneJson,
                     modifier = Modifier.padding(top = AppSpace.s16),
-                    onComplete = onCompleteTodo
+                    onToggle = onToggleTodo
                 )
             }
             // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
