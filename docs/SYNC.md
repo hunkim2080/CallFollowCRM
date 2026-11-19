@@ -16528,6 +16528,14 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: assembleRelease BUILD=0 · dup18 · style2423 · save0 · compose OK · size 통과
 - 남음(Phase 2 '할 일' 기능): 홈 '오늘 할 일' 집계·되돌리기·cross-screen 동기화. 지금은 통화카드 한정
 
+## 2026-11-19 13:35 · android (+ server)
+통화요약 요점 **핵심어 굵게** — AI 프롬프트가 bullets 문장에 `**…**` 감싸게 (라이브 서버 · 사장님 "1" 지시)
+- `CALL_SUMMARY_SYSTEM`(Gemini·Haiku 공용 system_prompt)에 규칙+예시 추가. ⛔ one_line·title·tags·todos·suggested_followup_sms 엔 `**` 금지 가드(거기선 리터럴로 떠서)
+- 앱은 이미 `CallSummaryBody.boldMd` 로 `**…**`→Bold 렌더(배포됨). 서버는 **새 통화부터** 적용(기존 요약은 그대로)
+- 라이브: GOTCHAS §3 — scp→원격 py_compile(3.9.6) OK · 백업 `main.py.bak-boldkw-20261119-1331` · swap · kickstart · **smoke 10/10**. LF 보존(CRLF 0)
+- repo `server/main.py` 에도 같은 패치 push(라이브는 git 아님)
+- 폰 확인: **새 통화** 요약 받아 핵심어 굵은지 (앱쪽 굵게 렌더는 에뮬서 확인됨)
+
 ## 2026-11-19 · android (2)
 통화요약 카드 **프로토 1:1 보강** — 사장님 폰 확인 "간격도 그렇고 칸도 그렇고" 반영
 - **설명형 제목**: `one_line`(요약 첫 줄, CallAudioSummarizer 가 `one_line+불릿`으로 저장)을 **제목으로 올림** + 불릿에서 뺌(skipText) → 짧은 title 대신 프로토 .ttl 처럼 "제목=한 문장". 첫 불릿 중복 사라짐. **안전장치:** 첫 줄이 시간·화자 있는 시간구간형이면 올리지 않고 짧은 title 유지
