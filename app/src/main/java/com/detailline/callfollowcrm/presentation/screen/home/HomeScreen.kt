@@ -2178,7 +2178,8 @@ private fun TodayHeroJobCard(
             Spacer(Modifier.width(6.dp))
             Text(
                 c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 눌러서 등록",
-                color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1,
+                // 두 줄까지 — 주소 끝 동·호수가 잘려 현장을 못 찾았다. (2026-11-19 사장님)
+                color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
@@ -2268,8 +2269,9 @@ private fun CollabHeroJobCard(
                 Icon(Icons.Default.Place, null, tint = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
+                    // 두 줄까지 — 주소 끝 동·호수가 잘려 현장을 못 찾았다. (2026-11-19 사장님)
                     addr, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
         }

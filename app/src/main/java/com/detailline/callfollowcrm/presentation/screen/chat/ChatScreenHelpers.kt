@@ -445,3 +445,25 @@ internal fun estDaysBetween(startMs: Long?, endMs: Long?): Int {
 
 /** 원 단위를 "40만원" / "1,500,000원" 형식으로. 글자는 MoneyFormatter 한 곳 — 여긴 입구만. (2026-10-18) */
 internal fun formatWon(amount: Long): String = com.detailline.callfollowcrm.util.MoneyFormatter.manwonOrWon(amount)
+
+/**
+ * 채팅 맨 위 주소 — **두 줄**: 윗줄 지역·도로명(흐리게) / 아랫줄 단지명+동·호수(굵게). (2026-11-19 사장님)
+ *   도착해서 제일 먼저 보는 게 동·호수인데 한 줄 ellipsis 로 끝이 잘려 못 찾았다.
+ *   쪼개기는 공용 AddressExtractor.roadThenBuilding 한 곳(§12·고객상세 건 카드와 같은 셈).
+ *   단지·동호수가 없으면 한 덩이를 두 줄까지. [fallback] = tidyAddress 결과(파싱 빈 경우 대비).
+ */
+@androidx.compose.runtime.Composable
+internal fun ChatAddressLines(address: String?, fallback: String, modifier: Modifier = Modifier) {
+    val (road, unit) = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(address)
+    Column(modifier) {
+        if (unit != null) {
+            Text(road, style = AppType.caption, color = TossTextTertiary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(unit, style = AppType.body, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } else {
+            Text(road.ifBlank { fallback }, style = AppType.caption, color = TossTextSecondary,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}

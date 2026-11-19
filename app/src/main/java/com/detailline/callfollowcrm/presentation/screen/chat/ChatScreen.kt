@@ -3486,11 +3486,8 @@ private fun ChatTopActions(
                 Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary,
                     modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(5.dp))
-                Text(
-                    addr, fontSize = 12.sp, color = TossTextSecondary,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                // 주소 두 줄(동·호수 굵게) — 셈·그림은 공용 ChatAddressLines 한 곳(ChatScreenHelpers). (2026-11-19 사장님)
+                ChatAddressLines(address, addr, Modifier.weight(1f))
                 Spacer(Modifier.width(6.dp))
                 ChatTopBtn("길찾기", primary = true) { onNavigate(addr) }
             }

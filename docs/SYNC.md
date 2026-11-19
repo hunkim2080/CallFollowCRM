@@ -16553,3 +16553,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - **할 일 칸**: 패딩 vertical 10→12·체크박스 테두리 1.5→2(프로토 .trow/.cbx)
 - 검증: assembleRelease **BUILD=0** · [dup]18=기준선 · [style]2425←2441 감소 · [save]0 · [compose]OK
 - 폰 확인: 아직 — 내부배포 후 제목=설명문장·불릿 촘촘·칸 확인
+
+## 2026-11-19 20:35 · android
+주소 끝 **동·호수가 잘려** 현장을 못 찾던 것 수정 — 4곳. (사장님: "아파트명 동호수가 보이면 바로 찾아가겠는데 딱 그부분만 짤려서 보여")
+- 변경(표시만, 데이터·서버 영향 없음):
+  - ① 채팅 맨 위 주소줄 → **두 줄**(윗줄 지역·도로명 흐리게 / 아랫줄 단지명+동·호수 **굵게**). 공용 `ChatAddressLines`(ChatScreenHelpers) 한 곳, 쪼개기는 기존 공용 `AddressExtractor.roadThenBuilding`(고객상세 건 카드와 같은 셈)
+  - ② 홈/상담함 띠 둘째줄(`이름님·주소`) `BandShell` maxLines 1→2
+  - ③ 오늘 시공 다크 히어로 주소 maxLines 1→2  ④ 협업 현장 오늘 히어로 주소 maxLines 1→2
+- §12-K 연결 지점 다 확인: 주소 표시 6곳 중 **4곳 고침**, 고객상세 건 카드는 이미 `roadThenBuilding` 2줄(둬도 됨), 위젯은 RemoteViews 제약(이번 범위 밖)
+- 검증: assembleRelease **BUILD=0** · 가드 7종 통과([dup]18 · [size]늘지않음 — ChatScreen +43 났다가 ChatAddressLines 로 떼어내 해결 · [style]2441 · [save]0 · [compose]OK)
+- 폰 확인: 에뮬(debug) — 채팅 `서울 송파구 올림픽로 240` / **`103동 1802호`**(굵게) 안 잘림 ✅ · 홈 띠 동·호수 끝까지 보임 ✅ (S9 는 스토어 서명이라 덮어쓰기 불가, 지우지 않음)

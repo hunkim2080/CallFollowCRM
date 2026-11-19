@@ -296,8 +296,10 @@ internal fun BandShell(
             Text(line1, color = fg, style = AppType.label,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Spacer(Modifier.height(5.dp))
+            // 둘째 줄 두 줄까지 — 주소 끝 동·호수가 한 줄 ellipsis 로 잘려 현장을 못 찾았다. (2026-11-19 사장님)
+            //   짧은 글은 그대로 한 줄(넘칠 때만 둘째 줄을 쓴다).
             Text(line2, color = subFg, style = AppType.caption,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         if (action != null || action2 != null) {
             Row(
