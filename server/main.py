@@ -15365,10 +15365,15 @@ async def _search_kakao_local(query: str) -> Optional[dict]:
     )
     if doc:
         road = doc.get("road_address") or {}
+        # 🏢 도로명 주소에 **공동주택명(아파트명)이 juso DB 에 등록돼 있으면** 그걸 place_name 으로.
+        #   고객이 "청명북로 13 202호" 처럼 길 주소만 줘도 지도에서 "청명북로 13 (○○아파트)" 로 보이게 →
+        #   현장 도착 시 아파트명으로 바로 찾아간다. keyword 검색이 0건이라 여기까지 온 경우로,
+        #   전엔 카카오가 준 이름표를 버려(None) 아파트명이 늘 빈칸이었다. (2026-11-20 사장님)
+        #   등록 안 된 빌라·단독주택은 building_name 이 없거나 "" → 그대로 None (지금과 동일).
         return {
             "address_name": doc.get("address_name"),
             "road_address_name": road.get("address_name"),
-            "place_name": None,
+            "place_name": (road.get("building_name") or "").strip() or None,
             "x": doc.get("x"),
             "y": doc.get("y"),
         }

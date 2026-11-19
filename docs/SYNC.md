@@ -16563,3 +16563,15 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - §12-K 연결 지점 다 확인: 주소 표시 6곳 중 **4곳 고침**, 고객상세 건 카드는 이미 `roadThenBuilding` 2줄(둬도 됨), 위젯은 RemoteViews 제약(이번 범위 밖)
 - 검증: assembleRelease **BUILD=0** · 가드 7종 통과([dup]18 · [size]늘지않음 — ChatScreen +43 났다가 ChatAddressLines 로 떼어내 해결 · [style]2441 · [save]0 · [compose]OK)
 - 폰 확인: 에뮬(debug) — 채팅 `서울 송파구 올림픽로 240` / **`103동 1802호`**(굵게) 안 잘림 ✅ · 홈 띠 동·호수 끝까지 보임 ✅ (S9 는 스토어 서명이라 덮어쓰기 불가, 지우지 않음)
+
+## 2026-11-20 16:00 · android (+ server)
+길 주소만 온 접수서에 **아파트명 자동 채우기** — 지도검색이 주던 건물명을 서버가 버리던 것 수정. (사장님: "고객이 주소만 주고 아파트명을 안 줄 때 알아서 찾게 가능?")
+- 변경(server/main.py `_search_kakao_local` 주소검색 분기 1줄): `place_name: None` → `(road.get("building_name") or "").strip() or None`
+  - 카카오 주소검색(address.json)은 도로명에 **juso DB 건물명(공동주택명)이 있으면** 같이 준다. 전엔 그 이름표를 버려 아파트명이 늘 빈칸이었다.
+  - 앱은 손 안 댐 — 이미 `place_name` 받아 "지도에서 찾은 주소"에 `(○○아파트)` 표시·저장함(ChatScreen `AddressRegisterSheet`).
+- 라이브 배포함(GOTCHAS §3): scp→patch(1곳만)→py_compile(로컬·서버)→백업 main.py.bak-20261120-065707→교체→kickstart→**smoke 10/10** ✅
+- 실기 확인(카카오 직접 조회):
+  - `청명북로 33` → place_name **"청명마을삼성아파트"** ✅ (패치 전 null이던 것)
+  - 롯데월드·마루홈타운 등 building_name 정상
+  - 단 사장님 화면의 `청명북로 13` 은 **카카오 DB에 건물명이 빈값**('')이라 여전히 빈칸 — 등록 안 된 곳(빌라·일부 번지)은 어쩔 수 없음(근처 아파트 추측 자동채움은 **엉뚱한 곳 위험**이라 안 함). 등록된 아파트는 이제 자동으로 뜸.
+- 다음 액션(server 담당): repo==라이브 아님(라이브가 생산 진실). 이 1줄은 repo/server/main.py 에도 반영해 커밋함.
