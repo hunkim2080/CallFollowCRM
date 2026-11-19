@@ -2411,8 +2411,7 @@ private fun CallSegment(
     }.getOrNull()
     // 통화 = 딥 티얼(답한통화)/코랄(부재중), 메시지 파랑과 색 구분. 컴팩트 기본·탭하면 상세 펼침. (2026-08-14 사장님·Gemini)
     val teal = Color(0xFF1E6E6A); val tealDark = Color(0xFF154D4A)
-    val tealBg = AppTheme.colors.bg; val tealLine = Color(0xFFD6E6E4); val tealChip = AppTheme.colors.surfacePressed
-    val coral = Color(0xFFC0574B)
+    val tealBg = AppTheme.colors.bg; val tealLine = Color(0xFFD6E6E4)
     val label = when (type) {
         com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화"
         com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화"
@@ -2424,7 +2423,10 @@ private fun CallSegment(
     val isMissed = type == com.detailline.callfollowcrm.domain.model.CallType.MISSED ||
         type == com.detailline.callfollowcrm.domain.model.CallType.REJECTED
     val hasDetail = !isMissed
-    val accent = if (isMissed) coral else teal
+    // 머리줄(수신/발신 통화) 색 = 토큰. 아이콘 파랑(부재중 빨강)·글자 중립. (2026-11-19 사장님 "머리줄도 정리")
+    val callIconBg = if (isMissed) AppTheme.colors.unpaidBg else AppTheme.colors.primaryBg
+    val callIconTint = if (isMissed) AppTheme.colors.unpaid else AppTheme.colors.primary
+    val callLabelColor = if (isMissed) AppTheme.colors.unpaidText else AppTheme.colors.text
     val durLabel = formatCallDuration(record.duration)
     // 태그(요약의 평수·부위·일정) · 통화 전문(숨겨져 있던 것) · 펼침 상태
     // 통화 태그(부위·문제·일정) — 서버 tags[](tagsJson). 옛 요약은 space/problem/schedule 로 폴백. (2026-08-17)
@@ -2468,10 +2470,10 @@ private fun CallSegment(
             // 아이콘도 한 단계 작게 — 꽉 찬 색 대신 옅은 면 + 색 글자. 카드가 조용해진다.
             Box(
                 modifier = Modifier.size(26.dp).clip(RoundedCornerShape(8.dp))
-                    .background(if (isMissed) Color(0xFFF8E7E4) else tealChip),
+                    .background(callIconBg),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Phone, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+                Icon(Icons.Default.Phone, contentDescription = null, tint = callIconTint, modifier = Modifier.size(13.dp))
             }
             Spacer(Modifier.width(9.dp))
             Column(Modifier.weight(1f)) {
@@ -2481,7 +2483,7 @@ private fun CallSegment(
                     Text(
                         buildString { append(label); if (durLabel != null) { append(" "); append(durLabel) } },
                         fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-                        color = if (isMissed) coral else tealDark, maxLines = 1
+                        color = callLabelColor, maxLines = 1
                     )
                     Text(
                         " · " + DateTimeUtils.formatShort(record.endedAt),
@@ -2552,15 +2554,15 @@ private fun CallSegment(
         ) {
             // shead — 📞 통화 · 길이 · 시각 (프로토 .shead)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-                Box(Modifier.size(32.dp).clip(RoundedCornerShape(50)).background(tealBg), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Phone, contentDescription = null, tint = teal, modifier = Modifier.size(15.dp))
+                Box(Modifier.size(32.dp).clip(RoundedCornerShape(50)).background(callIconBg), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = callIconTint, modifier = Modifier.size(15.dp))
                 }
                 Spacer(Modifier.width(9.dp))
                 Column {
-                    Text(label, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = if (isMissed) coral else tealDark)
+                    Text(label, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = callLabelColor)
                     Text(
                         buildString { durLabel?.let { append(it); append(" · ") }; append(DateTimeUtils.formatShort(record.endedAt)) },
-                        fontSize = 11.sp, color = Color(0xFF7B9A9A), fontWeight = FontWeight.Medium
+                        fontSize = 11.sp, color = AppTheme.colors.textSub, fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -2833,11 +2835,24 @@ private fun CallSegment(
             CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs,
                 seekReqMs = seekReqMs, seekReqTick = seekReqTick)
         }
+        var transcriptOpen by remember(summary?.id) { mutableStateOf(false) }
         if (transcript != null || callSegments.isNotEmpty()) {
             Column(Modifier.padding(top = 12.dp)) {
-                Text("통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
-                Spacer(Modifier.height(6.dp))
-                if (callSegments.isNotEmpty()) {
+                // 통화 전문은 길어서 기본 접힘 — 「보기 ▾」 누르면 스르륵 펼침. 요약 화면은 깔끔하게. (2026-11-19 사장님)
+                Row(
+                    Modifier.fillMaxWidth().clip(AppShape.sm)
+                        .clickable { transcriptOpen = !transcriptOpen }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (transcriptOpen) "접기 ▴" else "보기 ▾", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                }
+                androidx.compose.animation.AnimatedVisibility(visible = transcriptOpen) {
+                  Column {
+                    Spacer(Modifier.height(6.dp))
+                    if (callSegments.isNotEmpty()) {
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AppTheme.colors.surface)
                             .border(1.dp, AppTheme.colors.surfacePressed, RoundedCornerShape(12.dp)).padding(9.dp)
@@ -2902,7 +2917,9 @@ private fun CallSegment(
                         Text(transcript, fontSize = 11.5.sp, color = Color(0xFF3A4A4A), lineHeight = 17.sp)
                     }
                 }
-                Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp))
+                    Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp))
+                  }
+                }
             }
         }
         // 전문 아래에 있던 작은 [이 통화로 후속 문자 쓰기] 링크는 뻐다. (2026-09-20 사장님)

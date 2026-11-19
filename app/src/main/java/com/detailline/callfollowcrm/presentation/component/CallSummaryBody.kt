@@ -92,7 +92,7 @@ fun CallSummaryBody(
                         modifier = Modifier.padding(end = 10.dp)
                     )
                     Text(
-                        row.text, fontSize = fontSize, color = textColor,
+                        boldMd(row.text), fontSize = fontSize, color = textColor,
                         lineHeight = lineHeight, fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f)
                     )
@@ -168,6 +168,24 @@ fun CallSummaryBody(
         }
     }
 }
+
+/**
+ * 요점 불릿의 **핵심어 굵게** — 서버가 `**…**` 로 감싼 부분만 Bold. (2026-11-19 프로토 ① A안)
+ * 마크가 없으면 그대로(보통 굵기). 서버 AI 프롬프트가 부위·자재·일정·금액을 **…** 로 감싼다.
+ */
+private fun boldMd(text: String): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        val re = Regex("""\*\*(.+?)\*\*""")
+        var last = 0
+        re.findAll(text).forEach { m ->
+            append(text.substring(last, m.range.first))
+            pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+            append(m.groupValues[1])
+            pop()
+            last = m.range.last + 1
+        }
+        if (last < text.length) append(text.substring(last))
+    }
 
 /** 이 요약에 시각·화자가 들어 있나 — "손님/나 는 AI 짐작" 안내를 띄울지 판단할 때. */
 fun hasSpeakerGuess(rawLines: List<String>): Boolean =
