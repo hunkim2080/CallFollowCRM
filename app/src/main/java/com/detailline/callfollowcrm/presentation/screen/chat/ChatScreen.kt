@@ -2726,89 +2726,94 @@ private fun CallSegment(
                 }
             }
         } else {
-            // 프로토(08352d6e): ✨ AI 요약 라벨 + 티얼 박스 안 불릿. (2026-08-15 1:1)
-            Column(Modifier.padding(top = 10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    com.detailline.callfollowcrm.presentation.theme.AiMark(teal, 12.dp, 4.dp)
-                    Text("AI 요약", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
-                }
-                Spacer(Modifier.height(6.dp))
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(tealBg)
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    if (summaryTitle != null) {
-                        Text(
-                            summaryTitle, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-                            color = tealDark, lineHeight = 18.sp, modifier = Modifier.padding(bottom = 3.dp)
-                        )
+            // 프로토 ① (artifact SCpXieKcjBfxvRB5db9RP9): 분류칩 → 제목 → 깔끔 불릿 요점 → 꼭 챙겨야 할 일 → 파란 문자버튼.
+            //   청록 하드코딩 걷어내고 AppTheme 토큰으로. 요점은 시간 뗀 깔끔 불릿 — 듣기는 아래 통화 전문에서. (2026-11-19)
+            Column(Modifier.padding(top = 12.dp)) {
+                // 분류 칩(파랑) + # 해시
+                val callCat = summary?.category?.takeIf { it.isNotBlank() }
+                if (callCat != null || tags.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (callCat != null) {
+                            Text(
+                                callCat, style = AppType.label, color = AppTheme.colors.primaryText,
+                                maxLines = 1,
+                                modifier = Modifier.clip(AppShape.pill).background(AppTheme.colors.primaryBg)
+                                    .padding(horizontal = AppSpace.s12, vertical = AppSpace.s4)
+                            )
+                        }
+                        tags.forEach { t ->
+                            Text(
+                                "#$t", style = AppType.label, color = AppTheme.colors.textSub,
+                                maxLines = 1,
+                                modifier = Modifier.clip(AppShape.pill).background(AppTheme.colors.surfaceMuted)
+                                    .padding(horizontal = AppSpace.s12, vertical = AppSpace.s4)
+                            )
+                        }
                     }
-                    // 🔒 그리는 곳은 **CallSummaryBody 한 군데.** 여기서 따로 그리지 않는다.
-                    //   전엔 여기만 문장을 그리고 시각·화자를 버려서, 사장님이 매일 보는 쪽만
-                    //   옛 모양으로 남아 있었다. (2026-09-25)
-                    com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
-                        rawLines = rawSummaryLines,
-                        skipText = summaryTitle,
-                        // 녹음이 있을 때만 알약 — 없으면 누를 데가 없다.
-                        onSeek = if (audioUri != null) {
-                            { ms -> seekReqMs = ms.toInt(); seekReqTick++ }
-                        } else null,
-                        timeChipBg = Color(0x1A0E9E90),
-                        textColor = Color(0xFF3A5252),
-                        timeColor = Color(0xFF7B9A9A),
-                        ownerDot = teal,
-                        customerDot = TossBlue,
-                        fontSize = 14.sp,
-                        lineHeight = 21.sp,
-                        timeFontSize = 12.sp,
-                        timeWidth = 64.dp,
-                        // 👆 알약이 커진 만큼 줄 사이도 띄운다(오탭 방지).
-                        rowGap = 8.dp
-                    )
-                    // 📋 꼭 챙겨야 할 일(서버 todos) — 요약 본문 아래. 비면 아무것도 안 그림. (2026-11-18)
-                    com.detailline.callfollowcrm.presentation.component.CallTodoChecklist(
-                        summary?.todosJson,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
+                    Spacer(Modifier.height(AppSpace.s12))
                 }
+                // 제목 — 지금은 가진 제목 그대로. 설명형 제목 생성은 서버 요약 손대는 Phase라 분리. (2026-11-19)
+                if (summaryTitle != null) {
+                    Text(summaryTitle, style = AppType.title, color = AppTheme.colors.text)
+                    Spacer(Modifier.height(AppSpace.s12))
+                }
+                // 🔒 그리는 곳은 **CallSummaryBody 한 군데.** plain=true 로 시간 뗀 깔끔 불릿. (2026-11-19 사장님 "프로토처럼 깔끔 불릿")
+                com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
+                    rawLines = rawSummaryLines,
+                    skipText = summaryTitle,
+                    plain = true,
+                    textColor = AppTheme.colors.text,
+                    bulletColor = AppTheme.colors.primary,
+                    timeColor = AppTheme.colors.textHint,
+                    ownerDot = AppTheme.colors.primary,
+                    customerDot = AppTheme.colors.textSub,
+                    fontSize = 15.sp,
+                    lineHeight = 24.sp,
+                    rowGap = AppSpace.s12
+                )
+                // 📋 꼭 챙겨야 할 일(서버 todos) — 회색 둥근 박스. 비면 아무것도 안 그림. (2026-11-18)
+                com.detailline.callfollowcrm.presentation.component.CallTodoChecklist(
+                    summary?.todosJson,
+                    modifier = Modifier.padding(top = AppSpace.s16)
+                )
             }
             // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
             //   + 「다시 요약」 (2026-09-25 사장님) — 전엔 에이닷에 들어가 녹음을 다시 공유해야만 됐다.
             //     돈·시간이 드는 쪽이라 회색(보조)으로 두고, 누르면 한 번 확인한다.
             // 👆 「다시 요약」은 **돈과 시간이 드는 쪽**이다. 「요약 수정」과 붙어 있으면 오탭한다.
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
+                Modifier.fillMaxWidth().padding(top = AppSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.End)
             ) {
                 if (recordingConnected && !isRedoing) {
                     Box(
-                        Modifier.clip(RoundedCornerShape(8.dp))
+                        Modifier.clip(AppShape.sm)
                             .clickable { onRedoSummary() }
                             .padding(horizontal = 10.dp, vertical = 9.dp)
                     ) {
-                        Text("다시 요약", color = Color(0xFF7B9A9A), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("다시 요약", color = AppTheme.colors.textHint, style = AppType.label)
                     }
                 }
                 Box(
-                    Modifier.clip(RoundedCornerShape(8.dp))
+                    Modifier.clip(AppShape.sm)
                         .clickable { editText = summary?.summaryText.orEmpty(); editing = true }
                         .padding(horizontal = 10.dp, vertical = 9.dp)
                 ) {
-                    Text("요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("요약 수정", color = AppTheme.colors.primaryText, style = AppType.label)
                 }
             }
-            // 후속 문자 — **요약 바로 아래**에도 둔다. (2026-09-17 사장님: "ux가 좀 이상한거같은데")
+            // 후속 문자 — **요약 바로 아래** 파란 버튼(프로토 ① ✨ 문자 버튼). (2026-09-17 사장님 "ux가 좀 이상한거같은데")
             //   원래는 통화 전문·플레이어 **뒤**에만 있었다. 26분 통화는 전문이 400줄이라
             //   정작 쓰려는 버튼까지 한참 내려가야 했다. 읽는 건 전문이 아니라 요약이다.
             summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
                 Box(
-                    Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF0A7D72))
+                    Modifier.fillMaxWidth().padding(top = AppSpace.s8).clip(AppShape.md)
+                        .background(AppTheme.colors.primary)
                         .clickable { sheetOpen = false; onUseAsDraft(draft) }
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("이 통화로 후속 문자 쓰기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("이 통화로 후속 문자 쓰기", color = AppTheme.colors.textOnPrimary, style = AppType.headline)
                 }
             }
         }

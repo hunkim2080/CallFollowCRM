@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
@@ -67,6 +69,10 @@ fun CallSummaryBody(
     timeFontSize: TextUnit = 12.sp,
     timeWidth: Dp = 66.dp,
     rowGap: Dp = 9.dp,
+    /** plain 모드에서 • 불릿 색. 기본은 글자색. */
+    bulletColor: Color = textColor,
+    /** true = 시간·화자 없이 깔끔한 • 불릿만(요점용). 듣기·범례 없음. (2026-11-19 프로토 ① A안) */
+    plain: Boolean = false,
     skipText: String? = null,
     onSeek: ((Long) -> Unit)? = null,
     /** 누를 수 있는 시각 알약의 바탕색. 부르는 쪽 카드 색에 맞춰 넘긴다. */
@@ -75,6 +81,24 @@ fun CallSummaryBody(
     val rows = rawLines.mapNotNull { CallSummaryLines.parseOne(it) }
         .filter { skipText == null || it.text != skipText }
     Column(modifier) {
+        if (plain) {
+            // 요점 = 깔끔 불릿 — 시간·화자 떼고 • + 문장만. 듣기는 통화 전문에서. (2026-11-19 프로토 ① A안)
+            rows.forEachIndexed { i, row ->
+                if (i > 0) Spacer(Modifier.height(rowGap))
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        "•", color = bulletColor, fontSize = fontSize,
+                        fontWeight = FontWeight.Bold, lineHeight = lineHeight,
+                        modifier = Modifier.padding(end = 10.dp)
+                    )
+                    Text(
+                        row.text, fontSize = fontSize, color = textColor,
+                        lineHeight = lineHeight, fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        } else {
         rows.forEachIndexed { i, row ->
             if (i > 0) Spacer(Modifier.height(rowGap))
             Row(verticalAlignment = Alignment.Top) {
@@ -141,6 +165,7 @@ fun CallSummaryBody(
             Text("· 손님·나 는 AI 짐작이에요 (통화 전문에서 확인)",
                 fontSize = timeFontSize, color = timeColor, maxLines = 1)
         }
+        }
     }
 }
 
@@ -174,19 +199,26 @@ fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier) {
         todos.forEachIndexed { i, t ->
             Spacer(Modifier.height(AppSpace.s8))
             val on = checked.getOrElse(i) { false }
+            // 회색 둥근 박스(프로토 ① .trow) — 흰 카드 위에서 할 일을 한 줄씩 또렷이. (2026-11-19)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { if (i < checked.size) checked[i] = !on }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShape.md)
+                    .background(c.bg)
+                    .clickable { if (i < checked.size) checked[i] = !on }
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = AppSpace.s12, vertical = 10.dp)
             ) {
                 Box(
                     Modifier.size(20.dp).clip(AppShape.sm)
-                        .background(if (on) c.primary else Color.Transparent)
-                        .border(1.5.dp, if (on) c.primary else c.textSub, AppShape.sm),
+                        .background(if (on) c.primary else c.surface)
+                        .border(1.5.dp, if (on) c.primary else c.textHint, AppShape.sm),
                     contentAlignment = Alignment.Center
                 ) {
                     if (on) Text("✓", style = AppType.caption, color = c.surface)
                 }
-                Spacer(Modifier.width(AppSpace.s8))
+                Spacer(Modifier.width(AppSpace.s12))
                 Text(
                     t, style = AppType.headline, color = c.text,
                     textDecoration = if (on) TextDecoration.LineThrough else null,

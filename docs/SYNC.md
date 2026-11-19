@@ -16496,3 +16496,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: 컴파일 0에러·testDebugUnitTest 통과·assembleRelease 7가드 통과(**style 2441 그대로**·dup 18·size·save0). Room v74 OK
 - 폰 확인: 아직 — 내부배포 후 **새 통화** 요약에 분류 칩·꼭 챙겨야 할 일 뜨는지 눈확인(마이그레이션=기존 폰 업데이트 안깨지는지도)
 - 다음: 태그 '의미 있게' 개편(프로토 SCpXieKcjBfxvRB5db9RP9 §③ A안 핵심사실/B안 상태 — 사장님 선택 대기) · 1단계-2차 말풍선 · one_line 헤더
+
+## 2026-11-19 · android
+통화요약 카드 **프로토 ① 1:1**(artifact SCpXieKcjBfxvRB5db9RP9) — 통화 상세 시트 요약 카드. 사장님 "이건 프로토 디자인이 아닌데?" 지적 반영
+- 요점 = **깔끔 불릿**(사장님 택 2026-11-19, 시간·화자 뗌 — 듣기는 통화 전문에서): 공용 `CallSummaryBody` 에 `plain` 모드 추가(새 렌더러 X·한 곳). `CallSummaryScreen`(수동 정리)은 그대로 segment 모드
+- 꼭 챙겨야 할 일 = **회색 둥근 박스**(프로토 .trow): 공용 `CallTodoChecklist` 한 곳 고침
+- 시트 요약 카드: 분류칩(파랑 primaryBg)+#해시 → 제목(AppType.title) → 깔끔 불릿 → 할 일 박스 → **파란** 문자버튼. 청록 하드코딩(0A7D72·tealBg 등) → `AppTheme.colors` 토큰
+- 남음: **설명형 제목**(서버 one_line 헤더 전환 — 별도 Phase) · 시트 머리(shead)·통화 전문 쪽 청록 정리
+- 검증: assembleRelease **BUILD=0**(7가드 통과) · 두 벌 0(요약·할일 공용 한 곳)
+- 폰 확인: 아직 — 내부배포 후 통화카드 탭 → 상세 시트가 프로토처럼 보이는지 눈확인
+- 다음: 통화 중 오버레이 개편 기획(Codex 완료 — 삼성은 '공식 스토어 설치'면 통화중 오버레이 허용, Phase 0 폰 표시확인부터) · 1단계-2차 말풍선
