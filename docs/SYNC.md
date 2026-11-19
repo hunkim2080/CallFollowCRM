@@ -16575,3 +16575,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
   - 롯데월드·마루홈타운 등 building_name 정상
   - 단 사장님 화면의 `청명북로 13` 은 **카카오 DB에 건물명이 빈값**('')이라 여전히 빈칸 — 등록 안 된 곳(빌라·일부 번지)은 어쩔 수 없음(근처 아파트 추측 자동채움은 **엉뚱한 곳 위험**이라 안 함). 등록된 아파트는 이제 자동으로 뜸.
 - 다음 액션(server 담당): repo==라이브 아님(라이브가 생산 진실). 이 1줄은 repo/server/main.py 에도 반영해 커밋함.
+
+## 2026-11-20 16:30 · android
+녹음 재생이 **화면을 나가도 안 멈추던 버그** 수정 — 홈버튼·앱전환·화면잠금·다른 앱(전화 등) 위로 뜰 때 백그라운드로 계속 들리던 것. (사장님: "녹음 말풍선 듣는 도중 화면 나가면 끊겨야 하는데 계속 재생")
+- 원인: `CallRecordingPlayer`(ChatSmallParts.kt) 정리가 **composition dispose(onDispose)에만** 묶여 있었다. 뒤로가기는 composition 이 사라져 멈추지만, 홈/앱전환은 Activity 만 STOP 되고 composition 은 남아 onDispose 가 안 불려 MediaPlayer 가 계속 재생.
+- 수정(1곳, 공용 컴포저블): lifecycle 관찰 추가 — `LocalLifecycleOwner`(NavHost 안=이 화면 BackStackEntry) `ON_STOP` 에 `player.pause()`+isPlaying=false. 화면 떠나거나 앱 내려가면 멈추고, 돌아오면 ▶ 로 이어듣기(위치 유지). 기존 onDispose(release)는 그대로.
+- §12-K/§12: `CallRecordingPlayer` 는 ChatScreen 1곳에서만 쓰여(grep 확인) 공용 한 곳 수정으로 전부 해결. 두 벌 없음. HomeScreen·SettingsScreen 이 쓰던 같은 lifecycle 패턴.
+- 검증: assembleRelease **BUILD SUCCESSFUL**(가드 7종 통과) · health 로그
+- 폰 확인: 아직 — ⚠️ 실기 재생 테스트 제약(S9 는 스토어 서명이라 debug 덮어쓰기 불가, 에뮬엔 실제 녹음 파일 없음). 내부배포 후 사장님 실기 확인 필요.

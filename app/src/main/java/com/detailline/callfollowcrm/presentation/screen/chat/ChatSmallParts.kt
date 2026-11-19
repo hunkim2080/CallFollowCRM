@@ -281,6 +281,22 @@ internal fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null,
     LaunchedEffect(seekReqTick) {
         if (seekReqTick > 0) seekReqMs?.let { seekAndPlay(it) }
     }
+    // 화면이 안 보이게 되면(홈버튼·앱전환·다른 화면 위로·화면잠금) 재생을 멈춘다. (2026-11-20 사장님)
+    //   아래 onDispose 는 **뒤로가기로 composition 이 사라질 때**만 불린다. 홈버튼·앱전환은
+    //   Activity 만 멈추고 composition 은 남아 onDispose 가 안 불려 녹음이 백그라운드로 계속 들렸다.
+    //   NavHost 안에선 LocalLifecycleOwner = 이 화면의 BackStackEntry → 화면을 떠나거나 앱이
+    //   내려가면 ON_STOP 이 와 여기서 일시정지한다(위치는 유지 — 돌아오면 ▶ 로 이어듣기).
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                runCatching { player?.takeIf { it.isPlaying }?.pause() }
+                isPlaying = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
     androidx.compose.runtime.DisposableEffect(audioUri) {
         onDispose { runCatching { player?.release() }; player = null }
     }
