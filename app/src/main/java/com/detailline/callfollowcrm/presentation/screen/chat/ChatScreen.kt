@@ -2726,8 +2726,14 @@ private fun CallSegment(
                 }
             }
         } else {
-            // 프로토 ① (artifact SCpXieKcjBfxvRB5db9RP9): 분류칩 → 제목 → 깔끔 불릿 요점 → 꼭 챙겨야 할 일 → 파란 문자버튼.
-            //   청록 하드코딩 걷어내고 AppTheme 토큰으로. 요점은 시간 뗀 깔끔 불릿 — 듣기는 아래 통화 전문에서. (2026-11-19)
+            // 프로토 ① (artifact SCpXieKcjBfxvRB5db9RP9) 1:1: 분류칩 → 설명형 제목(one_line) → 깔끔 불릿 → 할 일 → 파란 문자버튼.
+            //   제목 = 요약 첫 줄(one_line, 시간·화자 없는 평문일 때만). 시간구간 요약이면 짧은 title 유지. (2026-11-19 사장님 "프로토 1:1")
+            //   one_line 은 summaryText 첫 줄에 들어있다(CallAudioSummarizer 가 one_line+불릿으로 저장) → 올려서 제목으로, 불릿에선 뺀다.
+            val firstRow = rawSummaryLines.firstOrNull()
+                ?.let { com.detailline.callfollowcrm.util.CallSummaryLines.parseOne(it) }
+            val oneLineTitle = firstRow?.takeIf { it.time.isBlank() && it.speaker.isBlank() }
+                ?.text?.takeIf { it.isNotBlank() }
+            val cardTitle = oneLineTitle ?: summaryTitle
             Column(Modifier.padding(top = 12.dp)) {
                 // 분류 칩(파랑) + # 해시
                 val callCat = summary?.category?.takeIf { it.isNotBlank() }
@@ -2752,24 +2758,22 @@ private fun CallSegment(
                     }
                     Spacer(Modifier.height(AppSpace.s12))
                 }
-                // 제목 — 지금은 가진 제목 그대로. 설명형 제목 생성은 서버 요약 손대는 Phase라 분리. (2026-11-19)
-                if (summaryTitle != null) {
-                    Text(summaryTitle, style = AppType.title, color = AppTheme.colors.text)
+                // 설명형 제목(프로토 .ttl) — one_line. 올린 줄은 아래 불릿에서 뺀다(skipText).
+                if (cardTitle != null) {
+                    Text(cardTitle, style = AppType.title, color = AppTheme.colors.text)
                     Spacer(Modifier.height(AppSpace.s12))
                 }
-                // 🔒 그리는 곳은 **CallSummaryBody 한 군데.** plain=true 로 시간 뗀 깔끔 불릿. (2026-11-19 사장님 "프로토처럼 깔끔 불릿")
+                // 🔒 그리는 곳은 **CallSummaryBody 한 군데.** plain=true 로 시간 뗀 깔끔 불릿.
+                //   기본값(fontSize 15·lineHeight 22·rowGap 9)로 둬 프로토(.li 15/1.5·gap 11)에 맞게 촘촘히. (2026-11-19 사장님 "간격 1:1")
                 com.detailline.callfollowcrm.presentation.component.CallSummaryBody(
                     rawLines = rawSummaryLines,
-                    skipText = summaryTitle,
+                    skipText = oneLineTitle,
                     plain = true,
                     textColor = AppTheme.colors.text,
                     bulletColor = AppTheme.colors.primary,
                     timeColor = AppTheme.colors.textHint,
                     ownerDot = AppTheme.colors.primary,
-                    customerDot = AppTheme.colors.textSub,
-                    fontSize = 15.sp,
-                    lineHeight = 24.sp,
-                    rowGap = AppSpace.s12
+                    customerDot = AppTheme.colors.textSub
                 )
                 // 📋 꼭 챙겨야 할 일(서버 todos) — 회색 둥근 박스. 비면 아무것도 안 그림. (2026-11-18)
                 com.detailline.callfollowcrm.presentation.component.CallTodoChecklist(

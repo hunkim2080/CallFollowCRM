@@ -208,12 +208,12 @@ fun CallTodoChecklist(todosJson: String?, modifier: Modifier = Modifier) {
                     .background(c.bg)
                     .clickable { if (i < checked.size) checked[i] = !on }
                     .heightIn(min = 48.dp)
-                    .padding(horizontal = AppSpace.s12, vertical = 10.dp)
+                    .padding(horizontal = AppSpace.s12, vertical = AppSpace.s12)
             ) {
                 Box(
                     Modifier.size(20.dp).clip(AppShape.sm)
                         .background(if (on) c.primary else c.surface)
-                        .border(1.5.dp, if (on) c.primary else c.textHint, AppShape.sm),
+                        .border(2.dp, if (on) c.primary else c.textHint, AppShape.sm),
                     contentAlignment = Alignment.Center
                 ) {
                     if (on) Text("✓", style = AppType.caption, color = c.surface)
