@@ -16594,3 +16594,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: assembleRelease **BUILD SUCCESSFUL**(가드 7종: dup18·style2422·size·save0·compose·brand·rules OK) · health 로그
 - 폰 확인: 아직 — ⚠️ 협업 '출발' 푸시가 와야 재현. 내부배포 후 사장님 실기(푸시 버튼 눌러 알림센터 단계 카드 뜨는지).
 - 다음(나중): 상대 실시간 위치 지도 = GPS 공유 설계 필요(배터리·사생활·서버·상대 동의). 별건.
+
+## 2026-11-20 23:27 · android
+고객정보 **시공 건 카드 주소줄 통일** — 아파트명(단지명·동호수)이 굵은 글씨를 가져가게. (사장님: "이 주소도 통일감 있도록 아파트명이 두꺼운 글씨를")
+- 증상: 건 카드는 **도로명이 14sp 굵게·진함 / 아파트명이 연함**이라, 채팅(ChatAddressLines)이 **아파트명을 굵게** 하는 것과 반대였다. 도착해서 제일 필요한 부분(단지·동호수)이 연하게 묻힘.
+- 수정(1곳, CustomerDetailJobCard.kt): 강조 줄 = 단지명·동호수(있으면), 받쳐주는 줄 = 도로명. 단지명 없고 도로명만 있으면 도로명이 강조 줄. 14sp 는 한 줄만(강조) — style_guard 손값 안 늘게 문자열만 고르는 방식(`addrStrong`/`addrSupport`).
+- §12-K/§12: 주소 쪼개기는 공용 `AddressExtractor.roadThenBuilding` 한 곳. 두 줄로 **그리는 곳은 채팅+이 건 카드 2군데뿐**(grep roadThenBuilding 확인). 홈 띠·히어로는 통짜 2줄 wrap(도로/단지 따로 굵게 안 함)이라 무관. 채팅은 이미 아파트명 굵음 → 이 건 카드만 규칙 맞춤. 두 벌 아님(파싱 공용, 스타일은 맥락상 크기만 다름).
+- 검증: assembleRelease **BUILD SUCCESSFUL**(가드 7종: dup18·style2422↓·size·save0·compose·brand·rules OK) · health 로그
+- 폰 확인: 아직 — 내부배포 후 사장님 실기(건 카드 주소 아파트명이 굵게 나오는지).

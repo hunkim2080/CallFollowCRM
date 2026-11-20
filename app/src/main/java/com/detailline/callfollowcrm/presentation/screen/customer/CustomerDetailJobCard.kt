@@ -236,10 +236,15 @@ internal fun JobDetailCard(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 // 📍 가독성 — 1줄 도로명 / 2줄 단지명·동호수로 문단 나눔(AddressExtractor.roadThenBuilding). 복사·길찾기는 전체(displayAddr) 그대로. (2026-10-20 사장님)
+                                // 🔠 강조는 **단지명·동호수 줄**이 가져간다 — 도착해서 제일 필요한 부분. 채팅 ChatAddressLines 와 같은 규칙(아파트명 굵게)으로 통일. (2026-11-20 사장님)
+                                //    단지명이 없고 도로명만 있으면 도로명이 강조 줄이 된다.
                                 val (addrLine1, addrLine2) = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(displayAddr)
+                                // 강조 줄 = 단지명·동호수(있으면), 없으면 도로명. 받쳐주는 줄 = 도로명(단지명 있을 때만).
+                                val addrStrong = addrLine2 ?: addrLine1
+                                val addrSupport = if (addrLine2 != null) addrLine1 else null
                                 Column(Modifier.weight(1f)) {
-                                    Text(addrLine1, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)
-                                    if (addrLine2 != null) Text(addrLine2, style = AppType.body, fontWeight = FontWeight.SemiBold, color = TossTextSecondary)
+                                    if (addrSupport != null) Text(addrSupport, style = AppType.body, fontWeight = FontWeight.Normal, color = TossTextSecondary)
+                                    Text(addrStrong, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 20.sp)
                                 }
                                 Spacer(Modifier.width(6.dp))
                                 Text("복사", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
