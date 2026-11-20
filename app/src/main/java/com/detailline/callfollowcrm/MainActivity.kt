@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
                         is IncomingIntent.WidgetRoute -> container.navEvents.requestWidgetRoute(incoming.route)
                         is IncomingIntent.OpenTeam -> container.navEvents.requestTeam()
                         is IncomingIntent.OpenRecurringDue -> container.navEvents.requestRecurringDue()
+                        is IncomingIntent.OpenNotifications -> container.navEvents.requestNotifications()
                         is IncomingIntent.WebAuthorize -> {
                             // 딥링크 QR 로그인 — 예전엔 묻지도 않고 자동 승인이라 '아무 카메라로 찍어도 로그인'됐음. → 확인 창. (2026-08-15 사장님 보안 지적)
                             //   ⚠️ 이건 최소 방어(몰래/실수 차단)일 뿐. 진짜 인증(번호가 아니라 로그인 토큰 검증)은 서버 작업 대기(홍보 전 필수).
@@ -215,6 +216,7 @@ class MainActivity : ComponentActivity() {
             }
             ACTION_TEAM -> { pendingIntentState.value = IncomingIntent.OpenTeam }
             ACTION_RECURRING_DUE -> { pendingIntentState.value = IncomingIntent.OpenRecurringDue }
+            ACTION_COLLAB_PROGRESS -> { pendingIntentState.value = IncomingIntent.OpenNotifications }
             ACTION_COLLAB_MINE -> {
                 // 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님)
                 pendingIntentState.value = IncomingIntent.CollabMine
@@ -341,6 +343,8 @@ class MainActivity : ComponentActivity() {
         object OpenTeam : IncomingIntent
         /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13) */
         object OpenRecurringDue : IncomingIntent
+        /** 협업 진행 '어디까지 왔나 보기' 버튼 → 알림센터(진행 단계 카드). (2026-11-20 사장님) */
+        object OpenNotifications : IncomingIntent
         /** 시공막내 웹 QR 로그인 — 노트북 웹의 QR(/web/authorize?t=)을 폰이 찍음 → authorize 승인. (2026-08-13) */
         data class WebAuthorize(val ticket: String) : IncomingIntent
     }
@@ -366,6 +370,8 @@ class MainActivity : ComponentActivity() {
         const val ACTION_TEAM = "com.detailline.callfollowcrm.ACTION_TEAM"
         /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13 알림 위치점검) */
         const val ACTION_RECURRING_DUE = "com.detailline.callfollowcrm.ACTION_RECURRING_DUE"
+        /** 협업 진행 푸시 '어디까지 왔나 보기' 버튼 → 알림센터(진행 단계 카드). (2026-11-20 사장님) */
+        const val ACTION_COLLAB_PROGRESS = "com.detailline.callfollowcrm.ACTION_COLLAB_PROGRESS"
         const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
         const val EXTRA_BRIEF_DAY = "brief_day_ms"
         const val ACTION_COLLAB_MINE = "com.detailline.callfollowcrm.ACTION_COLLAB_MINE"

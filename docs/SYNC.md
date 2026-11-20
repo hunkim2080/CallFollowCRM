@@ -16583,3 +16583,14 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - §12-K/§12: `CallRecordingPlayer` 는 ChatScreen 1곳에서만 쓰여(grep 확인) 공용 한 곳 수정으로 전부 해결. 두 벌 없음. HomeScreen·SettingsScreen 이 쓰던 같은 lifecycle 패턴.
 - 검증: assembleRelease **BUILD SUCCESSFUL**(가드 7종 통과) · health 로그
 - 폰 확인: 아직 — ⚠️ 실기 재생 테스트 제약(S9 는 스토어 서명이라 debug 덮어쓰기 불가, 에뮬엔 실제 녹음 파일 없음). 내부배포 후 사장님 실기 확인 필요.
+
+## 2026-11-20 17:30 · android
+협업 진행 푸시 **"어디까지 왔나 보기" 버튼이 눌러도 아무것도 안 보이던 것** 수정. (사장님: "버튼 누르면 보이지도 않는데 왜 버튼명은 이렇게?")
+- 원인: 그 버튼이 본문 탭과 **같은 PendingIntent**(ACTION_COLLAB_SITE→고객정보/현장)로 갔는데, 거긴 **진행 단계(수락→출발→도착→완료) 그림이 없다.** 단계 그림은 **알림센터의 CollabStepCard** 한 곳에만 있다.
+- 수정(라우팅만, 단계 그림은 기존 것 재사용=§12 두 벌 없음): "어디까지 왔나 보기"(departed·arrived)만 **알림센터로** 보냄. 본문 탭은 그대로 현장(고객정보).
+  - 새 경로(OpenRecurringDue 와 같은 모양): `MainActivity.ACTION_COLLAB_PROGRESS` → `IncomingIntent.OpenNotifications` → `NavEvents.requestNotifications()` → `NavEvent.OpenNotifications` → AppRoot `navigate(NOTIFICATIONS)`. NotificationHelper 가 그 버튼에 전용 PendingIntent(notifId+1) 부여.
+- 사장님 결정(§10): "어디까지 왔나"=①진행 단계 **먼저**(지금 이것) ②상대 실시간 **지도 위치는 나중에**(앱에 상대 GPS 없음 — 새 기능 필요). 버튼명은 유지하고 "눌러서 보이게" 고침.
+- §12: 단계 그림(CollabProgressSteps·CollabStepCard) 재사용, 알림센터행 경로도 기존 NavEvent 패턴 그대로. 두 벌 없음.
+- 검증: assembleRelease **BUILD SUCCESSFUL**(가드 7종: dup18·style2422·size·save0·compose·brand·rules OK) · health 로그
+- 폰 확인: 아직 — ⚠️ 협업 '출발' 푸시가 와야 재현. 내부배포 후 사장님 실기(푸시 버튼 눌러 알림센터 단계 카드 뜨는지).
+- 다음(나중): 상대 실시간 위치 지도 = GPS 공유 설계 필요(배터리·사생활·서버·상대 동의). 별건.

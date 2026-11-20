@@ -167,6 +167,10 @@ fun AppRoot(container: AppContainer) {
                         is NavEvent.OpenRecurringDue -> {
                             navController.navigate(Destinations.RECURRING_DUE) { launchSingleTop = true }
                         }
+                        is NavEvent.OpenNotifications -> {
+                            // 협업 진행 '어디까지 왔나 보기' → 알림센터(진행 단계 카드가 거기 있다). (2026-11-20 사장님)
+                            navController.navigate(Destinations.NOTIFICATIONS) { launchSingleTop = true }
+                        }
                     }
                 }
             }

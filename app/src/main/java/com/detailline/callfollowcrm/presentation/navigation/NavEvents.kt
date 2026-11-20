@@ -56,6 +56,9 @@ class NavEvents {
 
     /** '정기문자 보낼 때 됐어요' 알림 탭 → 정기문자 검토 화면. (2026-08-13 알림 위치점검) */
     fun requestRecurringDue() { channel.trySend(NavEvent.OpenRecurringDue) }
+
+    /** 협업 진행 푸시의 '어디까지 왔나 보기' 버튼 → 알림센터(진행 단계 카드가 있는 곳). (2026-11-20 사장님) */
+    fun requestNotifications() { channel.trySend(NavEvent.OpenNotifications) }
 }
 
 sealed interface NavEvent {
@@ -85,4 +88,6 @@ sealed interface NavEvent {
     object OpenTeam : NavEvent
     /** 정기문자 due 알림 탭 → 정기문자 검토. */
     object OpenRecurringDue : NavEvent
+    /** 협업 진행 '어디까지 왔나 보기' → 알림센터(단계 카드). */
+    object OpenNotifications : NavEvent
 }

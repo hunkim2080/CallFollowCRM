@@ -779,6 +779,17 @@ object NotificationHelper {
             context, notifId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // 📊 '어디까지 왔나 보기' 버튼은 **진행 단계 카드가 있는 알림센터**로 보낸다. (2026-11-20 사장님)
+        //   전엔 본문 탭과 같은 pending(그 현장=고객정보)으로 가서, 단계 그림이 없어 눌러도 허탕이었다.
+        //   본문 탭(pending)은 그대로 그 현장으로 — 둘의 목적이 다르다(현장 보기 vs 어디까지 왔나).
+        val progressPending = PendingIntent.getActivity(
+            context, notifId + 1,
+            Intent(context, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_COLLAB_PROGRESS
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val (pushTitle, msg, accent) = when (kind) {
             "arrived" -> if (auto) Triple(
                 "거의 도착 📍",
@@ -848,7 +859,8 @@ object NotificationHelper {
                     "completed" -> "끝난 현장 보기"
                     else -> "협업 현장 보기"
                 },
-                pending
+                // '어디까지 왔나 보기'만 알림센터(단계 카드)로, 나머지는 그 현장으로. (2026-11-20 사장님)
+                if (kind == "departed" || kind == "arrived") progressPending else pending
             ))
         )
     }
