@@ -539,7 +539,7 @@ fun ChatScreen(
     val pickPhotos = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5)
     ) { uris ->
-        if (uris.isNotEmpty()) attachedPhotos = attachedPhotos + uris
+        if (uris.isNotEmpty()) attachedPhotos = attachCapped(context, attachedPhotos, uris)   // 전체 5장까지·겹치면 한 번만
     }
 
     // 에이닷 통화요약 txt 폴더(Download/A.phone) 연결 — 한 번만. 연결되면 앱 켤 때마다 자동 import.
@@ -1892,14 +1892,13 @@ fun ChatScreen(
         }
     }
 
-    // 카톡식 자체 사진 피커 — 아래서 올라오는 바텀시트 갤러리. "파일에서"는 기존 시스템 피커로 fallback.
-    // 사진 첨부 = 시스템 사진 선택기(권한 없음, Play 정책). 자체 갤러리 제거. (2026-07-05)
-    LaunchedEffect(showPhotoPicker) {
-        if (showPhotoPicker) {
-            showPhotoPicker = false
-            pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
-    }
+    // 🖼️ 카톡식 사진 첨부 — 바텀시트(최근 사진·카메라·전체 보기) → 탭하면 바로 펜 → 「첨부」=입력칸에 담기.
+    //   시트·권한·펜은 ChatPhotoPickerSheet.kt 한 곳. 「전체 보기」·권한 거부는 시스템 선택기로. (2026-11-21 사장님)
+    ChatPhotoPickerHost(
+        request = showPhotoPicker, onRequestHandled = { showPhotoPicker = false },
+        attached = attachedPhotos, onAttached = { attachedPhotos = it },
+        onSystemPicker = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    )
 
     // 풀스크린 이미지 뷰어 — 한 번에 온 사진 전부 좌우 스와이프 + 핀치/더블탭 줌. (2026-06-16 사장님)
     // 📷 문자 사진 — 공용 뷰어. 여기도 **돌려 보기**가 된다(남이 보낸 사진이라 저장은 안 됨).

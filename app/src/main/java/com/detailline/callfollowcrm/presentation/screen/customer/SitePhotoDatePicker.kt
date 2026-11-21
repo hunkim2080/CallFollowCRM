@@ -154,11 +154,8 @@ fun SitePhotoDatePicker(
     }
 
     fun toggle(p: GalleryPhoto) {
-        selected = when {
-            p.uri in selectedUris -> selected.filterNot { it.uri == p.uri }
-            selected.size >= maxPick -> selected   // 자리 초과면 무시(아래 하단바가 이유를 말한다)
-            else -> selected + p
-        }
+        // 고르기 셈은 공용 한 곳(채팅 사진 첨부 시트와 같은 셈). 자리 초과면 그대로 — 아래 하단바가 이유를 말한다.
+        selected = com.detailline.callfollowcrm.domain.ui.PickLimit.toggle(selected, p, maxPick)
     }
 
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -287,9 +284,9 @@ private fun buildSections(all: List<GalleryPhoto>, workRange: LongRange?): List<
     }
 }
 
-/** 34+ 부분 허용 안내 띠 — '허용한 사진만 보여요' + '사진 더 고르기'. */
+/** 34+ 부분 허용 안내 띠 — '허용한 사진만 보여요' + '사진 더 고르기'. 채팅 사진 첨부 시트(ChatPhotoPickerSheet)도 이걸 쓴다. */
 @Composable
-private fun PartialAccessBar(onMore: () -> Unit) {
+internal fun PartialAccessBar(onMore: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(AppTheme.colors.cautionBg).padding(16.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically

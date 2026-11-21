@@ -147,6 +147,13 @@ fun FullscreenPhotoViewer(
      */
     onMarkAttachment: ((page: Int, marks: List<MarkStroke>) -> Unit)? = null,
     /**
+     * ✏️ **고르자마자 바로 펜 — 카톡식 사진 첨부.** (2026-11-21 사장님 · 프로토 6tW9xbZXAVJd5jj32uRYiH)
+     *   있으면 뷰어가 **펜 화면으로 바로 열린다**(크게 보기·돌리기를 안 거친다). 위 오른쪽 버튼이 「첨부」이고
+     *   **묻지 않고** 획을 넘긴다 — 안 그렸으면 빈 목록(원본 그대로 담기). ‹ = 안 담고 닫기.
+     *   닫는 건 부른 쪽이 한다(합성이 끝난 뒤) — 연타는 부른 쪽이 막는다. 사진은 한 장([photos] 첫 장)만 본다.
+     */
+    onAttachDirect: ((marks: List<MarkStroke>) -> Unit)? = null,
+    /**
      * 화면 왼쪽 위에 더 얹을 것 — 문자 사진의 「갤러리에 저장」 같은 것.
      *   받는 값은 **지금 보고 있는 쪽 번호**다.
      */
@@ -198,7 +205,7 @@ fun FullscreenPhotoViewer(
             ?.photoId?.takeIf { it > 0L }
         val canDeleteCur = onDelete != null && deletablePhotoId != null
         // ✏️ 펜 표시 — 지금 보는 게 내 사진이고 onSaveMarked 가 있을 때만.
-        var penMode by remember { mutableStateOf(false) }
+        var penMode by remember { mutableStateOf(onAttachDirect != null) }
         // ✏️ 완료 후 묻는 중 들고 있는 획(지금 보는 쪽 번호 + 획). null 이면 안 묻는 중.
         var pendingMark by remember { mutableStateOf<Pair<Int, List<MarkStroke>>?>(null) }
         val curOfFile = photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile
@@ -308,11 +315,17 @@ fun FullscreenPhotoViewer(
             if (penMode && curOfFile != null) {
                 PenStage(
                     photo = curOfFile,
-                    onCancel = { penMode = false },
+                    direct = onAttachDirect != null,
+                    onCancel = { if (onAttachDirect != null) onDismiss() else penMode = false },
                     onDone = { marks ->
-                        penMode = false
-                        // 그린 게 있으면 묻는다(지금 보는 쪽). 없으면 그냥 닫는다.
-                        if (marks.isNotEmpty()) pendingMark = pagerState.currentPage to marks else onDismiss()
+                        if (onAttachDirect != null) {
+                            // 카톡식 — 묻지 않고 바로 담는다. 닫기는 부른 쪽(합성 끝난 뒤).
+                            onAttachDirect(marks)
+                        } else {
+                            penMode = false
+                            // 그린 게 있으면 묻는다(지금 보는 쪽). 없으면 그냥 닫는다.
+                            if (marks.isNotEmpty()) pendingMark = pagerState.currentPage to marks else onDismiss()
+                        }
                     }
                 )
             }
@@ -605,6 +618,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPenLine(l: PenL
 @Composable
 private fun PenStage(
     photo: ViewerPhoto.OfFile,
+    /** 카톡식 사진 첨부(고르자마자 펜) — 위가 「‹ … 첨부」, 사진 밑에 안내 한 줄. 그리는 도구는 같다. */
+    direct: Boolean = false,
     onCancel: () -> Unit,
     onDone: (List<MarkStroke>) -> Unit
 ) {
@@ -630,14 +645,17 @@ private fun PenStage(
             }
             var ow = o.outWidth.coerceAtLeast(0)
             var oh = o.outHeight.coerceAtLeast(0)
-            val path = photo.uri.path
-            if (path != null && ow > 0 && oh > 0) {
+            if (ow > 0 && oh > 0) {
+                // 스트림으로 읽는다 — 사진첩 사진(content://)은 `uri.path` 가 진짜 파일 길이 아니라
+                //   방향을 못 읽었고, 세로로 찍은 사진(삼성은 눕혀 저장)에서 획이 어긋났다. (2026-11-21)
                 val orient = runCatching {
-                    android.media.ExifInterface(path).getAttributeInt(
-                        android.media.ExifInterface.TAG_ORIENTATION,
-                        android.media.ExifInterface.ORIENTATION_NORMAL
-                    )
-                }.getOrDefault(android.media.ExifInterface.ORIENTATION_NORMAL)
+                    ctx.contentResolver.openInputStream(photo.uri)?.use {
+                        android.media.ExifInterface(it).getAttributeInt(
+                            android.media.ExifInterface.TAG_ORIENTATION,
+                            android.media.ExifInterface.ORIENTATION_NORMAL
+                        )
+                    }
+                }.getOrNull() ?: android.media.ExifInterface.ORIENTATION_NORMAL
                 val sideways = orient == android.media.ExifInterface.ORIENTATION_ROTATE_90 ||
                     orient == android.media.ExifInterface.ORIENTATION_ROTATE_270 ||
                     orient == android.media.ExifInterface.ORIENTATION_TRANSPOSE ||
@@ -661,13 +679,15 @@ private fun PenStage(
                 Modifier.size(38.dp).clip(AppShape.pill).clickable { onCancel() },
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Text("✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
+                androidx.compose.material3.Text(if (direct) "‹" else "✕", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.weight(1f))
-            androidx.compose.material3.Text("사진에 표시", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
+            if (!direct) {
+                androidx.compose.material3.Text("사진에 표시", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+            }
             Box(
-                Modifier.clip(AppShape.md).background(AppTheme.colors.primary)
+                Modifier.clip(if (direct) AppShape.pill else AppShape.md).background(AppTheme.colors.primary)
                     .clickable {
                         val marks = lines.toList().mapNotNull { l ->
                             if (l.pts.isEmpty() || fit.dispW <= 0f) return@mapNotNull null
@@ -682,7 +702,7 @@ private fun PenStage(
                     .padding(horizontal = 16.dp, vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Text("완료", style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold)
+                androidx.compose.material3.Text(if (direct) "첨부" else "완료", style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -712,6 +732,15 @@ private fun PenStage(
                 for (l in lines) drawPenLine(l)
                 current?.let { drawPenLine(it) }
             }
+        }
+
+        // 카톡식 첨부 — 뭘 하는 화면인지 한 줄(프로토 .cap 글자 그대로).
+        if (direct) {
+            androidx.compose.material3.Text(
+                "✏️ 펜으로 표시할 곳을 그려보세요 — 차 위치·하자 부위 등",
+                style = AppType.body, color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+            )
         }
 
         // ── 하단 도구바: 색 · ↶ · 🗑 · 굵기 ──

@@ -16622,3 +16622,14 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: assembleRelease BUILD SUCCESSFUL, 가드 7개 통과([dup]18=18·[style]2422<=2441·[size] 늘어난 곳 없음·compose/brand/rules/save OK). testDebugUnitTest BUILD SUCCESSFUL(1406 통과).
 - 폰 확인: **에뮬레이터**로 디자인 눈확인(오늘 파란 원·일요일 빨강·막대 커짐 — 샘플 데이터). S9는 adb 미연결(안드10=무선디버깅 없음, tcpip 5555 거부)로 실기 미확인 → 실제 현장/협업 데이터 반영은 S9 USB 연결 후 확인 필요.
 - 내부테스트 배포 진행(upload 태그).
+
+## 2026-11-21 14:30 · android
+챗 사진 첨부를 **카톡식**으로 — ⊕ 「사진 첨부」 → 우리 바텀시트(최근 사진 가로줄·카메라·전체보기) → 사진 탭 → **바로 펜 편집** → 「첨부」(전송 아님·입력칸에 담기만). (사장님 프로토 `artifact/6tW9xbZXAVJd5jj32uRYiH` 승인 「ㄱㄱㄱ」)
+- 새 파일: `presentation/screen/chat/ChatPhotoPickerSheet.kt`(시트·권한·카메라·펜열기, 입구 `ChatPhotoPickerHost`) · `domain/ui/PickLimit.kt`(순수: CHAT_MAX=5·remaining·toggle·merge, +시험 12) 
+- 고침: `PhotoViewer.kt`(FullscreenPhotoViewer 에 `onAttachDirect`=고른 직후 펜화면 바로+「첨부」, PenStage `direct` 모드. **버그수정**: PenStage EXIF 를 uri.path→스트림으로 — content:// 세로사진 획 어긋남, 기존 썸네일펜 경로도 같이 고쳐짐) · `ChatScreen.kt`(⊕/「/사진」 트리거가 시스템피커 대신 ChatPhotoPickerHost, pickPhotos 결과도 `attachCapped` 5장캡·겹침제거. onAttachmentTap/onMarkAttachment 기존 경로 유지) · `SitePhotoDatePicker.kt`(토글을 PickLimit 로, PartialAccessBar private→internal 재사용)
+- §12: 사진첩쿼리(DeviceGalleryRepository)·펜(PenStage)·합성(renderToFileUri)·시트(AppSheet)·권한(PermissionHelper)·부분허용띠(PartialAccessBar) 전부 재사용. 새 편집기·새 쿼리 0. 토글셈은 PickLimit 공용 1개(쓰는 곳 2). CLAUDE.md §12표·PROTOTYPES.md 각 한 줄.
+- §13: 권한거부→토스트+시스템피커 폴백 · 빈 사진첩 문구 · 첨부 연타 busy 1회 · 같은사진 merge 1회 · 합성실패 토스트+그린거 유지 · 5장 초과 안 담고 말함.
+- v1 **펜만**(자르기·글자 탭 제외). 펜 색 4개(현장펜 공용과 동일 — 초록은 공용이라 미추가). 프로토 대비: 이모지→머티리얼아이콘, 값 토큰 반올림(14→12·16→15sp), 슬라이드업 애니 없음(AppSheet).
+- 검증: assembleRelease BUILD SUCCESSFUL 가드7 통과([rules] 문서·코드 일치 재확인·기준선 0 증가) · testDebugUnitTest 1418건 0실패.
+- 폰 확인: **못 봄**(S9 미연결·에뮬은 사진첩 비어 의미없음). 실제 사진 있는 폰에서 확인 필요 — 가로줄 좌우끝·키보드내림·세로사진 EXIF 획·펜화면 상단 상태바겹침(S23U)·부분허용 노란띠·전송 안 되고 담기만.
+- 내부테스트 배포 진행(upload 태그). ⚠️ 정식심사 전 Play 「사진·동영상 접근」 민감권한 신고서 필요(별건).
