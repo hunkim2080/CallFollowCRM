@@ -16685,3 +16685,12 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: assembleRelease BUILD SUCCESSFUL 가드7 통과 · testDebugUnitTest.
 - 폰 확인: 여러 장 선택·미리보기 카드·챗 분류 칩.
 - 내부배포 진행(upload 태그). 서버 라이브는 여전히 사장님 「가」 대기.
+
+## 2026-11-21 20:15 · android (+ server)
+**대표질문 공개 페이지 서버 — 라이브 배포 완료**(사장님 「ㄱㄱㄱ」). repo 통짜 아님 — FAQ 추가분만 얹음(§7·GOTCHAS §3).
+- 절차: repo main.py 20462–20796(모델·헬퍼·라우트) + faq_pages 멱등 생성 → `/tmp/faq_append.py` scp → 라이브 `main.py` 백업(`main.py.bak.20261121-201331`, 37799줄) → append(38145줄) → py_compile OK → launchctl kickstart → 확인.
+- 라이브에 의존 도우미 전부 존재 확인(_session_phone_from_header·_now_ms·db_conn·INTAKE_PUBLIC_BASE_URL·_norm_phone·urllib.parse). FAQ 코드는 순수 추가분이라 기존 줄 0 변경.
+- 검증: health 200 · **smoke.sh 10/10 정상** · `GET /faq/{slug}`=200(준비 중 HTML·faq_pages 생성됨) · `POST /faq/publish`=401(라우트 존재·토큰 필요) · 로그 에러 0.
+- 끝까지 동작: 앱 관리 공개 토글 → publish(Bearer 자동) → slug 발급 → 손님이 `api.si0in.kr/faq/{slug}` 열람. 문의=sms:.
+- 롤백: `cp main.py.bak.20261121-201331 main.py && launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server`.
+- 남음: 폰에서 실제 공개 토글 눌러 slug 발급·미리보기·손님 링크 열람 끝까지 눈확인.
