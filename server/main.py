@@ -7874,6 +7874,99 @@ def _make_intake_thumb(biz_name) -> str:
         return "/static/thumbs/default.png"
 
 
+_FAQ_THUMB_SUB = "시공 전 궁금한 점, 여기서 확인하세요"
+
+
+def _make_faq_thumb(biz_name) -> str:
+    """손님 공개 FAQ 링크 미리보기 카드 — 접수서 섬네일과 같은 틀(물음표 타일 + 업체명 + 「자주 묻는 질문」).
+    고객이 안심하도록 '진짜 업체 안내'로 보이게. RING-GO/시공막내 브랜드는 안 넣는다. 1200x630, 업체명 해시로 캐시."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return "/static/thumbs/default.png"
+    try:
+        import hashlib
+        biz = (biz_name or "").strip()[:20]
+        key = hashlib.md5(biz.encode("utf-8")).hexdigest()[:10] if biz else "default"
+        out = _THUMBS_DIR / ("faq-%s.png" % key)
+        if out.exists():
+            return "/static/thumbs/faq-%s.png" % key
+        font_candidates = [
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+            "/Library/Fonts/AppleGothic.ttf",
+        ]
+        fpath = next((p for p in font_candidates if Path(p).exists()), None)
+        if not fpath:
+            return "/static/thumbs/default.png"
+
+        def _font(sz):
+            return ImageFont.truetype(fpath, sz)
+
+        W, H = 1200, 630
+        CREAM = (247, 243, 236)
+        GRID = (235, 227, 213)
+        NAVY = (34, 52, 73)
+        GRAY = (107, 114, 128)
+        BIZCOL = (154, 140, 116)
+        TRUST = (154, 160, 168)
+        LINE = (232, 224, 210)
+        BLUE = (49, 130, 246)
+        img = Image.new("RGB", (W, H), CREAM)
+        d = ImageDraw.Draw(img)
+        x = 0
+        while x < W:
+            d.line([(x, 0), (x, H)], fill=GRID, width=1)
+            x += 44
+        y = 0
+        while y < H:
+            d.line([(0, y), (W, y)], fill=GRID, width=1)
+            y += 44
+        cw, ch = 772, 470
+        cx, cy = (W - cw) // 2, (H - ch) // 2
+        d.rounded_rectangle([cx, cy, cx + cw, cy + ch], radius=28, fill="white", outline=LINE, width=1)
+        mid = W // 2
+
+        def _ctext(yy, text, font, fill):
+            tw = d.textlength(text, font=font)
+            d.text((mid - tw / 2, yy), text, font=font, fill=fill)
+
+        blocks = [("tile", 92), ("gap", 24)]
+        if biz:
+            blocks += [("biz", 40), ("gap", 14)]
+        blocks += [("title", 78), ("gap", 18), ("sub", 36), ("gap", 24),
+                   ("line", 1), ("gap", 24), ("trust", 26)]
+        total = sum(h for _, h in blocks)
+        yy = cy + (ch - total) // 2
+        for kind, h in blocks:
+            if kind == "gap":
+                yy += h
+                continue
+            if kind == "tile":
+                tx = mid - 46
+                d.rounded_rectangle([tx, yy, tx + 92, yy + 92], radius=24, fill=(234, 242, 254))
+                qf = _font(58)
+                qw = d.textlength("?", font=qf)
+                d.text((mid - qw / 2, yy + 12), "?", font=qf, fill=BLUE)
+            elif kind == "biz":
+                _ctext(yy, biz, _font(30), BIZCOL)
+            elif kind == "title":
+                _ctext(yy, "자주 묻는 질문", _font(66), NAVY)
+            elif kind == "sub":
+                _ctext(yy, _FAQ_THUMB_SUB, _font(27), GRAY)
+            elif kind == "line":
+                d.line([(mid - 64, yy), (mid + 64, yy)], fill=LINE, width=1)
+            elif kind == "trust":
+                _ctext(yy, "확인하고 바로 문의하세요", _font(20), TRUST)
+            yy += h
+        _THUMBS_DIR.mkdir(parents=True, exist_ok=True)
+        img.save(out, "PNG", optimize=True)
+        return "/static/thumbs/faq-%s.png" % key
+    except Exception as e:
+        print("[faq/thumb] 생성 실패 (%s) -> default.png" % e)
+        return "/static/thumbs/default.png"
+
+
 def _inject_intake_og(html: str, biz_name, token: str) -> str:
     """접수서 폼 HTML <head> 에 카톡/문자 미리보기(og) 태그 삽입.
     /intake 와 /q 양쪽에서 부른다(두 렌더 길). 실패해도 원본 그대로 반환."""
@@ -20480,7 +20573,9 @@ class FaqPublishRequest(BaseModel):
     career: str = ""
     count: str = ""
     owner_sms: str
+    slogan: str = ""
     cover_photos: List[str] = Field(default_factory=list)
+    cover_captions: List[str] = Field(default_factory=list)
     categories: List[str] = Field(default_factory=list)
     questions: List[FaqQuestion] = Field(default_factory=list)
 
@@ -20572,6 +20667,10 @@ def _render_faq_html(payload: dict, slug: str) -> str:
     biz = esc(payload.get("biz_name") or "우리 집 시공 안내서")
     specialty = esc(payload.get("specialty") or "")
     intro = esc(payload.get("intro") or "")
+    slogan = esc((payload.get("slogan") or "").strip())
+    eyebrow_html = f'<p class="eyebrow">{slogan}</p>' if slogan else ''
+    # 링크 미리보기(카톡) 카드 — 업체명 들어간 「자주 묻는 질문」 섬네일로 손님이 안심하게.
+    thumb_url = esc(_HOME_BASE + _make_faq_thumb(payload.get("biz_name")), quote=True)
     page_url = esc(f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/faq/{slug}", quote=True)
     description = esc((payload.get("intro") or payload.get("specialty")
                        or "시공 전 궁금한 이야기, 대표에게 직접 물어보세요.")[:200], quote=True)
@@ -20596,11 +20695,20 @@ def _render_faq_html(payload: dict, slug: str) -> str:
         + _fact_chip("🗓", _labeled(payload.get("career"), "경력", "년"))
         + _fact_chip("✅", _labeled(payload.get("count"), "시공", "건", comma=True))
     )
-    covers = [src for src in (_faq_photo_src(p) for p in payload.get("cover_photos", [])) if src]
+    # 사진·설명을 index 정렬로 묶는다(빈 설명은 캡션 자체를 안 그린다 — "정성껏 시공한 모습" 고정 문구 제거).
+    raw_caps = payload.get("cover_captions") or []
+    cover_pairs = []
+    for ci, p in enumerate(payload.get("cover_photos", [])):
+        src = _faq_photo_src(p)
+        if src:
+            cap = raw_caps[ci] if ci < len(raw_caps) else ""
+            cover_pairs.append((src, (cap or "").strip()))
+    covers = [s for s, _ in cover_pairs]
     gallery_items = "".join(
-        f'<figure class="work"><img src="{esc(src, quote=True)}" alt="{biz} 대표 시공 사진 {i + 1}"'
-        f' loading="lazy"><figcaption><span>{i + 1:02d} &nbsp; 정성껏 시공한 모습</span></figcaption></figure>'
-        for i, src in enumerate(covers)
+        f'<figure class="work"><img src="{esc(src, quote=True)}" alt="{biz} 대표 시공 사진 {i + 1}" loading="lazy">'
+        + (f'<figcaption><span>{esc(cap)}</span></figcaption>' if cap else '')
+        + '</figure>'
+        for i, (src, cap) in enumerate(cover_pairs)
     )
     gallery_dots = "".join(
         f'<button class="gallery-dot" aria-label="시공 이미지 {i + 1}"'
@@ -20664,8 +20772,11 @@ def _render_faq_html(payload: dict, slug: str) -> str:
   <meta property="og:url" content="{page_url}">
   <meta property="og:site_name" content="{biz}">
   <meta property="og:locale" content="ko_KR">
-  <meta property="og:image" content="https://si0in.kr/static/thumbs/blog.png">
+  <meta property="og:image" content="{thumb_url}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{thumb_url}">
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
   <style>
     :root{{--blue:#3182f6;--deep:#1c64d1;--ink:#202c3e;--muted:#657183;--line:#e5e8ed;--paper:#faf9f6;--soft:#edf4ff}}
@@ -20695,7 +20806,7 @@ def _render_faq_html(payload: dict, slug: str) -> str:
     </header>
 
     <section class="intro" aria-labelledby="business-name">
-      <div class="wrap"><p class="eyebrow">작은 틈까지, 정성스럽게</p><h1 id="business-name">{biz}</h1><p class="specialty">{specialty}</p></div>
+      <div class="wrap">{eyebrow_html}<h1 id="business-name">{biz}</h1><p class="specialty">{specialty}</p></div>
       <div class="gallery" id="gallery" aria-label="대표 시공 이미지. 옆으로 넘겨 보세요" tabindex="0"{gallery_hidden}>{gallery_items}</div>
       <div class="gallery-nav"{gallery_hidden}><span class="gallery-hint">옆으로 넘겨 시공 모습을 보세요 <span aria-hidden="true">↔</span></span><div class="gallery-dots" aria-label="시공 이미지 선택">{gallery_dots}</div></div>
       <div class="wrap"><p class="intro-copy">{intro}</p><div class="business-facts" aria-label="업체 정보">{facts}</div></div>

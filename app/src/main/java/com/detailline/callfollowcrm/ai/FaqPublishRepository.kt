@@ -54,9 +54,18 @@ class FaqPublishRepository(
                 put("career", prefs.faqCareer)
                 put("count", prefs.faqCount)
                 put("owner_sms", prefs.displayPhone.filter { it.isDigit() })
-                put("cover_photos", JSONArray().apply {
-                    prefs.faqCoverPhotos.forEach { uri -> encode(uri)?.let { put(it) } }
-                })
+                put("slogan", prefs.faqSlogan)
+                // 사진·설명을 **같이** 담아 index 정렬 유지(인코딩 실패한 사진은 설명도 함께 건너뜀).
+                val coverArr = JSONArray()
+                val capArr = JSONArray()
+                val caps = prefs.faqCoverCaptions
+                prefs.faqCoverPhotos.forEachIndexed { i, uri ->
+                    val enc = encode(uri) ?: return@forEachIndexed
+                    coverArr.put(enc)
+                    capArr.put(caps.getOrElse(i) { "" })
+                }
+                put("cover_photos", coverArr)
+                put("cover_captions", capArr)
                 put("categories", JSONArray(cats.toList()))
                 put("questions", JSONArray().apply {
                     questions.forEach { q ->

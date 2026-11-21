@@ -900,6 +900,14 @@ class AppPreferences(context: Context) {
     var faqCoverPhotos: List<String>
         get() = prefs.getString("faq_cover_photos", "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
         set(value) = prefs.edit().putString("faq_cover_photos", value.joinToString("|")).apply()
+    /** 제목 위 한 줄 슬로건(손님 페이지). 비면 안 나옴. 톤 프리셋이 채워 넣기도 함. */
+    var faqSlogan: String
+        get() = prefs.getString("faq_slogan", "") ?: ""
+        set(value) = prefs.edit().putString("faq_slogan", value).apply()
+    /** 대표 사진 설명(캡션) — [faqCoverPhotos] 와 index 정렬(한 줄). 줄바꿈으로 join. 비면 사진 캡션 안 나옴. */
+    var faqCoverCaptions: List<String>
+        get() = prefs.getString("faq_cover_captions", "").let { if (it.isNullOrEmpty()) emptyList() else it.split("\n") }
+        set(value) = prefs.edit().putString("faq_cover_captions", value.joinToString("\n")).apply()
 
     // ── 입금 계좌 (2026-06-08) — 협업 현장 완료 시 요청 사장에게 전달 + 견적서 활용. ──
     /** 은행명 (예: 국민은행). */

@@ -14,11 +14,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 🏷️ **업체 소개 편집** — 손님 공개 FAQ 페이지 상단에 들어갈 소개글·대표 사진·경력·건수. (2026-11-21 · 프로토 7U7dnG1GFEoD2RMmd7gRmk ②)
+ * 🏷️ **업체 소개 편집** — 손님 공개 FAQ 페이지 상단(슬로건·소개글·대표 사진+설명·경력·건수). (2026-11-21 · 프로토 7U7dnG1GFEoD2RMmd7gRmk ②)
  *
- *   업체명·지역은 **사업자정보(bizName·ownerRegions) 재사용** — 여기서 새로 안 받고 읽어서 보여주기만.
- *   대표 사진은 고르는 즉시 **앱 안으로 복사**(`TemplatePhotoStore` — 문구·대표질문 사진과 같은 창고). 저장 전 취소하면 복사본은 치운다.
- *   저장 실패는 **삼키지 않는다** — `SaveGuard` 로 화면에 말한다(§13①).
+ *   업체명·지역은 **사업자정보(bizName·ownerRegions) 재사용** — 읽어서 보여주기만.
+ *   **느낌(톤)은 사장님이 정한다** — 고정 문구를 박지 않는다. [TONE_PRESETS] 로 슬로건을 채워 넣고 고쳐 쓸 수 있다(프리셋+직접수정).
+ *   대표 사진은 [COVER_MAX] 장, 사진마다 **설명(캡션)** 을 직접 쓴다(비우면 손님 페이지에 캡션 안 나옴). 사진↔캡션은 index 정렬.
+ *   사진은 고르는 즉시 앱 안으로 복사(`TemplatePhotoStore`). 저장 실패는 `SaveGuard` 로 말한다(§13①).
  */
 class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -26,14 +27,26 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
         const val COVER_MAX = 5
         const val INTRO_MAX = 200
         const val SHORT_MAX = 20
+        const val SLOGAN_MAX = 24
+        const val CAPTION_MAX = 24
+
+        /** 톤 프리셋 — (이름, 슬로건). 누르면 슬로건에 채워지고, 사장님이 고쳐 쓸 수 있다. 「직접 쓰기」는 프리셋 없이 빈칸. */
+        val TONE_PRESETS = listOf(
+            "장인·정성" to "작은 틈까지, 정성스럽게",
+            "절대고수" to "줄눈 하나는, 끝을 봅니다",
+            "경력·믿음" to "한 길만 걸었습니다, 믿고 맡기세요",
+            "깔끔·완벽" to "티 하나 없이, 새것처럼",
+        )
     }
 
     data class UiState(
+        val slogan: String = "",
         val intro: String = "",
         val career: String = "",
         val count: String = "",
         val photos: List<String> = emptyList(),
-        /** 사업자정보에서 읽어 보여주기만(여기서 못 고침). */
+        /** photos 와 index 정렬된 사진 설명. */
+        val captions: List<String> = emptyList(),
         val bizName: String = "",
         val region: String = "",
         val pickingImage: Boolean = false,
@@ -55,42 +68,53 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         val p = container.preferences
+        val photos = p.faqCoverPhotos
         _state.value = UiState(
+            slogan = p.faqSlogan,
             intro = p.faqIntro,
             career = p.faqCareer,
             count = p.faqCount,
-            photos = p.faqCoverPhotos,
+            photos = photos,
+            captions = alignCaptions(p.faqCoverCaptions, photos.size),
             bizName = p.bizName,
             region = p.ownerRegions.joinToString(" · ")
         )
         initial = snapshot()
     }
 
+    /** 캡션 개수를 사진 개수에 맞춘다(모자라면 빈칸, 넘치면 자름). */
+    private fun alignCaptions(caps: List<String>, n: Int): List<String> = List(n) { i -> caps.getOrElse(i) { "" } }
+
     private fun snapshot(): List<String> = _state.value.let {
-        listOf(it.intro, it.career, it.count, it.photos.joinToString("|"))
+        listOf(it.slogan, it.intro, it.career, it.count, it.photos.joinToString("|"), it.captions.joinToString("\u0001"))
     }
 
     val isDirty: Boolean get() = snapshot() != initial
 
+    fun setSlogan(v: String) = _state.update { it.copy(slogan = v.replace('\n', ' ').take(SLOGAN_MAX)) }
+    fun applyPreset(slogan: String) = setSlogan(slogan)
     fun setIntro(v: String) = _state.update { it.copy(intro = v.take(INTRO_MAX)) }
     fun setCareer(v: String) = _state.update { it.copy(career = v.replace('\n', ' ').take(SHORT_MAX)) }
     fun setCount(v: String) = _state.update { it.copy(count = v.replace('\n', ' ').take(SHORT_MAX)) }
+    fun setCaption(index: Int, v: String) = _state.update { s ->
+        if (index !in s.captions.indices) s
+        else s.copy(captions = s.captions.toMutableList().also { it[index] = v.replace('\n', ' ').take(CAPTION_MAX) })
+    }
 
-    /** 대표 사진 **여러 장** 추가(합쳐서 최대 [COVER_MAX]). 넘치면 앞에서 자르고 말한다. 앱 안으로 복사. */
+    /** 대표 사진 **여러 장** 추가(합쳐서 최대 [COVER_MAX]). 캡션은 빈칸으로 같이 늘어난다. */
     fun addPhotos(uris: List<Uri>) {
         if (uris.isEmpty() || _state.value.pickingImage) return
+        if (_state.value.photos.size >= COVER_MAX) { _toast.value = "대표 사진은 최대 ${COVER_MAX}장이에요"; return }
         _state.update { it.copy(pickingImage = true) }
         viewModelScope.launch {
             val room = (COVER_MAX - _state.value.photos.size).coerceAtLeast(0)
             val take = uris.take(room)
             val droppedForCap = uris.size - take.size
             val copied = withContext(Dispatchers.IO) {
-                take.mapNotNull { src ->
-                    runCatching { TemplatePhotoStore.copyToAppStorage(container.appContext, src) }.getOrNull()?.uri
-                }
+                take.mapNotNull { src -> runCatching { TemplatePhotoStore.copyToAppStorage(container.appContext, src) }.getOrNull()?.uri }
             }
             freshCopies += copied
-            _state.update { it.copy(photos = it.photos + copied, pickingImage = false) }
+            _state.update { it.copy(photos = it.photos + copied, captions = it.captions + copied.map { "" }, pickingImage = false) }
             when {
                 droppedForCap > 0 -> _toast.value = "대표 사진은 최대 ${COVER_MAX}장이에요"
                 copied.size < take.size -> _toast.value = "일부 사진을 불러오지 못했어요 — 다시 골라주세요"
@@ -98,34 +122,18 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 대표 사진 한 장 추가(최대 [COVER_MAX]). 앱 안으로 복사 — 실패하면 **말한다**. */
-    fun addPhoto(src: Uri) {
-        if (_state.value.pickingImage) return
-        if (_state.value.photos.size >= COVER_MAX) {
-            _toast.value = "대표 사진은 최대 ${COVER_MAX}장이에요"
-            return
-        }
-        _state.update { it.copy(pickingImage = true) }
-        viewModelScope.launch {
-            val copied = withContext(Dispatchers.IO) {
-                runCatching { TemplatePhotoStore.copyToAppStorage(container.appContext, src) }.getOrNull()
+    fun removePhotoAt(index: Int) {
+        _state.update { s ->
+            if (index !in s.photos.indices) return@update s
+            val uri = s.photos[index]
+            if (uri in freshCopies) {
+                freshCopies -= uri
+                runCatching { TemplatePhotoStore.fileFor(container.appContext, uri)?.delete() }
             }
-            if (copied == null) {
-                _toast.value = "사진을 불러오지 못했어요 — 다시 골라주세요"
-                _state.update { it.copy(pickingImage = false) }
-            } else {
-                freshCopies += copied.uri
-                _state.update { it.copy(photos = it.photos + copied.uri, pickingImage = false) }
-            }
-        }
-    }
-
-    fun removePhoto(uri: String) {
-        _state.update { it.copy(photos = it.photos - uri) }
-        // 이번에 새로 복사한 것(아직 저장 안 됨)만 바로 치운다. 이미 저장돼 있던 건 저장 시 정리.
-        if (uri in freshCopies) {
-            freshCopies -= uri
-            runCatching { TemplatePhotoStore.fileFor(container.appContext, uri)?.delete() }
+            s.copy(
+                photos = s.photos.toMutableList().also { it.removeAt(index) },
+                captions = s.captions.toMutableList().also { if (index in it.indices) it.removeAt(index) }
+            )
         }
     }
 
@@ -134,13 +142,14 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
             val s = _state.value
-            // 저장에서 빠진(지운) 옛 사진 파일을 치운다 — 저장이 성공해야 지운다.
             val removedOld = initialPhotos().filter { it !in s.photos }
             val ok = SaveGuard.run("업체 소개", _toast) {
+                container.preferences.faqSlogan = s.slogan.trim()
                 container.preferences.faqIntro = s.intro.trim()
                 container.preferences.faqCareer = s.career.trim()
                 container.preferences.faqCount = s.count.trim()
                 container.preferences.faqCoverPhotos = s.photos
+                container.preferences.faqCoverCaptions = s.captions.map { it.trim() }
                 true
             }
             if (ok == true) {
@@ -154,10 +163,9 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun initialPhotos(): List<String> =
-        initial.getOrNull(3)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+        initial.getOrNull(4)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
 
     override fun onCleared() {
-        // 저장 안 하고 나갔으면 이번에 복사한(쓰이지 않은) 사진은 치운다(지워도 되는 것).
         freshCopies.toList().forEach { runCatching { TemplatePhotoStore.fileFor(container.appContext, it)?.delete() } }
         super.onCleared()
     }

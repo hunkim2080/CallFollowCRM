@@ -5,11 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,14 +61,14 @@ import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
-/** 대표 사진 칸 한 변. */
-private val COVER_TILE = 92.dp
+/** 대표 사진 썸네일 한 변. */
+private val COVER_TILE = 72.dp
 
 /**
- * 🏷️ **업체 소개 편집** — 손님 공개 FAQ 페이지 상단(소개글·대표 사진·경력·건수). 프로토 7U7dnG1GFEoD2RMmd7gRmk ②.
- *   업체명·지역은 사업자정보에서 읽어 보여주기만 한다(여기서 안 고침). 저장은 `SaveGuard`.
+ * 🏷️ **업체 소개 편집** — 손님 공개 FAQ 페이지 상단(톤·슬로건·소개글·대표 사진+설명·경력·건수). 프로토 7U7dnG1GFEoD2RMmd7gRmk ②.
+ *   느낌은 사장님이 정한다 — 톤 프리셋으로 슬로건을 채워 넣고 고쳐 쓴다. 업체명·지역은 사업자정보에서 읽어 보여주기만.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BizIntroEditScreen(
     viewModel: BizIntroEditViewModel,
@@ -121,10 +123,9 @@ fun BizIntroEditScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = AppSpace.s16).padding(top = 2.dp, bottom = AppSpace.s16)
         ) {
-            // 사업자정보에서 읽어 보여주기만(여기서 못 고침) — 손님 페이지엔 이 이름·지역이 그대로 나간다.
+            // 사업자정보에서 읽어 보여주기만(여기서 못 고침).
             Column(
-                Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surfaceMuted)
-                    .padding(14.dp)
+                Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surfaceMuted).padding(14.dp)
             ) {
                 Text(
                     state.bizName.ifBlank { "상호를 설정해주세요" },
@@ -135,41 +136,52 @@ fun BizIntroEditScreen(
                     Text(state.region, style = AppType.caption, color = AppTheme.colors.textSub)
                 }
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    "상호·지역은 설정 → 사업자 정보에서 가져와요.",
-                    style = AppType.caption, color = AppTheme.colors.textHint
-                )
+                Text("상호·지역은 설정 → 사업자 정보에서 가져와요.", style = AppType.caption, color = AppTheme.colors.textHint)
             }
 
-            BizFormLabel("대표 시공 사진", tag = "최대 ${BizIntroEditViewModel.COVER_MAX}장")
-            CoverPhotos(
+            // 톤 프리셋 — 누르면 슬로건에 채워진다(고쳐 쓸 수 있음).
+            BizFormLabel("느낌 고르기", tag = "눌러서 슬로건 채우기")
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AppSpace.s8),
+                verticalArrangement = Arrangement.spacedBy(AppSpace.s8)
+            ) {
+                BizIntroEditViewModel.TONE_PRESETS.forEach { (name, slogan) ->
+                    ToneChip(name, selected = state.slogan == slogan) { viewModel.applyPreset(slogan) }
+                }
+                ToneChip("직접 쓰기", selected = false, dashed = true) { viewModel.setSlogan("") }
+            }
+
+            BizFormLabel("슬로건", tag = "제목 위 한 줄 · 비우면 안 나와요")
+            SheetTextField(
+                value = state.slogan,
+                onValueChange = viewModel::setSlogan,
+                placeholder = "예) 작은 틈까지, 정성스럽게"
+            )
+
+            BizFormLabel("대표 시공 사진", tag = "최대 ${BizIntroEditViewModel.COVER_MAX}장 · 설명은 선택")
+            CoverPhotoList(
                 photos = state.photos,
+                captions = state.captions,
                 busy = state.pickingImage,
                 onAdd = { pickImages.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                onRemove = viewModel::removePhoto
+                onCaption = viewModel::setCaption,
+                onRemove = viewModel::removePhotoAt
             )
 
             BizFormLabel("소개글", counter = "${state.intro.length}/${BizIntroEditViewModel.INTRO_MAX}")
             SheetTextField(
                 value = state.intro,
                 onValueChange = viewModel::setIntro,
-                placeholder = "예) 안녕하세요, 10년 경력 줄눈 시공 디테일라인입니다. 꼼꼼한 마감과 1년 무상 A/S로 믿고 맡기실 수 있게 시공합니다.",
+                placeholder = "예) 안녕하세요, 줄눈 시공 ○○입니다. 상담부터 마무리까지 대표가 직접 챙깁니다.",
                 singleLine = false, minHeightDp = 92
             )
 
             BizFormLabel("경력", tag = "선택")
-            SheetTextField(
-                value = state.career,
-                onValueChange = viewModel::setCareer,
-                placeholder = "예) 경력 10년"
-            )
+            SheetTextField(value = state.career, onValueChange = viewModel::setCareer, placeholder = "예) 10 또는 경력 10년")
 
             BizFormLabel("시공 건수", tag = "선택")
-            SheetTextField(
-                value = state.count,
-                onValueChange = viewModel::setCount,
-                placeholder = "예) 시공 1,200건"
-            )
+            SheetTextField(value = state.count, onValueChange = viewModel::setCount, placeholder = "예) 1200 또는 시공 1,200건")
         }
     }
 
@@ -182,6 +194,23 @@ fun BizIntroEditScreen(
             text = { Text("쓴 내용이 사라져요.") },
             confirmButton = { TextButton(onClick = { confirmExit = false; onDone() }) { Text("나가기") } },
             dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("계속 작성") } }
+        )
+    }
+}
+
+/** 톤 프리셋 칩(알약). 고른 것은 파랗게. 「직접 쓰기」는 점선. */
+@Composable
+private fun ToneChip(text: String, selected: Boolean, dashed: Boolean = false, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(CircleShape)
+            .background(if (selected) AppTheme.colors.primary else AppTheme.colors.surface)
+            .border(1.dp, if (selected) AppTheme.colors.primary else AppTheme.colors.line, CircleShape)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+    ) {
+        Text(
+            text, style = AppType.label,
+            color = when { selected -> AppTheme.colors.textOnPrimary; dashed -> AppTheme.colors.primaryText; else -> AppTheme.colors.textSub }
         )
     }
 }
@@ -205,44 +234,51 @@ private fun BizFormLabel(text: String, counter: String? = null, tag: String? = n
     }
 }
 
-/** 대표 사진 가로 줄 — 썸네일(✕로 빼기) + 끝에 「＋」 추가 칸(최대 장수 전까지). */
+/** 대표 사진 세로 목록 — 썸네일(✕로 빼기) + 옆에 설명 칸. 끝에 「＋ 사진 추가」. */
 @Composable
-private fun CoverPhotos(
+private fun CoverPhotoList(
     photos: List<String>,
+    captions: List<String>,
     busy: Boolean,
     onAdd: () -> Unit,
-    onRemove: (String) -> Unit
+    onCaption: (Int, String) -> Unit,
+    onRemove: (Int) -> Unit
 ) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)
-    ) {
-        photos.forEach { uri ->
-            Box(Modifier.size(COVER_TILE)) {
-                AsyncImage(
-                    model = uri, contentDescription = "대표 사진",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
-                )
-                Box(
-                    Modifier.align(Alignment.TopEnd).padding(AppSpace.s4).size(22.dp).clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.55f)).clickable { onRemove(uri) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Close, "사진 빼기", tint = Color.White, modifier = Modifier.size(14.dp))
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
+        photos.forEachIndexed { i, uri ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
+                Box(Modifier.size(COVER_TILE)) {
+                    AsyncImage(
+                        model = uri, contentDescription = "대표 사진 ${i + 1}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                    )
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(3.dp).size(20.dp).clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.55f)).clickable { onRemove(i) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Close, "사진 빼기", tint = Color.White, modifier = Modifier.size(13.dp))
+                    }
                 }
+                SheetTextField(
+                    value = captions.getOrElse(i) { "" },
+                    onValueChange = { onCaption(i, it) },
+                    placeholder = "사진 설명 (예: 욕실 줄눈 시공)",
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
         if (photos.size < BizIntroEditViewModel.COVER_MAX) {
-            Column(
-                Modifier.size(COVER_TILE).clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
-                    .clickable(enabled = !busy) { onAdd() },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            Row(
+                Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                    .clickable(enabled = !busy) { onAdd() }.padding(vertical = 14.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Add, "사진 추가", tint = AppTheme.colors.textHint, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.height(3.dp))
-                Text(if (busy) "담는 중" else "추가", style = AppType.caption, color = AppTheme.colors.textHint)
+                Icon(Icons.Default.Add, null, tint = AppTheme.colors.textHint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(AppSpace.s4))
+                Text(if (busy) "담는 중" else "＋ 사진 추가", style = AppType.label, color = AppTheme.colors.textHint)
             }
         }
     }

@@ -16708,3 +16708,12 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 수정: `schemeSpecificPart` 의 '?' 뒤를 직접 split 파싱(body= URLDecode) → getQueryParameter·EXTRA_TEXT 폴백 유지. 삼성/구글 메시지는 원래 되던 거라 무영향, 시공막내 기본앱 사용자(사장님 본인)도 이제 채워짐.
 - 검증: assembleRelease 가드7 통과. 폰: 손님 페이지 「문자로 문의」→ 번호+내용 답장칸 채워지는지.
 - 내부배포 태그(앱).
+
+## 2026-11-21 21:55 · android (+ server)
+대표질문 — 폰 피드백: **톤(프리셋+직접) · 사진 설명 · 링크 섬네일**.
+- 앱: 업체 소개 편집에 **톤 프리셋 칩**(장인·정성/절대고수/경력·믿음/깔끔·완벽/직접쓰기) → 슬로건 채움·수정. **슬로건** 칸(제목 위, 비면 숨김). **사진별 설명**(세로 목록, 썸네일+설명칸, 사진↔캡션 index 정렬). AppPreferences faqSlogan·faqCoverCaptions. FaqPublishRepository 가 slogan·cover_captions(사진과 정렬) 전송. assembleRelease 가드7 통과.
+- 서버(라이브 재배포 v5): FaqPublishRequest +slogan·cover_captions. 렌더 — eyebrow=슬로건(비면 숨김), 사진 캡션=cover_captions[i](비면 숨김). **고정문구 "작은 틈까지"·"정성껏 시공한 모습" 제거**(모든 사장님에 한 성격 강요 안 함 — 액자만 우리가, 성격은 사장님).
+- 서버: **FAQ 링크 섬네일** `_make_faq_thumb`(접수서 `_make_intake_thumb` 틀 재사용·두 벌X) — 크림격자+흰카드+파란 ? 타일+업체명+「자주 묻는 질문」+"시공 전 궁금한 점, 여기서 확인하세요". **RING-GO/시공막내 브랜드 없음**. og:image/twitter:image 를 업체별 faq-{해시}.png 로. 손님이 카톡에서 안심.
+- 검증: 라이브 health 200·og:image=faq-*.png·섬네일 1200x630 PNG 생성/서빙 200·눈확인 OK. 배포=백업(main.py.bak.20261121-201331) 복원 후 FAQ블록+섬네일함수 재append→py_compile→kickstart.
+- 폰 확인: 업체소개에서 톤/슬로건/사진설명 저장→공개 토글→미리보기·링크 공유 시 카드 확인.
+- 내부배포 태그(앱).
