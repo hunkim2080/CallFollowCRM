@@ -86,8 +86,11 @@ fun BizIntroEditScreen(
     fun tryExit() { if (viewModel.isDirty && !state.saving) confirmExit = true else onDone() }
     BackHandler { tryExit() }
 
-    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let { viewModel.addPhoto(it) }
+    // 여러 장 한 번에 — 최대 5장(합쳐서 넘치면 VM 이 잘라 말한다). 권한 필요 없는 시스템 선택기.
+    val pickImages = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(BizIntroEditViewModel.COVER_MAX)
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.addPhotos(uris)
     }
 
     Scaffold(
@@ -142,7 +145,7 @@ fun BizIntroEditScreen(
             CoverPhotos(
                 photos = state.photos,
                 busy = state.pickingImage,
-                onAdd = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onAdd = { pickImages.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                 onRemove = viewModel::removePhoto
             )
 

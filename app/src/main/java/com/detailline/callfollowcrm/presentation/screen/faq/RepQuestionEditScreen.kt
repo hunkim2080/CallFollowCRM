@@ -213,24 +213,41 @@ fun RepQuestionEditScreen(
                 Text("미리보기", style = AppType.title, color = AppTheme.colors.text)
                 Spacer(Modifier.height(AppSpace.s4))
                 Text(
-                    "대표질문을 누르면 답장칸에 이렇게 들어가요. 바로 전송되지 않아요.",
+                    "손님 공개 페이지에서 이렇게 보여요. 질문을 누르면 답이 펼쳐져요.",
                     style = AppType.caption, color = AppTheme.colors.textHint
                 )
                 Spacer(Modifier.height(AppSpace.s16))
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-                    state.imageUri?.let { uri ->
-                        AsyncImage(
-                            model = uri, contentDescription = "답장에 같이 담기는 사진",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(140.dp).clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                // 손님 페이지 FAQ 카드(펼친 모습) — 흰 카드 · 분류 딱지 · Q. 질문 · 답 · 사진.
+                Column(
+                    Modifier.fillMaxWidth().clip(AppShape.lg).border(1.dp, AppTheme.colors.line, AppShape.lg)
+                        .background(AppTheme.colors.surface).padding(14.dp)
+                ) {
+                    if (state.category.isNotBlank()) {
+                        Text(
+                            state.category, style = AppType.caption, color = AppTheme.colors.primaryText,
+                            modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.primaryBg)
+                                .padding(horizontal = AppSpace.s8, vertical = 2.dp)
                         )
                         Spacer(Modifier.height(AppSpace.s8))
                     }
-                    Text(
-                        state.answer.trim(), style = AppType.body, color = AppTheme.colors.textOnPrimary,
-                        modifier = Modifier.widthIn(max = 280.dp).clip(AppShape.lg)
-                            .background(AppTheme.colors.primary).padding(horizontal = 13.dp, vertical = 10.dp)
-                    )
+                    Row {
+                        Text("Q.", style = AppType.headline, fontWeight = FontWeight.Black, color = AppTheme.colors.primary)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            state.question.ifBlank { "질문" }, style = AppType.headline,
+                            fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.text, modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(Modifier.height(AppSpace.s8))
+                    Text(state.answer.trim(), style = AppType.body, color = AppTheme.colors.textSub)
+                    state.imageUri?.let { uri ->
+                        Spacer(Modifier.height(10.dp))
+                        AsyncImage(
+                            model = uri, contentDescription = "답에 함께 보이는 사진",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().height(160.dp).clip(AppShape.md).background(AppTheme.colors.surfaceMuted)
+                        )
+                    }
                 }
                 Spacer(Modifier.height(AppSpace.s8))
             }

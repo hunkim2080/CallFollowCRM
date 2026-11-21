@@ -5,7 +5,11 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,9 +93,24 @@ internal fun ChatRepQuestionHost(
             }
             Spacer(Modifier.height(AppSpace.s8))
 
+            // 분류 칩 — 많아지면 한 탭으로 그 분류만 본다. 손님 페이지와 같은 거르기. (분류가 하나도 없으면 안 보임)
+            val categories = remember(questions) { questions.map { it.category }.filter { it.isNotBlank() }.distinct() }
+            var selectedCat by remember(questions) { mutableStateOf("") }
+            if (categories.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)
+                ) {
+                    CatFilterChip("전체", selectedCat.isBlank()) { selectedCat = "" }
+                    categories.forEach { c -> CatFilterChip(c, selectedCat == c) { selectedCat = c } }
+                }
+                Spacer(Modifier.height(AppSpace.s12))
+            }
+            val shown = if (selectedCat.isBlank()) questions else questions.filter { it.category == selectedCat }
+
             if (questions.isEmpty()) RepQuestionEmptyState()
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                questions.forEach { q ->
+                shown.forEach { q ->
                     QuestionCard(q) {
                         // 시트를 먼저 닫는다 — 같은 질문을 연달아 눌러 두 번 들어가는 일이 없다.
                         onClose()
@@ -149,6 +171,24 @@ private fun QuestionCard(q: RepQuestionEntity, onClick: () -> Unit) {
                 Text("사진 첨부", style = AppType.caption, color = AppTheme.colors.primaryText)
             }
         }
+    }
+}
+
+/** 분류 거르기 칩(알약). 고른 칩은 파랗게. 「전체」 + 등록된 분류들. */
+@Composable
+private fun CatFilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(CircleShape)
+            .background(if (selected) AppTheme.colors.primary else AppTheme.colors.surface)
+            .border(1.dp, if (selected) AppTheme.colors.primary else AppTheme.colors.line, CircleShape)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text, style = AppType.label,
+            color = if (selected) AppTheme.colors.textOnPrimary else AppTheme.colors.textSub
+        )
     }
 }
 

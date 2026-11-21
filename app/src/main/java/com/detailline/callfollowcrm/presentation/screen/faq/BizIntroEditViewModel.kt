@@ -76,6 +76,28 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
     fun setCareer(v: String) = _state.update { it.copy(career = v.replace('\n', ' ').take(SHORT_MAX)) }
     fun setCount(v: String) = _state.update { it.copy(count = v.replace('\n', ' ').take(SHORT_MAX)) }
 
+    /** 대표 사진 **여러 장** 추가(합쳐서 최대 [COVER_MAX]). 넘치면 앞에서 자르고 말한다. 앱 안으로 복사. */
+    fun addPhotos(uris: List<Uri>) {
+        if (uris.isEmpty() || _state.value.pickingImage) return
+        _state.update { it.copy(pickingImage = true) }
+        viewModelScope.launch {
+            val room = (COVER_MAX - _state.value.photos.size).coerceAtLeast(0)
+            val take = uris.take(room)
+            val droppedForCap = uris.size - take.size
+            val copied = withContext(Dispatchers.IO) {
+                take.mapNotNull { src ->
+                    runCatching { TemplatePhotoStore.copyToAppStorage(container.appContext, src) }.getOrNull()?.uri
+                }
+            }
+            freshCopies += copied
+            _state.update { it.copy(photos = it.photos + copied, pickingImage = false) }
+            when {
+                droppedForCap > 0 -> _toast.value = "대표 사진은 최대 ${COVER_MAX}장이에요"
+                copied.size < take.size -> _toast.value = "일부 사진을 불러오지 못했어요 — 다시 골라주세요"
+            }
+        }
+    }
+
     /** 대표 사진 한 장 추가(최대 [COVER_MAX]). 앱 안으로 복사 — 실패하면 **말한다**. */
     fun addPhoto(src: Uri) {
         if (_state.value.pickingImage) return
