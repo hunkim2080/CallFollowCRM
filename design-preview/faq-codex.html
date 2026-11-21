@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f6">
+  <title>디테일라인 · 시공 전 궁금한 이야기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root{--blue:#3182f6;--deep:#1c64d1;--ink:#202c3e;--muted:#657183;--line:#e5e8ed;--paper:#faf9f6;--soft:#edf4ff}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#eaeef3;color:var(--ink);font-family:'Noto Sans KR',sans-serif;font-size:17px;line-height:1.65;letter-spacing:-.035em;-webkit-font-smoothing:antialiased}button,textarea{font:inherit;letter-spacing:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #e4a92b;outline-offset:4px}button{color:inherit}svg{display:block}button svg{pointer-events:none}button:disabled{cursor:not-allowed}button:active:not(:disabled){transform:translateY(1px)}[hidden]{display:none!important}h1,h2,h3,p,figure{margin:0}a{color:inherit}::selection{background:#cfe2ff}.symbols{position:absolute;width:0;height:0;overflow:hidden}.page{width:100%;max-width:430px;min-height:100vh;margin:auto;background:var(--paper);box-shadow:0 12px 80px #24334c12}.wrap{padding-left:24px;padding-right:24px}.masthead{height:70px;display:flex;align-items:center;justify-content:space-between}.wordmark{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;letter-spacing:-.04em}.brand-icon{width:27px;height:27px;border-radius:9px;background:var(--blue);color:white;display:grid;place-items:center}.brand-icon svg{width:19px;height:19px}.header-note{color:#78808a;font-size:12px;letter-spacing:0}.intro{padding-top:16px}.eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.14em;color:#647187}.eyebrow:before{content:'';width:17px;height:2px;background:var(--blue)}.intro h1{font-size:31px;font-weight:800;line-height:1.35;margin:12px 0 5px;letter-spacing:-.055em}.specialty{font-size:17px;font-weight:500;color:#4e5d71}.gallery{display:flex;gap:12px;overflow-x:auto;padding:22px 24px 12px;scroll-snap-type:x mandatory;scroll-padding-left:24px;scrollbar-width:none}.gallery::-webkit-scrollbar{display:none}.work{flex:0 0 282px;scroll-snap-align:start;position:relative;overflow:hidden;border-radius:16px;background:#e1ddd3}.work svg{width:100%;height:195px;object-fit:cover}.work figcaption{position:absolute;bottom:12px;left:12px;right:12px;display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:13px;font-weight:500}.work:after{content:'';position:absolute;inset:60% 0 0;background:linear-gradient(transparent,#1d2c3b80);pointer-events:none}.work figcaption{z-index:1}.work figcaption span:first-child{background:#1d2c3b65;backdrop-filter:blur(6px);padding:3px 9px;border-radius:7px}.placeholder-label{position:absolute;top:12px;left:12px;font-size:10px;font-weight:600;letter-spacing:.06em;background:#ffffffda;color:#57616c;padding:3px 7px;border-radius:5px}.gallery-nav{display:flex;align-items:center;justify-content:space-between;padding:0 24px 17px}.gallery-hint{font-size:12px;color:#78818d}.gallery-dots{display:flex;gap:0}.gallery-dot{border:0;background:none;min-width:28px;min-height:28px;padding:10px;display:grid;place-items:center}.gallery-dot:before{content:'';width:5px;height:5px;border-radius:5px;background:#ccd3dc;transition:width .2s}.gallery-dot[aria-current=true]:before{width:18px;background:var(--blue)}.intro-copy{font-size:16px;line-height:1.8;color:#556173}.intro-copy strong{font-weight:600;color:#2d3b50}.business-facts{display:flex;gap:6px;flex-wrap:wrap;padding:17px 0 27px}.fact{font-size:12px;white-space:nowrap;letter-spacing:-.04em;background:#fff;border:1px solid #e8e7e3;border-radius:7px;padding:6px 8px;color:#566274}.fact b{font-weight:600;color:#34465b}.section-divider{height:9px;background:#f0f1f2;border-top:1px solid #e9eaec;border-bottom:1px solid #e9eaec}.faq-section{padding:29px 24px 28px;background:#fff}.faq-heading{position:relative;min-height:130px;padding-right:100px}.section-kicker{font-size:12px;font-weight:700;color:var(--deep);letter-spacing:.12em;margin-bottom:9px}.faq-heading h2{font-size:27px;line-height:1.45;letter-spacing:-.055em;font-weight:800}.mascot{width:105px;height:120px;position:absolute;right:-9px;top:3px;transform:rotate(6deg)}.helper{font-size:14px;color:var(--muted);margin:0 0 17px}.categories{display:flex;gap:7px;margin-bottom:23px}.category{border:1px solid #e6eaf0;background:#fff;color:#647082;border-radius:30px;min-height:45px;padding:9px 0;flex:1;white-space:nowrap;font-size:15px;font-weight:600;transition:background .16s,color .16s}.category[aria-selected=true]{background:var(--blue);border-color:var(--blue);color:white;box-shadow:0 4px 10px #3182f61b}.category:hover:not([aria-selected=true]){background:#f4f7fc}.faq-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}.faq-meta h3{font-size:14px;font-weight:600;color:#607085}.faq-meta span{font-size:12px;color:#8b94a1}.faq-item{border-bottom:1px solid var(--line)}.faq-trigger{border:0;width:100%;display:flex;align-items:flex-start;text-align:left;gap:10px;background:transparent;padding:21px 0;font-size:17px;font-weight:600;line-height:1.65}.q-mark{color:var(--blue);font-size:14px;font-weight:800;line-height:28px}.question-text{flex:1}.chevron{flex:0 0 18px;width:18px;height:18px;margin-top:5px;color:#97a3b3;transition:transform .2s}.faq-trigger[aria-expanded=true] .chevron{transform:rotate(180deg);color:var(--blue)}.faq-trigger[aria-expanded=true] .question-text{color:var(--deep)}.answer{padding:0 0 22px 24px;animation:appear .2s ease}.answer-copy{font-size:16px;color:#566275;line-height:1.85;word-break:keep-all;overflow-wrap:anywhere}.answer-copy strong{font-weight:700;color:#2d3c50}.answer-note{display:flex;align-items:flex-start;gap:7px;margin-top:13px;background:#f2f6fc;padding:12px;border-radius:10px;font-size:13px;line-height:1.7;color:#5b6e88}.answer-note svg{width:17px;height:17px;flex:0 0 17px;margin-top:3px}.answer-image{margin-top:17px;border:1px solid #e9edf2;border-radius:12px;overflow:hidden;background:#f7f7f5}.answer-image svg{width:100%;height:126px;object-fit:cover}.answer-image figcaption{display:flex;justify-content:space-between;gap:5px;padding:9px 11px;font-size:11px;color:#6a7685;background:#fafbfc}.answer-image figcaption b{font-weight:500;color:#475b74}.inquiry-intro{padding:30px 24px 25px}.inquiry-eyebrow{display:flex;gap:8px;align-items:center;margin-bottom:11px;font-size:12px;letter-spacing:.08em;font-weight:700;color:var(--deep)}.inquiry-eyebrow svg{width:18px;height:18px}.inquiry-intro h2{font-size:24px;font-weight:800;line-height:1.45;letter-spacing:-.05em}.inquiry-intro p{margin-top:9px;font-size:15px;line-height:1.85;color:#6b7584}.contact-benefit{display:flex;align-items:center;gap:7px;margin-top:16px;font-size:13px;color:#526c91}.contact-benefit svg{width:16px;height:16px}.site-footer{padding:6px 24px 128px;color:#969da6;font-size:11px;line-height:1.8}.footer-brand{display:flex;align-items:center;gap:5px;color:#7e8896;font-size:11px;margin-bottom:9px;letter-spacing:.015em}.footer-brand strong{color:#66788f;font-size:12px}.footer-url{font-size:11px;letter-spacing:0}.action-dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;padding:12px 20px max(14px,env(safe-area-inset-bottom));background:#ffffffed;backdrop-filter:blur(14px);border-top:1px solid #e9edf2;z-index:5}.primary{display:flex;justify-content:center;align-items:center;gap:10px;min-height:58px;width:100%;border:0;border-radius:13px;background:var(--blue);color:white;font-size:17px;font-weight:700;transition:background .15s}.primary:hover:not(:disabled){background:#2273e5}.primary svg{width:22px;height:22px}.primary:disabled{background:#dce3ed;color:#91a0b4}.dock-note{text-align:center;font-size:11px;color:#7c899b;margin-top:6px}.desktop-note{display:none}
+    dialog{position:fixed;inset:auto 0 0;margin:0 auto;width:100%;max-width:430px;max-height:calc(100dvh - 20px);padding:0;border:0;border-radius:24px 24px 0 0;background:#fff;color:var(--ink);overflow-y:auto;box-shadow:0 -12px 80px #1e304522}dialog::backdrop{background:#192b466b;backdrop-filter:blur(3px)}dialog[open]{animation:sheetIn .25s ease}.sheet-handle{width:36px;height:4px;background:#dfe4eb;border-radius:4px;margin:11px auto 4px}.sheet-top{display:flex;align-items:center;justify-content:space-between;padding:3px 15px 0 24px}.steps{font-size:12px;color:#8b96a7;display:flex;gap:8px;align-items:center}.steps b{color:var(--deep);font-weight:700}.icon-button{min-width:44px;height:44px;background:transparent;border:0;border-radius:10px;display:grid;place-items:center}.icon-button svg{width:22px;height:22px}.sheet-body{padding:8px 24px 24px}.sheet-body h2{font-size:26px;line-height:1.45;font-weight:800;letter-spacing:-.05em}.sheet-description{font-size:15px;color:#738094;margin:10px 0 24px;line-height:1.75}.field-label{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;margin-bottom:10px}.field-label span{font-size:12px;color:#8c98a8;font-weight:400}textarea{resize:vertical;width:100%;border:1.5px solid #dce3ed;border-radius:13px;padding:16px;background:#fff;min-height:160px;color:var(--ink);font-size:16px;line-height:1.7;display:block}textarea:focus{border-color:var(--blue);outline:3px solid #3182f61a}textarea::placeholder{color:#99a5b5}.input-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:8px 0 20px;font-size:12px;color:#8490a0}.input-meta .error{color:#c53e48}.privacy-note{background:#f3f7fd;border-radius:12px;padding:14px;margin-bottom:22px;display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.8;color:#61728a}.privacy-note svg{width:19px;height:19px;flex:0 0 19px;margin-top:3px;color:var(--blue)}.privacy-note strong{color:#425c80;font-weight:600}.sheet-footnote{font-size:11px;text-align:center;color:#8d98a8;margin-top:10px}.sms-demo-label{background:#eaf2ff;padding:11px 15px;text-align:center;color:#4b6a94;font-size:12px;font-weight:500}.sms-header{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid #edf0f4}.sms-avatar{width:40px;height:40px;border-radius:50%;background:#e8f0fc;color:var(--deep);display:grid;place-items:center;font-size:16px;font-weight:700}.sms-contact{flex:1}.sms-contact strong{font-size:16px;font-weight:700}.sms-contact p{color:#8190a3;font-size:12px;letter-spacing:0}.sms-space{min-height:180px;padding:26px 23px;background:#fbfcfe}.sms-date{text-align:center;font-size:11px;color:#98a3b1;letter-spacing:0;margin-bottom:25px}.sms-empty{max-width:235px;margin:30px auto 8px;text-align:center;font-size:14px;color:#8593a6;line-height:1.8}.sms-empty svg{margin:0 auto 11px;width:30px;height:30px;color:#b0c4de}.sms-compose{padding:16px 16px 20px;display:flex;gap:10px;align-items:flex-end;border-top:1px solid #edf0f4}.sms-compose textarea{min-height:114px;max-height:220px;border-radius:18px;background:#f3f6fa;border-color:#f3f6fa;font-size:15px;padding:13px}.sms-send{width:49px;min-width:49px;height:49px;margin-bottom:2px;border:0;border-radius:50%;background:var(--blue);color:white;display:grid;place-items:center}.sms-send svg{width:24px;height:24px}.sms-send:disabled{background:#dbe3ef;color:#98a7b9}.sms-guide{padding:0 24px 23px;font-size:12px;color:#8290a1;line-height:1.8}.sms-guide strong{color:#5d7190;font-weight:500}.sms-bubble{margin-left:28px;background:var(--blue);color:#fff;font-size:15px;line-height:1.8;border-radius:18px 18px 4px 18px;padding:14px 17px;overflow-wrap:anywhere;white-space:pre-wrap}.sms-status{text-align:right;font-size:11px;color:#7f91a9;margin:6px 2px 0}.success{padding:22px 24px 26px}.success-check{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#e8f4ef;color:#27976c;margin-bottom:13px}.success-check svg{width:23px;height:23px}.success h2{font-size:23px;font-weight:800;margin-bottom:7px}.success p{font-size:14px;color:#748095;line-height:1.85;margin-bottom:23px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @keyframes appear{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}@keyframes sheetIn{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}@media(min-width:700px){body{padding:30px 0}.page{border-radius:24px;overflow:hidden}.action-dock{bottom:16px;border-radius:18px;max-width:398px;box-shadow:0 8px 36px #22344c1c}.desktop-note{display:block;position:fixed;left:calc(50% + 245px);top:62px;font-size:12px;color:#7f8da0;line-height:1.9;letter-spacing:0}.desktop-note strong{display:block;font-size:13px;color:#5c6b7e}.desktop-note span{display:block;margin-top:9px;font-size:11px}dialog{inset:50% 0 auto;transform:translateY(-50%);border-radius:24px;max-height:calc(100dvh - 50px)}dialog[open]{animation:appear .2s ease}}@media(max-width:359px){.wrap,.faq-section,.inquiry-intro{padding-left:20px;padding-right:20px}.faq-heading h2{font-size:24px}.mascot{width:89px;right:-6px}.category{font-size:14px}.fact{font-size:11px;padding:6px}.faq-trigger{font-size:16px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H5l-3 2v-10a9 9 0 0 1 18 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 10h8M7 14h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v6M12 7.2v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <pattern id="wall-tiles" width="69" height="51" patternUnits="userSpaceOnUse"><rect width="69" height="51" fill="#e9e5dc"/><path d="M0 0h69v51" fill="none" stroke="#faf8f2" stroke-width="2"/><path d="m9 13 29-3m12 25 13 3" stroke="#dfdad1" opacity=".5"/></pattern>
+      <pattern id="floor-tiles" width="62" height="62" patternUnits="userSpaceOnUse"><rect width="62" height="62" fill="#a8a99f"/><path d="M0 0h62v62" fill="none" stroke="#ece9df" stroke-width="2"/></pattern>
+      <pattern id="close-tiles" width="82" height="69" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)"><rect width="82" height="69" fill="#d5d0c4"/><path d="M0 0h82v69" fill="none" stroke="#fffcf1" stroke-width="4"/><path d="m10 20 26-4m16 31 20 6" stroke="#c9c4b9" stroke-width="1" opacity=".55"/></pattern>
+      <linearGradient id="photo-light" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#333a36" stop-opacity=".12"/></linearGradient>
+      <linearGradient id="mirror-light" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f3f4ed"/><stop offset=".5" stop-color="#c9d6ce"/><stop offset="1" stop-color="#e5ebe2"/></linearGradient>
+      <symbol id="bathroom" viewBox="0 0 320 220"><rect width="320" height="220" fill="url(#wall-tiles)"/><path d="m0 154 320-6v72H0Z" fill="url(#floor-tiles)"/><path d="m0 154 320-6" stroke="#f4f1e9" stroke-width="3"/><rect x="30" y="22" width="90" height="93" rx="43" fill="#c1b9a9"/><rect x="33" y="25" width="84" height="87" rx="41" fill="url(#mirror-light)"/><path d="m43 79 43-47" stroke="#fff" opacity=".5" stroke-width="3"/><rect x="16" y="128" width="131" height="52" rx="2" fill="#b8a38a"/><path d="M57 132v43m43-43v43" stroke="#9c876e"/><rect x="11" y="121" width="141" height="11" rx="3" fill="#fdfcf8"/><ellipse cx="80" cy="120" rx="39" ry="11" fill="#fff"/><ellipse cx="80" cy="118" rx="29" ry="5" fill="#d8ddd6"/><path d="M79 113V99q0-8 8-8h8" fill="none" stroke="#78847f" stroke-width="4"/><rect x="211" y="16" width="2" height="143" fill="#a2aaa1"/><path d="M215 17h78v136h-78Z" fill="#f8fff8" opacity=".23"/><path d="M266 104V38h-17" fill="none" stroke="#858d85" stroke-width="3"/><ellipse cx="248" cy="40" rx="11" ry="3" fill="#707c74"/><path d="M259 85h14" stroke="#7d8981" stroke-width="3"/><rect x="224" y="151" width="77" height="5" rx="2" fill="#8f988e"/><rect x="160" y="111" width="22" height="23" rx="2" fill="#eeeee3"/><path d="M171 112V85m0 20-9-12m9 5 9-12" stroke="#7e9574" stroke-width="3"/><ellipse cx="161" cy="91" rx="5" ry="9" transform="rotate(-30 161 91)" fill="#8a9c78"/><ellipse cx="179" cy="85" rx="5" ry="10" transform="rotate(27 179 85)" fill="#91a282"/><rect width="320" height="220" fill="url(#photo-light)"/></symbol>
+      <symbol id="kitchen" viewBox="0 0 320 220"><rect width="320" height="220" fill="#e6e3da"/><rect y="65" width="320" height="85" fill="url(#wall-tiles)"/><rect x="15" width="132" height="64" fill="#d3c2a9"/><rect x="151" width="154" height="64" fill="#d3c2a9"/><path d="M81 0v64m148-64v64" stroke="#ad9d84"/><rect y="147" width="320" height="73" fill="#acb6a8"/><path d="M80 151v69m80-69v69m80-69v69" stroke="#899b89"/><rect y="141" width="320" height="10" fill="#f8f7ef"/><ellipse cx="216" cy="141" rx="48" ry="6" fill="#9ba8a0"/><path d="M243 135v-29q0-16-15-16t-15 14" fill="none" stroke="#7d8d86" stroke-width="5"/><rect x="31" y="116" width="37" height="25" rx="3" fill="#d2bc97"/><path d="M38 116v-10m8 10V99m8 17v-12" stroke="#8d7960" stroke-width="4"/><rect x="88" y="121" width="23" height="19" rx="4" fill="#eae8da"/><path d="M100 122V99m0 13-11-13m11 6 8-13" stroke="#748b6c" stroke-width="3"/><rect width="320" height="220" fill="url(#photo-light)"/></symbol>
+      <symbol id="tile-detail" viewBox="0 0 320 160"><rect width="320" height="160" fill="url(#close-tiles)"/><rect width="320" height="160" fill="url(#photo-light)"/><circle cx="243" cy="77" r="34" fill="#fcfaf5" stroke="#fff" stroke-width="3"/><path d="M213 77h60m-30-30v60" stroke="#c8c3b6" stroke-width="3"/><circle cx="243" cy="77" r="9" fill="#eaf2ff"/><path d="m239 77 3 3 6-6" fill="none" stroke="#3182f6" stroke-width="2" stroke-linecap="round"/><path d="m213 101-22 18" stroke="#fff" stroke-width="2"/></symbol>
+      <symbol id="maknae" viewBox="0 0 120 140"><ellipse cx="60" cy="129" rx="35" ry="5" fill="#e9edf3"/><path d="m36 96-14 10q-6 6 0 10l18-8m43-12 12-12q7-5 10 3l-14 22" fill="#fff7e9" stroke="#37485b" stroke-width="2.5" stroke-linejoin="round"/><path d="M35 91q25-12 49 0l5 33H31Z" fill="#3182f6" stroke="#37485b" stroke-width="2.5"/><path d="M44 88v22h31V88" fill="#eaf3ff" stroke="#37485b" stroke-width="2"/><rect x="48" y="109" width="24" height="12" rx="4" fill="#1d68ce"/><path d="M39 124v5m42-5v5" stroke="#37485b" stroke-width="8" stroke-linecap="round"/><rect x="26" y="36" width="69" height="58" rx="27" fill="#fff7e9" stroke="#37485b" stroke-width="2.5"/><ellipse cx="44" cy="72" rx="6" ry="3" fill="#f5b7a0"/><ellipse cx="79" cy="72" rx="6" ry="3" fill="#f5b7a0"/><path d="M47 61v5m27-5v5" stroke="#37485b" stroke-width="3.4" stroke-linecap="round"/><path d="M56 75q6 7 12 0" fill="none" stroke="#37485b" stroke-width="2.3" stroke-linecap="round"/><path d="M27 46q0-30 33-30t34 30" fill="#ffd468" stroke="#37485b" stroke-width="2.5"/><path d="M54 17v23m13-23v23" stroke="#d6a43f" stroke-width="2"/><rect x="20" y="41" width="81" height="10" rx="5" fill="#ffdc7b" stroke="#37485b" stroke-width="2.5"/><path d="m96 20 6-6m0 17h8" stroke="#3182f6" stroke-width="3" stroke-linecap="round"/></symbol>
+    </defs>
+  </svg>
+
+  <aside class="desktop-note" aria-label="시안 안내"><strong>RING-GO · 시공막내</strong>고객을 위한 작은 안내서<span>390px 모바일 기준<br>인터랙션이 가능한 디자인 시안</span></aside>
+  <main class="page">
+    <header class="masthead wrap">
+      <div class="wordmark"><span class="brand-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v14H5Z M5 12h14M12 5v14" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>디테일라인</div>
+      <span class="header-note">우리 집 시공 안내서</span>
+    </header>
+
+    <section class="intro" aria-labelledby="business-name">
+      <div class="wrap"><p class="eyebrow">작은 틈까지, 정성스럽게</p><h1 id="business-name">디테일라인</h1><p class="specialty">욕실·주방 줄눈 시공 전문</p></div>
+      <div class="gallery" id="gallery" aria-label="대표 시공 이미지. 옆으로 넘겨 보세요" tabindex="0">
+        <figure class="work"><svg role="img" aria-label="베이지 타일과 깔끔한 줄눈의 욕실 시공 예시 일러스트" viewBox="0 0 320 220"><use href="#bathroom"/></svg><span class="placeholder-label">시공 사진 자리 · 예시 이미지</span><figcaption><span>01 &nbsp; 차분하고 환한 욕실</span><span>욕실 줄눈</span></figcaption></figure>
+        <figure class="work"><svg role="img" aria-label="주방 벽 타일 줄눈 시공 예시 일러스트" viewBox="0 0 320 220"><use href="#kitchen"/></svg><span class="placeholder-label">시공 사진 자리 · 예시 이미지</span><figcaption><span>02 &nbsp; 매일 머무는 주방</span><span>주방 줄눈</span></figcaption></figure>
+        <figure class="work"><svg role="img" aria-label="타일 사이의 줄눈을 확대해서 보여주는 예시 일러스트" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice"><use href="#tile-detail"/></svg><span class="placeholder-label">시공 사진 자리 · 예시 이미지</span><figcaption><span>03 &nbsp; 가까이 보면 더 반듯하게</span><span>마감 디테일</span></figcaption></figure>
+      </div>
+      <div class="gallery-nav"><span class="gallery-hint">옆으로 넘겨 시공 모습을 보세요 <span aria-hidden="true">↔</span></span><div class="gallery-dots" aria-label="시공 이미지 선택"><button class="gallery-dot" aria-label="첫 번째 시공 이미지" aria-current="true" data-slide="0"></button><button class="gallery-dot" aria-label="두 번째 시공 이미지" aria-current="false" data-slide="1"></button><button class="gallery-dot" aria-label="세 번째 시공 이미지" aria-current="false" data-slide="2"></button></div></div>
+      <div class="wrap"><p class="intro-copy">매일 쓰는 공간이 오래도록 깔끔하게.<br><strong>상담부터 시공, 마무리까지</strong> 대표가 직접 챙깁니다.</p><div class="business-facts" aria-label="업체 정보 예시"><span class="fact">📍 <b>서울·경기</b></span><span class="fact">🗓 <b>경력 8년</b></span><span class="fact">✅ <b>600건 이상 시공</b></span></div></div>
+    </section>
+
+    <div class="section-divider"></div>
+    <section class="faq-section" aria-labelledby="faq-title">
+      <div class="faq-heading"><p class="section-kicker">시공 전, 미리 알아두세요</p><h2 id="faq-title">많이 물어보신 질문,<br>여기 모아뒀어요.</h2><svg class="mascot" role="img" aria-label="노란 안전모를 쓰고 손을 든 시공막내 캐릭터"><use href="#maknae"/></svg></div>
+      <p class="helper">궁금한 주제를 골라보세요.</p>
+      <div class="categories" role="tablist" aria-label="질문 카테고리">
+        <button class="category" id="tab-price" role="tab" aria-selected="true" aria-controls="faq-panel" data-category="price">가격</button>
+        <button class="category" id="tab-time" role="tab" aria-selected="false" aria-controls="faq-panel" tabindex="-1" data-category="time">시공시간</button>
+        <button class="category" id="tab-service" role="tab" aria-selected="false" aria-controls="faq-panel" tabindex="-1" data-category="service">A/S</button>
+        <button class="category" id="tab-care" role="tab" aria-selected="false" aria-controls="faq-panel" tabindex="-1" data-category="care">관리법</button>
+      </div>
+      <div id="faq-panel" role="tabpanel" aria-labelledby="tab-price"><div class="faq-meta"><h3 id="category-heading">가격이 궁금해요</h3><span>질문 <span id="question-count">3</span>개</span></div><div id="faq-list"></div></div>
+    </section>
+
+    <section class="inquiry-intro" aria-labelledby="inquiry-title"><div class="inquiry-eyebrow"><svg aria-hidden="true"><use href="#i-chat"/></svg>대표에게 직접 물어보세요</div><h2 id="inquiry-title">우리 집은 조금 다른가요?</h2><p>짧은 질문도 괜찮아요.<br>궁금한 점을 남기시면 문자로 답해드릴게요.</p><div class="contact-benefit"><svg aria-hidden="true"><use href="#i-check"/></svg>앱 설치도, 전화번호 입력도 필요 없어요.</div></section>
+    <footer class="site-footer"><div class="footer-brand">사장님 곁의 든든한 막내 &nbsp; <strong>RING-GO 시공막내</strong></div><div class="footer-url">si0in.kr/faq/디테일라인</div><p>디자인 시안 · 업체 정보, 시공 이미지 및 답변은 예시입니다.</p></footer>
+    <div class="action-dock"><button class="primary" id="inquiry-open"><svg aria-hidden="true"><use href="#i-chat"/></svg>문자로 바로 문의하기</button><p class="dock-note">질문만 적으면 내 문자 앱으로 연결돼요</p></div>
+  </main>
+
+  <dialog id="inquiry-dialog" aria-labelledby="compose-title">
+    <div id="write-step">
+      <div class="sheet-handle" aria-hidden="true"></div><div class="sheet-top"><div class="steps"><b>1 질문 작성</b><span aria-hidden="true">›</span><span>2 문자 보내기</span></div><button class="icon-button close-dialog" aria-label="문의 창 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <form class="sheet-body" id="inquiry-form"><h2 id="compose-title">궁금한 점만 적어주세요.</h2><p class="sheet-description">디테일라인 대표에게<br>평소 쓰시는 문자로 문의할 수 있어요.</p><label class="field-label" for="question">문의 내용 <span>전화번호 입력은 필요 없어요</span></label><textarea id="question" placeholder="예) 24평 아파트 욕실 2곳 줄눈 시공, 비용이 얼마나 나올까요?" maxlength="500" required aria-describedby="question-hint" autofocus></textarea><div class="input-meta"><span id="question-hint">시공 공간을 알려주시면 상담에 도움이 돼요.</span><span><span id="char-count">0</span>/500</span></div><div class="privacy-note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><strong>다음 화면에서 문자를 보내면 접수돼요.</strong><br>대표는 문자에 표시된 고객님 번호로 답장해요.</div></div><button type="submit" class="primary" id="open-sms" disabled>문자 앱으로 이어가기 <span aria-hidden="true">↗</span></button><p class="sheet-footnote">이 시안에서는 문자 앱 화면을 체험할 수 있어요.</p></form>
+    </div>
+    <div id="sms-step" hidden>
+      <div class="sms-demo-label">문자 앱 미리보기 · 실제 발송되지 않아요</div><div class="sms-header"><button class="icon-button" id="sms-back" aria-label="질문 작성으로 돌아가기"><svg aria-hidden="true"><use href="#i-back"/></svg></button><div class="sms-avatar" aria-hidden="true">디</div><div class="sms-contact"><strong id="sms-title">디테일라인 대표</strong><p>받는 사람 · 010-1234-5678</p></div><button class="icon-button close-dialog" aria-label="문자 미리보기 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="sms-space"><p class="sms-date">문자 메시지 · SMS</p><div class="sms-empty" id="sms-empty"><svg aria-hidden="true"><use href="#i-chat"/></svg>작성한 질문을 가져왔어요.<br>내용을 확인하고 보내주세요.</div><div id="sent-message" hidden><div class="sms-bubble" id="sent-bubble"></div><p class="sms-status">전송 완료 · 체험용</p></div></div>
+      <form id="sms-form"><div class="sms-compose"><label class="sr-only" for="sms-message">대표에게 보낼 문자 내용</label><textarea id="sms-message" maxlength="500" required></textarea><button class="sms-send" id="sms-send" type="submit" aria-label="문자 보내기 체험"><svg aria-hidden="true"><use href="#i-send"/></svg></button></div><p class="sms-guide"><strong>↑ 보내기 버튼을 누르면 문의가 전달돼요.</strong><br>실제 이용 시 휴대폰 요금제에 따라 문자 요금이 발생할 수 있어요.</p></form>
+      <section class="success" id="success" hidden aria-live="polite"><div class="success-check"><svg aria-hidden="true"><use href="#i-check"/></svg></div><h2 id="success-title">문의 보내기 체험을 마쳤어요!</h2><p>실제 서비스에서는 대표가 고객님 문자로 답장해요.<br>지금은 시안이므로 문자가 발송되지 않았어요.</p><button class="primary" id="finish">FAQ로 돌아가기</button></section>
+    </div>
+  </dialog>
+  <script>
+    'use strict';
+    // All business details and answers are illustrative. No backend or SMS is invoked.
+    const categories = {
+      price: {title:'가격이 궁금해요', items:[
+        {q:'평수당 가격이 어떻게 되나요?',a:'집 전체 평수보다는 <strong>시공할 공간과 타일 크기</strong>를 기준으로 안내해요. 같은 24평이라도 욕실 개수, 줄눈의 길이, 기존 줄눈 상태에 따라 비용이 달라집니다.',note:'욕실·주방 등 시공할 공간을 문자로 알려주시면 예상 견적을 안내해드려요.',image:'tile-detail',caption:'타일 크기와 줄눈 상태를 확인해요'},
+        {q:'추가 비용이 생길 수도 있나요?',a:'기존 줄눈 제거, 심한 오염 정리, 실리콘 보수 등이 필요하면 추가 비용이 생길 수 있어요. <strong>작업 전에 항목과 금액을 설명드리고</strong>, 동의하신 범위 안에서 진행합니다.',note:'견적 상담 때 기존 시공 여부를 함께 알려주세요.',image:'bathroom',caption:'기존 줄눈과 모서리 상태 확인'},
+        {q:'욕실 한 곳만 시공해도 되나요?',a:'네, <strong>욕실 한 곳이나 주방만</strong> 따로 시공할 수 있어요. 필요한 공간부터 상담받아보세요. 작은 면적도 출장 거리와 작업 범위에 맞춰 견적을 안내해드려요.',note:'원하는 공간과 거주 지역을 알려주시면 더 정확해요.',image:'kitchen',caption:'필요한 공간만 선택해서 시공'}
+      ]},
+      time: {title:'시간과 일정이 궁금해요', items:[
+        {q:'시공 기간은 얼마나 걸리나요?',a:'욕실 한 곳 기준으로 보통 <strong>반나절 정도</strong>를 예상하시면 돼요. 기존 줄눈을 제거하거나 시공 공간이 여러 곳이면 하루 이상 걸릴 수 있습니다.',note:'실제 소요 시간은 현장 상태를 확인한 뒤 안내드려요.',image:'bathroom',caption:'기존 줄눈 정리부터 마감까지'},
+        {q:'시공 후 바로 물을 써도 되나요?',a:'바로 물을 쓰기보다는 <strong>줄눈이 충분히 굳을 때까지</strong> 기다려주세요. 보통 24~48시간을 안내하지만, 사용하는 제품과 현장 온도·습도에 따라 달라요.',note:'현장에서 안내드리는 물 사용 가능 시간을 꼭 지켜주세요.',image:'tile-detail',caption:'충분히 굳히는 시간도 시공의 일부예요'},
+        {q:'살고 있는 집도 시공할 수 있나요?',a:'네, 거주 중인 집도 가능해요. <strong>시공 공간의 짐과 생활용품</strong>만 미리 치워주시면 됩니다. 작업 중 소음이나 먼지가 생길 수 있어 보양 후 진행해요.',note:'욕실이 하나라면 물 사용 제한 시간을 미리 상의해주세요.',image:'bathroom',caption:'시공 공간을 비우고 주변을 보호해요'}
+      ]},
+      service: {title:'A/S가 궁금해요', items:[
+        {q:'시공 후 A/S 되나요?',a:'네, 시공 후 불편한 점은 대표에게 바로 말씀해주세요. <strong>들뜸이나 탈락 등 시공 하자로 확인된 부분</strong>은 약정한 보증 조건에 따라 보수해드려요.',note:'보증 기간과 무상 보수 범위는 계약 전에 안내드립니다.',image:'tile-detail',caption:'작은 들뜸도 상태를 먼저 확인해요'},
+        {q:'A/S는 어떻게 신청하나요?',a:'아래 문자 문의로 <strong>시공 날짜와 불편한 부분</strong>을 알려주세요. 문자 앱에서 해당 부분의 사진도 함께 보내주시면 상태 확인이 빨라져요.',note:'사진을 확인한 뒤 필요한 조치와 방문 일정을 안내해요.',image:'bathroom',caption:'전체 모습과 가까이 찍은 사진을 준비해요'},
+        {q:'어떤 경우에 유상 보수인가요?',a:'외부 충격, 강한 약품 사용, 타일 자체의 움직임 등 <strong>시공 외 원인</strong>이라면 유상 보수가 필요할 수 있어요. 원인을 확인하고 비용을 먼저 설명드립니다.',note:'스스로 긁어내기 전에 상태를 문자로 보내주세요.',image:'tile-detail',caption:'줄눈과 타일의 상태를 함께 확인해요'}
+      ]},
+      care: {title:'오래 쓰는 관리법이 궁금해요', items:[
+        {q:'줄눈은 어떻게 청소하면 되나요?',a:'충분히 굳은 뒤 <strong>부드러운 솔이나 스펀지와 중성 세제</strong>로 가볍게 닦아주세요. 철 수세미나 날카로운 도구로 긁으면 표면이 손상될 수 있어요.',note:'강한 산성·알칼리성 세제는 제품별 사용 가능 여부를 먼저 확인해주세요.',image:'tile-detail',caption:'부드러운 도구로 가볍게 관리해요'},
+        {q:'곰팡이가 아예 안 생기나요?',a:'줄눈 시공은 오염 관리에 도움이 되지만 <strong>곰팡이를 완전히 막아주지는 않아요.</strong> 물기가 오래 남지 않게 닦고 환기해주시면 더 깔끔하게 사용할 수 있어요.',note:'샤워 후 물기를 정리하고 환풍기를 사용해주세요.',image:'bathroom',caption:'물기 제거와 환기가 중요해요'},
+        {q:'줄눈 색상은 고를 수 있나요?',a:'네, 타일 색과 원하는 분위기에 맞춰 고르실 수 있어요. <strong>밝은 색은 환하게, 비슷한 색은 차분하게</strong> 어우러져요. 상담 때 색상 견본으로 함께 확인해드려요.',note:'화면의 색과 실제 시공 색은 조명에 따라 다를 수 있어요.',image:'kitchen',caption:'타일에 어울리는 색을 함께 골라요'}
+      ]}
+    };
+    const list = document.getElementById('faq-list');
+    const tabs = [...document.querySelectorAll('.category')];
+    function renderCategory(key) {
+      const category = categories[key];
+      tabs.forEach(tab => {const selected = tab.dataset.category === key; tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;});
+      document.getElementById('faq-panel').setAttribute('aria-labelledby', 'tab-' + key);
+      document.getElementById('category-heading').textContent = category.title;
+      document.getElementById('question-count').textContent = category.items.length;
+      list.innerHTML = category.items.map((item, index) => `<article class="faq-item"><h3><button class="faq-trigger" id="q-${key}-${index}" aria-expanded="${index === 0}" aria-controls="answer-${key}-${index}"><span class="q-mark" aria-hidden="true">Q.</span><span class="question-text">${item.q}</span><svg class="chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button></h3><div class="answer" id="answer-${key}-${index}" role="region" aria-labelledby="q-${key}-${index}" ${index === 0 ? '' : 'hidden'}><p class="answer-copy">${item.a}</p><div class="answer-note"><svg aria-hidden="true"><use href="#i-info"/></svg><p>${item.note}</p></div><figure class="answer-image"><svg role="img" aria-label="${item.caption} — 시공 사진 대체 일러스트" viewBox="0 0 320 ${item.image === 'tile-detail' ? '160' : '220'}" preserveAspectRatio="xMidYMid slice"><use href="#${item.image}"/></svg><figcaption><b>${item.caption}</b><span>예시 이미지</span></figcaption></figure></div></article>`).join('');
+    }
+    tabs.forEach((tab,index) => {
+      tab.addEventListener('click', () => renderCategory(tab.dataset.category));
+      tab.addEventListener('keydown', event => {
+        let next;
+        if(event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+        if(event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+        if(event.key === 'Home') next = 0;
+        if(event.key === 'End') next = tabs.length - 1;
+        if(next !== undefined){event.preventDefault(); tabs[next].focus(); renderCategory(tabs[next].dataset.category);}
+      });
+    });
+    list.addEventListener('click', event => {
+      const trigger = event.target.closest('.faq-trigger'); if(!trigger) return;
+      const expanded = trigger.getAttribute('aria-expanded') === 'true';
+      trigger.setAttribute('aria-expanded', String(!expanded));
+      document.getElementById(trigger.getAttribute('aria-controls')).hidden = expanded;
+    });
+    renderCategory('price');
+
+    const gallery = document.getElementById('gallery');
+    const dots = [...document.querySelectorAll('.gallery-dot')];
+    dots.forEach(dot => dot.addEventListener('click', () => {
+      const slide = gallery.children[Number(dot.dataset.slide)];
+      gallery.scrollTo({left:slide.offsetLeft - gallery.children[0].offsetLeft,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+    }));
+    gallery.addEventListener('scroll', () => {
+      const step = gallery.children[1].offsetLeft - gallery.children[0].offsetLeft;
+      const current = Math.round(gallery.scrollLeft / step);
+      dots.forEach((dot,index) => dot.setAttribute('aria-current', String(index === current)));
+    }, {passive:true});
+
+    const dialog = document.getElementById('inquiry-dialog');
+    const question = document.getElementById('question');
+    const smsMessage = document.getElementById('sms-message');
+    const writeStep = document.getElementById('write-step');
+    const smsStep = document.getElementById('sms-step');
+    let sent = false;
+    // Production handoff: location.href = buildSmsLink(question.value.trim()).
+    // This prototype only records the URI in memory and opens the mock SMS view.
+    const ownerNumber = '01012345678';
+    function buildSmsLink(message){return 'sms:' + ownerNumber + '?body=' + encodeURIComponent(message);}
+    function updateQuestion(){document.getElementById('char-count').textContent = question.value.length; document.getElementById('open-sms').disabled = !question.value.trim();}
+    function showWrite(){writeStep.hidden = false; smsStep.hidden = true; dialog.setAttribute('aria-labelledby','compose-title'); dialog.scrollTop = 0; question.focus();}
+    function closeDialog(){dialog.close();}
+    document.getElementById('inquiry-open').addEventListener('click', () => {
+      if(sent){question.value = ''; sent = false;}
+      updateQuestion(); writeStep.hidden = false; smsStep.hidden = true; dialog.setAttribute('aria-labelledby','compose-title');
+      dialog.showModal(); document.body.style.overflow = 'hidden'; question.focus();
+    });
+    document.querySelectorAll('.close-dialog').forEach(button => button.addEventListener('click',closeDialog));
+    dialog.addEventListener('close', () => {document.body.style.overflow = ''; document.getElementById('inquiry-open').focus();});
+    dialog.addEventListener('click', event => {if(event.target === dialog){const rect = dialog.getBoundingClientRect(); if(event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog();}});
+    question.addEventListener('input', updateQuestion);
+    document.getElementById('inquiry-form').addEventListener('submit', event => {
+      event.preventDefault(); if(!question.value.trim()) return;
+      smsMessage.value = question.value.trim();
+      dialog.dataset.smsUri = buildSmsLink(smsMessage.value);
+      writeStep.hidden = true; smsStep.hidden = false;
+      document.getElementById('sms-form').hidden = false;
+      document.getElementById('sms-empty').hidden = false;
+      document.getElementById('sent-message').hidden = true;
+      document.getElementById('success').hidden = true;
+      document.getElementById('sms-back').hidden = false;
+      document.getElementById('sms-send').disabled = false;
+      dialog.setAttribute('aria-labelledby','sms-title'); dialog.scrollTop = 0;
+      document.getElementById('sms-send').focus();
+    });
+    smsMessage.addEventListener('input', () => {document.getElementById('sms-send').disabled = !smsMessage.value.trim();});
+    document.getElementById('sms-back').addEventListener('click', () => {question.value = smsMessage.value; updateQuestion(); showWrite();});
+    document.getElementById('sms-form').addEventListener('submit', event => {
+      event.preventDefault(); if(!smsMessage.value.trim()) return;
+      document.getElementById('sent-bubble').textContent = smsMessage.value.trim();
+      dialog.dataset.smsUri = buildSmsLink(smsMessage.value.trim());
+      document.getElementById('sms-form').hidden = true;
+      document.getElementById('sms-empty').hidden = true;
+      document.getElementById('sent-message').hidden = false;
+      document.getElementById('success').hidden = false;
+      document.getElementById('sms-back').hidden = true;
+      dialog.setAttribute('aria-labelledby','success-title'); sent = true;
+      document.getElementById('finish').focus();
+    });
+    document.getElementById('finish').addEventListener('click',closeDialog);
+  </script>
+</body>
+</html>

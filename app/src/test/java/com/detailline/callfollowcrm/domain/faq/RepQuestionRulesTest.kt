@@ -61,4 +61,17 @@ class RepQuestionRulesTest {
     @Test fun `미리보기 한 줄 - 사진이 있으면 뒤에 (사진)`() {
         assertEquals("욕실 기준 평균 OO만원대입니다 (사진)", RepQuestionRules.previewLine("욕실 기준 평균 OO만원대입니다", hasImage = true))
     }
+
+    @Test fun `분류 - 10자까지 남고 앞뒤 빈칸 정리`() {
+        assertEquals(10, RepQuestionRules.clampCategory("가".repeat(15)).length)
+        assertEquals("가격", RepQuestionRules.clampCategory("  가격  "))
+    }
+
+    @Test fun `분류 - 줄바꿈은 빈칸으로(한 줄)`() {
+        assertEquals("예약 결제", RepQuestionRules.clampCategory("예약\n결제"))
+    }
+
+    @Test fun `분류 - 기본 분류 네 개`() {
+        assertEquals(listOf("가격", "시공시간", "A/S", "관리법"), RepQuestionRules.DEFAULT_CATEGORIES)
+    }
 }

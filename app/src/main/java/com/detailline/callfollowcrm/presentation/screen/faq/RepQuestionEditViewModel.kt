@@ -10,7 +10,11 @@ import com.detailline.callfollowcrm.util.TemplatePhotoStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +34,7 @@ class RepQuestionEditViewModel(
     data class UiState(
         val question: String = "",
         val answer: String = "",
+        val category: String = "",
         val imageUri: String? = null,
         /** 고치기일 때 원래 글을 다 읽었나. 읽기 전엔 입력을 막는다(읽힌 값이 쓰던 글을 덮지 않게). */
         val loaded: Boolean = false,
@@ -46,6 +51,12 @@ class RepQuestionEditViewModel(
     private val _state = MutableStateFlow(UiState(loaded = questionId == null))
     val state = _state.asStateFlow()
 
+    /** 분류 칩 추천 — 기본 분류 + 이미 쓰던 분류(중복 제거, 기본이 앞). */
+    val categories: StateFlow<List<String>> =
+        container.repQuestionRepository.observeCategories()
+            .map { (RepQuestionRules.DEFAULT_CATEGORIES + it).distinct() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RepQuestionRules.DEFAULT_CATEGORIES)
+
     // 🗣 저장·사진 복사가 실패하면 말하는 통로.
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
@@ -53,6 +64,7 @@ class RepQuestionEditViewModel(
 
     /** 처음 모습 — 「저장 안 하고 나갈까요?」 판단용. */
     private var initial = Triple("", "", null as String?)
+    private var initialCategory = ""
 
     /** DB 에 저장돼 있던 사진. 저장 전까지는 지우지 않는다(취소하면 그대로 남아야 한다). */
     private var savedImage: String? = null
@@ -76,17 +88,21 @@ class RepQuestionEditViewModel(
                 } else {
                     savedImage = row.imageUri
                     initial = Triple(row.question, row.answer, row.imageUri)
-                    _state.update { it.copy(question = row.question, answer = row.answer, imageUri = row.imageUri, loaded = true) }
+                    initialCategory = row.category
+                    _state.update { it.copy(question = row.question, answer = row.answer, category = row.category, imageUri = row.imageUri, loaded = true) }
                 }
             }
         }
     }
 
     val isDirty: Boolean
-        get() = _state.value.let { Triple(it.question, it.answer, it.imageUri) != initial }
+        get() = _state.value.let { Triple(it.question, it.answer, it.imageUri) != initial || it.category != initialCategory }
 
     fun setQuestion(v: String) = _state.update { it.copy(question = RepQuestionRules.clampQuestion(v)) }
     fun setAnswer(v: String) = _state.update { it.copy(answer = RepQuestionRules.clampAnswer(v)) }
+
+    /** 분류 고르기 — 같은 칩을 다시 누르면 선택 해제(미분류). */
+    fun setCategory(v: String) = _state.update { it.copy(category = RepQuestionRules.clampCategory(v)) }
 
     /** 고른 사진을 앱 안으로 복사해 붙인다(1장). 실패하면 **말한다** — 조용히 빈칸으로 두지 않는다. */
     fun pickImage(src: Uri) {
@@ -132,8 +148,8 @@ class RepQuestionEditViewModel(
         viewModelScope.launch {
             // 🗣 사장님이 **쓴 질문·답** — 조용히 사라지면 다시 써야 한다. 실패하면 말하고, 쓴 글은 화면에 그대로 둔다.
             val ok = SaveGuard.run("대표질문", _toast) {
-                if (questionId == null) container.repQuestionRepository.add(s.question, s.answer, s.imageUri)
-                else container.repQuestionRepository.edit(questionId, s.question, s.answer, s.imageUri)
+                if (questionId == null) container.repQuestionRepository.add(s.question, s.answer, s.imageUri, s.category)
+                else container.repQuestionRepository.edit(questionId, s.question, s.answer, s.imageUri, s.category)
                 true
             }
             if (ok == true) {

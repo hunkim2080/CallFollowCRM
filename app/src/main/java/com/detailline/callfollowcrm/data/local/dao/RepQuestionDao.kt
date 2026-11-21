@@ -17,6 +17,10 @@ interface RepQuestionDao {
     @Query("SELECT * FROM rep_questions WHERE id = :id")
     suspend fun findById(id: Long): RepQuestionEntity?
 
+    /** 등록된 분류들(빈 분류 제외) — 등록 폼의 분류 칩 추천에 쓴다. */
+    @Query("SELECT DISTINCT category FROM rep_questions WHERE category != '' ORDER BY category")
+    fun observeCategories(): Flow<List<String>>
+
     /** 맨 뒤 순서. 하나도 없으면 -1 (→ 첫 줄이 0). */
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM rep_questions")
     suspend fun maxSortOrder(): Int

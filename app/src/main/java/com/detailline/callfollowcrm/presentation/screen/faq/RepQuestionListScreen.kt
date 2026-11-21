@@ -279,6 +279,14 @@ private fun ReorderableQuestions(
                             }
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
+                                if (row.category.isNotBlank()) {
+                                    Text(
+                                        row.category, style = AppType.caption, color = AppTheme.colors.primaryText,
+                                        modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.primaryBg)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                }
                                 Text(
                                     row.question, style = AppType.headline, fontWeight = FontWeight.ExtraBold,
                                     color = AppTheme.colors.text, maxLines = 2, overflow = TextOverflow.Ellipsis

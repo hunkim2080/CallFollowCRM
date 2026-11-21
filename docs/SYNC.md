@@ -16654,3 +16654,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 폰 확인: 업그레이드 실행·20/500 카운터·키보드위 버튼·사진 영속·끌어순서·채팅삽입(전송X·줄바꿈·사진)·문구넣기 회귀.
 - ⚠️ 별건 발견(안 건드림): PricingItemsScreen 끌기 2회차 stale 가능성(pointerInput(cat.name)+remember(ids)).
 - 내부배포 진행(upload 태그).
+
+## 2026-11-21 18:10 · android
+**대표질문 → 손님 공개 FAQ 페이지 + 문의 깔때기 (섞는 버전)** 방향 확정 · Phase 1(앱 토대) 구현. 당근 벤치마킹을 "답장 도구"로 잘못 이해했던 걸 바로잡음 — 진짜는 **손님이 고정 링크로 여는 공개 FAQ 페이지**(시공접수서 결). 비주얼=아스트라(코덱스) 채택, 구조=페이블. 프로토 `artifact/7U7dnG1GFEoD2RMmd7gRmk`(PROTOTYPES.md 갱신, 옛 EYKUs11c는 「옛것」으로 내림).
+- Phase 1 = 분류(카테고리) 토대만. `rep_questions.category` 칸 추가(**DB v76→v77** `MIGRATION_76_77` = `ALTER ADD COLUMN category TEXT NOT NULL DEFAULT ''` + `77.json`). 옛 행은 DEFAULT '' 로 안전(미분류).
+- 배선 8곳: Entity·AppDatabase·Rules(분류 10자·기본4분류 가격/시공시간/A/S/관리법·clampCategory)·Dao+Repo(observeCategories 추천·add/edit에 category)·EditVM(상태·추천목록·dirty)·EditScreen(분류 칩 + 「＋새분류」 다이얼로그)·ChatRepQuestionSheet/ListScreen(분류 딱지). 시험 `RepQuestionRulesTest` +3.
+- §12-K: add/edit 부르는 곳은 EditVM 한 곳뿐(시그니처 변경 안전). DataBackup은 DB 파일째 백업이라 category 자동 포함(손 안 댐). 관리 목록 끌기순서 로직은 검증자산이라 안 건드림 — 분류별 묶기는 Phase 2(손님 페이지)에서.
+- 검증: testDebugUnitTest + assembleRelease **BUILD SUCCESSFUL** 가드7 통과([dup]/[rules] 실패 없음). 경고는 전부 기존 deprecation.
+- 폰 확인: 대기(S9 미연결). 업그레이드 실행(v77)·등록 분류 고르기/새 분류·관리·챗 분류 딱지.
+- 다음 액션(Phase 2, 서버): 공개 토글·고정 링크·미리보기·업체소개·받은 문의·`/faq/{slug}` 공개 페이지·sms 문자문의. **서버는 되돌리기 어려운 공개 변경이라 폰 확인 후 착수.**
+- 내부배포 진행(upload 태그).

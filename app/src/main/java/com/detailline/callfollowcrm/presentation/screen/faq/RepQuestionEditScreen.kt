@@ -5,10 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -79,6 +83,7 @@ fun RepQuestionEditScreen(
     onDone: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val categories by viewModel.categories.collectAsState()
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
     // 🗣 저장·사진 복사가 실패하면 사장님께 말한다.
@@ -95,6 +100,8 @@ fun RepQuestionEditScreen(
     var confirmExit by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var showPreview by remember { mutableStateOf(false) }
+    var showNewCat by remember { mutableStateOf(false) }
+    var newCatText by remember { mutableStateOf("") }
     fun tryExit() { if (viewModel.isDirty && !state.saving) confirmExit = true else onDone() }
     BackHandler { tryExit() }
 
@@ -165,6 +172,14 @@ fun RepQuestionEditScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = AppSpace.s16).padding(top = 2.dp, bottom = AppSpace.s16)
             ) {
+                FormLabel("분류", tag = "손님이 이 묶음으로 찾아요")
+                CategoryPicker(
+                    categories = categories,
+                    selected = state.category,
+                    onSelect = viewModel::setCategory,
+                    onNew = { newCatText = ""; showNewCat = true },
+                    enabled = state.loaded
+                )
                 FormLabel("질문", RepQuestionRules.counter(state.question, RepQuestionRules.QUESTION_MAX))
                 SheetTextField(
                     value = state.question,
@@ -249,6 +264,81 @@ fun RepQuestionEditScreen(
                 TextButton(onClick = { confirmDelete = false }) { Text("취소", color = AppTheme.colors.textSub) }
             }
         )
+    }
+    if (showNewCat) {
+        AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            onDismissRequest = { showNewCat = false },
+            title = { Text("새 분류", fontWeight = FontWeight.Bold, color = AppTheme.colors.text) },
+            text = {
+                OutlinedTextField(
+                    value = newCatText,
+                    onValueChange = { newCatText = RepQuestionRules.clampCategory(it) },
+                    singleLine = true,
+                    placeholder = { Text("예) 예약·결제") }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (newCatText.isNotBlank()) viewModel.setCategory(newCatText); showNewCat = false },
+                    enabled = newCatText.isNotBlank()
+                ) { Text("추가", color = AppTheme.colors.primary, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewCat = false }) { Text("취소", color = AppTheme.colors.textSub) }
+            }
+        )
+    }
+}
+
+/** 프로토 .catpick — 분류 칩(알약). 고른 칩은 파랗게, 같은 칩을 다시 누르면 해제(미분류). 끝에 「＋ 새 분류」. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryPicker(
+    categories: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    onNew: () -> Unit,
+    enabled: Boolean
+) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(AppSpace.s8),
+        verticalArrangement = Arrangement.spacedBy(AppSpace.s8)
+    ) {
+        // 고른 분류가 추천 목록에 없으면(막 만든 것) 맨 앞에 보여준다.
+        val shown = if (selected.isNotBlank() && selected !in categories) listOf(selected) + categories else categories
+        shown.forEach { c ->
+            CatChip(text = c, selected = c == selected, enabled = enabled) {
+                onSelect(if (selected == c) "" else c)
+            }
+        }
+        CatChip(text = "＋ 새 분류", selected = false, dashed = true, enabled = enabled, onClick = onNew)
+    }
+}
+
+@Composable
+private fun CatChip(
+    text: String,
+    selected: Boolean,
+    dashed: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val bg = if (selected) AppTheme.colors.primary else AppTheme.colors.surface
+    val fg = when {
+        selected -> AppTheme.colors.textOnPrimary
+        dashed -> AppTheme.colors.primaryText
+        else -> AppTheme.colors.textSub
+    }
+    Box(
+        Modifier.clip(CircleShape).background(bg)
+            .border(1.dp, if (selected) AppTheme.colors.primary else AppTheme.colors.line, CircleShape)
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+    ) {
+        Text(text, style = AppType.label, color = fg)
     }
 }
 

@@ -116,6 +116,14 @@ private fun QuestionCard(q: RepQuestionEntity, onClick: () -> Unit) {
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
+        if (q.category.isNotBlank()) {
+            Text(
+                q.category, style = AppType.caption, color = AppTheme.colors.primaryText,
+                modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.primaryBg)
+                    .padding(horizontal = AppSpace.s8, vertical = 2.dp)
+            )
+            Spacer(Modifier.height(6.dp))
+        }
         Row {
             Text("Q.", style = AppType.headline, fontWeight = FontWeight.Black, color = AppTheme.colors.primary)
             Spacer(Modifier.width(6.dp))

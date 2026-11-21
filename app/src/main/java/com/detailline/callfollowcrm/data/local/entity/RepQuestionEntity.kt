@@ -13,6 +13,7 @@ import androidx.room.PrimaryKey
  *
  *   [imageUri] = 앱 내부 복사본의 FileProvider 주소(`TemplatePhotoStore`). 없으면 null.
  *   [sortOrder] = 관리 화면에서 끌어 정한 순서(작을수록 위).
+ *   [category] = 손님 공개 FAQ 페이지의 분류(키워드) — "무엇이 궁금하세요?" 묶음. 빈칸이면 미분류(「기타」). (DB v77)
  */
 @Entity(tableName = "rep_questions")
 data class RepQuestionEntity(
@@ -22,5 +23,6 @@ data class RepQuestionEntity(
     val imageUri: String? = null,
     @ColumnInfo(defaultValue = "0") val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "") val category: String = ""
 )

@@ -20,16 +20,20 @@ class RepQuestionRepository(
 ) {
     fun observeAll(): Flow<List<RepQuestionEntity>> = dao.observeAll()
 
+    /** 등록된 분류들(빈 분류 제외) — 등록 폼이 "이미 쓰던 분류" 칩으로 보여준다. */
+    fun observeCategories(): Flow<List<String>> = dao.observeCategories()
+
     suspend fun findById(id: Long): RepQuestionEntity? = dao.findById(id)
 
     /** 새로 등록 — 맨 아래에 붙는다. */
-    suspend fun add(question: String, answer: String, imageUri: String?): Long {
+    suspend fun add(question: String, answer: String, imageUri: String?, category: String): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
             RepQuestionEntity(
                 question = RepQuestionRules.clampQuestion(question).trim(),
                 answer = RepQuestionRules.clampAnswer(answer).trim(),
                 imageUri = imageUri,
+                category = RepQuestionRules.clampCategory(category),
                 sortOrder = dao.maxSortOrder() + 1,
                 createdAt = now, updatedAt = now
             )
@@ -37,13 +41,14 @@ class RepQuestionRepository(
     }
 
     /** 고치기 — 순서·만든 시각은 그대로. 사진이 바뀌었으면 옛 파일을 치운다. */
-    suspend fun edit(id: Long, question: String, answer: String, imageUri: String?) {
+    suspend fun edit(id: Long, question: String, answer: String, imageUri: String?, category: String) {
         val old = dao.findById(id) ?: error("대표질문 $id 가 없습니다")
         dao.update(
             old.copy(
                 question = RepQuestionRules.clampQuestion(question).trim(),
                 answer = RepQuestionRules.clampAnswer(answer).trim(),
                 imageUri = imageUri,
+                category = RepQuestionRules.clampCategory(category),
                 updatedAt = System.currentTimeMillis()
             )
         )

@@ -11,6 +11,13 @@ object RepQuestionRules {
     const val QUESTION_MAX = 20
     const val ANSWER_MAX = 500
     const val IMAGE_MAX = 1
+    const val CATEGORY_MAX = 10
+
+    /** 손님 공개 페이지 "무엇이 궁금하세요?" 의 기본 분류 — 사장님이 「새 분류」로 더하거나 안 골라도 된다. */
+    val DEFAULT_CATEGORIES = listOf("가격", "시공시간", "A/S", "관리법")
+
+    /** 분류는 한 줄 짧게 — 줄바꿈 빼고 [CATEGORY_MAX] 자까지. 빈칸이면 「」(미분류). */
+    fun clampCategory(raw: String): String = cut(raw.replace('\n', ' ').replace('\r', ' ').trim(), CATEGORY_MAX)
 
     /** 질문은 한 줄 — 줄바꿈은 빈칸으로, [QUESTION_MAX] 자까지. */
     fun clampQuestion(raw: String): String = cut(raw.replace('\n', ' ').replace('\r', ' '), QUESTION_MAX)
