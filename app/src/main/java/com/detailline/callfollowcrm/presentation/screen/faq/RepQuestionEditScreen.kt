@@ -64,6 +64,7 @@ import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
+import com.detailline.callfollowcrm.presentation.theme.ShimmerLine
 import com.detailline.callfollowcrm.presentation.util.keyboardOrNavPadding
 import com.detailline.callfollowcrm.presentation.util.keyboardPadding
 
@@ -188,13 +189,42 @@ fun RepQuestionEditScreen(
                     enabled = state.loaded
                 )
                 FormLabel("답변", RepQuestionRules.counter(state.answer, RepQuestionRules.ANSWER_MAX))
-                SheetTextField(
-                    value = state.answer,
-                    onValueChange = viewModel::setAnswer,
-                    placeholder = "질문에 대한 답이나 안내할 내용을 써 주세요.",
-                    singleLine = false, minHeightDp = 92,
-                    enabled = state.loaded
-                )
+                if (state.refining) {
+                    // 다듬는 중 — 입력칸 자리에 시머 스켈레톤. 끝나면 결과가 촥 들어온다.
+                    Column(
+                        Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surfaceMuted)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ShimmerLine(Modifier.fillMaxWidth())
+                        ShimmerLine(Modifier.fillMaxWidth(0.9f))
+                        ShimmerLine(Modifier.fillMaxWidth(0.6f))
+                    }
+                } else {
+                    SheetTextField(
+                        value = state.answer,
+                        onValueChange = viewModel::setAnswer,
+                        placeholder = "질문에 대한 답이나 안내할 내용을 써 주세요.",
+                        singleLine = false, minHeightDp = 92,
+                        enabled = state.loaded
+                    )
+                }
+                // 답변을 전문 상담 톤으로 AI 다듬기 — 기존 다듬기(/faq/refine) 재사용.
+                Row(Modifier.fillMaxWidth().padding(top = AppSpace.s8), horizontalArrangement = Arrangement.End) {
+                    val canRefine = state.loaded && !state.refining && state.answer.isNotBlank()
+                    Box(
+                        Modifier.clip(AppShape.md)
+                            .background(if (canRefine) AppTheme.colors.primaryBg else AppTheme.colors.surfaceMuted)
+                            .clickable(enabled = canRefine) { keyboard?.hide(); viewModel.refineAnswer() }
+                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                    ) {
+                        Text(
+                            if (state.refining) "다듬는 중…" else "전문 톤으로 다듬기",
+                            style = AppType.label,
+                            color = if (canRefine) AppTheme.colors.primaryText else AppTheme.colors.textHint
+                        )
+                    }
+                }
                 FormLabel("답장 내 이미지", tag = "선택")
                 ImagePick(
                     imageUri = state.imageUri,

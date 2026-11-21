@@ -20580,6 +20580,10 @@ class FaqPublishRequest(BaseModel):
     questions: List[FaqQuestion] = Field(default_factory=list)
 
 
+class FaqRefineRequest(BaseModel):
+    raw: str
+
+
 def _faq_slug_base(biz_name: str, owner_phone: str) -> str:
     """한글 음절/라틴 상호를 로마자화. 변환 불가 상호는 번호 SHA-256 6자."""
     import hashlib
@@ -20898,6 +20902,37 @@ def _render_faq_html(payload: dict, slug: str) -> str:
 </script>
 </body>
 </html>"""
+
+
+_FAQ_REFINE_SYSTEM = """너는 줄눈·타일 시공 업체의 **자주 묻는 질문(FAQ) 답변**을 다듬는 도우미다.
+사장님이 적은 답변 원문을 받아 — 손님이 읽을, **전문적이고 신뢰감 있는 FAQ 답변**으로 다시 써라.
+
+지킬 것:
+- 인사말·맺음 인사("안녕하세요", "감사합니다", "연락 주세요" 등)는 넣지 마라. FAQ 답변은 질문에 대한 **본 내용**만.
+- 정확하고 친절하게, 군더더기 없이 2~4문장.
+- 원문의 사실(기간·금액·조건)은 그대로. **원문에 없는 정보(가격·수치·보장)는 추가 금지**(거짓 X).
+- 과장·거짓 보장("100% 완벽" 등) 금지. 전문가답되 딱딱하지 않게.
+
+답 형식: 출력은 **답변 본문만**. 인사·설명·따옴표·코드블럭·백틱·태그 금지. 첫 글자부터 답변으로."""
+
+
+@app.post("/faq/refine")
+async def faq_refine_endpoint(req: FaqRefineRequest, request: Request) -> dict:
+    """대표질문 답변을 전문 상담 톤으로 다듬기. 기존 Gemini 호출(_call_gemini_refine) 재사용, FAQ 전용 프롬프트."""
+    owner_phone = _session_phone_from_header(request.headers.get("authorization"))
+    if not owner_phone:
+        raise HTTPException(401, "로그인이 필요합니다", headers={"X-Auth-Required": "1"})
+    text = (req.raw or "").strip()
+    if not text:
+        raise HTTPException(400, "다듬을 답변이 비어 있어요")
+    try:
+        polished, _usage = await _call_gemini_refine(_FAQ_REFINE_SYSTEM, text)
+    except Exception as e:
+        msg = str(e)
+        if "429" in msg or "quota" in msg.lower() or "RESOURCE_EXHAUSTED" in msg:
+            raise HTTPException(429, "오늘 다듬기 한도를 다 썼어요")
+        raise HTTPException(502, "AI 다듬기에 실패했어요")
+    return {"polished": polished}
 
 
 @app.get("/faq/{slug}", response_class=HTMLResponse)

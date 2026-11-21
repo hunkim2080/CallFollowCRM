@@ -94,6 +94,23 @@ class FaqPublishRepository(
         }
     }
 
+    /** 대표질문 답변을 **전문 상담 톤**으로 다듬기(서버 `/faq/refine` — 기존 Gemini 다듬기 재사용·FAQ 전용 프롬프트). */
+    suspend fun refineAnswer(text: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject().apply { put("raw", text) }
+            val req = Request.Builder()
+                .url("$baseUrl/faq/refine")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (resp.code == 429) throw RefineQuotaException(body.contains("quota_day") || body.contains("한도"))
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                JSONObject(body).optString("polished").trim().ifEmpty { throw IOException("빈 응답") }
+            }
+        }
+    }
+
     /** 앱 내부 사진 주소 → data URL base64(서버가 받는 형식). 실패하면 null — 그 사진만 빠진다(글은 간다). */
     private fun encode(uri: String): String? =
         runCatching { ImageEncoder.uriToJpegBase64(appContext, Uri.parse(uri)) }

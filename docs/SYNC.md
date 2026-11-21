@@ -16717,3 +16717,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: 라이브 health 200·og:image=faq-*.png·섬네일 1200x630 PNG 생성/서빙 200·눈확인 OK. 배포=백업(main.py.bak.20261121-201331) 복원 후 FAQ블록+섬네일함수 재append→py_compile→kickstart.
 - 폰 확인: 업체소개에서 톤/슬로건/사진설명 저장→공개 토글→미리보기·링크 공유 시 카드 확인.
 - 내부배포 태그(앱).
+
+## 2026-11-21 22:15 · android (+ server)
+대표질문 답변 **AI 전문 톤 다듬기** + 시머 스켈레톤.
+- 서버(append 블록, 라이브): `POST /faq/refine`(Bearer) — 기존 `_call_gemini_refine` 재사용·FAQ 전용 프롬프트(인사말 없이 전문·신뢰 톤, 원문에 없는 내용 추가 금지). 라이브 /api/refine 은 안 건드림(새 엔드포인트만 추가). 검증: 무인증 401·health 200.
+- 앱: 답변 칸 아래 「전문 톤으로 다듬기」 버튼 → `FaqPublishRepository.refineAnswer` → 성공 시 답변 교체. **다듬는 중엔 답변 칸을 공용 `ShimmerLine` 3줄 스켈레톤**으로(촥 바뀜). 429=RefineQuotaException 재사용. assembleRelease 가드7 통과.
+- 참고: 오늘 대표질문 서버 재배포 6회(facts·브랜딩·슬로건/캡션·섬네일·refine) → "서버 켜짐" 알림 6회(크래시 아님, 매 kickstart). 앞으로 서버 변경은 묶어서 재시작 횟수 줄이기.
+- 폰 확인: 답변 쓰고 「전문 톤으로 다듬기」 → 시머 후 다듬어진 답변. 한도 초과 시 안내.
+- 내부배포 태그(앱).

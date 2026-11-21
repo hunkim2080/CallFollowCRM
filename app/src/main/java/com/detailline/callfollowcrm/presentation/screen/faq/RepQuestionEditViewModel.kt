@@ -40,6 +40,8 @@ class RepQuestionEditViewModel(
         val loaded: Boolean = false,
         val saving: Boolean = false,
         val pickingImage: Boolean = false,
+        /** AI 전문 톤 다듬기 중. */
+        val refining: Boolean = false,
         /** 고칠 줄이 이미 지워졌다 — 화면이 말하고 닫는다. */
         val missing: Boolean = false
     ) {
@@ -103,6 +105,19 @@ class RepQuestionEditViewModel(
 
     /** 분류 고르기 — 같은 칩을 다시 누르면 선택 해제(미분류). */
     fun setCategory(v: String) = _state.update { it.copy(category = RepQuestionRules.clampCategory(v)) }
+
+    /** 답변을 **전문 상담 톤**으로 AI 다듬기(기존 다듬기 재사용). 성공하면 답변을 바꾼다. 실패/한도는 **말한다**. */
+    fun refineAnswer() {
+        val s = _state.value
+        if (s.refining || s.answer.isBlank()) return
+        _state.update { it.copy(refining = true) }
+        viewModelScope.launch {
+            val r = container.faqPublishRepository.refineAnswer(s.answer)
+            _state.update { it.copy(refining = false) }
+            r.onSuccess { setAnswer(it) }
+                .onFailure { _toast.value = it.message ?: "다듬기에 실패했어요 — 잠시 후 다시 해주세요" }
+        }
+    }
 
     /** 고른 사진을 앱 안으로 복사해 붙인다(1장). 실패하면 **말한다** — 조용히 빈칸으로 두지 않는다. */
     fun pickImage(src: Uri) {
