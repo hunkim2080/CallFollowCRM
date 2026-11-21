@@ -113,7 +113,8 @@ class FaqPublishRepository(
 
     /** 앱 내부 사진 주소 → data URL base64(서버가 받는 형식). 실패하면 null — 그 사진만 빠진다(글은 간다). */
     private fun encode(uri: String): String? =
-        runCatching { ImageEncoder.uriToJpegBase64(appContext, Uri.parse(uri)) }
+        // 웹 카드엔 1280px면 충분 — 업로드·서버 저장 둘 다 가볍게(서버가 파일로 저장·서빙).
+        runCatching { ImageEncoder.uriToJpegBase64(appContext, Uri.parse(uri), maxDim = 1280, quality = 72) }
             .getOrNull()?.let { "data:image/jpeg;base64,$it" }
 
     companion object {

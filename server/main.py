@@ -20616,17 +20616,62 @@ def _faq_slug_base(biz_name: str, owner_phone: str) -> str:
     return slug or hashlib.sha256(owner_phone.encode("utf-8")).hexdigest()[:6]
 
 
+_FAQIMG_DIR = _THUMBS_DIR.parent / "faqimg"
+_FAQ_IMG_MAXDIM = 1280
+
+
+def _faq_seg_ok(s: str) -> bool:
+    return bool(s) and all(c.isalnum() or c in "-_" for c in s)
+
+
+def _save_faq_image(slug: str, name: str, data_url) -> str:
+    """base64 data URL → 가로/세로 최대 1280px JPEG 파일로 저장.
+    성공 시 '/faqimg/{slug}/{name}.jpg', 실패/비정상이면 ''. (인라인 base64 로 HTML 이 2.8MB 되던 걸 파일 서빙으로.)"""
+    try:
+        from PIL import Image
+    except ImportError:
+        return ""
+    if not isinstance(data_url, str):
+        return ""
+    m = re.fullmatch(r"data:image/(?:jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=\s]+)", data_url)
+    if not m:
+        return ""
+    try:
+        import base64 as _b64
+        import io as _io
+        raw = _b64.b64decode(m.group(1))
+        im = Image.open(_io.BytesIO(raw)).convert("RGB")
+        im.thumbnail((_FAQ_IMG_MAXDIM, _FAQ_IMG_MAXDIM))
+        out_dir = _FAQIMG_DIR / slug
+        out_dir.mkdir(parents=True, exist_ok=True)
+        im.save(out_dir / (name + ".jpg"), "JPEG", quality=72, optimize=True)
+        return "/faqimg/%s/%s.jpg" % (slug, name)
+    except Exception as e:
+        print("[faq/img] 저장 실패 (%s)" % e)
+        return ""
+
+
+@app.get("/faqimg/{slug}/{name}", include_in_schema=False)
+async def serve_faqimg(slug: str, name: str):
+    if not _faq_seg_ok(slug) or not name.endswith(".jpg") or not _faq_seg_ok(name[:-4]):
+        raise HTTPException(404)
+    path = _FAQIMG_DIR / slug / name
+    if not path.exists():
+        raise HTTPException(404)
+    return FileResponse(path, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.post("/faq/publish")
 async def faq_publish(req: FaqPublishRequest, request: Request) -> dict:
-    """앱의 Bearer 세션에서 소유주를 정하고, 최초 발급한 slug 를 계속 유지."""
+    """앱의 Bearer 세션에서 소유주를 정하고, 최초 발급한 slug 를 계속 유지. 사진은 **파일로 저장**(HTML 경량화)."""
     owner_phone = _session_phone_from_header(request.headers.get("authorization"))
     if not owner_phone:
         raise HTTPException(401, "로그인이 필요합니다", headers={"X-Auth-Required": "1"})
     owner_phone = _norm_phone(owner_phone)
     if not re.fullmatch(r"\+?[0-9][0-9 ()-]*", req.owner_sms.strip()):
         raise HTTPException(400, "문자 받을 업무폰 번호를 확인해 주세요")
-    # 계약 본문 그대로 보관. owner_sms/본문의 owner_phone 은 소유권 판단에 쓰지 않는다.
-    payload_json = json.dumps(await request.json(), ensure_ascii=False)
+    raw = await request.json()
     with db_conn() as con:
         # 조회~발급~저장을 한 쓰기 트랜잭션으로 묶어 동시 최초 publish 도 충돌하지 않는다.
         con.execute("BEGIN IMMEDIATE")
@@ -20642,6 +20687,26 @@ async def faq_publish(req: FaqPublishRequest, request: Request) -> dict:
             while con.execute("SELECT 1 FROM faq_pages WHERE slug = ?", (slug,)).fetchone():
                 slug = f"{base}-{suffix}"
                 suffix += 1
+        # 🖼️ 사진 base64 인라인 → **파일로 저장**하고 payload 엔 주소만(HTML 2.8MB→~30KB). 재발행 시 옛 폴더 정리.
+        try:
+            import shutil as _shutil
+            _shutil.rmtree(_FAQIMG_DIR / slug, ignore_errors=True)
+        except Exception:
+            pass
+        raw_caps = raw.get("cover_captions") or []
+        covers, caps = [], []
+        for i, du in enumerate(raw.get("cover_photos") or []):
+            url = _save_faq_image(slug, "cover-%d" % i, du)
+            if url:
+                covers.append(url)
+                caps.append(raw_caps[i] if i < len(raw_caps) else "")
+        raw["cover_photos"] = covers
+        raw["cover_captions"] = caps
+        for qi, q in enumerate(raw.get("questions") or []):
+            ph = q.get("photo")
+            if ph:
+                q["photo"] = _save_faq_image(slug, "q-%d" % qi, ph) or None
+        payload_json = json.dumps(raw, ensure_ascii=False)
         con.execute(
             """
             INSERT INTO faq_pages (owner_phone, slug, published, payload_json, updated_at_ms)
@@ -20657,8 +20722,12 @@ async def faq_publish(req: FaqPublishRequest, request: Request) -> dict:
 
 
 def _faq_photo_src(value: Optional[str]) -> str:
-    """앱의 임베드 래스터 사진만 표시 (임의 URL/SVG/HTML 실행 방지)."""
-    if value and re.fullmatch(r"data:image/(?:jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+", value):
+    """저장된 FAQ 이미지 주소(/faqimg/...) 또는 임베드 data URL 만 허용(임의 URL/SVG/HTML 차단)."""
+    if not value:
+        return ""
+    if value.startswith("/faqimg/"):
+        return value
+    if re.fullmatch(r"data:image/(?:jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+", value):
         return value
     return ""
 
