@@ -20900,7 +20900,7 @@ def _render_faq_html(payload: dict, slug: str) -> str:
   <dialog id="inquiry-dialog" aria-labelledby="compose-title">
     <div id="write-step">
       <div class="sheet-handle" aria-hidden="true"></div><div class="sheet-top"><div class="steps"><b>1 질문 작성</b><span aria-hidden="true">›</span><span>2 문자 보내기</span></div><button class="icon-button close-dialog" aria-label="문의 창 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
-      <div class="sheet-body" id="inquiry-form"><h2 id="compose-title">궁금한 점만 적어주세요.</h2><p class="sheet-description">{biz} 대표에게<br>평소 쓰시는 문자로 문의할 수 있어요.</p><label class="field-label" for="question">문의 내용 <span>전화번호 입력은 필요 없어요</span></label><textarea id="question" placeholder="예) 24평 아파트 욕실 2곳 줄눈 시공, 비용이 얼마나 나올까요?" maxlength="500" required aria-describedby="question-hint" autofocus></textarea><div class="input-meta"><span id="question-hint">시공 공간을 알려주시면 상담에 도움이 돼요.</span><span><span id="char-count">0</span>/500</span></div><div class="privacy-note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><strong>다음 화면에서 문자를 보내면 접수돼요.</strong><br>대표는 문자에 표시된 고객님 번호로 답장해요.</div></div><a class="primary" id="open-sms" data-owner-sms="{owner_sms}" aria-disabled="true">문자 앱으로 이어가기 <span aria-hidden="true">↗</span></a><p class="sheet-footnote">평소 쓰시는 문자 앱에서 내용을 확인하고 보내주세요.</p></div>
+      <div class="sheet-body" id="inquiry-form"><h2 id="compose-title">궁금한 점만 적어주세요.</h2><p class="sheet-description">{biz} 대표에게<br>평소 쓰시는 문자로 문의할 수 있어요.</p><label class="field-label" for="question">문의 내용 <span>전화번호 입력은 필요 없어요</span></label><textarea id="question" placeholder="예) 24평 아파트 욕실 2곳 시공, 비용이 얼마나 나올까요?" maxlength="500" required aria-describedby="question-hint" autofocus></textarea><div class="input-meta"><span id="question-hint">시공 공간을 알려주시면 상담에 도움이 돼요.</span><span><span id="char-count">0</span>/500</span></div><div class="privacy-note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><strong>다음 화면에서 문자를 보내면 접수돼요.</strong><br>대표는 문자에 표시된 고객님 번호로 답장해요.</div></div><a class="primary" id="open-sms" data-owner-sms="{owner_sms}" aria-disabled="true">문자 앱으로 이어가기 <span aria-hidden="true">↗</span></a><p class="sheet-footnote">평소 쓰시는 문자 앱에서 내용을 확인하고 보내주세요.</p></div>
     </div>
   </dialog>
 <script>
@@ -20973,7 +20973,7 @@ def _render_faq_html(payload: dict, slug: str) -> str:
 </html>"""
 
 
-_FAQ_REFINE_SYSTEM = """너는 줄눈·타일 시공 업체의 **자주 묻는 질문(FAQ) 답변**을 다듬는 도우미다.
+_FAQ_REFINE_SYSTEM = """너는 **시공 업체**의 **자주 묻는 질문(FAQ) 답변**을 다듬는 도우미다.
 사장님이 적은 답변 원문을 받아 — 손님이 읽을, **전문적이고 신뢰감 있는 FAQ 답변**으로 다시 써라.
 
 지킬 것:

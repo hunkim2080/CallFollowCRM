@@ -760,7 +760,9 @@ fun AppNavHost(
                 factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.faq.BizIntroEditViewModel(container) }
             )
             com.detailline.callfollowcrm.presentation.screen.faq.BizIntroEditScreen(
-                viewModel = vm, onDone = { navController.popBackStack() }
+                viewModel = vm,
+                onDone = { navController.popBackStack() },
+                onEditBizInfo = { navController.navigate(Destinations.BUSINESS_INFO) }
             )
         }
 

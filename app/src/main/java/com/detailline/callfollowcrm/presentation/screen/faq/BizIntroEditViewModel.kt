@@ -32,8 +32,8 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
 
         /** 톤 프리셋 — (이름, 슬로건). 누르면 슬로건에 채워지고, 사장님이 고쳐 쓸 수 있다. 「직접 쓰기」는 프리셋 없이 빈칸. */
         val TONE_PRESETS = listOf(
-            "장인·정성" to "작은 틈까지, 정성스럽게",
-            "절대고수" to "줄눈 하나는, 끝을 봅니다",
+            "장인·정성" to "작은 디테일까지, 정성스럽게",
+            "절대고수" to "맡기신 일, 끝을 봅니다",
             "경력·믿음" to "한 길만 걸었습니다, 믿고 맡기세요",
             "깔끔·완벽" to "티 하나 없이, 새것처럼",
         )
@@ -84,6 +84,12 @@ class BizIntroEditViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 캡션 개수를 사진 개수에 맞춘다(모자라면 빈칸, 넘치면 자름). */
     private fun alignCaptions(caps: List<String>, n: Int): List<String> = List(n) { i -> caps.getOrElse(i) { "" } }
+
+    /** 사업자 정보(상호·지역)만 다시 읽는다 — 사업자 정보 화면 다녀온 뒤 ON_RESUME 에 부른다(사장님 편집분은 안 건드림). */
+    fun reloadBizInfo() {
+        val p = container.preferences
+        _state.update { it.copy(bizName = p.bizName, region = p.ownerRegions.joinToString(" · ")) }
+    }
 
     private fun snapshot(): List<String> = _state.value.let {
         listOf(it.slogan, it.intro, it.career, it.count, it.photos.joinToString("|"), it.captions.joinToString("\u0001"))

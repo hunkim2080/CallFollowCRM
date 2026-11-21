@@ -16732,3 +16732,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 앱: FaqPublishRepository.encode 를 1280px·q72 로(업로드도 가볍게).
 - 검증: 라이브 health 200·/faqimg 라우트 404(존재)·append py_compile OK. ⚠️ **기존 발행분은 재발행 전까지 옛 base64(2.85MB) 유지** — 사장님 업체소개 저장+공개 토글 다시 누르면 전환.
 - 내부배포 태그(앱).
+
+## 2026-11-22 00:05 · android (+ server)
+대표질문 — 사업자 정보 없는 사용자 + 업종 중립.
+- 앱: 업체 소개 상호 카드 **탭→사업자 정보**(없으면 파란 "먼저 등록해주세요" CTA)·ON_RESUME 로 상호 새로고침(reloadBizInfo). 관리 **공개 토글 가드**(상호 없으면 발행 막고 안내). AppNavHost onEditBizInfo→BUSINESS_INFO.
+- 업종 중립(줄눈 치우침 제거): 톤프리셋("맡기신 일, 끝을 봅니다"·"작은 디테일까지"), 업체소개 placeholder, 사진설명 placeholder, 서버 `_FAQ_REFINE_SYSTEM`("시공 업체"), 손님 문의 textarea 예시 — 전부 줄눈 표현 0 확인(앱·서버 grep).
+- 검증: assembleRelease 가드7 통과 · 서버 v8 라이브(줄눈 0·health 200).
+- 내부배포 태그(앱).

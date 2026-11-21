@@ -45,6 +45,11 @@ class RepQuestionListViewModel(private val container: AppContainer) : ViewModel(
     /** 공개 켜기/끄기 — 서버에 올린다. 실패하면 되돌리고 **말한다**(§13①). 연타 막음. */
     fun setPublished(on: Boolean) {
         if (_publishing.value) return
+        // 상호가 없으면 이름 없는 공개 페이지가 된다 — 먼저 사업자 정보를 등록하게 막는다.
+        if (on && container.preferences.bizName.isBlank()) {
+            _toast.value = "상호를 먼저 등록해주세요 — 업체 소개 → 사업자 정보"
+            return
+        }
         _publishing.value = true
         _published.value = on   // 낙관적 반영
         viewModelScope.launch {

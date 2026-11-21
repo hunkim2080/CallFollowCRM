@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +50,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -72,7 +76,8 @@ private val COVER_TILE = 72.dp
 @Composable
 fun BizIntroEditScreen(
     viewModel: BizIntroEditViewModel,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    onEditBizInfo: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -82,6 +87,13 @@ fun BizIntroEditScreen(
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
             viewModel.consumeToast()
         }
+    }
+    // 사업자 정보 화면 다녀오면 상호·지역을 다시 읽는다(등록하고 돌아왔을 때 바로 반영).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) viewModel.reloadBizInfo() }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
     var confirmExit by remember { mutableStateOf(false) }
@@ -123,20 +135,33 @@ fun BizIntroEditScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = AppSpace.s16).padding(top = 2.dp, bottom = AppSpace.s16)
         ) {
-            // 사업자정보에서 읽어 보여주기만(여기서 못 고침).
-            Column(
-                Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surfaceMuted).padding(14.dp)
+            // 상호·지역은 사업자 정보에서 가져온다. 탭하면 그 화면으로(없으면 등록 유도).
+            val hasBiz = state.bizName.isNotBlank()
+            Row(
+                Modifier.fillMaxWidth().clip(AppShape.lg)
+                    .background(if (hasBiz) AppTheme.colors.surfaceMuted else AppTheme.colors.primaryBg)
+                    .clickable { onEditBizInfo() }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    state.bizName.ifBlank { "상호를 설정해주세요" },
-                    style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.text
-                )
-                if (state.region.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(state.region, style = AppType.caption, color = AppTheme.colors.textSub)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (hasBiz) state.bizName else "사업자 정보를 먼저 등록해주세요",
+                        style = AppType.headline, fontWeight = FontWeight.ExtraBold,
+                        color = if (hasBiz) AppTheme.colors.text else AppTheme.colors.primaryText
+                    )
+                    if (hasBiz && state.region.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(state.region, style = AppType.caption, color = AppTheme.colors.textSub)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (hasBiz) "상호·지역은 사업자 정보에서 가져와요. 탭해서 수정"
+                        else "상호·지역이 손님 페이지에 그대로 나와요. 탭해서 등록",
+                        style = AppType.caption, color = AppTheme.colors.textHint
+                    )
                 }
-                Spacer(Modifier.height(6.dp))
-                Text("상호·지역은 설정 → 사업자 정보에서 가져와요.", style = AppType.caption, color = AppTheme.colors.textHint)
+                Text("›", style = AppType.title, color = AppTheme.colors.neutral)
             }
 
             // 톤 프리셋 — 누르면 슬로건에 채워진다(고쳐 쓸 수 있음).
@@ -173,7 +198,7 @@ fun BizIntroEditScreen(
             SheetTextField(
                 value = state.intro,
                 onValueChange = viewModel::setIntro,
-                placeholder = "예) 안녕하세요, 줄눈 시공 ○○입니다. 상담부터 마무리까지 대표가 직접 챙깁니다.",
+                placeholder = "예) 안녕하세요, ○○입니다. 상담부터 시공, 마무리까지 대표가 직접 챙깁니다.",
                 singleLine = false, minHeightDp = 92
             )
 
@@ -264,7 +289,7 @@ private fun CoverPhotoList(
                 SheetTextField(
                     value = captions.getOrElse(i) { "" },
                     onValueChange = { onCaption(i, it) },
-                    placeholder = "사진 설명 (예: 욕실 줄눈 시공)",
+                    placeholder = "사진 설명 (예: 시공 전·후)",
                     modifier = Modifier.weight(1f)
                 )
             }
