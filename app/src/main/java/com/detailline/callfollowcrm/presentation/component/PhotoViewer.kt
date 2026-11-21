@@ -774,7 +774,8 @@ private fun PenStage(
         Row(
             // 내비바(◁ ○ ▢) 위로 — 바탕색은 바닥까지 깔고 버튼만 띄운다. 공용 `bottomBarClearance`(Dialog 용).
             //   extra 로 숨 틈 — 다른 Dialog 시트들처럼(0 이면 S23U/OneUI 에서 버튼이 내비바에 딱 붙어 가렸다, 2026-11-22).
-            Modifier.fillMaxWidth().background(PenBarBg).bottomBarClearance(extra = 12.dp)
+            //   사장님 폰 실기로 24 까지 올림(12 는 아직 낮다고 하심, 2026-11-22).
+            Modifier.fillMaxWidth().background(PenBarBg).bottomBarClearance(extra = 24.dp)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
