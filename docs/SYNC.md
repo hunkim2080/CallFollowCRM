@@ -16739,3 +16739,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 업종 중립(줄눈 치우침 제거): 톤프리셋("맡기신 일, 끝을 봅니다"·"작은 디테일까지"), 업체소개 placeholder, 사진설명 placeholder, 서버 `_FAQ_REFINE_SYSTEM`("시공 업체"), 손님 문의 textarea 예시 — 전부 줄눈 표현 0 확인(앱·서버 grep).
 - 검증: assembleRelease 가드7 통과 · 서버 v8 라이브(줄눈 0·health 200).
 - 내부배포 태그(앱).
+
+## 2026-11-22 07:45 · android
+사진 펜 표시(FullscreenPhotoViewer) **하단 도구바가 내비바에 가림** 수정 (사장님 폰 실기).
+- 원인: 뷰어는 Dialog(별도 창)인데 OneUI 일부 기기는 Dialog 창의 내비바 인셋을 0 으로 흘림 → `navBarBottomDp` 가 리소스 폴백으로 갔고 그 값이 실제 내비바보다 짧아 도구바가 가렸다. + 펜 바만 `extra=0`(다른 Dialog 시트는 12~24).
+- 고침(공용 한 곳): `presentation/util/SystemBars.kt navBarBottomDp()` 가 **액티비티 창의 실제 내비바 인셋**도 같이 읽어 셋 중 최댓값 사용(액티비티 창은 Dialog 와 달리 항상 정확). → bottomBarClearance 쓰는 모든 Dialog/시트가 같이 안전해짐.
+- 펜 도구바(PhotoViewer.kt): `bottomBarClearance(extra = 0.dp)` → `extra = 12.dp`(숨 틈, 다른 시트와 통일).
+- 검증: assembleRelease 가드7 통과. 폰 눈확인 남음(사장님 기기).
+- 내부배포 태그(앱).

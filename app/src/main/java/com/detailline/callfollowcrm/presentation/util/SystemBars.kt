@@ -44,12 +44,26 @@ fun navBarBottomDp(): Dp {
         if (id > 0) context.resources.getDimensionPixelSize(id) else 0
     }
     // 🧷 Dialog 안에선 Compose WindowInsets 가 0 으로 오기도 한다(S23U 올린일정 시트 4번 짤림) →
-    //   **창(View)의 실제 시스템 인셋**을 같이 본다(제일 믿을 만 · 기기 실제 높이 그대로). 둘 중 큰 값.
-    //   composeInsetPx 가 snapshot 이라, 인셋이 바뀌면 이 함수가 recompose 되며 viewInsetPx 도 다시 읽힌다.
+    //   **창(View)의 실제 시스템 인셋**을 같이 본다(제일 믿을 만 · 기기 실제 높이 그대로). 셋 중 큰 값.
+    //   composeInsetPx 가 snapshot 이라, 인셋이 바뀌면 이 함수가 recompose 되며 나머지도 다시 읽힌다.
     val composeInsetPx = WindowInsets.navigationBars.getBottom(density)
     val viewInsetPx = androidx.core.view.ViewCompat.getRootWindowInsets(view)
         ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
-    val px = maxOf(composeInsetPx, viewInsetPx)
+    // 🔑 Dialog 는 **자기 창의 인셋을 0 으로** 흘리는 기기가 있다(OneUI). 그런 폰에선 위 둘이 모두 0 →
+    //   리소스 폴백(resNavPx)으로 갔는데, 그 값이 실제 내비바보다 **짧은** 기기가 있어 바닥이 가렸다
+    //   (2026-11-22 사장님 펜 도구바). 그래서 **액티비티 창의 실제 인셋**을 같이 본다 —
+    //   액티비티 창은 Dialog 와 달리 내비바 인셋이 항상 정확하다. 셋 중 제일 큰 값을 믿는다.
+    val activityInsetPx = run {
+        var c: android.content.Context? = context
+        var act: android.app.Activity? = null
+        while (c is android.content.ContextWrapper) {
+            if (c is android.app.Activity) { act = c; break }
+            c = c.baseContext
+        }
+        act?.window?.decorView?.let { androidx.core.view.ViewCompat.getRootWindowInsets(it) }
+            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    }
+    val px = maxOf(composeInsetPx, viewInsetPx, activityInsetPx)
     return with(density) { (if (px > 0) px else resNavPx).toDp() }
 }
 
