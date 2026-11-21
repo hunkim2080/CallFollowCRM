@@ -1,8 +1,15 @@
 package com.detailline.callfollowcrm.presentation.screen.faq
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -28,6 +35,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -89,9 +98,13 @@ fun RepQuestionListScreen(
     viewModel: RepQuestionListViewModel,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
-    onNew: () -> Unit
+    onNew: () -> Unit,
+    onEditBizIntro: () -> Unit = {}
 ) {
     val questions by viewModel.questions.collectAsState()
+    val published by viewModel.published.collectAsState()
+    val faqUrl by viewModel.faqUrl.collectAsState()
+    val publishing by viewModel.publishing.collectAsState()
     val context = LocalContext.current
     // 🗣 순서·삭제가 실패하면 사장님께 말한다.
     val toast by viewModel.toast.collectAsState()
@@ -131,22 +144,35 @@ fun RepQuestionListScreen(
             if (list == null) {
                 // 읽는 중 — 빈 화면을 잠깐 잘못 보여주지 않는다(로컬 DB 라 곧 온다).
                 Spacer(Modifier.height(1.dp))
-            } else if (list.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    RepQuestionEmptyState()
-                }
             } else {
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp)
                 ) {
-                    Text("$HINT_REDUCE $HINT_DRAG", style = AppType.body, color = AppTheme.colors.textHint)
-                    Spacer(Modifier.height(AppSpace.s12))
-                    ReorderableQuestions(
-                        list = list,
-                        onEdit = onEdit,
-                        onLongPress = { deleteTarget = it },
-                        onReorder = viewModel::reorder
+                    FaqPublishCard(
+                        published = published,
+                        faqUrl = faqUrl,
+                        publishing = publishing,
+                        onToggle = viewModel::setPublished,
+                        onRepublish = viewModel::republish,
+                        onPreview = { openUrl(context, faqUrl) },
+                        onCopy = { copyUrl(context, faqUrl) },
+                        onShare = { shareUrl(context, faqUrl) }
                     )
+                    Spacer(Modifier.height(AppSpace.s12))
+                    BizIntroEntryRow(onClick = onEditBizIntro)
+                    Spacer(Modifier.height(AppSpace.s16))
+                    if (list.isEmpty()) {
+                        RepQuestionEmptyState()
+                    } else {
+                        Text("$HINT_REDUCE $HINT_DRAG", style = AppType.body, color = AppTheme.colors.textHint)
+                        Spacer(Modifier.height(AppSpace.s12))
+                        ReorderableQuestions(
+                            list = list,
+                            onEdit = onEdit,
+                            onLongPress = { deleteTarget = it },
+                            onReorder = viewModel::reorder
+                        )
+                    }
                 }
             }
         }
@@ -316,4 +342,122 @@ private fun ReorderableQuestions(
 @Composable
 internal fun RepQuestionEmptyState() {
     MascotEmptyState(speech = "아직 등록한 대표질문이 없어요", sub = HINT_REDUCE)
+}
+
+/** 손님 공개 FAQ 페이지 — 공개 on/off · 고정 링크(복사·공유·미리보기) · 최신 내용 올리기. 프로토 7U7dnG1GFEoD2RMmd7gRmk ②. */
+@Composable
+private fun FaqPublishCard(
+    published: Boolean,
+    faqUrl: String,
+    publishing: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onRepublish: () -> Unit,
+    onPreview: () -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.primaryBg).padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (published) "대표질문 공개 중" else "대표질문 숨김",
+                    style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.primaryText
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (published) "손님이 아래 링크로 질문을 볼 수 있어요." else "지금은 손님에게 보이지 않아요.",
+                    style = AppType.caption, color = AppTheme.colors.textSub
+                )
+            }
+            Switch(
+                checked = published,
+                onCheckedChange = { onToggle(it) },
+                enabled = !publishing,
+                colors = SwitchDefaults.colors(checkedTrackColor = AppTheme.colors.primary)
+            )
+        }
+        if (published && faqUrl.isNotBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.surface)
+                    .border(1.dp, AppTheme.colors.line, AppShape.md).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    faqUrl.removePrefix("https://").removePrefix("http://"),
+                    style = AppType.caption, color = AppTheme.colors.textSub,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "복사", style = AppType.label, color = AppTheme.colors.primaryText,
+                    modifier = Modifier.clip(AppShape.sm).clickable { onCopy() }.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            Row(horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
+                PillButton("미리보기", Modifier.weight(1f), onPreview)
+                PillButton("공유", Modifier.weight(1f), onShare)
+            }
+            Spacer(Modifier.height(AppSpace.s8))
+            PillButton(if (publishing) "올리는 중…" else "최신 내용으로 올리기", Modifier.fillMaxWidth(), onRepublish)
+        } else if (published) {
+            Spacer(Modifier.height(10.dp))
+            Text("링크 발급 중… 서버 연결 후 여기 표시돼요.", style = AppType.caption, color = AppTheme.colors.textHint)
+        }
+    }
+}
+
+@Composable
+private fun PillButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(AppShape.md).background(AppTheme.colors.surface)
+            .border(1.dp, AppTheme.colors.line, AppShape.md).clickable { onClick() }.padding(vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, style = AppType.label, color = AppTheme.colors.primaryText)
+    }
+}
+
+/** 관리 화면 → 업체 소개 편집 입구. */
+@Composable
+private fun BizIntroEntryRow(onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(AppShape.lg).background(AppTheme.colors.surface)
+            .border(1.dp, AppTheme.colors.line, AppShape.lg).clickable { onClick() }
+            .padding(horizontal = 15.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("업체 소개 편집", style = AppType.headline, fontWeight = FontWeight.ExtraBold, color = AppTheme.colors.text)
+            Spacer(Modifier.height(2.dp))
+            Text("손님 페이지 맨 위에 보일 소개·대표 사진·경력", style = AppType.caption, color = AppTheme.colors.textHint)
+        }
+        Text("›", style = AppType.title, color = AppTheme.colors.neutral)
+    }
+}
+
+private fun openUrl(context: Context, url: String) {
+    if (url.isBlank()) return
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure { Toast.makeText(context, "브라우저를 열지 못했어요", Toast.LENGTH_SHORT).show() }
+}
+
+private fun copyUrl(context: Context, url: String) {
+    if (url.isBlank()) return
+    runCatching {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("대표질문 링크", url))
+        Toast.makeText(context, "링크를 복사했어요", Toast.LENGTH_SHORT).show()
+    }.onFailure { Toast.makeText(context, "복사하지 못했어요", Toast.LENGTH_SHORT).show() }
+}
+
+private fun shareUrl(context: Context, url: String) {
+    if (url.isBlank()) return
+    runCatching {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
+        context.startActivity(Intent.createChooser(send, "대표질문 링크 공유").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure { Toast.makeText(context, "공유하지 못했어요", Toast.LENGTH_SHORT).show() }
 }

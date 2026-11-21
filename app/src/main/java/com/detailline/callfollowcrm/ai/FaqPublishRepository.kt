@@ -1,0 +1,96 @@
+package com.detailline.callfollowcrm.ai
+
+import android.content.Context
+import android.net.Uri
+import com.detailline.callfollowcrm.AppConfig
+import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import com.detailline.callfollowcrm.data.repository.RepQuestionRepository
+import com.detailline.callfollowcrm.util.ImageEncoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+/**
+ * 💬 **대표질문 = 손님 공개 FAQ 페이지 — 앱→서버 publish.** (2026-11-21 Phase 2 · `docs/DESIGN_faq_public_page.md`)
+ *
+ *   공개 토글·질문 변경·업체 소개 저장 때 호출. 본문 계약은 서버 `FaqPublishRequest` 와 **1:1**(두 벌 금지 — 문서가 출처).
+ *   사진(대표사진·답 사진)은 `ImageEncoder` 로 base64 data URL — 현장/대표질문 사진과 같은 방식. 서버가 발급한
+ *   **고정 slug/url** 을 돌려주면 `prefs.faqSlug` 에 캐시한다(한 번 받으면 안 바뀐다).
+ *   네트워크는 `Net.builder()`(로그인 토큰 자동) — `OkHttpClient` 직접 만들지 않는다(§12).
+ */
+class FaqPublishRepository(
+    private val appContext: Context,
+    private val prefs: AppPreferences,
+    private val repQuestionRepository: RepQuestionRepository,
+    private val baseUrl: String = AppConfig.BASE_URL
+) {
+    private val client: OkHttpClient = Net.builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .build()
+
+    /** 공개 페이지를 올린다(또는 숨긴다). 성공 시 공개 URL 반환. 실패는 삼키지 않고 Result.failure 로 올린다(화면이 말한다). */
+    suspend fun publish(published: Boolean): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val questions = repQuestionRepository.observeAll().first()
+            val cats = LinkedHashSet<String>()
+            questions.forEach { if (it.category.isNotBlank()) cats += it.category }
+            val payload = JSONObject().apply {
+                put("published", published)
+                put("biz_name", prefs.bizName)
+                put("specialty", "")
+                put("intro", prefs.faqIntro)
+                put("region", prefs.ownerRegions.joinToString(" · "))
+                put("career", prefs.faqCareer)
+                put("count", prefs.faqCount)
+                put("owner_sms", prefs.displayPhone.filter { it.isDigit() })
+                put("cover_photos", JSONArray().apply {
+                    prefs.faqCoverPhotos.forEach { uri -> encode(uri)?.let { put(it) } }
+                })
+                put("categories", JSONArray(cats.toList()))
+                put("questions", JSONArray().apply {
+                    questions.forEach { q ->
+                        put(JSONObject().apply {
+                            put("category", q.category)
+                            put("q", q.question)
+                            put("a", q.answer)
+                            put("photo", q.imageUri?.let { encode(it) } ?: JSONObject.NULL)
+                        })
+                    }
+                })
+            }
+            val req = Request.Builder()
+                .url("$baseUrl/faq/publish")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val obj = JSONObject(resp.body?.string().orEmpty())
+                val slug = obj.optString("slug")
+                val url = obj.optString("url")
+                if (slug.isNotBlank()) prefs.faqSlug = slug
+                prefs.faqPublished = published
+                url.ifBlank { if (slug.isNotBlank()) "$baseUrl/faq/$slug" else "" }
+            }
+        }
+    }
+
+    /** 앱 내부 사진 주소 → data URL base64(서버가 받는 형식). 실패하면 null — 그 사진만 빠진다(글은 간다). */
+    private fun encode(uri: String): String? =
+        runCatching { ImageEncoder.uriToJpegBase64(appContext, Uri.parse(uri)) }
+            .getOrNull()?.let { "data:image/jpeg;base64,$it" }
+
+    companion object {
+        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+    }
+}

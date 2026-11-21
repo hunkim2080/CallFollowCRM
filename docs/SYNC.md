@@ -16664,3 +16664,14 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 폰 확인: 대기(S9 미연결). 업그레이드 실행(v77)·등록 분류 고르기/새 분류·관리·챗 분류 딱지.
 - 다음 액션(Phase 2, 서버): 공개 토글·고정 링크·미리보기·업체소개·받은 문의·`/faq/{slug}` 공개 페이지·sms 문자문의. **서버는 되돌리기 어려운 공개 변경이라 폰 확인 후 착수.**
 - 내부배포 진행(upload 태그).
+
+## 2026-11-21 19:05 · android (+ server)
+**대표질문 공개 페이지 Phase 2 — 코드 준비(앱 배선 + 서버 staged).** 라이브 서버는 아직 안 올림(폰 확인 + 사장님 「가」 후 GOTCHAS §3).
+- 서버(코덱스가 repo 에만 작성, py_compile 통과): `faq_pages`(owner_phone PK·slug UNIQUE·published·payload_json) + `POST /faq/publish`(기존 Bearer 세션으로 owner 식별·slug 최초1회 발급 후 유지·ON CONFLICT) + `GET /faq/{slug}`(프로토 1:1 HTML·og·Pretendard). 보안: `_faq_photo_src` 가 `data:image` base64 만 허용(임의 URL/SVG 차단). **계약 = docs/DESIGN_faq_public_page.md**(FaqPublishRequest 와 앱 payload 1:1). `/faq/` robots 허용(홍보).
+- 손님 문의 = **sms: 링크**(서버 제출 엔드포인트 없음) → 손님 폰→사장님 폰→기존 상담함 유입(두 벌 0).
+- 앱(배선): `AppPreferences` FAQ칸(faqPublished·faqSlug·faqIntro·faqCareer·faqCount·faqCoverPhotos) · **업체 소개 편집**(`BizIntroEdit{Screen,ViewModel}` — 소개글200·경력·건수·대표사진 최대5, 업체명·지역은 사업자정보 재사용) · `ai/FaqPublishRepository`(Net.builder·ImageEncoder base64 data URL) · 관리 화면 **공개 토글·고정 링크 복사/공유/미리보기·최신 올리기·업체소개 입구**(RepQuestionList{Screen,ViewModel}) · 네비 BIZ_INTRO_EDIT · 더보기 「업체 소개」.
+- §12: 네트워크 Net.builder·사진 ImageEncoder·저장실패 SaveGuard·사진창고 TemplatePhotoStore 재사용. AppContainer 초기화 순서 — faqPublishRepository 를 preferences 뒤에 선언(NPE 방지).
+- 검증: assembleRelease **BUILD SUCCESSFUL** 가드7 통과 · testDebugUnitTest. brand 가드가 "설정해 주세요"→"설정해주세요", 버튼 앞 이모지(👁/🔗) 제거 잡아줌.
+- 폰 확인: 업체소개 편집·분류 등록·관리 화면. ⚠️ 공개 토글은 **서버 라이브 전이라 "서버 연결 실패"가 정상** — 서버 올린 뒤 동작.
+- 다음 액션(사장님): 폰 확인 OK → **서버 라이브 「가」** 주시면 GOTCHAS §3 으로 올려 끝까지 동작시킴.
+- 내부배포(앱) 진행(upload 태그).

@@ -173,6 +173,7 @@ fun SettingsScreen(
     onOpenTemplates: () -> Unit,
     onOpenPricingItems: () -> Unit,
     onOpenRepQuestions: () -> Unit = {},   // 💬 대표질문(FAQ) 관리. (2026-11-21)
+    onOpenBizIntro: () -> Unit = {},       // 🏷️ 업체 소개 편집(손님 공개 FAQ 페이지 상단). (2026-11-21)
     onOpenFeatureTour: () -> Unit = {},
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
@@ -605,6 +606,8 @@ fun SettingsScreen(
                         "자주 쓰는 문구 관리", onClick = onOpenTemplates)
                     LockRow(Icons.Filled.QuestionAnswer, TossBlueSoft, TossBlue, "대표질문",
                         "자주 묻는 질문·답을 답장에 한 탭으로", onClick = onOpenRepQuestions)
+                    LockRow(Icons.Filled.Storefront, TossBlueSoft, TossBlue, "업체 소개",
+                        "손님 공개 페이지에 보일 소개·대표사진", onClick = onOpenBizIntro)
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
                         "견적 만들 때 쓰이는 항목", onClick = onOpenPricingItems)
                 }

@@ -875,6 +875,32 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_BIZ_VALID_DAYS, 14)
         set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
 
+    // ── 대표질문 공개 페이지(손님 FAQ) (2026-11-21) — 업체명·지역은 bizName/ownerRegions 재사용, 아래는 FAQ 전용. ──
+    /** 손님 공개 FAQ 페이지 공개 여부(관리 토글). */
+    var faqPublished: Boolean
+        get() = prefs.getBoolean("faq_published", false)
+        set(value) = prefs.edit().putBoolean("faq_published", value).apply()
+    /** 서버가 발급한 고정 slug — 한 번 받으면 안 바뀐다(고정 링크 약속). 비면 아직 발행 전. */
+    var faqSlug: String
+        get() = prefs.getString("faq_slug", "") ?: ""
+        set(value) = prefs.edit().putString("faq_slug", value.trim()).apply()
+    /** 업체 소개글(손님 페이지 상단). */
+    var faqIntro: String
+        get() = prefs.getString("faq_intro", "") ?: ""
+        set(value) = prefs.edit().putString("faq_intro", value).apply()
+    /** 경력 칩(예: 「경력 10년」). */
+    var faqCareer: String
+        get() = prefs.getString("faq_career", "") ?: ""
+        set(value) = prefs.edit().putString("faq_career", value.trim()).apply()
+    /** 시공 건수 칩(예: 「시공 1,200건」). */
+    var faqCount: String
+        get() = prefs.getString("faq_count", "") ?: ""
+        set(value) = prefs.edit().putString("faq_count", value.trim()).apply()
+    /** 대표 시공 사진(앱 내부 복사본 주소들, 가로 스크롤). "|" join. */
+    var faqCoverPhotos: List<String>
+        get() = prefs.getString("faq_cover_photos", "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+        set(value) = prefs.edit().putString("faq_cover_photos", value.joinToString("|")).apply()
+
     // ── 입금 계좌 (2026-06-08) — 협업 현장 완료 시 요청 사장에게 전달 + 견적서 활용. ──
     /** 은행명 (예: 국민은행). */
     var bizBank: String

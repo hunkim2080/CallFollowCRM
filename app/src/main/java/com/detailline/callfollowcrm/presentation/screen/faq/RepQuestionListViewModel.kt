@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.faq
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.RepQuestionEntity
 import com.detailline.callfollowcrm.presentation.util.SaveGuard
@@ -23,10 +24,53 @@ class RepQuestionListViewModel(private val container: AppContainer) : ViewModel(
             .map<List<RepQuestionEntity>, List<RepQuestionEntity>?> { it }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // 🗣 순서 바꾸기·지우기가 실패하면 말하는 통로.
+    // 🗣 순서 바꾸기·지우기·공개가 실패하면 말하는 통로.
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
+
+    // ── 손님 공개 FAQ 페이지 (Phase 2) ──
+    private val _published = MutableStateFlow(container.preferences.faqPublished)
+    val published: StateFlow<Boolean> = _published.asStateFlow()
+    private val _faqUrl = MutableStateFlow(faqUrlOrEmpty())
+    val faqUrl: StateFlow<String> = _faqUrl.asStateFlow()
+    private val _publishing = MutableStateFlow(false)
+    val publishing: StateFlow<Boolean> = _publishing.asStateFlow()
+
+    private fun faqUrlOrEmpty(): String {
+        val slug = container.preferences.faqSlug
+        return if (slug.isBlank()) "" else AppConfig.BASE_URL.trimEnd('/') + "/faq/" + slug
+    }
+
+    /** 공개 켜기/끄기 — 서버에 올린다. 실패하면 되돌리고 **말한다**(§13①). 연타 막음. */
+    fun setPublished(on: Boolean) {
+        if (_publishing.value) return
+        _publishing.value = true
+        _published.value = on   // 낙관적 반영
+        viewModelScope.launch {
+            val r = container.faqPublishRepository.publish(on)
+            _publishing.value = false
+            r.onSuccess { url ->
+                _faqUrl.value = url.ifBlank { faqUrlOrEmpty() }
+                _toast.value = if (on) "손님에게 공개했어요" else "공개를 숨겼어요"
+            }.onFailure {
+                _published.value = !on   // 서버 실패 → 토글 되돌림
+                _toast.value = "서버 연결에 실패했어요 — 잠시 후 다시 해주세요"
+            }
+        }
+    }
+
+    /** 공개 중일 때 바뀐 질문·소개를 최신으로 다시 올린다. */
+    fun republish() {
+        if (_publishing.value || !_published.value) return
+        _publishing.value = true
+        viewModelScope.launch {
+            val r = container.faqPublishRepository.publish(true)
+            _publishing.value = false
+            r.onSuccess { url -> _faqUrl.value = url.ifBlank { faqUrlOrEmpty() }; _toast.value = "최신 내용으로 올렸어요" }
+                .onFailure { _toast.value = "서버 연결에 실패했어요 — 잠시 후 다시 해주세요" }
+        }
+    }
 
     /** 끌어서 놓은 순서 그대로 적는다. 실패하면 말한다(목록은 DB 가 다시 그려 옛 순서로 돌아온다). */
     fun reorder(orderedIds: List<Long>) {

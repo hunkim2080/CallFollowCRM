@@ -737,7 +737,8 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigate(Destinations.repQuestionEdit(id)) },
-                onNew = { navController.navigate(Destinations.repQuestionEdit(null)) }
+                onNew = { navController.navigate(Destinations.repQuestionEdit(null)) },
+                onEditBizIntro = { navController.navigate(Destinations.BIZ_INTRO_EDIT) }
             )
         }
         composable(
@@ -753,6 +754,16 @@ fun AppNavHost(
             )
         }
 
+        // 🏷️ 업체 소개 편집 — 손님 공개 FAQ 페이지 상단(소개글·대표사진·경력·건수). 더보기 「업체 소개」. (2026-11-21)
+        composable(Destinations.BIZ_INTRO_EDIT) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.faq.BizIntroEditViewModel = viewModel(
+                factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.faq.BizIntroEditViewModel(container) }
+            )
+            com.detailline.callfollowcrm.presentation.screen.faq.BizIntroEditScreen(
+                viewModel = vm, onDone = { navController.popBackStack() }
+            )
+        }
+
         composable(Destinations.SETTINGS) {
             val vm: SettingsViewModel = viewModel(factory = viewModelFactory { SettingsViewModel(container) })
             SettingsScreen(
@@ -761,6 +772,7 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenRepQuestions = { navController.navigate(Destinations.REP_QUESTIONS) },
+                onOpenBizIntro = { navController.navigate(Destinations.BIZ_INTRO_EDIT) },
                 onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
                 onOpenFeatureTour = { navController.navigate(Destinations.FEATURE_TOUR) },
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },

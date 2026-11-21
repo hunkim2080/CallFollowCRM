@@ -170,6 +170,11 @@ class AppContainer(context: Context) {
 
     val preferences = AppPreferences(context)
 
+    // 💬 대표질문 = 손님 공개 FAQ 페이지 — 앱→서버 publish. preferences·repQuestionRepository 뒤라야 함(초기화 순서). (2026-11-21 Phase 2)
+    val faqPublishRepository = com.detailline.callfollowcrm.ai.FaqPublishRepository(
+        context.applicationContext, preferences, repQuestionRepository
+    )
+
     /**
      * 로그인 세션 토큰 저장고(보안 §D-4). verify-code 성공 시 저장 → SessionAuthInterceptor 가 모든
      *   api.si0in.kr 요청에 `Authorization: Bearer` 부착. OTP 로그인 꺼진 동안은 토큰이 없어 무영향.

@@ -1093,6 +1093,18 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_customer_personas_age "
             "ON customer_personas(generated_at_ms)"
         )
+        # 대표질문 Phase 2 — 업체당 고정 링크. 문의는 SMS 앱으로 연결한다.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS faq_pages (
+                owner_phone     TEXT PRIMARY KEY,
+                slug            TEXT UNIQUE NOT NULL,
+                published       INTEGER NOT NULL DEFAULT 0,
+                payload_json    TEXT NOT NULL,
+                updated_at_ms   INTEGER NOT NULL
+            )
+            """
+        )
         # §19 — 시공접수서 (고객 자가확인 폼)
         # 사장님이 채팅에서 [접수서 링크 보내기] 누름 → 서버 토큰 발급 → 고객 모바일
         # 브라우저로 진입 → 폼 입력 → 제출. 앱은 status polling 으로 작성 여부 확인.
@@ -20446,6 +20458,342 @@ INTAKE_PUBLIC_BASE_URL = os.environ.get(
     "INTAKE_PUBLIC_BASE_URL",
     "https://api.si0in.kr",
 )
+
+
+# ============================================================================
+# 대표질문 Phase 2 — docs/DESIGN_faq_public_page.md
+# 손님 화면: design-preview/faq-blend.html ①. 문의 저장 없이 SMS 앱으로 연결.
+# ============================================================================
+class FaqQuestion(BaseModel):
+    category: str = ""
+    q: str
+    a: str
+    photo: Optional[str] = None
+
+
+class FaqPublishRequest(BaseModel):
+    published: bool = False
+    biz_name: str
+    specialty: str = ""
+    intro: str = ""
+    region: str = ""
+    career: str = ""
+    count: str = ""
+    owner_sms: str
+    cover_photos: List[str] = Field(default_factory=list)
+    categories: List[str] = Field(default_factory=list)
+    questions: List[FaqQuestion] = Field(default_factory=list)
+
+
+def _faq_slug_base(biz_name: str, owner_phone: str) -> str:
+    """한글 음절/라틴 상호를 로마자화. 변환 불가 상호는 번호 SHA-256 6자."""
+    import hashlib
+    import unicodedata
+
+    initials = ("g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss",
+                "", "j", "jj", "ch", "k", "t", "p", "h")
+    vowels = ("a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae",
+              "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i")
+    finals = ("", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l",
+              "p", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "h")
+    parts = []
+    previous_final = 0
+    for char in unicodedata.normalize("NFC", biz_name).lower():
+        syllable = ord(char) - 0xAC00
+        if 0 <= syllable < 11172:
+            initial = initials[syllable // 588]
+            if initial == "r" and previous_final == 8:  # ㄹ + ㄹ → ll (디테일라인)
+                initial = "l"
+            parts.append(initial
+                         + vowels[(syllable % 588) // 28] + finals[syllable % 28])
+            previous_final = syllable % 28
+        else:
+            previous_final = 0
+            ascii_char = unicodedata.normalize("NFKD", char).encode("ascii", "ignore").decode()
+            if char.isalnum() and not ascii_char:
+                return hashlib.sha256(owner_phone.encode("utf-8")).hexdigest()[:6]
+            parts.append(ascii_char)
+    slug = re.sub(r"[^a-z0-9]+", "-", "".join(parts)).strip("-")[:64].rstrip("-")
+    return slug or hashlib.sha256(owner_phone.encode("utf-8")).hexdigest()[:6]
+
+
+@app.post("/faq/publish")
+async def faq_publish(req: FaqPublishRequest, request: Request) -> dict:
+    """앱의 Bearer 세션에서 소유주를 정하고, 최초 발급한 slug 를 계속 유지."""
+    owner_phone = _session_phone_from_header(request.headers.get("authorization"))
+    if not owner_phone:
+        raise HTTPException(401, "로그인이 필요합니다", headers={"X-Auth-Required": "1"})
+    owner_phone = _norm_phone(owner_phone)
+    if not re.fullmatch(r"\+?[0-9][0-9 ()-]*", req.owner_sms.strip()):
+        raise HTTPException(400, "문자 받을 업무폰 번호를 확인해 주세요")
+    # 계약 본문 그대로 보관. owner_sms/본문의 owner_phone 은 소유권 판단에 쓰지 않는다.
+    payload_json = json.dumps(await request.json(), ensure_ascii=False)
+    with db_conn() as con:
+        # 조회~발급~저장을 한 쓰기 트랜잭션으로 묶어 동시 최초 publish 도 충돌하지 않는다.
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute(
+            "SELECT slug FROM faq_pages WHERE owner_phone = ?", (owner_phone,)
+        ).fetchone()
+        if row:
+            slug = row["slug"]
+        else:
+            base = _faq_slug_base(req.biz_name, owner_phone)
+            slug = base
+            suffix = 2
+            while con.execute("SELECT 1 FROM faq_pages WHERE slug = ?", (slug,)).fetchone():
+                slug = f"{base}-{suffix}"
+                suffix += 1
+        con.execute(
+            """
+            INSERT INTO faq_pages (owner_phone, slug, published, payload_json, updated_at_ms)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(owner_phone) DO UPDATE SET
+                published=excluded.published,
+                payload_json=excluded.payload_json,
+                updated_at_ms=excluded.updated_at_ms
+            """,
+            (owner_phone, slug, int(req.published), payload_json, _now_ms()),
+        )
+    return {"slug": slug, "url": f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/faq/{slug}"}
+
+
+def _faq_photo_src(value: Optional[str]) -> str:
+    """앱의 임베드 래스터 사진만 표시 (임의 URL/SVG/HTML 실행 방지)."""
+    if value and re.fullmatch(r"data:image/(?:jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+", value):
+        return value
+    return ""
+
+
+def _render_faq_html(payload: dict, slug: str) -> str:
+    """프로토 ① 손님 페이지. 사용자 문구는 HTML escape, 질문은 서버에서 렌더."""
+    import html as _html
+
+    esc = _html.escape
+    biz = esc(payload.get("biz_name") or "우리 집 시공 안내서")
+    specialty = esc(payload.get("specialty") or "")
+    intro = esc(payload.get("intro") or "")
+    page_url = esc(f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/faq/{slug}", quote=True)
+    description = esc((payload.get("intro") or payload.get("specialty")
+                       or "시공 전 궁금한 이야기, 대표에게 직접 물어보세요.")[:200], quote=True)
+    owner_sms = re.sub(r"[^+0-9]", "", payload.get("owner_sms") or "")
+    sms_url = esc(f"sms:{owner_sms}?body=" + urllib.parse.quote("시공 문의드립니다.", safe=""), quote=True)
+    facts = "".join(
+        f'<span class="fact">{icon} <b>{esc(payload.get(key) or "")}</b></span>'
+        for key, icon in (("region", "📍"), ("career", "🗓"), ("count", "✅"))
+        if payload.get(key)
+    )
+    covers = [src for src in (_faq_photo_src(p) for p in payload.get("cover_photos", [])) if src]
+    gallery_items = "".join(
+        f'<figure class="work"><img src="{esc(src, quote=True)}" alt="{biz} 대표 시공 사진 {i + 1}"'
+        f' loading="lazy"><figcaption><span>{i + 1:02d} &nbsp; 정성껏 시공한 모습</span></figcaption></figure>'
+        for i, src in enumerate(covers)
+    )
+    gallery_dots = "".join(
+        f'<button class="gallery-dot" aria-label="시공 이미지 {i + 1}"'
+        f' aria-current="{str(i == 0).lower()}" data-slide="{i}"></button>'
+        for i in range(len(covers))
+    )
+    gallery_hidden = "" if covers else " hidden"
+
+    # 앱 순서를 보존하되 빈 분류는 기타로 묶어 마지막. 질문 순서도 그대로 유지.
+    questions = payload.get("questions") or []
+    categories = []
+    for category in list(payload.get("categories") or []) + [q.get("category") for q in questions]:
+        category = (category or "").strip() or "기타"
+        if category not in categories:
+            categories.append(category)
+    categories = [c for c in categories if c != "기타"] + (["기타"] if "기타" in categories else [])
+    tabs = []
+    panels = []
+    for ci, category in enumerate(categories):
+        selected = ci == 0
+        tabs.append(
+            f'<button class="category" id="tab-{ci}" role="tab" aria-selected="{str(selected).lower()}"'
+            f' aria-controls="panel-{ci}" tabindex="{0 if selected else -1}">{esc(category)}</button>'
+        )
+        items = [q for q in questions if ((q.get("category") or "").strip() or "기타") == category]
+        articles = []
+        for qi, question in enumerate(items):
+            key = f"{ci}-{qi}"
+            photo = _faq_photo_src(question.get("photo"))
+            photo_html = (f'<figure class="answer-image"><img src="{esc(photo, quote=True)}"'
+                          f' alt="{esc(question["q"], quote=True)} 관련 사진" loading="lazy"></figure>') if photo else ""
+            articles.append(
+                f'<article class="faq-item"><h3><button class="faq-trigger" id="q-{key}"'
+                f' aria-expanded="{str(qi == 0).lower()}" aria-controls="answer-{key}">'
+                '<span class="q-mark" aria-hidden="true">Q.</span>'
+                f'<span class="question-text">{esc(question["q"])}</span>'
+                '<svg class="chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button></h3>'
+                f'<div class="answer" id="answer-{key}" role="region" aria-labelledby="q-{key}"'
+                f'{"" if qi == 0 else " hidden"}><p class="answer-copy">{esc(question["a"])}</p>{photo_html}</div></article>'
+            )
+        panels.append(
+            f'<div id="panel-{ci}" role="tabpanel" aria-labelledby="tab-{ci}"{"" if selected else " hidden"}>'
+            f'<div class="faq-meta"><h3>{esc(category)} 이야기</h3><span>질문 {len(items)}개</span></div>'
+            + ("".join(articles) or '<p class="helper">질문을 준비하고 있어요. 궁금한 점은 문자로 물어보세요.</p>')
+            + '</div>'
+        )
+    tabs_html = "".join(tabs)
+    panels_html = "".join(panels) or '<p class="helper">질문을 준비하고 있어요. 궁금한 점은 문자로 물어보세요.</p>'
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f6">
+  <title>{biz} · 시공 전 궁금한 이야기</title>
+  <meta name="description" content="{description}">
+  <link rel="canonical" href="{page_url}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{biz} · 시공 전 궁금한 이야기">
+  <meta property="og:description" content="{description}">
+  <meta property="og:url" content="{page_url}">
+  <meta property="og:site_name" content="{biz}">
+  <meta property="og:locale" content="ko_KR">
+  <meta property="og:image" content="https://si0in.kr/static/thumbs/blog.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    :root{{--blue:#3182f6;--deep:#1c64d1;--ink:#202c3e;--muted:#657183;--line:#e5e8ed;--paper:#faf9f6;--soft:#edf4ff}}
+    *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:#eaeef3;color:var(--ink);font-family:'Pretendard',-apple-system,system-ui,sans-serif;font-size:17px;line-height:1.65;letter-spacing:-.035em;-webkit-font-smoothing:antialiased}}button,textarea{{font:inherit;letter-spacing:inherit}}button{{cursor:pointer;-webkit-tap-highlight-color:transparent}}button:focus-visible,textarea:focus-visible,a:focus-visible{{outline:3px solid #e4a92b;outline-offset:4px}}button{{color:inherit}}svg{{display:block}}button svg{{pointer-events:none}}button:disabled{{cursor:not-allowed}}button:active:not(:disabled){{transform:translateY(1px)}}[hidden]{{display:none!important}}h1,h2,h3,p,figure{{margin:0}}a{{color:inherit}}::selection{{background:#cfe2ff}}.symbols{{position:absolute;width:0;height:0;overflow:hidden}}.page{{width:100%;max-width:430px;min-height:100vh;margin:auto;background:var(--paper);box-shadow:0 12px 80px #24334c12}}.wrap{{padding-left:24px;padding-right:24px}}.masthead{{height:70px;display:flex;align-items:center;justify-content:space-between}}.wordmark{{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;letter-spacing:-.04em}}.brand-icon{{width:27px;height:27px;border-radius:9px;background:var(--blue);color:white;display:grid;place-items:center}}.brand-icon svg{{width:19px;height:19px}}.header-note{{color:#78808a;font-size:12px;letter-spacing:0}}.intro{{padding-top:16px}}.eyebrow{{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.14em;color:#647187}}.eyebrow:before{{content:'';width:17px;height:2px;background:var(--blue)}}.intro h1{{font-size:31px;font-weight:800;line-height:1.35;margin:12px 0 5px;letter-spacing:-.055em}}.specialty{{font-size:17px;font-weight:500;color:#4e5d71}}.gallery{{display:flex;gap:12px;overflow-x:auto;padding:22px 24px 12px;scroll-snap-type:x mandatory;scroll-padding-left:24px;scrollbar-width:none}}.gallery::-webkit-scrollbar{{display:none}}.work{{flex:0 0 282px;scroll-snap-align:start;position:relative;overflow:hidden;border-radius:16px;background:#e1ddd3}}.work svg{{width:100%;height:195px;object-fit:cover}}.work figcaption{{position:absolute;bottom:12px;left:12px;right:12px;display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:13px;font-weight:500}}.work:after{{content:'';position:absolute;inset:60% 0 0;background:linear-gradient(transparent,#1d2c3b80);pointer-events:none}}.work figcaption{{z-index:1}}.work figcaption span:first-child{{background:#1d2c3b65;backdrop-filter:blur(6px);padding:3px 9px;border-radius:7px}}.placeholder-label{{position:absolute;top:12px;left:12px;font-size:10px;font-weight:600;letter-spacing:.06em;background:#ffffffda;color:#57616c;padding:3px 7px;border-radius:5px}}.gallery-nav{{display:flex;align-items:center;justify-content:space-between;padding:0 24px 17px}}.gallery-hint{{font-size:12px;color:#78818d}}.gallery-dots{{display:flex;gap:0}}.gallery-dot{{border:0;background:none;min-width:28px;min-height:28px;padding:10px;display:grid;place-items:center}}.gallery-dot:before{{content:'';width:5px;height:5px;border-radius:5px;background:#ccd3dc;transition:width .2s}}.gallery-dot[aria-current=true]:before{{width:18px;background:var(--blue)}}.intro-copy{{font-size:16px;line-height:1.8;color:#556173}}.intro-copy strong{{font-weight:600;color:#2d3b50}}.business-facts{{display:flex;gap:6px;flex-wrap:wrap;padding:17px 0 27px}}.fact{{font-size:12px;white-space:nowrap;letter-spacing:-.04em;background:#fff;border:1px solid #e8e7e3;border-radius:7px;padding:6px 8px;color:#566274}}.fact b{{font-weight:600;color:#34465b}}.section-divider{{height:9px;background:#f0f1f2;border-top:1px solid #e9eaec;border-bottom:1px solid #e9eaec}}.faq-section{{padding:29px 24px 28px;background:#fff}}.faq-heading{{position:relative;min-height:130px;padding-right:100px}}.section-kicker{{font-size:12px;font-weight:700;color:var(--deep);letter-spacing:.12em;margin-bottom:9px}}.faq-heading h2{{font-size:27px;line-height:1.45;letter-spacing:-.055em;font-weight:800}}.mascot{{width:105px;height:120px;position:absolute;right:-9px;top:3px;transform:rotate(6deg)}}.helper{{font-size:14px;color:var(--muted);margin:0 0 17px}}.categories{{display:flex;gap:7px;margin-bottom:23px}}.category{{border:1px solid #e6eaf0;background:#fff;color:#647082;border-radius:30px;min-height:45px;padding:9px 0;flex:1;white-space:nowrap;font-size:15px;font-weight:600;transition:background .16s,color .16s}}.category[aria-selected=true]{{background:var(--blue);border-color:var(--blue);color:white;box-shadow:0 4px 10px #3182f61b}}.category:hover:not([aria-selected=true]){{background:#f4f7fc}}.faq-meta{{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}}.faq-meta h3{{font-size:14px;font-weight:600;color:#607085}}.faq-meta span{{font-size:12px;color:#8b94a1}}.faq-item{{border-bottom:1px solid var(--line)}}.faq-trigger{{border:0;width:100%;display:flex;align-items:flex-start;text-align:left;gap:10px;background:transparent;padding:21px 0;font-size:17px;font-weight:600;line-height:1.65}}.q-mark{{color:var(--blue);font-size:14px;font-weight:800;line-height:28px}}.question-text{{flex:1}}.chevron{{flex:0 0 18px;width:18px;height:18px;margin-top:5px;color:#97a3b3;transition:transform .2s}}.faq-trigger[aria-expanded=true] .chevron{{transform:rotate(180deg);color:var(--blue)}}.faq-trigger[aria-expanded=true] .question-text{{color:var(--deep)}}.answer{{padding:0 0 22px 24px;animation:appear .2s ease}}.answer-copy{{font-size:16px;color:#566275;line-height:1.85;word-break:keep-all;overflow-wrap:anywhere}}.answer-copy strong{{font-weight:700;color:#2d3c50}}.answer-note{{display:flex;align-items:flex-start;gap:7px;margin-top:13px;background:#f2f6fc;padding:12px;border-radius:10px;font-size:13px;line-height:1.7;color:#5b6e88}}.answer-note svg{{width:17px;height:17px;flex:0 0 17px;margin-top:3px}}.answer-image{{margin-top:17px;border:1px solid #e9edf2;border-radius:12px;overflow:hidden;background:#f7f7f5}}.answer-image svg{{width:100%;height:126px;object-fit:cover}}.answer-image figcaption{{display:flex;justify-content:space-between;gap:5px;padding:9px 11px;font-size:11px;color:#6a7685;background:#fafbfc}}.answer-image figcaption b{{font-weight:500;color:#475b74}}.inquiry-intro{{padding:30px 24px 25px}}.inquiry-eyebrow{{display:flex;gap:8px;align-items:center;margin-bottom:11px;font-size:12px;letter-spacing:.08em;font-weight:700;color:var(--deep)}}.inquiry-eyebrow svg{{width:18px;height:18px}}.inquiry-intro h2{{font-size:24px;font-weight:800;line-height:1.45;letter-spacing:-.05em}}.inquiry-intro p{{margin-top:9px;font-size:15px;line-height:1.85;color:#6b7584}}.contact-benefit{{display:flex;align-items:center;gap:7px;margin-top:16px;font-size:13px;color:#526c91}}.contact-benefit svg{{width:16px;height:16px}}.site-footer{{padding:6px 24px 128px;color:#969da6;font-size:11px;line-height:1.8}}.footer-brand{{display:flex;align-items:center;gap:5px;color:#7e8896;font-size:11px;margin-bottom:9px;letter-spacing:.015em}}.footer-brand strong{{color:#66788f;font-size:12px}}.footer-url{{font-size:11px;letter-spacing:0}}.action-dock{{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;padding:12px 20px max(14px,env(safe-area-inset-bottom));background:#ffffffed;backdrop-filter:blur(14px);border-top:1px solid #e9edf2;z-index:5}}.primary{{display:flex;justify-content:center;align-items:center;gap:10px;min-height:58px;width:100%;border:0;border-radius:13px;background:var(--blue);color:white;font-size:17px;font-weight:700;transition:background .15s}}.primary:hover:not(:disabled){{background:#2273e5}}.primary svg{{width:22px;height:22px}}.primary:disabled{{background:#dce3ed;color:#91a0b4}}.dock-note{{text-align:center;font-size:11px;color:#7c899b;margin-top:6px}}.desktop-note{{display:none}}
+    dialog{{position:fixed;inset:auto 0 0;margin:0 auto;width:100%;max-width:430px;max-height:calc(100dvh - 20px);padding:0;border:0;border-radius:24px 24px 0 0;background:#fff;color:var(--ink);overflow-y:auto;box-shadow:0 -12px 80px #1e304522}}dialog::backdrop{{background:#192b466b;backdrop-filter:blur(3px)}}dialog[open]{{animation:sheetIn .25s ease}}.sheet-handle{{width:36px;height:4px;background:#dfe4eb;border-radius:4px;margin:11px auto 4px}}.sheet-top{{display:flex;align-items:center;justify-content:space-between;padding:3px 15px 0 24px}}.steps{{font-size:12px;color:#8b96a7;display:flex;gap:8px;align-items:center}}.steps b{{color:var(--deep);font-weight:700}}.icon-button{{min-width:44px;height:44px;background:transparent;border:0;border-radius:10px;display:grid;place-items:center}}.icon-button svg{{width:22px;height:22px}}.sheet-body{{padding:8px 24px 24px}}.sheet-body h2{{font-size:26px;line-height:1.45;font-weight:800;letter-spacing:-.05em}}.sheet-description{{font-size:15px;color:#738094;margin:10px 0 24px;line-height:1.75}}.field-label{{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;margin-bottom:10px}}.field-label span{{font-size:12px;color:#8c98a8;font-weight:400}}textarea{{resize:vertical;width:100%;border:1.5px solid #dce3ed;border-radius:13px;padding:16px;background:#fff;min-height:160px;color:var(--ink);font-size:16px;line-height:1.7;display:block}}textarea:focus{{border-color:var(--blue);outline:3px solid #3182f61a}}textarea::placeholder{{color:#99a5b5}}.input-meta{{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:8px 0 20px;font-size:12px;color:#8490a0}}.input-meta .error{{color:#c53e48}}.privacy-note{{background:#f3f7fd;border-radius:12px;padding:14px;margin-bottom:22px;display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.8;color:#61728a}}.privacy-note svg{{width:19px;height:19px;flex:0 0 19px;margin-top:3px;color:var(--blue)}}.privacy-note strong{{color:#425c80;font-weight:600}}.sheet-footnote{{font-size:11px;text-align:center;color:#8d98a8;margin-top:10px}}@keyframes appear{{from{{opacity:0;transform:translateY(-4px)}}to{{opacity:1;transform:translateY(0)}}}}@keyframes sheetIn{{from{{opacity:0;transform:translateY(25px)}}to{{opacity:1;transform:translateY(0)}}}}@media(min-width:700px){{body{{padding:30px 0}}.page{{border-radius:24px;overflow:hidden}}.action-dock{{bottom:16px;border-radius:18px;max-width:398px;box-shadow:0 8px 36px #22344c1c}}.desktop-note{{display:block;position:fixed;left:calc(50% + 245px);top:62px;font-size:12px;color:#7f8da0;line-height:1.9;letter-spacing:0}}.desktop-note strong{{display:block;font-size:13px;color:#5c6b7e}}.desktop-note span{{display:block;margin-top:9px;font-size:11px}}dialog{{inset:50% 0 auto;transform:translateY(-50%);border-radius:24px;max-height:calc(100dvh - 50px)}}dialog[open]{{animation:appear .2s ease}}}}@media(max-width:359px){{.wrap,.faq-section,.inquiry-intro{{padding-left:20px;padding-right:20px}}.faq-heading h2{{font-size:24px}}.mascot{{width:89px;right:-6px}}.category{{font-size:14px}}.fact{{font-size:11px;padding:6px}}.faq-trigger{{font-size:16px}}}}@media(prefers-reduced-motion:reduce){{html{{scroll-behavior:auto}}*,*:before,*:after{{animation:none!important;transition:none!important}}}}
+    .work img{{display:block;width:100%;height:195px;object-fit:cover}}
+    .answer-image img{{display:block;width:100%;height:auto}}
+    .intro-copy,.answer-copy{{white-space:pre-wrap}}
+    .categories{{overflow-x:auto}}.category{{min-width:72px;padding-left:12px;padding-right:12px}}
+    .wordmark{{min-width:0;overflow-wrap:anywhere}}.header-note{{flex-shrink:0;margin-left:12px}}
+    h1,.specialty,.footer-url{{overflow-wrap:anywhere}}.primary{{text-decoration:none}}
+    .primary[aria-disabled=true]{{background:#dce3ed;color:#91a0b4;cursor:not-allowed}}
+</style>
+</head>
+<body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H5l-3 2v-10a9 9 0 0 1 18 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 10h8M7 14h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v6M12 7.2v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="maknae" viewBox="0 0 120 140"><ellipse cx="60" cy="129" rx="35" ry="5" fill="#e9edf3"/><path d="m36 96-14 10q-6 6 0 10l18-8m43-12 12-12q7-5 10 3l-14 22" fill="#fff7e9" stroke="#37485b" stroke-width="2.5" stroke-linejoin="round"/><path d="M35 91q25-12 49 0l5 33H31Z" fill="#3182f6" stroke="#37485b" stroke-width="2.5"/><path d="M44 88v22h31V88" fill="#eaf3ff" stroke="#37485b" stroke-width="2"/><rect x="48" y="109" width="24" height="12" rx="4" fill="#1d68ce"/><path d="M39 124v5m42-5v5" stroke="#37485b" stroke-width="8" stroke-linecap="round"/><rect x="26" y="36" width="69" height="58" rx="27" fill="#fff7e9" stroke="#37485b" stroke-width="2.5"/><ellipse cx="44" cy="72" rx="6" ry="3" fill="#f5b7a0"/><ellipse cx="79" cy="72" rx="6" ry="3" fill="#f5b7a0"/><path d="M47 61v5m27-5v5" stroke="#37485b" stroke-width="3.4" stroke-linecap="round"/><path d="M56 75q6 7 12 0" fill="none" stroke="#37485b" stroke-width="2.3" stroke-linecap="round"/><path d="M27 46q0-30 33-30t34 30" fill="#ffd468" stroke="#37485b" stroke-width="2.5"/><path d="M54 17v23m13-23v23" stroke="#d6a43f" stroke-width="2"/><rect x="20" y="41" width="81" height="10" rx="5" fill="#ffdc7b" stroke="#37485b" stroke-width="2.5"/><path d="m96 20 6-6m0 17h8" stroke="#3182f6" stroke-width="3" stroke-linecap="round"/></symbol>
+</defs></svg>  <main class="page" id="s-pub">
+    <header class="masthead wrap">
+      <div class="wordmark"><span class="brand-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v14H5Z M5 12h14M12 5v14" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>{biz}</div>
+      <span class="header-note">우리 집 시공 안내서</span>
+    </header>
+
+    <section class="intro" aria-labelledby="business-name">
+      <div class="wrap"><p class="eyebrow">작은 틈까지, 정성스럽게</p><h1 id="business-name">{biz}</h1><p class="specialty">{specialty}</p></div>
+      <div class="gallery" id="gallery" aria-label="대표 시공 이미지. 옆으로 넘겨 보세요" tabindex="0"{gallery_hidden}>{gallery_items}</div>
+      <div class="gallery-nav"{gallery_hidden}><span class="gallery-hint">옆으로 넘겨 시공 모습을 보세요 <span aria-hidden="true">↔</span></span><div class="gallery-dots" aria-label="시공 이미지 선택">{gallery_dots}</div></div>
+      <div class="wrap"><p class="intro-copy">{intro}</p><div class="business-facts" aria-label="업체 정보">{facts}</div></div>
+    </section>
+
+    <div class="section-divider"></div>
+    <section class="faq-section" aria-labelledby="faq-title">
+      <div class="faq-heading"><p class="section-kicker">시공 전, 미리 알아두세요</p><h2 id="faq-title">많이 물어보신 질문,<br>여기 모아뒀어요.</h2><svg class="mascot" role="img" aria-label="노란 안전모를 쓰고 손을 든 시공막내 캐릭터"><use href="#maknae"/></svg></div>
+      <p class="helper">궁금한 주제를 골라보세요.</p>
+      <div class="categories" role="tablist" aria-label="질문 카테고리">{tabs_html}</div>
+      {panels_html}
+    </section>
+
+    <section class="inquiry-intro" aria-labelledby="inquiry-title"><div class="inquiry-eyebrow"><svg aria-hidden="true"><use href="#i-chat"/></svg>대표에게 직접 물어보세요</div><h2 id="inquiry-title">우리 집은 조금 다른가요?</h2><p>짧은 질문도 괜찮아요.<br>궁금한 점을 남기시면 문자로 답해드릴게요.</p><div class="contact-benefit"><svg aria-hidden="true"><use href="#i-check"/></svg>앱 설치도, 전화번호 입력도 필요 없어요.</div></section>
+    <footer class="site-footer"><div class="footer-brand">사장님 곁의 든든한 막내 &nbsp; <strong>RING-GO 시공막내</strong></div><div class="footer-url">{page_url}</div></footer>
+    <div class="action-dock"><a class="primary" id="inquiry-open" href="{sms_url}"><svg aria-hidden="true"><use href="#i-chat"/></svg>문자로 바로 문의하기</a><p class="dock-note">질문만 적으면 내 문자 앱으로 연결돼요</p></div>
+  </main>
+  <dialog id="inquiry-dialog" aria-labelledby="compose-title">
+    <div id="write-step">
+      <div class="sheet-handle" aria-hidden="true"></div><div class="sheet-top"><div class="steps"><b>1 질문 작성</b><span aria-hidden="true">›</span><span>2 문자 보내기</span></div><button class="icon-button close-dialog" aria-label="문의 창 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="sheet-body" id="inquiry-form"><h2 id="compose-title">궁금한 점만 적어주세요.</h2><p class="sheet-description">{biz} 대표에게<br>평소 쓰시는 문자로 문의할 수 있어요.</p><label class="field-label" for="question">문의 내용 <span>전화번호 입력은 필요 없어요</span></label><textarea id="question" placeholder="예) 24평 아파트 욕실 2곳 줄눈 시공, 비용이 얼마나 나올까요?" maxlength="500" required aria-describedby="question-hint" autofocus></textarea><div class="input-meta"><span id="question-hint">시공 공간을 알려주시면 상담에 도움이 돼요.</span><span><span id="char-count">0</span>/500</span></div><div class="privacy-note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><strong>다음 화면에서 문자를 보내면 접수돼요.</strong><br>대표는 문자에 표시된 고객님 번호로 답장해요.</div></div><a class="primary" id="open-sms" data-owner-sms="{owner_sms}" aria-disabled="true">문자 앱으로 이어가기 <span aria-hidden="true">↗</span></a><p class="sheet-footnote">평소 쓰시는 문자 앱에서 내용을 확인하고 보내주세요.</p></div>
+    </div>
+  </dialog>
+<script>
+    const tabs = [...document.querySelectorAll('.category')];
+    function renderCategory(tab) {{
+      tabs.forEach(item => {{
+        const selected = item === tab;
+        item.setAttribute('aria-selected', String(selected));
+        item.tabIndex = selected ? 0 : -1;
+        document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
+      }});
+    }}
+    tabs.forEach((tab, index) => {{
+      tab.addEventListener('click', () => renderCategory(tab));
+      tab.addEventListener('keydown', event => {{
+        let next;
+        if(event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+        if(event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+        if(event.key === 'Home') next = 0;
+        if(event.key === 'End') next = tabs.length - 1;
+        if(next !== undefined) {{ event.preventDefault(); tabs[next].focus(); renderCategory(tabs[next]); }}
+      }});
+    }});
+    document.querySelectorAll('.faq-trigger').forEach(trigger => trigger.addEventListener('click', () => {{
+      const expanded = trigger.getAttribute('aria-expanded') === 'true';
+      trigger.setAttribute('aria-expanded', String(!expanded));
+      document.getElementById(trigger.getAttribute('aria-controls')).hidden = expanded;
+    }}));
+    const gallery = document.getElementById('gallery');
+    const dots = [...document.querySelectorAll('.gallery-dot')];
+    dots.forEach(dot => dot.addEventListener('click', () => {{
+      const slide = gallery.children[Number(dot.dataset.slide)];
+      gallery.scrollTo({{left: slide.offsetLeft - gallery.children[0].offsetLeft,
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}});
+    }}));
+    gallery.addEventListener('scroll', () => {{
+      if(gallery.children.length < 2) return;
+      const step = gallery.children[1].offsetLeft - gallery.children[0].offsetLeft;
+      const current = Math.round(gallery.scrollLeft / step);
+      dots.forEach((dot, index) => dot.setAttribute('aria-current', String(index === current)));
+    }}, {{passive: true}});
+    const dialog = document.getElementById('inquiry-dialog');
+    const question = document.getElementById('question');
+    const smsLink = document.getElementById('open-sms');
+    const openInquiry = document.getElementById('inquiry-open');
+    function updateQuestion() {{
+      const message = question.value.trim();
+      document.getElementById('char-count').textContent = question.value.length;
+      smsLink.setAttribute('aria-disabled', String(!message));
+      if(message) smsLink.href = 'sms:' + smsLink.dataset.ownerSms + '?body=' + encodeURIComponent(message);
+      else smsLink.removeAttribute('href');
+    }}
+    openInquiry.addEventListener('click', event => {{
+      if(typeof dialog.showModal !== 'function') return;
+      event.preventDefault(); updateQuestion(); dialog.showModal();
+      document.body.style.overflow = 'hidden'; question.focus();
+    }});
+    document.querySelectorAll('.close-dialog').forEach(button => button.addEventListener('click', () => dialog.close()));
+    dialog.addEventListener('close', () => {{ document.body.style.overflow = ''; openInquiry.focus(); }});
+    dialog.addEventListener('click', event => {{
+      if(event.target === dialog) {{
+        const rect = dialog.getBoundingClientRect();
+        if(event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+      }}
+    }});
+    question.addEventListener('input', updateQuestion);
+    smsLink.addEventListener('click', event => {{ if(!question.value.trim()) event.preventDefault(); }});
+</script>
+</body>
+</html>"""
+
+
+@app.get("/faq/{slug}", response_class=HTMLResponse)
+async def faq_public_page(slug: str) -> HTMLResponse:
+    """검색 노출을 허용하는 업체 공개 FAQ. 숨김/없는 링크는 동일한 준비 중 안내."""
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT published, payload_json FROM faq_pages WHERE slug = ?", (slug,)
+        ).fetchone()
+    headers = {"Cache-Control": "no-store"}  # 공개를 끈 뒤 이전 본문이 캐시에 남지 않도록.
+    if not row or not row["published"]:
+        return HTMLResponse(
+            '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>시공 안내서 준비 중</title></head>'
+            '<body style="margin:0;padding:80px 24px;text-align:center;background:#faf9f6;'
+            'color:#202c3e;font-family:sans-serif"><h1>아직 준비 중이에요.</h1>'
+            '<p>궁금한 이야기를 정성껏 모으고 있어요.<br>조금만 기다려 주세요.</p></body></html>',
+            headers=headers,
+        )
+    return HTMLResponse(_render_faq_html(json.loads(row["payload_json"]), slug), headers=headers)
 
 
 def _generate_intake_token() -> str:

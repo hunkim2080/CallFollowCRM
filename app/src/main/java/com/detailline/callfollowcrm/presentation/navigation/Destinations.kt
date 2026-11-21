@@ -55,6 +55,9 @@ object Destinations {
     const val REP_QUESTION_EDIT_WITH_ARG = "rep_question_edit?id={id}"
     fun repQuestionEdit(id: Long?) = if (id == null) "rep_question_edit" else "rep_question_edit?id=$id"
 
+    /** 🏷️ 업체 소개 편집 — 손님 공개 FAQ 페이지 상단(소개글·대표사진·경력·건수). 더보기 「업체 소개」. (2026-11-21) */
+    const val BIZ_INTRO_EDIT = "biz_intro_edit"
+
     const val SETTINGS = "settings"
     /** 더보기 → 막내가 이런 것도 해요 — 기능 둘러보기(자동 재생 데모 카드). (2026-10-24) */
     const val FEATURE_TOUR = "feature_tour"
