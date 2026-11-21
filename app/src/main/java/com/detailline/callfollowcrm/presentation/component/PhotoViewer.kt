@@ -69,6 +69,7 @@ import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.PEN_COLORS
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import com.detailline.callfollowcrm.presentation.theme.PenBarBg
 import com.detailline.callfollowcrm.presentation.theme.PenStageBg
 import kotlinx.coroutines.Dispatchers
@@ -147,9 +148,11 @@ fun FullscreenPhotoViewer(
      */
     onMarkAttachment: ((page: Int, marks: List<MarkStroke>) -> Unit)? = null,
     /**
-     * ✏️ **고르자마자 바로 펜 — 카톡식 사진 첨부.** (2026-11-21 사장님 · 프로토 6tW9xbZXAVJd5jj32uRYiH)
-     *   있으면 뷰어가 **펜 화면으로 바로 열린다**(크게 보기·돌리기를 안 거친다). 위 오른쪽 버튼이 「첨부」이고
-     *   **묻지 않고** 획을 넘긴다 — 안 그렸으면 빈 목록(원본 그대로 담기). ‹ = 안 담고 닫기.
+     * ✏️ **카톡식 사진 첨부 — 고르면 크게 보기, [펜] 누르면 그리기.** (2026-11-21 사장님 · 프로토 6tW9xbZXAVJd5jj32uRYiH)
+     *   다른 길과 똑같이 **보기 화면으로 먼저 열린다**(두 손가락 확대 됨 · 그어지지 않음). 바닥 [펜] 을 눌러야
+     *   그리기가 시작된다 — 열자마자 그어지면 사진을 보려다 낙서가 된다(2026-11-21 폰 실기). 보기·펜 화면 둘 다
+     *   위 오른쪽이 「첨부」이고 **묻지 않고** 획을 넘긴다 — 안 그렸으면 빈 목록(원본 그대로 담기).
+     *   보기 화면의 ‹ = 안 담고 닫기 · 펜 화면의 ‹ = 그린 것 버리고 보기로(기존 펜의 ✕ 와 같은 동작).
      *   닫는 건 부른 쪽이 한다(합성이 끝난 뒤) — 연타는 부른 쪽이 막는다. 사진은 한 장([photos] 첫 장)만 본다.
      */
     onAttachDirect: ((marks: List<MarkStroke>) -> Unit)? = null,
@@ -205,7 +208,7 @@ fun FullscreenPhotoViewer(
             ?.photoId?.takeIf { it > 0L }
         val canDeleteCur = onDelete != null && deletablePhotoId != null
         // ✏️ 펜 표시 — 지금 보는 게 내 사진이고 onSaveMarked 가 있을 때만.
-        var penMode by remember { mutableStateOf(onAttachDirect != null) }
+        var penMode by remember { mutableStateOf(false) }
         // ✏️ 완료 후 묻는 중 들고 있는 획(지금 보는 쪽 번호 + 획). null 이면 안 묻는 중.
         var pendingMark by remember { mutableStateOf<Pair<Int, List<MarkStroke>>?>(null) }
         val curOfFile = photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile
@@ -219,7 +222,8 @@ fun FullscreenPhotoViewer(
                     photo = photos[page],
                     rotation = rotations[page] ?: 0,
                     onZoomedChange = { z -> if (page == pagerState.currentPage) zoomed = z },
-                    onTapClose = tryClose
+                    // 카톡식 첨부에선 사진을 건드려도 안 닫힌다 — 닫기는 ‹ 로만(고른 걸 실수로 날리지 않게).
+                    onTapClose = if (onAttachDirect != null) ({}) else tryClose
                 )
             }
             // 여러 장이면 몇 번째인지. 한 장이면 군더더기라 안 띄운다.
@@ -242,7 +246,26 @@ fun FullscreenPhotoViewer(
             }
             // 오른쪽 위 — [🗑 지우기(내 사진만)] [✕ 닫기]. 삭제는 확인 한 번 뒤 뷰어를 닫는다.
             //   statusBarsPadding — S23U(상태바·펀치홀 큼)에서 ✕·🗑 이 시계/카메라에 안 겹치게. (2026-10-25 S23U sweep)
-            Row(
+            // 카톡식 첨부(보기 화면) — 왼쪽 위 ‹(안 담고 닫기) · 오른쪽 위 「첨부」(안 그리고 원본 그대로 담기).
+            if (onAttachDirect != null) {
+                Box(
+                    Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)
+                        .size(38.dp).clip(AppShape.pill).background(Color.Black.copy(alpha = 0.55f))
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.Text("‹", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Box(
+                    Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)
+                        .clip(AppShape.pill).background(AppTheme.colors.primary)
+                        .clickable { onAttachDirect(emptyList()) }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.Text("첨부", style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            } else Row(
                 Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -278,7 +301,7 @@ fun FullscreenPhotoViewer(
                 (barPhoto as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true
             val barShowSave = barCanSave && (barRot % 360) != 0
             val barShowPen = (onSaveMarked != null && (barPhoto as? ViewerPhoto.OfFile)?.photoId?.let { it > 0L } == true) ||
-                (onMarkAttachment != null && barPhoto is ViewerPhoto.OfFile)
+                ((onMarkAttachment != null || onAttachDirect != null) && barPhoto is ViewerPhoto.OfFile)
             if (!zoomed && !penMode) {
                 Column(
                     // 🖐️ 시스템 버튼 위로 띄운다 — 96dp 면 어떤 폰 내비바(≤48dp)도 안 가린다. (2026-10-02)
@@ -302,8 +325,11 @@ fun FullscreenPhotoViewer(
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        ViewerToolBtn("왼쪽", glyph = "↺") { rotations[barPage] = (rotations[barPage] ?: 0) - 90 }
-                        ViewerToolBtn("오른쪽", glyph = "↻") { rotations[barPage] = (rotations[barPage] ?: 0) + 90 }
+                        // 카톡식 첨부엔 돌리기를 안 둔다 — 돌려 봐도 담기는 사진은 안 돌아가 헷갈린다. [펜] 하나만.
+                        if (onAttachDirect == null) {
+                            ViewerToolBtn("왼쪽", glyph = "↺") { rotations[barPage] = (rotations[barPage] ?: 0) - 90 }
+                            ViewerToolBtn("오른쪽", glyph = "↻") { rotations[barPage] = (rotations[barPage] ?: 0) + 90 }
+                        }
                         // ✏️ **내 사진이면 펜으로 그리기.** (2026-10-24 사장님 "표시가 뭔지 헷갈려 → 펜")
                         if (barShowPen) ViewerToolBtn("펜", accent = true, icon = Icons.Default.Edit) { penMode = true }
                         // 💾 **돌려야 나타난다.** 할 게 없을 땐 안 보인다. (2026-10-02 사장님)
@@ -316,7 +342,7 @@ fun FullscreenPhotoViewer(
                 PenStage(
                     photo = curOfFile,
                     direct = onAttachDirect != null,
-                    onCancel = { if (onAttachDirect != null) onDismiss() else penMode = false },
+                    onCancel = { penMode = false },
                     onDone = { marks ->
                         if (onAttachDirect != null) {
                             // 카톡식 — 묻지 않고 바로 담는다. 닫기는 부른 쪽(합성 끝난 뒤).
@@ -618,7 +644,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPenLine(l: PenL
 @Composable
 private fun PenStage(
     photo: ViewerPhoto.OfFile,
-    /** 카톡식 사진 첨부(고르자마자 펜) — 위가 「‹ … 첨부」, 사진 밑에 안내 한 줄. 그리는 도구는 같다. */
+    /** 카톡식 사진 첨부 — 위가 「‹(보기로) … 첨부」, 사진 밑에 안내 한 줄. 그리는 도구는 같다. */
     direct: Boolean = false,
     onCancel: () -> Unit,
     onDone: (List<MarkStroke>) -> Unit
@@ -672,7 +698,8 @@ private fun PenStage(
     Column(Modifier.fillMaxSize().background(PenStageBg)) {
         // ── 상단바: ✕ · 사진에 표시 · 완료 ──
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            // 상태바·펀치홀 밑으로 — 안 띄우면 ‹/완료가 시계·카메라에 겹친다(S23U). (2026-11-21 폰 실기)
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -745,7 +772,9 @@ private fun PenStage(
 
         // ── 하단 도구바: 색 · ↶ · 🗑 · 굵기 ──
         Row(
-            Modifier.fillMaxWidth().background(PenBarBg).padding(horizontal = 14.dp, vertical = 12.dp),
+            // 내비바(◁ ○ ▢) 위로 — 바탕색은 바닥까지 깔고 버튼만 띄운다. 공용 `bottomBarClearance`(Dialog 용).
+            Modifier.fillMaxWidth().background(PenBarBg).bottomBarClearance(extra = 0.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {

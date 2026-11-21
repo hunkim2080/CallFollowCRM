@@ -73,7 +73,7 @@ import kotlinx.coroutines.withContext
 /**
  * 🖼️ **카톡식 사진 첨부 — 채팅 ⊕ 「사진 첨부」.** (2026-11-21 사장님 「가」 · 프로토 6tW9xbZXAVJd5jj32uRYiH)
  *
- *   ⊕ → **바텀시트**(최근 사진 가로줄 · 카메라 · 전체 보기) → 사진 탭 → **그 자리에서 펜**(공용 뷰어) →
+ *   ⊕ → **바텀시트**(최근 사진 가로줄 · 카메라 · 전체 보기) → 사진 탭 → **크게 보기 + [펜]**(공용 뷰어 · 펜을 눌러야 그려진다) →
  *   「첨부」 = **입력칸에 담기만**(전송 아님). 전엔 시스템 선택기로 담은 뒤 **썸네일을 다시 눌러야** 펜이 나왔다.
  *
  *   새로 만든 건 **이 시트 한 장**뿐이다 — 나머지는 전부 있는 걸 쓴다(§12):
@@ -144,7 +144,7 @@ internal fun ChatPhotoPickerHost(
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val shot = cameraUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
         cameraUri = null
-        // 찍었으면 고른 것과 똑같이 **곧바로 펜 화면**으로. 취소면 시트 그대로.
+        // 찍었으면 고른 것과 똑같이 **곧바로 크게 보기(펜 버튼 있는 화면)**로. 취소면 시트 그대로.
         if (ok && shot != null) editing = shot
     }
 
@@ -205,7 +205,7 @@ internal fun ChatPhotoPickerHost(
         )
     }
 
-    // ✏️ 고른 직후 **바로 펜** — 공용 뷰어 그대로(색·굵기·되돌리기·전체 지우기). 「첨부」 = 입력칸에 담기.
+    // ✏️ 고른 직후 **크게 보기 → [펜] 누르면 그리기** — 공용 뷰어 그대로(색·굵기·되돌리기·전체 지우기). 「첨부」 = 입력칸에 담기.
     editing?.let { src ->
         FullscreenPhotoViewer(
             photos = listOf(ViewerPhoto.OfFile(src)),
@@ -350,7 +350,7 @@ private fun ChatPhotoPickerSheet(
     }
 }
 
-/** 카메라 타일 — 찍으면 곧바로 펜 화면. */
+/** 카메라 타일 — 찍으면 곧바로 크게 보기(거기서 [펜]). */
 @Composable
 private fun CameraTile(onClick: () -> Unit) {
     Column(

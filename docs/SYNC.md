@@ -16633,3 +16633,12 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: assembleRelease BUILD SUCCESSFUL 가드7 통과([rules] 문서·코드 일치 재확인·기준선 0 증가) · testDebugUnitTest 1418건 0실패.
 - 폰 확인: **못 봄**(S9 미연결·에뮬은 사진첩 비어 의미없음). 실제 사진 있는 폰에서 확인 필요 — 가로줄 좌우끝·키보드내림·세로사진 EXIF 획·펜화면 상단 상태바겹침(S23U)·부분허용 노란띠·전송 안 되고 담기만.
 - 내부테스트 배포 진행(upload 태그). ⚠️ 정식심사 전 Play 「사진·동영상 접근」 민감권한 신고서 필요(별건).
+
+## 2026-11-21 14:55 · android
+카톡식 펜 편집기 기본 UX 2건 수정(사장님 폰 실기: "네비바에 가려짐 · 바로 펜 눌리는 건 기본 UX 아님").
+- 수정(PhotoViewer.kt 한 곳): ① direct(카톡식 첨부)도 **열면 보기 모드**(핀치줌·이동, 캔버스 터치 안 먹음)·바닥 [펜] 버튼 탭해야 그리기. 기존 penMode 상태 그대로 재사용(새 토글 0), direct가 처음부터 펜 켜던 것만 제거. direct는 사진 탭해도 안 닫힘·돌리기 버튼 뺌(담기는 사진은 안 돌아가 혼동). ② **인셋**: 펜 도구바에 공용 `bottomBarClearance`(Dialog/시트용, 내비바 0 폴백 포함 — SitePhotoDatePicker와 동일), 상단 ‹/「첨부」에 statusBarsPadding. raw WindowInsets 0, dup 18/18.
+- §12-K: 뷰어 쓰는 7곳 확인. 인셋은 PenStage 공통이라 현장사진 펜·챗 썸네일 펜에도 같은 네비바 가림이 함께 해소. non-direct 흐름(보기→펜→저장할까요/표시할까요)은 안 건드림.
+- 열린 결정: 펜 화면 ‹로 보기 복귀 시 그린 것 사라짐(기존 ✕와 동일). 유지하려면 추가작업 — 보류.
+- 검증: assembleRelease BUILD SUCCESSFUL 가드7 통과(기준선 0 증가·[rules] 문서/코드 일치) · testDebugUnitTest 1418 0실패. 주석(CLAUDE.md·PROTOTYPES.md·ChatPhotoPickerSheet)만 「바로 펜」→새 흐름으로 문구 정정.
+- 폰 확인: 대기(S9 미연결). 보기모드 열림·펜 탭 후 그리기·네비바 여백(S9 3버튼/S23U 제스처)·상태바 겹침(S23U)·세로사진 획.
+- 내부배포 진행(upload 태그).
