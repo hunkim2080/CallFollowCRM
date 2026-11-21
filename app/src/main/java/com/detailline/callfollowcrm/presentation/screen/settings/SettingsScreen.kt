@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
 import androidx.compose.material.icons.filled.AddToHomeScreen
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Merge
 import androidx.compose.material.icons.filled.Psychology
@@ -171,6 +172,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTemplates: () -> Unit,
     onOpenPricingItems: () -> Unit,
+    onOpenRepQuestions: () -> Unit = {},   // 💬 대표질문(FAQ) 관리. (2026-11-21)
     onOpenFeatureTour: () -> Unit = {},
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
@@ -601,6 +603,8 @@ fun SettingsScreen(
                         "부재중 문자 · 시공 D-1 · 통화 요약 · 답변 준비") { subPage = "autosms" }
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
                         "자주 쓰는 문구 관리", onClick = onOpenTemplates)
+                    LockRow(Icons.Filled.QuestionAnswer, TossBlueSoft, TossBlue, "대표질문",
+                        "자주 묻는 질문·답을 답장에 한 탭으로", onClick = onOpenRepQuestions)
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
                         "견적 만들 때 쓰이는 항목", onClick = onOpenPricingItems)
                 }

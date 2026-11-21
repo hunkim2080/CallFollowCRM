@@ -50,6 +50,11 @@ object Destinations {
     const val TEMPLATE_EDIT_WITH_ARG = "template_edit?id={id}"
     fun templateEdit(id: Long?) = if (id == null) "template_edit" else "template_edit?id=$id"
 
+    /** 💬 대표질문(FAQ) 관리 / 등록·수정. 더보기 「대표질문」 · 채팅 대표질문 시트에서 온다. (2026-11-21) */
+    const val REP_QUESTIONS = "rep_questions"
+    const val REP_QUESTION_EDIT_WITH_ARG = "rep_question_edit?id={id}"
+    fun repQuestionEdit(id: Long?) = if (id == null) "rep_question_edit" else "rep_question_edit?id=$id"
+
     const val SETTINGS = "settings"
     /** 더보기 → 막내가 이런 것도 해요 — 기능 둘러보기(자동 재생 데모 카드). (2026-10-24) */
     const val FEATURE_TOUR = "feature_tour"

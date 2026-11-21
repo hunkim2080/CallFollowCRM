@@ -677,6 +677,17 @@ object DataBackup {
                 }
             }
         }
+        // 💬 대표질문 사진(0/1) — 문구 사진과 같은 창고(template_photos). (2026-11-21)
+        runCatching {
+            db.query("SELECT `imageUri` FROM `rep_questions` WHERE `imageUri` IS NOT NULL ORDER BY `id` DESC").use { c ->
+                while (c.moveToNext()) {
+                    val uri = c.getString(0) ?: continue
+                    if (out.has(uri)) continue
+                    val bytes = readUriBytes(context, uri) ?: continue
+                    add(uri, bytes, "image/jpeg", uri.substringAfterLast('/'))
+                }
+            }
+        }
         // 현장 사진 — 앱 내부 절대경로
         runCatching {
             db.query("SELECT `filePath` FROM `site_photos` ORDER BY `id` DESC").use { c ->
@@ -740,6 +751,10 @@ object DataBackup {
                     arrayOf<Any?>(newRef, oldKey))
                 else db.execSQL("UPDATE `template_attachments` SET `fileUri`=? WHERE `fileUri`=?",
                     arrayOf<Any?>(newRef, oldKey))
+            }
+            // 대표질문 사진도 같은 창고 — 주소가 같으면 같이 새 위치로. (옛 백업엔 테이블이 없어도 무해)
+            if (!isSite) runCatching {
+                db.execSQL("UPDATE `rep_questions` SET `imageUri`=? WHERE `imageUri`=?", arrayOf<Any?>(newRef, oldKey))
             }
             n++
         }

@@ -51,6 +51,10 @@ class AppContainer(context: Context) {
         appContext, db.scheduledSmsDao()
     )
     val messageTemplateRepository = MessageTemplateRepository(db.messageTemplateDao())
+    // 💬 대표질문(FAQ) — 자주 묻는 질문+답(+사진 1장)을 답장에 한 탭으로. 자주 쓰는 문구와 별개. (2026-11-21)
+    val repQuestionRepository = com.detailline.callfollowcrm.data.repository.RepQuestionRepository(
+        context.applicationContext, db.repQuestionDao()
+    )
     val messageHistoryRepository = MessageHistoryRepository(db.messageHistoryDao())
     val recordingRepository = RecordingRepository(db.recordingAttachmentDao())
     // 현장 사진(로컬) — 사장님이 고객 현장에 올린 사진. 2026-06-04.

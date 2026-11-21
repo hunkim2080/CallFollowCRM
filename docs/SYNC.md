@@ -16642,3 +16642,15 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증: assembleRelease BUILD SUCCESSFUL 가드7 통과(기준선 0 증가·[rules] 문서/코드 일치) · testDebugUnitTest 1418 0실패. 주석(CLAUDE.md·PROTOTYPES.md·ChatPhotoPickerSheet)만 「바로 펜」→새 흐름으로 문구 정정.
 - 폰 확인: 대기(S9 미연결). 보기모드 열림·펜 탭 후 그리기·네비바 여백(S9 3버튼/S23U 제스처)·상태바 겹침(S23U)·세로사진 획.
 - 내부배포 진행(upload 태그).
+
+## 2026-11-21 15:45 · android
+**대표질문(FAQ)** 신설 — 당근 벤치마킹(사장님 「ㄱㄱ」). 자주 묻는 Q+답(+이미지 0/1) 등록 → 채팅에서 ⊕「대표질문」 탭하면 **답이 답장칸에 삽입**(전송 아님·사진 있으면 attachedPhotos에 같이). 자주쓰는문구와 별개 신설.
+- 새 파일: entity/dao/repo `RepQuestion*`, `domain/faq/RepQuestionRules`(20/500 한도·canSave·미리보기, 시험11), `domain/ui/ComposerInsert`(입력칸 삽입 한 줄, 시험4), 관리 `presentation/screen/faq/RepQuestionList{Screen,ViewModel}`, 등록/수정 `RepQuestionEdit{Screen,ViewModel}`, 채팅 `ChatRepQuestionSheet`, `ChatComposerMenu`(ChatScreen 잎 분리 5644→5540).
+- DB **v75→v76** `MIGRATION_75_76` + `76.json`(createSql 일치, DbUpgradeChainTest 통과). 새 빈 테이블 rep_questions(imageUri nullable·sortOrder DEFAULT 0 — 신규/업글 안전). 에뮬 업그레이드 설치 실행 확인(FATAL 0, 앱 켜짐).
+- 바꿈: AppDatabase/AppContainer(repQuestionRepository)/Destinations/AppNavHost · ChatScreen·ChatViewModel(repQuestions) · SettingsScreen 더보기 「대표질문」 줄 · DataBackup(FAQ 사진 백업 포함).
+- §12: AppSheet·DragReorder·MascotEmptyState·SaveGuard·SheetTextField·Toss버튼·keyboard여백·PickLimit(attachCapped)·TemplatePhotoStore(사진 영속) 재사용. 삽입은 문구 넣기와 같은 `ComposerInsert.append` 한 줄(두 벌 0). 사진 0/1은 시스템 PickVisualMedia(문구편집과 같은 길). rules 공용 52→55, style 2441→2422(잎 이동분 styleBaselineUpdate 1회·총합 감소).
+- 프로토 1:1(artifact EYKUs11cVT7JW71yVrVoBA). 다름: ⊕는 기존 풍선메뉴에 「대표질문」 한 줄(격자개편 안 함), 등록 입력칸은 공용 SheetTextField(회색). 프로토에 없어 채운 것: 빈화면문구·미리보기 시트문구·수정/삭제·저장안하고나갈까요·더보기 부제 — 사장님 확인 요망.
+- 검증: assembleRelease BUILD SUCCESSFUL 가드7 통과 · testDebugUnitTest 1433 0실패.
+- 폰 확인: 업그레이드 실행·20/500 카운터·키보드위 버튼·사진 영속·끌어순서·채팅삽입(전송X·줄바꿈·사진)·문구넣기 회귀.
+- ⚠️ 별건 발견(안 건드림): PricingItemsScreen 끌기 2회차 stale 가능성(pointerInput(cat.name)+remember(ids)).
+- 내부배포 진행(upload 태그).

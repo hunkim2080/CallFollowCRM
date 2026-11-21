@@ -13,6 +13,7 @@ import java.io.File
  *   앱 내부 복사본은 몇 주 뒤에도 확실히 읽힘(발송 SmsSender.decodeMmsBitmap·미리보기 공통).
  *
  * 두 곳에서 공용: 문구 편집 화면(TemplateEditViewModel) + 채팅 "입력창 글을 문구로 저장"(ChatViewModel).
+ *   + 대표질문(FAQ) 답장 내 이미지(RepQuestionEditViewModel) — 같은 창고·같은 이름 규칙(tpl_…). (2026-11-21)
  */
 object TemplatePhotoStore {
 

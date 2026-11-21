@@ -110,6 +110,10 @@ class ChatViewModel(
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
+    /** 💬 대표질문(FAQ) — ⊕ 「대표질문」 시트 목록(관리 화면에서 정한 순서). (2026-11-21) */
+    val repQuestions = container.repQuestionRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** 문구ID → 그 문구의 **첫 사진 URI**. 문구 넣기 목록 썸네일용. 셈은 공용(문구 관리 화면과 같이 쓴다). (2026-07-18 · 2026-10-12 공용화) */
     val templatePhotoByTemplate: StateFlow<Map<Long, String>> =
         container.templateAttachmentRepository.observeFirstImageUriByTemplate()

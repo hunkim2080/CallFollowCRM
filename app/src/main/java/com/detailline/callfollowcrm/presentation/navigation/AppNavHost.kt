@@ -459,7 +459,9 @@ fun AppNavHost(
                 initialSearch = initialSearch,
                 // 통화녹음 미연결 통화카드 "연결 설정하러 가기" → 자동 문자/녹음 설정. (2026-07-12 사장님)
                 onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
-                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
+                onOpenRepQuestions = { navController.navigate(Destinations.REP_QUESTIONS) },
+                onNewRepQuestion = { navController.navigate(Destinations.repQuestionEdit(null)) }
             )
         }
 
@@ -726,6 +728,31 @@ fun AppNavHost(
             TemplateEditScreen(viewModel = vm, onDone = { navController.popBackStack() })
         }
 
+        // 💬 대표질문(FAQ) — 관리(목록·순서) / 등록·수정 폼. 프로토 EYKUs11cVT7JW71yVrVoBA ②③. (2026-11-21)
+        composable(Destinations.REP_QUESTIONS) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionListViewModel = viewModel(
+                factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionListViewModel(container) }
+            )
+            com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionListScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onEdit = { id -> navController.navigate(Destinations.repQuestionEdit(id)) },
+                onNew = { navController.navigate(Destinations.repQuestionEdit(null)) }
+            )
+        }
+        composable(
+            route = Destinations.REP_QUESTION_EDIT_WITH_ARG,
+            arguments = listOf(navArgument("id") { type = NavType.LongType; defaultValue = -1L })
+        ) { backStack ->
+            val id = backStack.arguments?.getLong("id")?.takeIf { it > 0 }
+            val vm: com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionEditViewModel = viewModel(
+                factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionEditViewModel(container, id) }
+            )
+            com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionEditScreen(
+                viewModel = vm, onDone = { navController.popBackStack() }
+            )
+        }
+
         composable(Destinations.SETTINGS) {
             val vm: SettingsViewModel = viewModel(factory = viewModelFactory { SettingsViewModel(container) })
             SettingsScreen(
@@ -733,6 +760,7 @@ fun AppNavHost(
                 container = container,
                 onBack = { navController.popBackStack() },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
+                onOpenRepQuestions = { navController.navigate(Destinations.REP_QUESTIONS) },
                 onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
                 onOpenFeatureTour = { navController.navigate(Destinations.FEATURE_TOUR) },
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },

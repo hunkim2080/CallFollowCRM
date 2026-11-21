@@ -211,7 +211,10 @@ fun ChatScreen(
     /** 통화녹음 미연결 시 통화카드 "연결 설정하러 가기" → 설정(자동 문자/녹음) 열기. (2026-07-12 사장님) */
     onOpenRecordingSettings: () -> Unit = {},
     /** 추천답변 위 '어느 쪽 일 하세요?' 에서 [다른 업종] → 업종 선택 화면. (2026-09-16 사장님) */
-    onOpenTradeSelect: () -> Unit = {}
+    onOpenTradeSelect: () -> Unit = {},
+    /** 💬 대표질문 시트의 「관리」·「＋ 대표질문 추가」 → 관리 화면 / 등록 폼. (2026-11-21) */
+    onOpenRepQuestions: () -> Unit = {},
+    onNewRepQuestion: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember(context) {
@@ -513,6 +516,7 @@ fun ChatScreen(
     var composerFocused by remember { mutableStateOf(false) }
     // 프로토 chat-actions [문구 넣기] → 템플릿 picker 시트.
     var tplPickerOpen by remember { mutableStateOf(false) }
+    var repQuestionOpen by remember { mutableStateOf(false) }   // ⊕ 「대표질문」 시트
     var confirmDeleteTpl by remember { mutableStateOf<Long?>(null) }   // 자주 쓰는 문구 삭제 확인(앱 기조: 삭제류 확인창). (2026-07-30)
     // 안내 띠(스낵바)가 **입력창·첨부 사진을 덮던 것**. (2026-09-16 사장님 스샷)
     //   이 화면은 입력창이 Scaffold 의 bottomBar 가 아니라 본문 안에 있다 →
@@ -1341,6 +1345,7 @@ fun ChatScreen(
                 onOpenEstimate = { triggerActionByType("send_estimate") },
                 onOpenSchedule = { myScheduleOpen = true },
                 onOpenTemplate = { tplPickerOpen = true },
+                onOpenRepQuestion = { repQuestionOpen = true },
                 // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님 · 2026-09-16 자리 이동)
                 onSaveAsTemplate = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
                 focusRequester = composerFocusRequester,
@@ -1747,7 +1752,7 @@ fun ChatScreen(
             //   (통화 후 문자는 이미 사진을 같이 보내는데 채팅 문구 넣기만 빠져 있었다. 2026-07-16 사장님)
             //   바로 발송은 안 함 — 사장님이 ▶ 누르고 확인창에서 '사진 N장' 보고 보냄(기존 발송 흐름 그대로).
             onPick = { tpl ->
-                setInput(if (input.isBlank()) tpl.body else input + "\n" + tpl.body)
+                setInput(com.detailline.callfollowcrm.domain.ui.ComposerInsert.append(input, tpl.body))
                 viewModel.loadTemplatePhotos(tpl.id) { uris ->
                     val add = uris.mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
                         .filter { it !in attachedPhotos }   // 같은 문구를 두 번 넣어도 사진은 안 겹침
@@ -1898,6 +1903,20 @@ fun ChatScreen(
         request = showPhotoPicker, onRequestHandled = { showPhotoPicker = false },
         attached = attachedPhotos, onAttached = { attachedPhotos = it },
         onSystemPicker = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    )
+
+    // 💬 대표질문 — ⊕ → 시트 → 탭하면 **답을 입력칸에 넣고 사진은 첨부에 담는다**(전송 아님). 넣는 방식은 「문구 넣기」와 같다.
+    //   시트·사진 담기는 ChatRepQuestionSheet.kt 한 곳. (2026-11-21 사장님 · 프로토 EYKUs11cVT7JW71yVrVoBA ①)
+    val repQuestions by viewModel.repQuestions.collectAsState()
+    ChatRepQuestionHost(
+        open = repQuestionOpen, onClose = { repQuestionOpen = false },
+        questions = repQuestions, attached = attachedPhotos,
+        onInsert = { answer, photos ->
+            setInput(com.detailline.callfollowcrm.domain.ui.ComposerInsert.append(input, answer))
+            attachedPhotos = photos
+            scope.launch { snackbar.showBrief("답장에 넣었어요") }
+        },
+        onManage = onOpenRepQuestions, onAdd = onNewRepQuestion
     )
 
     // 풀스크린 이미지 뷰어 — 한 번에 온 사진 전부 좌우 스와이프 + 핀치/더블탭 줌. (2026-06-16 사장님)
@@ -3530,131 +3549,6 @@ private fun ChatTopBtn(label: String, primary: Boolean, onClick: () -> Unit) {
     )
 }
 
-/**
- * ⊕ 액션 메뉴 (2026-08-14 사장님) — 입력줄 왼쪽 ⊕ + 누르면 풍선처럼 뜨는 팝업.
- *   견적 작성 / 내 일정 확인 / 문구 넣기. ⊕ 바로 위에서 scaleIn(좌하단 기준, spring 오버슈트) 으로 톡.
- *   Popup 이라 화면 안 덮음. 구 chat-actions 상시 3칩 대체 → 대화 공간 확보(표면엔 덜).
- *   focusable Popup 이 포커스를 가져가 키보드도 내려가 팝업이 안 가림.
- */
-@Composable
-private fun ComposerActionMenu(
-    onEstimate: () -> Unit,
-    onSchedule: () -> Unit,
-    onTemplate: () -> Unit,
-    // 사진 첨부 — 알약에서 ⊕ 맨 위로 이동. (2026-10-14 사장님)
-    onAttachPhoto: () -> Unit = {},
-    /**
-     * 입력창에 쓴 글을 문구로 저장. **글이 있을 때만** 보인다. (2026-09-16 사장님 개편)
-     *   전엔 [문구 넣기] 시트 맨 위에 있었는데, 거기는 '꺼내 쓰는 방'이라 자리가 안 맞았다.
-     *   글을 다 쓴 그 순간, 손가락이 이미 ⊕ 근처에 있는 여기가 맞다.
-     */
-    canSaveText: Boolean = false,
-    onSaveText: () -> Unit = {}
-) {
-    var open by remember { mutableStateOf(false) }
-    val rot by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (open) 135f else 0f, label = "plusRot"
-    )
-    Box {
-        // ⊕ 버튼 — 44dp 터치(거친 손가락도). 열리면 × 로 회전.
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(TossGrayBg)
-                .clickable { open = !open },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Add, "더보기", tint = TossBlue, modifier = Modifier.size(24.dp).rotate(rot))
-        }
-        if (open) {
-            val positioner = remember {
-                object : androidx.compose.ui.window.PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: androidx.compose.ui.unit.IntRect,
-                        windowSize: androidx.compose.ui.unit.IntSize,
-                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                        popupContentSize: androidx.compose.ui.unit.IntSize
-                    ): androidx.compose.ui.unit.IntOffset {
-                        // 앵커(⊕) 바로 위 · 좌측 정렬 · 8px 틈
-                        val x = anchorBounds.left
-                        val y = anchorBounds.top - popupContentSize.height - 8
-                        return androidx.compose.ui.unit.IntOffset(x, y.coerceAtLeast(8))
-                    }
-                }
-            }
-            // 뒤를 살짝 어둡게 — 안 그러면 대화 카드들과 겹쳐 **어디까지가 메뉴인지** 안 보인다.
-            //   Popup 은 제 크기만큼만 창을 잡으므로 화면 크기를 직접 넣어준다.
-            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-            androidx.compose.ui.window.Popup(
-                popupPositionProvider = object : androidx.compose.ui.window.PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: androidx.compose.ui.unit.IntRect,
-                        windowSize: androidx.compose.ui.unit.IntSize,
-                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                        popupContentSize: androidx.compose.ui.unit.IntSize
-                    ) = androidx.compose.ui.unit.IntOffset(-anchorBounds.left, -anchorBounds.top)
-                },
-                onDismissRequest = { open = false }
-            ) {
-                Box(
-                    Modifier
-                        .size(cfg.screenWidthDp.dp, cfg.screenHeightDp.dp)
-                        .background(Color.Black.copy(alpha = 0.26f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { open = false }
-                )
-            }
-            androidx.compose.ui.window.Popup(
-                popupPositionProvider = positioner,
-                onDismissRequest = { open = false },
-                properties = androidx.compose.ui.window.PopupProperties(focusable = true)
-            ) {
-                val vis = remember { androidx.compose.animation.core.MutableTransitionState(false) }
-                vis.targetState = true
-                androidx.compose.animation.AnimatedVisibility(
-                    visibleState = vis,
-                    enter = androidx.compose.animation.scaleIn(
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f),
-                        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f)
-                    ) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(120)),
-                    exit = androidx.compose.animation.scaleOut(
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f),
-                        animationSpec = androidx.compose.animation.core.tween(110)
-                    ) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(90))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(202.dp)
-                            .tossCardShadow(RoundedCornerShape(18.dp))
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color.White)
-                            .padding(6.dp)
-                    ) {
-                        // 사진 = 제일 자주 쓰는 첨부라 맨 위. (2026-10-14 사장님: 알약에서 ⊕ 맨 위로 이동)
-                        ActionMenuRow(Icons.Default.Image, "사진 첨부", AppTheme.colors.caution) { open = false; onAttachPhoto() }
-                        // 색은 **하는 일의 종류**. 견적=돈/문서, 일정=달력, 문구=글.
-                        ActionMenuRow(Icons.Default.Description, "견적 작성", AppTheme.colors.primary) { open = false; onEstimate() }
-                        ActionMenuRow(Icons.Default.DateRange, "내 일정 확인", AppTheme.colors.category) { open = false; onSchedule() }
-                        ActionMenuRow(Icons.AutoMirrored.Filled.Chat, "문구 넣기", TossSuccess) { open = false; onTemplate() }
-                        // ❌ "다음 답변 AI 추천" 뺐다. (2026-09-20 사장님 "+ 쪽은 버리자")
-                        //   AI 추천을 누르는 자리가 두 군데라 역할이 안 갈렸다. 게다가 ⊕ 쪽도 속으로는
-                        //   **3개를 만들고 2개를 버려** 비용은 같은데 쓰는 건 하나였다.
-                        //   입력창 바로 위 띠 하나로 남긴다 — 손가락에도 더 가깝다.
-                        if (canSaveText) {
-                            // 문구를 '꺼내 쓰는' 줄과 '넣어 두는' 줄이라 같은 초록.
-                            ActionMenuRow(Icons.Default.Add, "이 글을 문구로 저장", TossSuccess) { open = false; onSaveText() }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-
 /*
  * (지움 2026-09-21) Composer 위 [⚡ 액션] 토글 + 퀵액션 칩 5개 — **화면에 안 뜨는 죽은 코드**였다.
  *   2026-08-14 에 3칩([견적 작성][내 일정 확인][문구 넣기])을 **입력줄 ⊕ 메뉴**로 옮기면서
@@ -3683,6 +3577,7 @@ private fun Composer(
     onOpenEstimate: () -> Unit = {},
     onOpenSchedule: () -> Unit = {},
     onOpenTemplate: () -> Unit = {},
+    onOpenRepQuestion: () -> Unit = {},
     /** ⊕ "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 메뉴에 뜬다. (2026-09-16 사장님 개편) */
     onSaveAsTemplate: () -> Unit = {},
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null
@@ -3760,6 +3655,7 @@ private fun Composer(
                     onEstimate = onOpenEstimate,
                     onSchedule = onOpenSchedule,
                     onTemplate = onOpenTemplate,
+                    onRepQuestion = onOpenRepQuestion,
                     onAttachPhoto = onAttachPhoto,
                     canSaveText = input.isNotBlank() || attachments.isNotEmpty(),
                     onSaveText = onSaveAsTemplate
