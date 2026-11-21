@@ -300,10 +300,16 @@ class MainActivity : ComponentActivity() {
                     ?.substringBefore('?')
                     ?.trim()
                     ?.takeIf { it.isNotBlank() } ?: return
-                // body: query param "body" 또는 EXTRA_TEXT (앱마다 다름).
+                // body: "sms:번호?body=내용" 은 **opaque URI** 라 getQueryParameter 가 null 을 준다(hierarchical 전용).
+                //   그래서 schemeSpecificPart 의 '?' 뒤를 직접 파싱한다(웹 FAQ 「문자로 문의」가 이 길). 폴백으로 getQueryParameter·EXTRA_TEXT.
+                val rawQuery = uri.schemeSpecificPart?.substringAfter('?', "").orEmpty()
+                val bodyFromSsp = rawQuery.split('&')
+                    .firstOrNull { it.startsWith("body=") }
+                    ?.substringAfter('=')
+                    ?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrNull() }
                 val bodyFromQuery = runCatching { uri.getQueryParameter("body") }.getOrNull()
                 val bodyFromExtra = intent.getStringExtra(Intent.EXTRA_TEXT)
-                val body = (bodyFromQuery ?: bodyFromExtra)?.takeIf { it.isNotBlank() }
+                val body = (bodyFromSsp ?: bodyFromQuery ?: bodyFromExtra)?.takeIf { it.isNotBlank() }
                 if (body != null) {
                     val container = (application as CallFollowCrmApplication).container
                     // 사장님 작성 draft 안 덮어쓰기 — 빈 draft 일 때만 prefill.

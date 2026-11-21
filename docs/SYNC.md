@@ -16701,3 +16701,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - (앱 내부배포) ④ 관리 공개 **토글 색 안 보임**(연파랑 카드에 회색 묻힘) → Switch 색 명시(꺼짐 회색 트랙+흰손잡이·켜짐 파란). assembleRelease 가드7 통과.
 - ⚠️ 알려진 한계: 손님 "문자로 문의"=`sms:번호?body=내용` — 삼성/구글 메시지는 내용 들어감. **사장님 폰은 시공막내가 기본 문자앱이라 테스트 땐 body 안 채워짐**(우리 앱이 sms: body 미처리). 실손님엔 정상. 필요시 우리 앱 sms:/SENDTO body 처리 추가 검토.
 - 내부배포 태그(앱). 서버는 라이브 반영됨.
+
+## 2026-11-21 21:40 · android
+손님 「문자로 문의」가 **시공막내(기본 문자앱)에서 내용 안 채워지던** 버그 수정.
+- 원인: 웹 `sms:번호?body=내용` 은 **opaque URI** → `Uri.getQueryParameter("body")` 가 null(hierarchical 전용). MainActivity 가 그걸로 읽어 body=null → prefill 안 됨.
+- 수정: `schemeSpecificPart` 의 '?' 뒤를 직접 split 파싱(body= URLDecode) → getQueryParameter·EXTRA_TEXT 폴백 유지. 삼성/구글 메시지는 원래 되던 거라 무영향, 시공막내 기본앱 사용자(사장님 본인)도 이제 채워짐.
+- 검증: assembleRelease 가드7 통과. 폰: 손님 페이지 「문자로 문의」→ 번호+내용 답장칸 채워지는지.
+- 내부배포 태그(앱).
