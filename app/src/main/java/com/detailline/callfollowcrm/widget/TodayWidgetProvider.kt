@@ -141,10 +141,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     .maxByOrNull { it.issuedAtMs }
                 current = current.copy(items = quote?.itemsText.orEmpty())
             }
-            val next = arranged.ordered.drop((arranged.currentIndex + 1).coerceAtLeast(0)).firstOrNull { !it.completed }
-                ?: all.filter { it.day > anchor && !it.completed }.sortedWith(compareBy<Site> { it.day }.thenBy { it.minutes ?: Int.MAX_VALUE }).firstOrNull()
+            // 주간 줄은 저녁의 내일 미리보기와 무관하게 항상 오늘부터 7일.
+            val week = all.filter { it.day < today + 7 * DateTimeUtils.DAY_MS }.groupBy { it.day }
             if (!tick && networkOk) p.widgetUpdatedAt = now
-            val v = buildViews(app, anchorSites.size, current, next, anchor, now, tomorrow)
+            val v = buildViews(app, anchorSites.size, current, week, today, now, tomorrow)
             ids.forEach { manager.updateAppWidget(it, v) }
             // Non-wakeup/inexact: no exact-alarm permission, no API 31 dependency. Doze can defer it.
             (app.getSystemService(Context.ALARM_SERVICE) as AlarmManager).setInexactRepeating(
@@ -186,7 +186,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
         }
 
-        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, next: Site?, today: Long, now: Long, tomorrow: Boolean): RemoteViews {
+        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, week: Map<Long, List<Site>>, today: Long, now: Long, tomorrow: Boolean): RemoteViews {
             val p = app.container.preferences
             val v = RemoteViews(app.packageName, R.layout.widget_today)
             fun show(id: Int, yes: Boolean) = v.setViewVisibility(id, if (yes) View.VISIBLE else View.GONE)
@@ -253,29 +253,64 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 txt(R.id.widget_open, if (current.shareId.isBlank()) "길찾기" else "길찾기 — 누르면 출발")
                 v.setOnClickPendingIntent(R.id.widget_open, navigationPending(app, current.navAddress, current.shareId))
             }
-            txt(R.id.widget_next_label, when {
-                next == null || next.day == today -> "이어서"
-                next.day == DateTimeUtils.startOfDay(today + 36 * 60 * 60_000L) -> "내일"
-                else -> DateTimeUtils.formatShort(next.day)
-            })
-            txt(R.id.widget_next_name, next?.headline ?: "예정된 현장이 없어요")
-            txt(R.id.widget_next_sub, next?.let { listOf(if (it.day > today) DateTimeUtils.formatShort(it.day) else "", it.region, it.unit).filter(String::isNotBlank).joinToString(" · ") }.orEmpty())
-            txt(R.id.widget_next_time, next?.timeLabel.orEmpty())
-            show(R.id.widget_next_collab, next?.shareId?.isNotBlank() == true)
-            v.setOnClickPendingIntent(R.id.widget_next, next?.let { detailPending(app, it) } ?: routePending(app, "schedule"))
+            fillWeek(app, v, week, today)
             // 🏠 집으로 길찾기 — 주소 있으면 바로 네비, 없으면 **집 주소 입력창으로 바로** 보낸다. (2026-11-05 사장님)
             v.setOnClickPendingIntent(R.id.widget_home, if (p.homeAddress.isBlank()) routePending(app, "home_address") else navigationPending(app, p.homeAddress))
             return v
         }
 
-        private fun detailPending(context: Context, s: Site): PendingIntent {
+        private fun fillWeek(app: CallFollowCrmApplication, v: RemoteViews, week: Map<Long, List<Site>>, today: Long) {
+            // 각 배열: 칸, 요일, 날짜, 지역, 막대, 추가 현장 수. XML에 고정된 7칸만 채운다.
+            val cells = arrayOf(
+                intArrayOf(R.id.widget_wk0_cell, R.id.widget_wk0_dow, R.id.widget_wk0_date, R.id.widget_wk0_reg, R.id.widget_wk0_bar, R.id.widget_wk0_extra),
+                intArrayOf(R.id.widget_wk1_cell, R.id.widget_wk1_dow, R.id.widget_wk1_date, R.id.widget_wk1_reg, R.id.widget_wk1_bar, R.id.widget_wk1_extra),
+                intArrayOf(R.id.widget_wk2_cell, R.id.widget_wk2_dow, R.id.widget_wk2_date, R.id.widget_wk2_reg, R.id.widget_wk2_bar, R.id.widget_wk2_extra),
+                intArrayOf(R.id.widget_wk3_cell, R.id.widget_wk3_dow, R.id.widget_wk3_date, R.id.widget_wk3_reg, R.id.widget_wk3_bar, R.id.widget_wk3_extra),
+                intArrayOf(R.id.widget_wk4_cell, R.id.widget_wk4_dow, R.id.widget_wk4_date, R.id.widget_wk4_reg, R.id.widget_wk4_bar, R.id.widget_wk4_extra),
+                intArrayOf(R.id.widget_wk5_cell, R.id.widget_wk5_dow, R.id.widget_wk5_date, R.id.widget_wk5_reg, R.id.widget_wk5_bar, R.id.widget_wk5_extra),
+                intArrayOf(R.id.widget_wk6_cell, R.id.widget_wk6_dow, R.id.widget_wk6_date, R.id.widget_wk6_reg, R.id.widget_wk6_bar, R.id.widget_wk6_extra)
+            )
+            val blue = 0xFF2165C4.toInt()
+            v.setTextViewText(R.id.widget_week_count, "앞으로 ${week.values.sumOf { it.size }}곳")
+            cells.forEachIndexed { index, ids ->
+                val day = today + index * DateTimeUtils.DAY_MS
+                val sites = week[day].orEmpty()
+                val site = TodayVisitOrder.arrange(sites.map { TodayVisitOrder.Keyed(it, it.minutes, it.completed) }).ordered.firstOrNull()
+                val label = DateTimeUtils.formatDateLabel(day)
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = day }
+                val isSun = cal.get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.SUNDAY
+                val red = 0xFFF2555A.toInt()
+                v.setTextViewText(ids[1], label.substringAfter('(').substringBefore(')'))
+                v.setTextColor(ids[1], if (index == 0) blue else if (isSun) red else 0xFF69788C.toInt())
+                v.setTextViewText(ids[2], DateTimeUtils.formatMonthDay(day).substringAfter('/'))
+                // 오늘 = 파란 꽉 찬 원 + 흰 숫자. 일요일 = 빨강. 그 외 = 진회색.
+                v.setInt(ids[2], "setBackgroundResource", if (index == 0) R.drawable.widget_today_circle else android.R.color.transparent)
+                v.setTextColor(ids[2], if (index == 0) 0xFFFFFFFF.toInt() else if (isSun) red else 0xFF213047.toInt())
+                // region은 siteOf/collabSiteOf/asSiteOf가 기존 regionPrefix로 만든 값.
+                v.setTextViewText(ids[3], site?.region?.substringBefore(' ')?.take(3)?.ifBlank { "현장" } ?: "–")
+                v.setTextColor(ids[3], if (site == null) 0xFF9AA3B0.toInt() else 0xFF213047.toInt())
+                v.setInt(ids[4], "setBackgroundResource", if (site?.shareId?.isNotBlank() == true) R.drawable.widget_wkbar_orange else R.drawable.widget_wkbar_blue)
+                // A/S는 내 현장과 같은 계열이지만 시공 막대는 생략한다.
+                v.setViewVisibility(ids[4], if (site != null && !site.isAs) View.VISIBLE else View.GONE)
+                v.setTextViewText(ids[5], if (sites.size > 1) "외${sites.size - 1}" else "")
+                val description = site?.let {
+                    val kind = if (it.isAs) "A/S" else if (it.shareId.isNotBlank()) "협업" else "내 현장"
+                    "${it.region} ${it.headline} · $kind · ${sites.size}곳"
+                } ?: "현장 없음 · 일정 보기"
+                v.setContentDescription(ids[0], "$label · $description")
+                // 고정 view ID는 칸마다 고유하며 기존 8/9/20/21/22 requestCode와도 겹치지 않는다.
+                v.setOnClickPendingIntent(ids[0], site?.let { detailPending(app, it, ids[0]) } ?: routePending(app, "schedule", ids[0]))
+            }
+        }
+
+        private fun detailPending(context: Context, s: Site, requestCode: Int = 20): PendingIntent {
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = if (s.shareId.isNotBlank()) MainActivity.ACTION_COLLAB_SITE else MainActivity.ACTION_CUSTOMER
                 putExtra(MainActivity.EXTRA_SHARE_ID, s.shareId); putExtra(MainActivity.EXTRA_CUSTOMER_ID, s.customerId)
                 data = android.net.Uri.parse("sgmwidget://detail/${s.customerId}/${android.net.Uri.encode(s.shareId)}")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            return PendingIntent.getActivity(context, 20, intent, FLAGS)
+            return PendingIntent.getActivity(context, requestCode, intent, FLAGS)
         }
 
         /** 🏠 설정 '홈 화면에 위젯 추가' → 시스템 위젯 추가창을 바로 띄운다(한 탭 설치). 런처가 미지원이면 안내만. (2026-11-05 사장님: "위젯? 하고 설치해보게") */
@@ -298,7 +333,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }, FLAGS)
 
-        private fun routePending(context: Context, route: String) = PendingIntent.getActivity(context, route.hashCode(),
+        private fun routePending(context: Context, route: String, requestCode: Int = route.hashCode()) = PendingIntent.getActivity(context, requestCode,
             Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_WIDGET_ROUTE).putExtra("widget_route", route)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP), FLAGS)
 

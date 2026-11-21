@@ -92,11 +92,35 @@ class WidgetPreviewActivity : Activity() {
             }
         }
 
-        // ③ 이어서
-        set(R.id.widget_next_label, "이어서")
-        if (collab) { show(R.id.widget_next_collab) } else gone(R.id.widget_next_collab)
-        set(R.id.widget_next_name, "성복역 롯데캐슬")
-        set(R.id.widget_next_sub, "용인 수지 · 108동 704호")
-        set(R.id.widget_next_time, "오후 2:00")
+        // ③ 이번 주 — 고정 샘플(실제 데이터·날짜·탭 연결은 TodayWidgetProvider).
+        set(R.id.widget_week_count, if (empty) "앞으로 0곳" else "앞으로 5곳")
+        val days = arrayOf(
+            intArrayOf(R.id.widget_wk0_dow, R.id.widget_wk0_date, R.id.widget_wk0_reg, R.id.widget_wk0_bar),
+            intArrayOf(R.id.widget_wk1_dow, R.id.widget_wk1_date, R.id.widget_wk1_reg, R.id.widget_wk1_bar),
+            intArrayOf(R.id.widget_wk2_dow, R.id.widget_wk2_date, R.id.widget_wk2_reg, R.id.widget_wk2_bar),
+            intArrayOf(R.id.widget_wk3_dow, R.id.widget_wk3_date, R.id.widget_wk3_reg, R.id.widget_wk3_bar),
+            intArrayOf(R.id.widget_wk4_dow, R.id.widget_wk4_date, R.id.widget_wk4_reg, R.id.widget_wk4_bar),
+            intArrayOf(R.id.widget_wk5_dow, R.id.widget_wk5_date, R.id.widget_wk5_reg, R.id.widget_wk5_bar),
+            intArrayOf(R.id.widget_wk6_dow, R.id.widget_wk6_date, R.id.widget_wk6_reg, R.id.widget_wk6_bar)
+        )
+        val regions = listOf("수지", "처인", "–", "광교", "–", "동백", "–")
+        days.forEachIndexed { index, ids ->
+            set(ids[0], listOf("수", "목", "금", "토", "일", "월", "화")[index])
+            set(ids[1], (18 + index).toString())
+            val sun = index == 4  // 일요일
+            v.findViewById<TextView>(ids[0]).setTextColor(if (sun) 0xFFF2555A.toInt() else 0xFF69788C.toInt())
+            v.findViewById<TextView>(ids[1]).setTextColor(if (sun) 0xFFF2555A.toInt() else 0xFF213047.toInt())
+            if (!empty && regions[index] != "–") {
+                set(ids[2], regions[index]); show(ids[3])
+                v.findViewById<TextView>(ids[2]).setTextColor(0xFF213047.toInt())
+                v.findViewById<View>(ids[3]).setBackgroundResource(if (index == 3) R.drawable.widget_wkbar_orange else R.drawable.widget_wkbar_blue)
+            }
+        }
+        // 오늘(수18) = 파란 꽉 찬 원 + 흰 숫자
+        v.findViewById<TextView>(R.id.widget_wk0_date).apply {
+            setBackgroundResource(R.drawable.widget_today_circle)
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (!empty) set(R.id.widget_wk0_extra, "외1")
     }
 }

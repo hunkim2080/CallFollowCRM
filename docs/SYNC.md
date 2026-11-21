@@ -16602,3 +16602,23 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - §12-K/§12: 주소 쪼개기는 공용 `AddressExtractor.roadThenBuilding` 한 곳. 두 줄로 **그리는 곳은 채팅+이 건 카드 2군데뿐**(grep roadThenBuilding 확인). 홈 띠·히어로는 통짜 2줄 wrap(도로/단지 따로 굵게 안 함)이라 무관. 채팅은 이미 아파트명 굵음 → 이 건 카드만 규칙 맞춤. 두 벌 아님(파싱 공용, 스타일은 맥락상 크기만 다름).
 - 검증: assembleRelease **BUILD SUCCESSFUL**(가드 7종: dup18·style2422↓·size·save0·compose·brand·rules OK) · health 로그
 - 폰 확인: 아직 — 내부배포 후 사장님 실기(건 카드 주소 아파트명이 굵게 나오는지).
+
+## 2026-11-21 12:18 · android
+홈 위젯 하단 「이어서」를 사장님 승인 「이번 주」 고정 7칸으로 교체.
+- 변경: widget_today.xml의 기존 99dp 안에 오늘~6일 뒤 7칸(요일·날짜·지역·파랑/주황 막대·외N), 헤더 「앞으로 N곳」=표시 7일 전체 현장 수. 오늘은 기존 widget_refresh_bg의 연한 파란 원+파란 글자. A/S 막대와 범례는 생략. 상하 구분선·widget_home 유지.
+- 데이터: TodayWidgetProvider의 기존 all을 날짜별로 묶음. 저녁 tomorrow 모드와 독립적으로 today부터 시작. DateTimeUtils·regionPrefix·TodayVisitOrder 재사용(미완료 우선/시간순, 전부 완료도 첫 현장). cell별 고유 view ID를 requestCode로 사용하여 기존 detailPending/routePending 재사용.
+- §12: widget_next 참조 17줄→0줄. 연결 지점 3곳(XML/Provider/debug WidgetPreviewActivity) 모두 교체. 새 공용·의존성·가드 규칙/기준선 변경 없음. 표시 데이터 변경만이며 저장·서버 인터페이스 영향 없음.
+- §13: 빈 날은 회색 –·막대 없음·일정 탭. 지역 빈 값은 「현장」. 연타는 기존 상세/일정 라우팅만 수행. 느린 네트워크·실패는 기존 조회/갱신 경로 유지.
+- release 검증: JAVA_HOME 지정, 작업 폴더에 복사한 기존 Gradle 캐시로 --offline 실행. 원래 assembleRelease는 가드/컴파일/R8 이후 Crashlytics 매핑 업로드가 네트워크 제한으로 BUILD=1. 외부 업로드만 -x :app:uploadCrashlyticsMappingFileRelease로 제외하고 재실행해 BUILD SUCCESSFUL / BUILD=0 (8m 4s), APK 생성 확인. 가드 7개·R8·lint 모두 실행. Kotlin 사용자 폴더 쓰기 제한은 -Pkotlin.compiler.execution.strategy=in-process로 해결.
+- 가드: [compose] early return 없음 / [brand] 이상 없음 / [dup]18=18 / [style]2422<=2441 / [rules]공용52 일치 / [save]0=0 / [size]18개·38223줄 늘어난 곳 없음.
+- 테스트: testDebugUnitTest health --offline, BUILD SUCCESSFUL / TEST=0 (6m 39s). 153 suites·1406 tests, 실패/오류/스킵0. TodayWidgetDensityTest 2/2, TodayVisitOrderTest 6/6. health 기록: 앱520파일·122379줄, 2000줄 초과8개.
+- 폰 확인: 못 봄. docs/PHONE_CHECK_TODO.md에 최소 폭/큰 글꼴·오늘 원·18시/자정/월말·색/외N·각 칸 상세/일정 이동 확인 목록 추가.
+- 커밋/푸시/태그/배포/폰 설치 안 함(사장님 직접 검토 후 진행). 기존 작업 변경은 유지.
+
+## 2026-11-21 13:40 · android
+위젯 「이번 주」 7칸 디자인 보정 3건(사장님 에뮬 프로토 확인 후 「B: 손봐줘」).
+- 변경: ①오늘 칸 = 연한 원 대신 **파란 꽉 찬 원 + 흰 숫자**(새 drawable widget_today_circle) ②**일요일 빨강**(요일+날짜, #F2555A, 오늘이면 파란 원 우선) ③색 막대 **6×3 → 16×4 + 둥근 모서리**(새 drawable widget_wkbar_blue/orange, setBackgroundColor→setBackgroundResource). 쓰이지 않게 된 orange val 제거.
+- 연결 지점: TodayWidgetProvider.fillWeek + widget_today.xml(막대 7개) + debug WidgetPreviewActivity(동일 반영). 데이터·저장·서버 영향 없음.
+- 검증: assembleRelease BUILD SUCCESSFUL, 가드 7개 통과([dup]18=18·[style]2422<=2441·[size] 늘어난 곳 없음·compose/brand/rules/save OK). testDebugUnitTest BUILD SUCCESSFUL(1406 통과).
+- 폰 확인: **에뮬레이터**로 디자인 눈확인(오늘 파란 원·일요일 빨강·막대 커짐 — 샘플 데이터). S9는 adb 미연결(안드10=무선디버깅 없음, tcpip 5555 거부)로 실기 미확인 → 실제 현장/협업 데이터 반영은 S9 USB 연결 후 확인 필요.
+- 내부테스트 배포 진행(upload 태그).
