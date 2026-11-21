@@ -20577,10 +20577,24 @@ def _render_faq_html(payload: dict, slug: str) -> str:
                        or "시공 전 궁금한 이야기, 대표에게 직접 물어보세요.")[:200], quote=True)
     owner_sms = re.sub(r"[^+0-9]", "", payload.get("owner_sms") or "")
     sms_url = esc(f"sms:{owner_sms}?body=" + urllib.parse.quote("시공 문의드립니다.", safe=""), quote=True)
-    facts = "".join(
-        f'<span class="fact">{icon} <b>{esc(payload.get(key) or "")}</b></span>'
-        for key, icon in (("region", "📍"), ("career", "🗓"), ("count", "✅"))
-        if payload.get(key)
+    def _fact_chip(icon: str, text: str) -> str:
+        return f'<span class="fact">{icon} <b>{esc(text)}</b></span>' if text else ""
+
+    def _labeled(raw, label: str, unit: str, comma: bool = False) -> str:
+        # 숫자만 치면 라벨+단위를 붙인다("5"→"경력 5년", "3000"→"시공 3,000건").
+        # "경력 10년"처럼 직접 쓴 건 그대로 둔다.
+        v = (raw or "").strip()
+        if not v:
+            return ""
+        if v.isdigit():
+            n = f"{int(v):,}" if comma else v
+            return f"{label} {n}{unit}"
+        return v
+
+    facts = (
+        _fact_chip("📍", (payload.get("region") or "").strip())
+        + _fact_chip("🗓", _labeled(payload.get("career"), "경력", "년"))
+        + _fact_chip("✅", _labeled(payload.get("count"), "시공", "건", comma=True))
     )
     covers = [src for src in (_faq_photo_src(p) for p in payload.get("cover_photos", [])) if src]
     gallery_items = "".join(
@@ -20689,14 +20703,14 @@ def _render_faq_html(payload: dict, slug: str) -> str:
 
     <div class="section-divider"></div>
     <section class="faq-section" aria-labelledby="faq-title">
-      <div class="faq-heading"><p class="section-kicker">시공 전, 미리 알아두세요</p><h2 id="faq-title">많이 물어보신 질문,<br>여기 모아뒀어요.</h2><svg class="mascot" role="img" aria-label="노란 안전모를 쓰고 손을 든 시공막내 캐릭터"><use href="#maknae"/></svg></div>
+      <div class="faq-heading"><p class="section-kicker">시공 전, 미리 알아두세요</p><h2 id="faq-title">많이 물어보신 질문,<br>여기 모아뒀어요.</h2><svg class="mascot" role="img" aria-label="노란 안전모를 쓰고 손을 든 안내 캐릭터"><use href="#maknae"/></svg></div>
       <p class="helper">궁금한 주제를 골라보세요.</p>
       <div class="categories" role="tablist" aria-label="질문 카테고리">{tabs_html}</div>
       {panels_html}
     </section>
 
     <section class="inquiry-intro" aria-labelledby="inquiry-title"><div class="inquiry-eyebrow"><svg aria-hidden="true"><use href="#i-chat"/></svg>대표에게 직접 물어보세요</div><h2 id="inquiry-title">우리 집은 조금 다른가요?</h2><p>짧은 질문도 괜찮아요.<br>궁금한 점을 남기시면 문자로 답해드릴게요.</p><div class="contact-benefit"><svg aria-hidden="true"><use href="#i-check"/></svg>앱 설치도, 전화번호 입력도 필요 없어요.</div></section>
-    <footer class="site-footer"><div class="footer-brand">사장님 곁의 든든한 막내 &nbsp; <strong>RING-GO 시공막내</strong></div><div class="footer-url">{page_url}</div></footer>
+    <footer class="site-footer"><div class="footer-url">{page_url}</div></footer>
     <div class="action-dock"><a class="primary" id="inquiry-open" href="{sms_url}"><svg aria-hidden="true"><use href="#i-chat"/></svg>문자로 바로 문의하기</a><p class="dock-note">질문만 적으면 내 문자 앱으로 연결돼요</p></div>
   </main>
   <dialog id="inquiry-dialog" aria-labelledby="compose-title">

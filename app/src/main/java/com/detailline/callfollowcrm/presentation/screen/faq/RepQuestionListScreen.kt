@@ -375,7 +375,15 @@ private fun FaqPublishCard(
                 checked = published,
                 onCheckedChange = { onToggle(it) },
                 enabled = !publishing,
-                colors = SwitchDefaults.colors(checkedTrackColor = AppTheme.colors.primary)
+                // 연한 파란 카드 위에서도 또렷하게 — 꺼짐은 회색 트랙+흰 손잡이, 켜짐은 파란 트랙+흰 손잡이.
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = AppTheme.colors.primary,
+                    checkedBorderColor = AppTheme.colors.primary,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = AppTheme.colors.neutral,
+                    uncheckedBorderColor = AppTheme.colors.neutral
+                )
             )
         }
         if (published && faqUrl.isNotBlank()) {
