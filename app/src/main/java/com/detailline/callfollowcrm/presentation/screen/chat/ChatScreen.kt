@@ -894,14 +894,7 @@ fun ChatScreen(
                 androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
                     ChatTopActions(
                         address = customer?.address,
-                        onNavigate = { addr -> launchNavFromChat(addr) },
-                        onIntake = {
-                            // 접수서 탭으로 **바로** 연다. (전엔 견적 시트를 열고 탭을 또 눌러야 했다)
-                            estimateDraft.mode.value = "accept"
-                            showEstimateBuilder = true
-                        },
-                        onSchedule = { myScheduleOpen = true },
-                        onTemplate = { tplPickerOpen = true }
+                        onNavigate = { addr -> launchNavFromChat(addr) }
                     )
                 }
             }
@@ -3473,68 +3466,33 @@ private data class ResolvedStyle(
 
 
 /**
- * 대화 바로 위 **할 일 줄** — 주소 한 줄 + [접수서 보내기][일정 확인][문구 넣기]. (2026-09-23 사장님)
+ * 대화 바로 위 **주소 줄** — 주소 두 줄 + [길찾기]. (2026-09-23 할 일 칩 추가 → 2026-11-22 칩 제거, 주소만)
  *
- * 왜 여기인가: ⊕ 안에 있으면 **있는 줄 모른다.** 특히 접수서는 [견적 작성] 안 두 번째 탭이라
- *   세 번 눌러야 닿았다 — 30일에 3명·18건뿐이었다.
- * 왜 아이콘이 없나: 사장님 "아이콘 없는게 더 깔끔해보이네. 줄 차지도 많이 안하고".
- *   글자만 두니 줄 높이가 절반이 됐다.
- * 주소가 없으면 [주소 넣기] — 빈 칸으로 두지 않는다. 접수서를 보내 **고객이 직접** 적게 한다.
+ * 전엔 [접수서 보내기][일정 확인][문구 넣기] 칩이 같이 있었는데, ⊕ 첨부 시트에 전부 들어가 **중복**이라
+ *   사장님이 "깔끔하게 주소줄만" 지시로 뺐다(접수서는 ⊕ 견적 작성·"/접수서"로).
+ * 주소가 없으면 **줄 자체를 안 그린다** — 빈 흰 띠로 대화를 좁히지 않는다(접수서를 보내 고객이 직접 적게).
  */
 @Composable
 private fun ChatTopActions(
     address: String?,
-    onNavigate: (String) -> Unit,
-    onIntake: () -> Unit,
-    onSchedule: () -> Unit,
-    onTemplate: () -> Unit
+    onNavigate: (String) -> Unit
 ) {
     val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(address)
-    Column(
-        Modifier.fillMaxWidth().background(Color.White)
-            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
-    ) {
-        // 🔴 주소가 없으면 **줄 자체를 안 그린다.** (2026-09-23 사장님)
-        //   전엔 "주소 아직 없어요 [주소 넣기]" 가 자리를 먹었다. 두 가지가 잘못이었다:
-        //     ① 없는 걸 알리자고 한 줄을 쓰는 건 아깝다 — 대화가 그만큼 좁아진다.
-        //     ② [주소 넣기]는 결국 **접수서를 보내는 것**이라, 바로 아래 [접수서 보내기]와
-        //        **같은 동작**이었다. 같은 일을 두 버튼이 하고 있었다.
-        if (addr.isNotBlank()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            ) {
-                Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary,
-                    modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(5.dp))
-                // 주소 두 줄(동·호수 굵게) — 셈·그림은 공용 ChatAddressLines 한 곳(ChatScreenHelpers). (2026-11-19 사장님)
-                ChatAddressLines(address, addr, Modifier.weight(1f))
-                Spacer(Modifier.width(6.dp))
-                ChatTopBtn("길찾기", primary = true) { onNavigate(addr) }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ChatTopChip("접수서 보내기", Modifier.weight(1f), onIntake)
-            ChatTopChip("일정 확인", Modifier.weight(1f), onSchedule)
-            ChatTopChip("문구 넣기", Modifier.weight(1f), onTemplate)
+    // 주소 없으면 아무것도 안 그린다(early return 대신 조건부 emit — compose_guard).
+    if (addr.isNotBlank()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().background(Color.White)
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
+        ) {
+            Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            // 주소 두 줄(동·호수 굵게) — 셈·그림은 공용 ChatAddressLines 한 곳(ChatScreenHelpers). (2026-11-19 사장님)
+            ChatAddressLines(address, addr, Modifier.weight(1f))
+            Spacer(Modifier.width(6.dp))
+            ChatTopBtn("길찾기", primary = true) { onNavigate(addr) }
         }
     }
-}
-
-/** 할 일 줄의 글자 칩 — 아이콘 없이 글자만. (2026-09-23 사장님) */
-@Composable
-private fun ChatTopChip(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Text(
-        label,
-        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        maxLines = 1,
-        modifier = modifier
-            .clip(AppShape.sm)
-            .background(TossGrayBg)
-            .clickable(onClick = onClick)
-            .padding(vertical = 9.dp)
-    )
 }
 
 /** 주소 줄 오른쪽 작은 버튼 — [길찾기] 파랑 / [주소 넣기] 회색. */
