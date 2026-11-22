@@ -20815,12 +20815,12 @@ def _render_faq_html(payload: dict, slug: str) -> str:
                           f' alt="{esc(question["q"], quote=True)} 관련 사진" loading="lazy"></figure>') if photo else ""
             articles.append(
                 f'<article class="faq-item"><h3><button class="faq-trigger" id="q-{key}"'
-                f' aria-expanded="{str(qi == 0).lower()}" aria-controls="answer-{key}">'
+                f' aria-expanded="false" aria-controls="answer-{key}">'
                 '<span class="q-mark" aria-hidden="true">Q.</span>'
                 f'<span class="question-text">{esc(question["q"])}</span>'
                 '<svg class="chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button></h3>'
                 f'<div class="answer" id="answer-{key}" role="region" aria-labelledby="q-{key}"'
-                f'{"" if qi == 0 else " hidden"}><p class="answer-copy">{esc(question["a"])}</p>{photo_html}</div></article>'
+                f' hidden><p class="answer-copy">{esc(question["a"])}</p>{photo_html}</div></article>'
             )
         panels.append(
             f'<div id="panel-{ci}" role="tabpanel" aria-labelledby="tab-{ci}"{"" if selected else " hidden"}>'
@@ -20858,7 +20858,7 @@ def _render_faq_html(payload: dict, slug: str) -> str:
     .work img{{display:block;width:100%;height:195px;object-fit:cover}}
     .answer-image img{{display:block;width:100%;height:auto}}
     .intro-copy,.answer-copy{{white-space:pre-wrap}}
-    .categories{{overflow-x:auto}}.category{{min-width:72px;padding-left:12px;padding-right:12px}}
+    .categories{{overflow-x:auto;scrollbar-width:none}}.categories::-webkit-scrollbar{{display:none}}.category{{min-width:72px;padding-left:12px;padding-right:12px}}
     .wordmark{{min-width:0;overflow-wrap:anywhere}}.header-note{{flex-shrink:0;margin-left:12px}}
     h1,.specialty,.footer-url{{overflow-wrap:anywhere}}.primary{{text-decoration:none}}
     .primary[aria-disabled=true]{{background:#dce3ed;color:#91a0b4;cursor:not-allowed}}

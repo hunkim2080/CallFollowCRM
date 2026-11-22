@@ -16766,3 +16766,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 앱: `FaqPublishRepository.suggest` + `FaqSuggestDraft/Result` · 코퍼스=`SmsRepository.queryForTradeGuess`(받은 질문 광고제외 `isLikelyAd`·보낸 답) · `RepQuestionListViewModel`(AI 상태·검토·등록, 기본질문 폴백) · UI `RepQuestionAiFill.kt`(AppSheet·ShimmerLine·SheetTextField·TossBadge 재사용). assembleRelease 가드7 통과.
 - 재사용(새 공용 0): Gemini rotate 레이어·_session_phone·SmsRepository·AdHeuristics·RepQuestionRepository.add·공용 시트/칩/시머.
 - 폰 눈확인 남음(사장님 기기). 내부배포 태그(앱).
+
+## 2026-11-22 13:15 · android (+ server)
+손님 공개 FAQ 페이지 2가지 손봄 (사장님 폰 실기 · 서버만, 앱 무변경).
+- ① **카테고리 칩 아래 회색 바 제거**: `.categories{overflow-x:auto}`인데 칩이 화면보다 조금 넓어 삼성 인터넷이 가로 스크롤바(회색 줄)를 그렸다 → `scrollbar-width:none` + `::-webkit-scrollbar{display:none}`(갤러리와 같은 처리). 스크롤은 되고 바만 숨김.
+- ② **처음 접속 시 질문 다 접힘**: 전엔 각 분류 첫 질문(qi==0)이 펼쳐진 채였다 → `aria-expanded="false"` + 답 `hidden` 고정. 손님이 눌러야 펼쳐짐.
+- `_render_faq_html`(server/main.py) 수정. 라이브 배포=3곳 문자열 치환(백업 main.py.bak2.20261122-131210)→py_compile OK→kickstart→health200·smoke10/10. repo 반영(이 커밋).
