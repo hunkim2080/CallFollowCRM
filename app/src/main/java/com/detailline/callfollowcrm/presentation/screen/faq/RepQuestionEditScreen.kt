@@ -209,6 +209,12 @@ fun RepQuestionEditScreen(
                         enabled = state.loaded
                     )
                 }
+                // 직접 강조 안내 — **별표 2개**로 감싸면 손님 페이지에서 굵게. (2026-11-22 사장님)
+                Text(
+                    "강조할 말을 **별표 2개**로 감싸면 손님 페이지에서 굵게 나와요. (예: 무료 **A/S**)  ·  안 감싸면 AI가 알아서 강조해요.",
+                    style = AppType.caption, color = AppTheme.colors.textHint,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
                 // 답변을 전문 상담 톤으로 AI 다듬기 — 기존 다듬기(/faq/refine) 재사용.
                 Row(Modifier.fillMaxWidth().padding(top = AppSpace.s8), horizontalArrangement = Arrangement.End) {
                     val canRefine = state.loaded && !state.refining && state.answer.isNotBlank()
@@ -269,7 +275,8 @@ fun RepQuestionEditScreen(
                         )
                     }
                     Spacer(Modifier.height(AppSpace.s8))
-                    Text(state.answer.trim(), style = AppType.body, color = AppTheme.colors.textSub)
+                    // 미리보기 — 강조 표식(**)은 떼고 보여준다(손님 웹에선 굵게 나옴).
+                    Text(RepQuestionRules.stripEmphasis(state.answer).trim(), style = AppType.body, color = AppTheme.colors.textSub)
                     state.imageUri?.let { uri ->
                         Spacer(Modifier.height(10.dp))
                         AsyncImage(

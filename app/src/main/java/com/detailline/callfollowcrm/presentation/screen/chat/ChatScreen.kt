@@ -1885,7 +1885,9 @@ fun ChatScreen(
         open = repQuestionOpen, onClose = { repQuestionOpen = false },
         questions = repQuestions, attached = attachedPhotos,
         onInsert = { answer, photos ->
-            setInput(com.detailline.callfollowcrm.domain.ui.ComposerInsert.append(input, answer))
+            // 강조 표식(**)은 손님 웹에서만 — 문자엔 평문으로. (2026-11-22 사장님)
+            val plain = com.detailline.callfollowcrm.domain.faq.RepQuestionRules.stripEmphasis(answer)
+            setInput(com.detailline.callfollowcrm.domain.ui.ComposerInsert.append(input, plain))
             attachedPhotos = photos
             scope.launch { snackbar.showBrief("답장에 넣었어요") }
         },

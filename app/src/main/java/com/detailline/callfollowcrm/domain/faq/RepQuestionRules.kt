@@ -32,11 +32,17 @@ object RepQuestionRules {
     fun canSave(question: String, answer: String): Boolean = question.isNotBlank() && answer.isNotBlank()
 
     /**
-     * 관리 목록의 답 미리보기 한 줄 — 줄바꿈은 빈칸으로, 사진이 있으면 뒤에 「 (사진)」.
+     * 손님 **웹 페이지에서만** 굵게 — `**강조**` 표식. **문자 발송·앱 표시엔 뗀다**(평문).
+     *   사장님이 답에 `줄눈 **무료 A/S**` 처럼 적으면 그 부분만 손님 페이지에서 굵게(서버가 처리).
+     */
+    fun stripEmphasis(text: String): String = text.replace("**", "")
+
+    /**
+     * 관리 목록의 답 미리보기 한 줄 — 줄바꿈은 빈칸으로, 사진이 있으면 뒤에 「 (사진)」. 강조 표식(**)은 뗀다.
      *   (프로토 ② 「욕실 기준 평균 OO만원대입니다 (사진)」)
      */
     fun previewLine(answer: String, hasImage: Boolean): String {
-        val one = answer.trim().replace(Regex("\\s*\\n\\s*"), " ")
+        val one = stripEmphasis(answer).trim().replace(Regex("\\s*\\n\\s*"), " ")
         return if (hasImage) "$one (사진)" else one
     }
 

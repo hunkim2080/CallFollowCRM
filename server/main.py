@@ -20676,13 +20676,21 @@ async def faq_publish(req: FaqPublishRequest, request: Request) -> dict:
     #   DB 트랜잭션 **밖**에서 — 네트워크(LLM) 호출이라 안에서 하면 쓰기 락을 수 초 잡는다. 실패하면 원문(렌더가 숫자 폴백).
     try:
         _qs = raw.get("questions") or []
-        if _qs:
-            _marked = await _faq_mark_answers([q.get("a") or "" for q in _qs])
-            for q, m in zip(_qs, _marked):
-                if m and m != (q.get("a") or ""):
-                    q["a_emph"] = m
+        # 사장님이 **로 직접 강조한 답은 그대로(AI가 안 건드림). 별표 없는 답만 AI가 핵심 표시.
+        _unmarked = [q for q in _qs if (q.get("a") or "").strip() and "**" not in (q.get("a") or "")]
+        _ai = iter(await _faq_mark_answers([q.get("a") or "" for q in _unmarked])) if _unmarked else iter(())
+        for q in _qs:
+            a = q.get("a") or ""
+            if "**" in a:
+                q["a_emph"] = a            # 직접 강조 — 우선
+            elif a.strip():
+                m = next(_ai, a)
+                if m and m != a:
+                    q["a_emph"] = m        # AI 강조
                 else:
                     q.pop("a_emph", None)
+            else:
+                q.pop("a_emph", None)
     except Exception:
         pass
     with db_conn() as con:

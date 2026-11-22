@@ -16785,3 +16785,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 새 함수(FAQ 블록): `_md_bold`·`_faq_gemini_json`(범용 JSON)·`_FAQ_MARK_SYSTEM`·`_faq_mark_answers`. publish 에 강조 계산, render 에 a_emph 사용.
 - 라이브 배포=헬퍼 블록+publish 블록+render 2곳 패치(백업 main.py.bak2.20261122-132545)→py_compile OK→kickstart→health200·smoke10/10. repo 반영(이 커밋).
 - ⚠️ **기존 발행분은 재발행해야 적용**(관리 「최신 내용으로 올리기」) — a_emph 는 발행 때 생김.
+
+## 2026-11-22 13:40 · android (+ server)
+대표질문 답변 **사장님 직접 강조** 추가 (사장님 "내가 강조하고 싶다면? 글 수정하면?").
+- 규칙: 답변에 `줄눈 **무료 A/S**` 처럼 **별표 2개**로 감싸면 손님 페이지에서 그 부분 굵게. 사장님이 별표로 지정한 답은 **AI가 안 건드림**(직접 우선), 안 감싼 답만 AI가 알아서 강조. 글 수정은 자유 — 재발행 때 반영.
+- 서버(라이브): `faq_publish` — `**` 있는 답은 a_emph=원문(직접), 없는 답만 `_faq_mark_answers`(AI). 백업 main.py.bak2.20261122-135654·health200·smoke10/10.
+- 앱: `RepQuestionRules.stripEmphasis`(**→평문) — **문자 발송·미리보기는 평문**(챗 삽입 ChatScreen·챗 시트 preview·관리 previewLine·등록 미리보기). 등록/수정 화면엔 안내 한 줄("**별표 2개**로 감싸면 굵게, 안 감싸면 AI가 알아서"). 편집칸은 별표 그대로(사장님 제어). assembleRelease 가드7 통과.
+- 내부배포 태그(앱).

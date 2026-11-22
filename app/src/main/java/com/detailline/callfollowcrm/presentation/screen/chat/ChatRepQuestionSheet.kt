@@ -156,7 +156,9 @@ private fun QuestionCard(q: RepQuestionEntity, onClick: () -> Unit) {
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            q.answer, style = AppType.body, color = AppTheme.colors.textSub,
+            // 강조 표식(**)은 떼고 — 문자엔 평문으로 나간다.
+            com.detailline.callfollowcrm.domain.faq.RepQuestionRules.stripEmphasis(q.answer),
+            style = AppType.body, color = AppTheme.colors.textSub,
             maxLines = 2, overflow = TextOverflow.Ellipsis
         )
         if (q.imageUri != null) {
