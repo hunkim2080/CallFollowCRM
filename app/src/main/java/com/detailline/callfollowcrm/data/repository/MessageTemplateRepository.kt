@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 class MessageTemplateRepository(private val dao: MessageTemplateDao) {
     fun observeAll(): Flow<List<MessageTemplateEntity>> = dao.observeAll()
     fun observeActive(): Flow<List<MessageTemplateEntity>> = dao.observeActive()
+    fun observePublic(): Flow<List<MessageTemplateEntity>> = dao.observePublic()
     fun observeById(id: Long): Flow<MessageTemplateEntity?> = dao.observeById(id)
 
     suspend fun count(): Int = dao.count()

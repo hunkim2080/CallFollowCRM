@@ -876,6 +876,20 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
 
     // ── 대표질문 공개 페이지(손님 FAQ) (2026-11-21) — 업체명·지역은 bizName/ownerRegions 재사용, 아래는 FAQ 전용. ──
+    /** 원본 대표질문을 비공개 문구로 이사했는지. 성공했을 때만 기록한다. */
+    var repQuestionsMergedIntoTemplates: Boolean
+        get() = prefs.getBoolean("rep_questions_merged_into_templates", false)
+        set(value) {
+            check(prefs.edit().putBoolean("rep_questions_merged_into_templates", value).commit())
+        }
+
+    /** DB 커밋 직후 앱이 종료돼도 재복사하지 않도록, 커밋 전에 복사 ID·생성시각을 기록한다. */
+    internal var repQuestionsTemplateMergeReceipt: Set<String>?
+        get() = prefs.getStringSet("rep_questions_template_merge_receipt", null)?.toSet()
+        set(value) {
+            check(prefs.edit().putStringSet("rep_questions_template_merge_receipt", value).commit())
+        }
+
     /** 손님 공개 FAQ 페이지 공개 여부(관리 토글). */
     var faqPublished: Boolean
         get() = prefs.getBoolean("faq_published", false)
@@ -1144,15 +1158,6 @@ class AppPreferences(context: Context) {
             .toSet()
     }
 
-    /**
-     * 🔨 「시공 끝났나요?」에 **「아직이에요」** 하신 것 — 그 날짜로는 다시 안 묻는다. (2026-09-28)
-     *   날짜를 새로 잡으시면 키가 바뀌므로 **그때는 다시 묻는다** — 미뤄진 일은 언젠가 끝나니까.
-     */
-    /**
-     * 🔒 번호 모양을 한 번 맞췄나. (2026-09-29)
-     *   저장 규칙이 바뀌기 전에 하이픈 채로 저장된 줄들을 앱 켤 때 1회 정리한다.
-     *   실패하면 안 세워서 다음 실행에 다시 해본다.
-     */
     /**
      * 🔗 확실한 쌍(통일하면 글자까지 같아지는 것)을 한 번 합쳤나. (2026-09-30)
      *   실패하면 안 세워서 다음 실행에 다시 해본다. 백업이 안 되면 합치지 않는다.

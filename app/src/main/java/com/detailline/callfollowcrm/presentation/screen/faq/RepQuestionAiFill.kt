@@ -94,7 +94,7 @@ private fun AiFillSheetBody(viewModel: RepQuestionListViewModel) {
             Modifier.fillMaxWidth().clip(AppShape.md).background(AppTheme.colors.cautionBg)
                 .padding(horizontal = 12.dp, vertical = 9.dp)
         ) {
-            Text("AI 초안이에요 — 가격·날짜는 꼭 확인하고 등록하세요", style = AppType.caption, color = AppTheme.colors.cautionText)
+            Text("FAQ 공개 문구로 저장돼요 — 가격·날짜는 꼭 확인하고 등록하세요", style = AppType.caption, color = AppTheme.colors.cautionText)
         }
         Spacer(Modifier.height(AppSpace.s12))
 

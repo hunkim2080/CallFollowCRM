@@ -16824,3 +16824,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. FullscreenPhotoViewer 에 selectedUris·onToggleSelect·onAttachSelected(attach 모드) 추가 — 상단 우측에 번호 동그라미 + 「첨부 N」. 선택은 ChatPhotoPickerSheet 의 selected 를 그대로 공유(0개면 지금 보는 한 장). 다른 뷰어 호출부는 새 인자 기본값이라 영향 없음. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과만)
 - 다음 액션: 채팅 첨부 크게보기에서 번호 눌러 여러 장 선택→첨부 확인
+
+## 2026-11-22 23:14 · android
+문구 · 대표질문 하나로 통합 (Phase 1) — 저장한 말 한 종류 + 「손님 FAQ에 공개」 토글(기본 비공개)
+- 변경: 앱만. message_templates 에 isPublic(DB v78). 대표질문→문구 **비파괴 1회 이사**(RepQuestionTemplateMerge — 원본 rep_questions 보존·영수증 재시도). 발행은 공개 문구(observePublic)에서. 채팅 ⊕ 「대표질문」 버튼 제거(문구 하나로). 문구 편집에 공개 토글(공개 시 질문=title·답=body·분류). 목록 「FAQ 공개」 딱지. §12 표 갱신. 코덱스 구현→내가 검수(withTransaction 안 Flow 교착 → 트랜잭션 밖 읽기로 수정)·가드7·마이그레이션 테스트6 통과. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7·테스트 통과만)
+- 다음 액션: 폰에서 기존 대표질문이 문구에 비공개로 들어왔는지·공개 토글·발행 확인. Phase 2(서버/손님페이지)는 사장님 지시 때.

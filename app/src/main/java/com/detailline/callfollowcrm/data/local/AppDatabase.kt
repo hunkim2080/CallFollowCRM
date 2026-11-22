@@ -72,13 +72,8 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.AppNotificationEntity::class,
         com.detailline.callfollowcrm.data.local.entity.RepQuestionEntity::class
     ],
-    version = 77,
-    // 🗄️ **DB 모양을 파일로 내보낸다.** (2026-10-02 Fable 점검 🔥2)
-    //   전엔 false 였다 — 그래서 **지금 DB 가 어떤 모양인지 git 에 아무 기록이 없었다.**
-    //   2026-09-17 에 마이그레이션 INSERT 가 NOT NULL 칸을 빼먹어 **새로 깐 폰에서 앱이
-    //   아예 안 켜진** 사고가 났는데, 기계가 그걸 미리 볼 방법이 없었다.
-    //   이제 `app/schemas/<DB>/61.json` 이 git 에 남고, 그 파일을 **단위 테스트가 읽어
-    //   「저장할 때 반드시 채워야 하는 칸」을 센다** (MigrationInsertColumnsTest).
+    version = 78,
+    // Room 스키마를 app/schemas/<DB>/<version>.json 에 보관해 업그레이드 안전성을 검사한다.
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1321,6 +1316,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v77 -> v78: 「문구 · 대표질문 하나로」 — message_templates 에 공개 여부 칸.
+        //   대표질문 데이터 이사(rep_questions → message_templates)는 코드에서 비파괴 1회(AppContainer).
+        private val MIGRATION_77_78 = object : Migration(77, 78) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `message_templates` ADD COLUMN `isPublic` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         private val MIGRATION_59_60 = object : Migration(59, 60) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 runCatching {
@@ -1467,14 +1470,9 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67,
                     MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72,
                     MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76,
-                    MIGRATION_76_77
+                    MIGRATION_76_77, MIGRATION_77_78
                 )
-                // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
-                //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.
-                //   → 앞으로 41→42 등에서 migration SQL 하나만 틀려도 고객·정산 데이터가 소리 없이 증발.
-                //   실전 앱에선 '삭제'보다 '크래시'가 백배 낫다(크래시는 보고받고 고쳐 재배포 가능, 삭제는 복구 불가).
-                //   단, MIGRATION_1_2/2_3 이 애초에 없어(v1·v2 경로 부재) 통째로 떼면 그 옛 사용자가 크래시 →
-                //   v1·v2 에서 올라올 때만 예외로 삭제 허용, 그 외(v3~ 및 미래 실수)는 IllegalStateException 으로 멈춤.
+                // v1·v2만 삭제 허용. v3부터는 실패해도 데이터를 지우지 않는다.
                 .fallbackToDestructiveMigrationFrom(1, 2)
                 .build()
                 .also { instance = it }

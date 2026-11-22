@@ -461,7 +461,7 @@ fun AppNavHost(
                 onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRepQuestions = { navController.navigate(Destinations.REP_QUESTIONS) },
-                onNewRepQuestion = { navController.navigate(Destinations.repQuestionEdit(null)) }
+                onNewRepQuestion = { navController.navigate(Destinations.templateEdit(null)) }
             )
         }
 
@@ -736,24 +736,11 @@ fun AppNavHost(
             com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionListScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onEdit = { id -> navController.navigate(Destinations.repQuestionEdit(id)) },
-                onNew = { navController.navigate(Destinations.repQuestionEdit(null)) },
+                onEdit = { id -> navController.navigate(Destinations.templateEdit(id)) },
+                onNew = { navController.navigate(Destinations.templateEdit(null)) },
                 onEditBizIntro = { navController.navigate(Destinations.BIZ_INTRO_EDIT) }
             )
         }
-        composable(
-            route = Destinations.REP_QUESTION_EDIT_WITH_ARG,
-            arguments = listOf(navArgument("id") { type = NavType.LongType; defaultValue = -1L })
-        ) { backStack ->
-            val id = backStack.arguments?.getLong("id")?.takeIf { it > 0 }
-            val vm: com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionEditViewModel = viewModel(
-                factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionEditViewModel(container, id) }
-            )
-            com.detailline.callfollowcrm.presentation.screen.faq.RepQuestionEditScreen(
-                viewModel = vm, onDone = { navController.popBackStack() }
-            )
-        }
-
         // 🏷️ 업체 소개 편집 — 손님 공개 FAQ 페이지 상단(소개글·대표사진·경력·건수). 더보기 「업체 소개」. (2026-11-21)
         composable(Destinations.BIZ_INTRO_EDIT) {
             val vm: com.detailline.callfollowcrm.presentation.screen.faq.BizIntroEditViewModel = viewModel(

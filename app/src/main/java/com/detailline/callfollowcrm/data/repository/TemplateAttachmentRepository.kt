@@ -31,7 +31,8 @@ class TemplateAttachmentRepository(private val dao: TemplateAttachmentDao) {
         templateId: Long,
         fileUri: String,
         displayName: String,
-        mimeType: String
+        mimeType: String,
+        createdAt: Long = System.currentTimeMillis()
     ): Long {
         val existing = dao.findByTemplate(templateId)
         val nextOrder = (existing.maxOfOrNull { it.sortOrder } ?: -1) + 1
@@ -42,7 +43,7 @@ class TemplateAttachmentRepository(private val dao: TemplateAttachmentDao) {
                 displayName = displayName,
                 mimeType = mimeType,
                 sortOrder = nextOrder,
-                createdAt = System.currentTimeMillis()
+                createdAt = createdAt
             )
         )
     }

@@ -67,6 +67,14 @@ fun TemplateListScreen(
     onNew: () -> Unit,
     onOpenDiscover: () -> Unit = {}
 ) {
+    val toast by viewModel.toast.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(toast) {
+        toast?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.consumeToast()
+        }
+    }
     val templates by viewModel.templates.collectAsState()
     // 문구ID → 첫 사진 URI. 채팅 피커와 같은 공용 셈 — 등록한 사진을 이 화면에도 썸네일로. (2026-10-12 사장님)
     val photoByTemplate by viewModel.photoByTemplate.collectAsState()
@@ -80,7 +88,7 @@ fun TemplateListScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("문자 템플릿", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("저장한 말", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -198,6 +206,9 @@ fun TemplateListScreen(
                                                     maxLines = 1,
                                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                                 )
+                                                if (t.isPublic) {
+                                                    com.detailline.callfollowcrm.presentation.component.TossBadge("FAQ 공개")
+                                                }
                                                 if (named) {
                                                     Spacer(Modifier.height(2.dp))
                                                     Text(

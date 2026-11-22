@@ -4,7 +4,8 @@ import android.content.Context
 import android.net.Uri
 import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
-import com.detailline.callfollowcrm.data.repository.RepQuestionRepository
+import com.detailline.callfollowcrm.data.repository.MessageTemplateRepository
+import com.detailline.callfollowcrm.data.repository.TemplateAttachmentRepository
 import com.detailline.callfollowcrm.util.ImageEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -29,7 +30,8 @@ import java.util.concurrent.TimeUnit
 class FaqPublishRepository(
     private val appContext: Context,
     private val prefs: AppPreferences,
-    private val repQuestionRepository: RepQuestionRepository,
+    private val messageTemplateRepository: MessageTemplateRepository,
+    private val templateAttachmentRepository: TemplateAttachmentRepository,
     private val baseUrl: String = AppConfig.BASE_URL
 ) {
     private val client: OkHttpClient = Net.builder()
@@ -42,7 +44,7 @@ class FaqPublishRepository(
     /** 공개 페이지를 올린다(또는 숨긴다). 성공 시 공개 URL 반환. 실패는 삼키지 않고 Result.failure 로 올린다(화면이 말한다). */
     suspend fun publish(published: Boolean): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val questions = repQuestionRepository.observeAll().first()
+            val questions = messageTemplateRepository.observePublic().first()
             val cats = LinkedHashSet<String>()
             questions.forEach { if (it.category.isNotBlank()) cats += it.category }
             val payload = JSONObject().apply {
@@ -71,9 +73,10 @@ class FaqPublishRepository(
                     questions.forEach { q ->
                         put(JSONObject().apply {
                             put("category", q.category)
-                            put("q", q.question)
-                            put("a", q.answer)
-                            put("photo", q.imageUri?.let { encode(it) } ?: JSONObject.NULL)
+                            put("q", q.title)
+                            put("a", q.body)
+                            put("photo", templateAttachmentRepository.findByTemplate(q.id)
+                                .firstOrNull()?.fileUri?.let { encode(it) } ?: JSONObject.NULL)
                         })
                     }
                 })

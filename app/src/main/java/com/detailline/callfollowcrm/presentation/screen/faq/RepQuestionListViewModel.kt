@@ -5,10 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.ai.RefineQuotaException
 import com.detailline.callfollowcrm.data.AppContainer
-import com.detailline.callfollowcrm.data.local.entity.RepQuestionEntity
+import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
+import com.detailline.callfollowcrm.data.local.AppDatabase
+import androidx.room.withTransaction
 import com.detailline.callfollowcrm.presentation.util.SaveGuard
 import com.detailline.callfollowcrm.util.isLikelyAd
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,16 +21,19 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** 💬 대표질문 관리 — 목록·순서·지우기. (프로토 EYKUs11cVT7JW71yVrVoBA ②) */
+/** 손님 FAQ 관리 — 공개 문구 목록·지우기·페이지 발행. */
 class RepQuestionListViewModel(private val container: AppContainer) : ViewModel() {
 
     /** null = 아직 읽는 중(빈 화면을 잠깐 잘못 보여주지 않게). */
-    val questions: StateFlow<List<RepQuestionEntity>?> =
-        container.repQuestionRepository.observeAll()
-            .map<List<RepQuestionEntity>, List<RepQuestionEntity>?> { it }
+    val questions: StateFlow<List<MessageTemplateEntity>?> =
+        container.messageTemplateRepository.observePublic()
+            .map<List<MessageTemplateEntity>, List<MessageTemplateEntity>?> { it }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // 🗣 순서 바꾸기·지우기·공개가 실패하면 말하는 통로.
+    val photoByTemplate = container.templateAttachmentRepository.observeFirstImageUriByTemplate()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    // 지우기·공개가 실패하면 말하는 통로.
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
@@ -82,22 +86,10 @@ class RepQuestionListViewModel(private val container: AppContainer) : ViewModel(
         }
     }
 
-    /** 끌어서 놓은 순서 그대로 적는다. 실패하면 말한다(목록은 DB 가 다시 그려 옛 순서로 돌아온다). */
-    fun reorder(orderedIds: List<Long>) {
+    fun delete(entity: MessageTemplateEntity) {
         viewModelScope.launch {
-            SaveGuard.run("대표질문 순서", _toast) { container.repQuestionRepository.reorder(orderedIds) }
-        }
-    }
-
-    fun delete(entity: RepQuestionEntity) {
-        viewModelScope.launch {
-            try {
-                container.repQuestionRepository.delete(entity)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                android.util.Log.e("RepQuestion", "delete failed", e)
-                _toast.value = "대표질문을 지우지 못했어요 — 다시 한 번 눌러주세요"
+            SaveGuard.run("문구 삭제", _toast) {
+                container.messageTemplateRepository.deleteById(entity.id)
             }
         }
     }
@@ -195,8 +187,15 @@ class RepQuestionListViewModel(private val container: AppContainer) : ViewModel(
         _aiSaving.value = true
         viewModelScope.launch {
             val ok = SaveGuard.run("대표질문", _toast) {
-                chosen.forEach {
-                    container.repQuestionRepository.add(it.question, it.answer, null, it.category)
+                AppDatabase.getInstance(container.appContext).withTransaction {
+                    val now = System.currentTimeMillis()
+                    chosen.forEach {
+                        container.messageTemplateRepository.insert(MessageTemplateEntity(
+                            title = it.question, body = it.answer, category = it.category,
+                            isDefault = false, isActive = true, isPublic = true,
+                            createdAt = now, updatedAt = now
+                        ))
+                    }
                 }
                 true
             }

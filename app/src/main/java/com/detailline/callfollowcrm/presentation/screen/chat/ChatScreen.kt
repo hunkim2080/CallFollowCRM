@@ -1716,7 +1716,7 @@ fun ChatScreen(
             //   (통화 후 문자는 이미 사진을 같이 보내는데 채팅 문구 넣기만 빠져 있었다. 2026-07-16 사장님)
             //   바로 발송은 안 함 — 사장님이 ▶ 누르고 확인창에서 '사진 N장' 보고 보냄(기존 발송 흐름 그대로).
             onPick = { tpl ->
-                setInput(com.detailline.callfollowcrm.domain.ui.ComposerInsert.append(input, tpl.body))
+                setInput(com.detailline.callfollowcrm.domain.ui.ComposerInsert.append(input, com.detailline.callfollowcrm.domain.faq.RepQuestionRules.stripEmphasis(tpl.body)))
                 viewModel.loadTemplatePhotos(tpl.id) { uris ->
                     val add = uris.mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
                         .filter { it !in attachedPhotos }   // 같은 문구를 두 번 넣어도 사진은 안 겹침

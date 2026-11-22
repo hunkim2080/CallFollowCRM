@@ -359,7 +359,6 @@ private fun ChatPhotoPickerSheet(
             add(GridAction(Icons.Default.Description, "견적 작성", AppTheme.colors.primary, onEstimate))
             add(GridAction(Icons.Default.DateRange, "내 일정", AppTheme.colors.category, onSchedule))
             add(GridAction(Icons.AutoMirrored.Filled.Chat, "문구 넣기", AppTheme.colors.done, onTemplate))
-            add(GridAction(Icons.Default.QuestionAnswer, "대표질문", AppTheme.colors.simpleText, onRepQuestion))
             // 입력창에 글/사진이 있을 때만 — 전엔 ⊕ 풍선 메뉴의 '이 글을 문구로 저장'. (2026-09-16 자리 유지)
             if (canSaveText) add(GridAction(Icons.Default.Save, "문구로 저장", AppTheme.colors.done, onSaveText))
         }

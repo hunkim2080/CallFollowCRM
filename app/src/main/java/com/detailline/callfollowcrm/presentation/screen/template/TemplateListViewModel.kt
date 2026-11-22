@@ -3,12 +3,19 @@ package com.detailline.callfollowcrm.presentation.screen.template
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.presentation.util.SaveGuard
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class TemplateListViewModel(private val container: AppContainer) : ViewModel() {
+
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast = _toast.asStateFlow()
+    fun consumeToast() { _toast.value = null }
 
     val templates = container.messageTemplateRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -20,17 +27,21 @@ class TemplateListViewModel(private val container: AppContainer) : ViewModel() {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun toggleActive(id: Long, active: Boolean) = viewModelScope.launch {
-        val t = container.messageTemplateRepository.findById(id) ?: return@launch
-        container.messageTemplateRepository.update(t.copy(isActive = active))
+        SaveGuard.run("문구", _toast) {
+            val t = checkNotNull(container.messageTemplateRepository.findById(id))
+            container.messageTemplateRepository.update(t.copy(isActive = active))
+        }
     }
 
     /** 이름 수정 (프로토 editTemplateName). */
     fun rename(id: Long, name: String) = viewModelScope.launch {
-        val t = container.messageTemplateRepository.findById(id) ?: return@launch
-        container.messageTemplateRepository.update(t.copy(title = name.trim()))
+        SaveGuard.run("문구 이름", _toast) {
+            val t = checkNotNull(container.messageTemplateRepository.findById(id))
+            container.messageTemplateRepository.update(t.copy(title = name.trim()))
+        }
     }
 
     fun delete(id: Long) = viewModelScope.launch {
-        container.messageTemplateRepository.deleteById(id)
+        SaveGuard.run("문구 삭제", _toast) { container.messageTemplateRepository.deleteById(id) }
     }
 }

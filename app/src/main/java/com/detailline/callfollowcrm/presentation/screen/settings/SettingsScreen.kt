@@ -602,10 +602,10 @@ fun SettingsScreen(
                         "통화 요약·부재중·협업… 둘러보기", first = true, onClick = onOpenFeatureTour)
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동으로 챙기기",
                         "부재중 문자 · 시공 D-1 · 통화 요약 · 답변 준비") { subPage = "autosms" }
-                    LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
-                        "자주 쓰는 문구 관리", onClick = onOpenTemplates)
-                    LockRow(Icons.Filled.QuestionAnswer, TossBlueSoft, TossBlue, "대표질문",
-                        "자주 묻는 질문·답을 답장에 한 탭으로", onClick = onOpenRepQuestions)
+                    LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "저장한 말",
+                        "문구와 손님 FAQ 공개 설정", onClick = onOpenTemplates)
+                    LockRow(Icons.Filled.QuestionAnswer, TossBlueSoft, TossBlue, "손님 FAQ",
+                        "공개 문구·페이지 발행 관리", onClick = onOpenRepQuestions)
                     LockRow(Icons.Filled.Storefront, TossBlueSoft, TossBlue, "업체 소개",
                         "손님 공개 페이지에 보일 소개·대표사진", onClick = onOpenBizIntro)
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",

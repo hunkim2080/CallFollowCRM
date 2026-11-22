@@ -74,6 +74,8 @@ fun TemplateEditScreen(
     onDone: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val saving by viewModel.saving.collectAsState()
+    val loading by viewModel.loading.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
     val context = LocalContext.current
     // 🗣 문구 저장이 실패하면 사장님께 말한다.
@@ -84,18 +86,10 @@ fun TemplateEditScreen(
             viewModel.consumeToast()
         }
     }
-    val canSave = state.title.isNotBlank() && state.body.isNotBlank()
+    val canSave = !saving && !loading && state.title.isNotBlank() && state.body.isNotBlank()
 
-    // 문구 이탈 확인 — 뒤로/저장없이 나가면 편집이 날아가던 것. 로드 후 첫 스냅샷과 비교. (2026-08-15 UX감사#2)
-    val initialTpl = remember { mutableStateOf<Pair<String, String>?>(null) }
-    LaunchedEffect(state.title, state.body) {
-        if (initialTpl.value == null && (state.title.isNotEmpty() || state.body.isNotEmpty())) {
-            initialTpl.value = state.title to state.body
-        }
-    }
-    val tplDirty = initialTpl.value?.let { (state.title to state.body) != it } ?: false
     var confirmTplExit by remember { mutableStateOf(false) }
-    fun tryTplExit() { if (tplDirty) confirmTplExit = true else onDone() }
+    fun tryTplExit() { if (viewModel.hasChanges()) confirmTplExit = true else onDone() }
     androidx.activity.compose.BackHandler { tryTplExit() }
     if (confirmTplExit) {
         androidx.compose.material3.AlertDialog(
@@ -122,7 +116,7 @@ fun TemplateEditScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (state.isDefault) "기본 템플릿 수정" else "템플릿 편집",
+                        "저장한 말 편집",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -145,7 +139,7 @@ fun TemplateEditScreen(
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 TossPrimaryButton(
-                    text = "저장",
+                    text = if (saving) "저장 중…" else "저장",
                     onClick = { viewModel.save(onDone) },
                     enabled = canSave
                 )
@@ -163,19 +157,38 @@ fun TemplateEditScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            TossCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("손님 FAQ에 공개", modifier = Modifier.weight(1f),
+                        style = com.detailline.callfollowcrm.presentation.theme.AppType.headline,
+                        color = com.detailline.callfollowcrm.presentation.theme.AppTheme.colors.text)
+                    Switch(checked = state.isPublic, onCheckedChange = viewModel::setPublic, enabled = !loading && !saving)
+                }
+            }
+            if (state.isPublic) {
+                TossCard {
+                    Column {
+                        SectionLabel("분류")
+                        Spacer(Modifier.height(10.dp))
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            value = state.category, onValueChange = viewModel::setCategory, placeholder = "예: 가격, 시공시간"
+                        )
+                    }
+                }
+            }
             // 제목
             TossCard {
                 Column {
-                    SectionLabel("템플릿 이름")
+                    SectionLabel(if (state.isPublic) "손님 질문" else "문구 이름")
                     Spacer(Modifier.height(10.dp))
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.title,
                         onValueChange = viewModel::setTitle,
-                        placeholder = "예: 사진 요청"
+                        placeholder = if (state.isPublic) "예: 시공은 얼마나 걸리나요?" else "예: 사진 요청"
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "후속 처리 화면에서 칩으로 표시되는 이름이에요",
+                        if (state.isPublic) "공개 FAQ에 손님 질문으로 표시돼요" else "후속 처리 화면에서 칩으로 표시되는 이름이에요",
                         style = MaterialTheme.typography.labelSmall,
                         color = TossTextTertiary
                     )
@@ -185,7 +198,7 @@ fun TemplateEditScreen(
             // 본문
             TossCard {
                 Column {
-                    SectionLabel("문자 본문")
+                    SectionLabel(if (state.isPublic) "답" else "문자 본문")
                     Spacer(Modifier.height(10.dp))
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.body,
@@ -202,7 +215,7 @@ fun TemplateEditScreen(
                     SectionLabel("첨부 사진")
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "이 템플릿으로 문자 보낼 때 자동으로 첨부돼요. 명함이나 시공 사진 등을 넣어두면 편해요.",
+                        if (state.isPublic) "첫 첨부 사진이 FAQ 답 사진으로 나가요. 문자에도 함께 첨부돼요." else "이 문구로 문자 보낼 때 자동으로 첨부돼요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextTertiary
                     )

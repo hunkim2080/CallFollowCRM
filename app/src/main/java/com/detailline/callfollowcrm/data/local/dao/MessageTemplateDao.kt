@@ -29,6 +29,10 @@ interface MessageTemplateDao {
     @Query("SELECT * FROM message_templates WHERE isActive = 1 ORDER BY isDefault DESC, id ASC")
     fun observeActive(): Flow<List<MessageTemplateEntity>>
 
+    /** 손님 FAQ 페이지에 공개한 것만 — 발행(FaqPublishRepository)이 본다. (2026-11-22) */
+    @Query("SELECT * FROM message_templates WHERE isPublic = 1 ORDER BY isDefault DESC, id ASC")
+    fun observePublic(): Flow<List<MessageTemplateEntity>>
+
     @Query("SELECT COUNT(*) FROM message_templates")
     suspend fun count(): Int
 

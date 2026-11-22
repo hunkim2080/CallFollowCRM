@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.data
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.detailline.callfollowcrm.ai.AiSummaryRepository
 import com.detailline.callfollowcrm.ai.ConversationAiRepository
 import com.detailline.callfollowcrm.ai.NoOpAiSummaryRepository
@@ -51,7 +52,7 @@ class AppContainer(context: Context) {
         appContext, db.scheduledSmsDao()
     )
     val messageTemplateRepository = MessageTemplateRepository(db.messageTemplateDao())
-    // 💬 대표질문(FAQ) — 자주 묻는 질문+답(+사진 1장)을 답장에 한 탭으로. 자주 쓰는 문구와 별개. (2026-11-21)
+    // 기존 대표질문 원본은 이사 후에도 백업으로 보존한다.
     val repQuestionRepository = com.detailline.callfollowcrm.data.repository.RepQuestionRepository(
         context.applicationContext, db.repQuestionDao()
     )
@@ -170,9 +171,9 @@ class AppContainer(context: Context) {
 
     val preferences = AppPreferences(context)
 
-    // 💬 대표질문 = 손님 공개 FAQ 페이지 — 앱→서버 publish. preferences·repQuestionRepository 뒤라야 함(초기화 순서). (2026-11-21 Phase 2)
+    // 손님 FAQ 발행은 공개 문구와 첨부를 읽는다. preferences 초기화 뒤에 생성한다.
     val faqPublishRepository = com.detailline.callfollowcrm.ai.FaqPublishRepository(
-        context.applicationContext, preferences, repQuestionRepository
+        context.applicationContext, preferences, messageTemplateRepository, templateAttachmentRepository
     )
 
     /**
@@ -425,6 +426,17 @@ class AppContainer(context: Context) {
     )
 
     init {
+        applicationScope.launch {
+            if (!preferences.repQuestionsMergedIntoTemplates) {
+                runCatching {
+                    com.detailline.callfollowcrm.data.repository.mergeRepQuestionsIntoTemplates(
+                        preferences, repQuestionRepository, messageTemplateRepository, templateAttachmentRepository
+                    ) { copy -> db.withTransaction { copy() } }
+                }.onFailure {
+                    android.util.Log.e("AppContainer", "대표질문 이사 실패 — 다음 실행에 재시도", it)
+                }
+            }
+        }
         // 고객 번호 끝8자리 캐시 유지 — 말투 학습이 "고객에게 보낸 문자"만 보도록.
         applicationScope.launch {
             customerRepository.observeAll().collect { list ->
