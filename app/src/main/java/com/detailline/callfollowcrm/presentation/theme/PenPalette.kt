@@ -15,6 +15,5 @@ val PEN_COLORS = listOf(
     Color(0xFFFFFFFF)  // 흰
 )
 
-/** 펜 화면 바탕(아주 어두운 회색) · 도구바(조금 밝은 어두움) — 프로토 --page / --bar. */
+/** 펜 화면 바탕(아주 어두운 회색) — 사진 레터박스·도구바가 **같은 색**으로 이어진다(카카오식 연속 영역). */
 val PenStageBg = Color(0xFF0E0F12)
-val PenBarBg = Color(0xFF1A1C20)
