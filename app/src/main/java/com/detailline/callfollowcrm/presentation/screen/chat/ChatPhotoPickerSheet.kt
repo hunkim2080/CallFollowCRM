@@ -25,9 +25,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -71,17 +77,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 🖼️ **카톡식 사진 첨부 — 채팅 ⊕ 「사진 첨부」.** (2026-11-21 사장님 「가」 · 프로토 6tW9xbZXAVJd5jj32uRYiH)
+ * 🖼️ **카카오식 첨부 시트 — 채팅 ⊕.** (2026-11-22 사장님 "카카오 스타일로" 「가」 · 프로토 Fgc3bbn24D1doxDop2JiDz)
  *
- *   ⊕ → **바텀시트**(최근 사진 가로줄 · 카메라 · 전체 보기) → 사진 탭 → **크게 보기 + [펜]**(공용 뷰어 · 펜을 눌러야 그려진다) →
- *   「첨부」 = **입력칸에 담기만**(전송 아님). 전엔 시스템 선택기로 담은 뒤 **썸네일을 다시 눌러야** 펜이 나왔다.
+ *   ⊕ → **바텀시트**: 위는 **최근 사진 가로줄**(맨 앞 카메라 · 여러 장 골라 「첨부 N」), 아래는 **둥근 아이콘 그리드**
+ *   (앨범 · 견적 작성 · 내 일정 · 문구 넣기 · 대표질문 [+글 있으면 '문구로 저장']). 사진 탭 → **크게 보기 + [펜]** →
+ *   「첨부」 = **입력칸에 담기만**(전송 아님). 전엔 ⊕ 풍선 메뉴와 사진 시트가 **두 벌**이었다 — 한 시트로 합쳤다(§12).
  *
  *   새로 만든 건 **이 시트 한 장**뿐이다 — 나머지는 전부 있는 걸 쓴다(§12):
  *     사진첩 읽기 `DeviceGalleryRepository` · 권한 `PermissionHelper` · 시트 틀 `AppSheet` ·
  *     펜 `FullscreenPhotoViewer(onAttachDirect)` · 합성 `PhotoMarkRenderer.renderToFileUri` ·
  *     몇 장까지 `PickLimit` · 부분 허용 띠 `PartialAccessBar`(현장 사진 선택창과 같은 것).
+ *   그리드 동작(견적/일정/문구/대표질문)은 전엔 `ComposerActionMenu` 풍선이 들고 있었다 — 이제 [ChatPhotoPickerHost] 가 받아 넘긴다.
  *
- *   권한을 안 주거나(거부) 한도가 차면 **화면에 말하고**, 거부면 시스템 선택기로 넘긴다(조용히 죽지 않는다 §13).
+ *   ⊕ 는 **항상** 시트를 연다(그리드는 사진 권한과 무관). 사진 권한이 없으면 가로줄에 '사진 허용' 타일.
+ *   권한 거부·한도 초과는 **화면에 말한다**(조용히 죽지 않는다 §13).
  */
 
 /** 가로줄에 보여줄 최근 사진 수. 더 보려면 「전체 보기」(시스템 선택기). */
@@ -116,6 +125,13 @@ internal fun ChatPhotoPickerHost(
     attached: List<Uri>,
     onSystemPicker: () -> Unit,
     onAttached: (List<Uri>) -> Unit,
+    // 둥근 아이콘 그리드 동작 — 전엔 ⊕ 풍선 메뉴였던 것(한 시트로 합침 §12).
+    onEstimate: () -> Unit = {},
+    onSchedule: () -> Unit = {},
+    onTemplate: () -> Unit = {},
+    onRepQuestion: () -> Unit = {},
+    canSaveText: Boolean = false,
+    onSaveText: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -131,16 +147,6 @@ internal fun ChatPhotoPickerHost(
 
     val room = PickLimit.remaining(attachedNow.size)
 
-    val permLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ ->
-        if (PermissionHelper.hasGalleryImages(ctx)) {
-            selected = emptyList(); show = true
-        } else {
-            say(ctx, "사진첩 권한이 없어 기본 사진 선택창으로 열어요")
-            onSystemPicker()
-        }
-    }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val shot = cameraUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
         cameraUri = null
@@ -151,11 +157,9 @@ internal fun ChatPhotoPickerHost(
     LaunchedEffect(request) {
         if (request) {
             onRequestHandled()
-            when {
-                room == 0 -> say(ctx, "사진은 ${PickLimit.CHAT_MAX}장까지 담을 수 있어요")
-                PermissionHelper.hasGalleryImages(ctx) -> { selected = emptyList(); show = true }
-                else -> permLauncher.launch(PermissionHelper.galleryImagePermissions())
-            }
+            // ⊕ 는 **항상** 시트를 연다 — 그리드(견적/일정/문구/대표질문)는 사진 권한과 무관하게 늘 쓸 수 있어야 한다.
+            //   사진 권한·빈 상태는 시트 안 가로줄이 스스로 처리한다(권한 없으면 '사진 허용' 타일).
+            selected = emptyList(); show = true
         }
     }
 
@@ -201,7 +205,14 @@ internal fun ChatPhotoPickerHost(
             onAttachSelected = {
                 if (selected.isNotEmpty()) finish(selected, "사진 ${selected.size}장을 담았어요")
             },
-            onDismiss = { show = false; selected = emptyList() }
+            onDismiss = { show = false; selected = emptyList() },
+            // 둥근 아이콘 — 누르면 시트 닫고 그 동작. 고른 사진 선택은 버린다(다른 동작을 고른 것).
+            onEstimate = { show = false; selected = emptyList(); onEstimate() },
+            onSchedule = { show = false; selected = emptyList(); onSchedule() },
+            onTemplate = { show = false; selected = emptyList(); onTemplate() },
+            onRepQuestion = { show = false; selected = emptyList(); onRepQuestion() },
+            canSaveText = canSaveText,
+            onSaveText = { show = false; selected = emptyList(); onSaveText() },
         )
     }
 
@@ -243,14 +254,21 @@ private fun ChatPhotoPickerSheet(
     onAlbum: () -> Unit,
     onAttachSelected: () -> Unit,
     onDismiss: () -> Unit,
+    onEstimate: () -> Unit,
+    onSchedule: () -> Unit,
+    onTemplate: () -> Unit,
+    onRepQuestion: () -> Unit,
+    canSaveText: Boolean,
+    onSaveText: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
-    // null = 불러오는 중(자리표시 타일). 34+ 「사진 더 고르기」 로 범위가 바뀌면 다시 읽는다.
+    // null = 불러오는 중(자리표시 타일). 권한 허용/부분 변경 시 reloadKey++ 로 다시 읽는다.
     var photos by remember { mutableStateOf<List<GalleryPhoto>?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
     val partial = remember(reloadKey) { PermissionHelper.isPartialGallery(ctx) }
-    val morePhotosLauncher = rememberLauncherForActivityResult(
+    val granted = remember(reloadKey) { PermissionHelper.hasGalleryImages(ctx) }
+    val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { reloadKey++ }
 
@@ -258,14 +276,17 @@ private fun ChatPhotoPickerSheet(
     LaunchedEffect(Unit) { keyboard?.hide() }
     LaunchedEffect(reloadKey) {
         photos = null
-        photos = withContext(Dispatchers.IO) { DeviceGalleryRepository.query(ctx, null, limit = RECENT_LIMIT) }
+        // 권한이 있을 때만 읽는다. 없으면 가로줄에 '사진 허용' 타일을 띄운다(빈 목록처럼 안 보이게).
+        photos = if (granted || partial)
+            withContext(Dispatchers.IO) { DeviceGalleryRepository.query(ctx, null, limit = RECENT_LIMIT) }
+        else emptyList()
     }
 
     AppSheet(onDismiss = onDismiss) {
-        // 머리: 사진 첨부 ……… [첨부]
+        // 머리: 최근 사진 ……… [첨부 N]
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "사진 첨부", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
+                "최근 사진", style = AppType.headline, fontWeight = FontWeight.ExtraBold,
                 color = AppTheme.colors.text, modifier = Modifier.weight(1f)
             )
             val can = selected.isNotEmpty()
@@ -275,14 +296,14 @@ private fun ChatPhotoPickerSheet(
                     .clickable(enabled = can) { onAttachSelected() }
                     .padding(horizontal = 15.dp, vertical = 7.dp)
             ) {
-                Text("첨부", style = AppType.label, color = AppTheme.colors.textOnPrimary)
+                Text(if (can) "첨부 ${selected.size}" else "첨부", style = AppType.label, color = AppTheme.colors.textOnPrimary)
             }
         }
         Spacer(Modifier.height(10.dp))
 
         // 🔒 34+ 부분 허용 — 「최근 사진」이 폰 전체가 아니라 허용한 사진만이라는 걸 알린다.
         if (partial) {
-            PartialAccessBar { morePhotosLauncher.launch(PermissionHelper.galleryImagePermissions()) }
+            PartialAccessBar { permLauncher.launch(PermissionHelper.galleryImagePermissions()) }
             Spacer(Modifier.height(10.dp))
         }
 
@@ -295,6 +316,8 @@ private fun ChatPhotoPickerSheet(
         ) {
             item(key = "camera") { CameraTile(onCamera) }
             when {
+                // 권한 없음 — '사진 허용' 타일(빈 목록처럼 안 보이게). 누르면 권한을 묻는다.
+                !granted && !partial -> item(key = "perm") { PermTile { permLauncher.launch(PermissionHelper.galleryImagePermissions()) } }
                 // 불러오는 중 — 자리표시 타일(없다가 툭 생기지 않게).
                 list == null -> items(3) { Box(Modifier.size(TILE).clip(AppShape.md).background(AppTheme.colors.surfaceMuted)) }
                 list.isEmpty() -> item(key = "empty") {
@@ -315,29 +338,30 @@ private fun ChatPhotoPickerSheet(
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
-        // 전체 보기 — 시스템 사진 선택기(앨범 전체).
+        // 둥근 아이콘 그리드 (카카오식) — 앨범/견적/일정/문구/대표질문 [+글 있으면 문구로 저장]. 4칸씩 줄바꿈.
+        //   「앨범」 = 시스템 사진 선택기(앨범 전체) — 전엔 아래 '전체 보기' 줄이었다.
         Box(Modifier.bleed(SHEET_SIDE).fillMaxWidth().height(1.dp).background(AppTheme.colors.line))
-        Row(
-            Modifier.bleed(SHEET_SIDE).fillMaxWidth().clickable { onAlbum() }
-                .padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier.size(30.dp).clip(AppShape.sm).background(AppTheme.colors.primaryBg),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.PhotoLibrary, null, tint = AppTheme.colors.primaryText, modifier = Modifier.size(17.dp))
-            }
-            Spacer(Modifier.width(13.dp))
-            Text(
-                "전체 보기 (앨범에서 고르기)", style = AppType.headline, fontWeight = FontWeight.SemiBold,
-                color = AppTheme.colors.text
-            )
+        Spacer(Modifier.height(8.dp))
+        val actions = buildList {
+            add(GridAction(Icons.Default.PhotoLibrary, "앨범", AppTheme.colors.caution, onAlbum))
+            add(GridAction(Icons.Default.Description, "견적 작성", AppTheme.colors.primary, onEstimate))
+            add(GridAction(Icons.Default.DateRange, "내 일정", AppTheme.colors.category, onSchedule))
+            add(GridAction(Icons.AutoMirrored.Filled.Chat, "문구 넣기", AppTheme.colors.done, onTemplate))
+            add(GridAction(Icons.Default.QuestionAnswer, "대표질문", AppTheme.colors.simpleText, onRepQuestion))
+            // 입력창에 글/사진이 있을 때만 — 전엔 ⊕ 풍선 메뉴의 '이 글을 문구로 저장'. (2026-09-16 자리 유지)
+            if (canSaveText) add(GridAction(Icons.Default.Save, "문구로 저장", AppTheme.colors.done, onSaveText))
         }
+        actions.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth()) {
+                row.forEach { GridCell(it, Modifier.weight(1f)) }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
 
-        // 안내 — 프로토 .hint 글자 그대로.
+        // 안내 — 사진을 탭하면 펜으로 표시해서 담긴다는 설명.
         Text(
             buildAnnotatedString {
                 append("사진을 탭하면 ")
@@ -347,6 +371,45 @@ private fun ChatPhotoPickerSheet(
             },
             style = AppType.caption, color = AppTheme.colors.textHint
         )
+    }
+}
+
+/** 둥근 아이콘 그리드 한 칸. (카카오식 — 색은 하는 일의 종류) */
+private data class GridAction(
+    val icon: ImageVector,
+    val label: String,
+    val tint: Color,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun GridCell(a: GridAction, modifier: Modifier = Modifier) {
+    Column(
+        modifier.clip(AppShape.md).clickable { a.onClick() }.padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(50.dp).clip(CircleShape).background(a.tint),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(a.icon, null, tint = AppTheme.colors.textOnPrimary, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(a.label, style = AppType.caption, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.text)
+    }
+}
+
+/** 사진 권한이 없을 때 가로줄에 뜨는 타일 — 누르면 권한을 묻는다(빈 목록처럼 안 보이게). */
+@Composable
+private fun PermTile(onClick: () -> Unit) {
+    Column(
+        Modifier.size(TILE).clip(AppShape.md).background(AppTheme.colors.surfaceMuted).clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(Icons.Default.PhotoLibrary, null, tint = AppTheme.colors.textHint, modifier = Modifier.size(26.dp))
+        Spacer(Modifier.height(6.dp))
+        Text("사진 허용", style = AppType.caption, fontWeight = FontWeight.Bold, color = AppTheme.colors.textHint)
     }
 }
 

@@ -1150,9 +1150,9 @@ fun ChatScreen(
             //   답변 추천 칩 / 템플릿 알약 둘 다 둥근 칩이라 인접 시 사장님 시선 혼란.
             //   답변 추천 = 사장님 톤 학습 기반 우선. 답변 추천 없을 때만 (서버 X 또는 stale) 템플릿 노출.
             //
-            // chat-actions 3칩 [견적 작성][내 일정 확인][문구 넣기] → 입력줄 ⊕ 메뉴로 이동. (2026-08-14 사장님)
-            //   인스타식 풍선 팝업. 상시로 한 줄 차지하던 것 제거 → 대화 공간 확보(표면엔 덜, 조용한 자신감).
-            //   견적/일정/문구 액션은 Composer(onOpenEstimate/Schedule/Template) 콜백으로 그대로 연결.
+            // chat-actions 3칩 [견적 작성][내 일정 확인][문구 넣기] → 입력줄 ⊕ 로 이동(2026-08-14) → 카카오식 첨부 시트로 통합(2026-11-22).
+            //   상시로 한 줄 차지하던 것 제거 → 대화 공간 확보(표면엔 덜, 조용한 자신감).
+            //   견적/일정/문구/대표질문 액션은 ⊕ 시트(ChatPhotoPickerHost)가 받아 연결한다.
 
             // '이 사람 고객인가요?' 조용한 줄 (2026-07-18 사장님) — 모르는 새 번호에만, 방해 안 되게 작은 줄로.
             //   "고객 아님"(협업사장·거래처·지인) → 페르소나·추천 같은 고객상담 AI 안 만듦(통화요약은 유지).
@@ -1341,13 +1341,7 @@ fun ChatScreen(
                 isSending = isSending,
                 onFocusChange = { focused -> composerFocused = focused },
                 showAiPolish = !isPlainThread,   // 문자함(고객 아님)은 ✨ AI 다듬기 숨김. (2026-07-12 사장님)
-                showActions = !isPlainThread,    // ⊕ 액션 메뉴(견적/일정/문구)도 문자함이면 숨김. (2026-08-14)
-                onOpenEstimate = { triggerActionByType("send_estimate") },
-                onOpenSchedule = { myScheduleOpen = true },
-                onOpenTemplate = { tplPickerOpen = true },
-                onOpenRepQuestion = { repQuestionOpen = true },
-                // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님 · 2026-09-16 자리 이동)
-                onSaveAsTemplate = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
+                showActions = !isPlainThread,    // ⊕ 버튼도 문자함이면 숨김. (2026-08-14) — 액션은 ⊕ 시트(ChatPhotoPickerHost)로 이동
                 focusRequester = composerFocusRequester,
             )
         }
@@ -1897,12 +1891,21 @@ fun ChatScreen(
         }
     }
 
-    // 🖼️ 카톡식 사진 첨부 — 바텀시트(최근 사진·카메라·전체 보기) → 탭하면 바로 펜 → 「첨부」=입력칸에 담기.
-    //   시트·권한·펜은 ChatPhotoPickerSheet.kt 한 곳. 「전체 보기」·권한 거부는 시스템 선택기로. (2026-11-21 사장님)
+    // 🖼️ 카카오식 첨부 시트 — ⊕ → 바텀시트(최근 사진 줄 + 둥근 아이콘 그리드: 앨범/견적/일정/문구/대표질문).
+    //   사진 탭 → 바로 펜 → 「첨부」=입력칸에 담기. 그리드 아이콘 탭 → 시트 닫고 그 동작.
+    //   시트·권한·펜·셈은 ChatPhotoPickerSheet.kt 한 곳. (2026-11-22 사장님 "카카오 스타일로" · 프로토 Fgc3bbn24D1doxDop2JiDz)
     ChatPhotoPickerHost(
         request = showPhotoPicker, onRequestHandled = { showPhotoPicker = false },
         attached = attachedPhotos, onAttached = { attachedPhotos = it },
-        onSystemPicker = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+        onSystemPicker = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        // 둥근 아이콘 그리드 — 전엔 ⊕ 풍선 메뉴였던 것. 견적 = 접수서/견적 작성 시트(SlashCommandMenu 와 같은 길).
+        onEstimate = { showEstimateBuilder = true },
+        onSchedule = { myScheduleOpen = true },
+        onTemplate = { tplPickerOpen = true },
+        onRepQuestion = { repQuestionOpen = true },
+        // "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 그리드에 뜬다. (2026-09-16 사장님 개편 유지)
+        canSaveText = input.isNotBlank() || attachedPhotos.isNotEmpty(),
+        onSaveText = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
     )
 
     // 💬 대표질문 — ⊕ → 시트 → 탭하면 **답을 입력칸에 넣고 사진은 첨부에 담는다**(전송 아님). 넣는 방식은 「문구 넣기」와 같다.
@@ -3573,13 +3576,7 @@ private fun Composer(
     isSending: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
     showAiPolish: Boolean = true,   // 문자함(고객 아님)이면 false → ✨ AI 다듬기 숨김. (2026-07-12 사장님)
-    showActions: Boolean = true,    // ⊕ 액션 메뉴(견적/일정/문구). 문자함이면 false. (2026-08-14)
-    onOpenEstimate: () -> Unit = {},
-    onOpenSchedule: () -> Unit = {},
-    onOpenTemplate: () -> Unit = {},
-    onOpenRepQuestion: () -> Unit = {},
-    /** ⊕ "이 글을 문구로 저장" — 입력창에 글/사진이 있을 때만 메뉴에 뜬다. (2026-09-16 사장님 개편) */
-    onSaveAsTemplate: () -> Unit = {},
+    showActions: Boolean = true,    // ⊕ 버튼 자체를 보일지. 문자함이면 false. (2026-08-14 · 2026-11-22 시트로 통합)
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null
 ) {
     // 프로토 .composer — 흰 바 + 상단 테두리 + padding 9/14/16.
@@ -3646,20 +3643,12 @@ private fun Composer(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // ⊕ 액션 메뉴 (왼쪽) — 견적/일정/문구 풍선 팝업. 문자함이면 숨김.
-            //   ⚠️ 바닥 정렬이라 **알약 안쪽 여백(5dp)만큼 같이 띄워야** 📷 와 높이가 맞는다.
+            // ⊕ 버튼 (왼쪽) — 누르면 카카오식 첨부 시트(사진+견적/일정/문구/대표질문). 문자함이면 숨김.
+            //   ⚠️ 바닥 정렬이라 **알약 안쪽 여백(5dp)만큼 같이 띄워야** 입력칸과 높이가 맞는다.
             //     안 그러면 ⊕ 만 5dp 아래로 처져 보인다. (2026-09-19 사장님 "+ 버튼이 좀 아래 배치된 거 같은데")
             if (showActions) {
                 androidx.compose.foundation.layout.Box(Modifier.padding(bottom = 5.dp)) {
-                ComposerActionMenu(
-                    onEstimate = onOpenEstimate,
-                    onSchedule = onOpenSchedule,
-                    onTemplate = onOpenTemplate,
-                    onRepQuestion = onOpenRepQuestion,
-                    onAttachPhoto = onAttachPhoto,
-                    canSaveText = input.isNotBlank() || attachments.isNotEmpty(),
-                    onSaveText = onSaveAsTemplate
-                )
+                    ComposerPlusButton(onClick = onAttachPhoto)
                 }
             }
             // field — 회색 알약(radius22) : [textarea][✨ 오른쪽·글 있을 때만]. 사진은 ⊕ 메뉴로 이동. (2026-10-14 사장님)

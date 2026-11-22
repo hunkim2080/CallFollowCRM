@@ -43,7 +43,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 /**
  * 대화창 **"/" 명령 드롭다운** — 입력이 "/접" 처럼 명령 꼴이면 입력줄 위에 뜬다.
  *   누르면 입력을 비우고 **바로 그 기능**(접수서·견적·일정·문구·사진)을 연다. (2026-10-24 · 프로토 artifact/5nhqznJqPqXLtyfeTaHULA)
- *   셈은 [SlashMenu]. ⊕ 메뉴([ComposerActionMenu])와 **같은 기능을 가리키는 다른 입구**다(두 벌 아님).
+ *   셈은 [SlashMenu]. ⊕ 첨부 시트([ChatPhotoPickerHost])와 **같은 기능을 가리키는 다른 입구**다(두 벌 아님).
  */
 @Composable
 fun SlashCommandMenu(

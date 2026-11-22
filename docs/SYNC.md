@@ -16747,3 +16747,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 펜 도구바(PhotoViewer.kt): `bottomBarClearance(extra = 0.dp)` → `extra = 12.dp`(숨 틈, 다른 시트와 통일).
 - 검증: assembleRelease 가드7 통과. 폰 눈확인 남음(사장님 기기).
 - 내부배포 태그(앱).
+
+## 2026-11-22 08:55 · android
+채팅 ⊕ 첨부 메뉴 **카카오식으로 개편** (사장님 「가」 · 프로토 Fgc3bbn24D1doxDop2JiDz).
+- 전엔 ⊕ **풍선 메뉴**(ComposerActionMenu)와 **사진 첨부 시트**가 **두 벌**이었다 → **한 바텀시트로 합침**(§12): 위=최근 사진 가로줄(카메라·여러 장 「첨부 N」·탭하면 크게 보기+펜), 아래=둥근 아이콘 그리드(앨범·견적 작성·내 일정·문구 넣기·대표질문 [+글 있으면 '문구로 저장']).
+- 바뀐 파일: `ChatComposerMenu.kt`(풍선 제거 → `ComposerPlusButton` 입구 하나) · `ChatPhotoPickerSheet.kt`(그리드 추가·'전체 보기' 줄은 '앨범' 아이콘으로·권한 없으면 '사진 허용' 타일·⊕는 항상 시트 염) · `ChatScreen.kt`(Composer 액션 콜백 → host 로 이동) · `SlashCommandMenu.kt`(주석).
+- 재사용(새 공용 0): DeviceGalleryRepository · PickLimit/attachCapped · AppSheet · FullscreenPhotoViewer(onAttachDirect) · PermissionHelper · PartialAccessBar.
+- 색은 토스 라이트 그대로, 구조만 카카오. assembleRelease 가드7 통과.
+- 연결 지점 확인: ⊕ 진입 3곳(⊕버튼·/사진 슬래시·host) 전부 같은 시트. 견적=showEstimateBuilder(SlashCommandMenu 와 동일 길).
+- 폰 눈확인 남음(사장님 기기).
+- 내부배포 태그(앱).
