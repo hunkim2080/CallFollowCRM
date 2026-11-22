@@ -16772,3 +16772,8 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - ① **카테고리 칩 아래 회색 바 제거**: `.categories{overflow-x:auto}`인데 칩이 화면보다 조금 넓어 삼성 인터넷이 가로 스크롤바(회색 줄)를 그렸다 → `scrollbar-width:none` + `::-webkit-scrollbar{display:none}`(갤러리와 같은 처리). 스크롤은 되고 바만 숨김.
 - ② **처음 접속 시 질문 다 접힘**: 전엔 각 분류 첫 질문(qi==0)이 펼쳐진 채였다 → `aria-expanded="false"` + 답 `hidden` 고정. 손님이 눌러야 펼쳐짐.
 - `_render_faq_html`(server/main.py) 수정. 라이브 배포=3곳 문자열 치환(백업 main.py.bak2.20261122-131210)→py_compile OK→kickstart→health200·smoke10/10. repo 반영(이 커밋).
+
+## 2026-11-22 13:20 · android (+ server)
+손님 FAQ 답변 **핵심 자동 굵게** (사장님 "강조부분 알아서 두껍게·가독성" · 서버만, 앱 무변경).
+- `_render_faq_html` 가 답변을 `_faq_emphasize(esc(a))` 로 렌더 — **금액(35만~45만 원·55만 원·1,200,000원)·기간(2~3일·30분)·비율(10%)·무료/무상 보증**을 `<strong>`(`.answer-copy strong` 진한색+700)로. 정규식만(태그 주입 불가), **저장 원문 안 바꿈**(문자 발송은 평문 유지·재발행 불필요). 년(年)은 연도 오탐이라 제외.
+- 라이브 배포=헬퍼 삽입+렌더줄 치환(백업 main.py.bak2.20261122-131654)→py_compile OK→kickstart→health200·smoke10/10. repo 반영(이 커밋).

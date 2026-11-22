@@ -20732,6 +20732,22 @@ def _faq_photo_src(value: Optional[str]) -> str:
     return ""
 
 
+# 답변 속 **핵심(금액·기간·비율·무료)** 을 자동으로 굵게 — 손님이 훑어보기 좋게. (2026-11-22 사장님)
+#   이미 esc() 를 거친 **안전한 텍스트**에만 쓴다(숫자·한글·기호만 매칭 → 태그 주입 불가).
+#   굵게 모양은 `.answer-copy strong`(진한색+700). 저장 원문은 안 바꾼다 — 웹 표시에서만(문자 발송은 평문 유지).
+_FAQ_EMPH_RE = re.compile(
+    r"\d[\d,]*\s*만(?:\s*[~-]\s*\d[\d,]*\s*만)?\s*원?"   # 35만~45만 원 · 55만 원 · 37만 · 10만원
+    r"|\d[\d,]{2,}\s*원"                                 # 1,200,000원
+    r"|\d+(?:\s*[~-]\s*\d+)?\s*(?:일|시간|분|주일|주|개월|달)"   # 2~3일 · 3시간 · 30분 (년은 연도 오탐 → 제외)
+    r"|\d+\s*%"                                          # 10%
+    r"|무상\s*보증|무료|무상"
+)
+
+
+def _faq_emphasize(escaped: str) -> str:
+    return _FAQ_EMPH_RE.sub(lambda m: f"<strong>{m.group(0)}</strong>", escaped)
+
+
 def _render_faq_html(payload: dict, slug: str) -> str:
     """프로토 ① 손님 페이지. 사용자 문구는 HTML escape, 질문은 서버에서 렌더."""
     import html as _html
@@ -20820,7 +20836,7 @@ def _render_faq_html(payload: dict, slug: str) -> str:
                 f'<span class="question-text">{esc(question["q"])}</span>'
                 '<svg class="chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button></h3>'
                 f'<div class="answer" id="answer-{key}" role="region" aria-labelledby="q-{key}"'
-                f' hidden><p class="answer-copy">{esc(question["a"])}</p>{photo_html}</div></article>'
+                f' hidden><p class="answer-copy">{_faq_emphasize(esc(question["a"]))}</p>{photo_html}</div></article>'
             )
         panels.append(
             f'<div id="panel-{ci}" role="tabpanel" aria-labelledby="tab-{ci}"{"" if selected else " hidden"}>'
