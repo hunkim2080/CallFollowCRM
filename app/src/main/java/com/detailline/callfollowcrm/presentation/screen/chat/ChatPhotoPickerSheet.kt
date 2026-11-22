@@ -222,6 +222,13 @@ internal fun ChatPhotoPickerHost(
             photos = uris.map { ViewerPhoto.OfFile(it) },
             startIndex = startIdx,
             onDismiss = { if (!busy) editing = null },
+            // ☑️ 넘겨보며 번호로 여러 장 고르기 — 시트와 **같은 selected 공유**. 「첨부 N」=고른 것 전부.
+            selectedUris = selected,
+            onToggleSelect = { uri ->
+                if (PickLimit.isFull(selected, uri, room)) say(ctx, "사진은 ${PickLimit.CHAT_MAX}장까지 담을 수 있어요")
+                selected = PickLimit.toggle(selected, uri, room)
+            },
+            onAttachSelected = { if (!busy && selected.isNotEmpty()) finish(selected, "사진 ${selected.size}장을 담았어요") },
             // 카톡처럼 좌우로 넘겨 보고, 「첨부」·펜 완료는 **지금 보는 쪽(page)** 사진을 담는다.
             onAttachDirect = { page, marks ->
                 if (!busy) {

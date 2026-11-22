@@ -157,6 +157,14 @@ fun FullscreenPhotoViewer(
      */
     onAttachDirect: ((page: Int, marks: List<MarkStroke>) -> Unit)? = null,
     /**
+     * ☑️ **카톡식 — 크게 보면서 번호로 여러 장 고르기.** (2026-11-22 사장님 "확인하면서 선택도 가능해")
+     *   [selectedUris] = 지금 담기로 고른 사진들(순서 = 번호 뱃지). [onToggleSelect] = 지금 보는 사진 고르기/빼기.
+     *   「첨부 N」 = 고른 것 전부 담기([onAttachSelected]) · 0개면 지금 보는 한 장(onAttachDirect). onAttachDirect 와 같이 줄 때만.
+     */
+    selectedUris: List<android.net.Uri> = emptyList(),
+    onToggleSelect: ((uri: android.net.Uri) -> Unit)? = null,
+    onAttachSelected: (() -> Unit)? = null,
+    /**
      * 화면 왼쪽 위에 더 얹을 것 — 문자 사진의 「갤러리에 저장」 같은 것.
      *   받는 값은 **지금 보고 있는 쪽 번호**다.
      */
@@ -256,14 +264,41 @@ fun FullscreenPhotoViewer(
                 ) {
                     androidx.compose.material3.Text("‹", style = AppType.title, color = Color.White, fontWeight = FontWeight.Bold)
                 }
-                Box(
-                    Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)
-                        .clip(AppShape.pill).background(AppTheme.colors.primary)
-                        .clickable { onAttachDirect(pagerState.currentPage, emptyList()) }
-                        .padding(horizontal = 16.dp, vertical = 9.dp),
-                    contentAlignment = Alignment.Center
+                Row(
+                    Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    androidx.compose.material3.Text("첨부", style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold)
+                    // ☑️ 번호 선택 동그라미 — 지금 보는 사진을 담기 목록에 넣고/뺀다(순서가 번호). 카톡처럼 넘겨보며 고름.
+                    val selUri = (photos.getOrNull(pagerState.currentPage) as? ViewerPhoto.OfFile)?.uri
+                    if (onToggleSelect != null && selUri != null) {
+                        val order = selectedUris.indexOf(selUri) + 1
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape)
+                                .background(if (order > 0) AppTheme.colors.primary else Color.Black.copy(alpha = 0.4f))
+                                .border(2.dp, Color.White, CircleShape)
+                                .clickable { onToggleSelect(selUri) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (order > 0) androidx.compose.material3.Text(
+                                "$order", style = AppType.label, color = Color.White, fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Box(
+                        Modifier.clip(AppShape.pill).background(AppTheme.colors.primary)
+                            .clickable {
+                                if (selectedUris.isNotEmpty() && onAttachSelected != null) onAttachSelected()
+                                else onAttachDirect(pagerState.currentPage, emptyList())
+                            }
+                            .padding(horizontal = 16.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Text(
+                            if (selectedUris.isEmpty()) "첨부" else "첨부 ${selectedUris.size}",
+                            style = AppType.body, color = Color.White, fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             } else Row(
                 Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(14.dp),

@@ -16818,3 +16818,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. ① TodayWidgetProvider 가 자체 regionPrefix(→경기, 공백 있어 주간줄이 substringBefore 로 도 이름만 떼감) 대신 공용 RegionName.shortRegion(일정 달력과 같은 함수) 사용 — 협업현장도 같은 지역명. ② 채팅 사진 첨부 크게보기가 최근 목록 전부를 받아 좌우 스와이프, 「첨부」·펜 완료는 지금 보는 쪽(page). FullscreenPhotoViewer.onAttachDirect (marks)→(page,marks), 호출부 ChatPhotoPickerSheet 하나뿐이라 안전. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과만)
 - 다음 액션: 위젯 지역명·협업 표시 확인 / 채팅 첨부 사진 스와이프 확인
+
+## 2026-11-22 21:50 · android
+채팅 첨부 크게보기에서 카톡처럼 번호로 여러 장 선택 — 넘겨보며 고르고 「첨부 N」 한 번에
+- 변경: 앱만. FullscreenPhotoViewer 에 selectedUris·onToggleSelect·onAttachSelected(attach 모드) 추가 — 상단 우측에 번호 동그라미 + 「첨부 N」. 선택은 ChatPhotoPickerSheet 의 selected 를 그대로 공유(0개면 지금 보는 한 장). 다른 뷰어 호출부는 새 인자 기본값이라 영향 없음. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과만)
+- 다음 액션: 채팅 첨부 크게보기에서 번호 눌러 여러 장 선택→첨부 확인
