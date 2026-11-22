@@ -16777,3 +16777,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 손님 FAQ 답변 **핵심 자동 굵게** (사장님 "강조부분 알아서 두껍게·가독성" · 서버만, 앱 무변경).
 - `_render_faq_html` 가 답변을 `_faq_emphasize(esc(a))` 로 렌더 — **금액(35만~45만 원·55만 원·1,200,000원)·기간(2~3일·30분)·비율(10%)·무료/무상 보증**을 `<strong>`(`.answer-copy strong` 진한색+700)로. 정규식만(태그 주입 불가), **저장 원문 안 바꿈**(문자 발송은 평문 유지·재발행 불필요). 년(年)은 연도 오탐이라 제외.
 - 라이브 배포=헬퍼 삽입+렌더줄 치환(백업 main.py.bak2.20261122-131654)→py_compile OK→kickstart→health200·smoke10/10. repo 반영(이 커밋).
+
+## 2026-11-22 13:30 · android (+ server)
+손님 FAQ 답변 **AI가 중요한 부분 알아서 강조** (사장님 "숫자만이 아니라 핵심을 알아서" · 서버만).
+- 숫자 정규식만으론 반쪽 → **발행 때 답변들을 한 번에 Gemini에 보내** 각 답변의 핵심 1~2곳을 `**…**`로 표시 → payload 에 `a_emph`로 저장. 렌더는 `a_emph` 있으면 `_md_bold`(**…**→<strong>), 없으면 숫자 휴리스틱 폴백.
+- **원문(rep_questions.answer)·문자 발송은 평문 그대로** — 별표는 웹 저장본(a_emph)에만. AI가 글자 바꾸면 원문 사용(안전). LLM 실패→원문(폴백). LLM 호출은 **DB 트랜잭션 밖**(쓰기 락 방지).
+- 새 함수(FAQ 블록): `_md_bold`·`_faq_gemini_json`(범용 JSON)·`_FAQ_MARK_SYSTEM`·`_faq_mark_answers`. publish 에 강조 계산, render 에 a_emph 사용.
+- 라이브 배포=헬퍼 블록+publish 블록+render 2곳 패치(백업 main.py.bak2.20261122-132545)→py_compile OK→kickstart→health200·smoke10/10. repo 반영(이 커밋).
+- ⚠️ **기존 발행분은 재발행해야 적용**(관리 「최신 내용으로 올리기」) — a_emph 는 발행 때 생김.

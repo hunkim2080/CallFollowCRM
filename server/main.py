@@ -20672,6 +20672,19 @@ async def faq_publish(req: FaqPublishRequest, request: Request) -> dict:
     if not re.fullmatch(r"\+?[0-9][0-9 ()-]*", req.owner_sms.strip()):
         raise HTTPException(400, "문자 받을 업무폰 번호를 확인해 주세요")
     raw = await request.json()
+    # 🔆 손님 웹 표시용 — 답변 핵심을 AI가 굵게(`**…**`). 원문(q["a"])은 그대로(문자 발송 평문).
+    #   DB 트랜잭션 **밖**에서 — 네트워크(LLM) 호출이라 안에서 하면 쓰기 락을 수 초 잡는다. 실패하면 원문(렌더가 숫자 폴백).
+    try:
+        _qs = raw.get("questions") or []
+        if _qs:
+            _marked = await _faq_mark_answers([q.get("a") or "" for q in _qs])
+            for q, m in zip(_qs, _marked):
+                if m and m != (q.get("a") or ""):
+                    q["a_emph"] = m
+                else:
+                    q.pop("a_emph", None)
+    except Exception:
+        pass
     with db_conn() as con:
         # 조회~발급~저장을 한 쓰기 트랜잭션으로 묶어 동시 최초 publish 도 충돌하지 않는다.
         con.execute("BEGIN IMMEDIATE")
@@ -20746,6 +20759,85 @@ _FAQ_EMPH_RE = re.compile(
 
 def _faq_emphasize(escaped: str) -> str:
     return _FAQ_EMPH_RE.sub(lambda m: f"<strong>{m.group(0)}</strong>", escaped)
+
+
+def _md_bold(escaped: str) -> str:
+    """이미 esc() 된 텍스트의 `**핵심**` → <strong>핵심</strong> (안전: 텍스트에 태그 없음). 남은 별표는 지운다."""
+    out = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped, flags=re.S)
+    return out.replace("**", "")
+
+
+async def _faq_gemini_json(system_prompt: str, user_msg: str, schema: dict, max_tokens: int = 2200):
+    """FAQ 전용 Gemini JSON 호출(통화요약과 같은 rotate 레이어·thinking0). (parsed, usage) 반환, 실패 시 raise."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY env var not set")
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+        "generationConfig": {
+            "temperature": 0.3, "maxOutputTokens": max_tokens, "topP": 0.9,
+            "thinkingConfig": {"thinkingBudget": 0},
+            "responseMimeType": "application/json",
+            "responseSchema": schema,
+        },
+    }
+    resp = None
+    for _try in range(3):
+        resp = await _gemini_generate_rotate(payload, GEMINI_TIMEOUT_SEC)
+        if resp.status_code not in (500, 502, 503, 504):
+            break
+        if _try < 2:
+            await asyncio.sleep(2 * (_try + 1))
+    if resp.status_code != 200:
+        raise RuntimeError(f"Gemini API status {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    cands = data.get("candidates") or []
+    if not cands:
+        raise RuntimeError("Gemini empty candidates")
+    raw = "".join(p.get("text", "") for p in ((cands[0].get("content") or {}).get("parts") or [])).strip()
+    if not raw:
+        raise RuntimeError("Gemini empty text")
+    return json.loads(raw), (data.get("usageMetadata") or {})
+
+
+_FAQ_MARK_SYSTEM = """너는 시공 업체 FAQ 답변에서 **손님이 가장 알아야 할 핵심**을 굵게 표시하는 도우미다.
+입력은 답변 문자열 배열이다. 각 답변에서 **중요한 부분 1~2곳**만 골라 그 부분을 `**...**`로 감싸라.
+
+- 금액·기간·조건·꼭 알아야 할 핵심 특징·결론 위주로 고른다.
+- **글자는 절대 바꾸지 마라**(맞춤법·띄어쓰기·단어 그대로). 오직 `**`만 더한다.
+- 과하게 감싸지 마라(한 답에 1~2곳). 문장 전체가 아니라 핵심 **구절**만.
+- 강조할 게 마땅치 않으면 그 답은 그대로 둔다.
+출력: 입력과 **같은 개수·같은 순서**의 문자열 배열. 키는 "answers"."""
+
+
+async def _faq_mark_answers(answers: list) -> list:
+    """답변들에서 핵심을 `**…**`로 표시해 돌려준다(손님 웹 전용). 실패/변조 시 원문 그대로(안전)."""
+    items = [a or "" for a in answers]
+    if not any(a.strip() for a in items):
+        return items
+    schema = {
+        "type": "OBJECT",
+        "properties": {"answers": {"type": "ARRAY", "items": {"type": "STRING"}}},
+        "required": ["answers"],
+    }
+    try:
+        parsed, _u = await _faq_gemini_json(
+            _FAQ_MARK_SYSTEM, json.dumps({"answers": items}, ensure_ascii=False), schema
+        )
+        out = parsed.get("answers") or []
+        if len(out) != len(items):
+            return items
+        res = []
+        for orig, marked in zip(items, out):
+            marked = marked or ""
+            # AI 가 글자를 바꿨으면(별표 떼고 원문과 다르면) 원문 사용 — 손님에게 변조된 답이 안 나가게.
+            if marked.replace("**", "").strip() == orig.strip():
+                res.append(marked or orig)
+            else:
+                res.append(orig)
+        return res
+    except Exception:
+        return items
 
 
 def _render_faq_html(payload: dict, slug: str) -> str:
@@ -20829,6 +20921,9 @@ def _render_faq_html(payload: dict, slug: str) -> str:
             photo = _faq_photo_src(question.get("photo"))
             photo_html = (f'<figure class="answer-image"><img src="{esc(photo, quote=True)}"'
                           f' alt="{esc(question["q"], quote=True)} 관련 사진" loading="lazy"></figure>') if photo else ""
+            # AI가 발행 때 표시한 핵심(a_emph)이 있으면 그걸 굵게, 없으면 숫자 강조로 폴백.
+            a_emph = question.get("a_emph")
+            answer_html = _md_bold(esc(a_emph)) if a_emph else _faq_emphasize(esc(question["a"]))
             articles.append(
                 f'<article class="faq-item"><h3><button class="faq-trigger" id="q-{key}"'
                 f' aria-expanded="false" aria-controls="answer-{key}">'
@@ -20836,7 +20931,7 @@ def _render_faq_html(payload: dict, slug: str) -> str:
                 f'<span class="question-text">{esc(question["q"])}</span>'
                 '<svg class="chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button></h3>'
                 f'<div class="answer" id="answer-{key}" role="region" aria-labelledby="q-{key}"'
-                f' hidden><p class="answer-copy">{_faq_emphasize(esc(question["a"]))}</p>{photo_html}</div></article>'
+                f' hidden><p class="answer-copy">{answer_html}</p>{photo_html}</div></article>'
             )
         panels.append(
             f'<div id="panel-{ci}" role="tabpanel" aria-labelledby="tab-{ci}"{"" if selected else " hidden"}>'
