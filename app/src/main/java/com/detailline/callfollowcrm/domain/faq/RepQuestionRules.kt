@@ -8,7 +8,8 @@ package com.detailline.callfollowcrm.domain.faq
  */
 object RepQuestionRules {
 
-    const val QUESTION_MAX = 20
+    // 28자 — 20자는 자연스러운 질문이 중간에 잘렸다("…일정이 겹치는"). 한 줄에 들어가는 선에서 넉넉히. (2026-11-22 사장님)
+    const val QUESTION_MAX = 28
     const val ANSWER_MAX = 500
     const val IMAGE_MAX = 1
     const val CATEGORY_MAX = 10

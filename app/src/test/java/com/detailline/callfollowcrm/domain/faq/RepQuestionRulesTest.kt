@@ -7,9 +7,9 @@ import org.junit.Test
 
 class RepQuestionRulesTest {
 
-    @Test fun `질문 - 20자까지만 남는다`() {
-        val raw = "가".repeat(25)
-        assertEquals(20, RepQuestionRules.clampQuestion(raw).length)
+    @Test fun `질문 - 28자까지만 남는다`() {
+        val raw = "가".repeat(35)
+        assertEquals(28, RepQuestionRules.clampQuestion(raw).length)
     }
 
     @Test fun `질문 - 한도 안이면 그대로`() {
@@ -26,10 +26,10 @@ class RepQuestionRulesTest {
     }
 
     @Test fun `자르는 자리에 이모지가 걸리면 반쪽을 남기지 않는다`() {
-        // 19자 + 이모지(2칸) = 21칸 → 20칸에서 자르면 반쪽이 남는다. 통째로 뺀다.
-        val raw = "가".repeat(19) + "😀"
+        // 27자 + 이모지(2칸) = 29칸 → 28칸에서 자르면 반쪽이 남는다. 통째로 뺀다.
+        val raw = "가".repeat(27) + "😀"
         val cut = RepQuestionRules.clampQuestion(raw)
-        assertEquals("가".repeat(19), cut)
+        assertEquals("가".repeat(27), cut)
         assertFalse(Character.isHighSurrogate(cut.last()))
     }
 
@@ -39,7 +39,7 @@ class RepQuestionRulesTest {
     }
 
     @Test fun `카운터 - 쓴 글자 수와 한도`() {
-        assertEquals("0/20", RepQuestionRules.counter("", RepQuestionRules.QUESTION_MAX))
+        assertEquals("0/28", RepQuestionRules.counter("", RepQuestionRules.QUESTION_MAX))
         assertEquals("6/500", RepQuestionRules.counter("네 됩니다.", RepQuestionRules.ANSWER_MAX))
     }
 
