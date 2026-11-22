@@ -111,6 +111,38 @@ class FaqPublishRepository(
         }
     }
 
+    /**
+     * ✨ **AI로 대표질문 초안 뽑기** — 앱이 모은 문자 코퍼스(손님 질문 + 사장님 답)를 서버에 보내
+     *   Gemini 가 {분류·질문·답·확인필요} 초안을 돌려준다(서버 `/faq/suggest`, 코퍼스는 서버에 저장 안 함).
+     *   429=한도(RefineQuotaException). 실패는 삼키지 않고 Result.failure.
+     */
+    suspend fun suggest(corpus: String): Result<FaqSuggestResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject().apply { put("corpus", corpus) }
+            val req = Request.Builder()
+                .url("$baseUrl/faq/suggest")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (resp.code == 429) throw RefineQuotaException(true)
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val obj = JSONObject(body)
+                val arr = obj.optJSONArray("drafts") ?: JSONArray()
+                val drafts = (0 until arr.length()).map { i ->
+                    val d = arr.getJSONObject(i)
+                    FaqSuggestDraft(
+                        category = d.optString("category").trim(),
+                        question = d.optString("q").trim(),
+                        answer = d.optString("a").trim(),
+                        needsReview = d.optBoolean("needs_review")
+                    )
+                }.filter { it.question.isNotBlank() }
+                FaqSuggestResult(enough = obj.optBoolean("enough", true), drafts = drafts)
+            }
+        }
+    }
+
     /** 앱 내부 사진 주소 → data URL base64(서버가 받는 형식). 실패하면 null — 그 사진만 빠진다(글은 간다). */
     private fun encode(uri: String): String? =
         // 웹 카드엔 1280px면 충분 — 업로드·서버 저장 둘 다 가볍게(서버가 파일로 저장·서빙).
@@ -121,3 +153,17 @@ class FaqPublishRepository(
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
 }
+
+/** 서버가 돌려준 대표질문 초안 한 줄(분류·질문·답·확인필요). */
+data class FaqSuggestDraft(
+    val category: String,
+    val question: String,
+    val answer: String,
+    val needsReview: Boolean
+)
+
+/** `/faq/suggest` 응답 — enough=false 면 문자가 적어 초안을 못 뽑음(앱이 기본 질문으로 시작). */
+data class FaqSuggestResult(
+    val enough: Boolean,
+    val drafts: List<FaqSuggestDraft>
+)

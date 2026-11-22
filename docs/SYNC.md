@@ -16757,3 +16757,12 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 연결 지점 확인: ⊕ 진입 3곳(⊕버튼·/사진 슬래시·host) 전부 같은 시트. 견적=showEstimateBuilder(SlashCommandMenu 와 동일 길).
 - 폰 눈확인 남음(사장님 기기).
 - 내부배포 태그(앱).
+
+## 2026-11-22 12:40 · android (+ server)
+✨ **AI로 대표질문 채우기** 구현 (사장님 「가」 · 프로토 FPXyBo3f3ePwzPHaM35BSn).
+- 흐름: 대표질문 관리 상단 진입 카드 → 시트("문자 읽는 중" 스켈레톤) → AI 초안 체크리스트(분류칩+질문+답·가격/날짜엔 「확인 필요」) → 골라/고쳐 「N개 등록하기」.
+- 서버(라이브, hands-off 삽입): `POST /faq/suggest`(Bearer) — 앱이 보낸 문자 코퍼스(손님 질문+사장님 답)를 Gemini JSON(thinking0·`_call_gemini_faq_suggest`)으로 {분류·질문·답·needs_review} 추출. **코퍼스 저장 안 함**. 비용가드=코퍼스<120자면 LLM 안 부르고 enough=false. 코퍼스 12k자 상한. 원문에 없는 가격 지어내기 금지.
+  - 배포: 라이브 main.py(git아님)에 `/faq/suggest` 스니펫만 삽입(기존 FAQ 블록 뒤·table-init 앞) → py_compile OK → kickstart → **health 200·/faq/suggest 401·smoke 10/10**. 백업 main.py.bak2.20261122-122918. repo main.py 에도 반영(이 커밋).
+- 앱: `FaqPublishRepository.suggest` + `FaqSuggestDraft/Result` · 코퍼스=`SmsRepository.queryForTradeGuess`(받은 질문 광고제외 `isLikelyAd`·보낸 답) · `RepQuestionListViewModel`(AI 상태·검토·등록, 기본질문 폴백) · UI `RepQuestionAiFill.kt`(AppSheet·ShimmerLine·SheetTextField·TossBadge 재사용). assembleRelease 가드7 통과.
+- 재사용(새 공용 0): Gemini rotate 레이어·_session_phone·SmsRepository·AdHeuristics·RepQuestionRepository.add·공용 시트/칩/시머.
+- 폰 눈확인 남음(사장님 기기). 내부배포 태그(앱).

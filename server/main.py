@@ -21025,6 +21025,118 @@ async def faq_public_page(slug: str) -> HTMLResponse:
     return HTMLResponse(_render_faq_html(json.loads(row["payload_json"]), slug), headers=headers)
 
 
+class FaqSuggestRequest(BaseModel):
+    # 앱이 모은 문자 코퍼스(손님 질문 + 사장님 답). 서버는 저장하지 않고 이 요청에서만 쓴다(프라이버시).
+    corpus: str = ""
+
+
+_FAQ_SUGGEST_SYSTEM = """너는 시공 업체 사장님의 문자 기록을 읽고, 손님에게 보여줄 **자주 묻는 질문(FAQ) 초안**을 뽑는 도우미다.
+입력은 '# 손님이 보낸 문자(질문)' 묶음과 '# 사장님이 보낸 답' 묶음이다.
+
+할 일:
+- 손님들이 **반복해서 묻는 공통 질문**을 5~8개 뽑아, 손님이 읽기 좋은 **한 문장 질문**으로 다듬어라.
+- 각 질문의 답(a)은 **사장님이 실제로 답한 내용과 말투**를 모아 **2~4문장**으로 정리하라.
+- 분류(category)를 **한 단어**로 붙여라(예: 가격, 시공시간, A/S, 관리법, 예약, 자재).
+- 답에 **가격·기간·수치·날짜**가 들어가면 needs_review=true (사장님이 확인해야 함).
+
+규칙:
+- **문자에 없는 정보(가격·수치·보장)는 지어내지 마라.** 모르면 일반적 안내로만 쓰고 숫자는 넣지 마라.
+- 광고·스팸·택배·인증문자·지인 잡담은 무시하라. 시공/상담과 관련된 것만.
+- 인사말·맺음말("안녕하세요","감사합니다")은 넣지 마라. 질문에 대한 본 내용만.
+- 뽑을 게 없으면 drafts 를 빈 배열로.
+출력: JSON."""
+
+
+async def _call_gemini_faq_suggest(system_prompt: str, corpus: str) -> tuple[dict, dict]:
+    """대표질문 초안 뽑기 — Gemini 2.5 Flash JSON. (parsed, usage) 반환. 실패 시 raise.
+    통화요약 JSON 호출과 같은 rotate 레이어(_gemini_generate_rotate)를 쓰되 FAQ 전용 스키마."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY env var not set")
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": corpus}]}],
+        "generationConfig": {
+            "temperature": 0.4,
+            "maxOutputTokens": 2200,
+            "topP": 0.9,
+            "thinkingConfig": {"thinkingBudget": 0},
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "drafts": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "category": {"type": "STRING"},
+                                "q": {"type": "STRING"},
+                                "a": {"type": "STRING"},
+                                "needs_review": {"type": "BOOLEAN"},
+                            },
+                            "required": ["q", "a"],
+                        },
+                    },
+                },
+                "required": ["drafts"],
+            },
+        },
+    }
+    resp = None
+    for _try in range(3):
+        resp = await _gemini_generate_rotate(payload, GEMINI_TIMEOUT_SEC)
+        if resp.status_code not in (500, 502, 503, 504):
+            break
+        if _try < 2:
+            await asyncio.sleep(2 * (_try + 1))
+    if resp.status_code != 200:
+        raise RuntimeError(f"Gemini API status {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise RuntimeError("Gemini empty candidates")
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    raw = "".join(p.get("text", "") for p in parts).strip()
+    if not raw:
+        raise RuntimeError("Gemini empty text")
+    return json.loads(raw), (data.get("usageMetadata") or {})
+
+
+@app.post("/faq/suggest")
+async def faq_suggest_endpoint(req: FaqSuggestRequest, request: Request) -> dict:
+    """문자 기록 → 대표질문 초안(분류+질문+답+확인필요). 서버는 코퍼스를 저장하지 않는다.
+    비용 가드: 코퍼스 길이 상한 + 너무 적으면 LLM 호출 없이 enough=false."""
+    owner_phone = _session_phone_from_header(request.headers.get("authorization"))
+    if not owner_phone:
+        raise HTTPException(401, "로그인이 필요합니다", headers={"X-Auth-Required": "1"})
+    corpus = (req.corpus or "").strip()
+    if len(corpus) > 12000:
+        corpus = corpus[:12000]
+    # 문자가 너무 적으면 초안을 못 뽑는다 — 앱이 기본 질문으로 시작하게 한다(돈 안 씀).
+    if len(corpus) < 120:
+        return {"enough": False, "drafts": []}
+    try:
+        parsed, _usage = await _call_gemini_faq_suggest(_FAQ_SUGGEST_SYSTEM, corpus)
+    except Exception as e:
+        msg = str(e)
+        if "429" in msg or "quota" in msg.lower() or "RESOURCE_EXHAUSTED" in msg:
+            raise HTTPException(429, "오늘 AI 한도를 다 썼어요")
+        raise HTTPException(502, "AI가 질문을 뽑지 못했어요")
+    out = []
+    for d in (parsed.get("drafts") or [])[:10]:
+        q = (d.get("q") or "").strip()
+        a = (d.get("a") or "").strip()
+        if not q:
+            continue
+        out.append({
+            "category": (d.get("category") or "").strip()[:10],
+            "q": q[:40],
+            "a": a[:500],
+            "needs_review": bool(d.get("needs_review")),
+        })
+    return {"enough": True, "drafts": out}
+
+
 def _generate_intake_token() -> str:
     """8자 base62 토큰. 충돌 시 8회 재시도."""
     import secrets

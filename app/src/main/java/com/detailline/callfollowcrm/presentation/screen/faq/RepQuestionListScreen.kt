@@ -160,6 +160,9 @@ fun RepQuestionListScreen(
                     )
                     Spacer(Modifier.height(AppSpace.s12))
                     BizIntroEntryRow(onClick = onEditBizIntro)
+                    Spacer(Modifier.height(AppSpace.s12))
+                    // ✨ AI로 대표질문 채우기 — 문자 읽고 자주 묻는 질문·답 초안.
+                    AiFillEntryCard(onClick = viewModel::openAiFill)
                     Spacer(Modifier.height(AppSpace.s16))
                     if (list.isEmpty()) {
                         RepQuestionEmptyState()
@@ -177,6 +180,9 @@ fun RepQuestionListScreen(
             }
         }
     }
+
+    // ✨ AI로 대표질문 채우기 시트 — 열려 있을 때만 그려진다(내부 상태).
+    AiFillSheet(viewModel)
 
     // 지우기 확인 — 앱 기조: 지우는 건 한 번 묻는다.
     deleteTarget?.let { t ->
