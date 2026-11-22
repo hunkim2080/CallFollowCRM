@@ -19,5 +19,12 @@
                 <action android:name="com.detailline.callfollowcrm.debug.SHOW_BRIEF" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".debug.DebugSeedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.detailline.callfollowcrm.DEBUG_SEED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

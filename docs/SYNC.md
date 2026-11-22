@@ -16800,3 +16800,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 라이브 배포=프롬프트 블록+q캡 치환(백업 main.py.bak2.20261122-141903)→py_compile OK→kickstart→health200·smoke10/10.
 - ⚠️ **이미 20자로 잘려 저장된 기존 질문은 자동 복구 안 됨** — AI 채우기 다시 돌리거나(새 건 완결) 수정에서 고쳐야. assembleRelease 가드7·단위테스트 통과.
 - 내부배포 태그(앱).
+
+## 2026-11-22 19:24 · android
+협업현장 사진 선택을 「그 날짜(시공일) 사진만」 날짜필터 선택창(SitePhotoDatePicker)으로 — 기존 현장사진과 같은 공용 재사용
+- 변경: 앱 UI만. SharedSiteScreen 사진 선택이 PickMultipleVisualMedia(20)→rememberSitePhotoPickerLaunch(scheduledAtMs·workDays=1). 권한거부 시 기존 시스템선택기 폴백. 업로드 경로(uploadPhotos→CollabPhotoUploadManager) 불변. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease BUILD SUCCESSFUL·가드7 통과만)
+- 다음 액션: 없음

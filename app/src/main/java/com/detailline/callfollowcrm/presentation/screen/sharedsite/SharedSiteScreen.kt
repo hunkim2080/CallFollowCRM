@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.sharedsite
 
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
+import com.detailline.callfollowcrm.presentation.screen.customer.rememberSitePhotoPickerLaunch
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.LightColors
@@ -113,23 +114,25 @@ fun SharedSiteScreen(
     val scope = rememberCoroutineScope()
     var fullscreenPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var pendingUploadShareId by remember { mutableStateOf("") }
-    var showPhotoPicker by remember { mutableStateOf(false) }  // 카톡식 사진첨부 바텀시트
-    // 증거사진 선택 → base64 변환(IO) → 업로드. 여러 장 한 번에.
-    //   2026-07-06 사장님: 시스템 Photo Picker 전환 때 여기만 단일(PickVisualMedia)로 들어가 "한 장씩" 회귀 → 다중으로 복구.
-    val photoPicker = rememberLauncherForActivityResult(
-        // 2026-08-24 사장님: 협업 사장님이 한 번에 올리는 증거사진 10 → 20장.
-        ActivityResultContracts.PickMultipleVisualMedia(20)
-    ) { uris ->
+    var showPhotoPicker by remember { mutableStateOf(false) }  // 사진 선택 — 날짜 필터 선택창(SitePhotoDatePicker)
+    // 증거사진 선택 → base64 변환(IO) → 업로드. 여러 장 한 번에. 선택창/시스템 폴백이 같은 업로드로 들어온다.
+    //   인코딩+업로드 루프 전부 viewModelScope 로 — 화면을 나가도 끝까지 올라간다. (2026-11-03 사장님 "나가니까 업로드 안 됨")
+    //   encode 는 Context 가 필요 → applicationContext 를 잡은 람다로 넘긴다(화면 수명과 무관).
+    val appCtx = context.applicationContext
+    val uploadPickedPhotos: (List<Uri>) -> Unit = { uris ->
         val sid = pendingUploadShareId
         if (uris.isNotEmpty() && sid.isNotBlank()) {
-            // 인코딩+업로드 루프 전부 viewModelScope 로 — 화면을 나가도 끝까지 올라간다. (2026-11-03 사장님 "나가니까 업로드 안 됨")
-            //   encode 는 Context 가 필요 → applicationContext 를 잡은 람다로 넘긴다(화면 수명과 무관).
-            val appCtx = context.applicationContext
             viewModel.uploadPhotos(sid, uris) { uri ->
                 com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(appCtx, uri)
             }
         }
     }
+    //   2026-07-06 사장님: 시스템 Photo Picker 전환 때 여기만 단일(PickVisualMedia)로 들어가 "한 장씩" 회귀 → 다중으로 복구.
+    //   2026-11-22 사장님: 「기존 현장사진처럼 그 날짜 사진만」 → SitePhotoDatePicker 로. 이건 권한 거부 시 폴백.
+    val photoPicker = rememberLauncherForActivityResult(
+        // 2026-08-24 사장님: 협업 사장님이 한 번에 올리는 증거사진 10 → 20장.
+        ActivityResultContracts.PickMultipleVisualMedia(20)
+    ) { uris -> uploadPickedPhotos(uris) }
     val accountPrompt = "입금받을 계좌를 먼저 등록해주세요. 더보기 → 견적서·사업자 정보에서 등록할 수 있어요."
     var selectedId by rememberSaveableShareId()
     // 1차 분리(2026-06-18 사장님): "received" 공유받은 현장 | "shared" 내가 공유한 현장.
@@ -657,12 +660,27 @@ fun SharedSiteScreen(
         )
     }
 
-    // 현장 사진 — 카톡식 바텀시트(아래서 위로 올라오는 갤러리). "파일에서"는 시스템 피커 fallback. (2026-06-14 사장님)
-    // 현장 사진 첨부 = 시스템 사진 선택기(권한 없음, Play 정책). 자체 갤러리 제거. (2026-07-05)
+    // 📅 협업 증거사진도 「그 날짜(시공일) 사진만」 먼저 모아 보여준다 — 기존 현장사진과 **같은 공용**(SitePhotoDatePicker). (2026-11-22 사장님)
+    //   협업현장은 하루짜리(scheduledAtMs)라 workDays=1. 올리려는 현장(받은·내가공유 둘 다)을 shareId 로 찾아 그 날짜를 쓴다.
+    //   권한 거부면 기존 시스템 선택기로 폴백(photoPicker). 둘 다 uploadPickedPhotos 한 길로 올라간다.
+    val pendingPhotoSite = remember(pendingUploadShareId, sites, mySharedSites) {
+        (sites + mySharedSites).firstOrNull { it.shareId == pendingUploadShareId }
+    }
+    val launchSitePhotoPicker = rememberSitePhotoPickerLaunch(
+        customerName = null,                 // 협업엔 "고객" 개념이 없다 → 배너는 "현장 + 주소"
+        address = pendingPhotoSite?.addr,
+        scheduledWorkDate = pendingPhotoSite?.scheduledAtMs,
+        scheduledWorkDays = 1,
+        maxPick = 20,
+        onFallbackSystemPicker = {
+            photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        },
+        onPicked = { uris -> uploadPickedPhotos(uris) }
+    )
     LaunchedEffect(showPhotoPicker) {
         if (showPhotoPicker) {
             showPhotoPicker = false
-            photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            launchSitePhotoPicker()
         }
     }
 }
