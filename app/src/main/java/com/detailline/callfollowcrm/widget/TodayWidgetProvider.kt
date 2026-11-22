@@ -158,7 +158,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val minutes = DayOrder.jobMinutes(if (j != null) j.scheduledWorkMinutes else c.scheduledWorkMinutes).takeIf { it != DayOrder.UNKNOWN }
             return Site(
                 headline = name?.let { "$it 고객님" } ?: complex.ifBlank { AddressExtractor.roughSite(addr).ifBlank { "현장" } },
-                region = regionPrefix(addr), complex = if (name != null) complex else "",
+                region = com.detailline.callfollowcrm.util.RegionName.shortRegion(addr).orEmpty(), complex = if (name != null) complex else "",
                 unit = unitOf(AddressExtractor.splitDongHo(addr)), memo = (j?.memo ?: c.memo).trim(), items = "",
                 timeLabel = minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(), navAddress = AddressExtractor.tidyAddress(addr),
                 minutes = minutes, day = (if (j != null) j.scheduledWorkDate else c.scheduledWorkDate)?.let(DateTimeUtils::startOfDay) ?: 0,
@@ -172,7 +172,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val complex = AddressExtractor.complexName(addr).orEmpty()
             return Site(
                 headline = name?.let { "$it 고객님" } ?: complex.ifBlank { AddressExtractor.roughSite(addr).ifBlank { "현장" } },
-                region = regionPrefix(addr), complex = if (name != null) complex else "",
+                region = com.detailline.callfollowcrm.util.RegionName.shortRegion(addr).orEmpty(), complex = if (name != null) complex else "",
                 unit = unitOf(AddressExtractor.splitDongHo(addr)), memo = c.memo.trim(), items = "",
                 timeLabel = "", navAddress = AddressExtractor.tidyAddress(addr),
                 minutes = null, day = day, completed = false, customerId = c.id, isAs = true)
@@ -180,7 +180,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         private fun collabSiteOf(s: SharedSiteRepository.SharedSite): Site {
             val minutes = DayOrder.collabMinutes(s.timeLabel, s.scheduledAtMs).takeIf { it != DayOrder.UNKNOWN }
-            return Site(siteDisplayName(s), regionPrefix(s.addr), "", unitOf(AddressExtractor.splitDongHo(s.addr)),
+            return Site(siteDisplayName(s), com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr).orEmpty(), "", unitOf(AddressExtractor.splitDongHo(s.addr)),
                 s.memo.orEmpty().trim(), s.workSummary.orEmpty(), minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(),
                 AddressExtractor.tidyAddress(s.addr), minutes, DateTimeUtils.startOfDay(s.scheduledAtMs),
                 s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
@@ -351,17 +351,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
             else -> ""
         }
 
-        /** "수원 영통구 광교…" → "수원 영통"(시/도 + 시/군/구, 접미 떼고 앞 2토큰). */
-        private fun regionPrefix(addr: String?): String {
-            val toks = (addr ?: "").trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-            if (toks.isEmpty()) return ""
-            val out = ArrayList<String>(2)
-            out += toks[0].replace(Regex("(시|도)$"), "")
-            if (toks.size > 1 && Regex(".*(시|군|구|읍|면|동|리)$").matches(toks[1])) {
-                out += toks[1].replace(Regex("(시|군|구|읍|면|동|리)$"), "")
-            }
-            return out.joinToString(" ").trim()
-        }
+        // 지역명은 일정 달력과 **같은 공용** com.detailline.callfollowcrm.util.RegionName.shortRegion 을 쓴다
+        //   (전엔 위젯만 자체 regionPrefix 라 「경기」가 떴다 — 달력은 「하남·기흥·영통」. 2026-11-22 사장님 통일).
 
     }
 }

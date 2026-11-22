@@ -16812,3 +16812,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. 새 CollabJobPhotos(순수+시험5)·JobCollabPhotoStrip(토글/업체칩/뷰어). VM collabPhotosByShare 로더(SharedSiteRepository.photos — A는 보기만). 카드 제목줄 토글+분기(tab!=mine이면 협업 스트립). 연결키=CollabAssignmentLine.shareIdsForJob(기존 재사용). 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과·CollabJobPhotosTest 통과만)
 - 다음 액션: 협업 있는 고객 열어 토글·업체칩 눈으로 확인
+
+## 2026-11-22 21:13 · android
+① 위젯 지역명 통일(경기→하남/기흥/영통) ② 채팅 첨부 미리보기 좌우 스와이프
+- 변경: 앱만. ① TodayWidgetProvider 가 자체 regionPrefix(→경기, 공백 있어 주간줄이 substringBefore 로 도 이름만 떼감) 대신 공용 RegionName.shortRegion(일정 달력과 같은 함수) 사용 — 협업현장도 같은 지역명. ② 채팅 사진 첨부 크게보기가 최근 목록 전부를 받아 좌우 스와이프, 「첨부」·펜 완료는 지금 보는 쪽(page). FullscreenPhotoViewer.onAttachDirect (marks)→(page,marks), 호출부 ChatPhotoPickerSheet 하나뿐이라 안전. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과만)
+- 다음 액션: 위젯 지역명·협업 표시 확인 / 채팅 첨부 사진 스와이프 확인

@@ -152,9 +152,10 @@ fun FullscreenPhotoViewer(
      *   그리기가 시작된다 — 열자마자 그어지면 사진을 보려다 낙서가 된다(2026-11-21 폰 실기). 보기·펜 화면 둘 다
      *   위 오른쪽이 「첨부」이고 **묻지 않고** 획을 넘긴다 — 안 그렸으면 빈 목록(원본 그대로 담기).
      *   보기 화면의 ‹ = 안 담고 닫기 · 펜 화면의 ‹ = 그린 것 버리고 보기로(기존 펜의 ✕ 와 같은 동작).
-     *   닫는 건 부른 쪽이 한다(합성이 끝난 뒤) — 연타는 부른 쪽이 막는다. 사진은 한 장([photos] 첫 장)만 본다.
+     *   닫는 건 부른 쪽이 한다(합성이 끝난 뒤) — 연타는 부른 쪽이 막는다. 여러 장을 넘기면 **좌우로 넘겨 보고**(카톡처럼),
+     *   「첨부」·펜 완료는 **지금 보는 쪽([page])** 번호를 넘긴다 — 부른 쪽이 그 장을 담는다. (2026-11-22 사장님 "스와이프")
      */
-    onAttachDirect: ((marks: List<MarkStroke>) -> Unit)? = null,
+    onAttachDirect: ((page: Int, marks: List<MarkStroke>) -> Unit)? = null,
     /**
      * 화면 왼쪽 위에 더 얹을 것 — 문자 사진의 「갤러리에 저장」 같은 것.
      *   받는 값은 **지금 보고 있는 쪽 번호**다.
@@ -258,7 +259,7 @@ fun FullscreenPhotoViewer(
                 Box(
                     Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)
                         .clip(AppShape.pill).background(AppTheme.colors.primary)
-                        .clickable { onAttachDirect(emptyList()) }
+                        .clickable { onAttachDirect(pagerState.currentPage, emptyList()) }
                         .padding(horizontal = 16.dp, vertical = 9.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -344,8 +345,8 @@ fun FullscreenPhotoViewer(
                     onCancel = { penMode = false },
                     onDone = { marks ->
                         if (onAttachDirect != null) {
-                            // 카톡식 — 묻지 않고 바로 담는다. 닫기는 부른 쪽(합성 끝난 뒤).
-                            onAttachDirect(marks)
+                            // 카톡식 — 묻지 않고 바로 담는다(지금 보는 쪽). 닫기는 부른 쪽(합성 끝난 뒤).
+                            onAttachDirect(pagerState.currentPage, marks)
                         } else {
                             penMode = false
                             // 그린 게 있으면 묻는다(지금 보는 쪽). 없으면 그냥 닫는다.

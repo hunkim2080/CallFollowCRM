@@ -138,8 +138,8 @@ internal fun ChatPhotoPickerHost(
     val attachedNow by rememberUpdatedState(attached)
     var show by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    // 펜 화면에 띄운 사진. null 이면 안 떠 있다.
-    var editing by remember { mutableStateOf<Uri?>(null) }
+    // 크게 보기에 띄운 사진들 + 처음 열 장(startIndex). null 이면 안 떠 있다. 카톡처럼 좌우로 넘겨 본다.
+    var editing by remember { mutableStateOf<Pair<List<Uri>, Int>?>(null) }
     // 「첨부」 연타 막기 — 합성(획 얹기)이 도는 동안 또 눌러도 한 번만 담긴다.
     var busy by remember { mutableStateOf(false) }
     // 카메라가 찍어 넣을 자리. 카메라 앱에 다녀오는 동안 화면이 다시 만들어져도 기억한다.
@@ -150,8 +150,8 @@ internal fun ChatPhotoPickerHost(
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val shot = cameraUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
         cameraUri = null
-        // 찍었으면 고른 것과 똑같이 **곧바로 크게 보기(펜 버튼 있는 화면)**로. 취소면 시트 그대로.
-        if (ok && shot != null) editing = shot
+        // 찍었으면 고른 것과 똑같이 **곧바로 크게 보기(펜 버튼 있는 화면)**로. 방금 찍은 한 장만. 취소면 시트 그대로.
+        if (ok && shot != null) editing = listOf(shot) to 0
     }
 
     LaunchedEffect(request) {
@@ -188,10 +188,10 @@ internal fun ChatPhotoPickerHost(
                 if (PickLimit.isFull(selected, uri, room)) say(ctx, "사진은 ${PickLimit.CHAT_MAX}장까지 담을 수 있어요")
                 selected = PickLimit.toggle(selected, uri, room)
             },
-            onEdit = { uri ->
-                // 고른 것만으로 자리가 찼으면 펜 화면을 열지 않는다(그려놓고 못 담는 일 없게).
-                if (PickLimit.isFull(selected, uri, room)) say(ctx, "사진은 ${PickLimit.CHAT_MAX}장까지 담을 수 있어요")
-                else editing = uri
+            onEdit = { uris, idx ->
+                // 고른 것만으로 자리가 찼으면 펜 화면을 열지 않는다(그려놓고 못 담는 일 없게). 뷰어엔 최근 목록 전부(좌우로 넘김).
+                if (PickLimit.isFull(selected, uris[idx], room)) say(ctx, "사진은 ${PickLimit.CHAT_MAX}장까지 담을 수 있어요")
+                else editing = uris to idx
             },
             onCamera = {
                 if (selected.size >= room) say(ctx, "사진은 ${PickLimit.CHAT_MAX}장까지 담을 수 있어요")
@@ -217,14 +217,17 @@ internal fun ChatPhotoPickerHost(
     }
 
     // ✏️ 고른 직후 **크게 보기 → [펜] 누르면 그리기** — 공용 뷰어 그대로(색·굵기·되돌리기·전체 지우기). 「첨부」 = 입력칸에 담기.
-    editing?.let { src ->
+    editing?.let { (uris, startIdx) ->
         FullscreenPhotoViewer(
-            photos = listOf(ViewerPhoto.OfFile(src)),
+            photos = uris.map { ViewerPhoto.OfFile(it) },
+            startIndex = startIdx,
             onDismiss = { if (!busy) editing = null },
-            onAttachDirect = { marks ->
+            // 카톡처럼 좌우로 넘겨 보고, 「첨부」·펜 완료는 **지금 보는 쪽(page)** 사진을 담는다.
+            onAttachDirect = { page, marks ->
                 if (!busy) {
                     busy = true
                     scope.launch {
+                        val src = uris[page]
                         // 안 그렸으면 원본 그대로. 그렸으면 획을 얹은 새 파일(갤러리 원본은 안 건드린다).
                         val out = if (marks.isEmpty()) src
                         else PhotoMarkRenderer.renderToFileUri(ctx, src, marks)
@@ -249,7 +252,7 @@ internal fun ChatPhotoPickerHost(
 private fun ChatPhotoPickerSheet(
     selected: List<Uri>,
     onToggle: (Uri) -> Unit,
-    onEdit: (Uri) -> Unit,
+    onEdit: (List<Uri>, Int) -> Unit,
     onCamera: () -> Unit,
     onAlbum: () -> Unit,
     onAttachSelected: () -> Unit,
@@ -332,7 +335,7 @@ private fun ChatPhotoPickerSheet(
                     RecentTile(
                         photo = p,
                         order = selected.indexOf(p.uri) + 1,
-                        onEdit = { onEdit(p.uri) },
+                        onEdit = { onEdit(list.map { it.uri }, list.indexOf(p)) },
                         onToggle = { onToggle(p.uri) }
                     )
                 }
