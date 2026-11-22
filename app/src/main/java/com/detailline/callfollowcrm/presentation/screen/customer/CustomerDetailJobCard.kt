@@ -199,6 +199,12 @@ internal fun JobDetailCard(
     //   저장소는 지울 수 있는데 카드엔 더보기조차 안 떴다 — "취소/삭제할 데가 안 보인다".
     //   트리거는 **카드 우측상단 X** 한 곳(사장님 "더보기 말고 X") — 진짜 건(날짜·돈·받음 중 하나라도)엔 안 뜬다.
     val canDeleteJob = job != null && com.detailline.callfollowcrm.domain.job.JobDeleteRule.canDelete(job)
+    // 🤝 이 건의 날짜들(0시) — 협업 타깃팅/사진이 **그 N차에만** 걸리게(같은 고객 1차·2차 안 섞임). 셈은 CollabAssignmentLine.daysOfJob 한 곳.
+    //   사진 섹션(협업 토글)과 아래 협업 배정 칩이 같은 날짜 집합을 쓴다.
+    val jobDayStart: Long? = cShown.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
+    val jobDays = remember(cShown.scheduledWorkDate, cShown.scheduledWorkDays) {
+        com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(jobDayStart, cShown.scheduledWorkDays)
+    }
 
     TossCard(onClick = if (folded && !expanded) ({ expanded = true }) else null) {
         Column {
@@ -626,21 +632,46 @@ internal fun JobDetailCard(
             }
             CdCardDivider()
             Column {
+                    // 🤝 이 건에 걸린 협업 사장 사진 — shareIdsForJob(그 N차 날짜) 한 곳으로 골라 1차/2차 안 섞임. 업체별 묶음. (2026-11-22 사장님)
+                    val collabPhotosByShare by host.viewModel.collabPhotosByShare.collectAsState()
+                    val collabGroups = remember(collabPhotosByShare, host.collabRefresh, jobDays, c.id) {
+                        val raw = host.container.preferences.collabAssignments
+                        val sids = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(raw, c.id, jobDays)
+                        val names = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine
+                            .forJob(raw, c.id, jobDays).associate { it.shareId to it.name }
+                        com.detailline.callfollowcrm.domain.collab.CollabJobPhotos.group(sids, collabPhotosByShare, names)
+                    }
+                    val collabCount = com.detailline.callfollowcrm.domain.collab.CollabJobPhotos.total(collabGroups)
+                    var photoTab by remember(jobId) { mutableStateOf("mine") }
+                    // 협업이 0이면 토글이 사라지니 항상 '내 사진'으로 본다(상태 꼬임 방지).
+                    val tab = if (collabCount == 0) "mine" else photoTab
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         CdTitleIcon(Icons.Filled.PhotoCamera, "blue")
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
-                            if (pickMode) "지울 사진 고르는 중"
-                            // 「/20」은 뺀다 — 한도는 사장마다 따로라 내 것+협업 것을 합친 수에 /20 을 붙이면 틀리다. (2026-10-15 사장님)
-                            else (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
-                                (if (photoTotal == 0) "" else " ${photoTotal}장"),
-                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                            modifier = Modifier.weight(1f)
-                        )
+                        if (collabCount > 0 && !pickMode) {
+                            // 토글 — 업체 몇이든 2칸 고정(내 사진/협업). 협업은 탭 안 업체 칩으로 가른다.
+                            PhotoTabToggle(
+                                mineLabel = (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장" else "현장") +
+                                    (if (photoTotal == 0) "" else " $photoTotal"),
+                                collabLabel = "협업 $collabCount",
+                                tab = tab,
+                                onTab = { photoTab = it },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Text(
+                                // 사진도 그 건 것만 보이므로 제목에 차수를 붙인다. (2026-09-19 사장님)
+                                if (pickMode) "지울 사진 고르는 중"
+                                // 「/20」은 뺀다 — 한도는 사장마다 따로라 내 것+협업 것을 합친 수에 /20 을 붙이면 틀리다. (2026-10-15 사장님)
+                                else (if (jobNthPrefix.isNotEmpty()) "${jobNthPrefix}현장 사진" else "현장 사진") +
+                                    (if (photoTotal == 0) "" else " ${photoTotal}장"),
+                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                         // 버튼은 **제목 줄에**. 전엔 사진이 늘수록 아래로 도망갔고, 20장이 차면
                         //   [올리기] 타일이 아예 사라져서 왜 못 올리는지도 안 보였다. (2026-09-22 사장님)
-                        if (pickMode) {
+                        if (tab == "mine") if (pickMode) {
                             PhotoHeadBtn("취소", filled = false) { exitPickMode() }
                         } else {
                             // 🕐 전/후 사진 고르기 — 콕콕 짚어주는 2단계 시트(대표 + 시공 전). 사진 있을 때만. (2026-10-28 사장님)
@@ -681,6 +712,10 @@ internal fun JobDetailCard(
                         }
                     }
                     Spacer(Modifier.height(10.dp))
+                    if (tab != "mine") {
+                        // 🤝 협업 탭 — 그 건에 걸린 협업 사장 사진(업체 칩 + 이름표 · 보기 전용). 새 컴포넌트 한 곳.
+                        JobCollabPhotoStrip(groups = collabGroups, onOpenPhoto = host.onOpenPhoto)
+                    } else
                     androidx.compose.foundation.layout.Row(
                         modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -985,11 +1020,7 @@ internal fun JobDetailCard(
                 val collabSiteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr ?: "").takeIf { it.isNotBlank() }?.let { "$it 현장" }
                     ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
                     ?: "이 현장"
-                val jobDayStart: Long? = cShown.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
-                // 이 건의 날짜들 — 협업을 붙일 때 적는 days 는 CollabAssignmentLine.daysOfJob **한 곳**(「이 건에 붙이기」와 같은 셈).
-                val jobDays = remember(cShown.scheduledWorkDate, cShown.scheduledWorkDays) {
-                    com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.daysOfJob(jobDayStart, cShown.scheduledWorkDays)
-                }
+                // (jobDayStart·jobDays 는 카드 위에서 한 번 계산 — 사진 섹션 협업 토글과 같은 날짜 집합을 쓴다)
                 // 이 건에 걸린 협업 사장만 — 타깃팅은 CollabAssignmentLine.forJob **한 곳**(주소 전파도 같은 것을 쓴다. 2026-10-15).
                 //   날짜 없는 떠돌이 줄은 어느 카드에도 안 뜬다 — 고객 상세 아래 「어느 건인지 모르는 협업」에서 사장님이 붙인다.
                 // 🐞 멀티데이 건: 시작일 하나가 아니라 **건 전체 날짜(jobDays)** 중 하나라도 맡은 협업을 다 띄운다

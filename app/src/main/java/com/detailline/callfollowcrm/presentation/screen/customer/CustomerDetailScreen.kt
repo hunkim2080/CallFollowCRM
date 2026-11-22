@@ -269,6 +269,8 @@ fun CustomerDetailScreen(
             viewModel.refreshTeamNotes()
         }
     }
+    // 🤝 협업 사장 증거사진 — 번호가 없어도(collabAssignments 는 번호 무관) 상세 열 때 한 번 가져온다.
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refreshCollabPhotos() }
     var celebrationVisible by remember { mutableStateOf(false) }
     // 날짜 저장 후 "시공 시간" 선택 + (첫 등록이면) 축하 보류 플래그. (2026-06-23 사장님)
     var workTimePickerOpen by remember { mutableStateOf(false) }

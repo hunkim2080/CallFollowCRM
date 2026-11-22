@@ -16806,3 +16806,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱 UI만. SharedSiteScreen 사진 선택이 PickMultipleVisualMedia(20)→rememberSitePhotoPickerLaunch(scheduledAtMs·workDays=1). 권한거부 시 기존 시스템선택기 폴백. 업로드 경로(uploadPhotos→CollabPhotoUploadManager) 불변. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease BUILD SUCCESSFUL·가드7 통과만)
 - 다음 액션: 없음
+
+## 2026-11-22 20:41 · android
+협업 사장 증거사진을 고객상세 건 카드 「현장 사진」 줄에 토글로 인라인 — 내 사진 ↔ 협업(업체 칩). 그 건에 걸린 shareId만(1차/2차 안 섞임)
+- 변경: 앱만. 새 CollabJobPhotos(순수+시험5)·JobCollabPhotoStrip(토글/업체칩/뷰어). VM collabPhotosByShare 로더(SharedSiteRepository.photos — A는 보기만). 카드 제목줄 토글+분기(tab!=mine이면 협업 스트립). 연결키=CollabAssignmentLine.shareIdsForJob(기존 재사용). 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과·CollabJobPhotosTest 통과만)
+- 다음 액션: 협업 있는 고객 열어 토글·업체칩 눈으로 확인

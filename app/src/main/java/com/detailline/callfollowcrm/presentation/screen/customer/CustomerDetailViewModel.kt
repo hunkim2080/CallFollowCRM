@@ -405,6 +405,30 @@ class CustomerDetailViewModel(
     }
 
     /**
+     * 🤝 이 고객의 **협업 사장(사장↔사장) 증거 사진** — shareId → 그 share 의 사진들. (§F GET /api/shared/photos, A 는 보기만)
+     *   어느 share 가 어느 건(N차)인지는 카드가 [com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob]
+     *   로 고른다(그 건 날짜에 걸린 share 만 = 같은 고객 1차·2차가 안 섞인다). 고객 상세 열 때 가져온다.
+     *   올리기/팀원 사진(team_site_photos)과는 별개 기능.
+     */
+    private val _collabPhotosByShare =
+        MutableStateFlow<Map<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>>(emptyMap())
+    val collabPhotosByShare = _collabPhotosByShare.asStateFlow()
+
+    fun refreshCollabPhotos() = viewModelScope.launch {
+        val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
+        val sids = container.preferences.collabAssignments
+            .mapNotNull { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it) }
+            .filter { it.customerId == customerId && it.shareId.isNotBlank() }
+            .map { it.shareId }.distinct()
+        if (myPhone.isBlank() || sids.isEmpty()) { _collabPhotosByShare.value = emptyMap(); return@launch }
+        val out = LinkedHashMap<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>()
+        sids.forEach { sid ->
+            container.sharedSiteRepository.photos(sid, myPhone).onSuccess { out[sid] = it }
+        }
+        _collabPhotosByShare.value = out
+    }
+
+    /**
      * 🔄 사진을 돌려 저장한다. **크게 보기를 닫을 때 한 번만** 부른다 —
      *   누를 때마다 쓰면 그만큼 화질이 깎인다. 0 도면 아무것도 안 한다.
      */
