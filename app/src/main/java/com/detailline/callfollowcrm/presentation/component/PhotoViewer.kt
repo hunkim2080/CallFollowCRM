@@ -775,7 +775,8 @@ private fun PenStage(
             //   extra 로 숨 틈 — 다른 Dialog 시트들처럼(0 이면 S23U/OneUI 에서 버튼이 내비바에 딱 붙어 가렸다, 2026-11-22).
             //   🎨 바탕을 레터박스와 **같은 색(PenStageBg)** 으로 — 카카오처럼 도구~네비바가 하나의 검은 영역으로
             //      이어져 보여야 네비바에 가까워도 안 비좁다. 밝은 띠가 따로 얹히면 "잘못 눌릴 것 같은" 느낌. (2026-11-22 사장님)
-            Modifier.fillMaxWidth().background(PenStageBg).bottomBarClearance(extra = 16.dp)
+            //   간격 32 — 16 은 네비바에 너무 붙어 보인다고 하심(사장님 폰 실기 3회차). 네비바 높이 위로 32dp 더. (2026-11-22)
+            Modifier.fillMaxWidth().background(PenStageBg).bottomBarClearance(extra = 32.dp)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
