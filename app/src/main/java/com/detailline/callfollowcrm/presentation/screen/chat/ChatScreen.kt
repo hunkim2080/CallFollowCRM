@@ -482,7 +482,6 @@ fun ChatScreen(
     val estimateDraft = remember { EstimateDraft(DateTimeUtils.startOfMonth(System.currentTimeMillis()), prefs.lastDepositMode, prefs.lastDepositVal) }
     // 📄 접수서 데모 — 대화 중 **막지 않게**(push 금지). 접수서 안 받은 고객 대화에 **작은 칩**만 두고,
     //   누를 때만 어두운 팝업(프로토 1:1). (2026-10-24 사장님 "어느 타이밍에 보여줄지 난관 → 안 막게 pull")
-    var intakeDemoOpen by remember { mutableStateOf(false) }
     // 견적서(직인) 미리보기 — null 아니면 QuoteDocScreen 오버레이 표시 (견적 2단계).
     var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
     // 발행 이력 카드 → 견적서 '다시 보기' 리뷰 — 닫으면 채팅으로만 복귀(편집기 X). (2026-07-07 사장님)
@@ -899,30 +898,8 @@ fun ChatScreen(
                 }
             }
 
-            // 📄 접수서 데모 칩 — 접수서 안 받은 고객 대화에만, 작게. 누를 때만 팝업(안 막음).
-            if (!searchMode && !isPlainThread && intakeEvents.isEmpty()) {
-                androidx.compose.foundation.layout.Row(
-                    Modifier.padding(start = 18.dp, top = 2.dp, bottom = 2.dp)
-                        .clip(AppShape.pill).background(AppTheme.colors.primaryBg)
-                        .clickable { intakeDemoOpen = true }
-                        .padding(horizontal = 11.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("접수서 이렇게 써요  ▸", style = AppType.caption,
-                        fontWeight = FontWeight.Bold, color = AppTheme.colors.primaryText)
-                }
-            }
-            if (intakeDemoOpen) {
-                com.detailline.callfollowcrm.presentation.component.DemoWebPopup(
-                    assetPath = "demos/intake_demo.html",
-                    onCta = {
-                        estimateDraft.mode.value = "accept"   // 접수서 탭으로 바로
-                        showEstimateBuilder = true
-                        intakeDemoOpen = false
-                    },
-                    onDismiss = { intakeDemoOpen = false }
-                )
-            }
+            // (2026-11-22 사장님) 📄 "접수서 이렇게 써요 ▸" 데모 칩 제거 — 상단을 주소줄만 깔끔하게.
+            //   접수서 데모는 접수서 작성 화면(견적 작성 → 접수서 탭) 안내로 충분.
 
             // 대화 안 검색 바 — 앱바 🔍 누르면 뜸. 입력 + N/M + ▲▼ + ✕. (2026-09-02 사장님)
             if (searchMode) {
