@@ -106,10 +106,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             // 협업 현장 = 일정 화면과 같은 소스(withMe)를 **매 갱신 직접** 당긴다(옛 위젯과 같은 방식).
             //   이 앱은 org.json 만 쓰고 Gson 의존성이 없어, SharedSite 를 JSON 캐시하지 않는다(§13 환각 패키지 방지).
+            //   ⚠️ sinceMs 는 **0L** — 서버 with-me 의 since_ms 는 scheduled_at_ms(가는 날)가 아니라
+            //     updated_at_ms(마지막 변경 시각)를 거른다. today 를 넘기면 '며칠 전 수락 → 이번 주 시공' 협업이
+            //     updated_at_ms < today 라 서버에서 빠져 위젯에만 협업이 안 떴다(일정 화면은 0L 이라 떴다. 2026-11-23).
+            //     가는 날 필터는 아래 로컬(scheduledAtMs >= today · 주간 7일)에서 한다.
             var collab = emptyList<SharedSiteRepository.SharedSite>()
             var networkOk = true
             if (p.bizPhone.isNotBlank()) {
-                app.container.sharedSiteRepository.withMe(p.bizPhone, sinceMs = today, limit = 200)
+                app.container.sharedSiteRepository.withMe(p.bizPhone, sinceMs = 0L, limit = 200)
                     .onSuccess { collab = it }
                     .onFailure { networkOk = false }
             }

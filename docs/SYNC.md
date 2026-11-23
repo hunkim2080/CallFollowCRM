@@ -16830,3 +16830,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. message_templates 에 isPublic(DB v78). 대표질문→문구 **비파괴 1회 이사**(RepQuestionTemplateMerge — 원본 rep_questions 보존·영수증 재시도). 발행은 공개 문구(observePublic)에서. 채팅 ⊕ 「대표질문」 버튼 제거(문구 하나로). 문구 편집에 공개 토글(공개 시 질문=title·답=body·분류). 목록 「FAQ 공개」 딱지. §12 표 갱신. 코덱스 구현→내가 검수(withTransaction 안 Flow 교착 → 트랜잭션 밖 읽기로 수정)·가드7·마이그레이션 테스트6 통과. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7·테스트 통과만)
 - 다음 액션: 폰에서 기존 대표질문이 문구에 비공개로 들어왔는지·공개 토글·발행 확인. Phase 2(서버/손님페이지)는 사장님 지시 때.
+
+## 2026-11-23 15:40 · android
+위젯에 협업일정이 안 뜨던 것 fix — with-me 호출의 since_ms 오용(근본)
+- 변경: 앱만. TodayWidgetProvider 가 withMe(sinceMs = today) 로 불러 **오늘 이후 '변경된'(updated_at_ms) 협업만** 받아, 며칠 전 수락→이번 주 시공 협업이 빠져 위젯(주간 줄·오늘 카드) 양쪽에 협업이 안 떴다. 서버 /api/shared/with-me 의 since_ms 는 scheduled_at_ms(가는 날)가 아니라 updated_at_ms(마지막 변경)를 거른다. 일정 화면은 sinceMs=0L 이라 정상이었다. → 위젯도 0L 로. 가는 날 필터는 위젯이 로컬에서(scheduledAtMs>=today·주간7일) 이미 함. withMe 호출 10곳 전부 확인 — 날짜 since 는 위젯 한 곳뿐(StatsViewModel 의 since 는 통계 집계용이라 유지). 서버 변경 없음.
+- 폰 확인: 못 봄 (실기 미연결·에뮬만. clean assembleRelease 가드7 통과)
+- 다음 액션: 사장님 폰에서 위젯 맨하단 주간 줄·오늘 카드에 협업현장(주황 막대) 뜨는지 확인
