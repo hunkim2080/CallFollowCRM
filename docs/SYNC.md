@@ -16915,3 +16915,12 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 라이브 + repo/server/main.py. thumb_url 과 url 이 둘 다 /api/web/photo/{id}(원본 풀사이즈, 리사이즈 없음)라 날짜 클릭(openSite)마다 원본 수MB×N장 로드 → 렉. fix: ① web_photo 에 w 파라미터 + Pillow 로 폭 w 리사이즈(화질70)·Cache-Control 하루(팀 썸네일 패턴 재사용) ② web_site 의 thumb_url = ...?w=400(그리드용), url(원본)은 크게보기용 유지. 앞선 selectDay(27293) 패치는 다른 화면 달력이라 무효였음(그 화면엔 유효한 최적화로 남김). GOTCHAS §3: scp→py_compile(로컬·서버)→백업(main.py.bak-20261123-212708)→교체→kickstart→smoke 10/10 ✅.
 - 폰 확인: 서버 smoke만. 사장님이 si0in.kr/web **새로고침(Ctrl+Shift+R)** 후 달력 클릭 가벼워졌는지 확인(썸네일 URL 이 ?w=400 으로 바뀌어 캐시 자동 갱신).
 - 다음 액션: 그래도 느리면 CDP 실측.
+
+## 2026-11-23 21:40 · android (+ server, live-only)
+웹 뷰어 달력 렉 진짜 원인 = /api/web/site 풀스캔 → 식 인덱스로 fix (계측으로 확정)
+- 측정: ?perf=1 뱃지 = 받기 1141ms · 그리기 3ms · 사진 0장 로딩 0ms → 서버 /api/web/site 핸들러가 느림(렌더·사진 아님).
+- 원인: _web_photo_bucket 쿼리가 _WEB_OWNER_NORM(owner_phone REPLACE 정규화 식)으로 거르는데 인덱스는 원본 owner_phone 에만 있어 team_site_photos(큰 base64) 풀스캔.
+- fix(라이브): db-init 에 식 인덱스 idx_team_photos_ownernorm_cust ON team_site_photos(REPLACE(...owner_phone...), customer_phone) 추가 → 재시작 때 생성 확인됨. smoke 10/10. GOTCHAS §3 절차(이제 ssh hun@100.86.114.49 허용 규칙으로 안 막힘).
+- ⚠️ repo/server/main.py 는 content_hash 인덱스 블록이 없어(193커밋 뒤) 앵커 불일치 → repo 반영 skip(§3 드리프트, 라이브 전용). 앞서 올린 calendar(76db56e5)·thumbnail(04b4e58d) 은 repo 반영됨.
+- 계측(?perf=1 뱃지)은 라이브에만, 평소 화면 영향 없음(gate). 확인 끝나면 제거 예정.
+- 다음: 사장님 ?perf=1 재측정 → 받기 1141ms 가 수십 ms 로 떨어졌는지 확인.
