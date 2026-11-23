@@ -16924,3 +16924,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - ⚠️ repo/server/main.py 는 content_hash 인덱스 블록이 없어(193커밋 뒤) 앵커 불일치 → repo 반영 skip(§3 드리프트, 라이브 전용). 앞서 올린 calendar(76db56e5)·thumbnail(04b4e58d) 은 repo 반영됨.
 - 계측(?perf=1 뱃지)은 라이브에만, 평소 화면 영향 없음(gate). 확인 끝나면 제거 예정.
 - 다음: 사장님 ?perf=1 재측정 → 받기 1141ms 가 수십 ms 로 떨어졌는지 확인.
+
+## 2026-11-23 22:30 · android (+ server, live-only)
+웹 뷰어 렉 — 근본원인=Cloudflare 터널 지연(인프라), 코드 캐시로 체감 완화
+- 정밀 측정(?perf=1 뱃지 + 맥미니 curl): 서버 5ms · 맥미니↔CF 핑 10ms(손실0) · **공개주소(터널) TTFB 0.25~1.9s 들쭉날쭉** · si0in 엣지 TCP 110ms(먼 엣지). → 앱/서버/회선 다 빠름, **Cloudflare 엣지↔터널 백홀이 느림**.
+- 시도: cloudflared 재시작(사장님 sudo) → 효과 없음. config 에 protocol: http2 추가(백업 config.yml.bak-*) + 재시작 → 효과 없음(QUIC/프로토콜 아님, 엣지 라우팅 문제). 네트워크 아님(핑 10ms).
+- 결론: 터널 지연은 **Cloudflare 인프라 구간**이라 코드/설정으로 못 없앰. 근본해결 후보 = 국내 VPS 이전 / 포트개방+DDNS 직결 / CF 유료(Argo). 사장님께 보고함(당장은 ① 유지 + 코드 캐시).
+- 코드 완화(라이브 _WEB_VIEWER_HTML): ① openSite 에 SITE_CACHE — 한 번 본 현장 재방문 시 **즉시 렌더**(터널 안 타고) + 백그라운드 revalidate. ② 클릭마다 달력 재fetch 제거(앞서). ?perf=1 계측 뱃지는 라이브에만(게이트, 평소 영향 없음) — 확인 끝나면 제거.
+- 서버 fix(앞서 반영): 식 인덱스 idx_team_photos_ownernorm_cust(서버 1141ms→12ms), 썸네일 w=400 리사이즈.
+- ⚠️ perf/cache/index/http2 는 repo(193커밋 뒤) 앵커 불일치로 repo 미반영(§3 드리프트, 라이브 전용). calendar·thumbnail 은 repo 반영됨.
+- 다음: 사장님 재방문 즉시성 확인. 근본해결(VPS)은 별도 세션.
