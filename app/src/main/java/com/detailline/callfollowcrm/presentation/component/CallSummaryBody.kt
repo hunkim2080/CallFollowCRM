@@ -192,12 +192,17 @@ private fun boldMd(text: String): androidx.compose.ui.text.AnnotatedString =
 fun hasSpeakerGuess(rawLines: List<String>): Boolean =
     rawLines.any { it.count { c -> c == '|' } >= 2 }
 
-/** 서버 todos JSON 배열 → 문자열 목록(빈 값 제거). 체크리스트(시트)·챗 카드 칩이 **같이 쓴다**. (2026-11-19) */
+/** 서버 todos JSON 배열 → 문자열 목록(빈 값 제거). 체크리스트(시트)·챗 카드 칩이 **같이 쓴다**. (2026-11-19)
+ *   ⚠️ LLM 이 가끔 스키마 필드명(suggested_followup_sms·tags 등)을 todos 배열에 토해낸다 — 할 일처럼 떠버림.
+ *     (2026-11-23 사장님) 할 일은 한국어 문장이라, **공백 없는 ascii 소문자 식별자(snake_case)** 는 전부 버린다. */
+private val TODO_JUNK_KEY = Regex("^[a-z][a-z0-9_]*$")
 fun parseCallTodos(todosJson: String?): List<String> =
     if (todosJson.isNullOrBlank()) emptyList()
     else runCatching {
         val arr = org.json.JSONArray(todosJson)
-        (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotBlank() } }
+        (0 until arr.length()).mapNotNull {
+            arr.optString(it).trim().takeIf { s -> s.isNotBlank() && !TODO_JUNK_KEY.matches(s) }
+        }
     }.getOrDefault(emptyList())
 
 /**
