@@ -16934,3 +16934,16 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 서버 fix(앞서 반영): 식 인덱스 idx_team_photos_ownernorm_cust(서버 1141ms→12ms), 썸네일 w=400 리사이즈.
 - ⚠️ perf/cache/index/http2 는 repo(193커밋 뒤) 앵커 불일치로 repo 미반영(§3 드리프트, 라이브 전용). calendar·thumbnail 은 repo 반영됨.
 - 다음: 사장님 재방문 즉시성 확인. 근본해결(VPS)은 별도 세션.
+
+## 2026-11-23 23:40 · android (+ server, live-only)
+웹 스튜디오 글만들기 개편 — ① 재료화면 정리 ② 가이드 위저드(프로토 6n7NNnYCJMp, 사장님 「가」)
+- 프로토: claude.ai/artifact/6n7NNnYCJMp (부위사진 기본 미선택 + 키워드 직접입력 + 톤=말투·인용구·구성 '글의 결').
+- ①(배포1) 「이 현장은」 재료 화면: 스켈레톤 로딩 + 긴 재료 200자 접기/펼치기 + 출처 라벨(통화/고객상세/문자) + 실패시 「↻ 다시 불러오기」 + 늦게 온 응답 버리기(레이스 가드). renderStory/drawStory 교체, matCard/matFold/storySkel 신규.
+- ②(배포2) 가이드 위저드: genContent 진입점을 openWiz 로(옛 openOrderConfirm/번호매기기/키워드 오버레이는 함수 남겨 폴백). 흐름 = 시공한곳(getParts 사전) → 부위별 사진+이야기(먼저 고른 부위 사진 자동 제외·전후 추정 라벨) → 순서(▲▼) → 키워드(추천 wzRecs + 직접입력, 기존 KW/kwAdd 재사용) → 확인 → doGenerate. 끝에서 genOrder+부위태그(PT_KEY/saveTag)+KW 채워 기존 생성 그대로.
+- 데이터 계약: 빈 선택 자동6장은 이미 openOrderConfirm 에서 막혀 있었고(0장 명시), 위저드는 genOrder 를 명시적으로 채워 자동채움 안 탐. 12장 초과는 위저드 순서/확인 화면에 '12장까지' 경고 표시(서버 _sel[:12] 유지).
+- 서버: WebGenReq.notes(Optional[str]) 추가 + note_hint 로 프롬프트에 '부위별 사장님 이야기'를 1차 재료로 주입. doGenerate 바디에 notes 전달.
+- 톤 견고성: 서버가 이미 URL 재조회 안 하고 저장된 _web_tone_styles(bl) 리포트를 주입(URL 사라져도 유지) + tone-analyze 가 text 붙여넣기 지원 — 새로 만들 것 없이 위저드에서 '저장됨'만 노출 예정.
+- 검증: 로컬 py_compile + 스튜디오 JS node --check 통과, 라이브 배포 후 smoke 10/10. 백업 main.py.bak-* 2벌(롤백: genContent→openOrderConfirm 재지정).
+- ⚠️ repo/server/main.py 는 193커밋 뒤라 앵커 불일치 → repo 미반영(§3 드리프트, 라이브 전용).
+- 폰/PC 확인: 못 봄 — 사장님 PC에서 si0in.kr/web → 완료현장 → [✨ 글 만들기] 위저드 동작·생성 결과 확인 필요.
+- 다음: (a) 위저드 실사용 확인 후 옛 오버레이 완전 제거 여부 결정 (b) Phase3 — 서버 요약 기반 추천 키워드·부위 사전(다른 PC까지)·이어쓰기 (c) ?perf=1 계측 뱃지 제거.
