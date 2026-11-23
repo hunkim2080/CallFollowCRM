@@ -417,6 +417,12 @@ internal fun JobDetailCard(
                                 if (paidPastWork && scheduled != null) host.onChoosePaidDate(scheduled) { picked -> apply(picked) }
                                 else apply(null)
                             }
+                            if (hasAmount) CdKv(   // 💰 금액 수정 = 정산 행 전체 탭 + 연필(더 확실한 안, 2026-11-23)
+                                label = "총 금액",
+                                value = (if (totalWon > 0L) manwonLabel(totalWon) else "미입력") + " · 계약금 " + (if (depositWon > 0L) manwonLabel(depositWon) + (if (depPaid) " 받음" else "") else "미설정"),
+                                valueColor = TossTextPrimary, trailing = Icons.Filled.Edit, divider = false,
+                                onClick = { host.onEditAmount(editJobId, if (totalWon > 0L) "deposit" else "total") }
+                            )
                             androidx.compose.foundation.layout.Row(
                                 // 위 14 / 아래 0 → 위 선(딱붙음)에서 14dp, 아래 선(CdCardDivider 앞 14dp)에서 14dp = 선과 선 사이 정중앙. 전엔 9/9라 아래14 때문에 위로 치우침. (2026-10-20 사장님)
                                 Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 0.dp),
@@ -681,8 +687,7 @@ internal fun JobDetailCard(
                                 }
                                 Spacer(Modifier.width(6.dp))
                             }
-                            // 🗑️ 「선택 삭제」 = 여러 장 고르기 모드 진입 — 제스처(꾹) 몰라도 보이게 **제목 줄에**. × 는 한 장 빠른 삭제.
-                            //   전엔 더보기 ⋯ 안에 숨겼는데(2026-10-15 Fable), 사장님이 "여러 장 선택이 안 보인다" → 머리 줄로. (2026-11-23 프로토 승인)
+                            // 🗑️ 「선택 삭제」 = 선택모드 진입(꾹 몰라도 보이게 제목 줄에). ×=한 장 빠른 삭제. (2026-11-23 사장님)
                             if (photoTotal > 0) {
                                 PhotoHeadBtn("선택 삭제", filled = false) { pickMode = true }
                                 Spacer(Modifier.width(6.dp))
@@ -749,7 +754,7 @@ internal fun JobDetailCard(
                                                         .of(LocalContext.current, cell.filePath),
                                                     contentDescription = "현장 사진",
                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    // 탭=크게 보기, **꾹=대표 사진으로**. (2026-10-15 사장님: 맨 먼저 올린 게 대표 되던 것 → 꾹 눌러 지정)
+                                                    // 탭=크게 보기, **꾹=선택 모드로**(갤러리식). 대표 지정은 선택모드 액션(아래 「대표로 지정」)으로 옮김. (2026-11-23 사장님 더 확실한 안)
                                                     modifier = Modifier.fillMaxSize().combinedClickable(
                                                         onClick = {
                                                             if (pickMode) {
@@ -762,9 +767,7 @@ internal fun JobDetailCard(
                                                                 host.onOpenPhoto(viewerCells, start)
                                                             }
                                                         },
-                                                        onLongClick = {
-                                                            if (!pickMode) viewModel.setRepresentativePhoto(cell.id, sitePhotos.map { it.id })
-                                                        }
+                                                        onLongClick = { pickMode = true; pickedMine = pickedMine + cell.id }  // 갤러리식: 꾹=선택모드 진입+선택
                                                     )
                                                 )
                                                 // 🏅 이게 인증샷에 들어가는 그 사진이다.
@@ -876,6 +879,12 @@ internal fun JobDetailCard(
                                 color = if (pickedCount == 0) TossTextTertiary else TossTextSecondary,
                                 modifier = Modifier.weight(1f)
                             )
+                            // 🏅 「대표로 지정」 — 한 장만 골랐을 때(갤러리식 선택 흐름). (2026-11-23)
+                            if (pickedMine.size == 1 && pickedTeam.isEmpty()) {
+                                Text("대표로 지정", style = AppType.caption, fontWeight = FontWeight.Bold, color = TossBlue,
+                                    modifier = Modifier.clip(AppShape.sm).background(AppTheme.colors.primaryBg).clickable { viewModel.setRepresentativePhoto(pickedMine.first(), sitePhotos.map { it.id }); exitPickMode() }.padding(horizontal = 12.dp, vertical = 8.dp))
+                                Spacer(Modifier.width(8.dp))
+                            }
                             if (pickedCount > 0) {
                                 Text(
                                     "지우기",
@@ -1074,15 +1083,7 @@ internal fun JobDetailCard(
                     // 🔎 foot 의 행동은 전부 **같은 칩(CdUndoChip + 아이콘)** — 회색 글자만 덩그러니 있어 "보이지도 않고 낯설다"던 것.
                     //   (2026-10-15 사장님) 프로토 `.foot`(작은 선택지 모음) 뜻은 그대로 — 자리·순서 안 바꾸고 **누르는 것처럼 보이게만**.
                     // 총·계약금 — 탭하면 금액 창(계약금 → 총액 → 잔금 자동). 계약금은 총금액 없이도 따로 넣을 수 있다(2026-06-11).
-                    if (hasAmount) {
-                        // ✎ 연필 + 끝에 「수정」 — 돈 아이콘만 있으면 '상태 표시'로 오해해 눌러서 고치는 곳인지 몰랐다. (2026-11-23 사장님·코덱스)
-                        CdUndoChip(
-                            "총 " + (if (totalWon > 0L) manwonLabel(totalWon) else "미입력") +
-                                " · 계약금 " + (if (depositWon > 0L) manwonLabel(depositWon) + (if (depPaid) " 받음" else "") else "미설정") +
-                                " · 수정",
-                            danger = false, filled = true, icon = Icons.Filled.Edit
-                        ) { host.onEditAmount(editJobId, if (totalWon > 0L) "deposit" else "total") }
-                    } else {
+                    if (!hasAmount) {   // 금액 없을 때만 「계약금 넣기」 — 수정은 정산 「총 금액」 행으로 옮김(2026-11-23)
                         CdUndoChip("계약금 넣기", danger = false, filled = true, icon = Icons.Filled.Add) {
                             host.onEditAmount(editJobId, "deposit")
                         }
