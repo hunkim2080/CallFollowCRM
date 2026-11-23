@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
@@ -36,6 +37,9 @@ import com.detailline.callfollowcrm.presentation.theme.AppType
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.PhoneDialer
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.util.SmsIntentHelper
 
 /**
  * 🤝 **「내가 공유한 현장」** — 공유받은 현장과 **같은 틀**: [업체별] / [현장순] 세그먼트 + 업체 드릴다운(달별·월 접기). (2026-10-17 사장님 "짝 맞추기")
@@ -121,7 +125,7 @@ internal fun MySharedArea(
                     style = AppType.caption, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
                 )
                 partnerGroups.forEach { g ->
-                    PartnerRow(g, onClick = { onPickPartner(g.key) }, showWage = false)
+                    PartnerRow(g, onClick = { onPickPartner(g.key) }, showWage = false, showContact = true)
                     Spacer(Modifier.height(9.dp))
                 }
                 Text("업체를 누르면 그 사장님과 한 현장이 달별로 나와요.",
@@ -164,8 +168,11 @@ private fun MySharedMonths(
  *   [CollabPartnerGroups.Group.pending] 묶음(「수락 대기」)은 글자 대신 시계 아이콘·회색 — 업체가 아니라 「아직 없음」이다.
  */
 @Composable
-internal fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit, showWage: Boolean = true) {
+internal fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit, showWage: Boolean = true, showContact: Boolean = false) {
     val c = AppTheme.colors
+    val ctx = LocalContext.current
+    // 내가 공유한 현장 = 상대(협업 사장) 번호가 by-me 응답에 있다 → 전화/문자 바로. (2026-11-23 사장님)
+    val contactPhone = if (showContact) g.sites.firstNotNullOfOrNull { it.partnerPhone?.takeIf { p -> p.isNotBlank() } } else null
     Row(
         Modifier.fillMaxWidth().clip(AppShape.md).background(c.surface)
             .border(1.dp, c.surfaceMuted, AppShape.md)
@@ -200,6 +207,16 @@ internal fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit, showW
                     (if (g.recentMs > 0L) " · 최근 ${DateTimeUtils.formatMonthDay(g.recentMs)}" else ""),
                 style = AppType.caption, color = TossTextTertiary, fontWeight = FontWeight.Medium
             )
+            if (contactPhone != null) {
+                Spacer(Modifier.height(7.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(PhoneNumberFormatter.format(contactPhone), style = AppType.caption, color = c.textSub, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(9.dp))
+                    ContactChip("전화") { PhoneDialer.open(ctx, contactPhone) }
+                    Spacer(Modifier.width(6.dp))
+                    ContactChip("문자") { SmsIntentHelper.openSmsCompose(ctx, contactPhone, "") }
+                }
+            }
         }
         if (showWage) {
             Column(horizontalAlignment = Alignment.End) {
@@ -210,4 +227,17 @@ internal fun PartnerRow(g: CollabPartnerGroups.Group, onClick: () -> Unit, showW
         }
         Text("›", style = AppType.title, fontWeight = FontWeight.Normal, color = TossTextTertiary)
     }
+}
+
+/** 전화/문자 작은 알약 — 업체 번호 옆(내가 공유한 현장). 값은 토큰(style_guard 0). 탭은 행 클릭과 안 겹침(안쪽 clickable 소비). */
+@Composable
+private fun ContactChip(label: String, onClick: () -> Unit) {
+    Text(
+        label, style = AppType.caption, fontWeight = FontWeight.Bold, color = CollabPurple,
+        modifier = Modifier
+            .clip(AppShape.pill)
+            .background(CollabPurpleSoft)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+    )
 }

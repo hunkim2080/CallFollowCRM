@@ -16873,3 +16873,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. ① SharedSiteScreen: 알림(딥링크)으로 들어와 거절하면 selectedId=null 대신 onBack() 으로 화면 닫아 원래 자리로(빈 목록에 안 남게). 두 경로(사유시트 onPick·만료 지우기) 모두. ② NotificationHelper declined 푸시: "협업 요청 거절 / {상대}님이 '{긴주소}' 거절 — 사유" → 제목 "{상대}님이 거절했어요" · 본문 ""사유" · {단지명}"(complexName). ③ NotificationCenterScreen: 제목이 "…거절했어요"면 전용 DeclineCard(빨강 unpaid 토큰, 사유 말풍선) — 같은 "협업 요청 거절" 더미 대신. 토큰만 써서 style_guard 안 늘음. 서버 변경 없음. 프로토 artifact/MHiJHWTQYWAPiHqwfJjsxw.
 - 폰 확인: 못 봄 (가드7 통과)
 - 다음 액션: 거절 알림(푸시·센터) 새 모양 확인 · 알림에서 거절 시 홈으로 돌아오는지
+
+## 2026-11-23 18:05 · android
+내가 공유한 현장 업체에 번호 + 전화/문자 바로 · 상담함 카드 탭 점검
+- 변경: 앱만. (F) SharedSite 모델에 partnerPhone 추가 + by-me 파서가 partner_phone 읽음(서버는 이미 보냈으나 앱이 안 읽던 것). PartnerRow 에 showContact=true(내가 공유한 쪽만) 로 번호 표시 + 「전화」(PhoneDialer)·「문자」(SmsIntentHelper) 알약. 번호는 g.sites 의 partnerPhone 에서(Group/묶기 수정 불필요). (I+) 다른 상담함 카드는 InboxAlert·손님카드 모두 combinedClickable 로 이미 탭=대화 — 보류 카드만 예외였고 앞서 고침. 추가 수정 없음. 서버 변경 없음.
+- 폰 확인: 못 봄 (가드7 통과)
+- 다음 액션: 내가 공유한 현장 업체별에서 번호·전화·문자 뜨고 바로 거는지 확인
