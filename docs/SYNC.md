@@ -16861,3 +16861,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. SharedSiteViewModel.loadPhotos/loadComments 가 _photos/_comments(단일 공유 StateFlow)를 현장 바꿀 때 안 비워, B현장 열면 느린 base64 로드 끝날 때까지 A현장 사진이 그대로 보였다(서로 다른 두 현장에 같은 사진 11장). → 현장이 바뀐 경우에만 먼저 비우고(같은 현장 새로고침·업로드 땐 안 비워 안 깜빡), photosForShareId/commentsForShareId 로 늦게 온 응답이 남의 현장을 덮지 않게 가드. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과)
 - 다음 액션: 협업 현장 A→B 빠르게 전환 시 각자 제 사진 뜨는지. (로딩 UX=스켈레톤은 후속 제안)
+
+## 2026-11-23 17:28 · android
+상담함 보류 카드 번호/카드 탭 = 대화 열기 (기본 UX 복원)
+- 변경: 앱만. HomeOnHoldParts.OnHoldCard 가 버튼(일정잡기·안부문자)에만 클릭이 있고 카드/번호엔 없어 번호 눌러도 반응 없었다. TossCard(onClick=onOpen) 추가 → 카드 탭 시 그 손님 대화로(onOpenChat, 안부문자와 같은 경로). 버튼은 각자 동작 유지(inner clickable 이 소비). 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과)
+- 다음 액션: 보류 카드 번호/본문 탭 시 대화 열리는지 확인. (다른 상담함 카드도 탭 되는지 점검은 후속)

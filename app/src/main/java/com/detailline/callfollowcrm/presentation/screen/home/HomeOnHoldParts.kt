@@ -83,6 +83,7 @@ internal fun LazyListScope.onHoldSection(
         val hc = h.customer!!
         OnHoldCard(
             c = hc, quietSinceMs = quietSinceOf(h), nowMs = nowMs,
+            onOpen = { onOpenChat(h.record.phoneNumber, hc.id) },   // 카드/번호 탭 = 그 손님 대화로 (상담함 표준)
             onSchedule = { onSchedule(hc.id) },
             onSms = { onOpenChat(h.record.phoneNumber, hc.id) }
         )
@@ -133,6 +134,7 @@ internal fun OnHoldCard(
     c: CustomerEntity,
     quietSinceMs: Long,
     nowMs: Long,
+    onOpen: () -> Unit,
     onSchedule: () -> Unit,
     onSms: () -> Unit
 ) {
@@ -143,7 +145,7 @@ internal fun OnHoldCard(
     val depositWon = c.depositAmount ?: 0L
     val reason = c.onHoldReason?.takeIf { it.isNotBlank() }
     val quietWeeks = OnHold.quietWeeks(quietSinceMs, nowMs)
-    TossCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(AppSpace.s16)) {
+    TossCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(AppSpace.s16), onClick = onOpen) {
         Column {
             // 머리 — 아바타(주황 테두리 = WAITING 색) + 이름/언제 + 「보류」 딱지
             Row(verticalAlignment = Alignment.CenterVertically) {
