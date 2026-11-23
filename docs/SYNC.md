@@ -16879,3 +16879,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. (F) SharedSite 모델에 partnerPhone 추가 + by-me 파서가 partner_phone 읽음(서버는 이미 보냈으나 앱이 안 읽던 것). PartnerRow 에 showContact=true(내가 공유한 쪽만) 로 번호 표시 + 「전화」(PhoneDialer)·「문자」(SmsIntentHelper) 알약. 번호는 g.sites 의 partnerPhone 에서(Group/묶기 수정 불필요). (I+) 다른 상담함 카드는 InboxAlert·손님카드 모두 combinedClickable 로 이미 탭=대화 — 보류 카드만 예외였고 앞서 고침. 추가 수정 없음. 서버 변경 없음.
 - 폰 확인: 못 봄 (가드7 통과)
 - 다음 액션: 내가 공유한 현장 업체별에서 번호·전화·문자 뜨고 바로 거는지 확인
+
+## 2026-11-23 18:40 · android
+금액 편집 발견성 + 사진 선택삭제 자리 (코덱스 UX·프로토 승인)
+- 변경: 앱만. (D) CustomerDetailJobCard 금액 칩: 돈 아이콘→연필(Edit) + 끝에 "· 수정" — 상태표시로 오해하던 것(코덱스). (E) 「사진 골라 지우기」를 더보기 ⋯ 에서 빼고 사진 제목 줄에 「선택 삭제」(PhotoHeadBtn, photoTotal>0·내사진·비픽모드)로 — 입구 하나(두 벌 방지). showMore 의 photoTotal 항 제거. × 한 장 삭제·꾹=대표는 그대로(2안 갤러리식은 미적용). 서버 변경 없음. 프로토 artifact/8TuMyfYCpRsm5xMhb4nbmU.
+- 폰 확인: 못 봄 (가드7 통과)
+- 다음 액션: 금액 칩에 "수정" 보이는지·누르면 편집 / 사진 제목 옆 「선택 삭제」로 여러 장 지우기

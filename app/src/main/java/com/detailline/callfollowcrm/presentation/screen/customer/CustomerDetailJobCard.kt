@@ -681,9 +681,12 @@ internal fun JobDetailCard(
                                 }
                                 Spacer(Modifier.width(6.dp))
                             }
-                            // 「사진 골라 지우기」는 foot 의 ⋯ 더보기 안으로 — 가끔 하는 일을 머리 줄에 늘 두지 않는다. (2026-10-15 Fable §4-7)
-                            //   이름은 그대로 「골라 지우기」(2026-09-30 사장님: 「고르기」만으론 뭘 고르는지 모르고,
-                            //   「지우기」만이면 다 지워질 것 같다). 색도 중립 그대로 — 이 버튼은 아무것도 안 지운다.
+                            // 🗑️ 「선택 삭제」 = 여러 장 고르기 모드 진입 — 제스처(꾹) 몰라도 보이게 **제목 줄에**. × 는 한 장 빠른 삭제.
+                            //   전엔 더보기 ⋯ 안에 숨겼는데(2026-10-15 Fable), 사장님이 "여러 장 선택이 안 보인다" → 머리 줄로. (2026-11-23 프로토 승인)
+                            if (photoTotal > 0) {
+                                PhotoHeadBtn("선택 삭제", filled = false) { pickMode = true }
+                                Spacer(Modifier.width(6.dp))
+                            }
                             // 올리기는 아래 스트립 맨 앞 ＋ 타일로 (프로토 스타일). **내 사진**이 다 차면 안내만. (2026-10-15 사장님: 사장마다 20장 따로)
                             if (photoMine >= photoMax) {
                                 Text(
@@ -1059,7 +1062,7 @@ internal fun JobDetailCard(
                 // ⋯ 더보기는 **안에 칩이 하나라도 있을 때만** — 아래 펼침 블록의 조건과 같은 식. (완납 취소는 잔금 줄로 갔다. 2026-10-15)
                 val showMore = (asCanBook && !asReadyHere) || holdCanMark ||
                     (isPrimary && c.asPendingAt == null) ||
-                    (scheduled != null && !allPaid) || (photoTotal > 0 && !pickMode)
+                    (scheduled != null && !allPaid)
                 var moreActionsExpanded by remember(jobId) { mutableStateOf(false) }
 
                 CdCardDivider()
@@ -1072,10 +1075,12 @@ internal fun JobDetailCard(
                     //   (2026-10-15 사장님) 프로토 `.foot`(작은 선택지 모음) 뜻은 그대로 — 자리·순서 안 바꾸고 **누르는 것처럼 보이게만**.
                     // 총·계약금 — 탭하면 금액 창(계약금 → 총액 → 잔금 자동). 계약금은 총금액 없이도 따로 넣을 수 있다(2026-06-11).
                     if (hasAmount) {
+                        // ✎ 연필 + 끝에 「수정」 — 돈 아이콘만 있으면 '상태 표시'로 오해해 눌러서 고치는 곳인지 몰랐다. (2026-11-23 사장님·코덱스)
                         CdUndoChip(
                             "총 " + (if (totalWon > 0L) manwonLabel(totalWon) else "미입력") +
-                                " · 계약금 " + (if (depositWon > 0L) manwonLabel(depositWon) + (if (depPaid) " 받음" else "") else "미설정"),
-                            danger = false, filled = true, icon = Icons.Filled.Payments
+                                " · 계약금 " + (if (depositWon > 0L) manwonLabel(depositWon) + (if (depPaid) " 받음" else "") else "미설정") +
+                                " · 수정",
+                            danger = false, filled = true, icon = Icons.Filled.Edit
                         ) { host.onEditAmount(editJobId, if (totalWon > 0L) "deposit" else "total") }
                     } else {
                         CdUndoChip("계약금 넣기", danger = false, filled = true, icon = Icons.Filled.Add) {
@@ -1226,10 +1231,7 @@ internal fun JobDetailCard(
                         if (scheduled != null && !allPaid) {
                             CdUndoChip("시공 예약 취소", danger = true) { host.onCancelBooking() }
                         }
-                        // 🖼 사진 골라 지우기 — 고르는 화면으로 갈 뿐 아무것도 안 지운다. 색 중립. (2026-09-30 사장님)
-                        if (photoTotal > 0 && !pickMode) {
-                            CdUndoChip("사진 골라 지우기", danger = false) { pickMode = true; moreActionsExpanded = false }
-                        }
+                        // 🖼 「사진 골라 지우기」는 사진 제목 줄의 「선택 삭제」로 옮겼다 — 입구 하나(두 벌 방지). (2026-11-23 사장님)
                         // (빈 건 지우기는 카드 머리 X — 여기 두 벌로 두지 않는다. 2026-10-17)
                     }
                 }
