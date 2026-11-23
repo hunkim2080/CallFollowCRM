@@ -184,10 +184,19 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         private fun collabSiteOf(s: SharedSiteRepository.SharedSite): Site {
             val minutes = DayOrder.collabMinutes(s.timeLabel, s.scheduledAtMs).takeIf { it != DayOrder.UNKNOWN }
-            return Site(siteDisplayName(s), com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr).orEmpty(), "", unitOf(AddressExtractor.splitDongHo(s.addr)),
-                s.memo.orEmpty().trim(), s.workSummary.orEmpty(), minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(),
-                AddressExtractor.tidyAddress(s.addr), minutes, DateTimeUtils.startOfDay(s.scheduledAtMs),
-                s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
+            // 협업은 고객 이름을 못 받으니(벽) **아파트명을 제목**으로, 동·호수를 크게 — siteOf 의 '이름 없음' 가지와 같은 규칙.
+            //   전엔 siteDisplayName(=도로명 전체주소)을 제목에 써서 아파트명이 묻히고 길게 잘렸다(2026-11-23 사장님).
+            val addr = s.addr
+            val complex = AddressExtractor.complexName(addr).orEmpty()
+            return Site(
+                headline = complex.ifBlank { AddressExtractor.roughSite(addr).ifBlank { siteDisplayName(s) } },
+                region = com.detailline.callfollowcrm.util.RegionName.shortRegion(addr).orEmpty(), complex = "",
+                unit = unitOf(AddressExtractor.splitDongHo(addr)),
+                memo = s.memo.orEmpty().trim(), items = s.workSummary.orEmpty(),
+                timeLabel = minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(),
+                navAddress = AddressExtractor.tidyAddress(addr), minutes = minutes,
+                day = DateTimeUtils.startOfDay(s.scheduledAtMs),
+                completed = s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
         }
 
         private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, week: Map<Long, List<Site>>, today: Long, now: Long, tomorrow: Boolean): RemoteViews {

@@ -16849,3 +16849,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 라이브 절차: GOTCHAS §3 — scp→패치→py_compile(로컬·서버)→백업(main.py.bak-20261123-164631)→교체→kickstart→smoke 10/10 ✅. 통짜 배포 아님.
 - 폰 확인: 못 봄 (서버 smoke만). 사장님이 협업폰에서 거절 사유 골라 거절 → 요청한 폰(A) 알림에 "— 「사유」" 뜨는지 확인 필요.
 - 다음 액션: A 폰에서 거절 사유 표시 확인
+
+## 2026-11-23 16:55 · android
+위젯 협업 카드 주소 = 아파트명 제목 + 동호수 (프로토대로)
+- 변경: 앱만. TodayWidgetProvider.collabSiteOf 가 제목에 siteDisplayName(도로명 전체주소) 대신 complexName(아파트명)을 쓰고 complex 필드는 비움 — siteOf 의 '이름 없음' 가지와 같은 규칙(협업은 고객이름 못 받음). 동호수(splitDongHo)는 그대로 큰 글자. 아파트명 없으면 roughSite→siteDisplayName 폴백. 오늘 카드·주간 줄 둘 다 collab 리스트를 공유하므로 양쪽 반영(§12-K). 프로토: 업그레이드 홈위젯 v2 맨 아래 before/after. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과)
+- 다음 액션: 협업 받은 폰 위젯에 아파트명 제목 + 동호수 뜨는지 확인
