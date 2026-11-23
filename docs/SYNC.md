@@ -16897,3 +16897,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. LLM 이 가끔 todos 배열에 스키마 필드명을 토해내 할 일처럼 떴다(2nd 통화카드). 공용 parseCallTodos(CallSummaryBody) 한 곳에서 **공백 없는 ascii 소문자 식별자(snake_case) 는 버림**(한국어 할 일은 안 걸림). 칩·체크리스트 모든 표시 경로 + 이미 저장된 것도 표시 때 걸러짐. 근본은 서버/LLM(live main.py:18996 todos 필터 없음) — 서버도 같은 필터 넣으면 구버전앱·소스에서도 안전(서버 올릴 때).
 - 폰 확인: 못 봄 (가드7 통과)
 - 다음 액션: 그 2번째 통화카드에서 suggested_followup_sms·tags 칩 사라졌는지. (서버 필터는 "서버 올려" 때)
+
+## 2026-11-23 20:59 · android (+ server)
+서버 call-summary todos 에도 필드명 누수 필터 (앱과 양쪽)
+- 변경: 라이브 + repo/server/main.py. todos 루프에 공백 없는 소문자 식별자(^[a-z][a-z0-9_]*$) 는 버리는 한 줄 추가(suggested_followup_sms·tags 누수 차단). 앱 parseCallTodos 필터와 같은 규칙 — 구버전앱·다른 경로도 안전(§12-I 겹겹의 문). GOTCHAS §3 절차: scp→py_compile(로컬·서버)→백업(main.py.bak-20261123-205838)→교체→kickstart→smoke 10/10 ✅.
+- 폰 확인: 서버 smoke만. 앱 필터는 upload-2034 로 이미 배포됨.
+- 다음 액션: 없음(양쪽 필터 완료)

@@ -16612,6 +16612,9 @@ def _coerce_call_summary(parsed: dict, duration_sec: int = 0) -> dict:
             s = str(t).strip().lstrip("-•").strip()
             if not s:
                 continue
+            # LLM 이 가끔 스키마 필드명(suggested_followup_sms·tags 등)을 todos 에 토해낸다 — 공백 없는 소문자 식별자는 버림. (2026-11-23)
+            if re.match(r"^[a-z][a-z0-9_]*$", s):
+                continue
             if len(s) > 40:
                 s = s[:40].rstrip() + "…"
             todos.append(s)
