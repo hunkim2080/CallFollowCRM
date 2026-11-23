@@ -1728,29 +1728,14 @@ private fun CollabPayoutAccountSection(
 }
 
 @Composable private fun Stepper(progress: SharedSiteRepository.Progress) {
-    val steps = listOf("배정", "출발", "도착", "완료")
-    val curIdx = when (progress) {
+    // 도달 단계(배정 0·출발 1·도착 2·완료 3). 눈금 그림은 공용 CollabStepper 한 곳(두 벌 금지 §12).
+    val reachedIdx = when (progress) {
         SharedSiteRepository.Progress.ASSIGNED -> 0
         SharedSiteRepository.Progress.DEPARTED -> 1
         SharedSiteRepository.Progress.ARRIVED -> 2
         SharedSiteRepository.Progress.COMPLETED -> 3
     }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        steps.forEachIndexed { i, label ->
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                val done = i < curIdx
-                val cur = i == curIdx
-                val bg = when { done -> ProtoSuccess; cur -> ProtoBlue; else -> TossGrayBg }
-                val fg = if (done || cur) Color.White else TossTextTertiary
-                Box(Modifier.size(30.dp).clip(RoundedCornerShape(999.dp)).background(bg), contentAlignment = Alignment.Center) {
-                    Text(if (done) "✓" else "${i + 1}", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = fg)
-                }
-                Spacer(Modifier.height(5.dp))
-                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                    color = if (done || cur) TossTextPrimary else TossTextTertiary)
-            }
-        }
-    }
+    com.detailline.callfollowcrm.presentation.component.CollabStepper(reachedIdx)
 }
 
 // 날짜 라벨: 오늘/내일/M.d

@@ -346,21 +346,11 @@ internal fun CollabAfterCard(
         } else {
             Text("상대가 올린 진행·사진·메모가 여기 그대로 들어와요.", fontSize = 12.sp, color = TossTextTertiary)
             Spacer(Modifier.height(12.dp))
-            // 진행 stepper (A가 보는 상대 진행)
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                listOf("배정", "출발", "도착", "완료").forEachIndexed { i, label ->
-                    Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                        val done = i < curIdx; val cur = i == curIdx
-                        val bg = when { done -> AppTheme.colors.done; cur -> AppTheme.colors.primary; else -> TossGrayBg }
-                        val fg = if (done || cur) Color.White else TossTextTertiary
-                        Box(Modifier.size(28.dp).clip(RoundedCornerShape(999.dp)).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                            Text(if (done) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = fg)
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (done || cur) TossTextPrimary else TossTextTertiary)
-                    }
-                }
-            }
+            // 진행 stepper (A가 보는 상대 진행) — 눈금 그림은 공용 CollabStepper 한 곳(두 벌 금지 §12).
+            //   curIdx = 도달 단계(배정 0·출발 1·도착 2·완료 3). 끝낸 단계는 ✓, 그다음이 '지금'.
+            com.detailline.callfollowcrm.presentation.component.CollabStepper(
+                reachedIdx = curIdx, dotSize = 28.dp, numSp = 12.sp, labelSp = 10.5.sp
+            )
         }
         if (!upcoming) {   // 미래 건은 현장 사진 섹션 숨김(당연히 없음). (2026-10-27 사장님)
         Spacer(Modifier.height(14.dp))

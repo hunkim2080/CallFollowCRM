@@ -327,6 +327,17 @@ val dupRules = listOf(
         regex = Regex("""\bSnackbarHost\(|\.showSnackbar\("""),
         instead = "AppSnackbarHost(state) / state.showBrief(msg[, actionLabel]) (presentation/util/AppSnackbar.kt)",
         homes = listOf("/presentation/util/AppSnackbar.kt")
+    ),
+
+    // 🤝 협업 진행 4단계 눈금(배정·출발·도착·완료) — **두 벌**이었다. (2026-11-24 사장님 "출발했는데 출발이 체크 안 돼")
+    //   공유받은 현장 상세(SharedSiteScreen)·고객 상세 상대진행(CustomerCollabParts)이 같은 눈금을 각자 그려,
+    //   둘 다 도달 단계를 '지금'(번호)으로 찍어 끝낸 단계가 체크 안 된 것처럼 보였다. 이제 CollabStepper 한 곳(끝낸 단계=✓).
+    //   (쿠팡식 푸시 트래커 CollabProgressSteps 는 역할이 달라 별개 — §12-I)
+    DupRule(
+        id = "collab-stepper",
+        regex = Regex("""listOf\(\s*"배정",\s*"출발",\s*"도착",\s*"완료"\s*\)"""),
+        instead = "CollabStepper(reachedIdx) (presentation/component/CollabStepper.kt)",
+        homes = listOf("/presentation/component/CollabStepper.kt")
     )
 )
 

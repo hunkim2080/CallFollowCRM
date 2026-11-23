@@ -359,13 +359,13 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (26가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (28가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 27가지** — 이게 **빌드가 막아주는 전부**다:
-`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `deposit-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker` · `new-inquiry`
+**`dup_guard` 가 지금 막는 28가지** — 이게 **빌드가 막아주는 전부**다:
+`keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `deposit-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker` · `new-inquiry` · `collab-stepper`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
 
@@ -467,6 +467,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 공유받은 현장 **업체별 → 달별** 묶기(번호+이름으로 가르기·빈 이름은 뒤 4자리·서버 §B 합계 보강·완료 일당 합) / **내가 공유한 현장**은 상대 번호가 없어 **상호로만**(수락 전은 「수락 대기」 한 묶음 맨 위) | `domain/collab/CollabPartnerGroups.kt` — `group(sites)` · `groupByPartner(sites)`(by-me · `Group.pending`) · `merge(local, serverPartners)` · `byMonth(sites)` · `displayName` (달 경계는 `SharedSiteRepository.ymOf`) · 업체 줄은 `PartnerRow(g, onClick, showWage)` 하나(`presentation/screen/sharedsite/SharedSiteMyShared.kt`) | 화면에서 `groupBy { ownerPhone }`·`groupBy { partnerName }` 직접, 서버 §B 를 그대로 목록으로(2026-10-16: 해시줄눈·하우스픽·태그줄눈이 「사장님」 한 줄로 뭉쳤다 — §B 는 번호로만 묶고 이름은 가입자 명부), `openPartner.sites.forEach` 평면 나열, 내가 공유한 쪽에 업체 줄을 따로 복사 |
 | 협업 진행 알림 **한 번만**(FCM·폴링이 같은 이벤트를 각각 들고 와도) | `NotificationHelper.showCollabEvent` 문 하나 + 그 안의 게이트(셈은 `domain/collab/CollabNotifyDedup.kt`, 기억은 `prefs.collabNotifiedKeys`) | 협업 진행 채널(`CHANNEL_COLLAB_DEPARTED` 등)로 `showProtoPush` 직접, 부르는 쪽에서 「본 이벤트」를 따로 기억(2026-10-15: FCM 과 폴링이 각자 기억해 센터에 두 줄씩) |
 | 협업 진행 **단계 그림 셈**(수락→출발→도착→완료 · 점 상태·연결 막대 on/off·라벨) — 푸시 알림(RemoteViews)과 인앱 알림센터(Compose)가 **같은 그림** | `domain/collab/CollabProgressSteps.kt` — `cells(reached)`(점 `DotState`·막대·라벨, 순수+시험)·`labels`·`orderOf`·`line`. 푸시는 `service/CollabStepNotifier.kt`(buildView), 센터는 `presentation/screen/notification/NotificationCenterScreen.kt`(CollabStepCard)가 부른다. 진행 기억(reached/times)은 `CollabStepNotifier`(prefs.collabProgressJson) 한 곳·`progressOf` 로 읽음 | 화면·알림마다 단계 점·막대를 직접 그리기, 「수락/출발/도착/완료」 글자·순서를 따로, 진행 기억을 화면이 또 들기 |
+| 협업 진행 **4단계 가로 눈금**(배정·출발·도착·완료 — **인앱** 현장상세·상대진행용. 끝낸 단계=초록 ✓, 그다음=파란 번호 '지금') | `presentation/component/CollabStepper.kt` — `CollabStepper(reachedIdx)`. 공유받은 현장상세(SharedSiteScreen)·고객상세 상대진행(CustomerCollabParts)이 같이 씀 | 화면마다 `listOf("배정","출발","도착","완료")` + `i < curIdx` 눈금 새로(2026-11-24: 두 벌이라 도달 단계를 '지금'으로 찍어 출발해도 출발이 체크 안 됐다). 쿠팡식 푸시 트래커는 `CollabProgressSteps`(역할 달라 별개 §12-I) |
 | 견적 돈 셈(서비스·할인) | `domain/quote/QuoteMoney.kt` | 화면에서 0원·「할인」 직접 판단 |
 | 돈 계산(정산) | `domain/settlement/SettlementCalc.kt` | 화면에서 직접 합산 |
 | 주소 뽑기 | `util/AddressExtractor.kt` | 화면에서 정규식 |
