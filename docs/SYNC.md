@@ -16909,3 +16909,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 라이브 + repo/server/main.py (_WEB_VIEWER_HTML). selectDay 가 renderCalendar() 로 42칸 innerHTML 통째 재생성 → 사진 많은 페이지서 reflow 로 클릭 굼뜸. 각 칸에 data-k 달고 selectDay 는 .sel 클래스만 토글 + renderSelectedDay() 만. GOTCHAS §3: scp→py_compile→백업(main.py.bak-20261123-211206)→교체→kickstart→smoke 10/10 ✅. 렌더된 달력 JS node --check 통과(f-string {{}}·백슬래시 디코드 후).
 - 폰 확인: 서버 smoke·JS문법만. 사장님이 si0in.kr/web 에서 날짜 클릭 빨라졌는지 확인.
 - 다음 액션: 그래도 느리면 CDP(reference_cdp_screenshot_drive_chrome)로 실측.
+
+## 2026-11-23 21:27 · android (+ server)
+웹 뷰어 달력 렉 진짜 원인 = 썸네일이 원본 풀사이즈였음 → 폭 400 리사이즈
+- 변경: 라이브 + repo/server/main.py. thumb_url 과 url 이 둘 다 /api/web/photo/{id}(원본 풀사이즈, 리사이즈 없음)라 날짜 클릭(openSite)마다 원본 수MB×N장 로드 → 렉. fix: ① web_photo 에 w 파라미터 + Pillow 로 폭 w 리사이즈(화질70)·Cache-Control 하루(팀 썸네일 패턴 재사용) ② web_site 의 thumb_url = ...?w=400(그리드용), url(원본)은 크게보기용 유지. 앞선 selectDay(27293) 패치는 다른 화면 달력이라 무효였음(그 화면엔 유효한 최적화로 남김). GOTCHAS §3: scp→py_compile(로컬·서버)→백업(main.py.bak-20261123-212708)→교체→kickstart→smoke 10/10 ✅.
+- 폰 확인: 서버 smoke만. 사장님이 si0in.kr/web **새로고침(Ctrl+Shift+R)** 후 달력 클릭 가벼워졌는지 확인(썸네일 URL 이 ?w=400 으로 바뀌어 캐시 자동 갱신).
+- 다음 액션: 그래도 느리면 CDP 실측.

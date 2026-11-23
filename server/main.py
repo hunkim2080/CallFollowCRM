@@ -32373,7 +32373,7 @@ async def web_site(request: Request, customer_digits: str, work_date: Optional[s
         photos.append({
             "photo_id": p["photo_id"],
             "url": "/api/web/photo/" + str(p["photo_id"]),
-            "thumb_url": "/api/web/photo/" + str(p["photo_id"]),
+            "thumb_url": "/api/web/photo/" + str(p["photo_id"]) + "?w=400",
             "uploader_kind": uk, "uploader_name": un,
             "uploaded_at_ms": p["uploaded_at_ms"], "ba_guess": ba,
             "part": (_tg[0] if _tg else ""), "ba": (_tg[1] if _tg else ""), "rot": (_tg[2] if _tg else 0),
@@ -32390,7 +32390,7 @@ async def web_site(request: Request, customer_digits: str, work_date: Optional[s
 
 
 @app.get("/api/web/photo/{photo_id}")
-async def web_photo(request: Request, photo_id: int, t: Optional[str] = None, rot: Optional[int] = None):
+async def web_photo(request: Request, photo_id: int, t: Optional[str] = None, rot: Optional[int] = None, w: Optional[int] = None):
     from fastapi.responses import Response as _Resp, JSONResponse
     # 크롬 확장(쿠키 없음)용 서명 토큰(?t=) 허용 — 그 사진 1장만 스코프. 없으면 세션 쿠키.
     owner = None
@@ -32409,7 +32409,21 @@ async def web_photo(request: Request, photo_id: int, t: Optional[str] = None, ro
         raise HTTPException(404, "사진 없음")
     _r = (rot % 360) if (rot is not None) else _web_photo_rot(photo_id, owner)
     data, mime = _web_rot_bytes(data, mime, _r)
-    return _Resp(content=data, media_type=mime or "image/jpeg")
+    # 🖼️ 썸네일(w) — 그리드는 작은 폭으로 줄여 보낸다(원본 수MB 를 N장 받던 렉 fix). Pillow 없으면 원본. (2026-11-23 사장님)
+    if w and _PIL_OK:
+        try:
+            from io import BytesIO as _BIO
+            _tw = max(40, min(int(w), 1600))
+            _im = _PILImage.open(_BIO(data)).convert("RGB")
+            if _im.width > _tw:
+                _im = _im.resize((_tw, max(1, int(_im.height * _tw / _im.width))))
+            _buf = _BIO()
+            _im.save(_buf, format="JPEG", quality=70, optimize=True)
+            data = _buf.getvalue(); mime = "image/jpeg"
+        except Exception:
+            pass
+    return _Resp(content=data, media_type=mime or "image/jpeg",
+                 headers={"Cache-Control": "private, max-age=86400"})
 
 
 def _web_photo_token(pid: int, ttl_ms: int = 24 * 3600 * 1000) -> str:
