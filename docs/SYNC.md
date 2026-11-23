@@ -16867,3 +16867,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. HomeOnHoldParts.OnHoldCard 가 버튼(일정잡기·안부문자)에만 클릭이 있고 카드/번호엔 없어 번호 눌러도 반응 없었다. TossCard(onClick=onOpen) 추가 → 카드 탭 시 그 손님 대화로(onOpenChat, 안부문자와 같은 경로). 버튼은 각자 동작 유지(inner clickable 이 소비). 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과)
 - 다음 액션: 보류 카드 번호/본문 탭 시 대화 열리는지 확인. (다른 상담함 카드도 탭 되는지 점검은 후속)
+
+## 2026-11-23 17:50 · android
+협업 거절 UX 개선 — (C)거절 후 화면 복귀 + (H)푸시 짧게·알림센터 거절 카드
+- 변경: 앱만. ① SharedSiteScreen: 알림(딥링크)으로 들어와 거절하면 selectedId=null 대신 onBack() 으로 화면 닫아 원래 자리로(빈 목록에 안 남게). 두 경로(사유시트 onPick·만료 지우기) 모두. ② NotificationHelper declined 푸시: "협업 요청 거절 / {상대}님이 '{긴주소}' 거절 — 사유" → 제목 "{상대}님이 거절했어요" · 본문 ""사유" · {단지명}"(complexName). ③ NotificationCenterScreen: 제목이 "…거절했어요"면 전용 DeclineCard(빨강 unpaid 토큰, 사유 말풍선) — 같은 "협업 요청 거절" 더미 대신. 토큰만 써서 style_guard 안 늘음. 서버 변경 없음. 프로토 artifact/MHiJHWTQYWAPiHqwfJjsxw.
+- 폰 확인: 못 봄 (가드7 통과)
+- 다음 액션: 거절 알림(푸시·센터) 새 모양 확인 · 알림에서 거절 시 홈으로 돌아오는지

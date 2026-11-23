@@ -456,7 +456,7 @@ fun SharedSiteScreen(
                             accept && why != null ->
                                 android.widget.Toast.makeText(context, why, android.widget.Toast.LENGTH_LONG).show()
                             accept -> viewModel.respond(selected, true)
-                            why != null -> { viewModel.respond(selected, false); selectedId = null }  // 못 받을 요청 '지우기'
+                            why != null -> { viewModel.respond(selected, false); if (openedViaDeepLink) { openedViaDeepLink = false; onBack() } else selectedId = null }  // 못 받을 요청 '지우기'
                             else -> declineReasonTarget = selected   // 거절 = 사유 고르기 시트
                         }
                     },
@@ -530,7 +530,8 @@ fun SharedSiteScreen(
             onPick = { reason ->
                 viewModel.respond(site, false, reason)
                 declineReasonTarget = null
-                selectedId = null   // 상세에서 왔으면 닫기
+                // 알림(딥링크)으로 들어와 거절했으면 화면을 닫아 원래 자리로 — 빈 목록에 덩그러니 안 남게. (2026-11-23 사장님)
+                if (openedViaDeepLink) { openedViaDeepLink = false; onBack() } else selectedId = null
             },
             onDismiss = { declineReasonTarget = null }
         )

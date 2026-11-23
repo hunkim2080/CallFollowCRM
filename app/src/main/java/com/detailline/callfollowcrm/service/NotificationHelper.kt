@@ -810,11 +810,16 @@ object NotificationHelper {
                 "${partnerName}님이 '${title}' 협업을 수락했어요 — 함께 가요!",
                 ACCENT_PURPLE
             )
-            "declined" -> Triple(
-                "협업 요청 거절",
-                "${partnerName}님이 '${title}' 협업을 거절했어요." + (reason?.trim()?.takeIf { it.isNotBlank() }?.let { " — \"$it\"" } ?: ""),
-                ACCENT_PINK
-            )
+            "declined" -> {
+                // 핵심만 — 긴 상호 슬로건·전체 도로명주소 빼고 "누가 거절 · 어디 · 왜". (2026-11-23 사장님 "거절 메시지 모르겠다")
+                val shortSite = com.detailline.callfollowcrm.util.AddressExtractor.complexName(title) ?: title
+                val why = reason?.trim()?.takeIf { it.isNotBlank() }
+                Triple(
+                    "${partnerName}님이 거절했어요",
+                    if (why != null) "\"$why\"  ·  $shortSite" else "$shortSite 협업을 거절했어요",
+                    ACCENT_PINK
+                )
+            }
             "departed" -> Triple(
                 "협업 현장 출발 🚗",
                 "${partnerName}님이 $timeLabel · ${title}으로 출발했어요",

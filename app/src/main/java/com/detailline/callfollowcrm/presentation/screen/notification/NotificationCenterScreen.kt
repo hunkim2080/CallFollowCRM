@@ -115,7 +115,12 @@ fun NotificationCenterScreen(
                         // 🤝 협업 진행(collab_step)은 **푸시처럼 스텝 카드**로, 나머지는 깔끔한 한 줄. (2026-11-05 사장님, 프로토 Y2p5MZAM)
                         //   진행 기록이 비면(리셋 등) 스텝이 null → 평범한 줄로 폴백.
                         val step = if (n.type == "collab_step") n.navShareId?.let { stepMap[it] } else null
-                        if (step != null) CollabStepCard(n, step, tap) else NotiRow(n, tap)
+                        when {
+                            step != null -> CollabStepCard(n, step, tap)
+                            // 🚫 협업 거절 = 전용 빨강 카드(누가·어디·왜 한눈에). 제목이 "…거절했어요"면(새 문구) 카드로. (2026-11-23 사장님)
+                            n.type.startsWith("collab") && n.title.endsWith("거절했어요") -> DeclineCard(n, tap)
+                            else -> NotiRow(n, tap)
+                        }
                     }
                 }
             }
@@ -152,6 +157,59 @@ private fun NotiRow(n: AppNotificationEntity, onTap: () -> Unit) {
                 Text(n.body, fontSize = 12.sp,
                     color = if (read) AppTheme.colors.textHint else AppTheme.colors.textSub,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+}
+
+/**
+ * 🚫 협업 거절 카드 — 똑같은 "협업 요청 거절" 더미 대신, 상대·현장·사유가 한눈에. (2026-11-23 사장님)
+ *   제목("{상대}님이 거절했어요")·본문(""사유" · 단지명")은 알림에 이미 들어있어 그대로 쓴다(파싱 안 함).
+ *   색·글자·둥글기는 전부 토큰(빨강 계열 unpaid*). 읽으면 흐리게.
+ */
+@Composable
+private fun DeclineCard(n: AppNotificationEntity, onTap: () -> Unit) {
+    val read = n.readAt != null
+    val col = AppTheme.colors
+    Row(
+        Modifier.fillMaxWidth().background(col.surface).clickable { onTap() }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(AppShape.md).background(col.unpaidBg).alpha(if (read) 0.55f else 1f),
+            contentAlignment = Alignment.Center
+        ) { Text("👥", style = AppType.body) }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    n.title, style = AppType.body,
+                    fontWeight = if (read) FontWeight.Medium else FontWeight.Bold,
+                    color = if (read) col.textHint else col.text,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "거절", style = AppType.micro, color = col.unpaidText,
+                    modifier = Modifier.clip(AppShape.pill).background(col.unpaidBg).padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(DateTimeUtils.formatShort(n.createdAt), style = AppType.caption, color = col.textHint)
+            }
+            if (!n.body.isNullOrBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(AppShape.md).background(col.unpaidBg)
+                        .padding(horizontal = 11.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        n.body, style = AppType.caption,
+                        color = if (read) col.textHint else col.textSub,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
