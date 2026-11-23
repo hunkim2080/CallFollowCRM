@@ -16903,3 +16903,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 라이브 + repo/server/main.py. todos 루프에 공백 없는 소문자 식별자(^[a-z][a-z0-9_]*$) 는 버리는 한 줄 추가(suggested_followup_sms·tags 누수 차단). 앱 parseCallTodos 필터와 같은 규칙 — 구버전앱·다른 경로도 안전(§12-I 겹겹의 문). GOTCHAS §3 절차: scp→py_compile(로컬·서버)→백업(main.py.bak-20261123-205838)→교체→kickstart→smoke 10/10 ✅.
 - 폰 확인: 서버 smoke만. 앱 필터는 upload-2034 로 이미 배포됨.
 - 다음 액션: 없음(양쪽 필터 완료)
+
+## 2026-11-23 21:14 · android (+ server)
+웹 뷰어(si0in.kr/web) 달력 날짜 클릭 느림 fix — 통째 재생성 대신 클래스 토글
+- 변경: 라이브 + repo/server/main.py (_WEB_VIEWER_HTML). selectDay 가 renderCalendar() 로 42칸 innerHTML 통째 재생성 → 사진 많은 페이지서 reflow 로 클릭 굼뜸. 각 칸에 data-k 달고 selectDay 는 .sel 클래스만 토글 + renderSelectedDay() 만. GOTCHAS §3: scp→py_compile→백업(main.py.bak-20261123-211206)→교체→kickstart→smoke 10/10 ✅. 렌더된 달력 JS node --check 통과(f-string {{}}·백슬래시 디코드 후).
+- 폰 확인: 서버 smoke·JS문법만. 사장님이 si0in.kr/web 에서 날짜 클릭 빨라졌는지 확인.
+- 다음 액션: 그래도 느리면 CDP(reference_cdp_screenshot_drive_chrome)로 실측.

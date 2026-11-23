@@ -25363,7 +25363,7 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
       if (has) cls += ' has';
       if (k === todayKey) cls += ' today';
       if (k === CAL_SEL_KEY) cls += ' sel';
-      html += '<div class="'+cls+'" onclick="selectDay(\\''+k+'\\')">'+d;
+      html += '<div class="'+cls+'" data-k="'+k+'" onclick="selectDay(\\''+k+'\\')">'+d;
       if (has) html += '<span class="dot"></span>';
       html += '</div>';
       cells++;
@@ -25401,7 +25401,12 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     box.classList.add('show');
   }}
 
-  function selectDay(k) {{ CAL_SEL_KEY = (CAL_SEL_KEY===k ? null : k); renderCalendar(); }}
+  function selectDay(k) {{
+    CAL_SEL_KEY = (CAL_SEL_KEY===k ? null : k);
+    var g = document.getElementById('cal-grid');
+    if (g) {{ var cs = g.querySelectorAll('.cal-day[data-k]'); for (var i=0;i<cs.length;i++) {{ cs[i].classList.toggle('sel', cs[i].getAttribute('data-k') === CAL_SEL_KEY); }} }}
+    renderSelectedDay();
+  }}
   function calPrev() {{ CAL_VIEW.setMonth(CAL_VIEW.getMonth()-1); CAL_SEL_KEY=null; renderCalendar(); }}
   function calNext() {{ CAL_VIEW.setMonth(CAL_VIEW.getMonth()+1); CAL_SEL_KEY=null; renderCalendar(); }}
   function calToday() {{ CAL_VIEW=new Date(); CAL_VIEW.setDate(1); CAL_SEL_KEY=_dKey(new Date()); renderCalendar(); }}
