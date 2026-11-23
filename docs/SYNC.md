@@ -16855,3 +16855,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. TodayWidgetProvider.collabSiteOf 가 제목에 siteDisplayName(도로명 전체주소) 대신 complexName(아파트명)을 쓰고 complex 필드는 비움 — siteOf 의 '이름 없음' 가지와 같은 규칙(협업은 고객이름 못 받음). 동호수(splitDongHo)는 그대로 큰 글자. 아파트명 없으면 roughSite→siteDisplayName 폴백. 오늘 카드·주간 줄 둘 다 collab 리스트를 공유하므로 양쪽 반영(§12-K). 프로토: 업그레이드 홈위젯 v2 맨 아래 before/after. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과)
 - 다음 액션: 협업 받은 폰 위젯에 아파트명 제목 + 동호수 뜨는지 확인
+
+## 2026-11-23 17:05 · android
+협업 현장 사진/댓글이 다른 현장 것으로 뜨던 버그 fix — 현장 전환 시 비움 + race 가드
+- 변경: 앱만. SharedSiteViewModel.loadPhotos/loadComments 가 _photos/_comments(단일 공유 StateFlow)를 현장 바꿀 때 안 비워, B현장 열면 느린 base64 로드 끝날 때까지 A현장 사진이 그대로 보였다(서로 다른 두 현장에 같은 사진 11장). → 현장이 바뀐 경우에만 먼저 비우고(같은 현장 새로고침·업로드 땐 안 비워 안 깜빡), photosForShareId/commentsForShareId 로 늦게 온 응답이 남의 현장을 덮지 않게 가드. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과)
+- 다음 액션: 협업 현장 A→B 빠르게 전환 시 각자 제 사진 뜨는지. (로딩 UX=스켈레톤은 후속 제안)

@@ -331,19 +331,33 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     fun navApp(): String = container.preferences.navApp
     fun setNavApp(app: String) { container.preferences.navApp = app }
 
-    /** 상세 열 때 그 현장의 증거 사진 로드(§F). 올리는 중 썸네일은 매니저가 현장별로 들고 있어 여기서 비우지 않는다. */
+    /** 로드 중 다른 현장으로 바뀌면 늦게 온 응답이 남의 현장 사진을 덮지 않게 — 요청한 shareId 를 걸어둔다. */
+    private var photosForShareId: String? = null
+    /** 상세 열 때 그 현장의 증거 사진 로드(§F). **현장이 바뀌면 이전 사진을 먼저 비운다** — 느린 base64 로드 중
+     *   남의 현장 사진이 그대로 보이던 버그(2026-11-23 사장님: 다른 두 현장에 같은 사진). 같은 현장 새로고침(업로드)
+     *   땐 안 비워 안 깜빡인다. 올리는 중 썸네일은 매니저가 현장별로 들고 있어 _photos 와 별개다. */
     fun loadPhotos(shareId: String) {
-        if (shareId.isBlank() || noBizPhone) { _photos.value = emptyList(); return }
-        viewModelScope.launch { _photos.value = repo.photos(shareId, myPhone).getOrDefault(emptyList()) }
+        if (shareId.isBlank() || noBizPhone) { photosForShareId = null; _photos.value = emptyList(); return }
+        if (photosForShareId != shareId) _photos.value = emptyList()
+        photosForShareId = shareId
+        viewModelScope.launch {
+            val loaded = repo.photos(shareId, myPhone).getOrDefault(emptyList())
+            if (photosForShareId == shareId) _photos.value = loaded
+        }
     }
 
-    /** 상세 열 때 그 현장의 한 줄 댓글 로드 = 서버 댓글 + 우체통 대기(「보내는 중」). 다른 현장으로 바뀌면 비움. */
+    private var commentsForShareId: String? = null
+    /** 상세 열 때 그 현장의 한 줄 댓글 로드 = 서버 댓글 + 우체통 대기(「보내는 중」). 현장이 바뀌면 먼저 비우고,
+     *   늦게 온 응답이 남의 현장 댓글을 덮지 않게 요청 shareId 를 건다(사진과 같은 race 방지). */
     fun loadComments(shareId: String) {
-        if (shareId.isBlank() || noBizPhone) { _comments.value = emptyList(); return }
+        if (shareId.isBlank() || noBizPhone) { commentsForShareId = null; _comments.value = emptyList(); return }
+        if (commentsForShareId != shareId) _comments.value = emptyList()
+        commentsForShareId = shareId
         viewModelScope.launch {
-            _comments.value = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
+            val loaded = com.detailline.callfollowcrm.data.outbox.loadCollabCommentsWithPending(
                 repo, container.outbox, shareId, myPhone, _comments.value
             )
+            if (commentsForShareId == shareId) _comments.value = loaded
         }
     }
 
