@@ -1202,7 +1202,7 @@ private fun DetailBody(
             //   ⚠️ 출발은 시공 당일부터 — 그 전엔 길만 열고 출발은 안 보낸다(onProgress 핸들러가 그날 아니면 안내 토스트).
             val beforeDay = isBeforeScheduledDay(site.scheduledAtMs)
             if (hasAddr) {
-                StepActionButton("길찾기 — 누르면 출발 알림", ProtoBlue, Color.White) {
+                StepActionButton("길찾기", ProtoBlue, Color.White) {
                     onNavigate(site.addr!!)                            // 지도 열기(처음이면 앱 고르기)
                     onProgress(SharedSiteRepository.Progress.DEPARTED) // 출발 자동(그날 아니면 핸들러가 안내)
                 }

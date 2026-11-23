@@ -16836,3 +16836,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. TodayWidgetProvider 가 withMe(sinceMs = today) 로 불러 **오늘 이후 '변경된'(updated_at_ms) 협업만** 받아, 며칠 전 수락→이번 주 시공 협업이 빠져 위젯(주간 줄·오늘 카드) 양쪽에 협업이 안 떴다. 서버 /api/shared/with-me 의 since_ms 는 scheduled_at_ms(가는 날)가 아니라 updated_at_ms(마지막 변경)를 거른다. 일정 화면은 sinceMs=0L 이라 정상이었다. → 위젯도 0L 로. 가는 날 필터는 위젯이 로컬에서(scheduledAtMs>=today·주간7일) 이미 함. withMe 호출 10곳 전부 확인 — 날짜 since 는 위젯 한 곳뿐(StatsViewModel 의 since 는 통계 집계용이라 유지). 서버 변경 없음.
 - 폰 확인: 못 봄 (실기 미연결·에뮬만. clean assembleRelease 가드7 통과)
 - 다음 액션: 사장님 폰에서 위젯 맨하단 주간 줄·오늘 카드에 협업현장(주황 막대) 뜨는지 확인
+
+## 2026-11-23 16:35 · android
+협업 상세 길찾기 버튼 문구 간소화 — "길찾기 — 누르면 출발 알림" → "길찾기"
+- 변경: 앱만. SharedSiteScreen StepActionButton 라벨만 축약(동작 그대로 — 눌러도 출발 자동). 밑 설명글이 이미 "길찾기를 누르면 출발이 자동으로…"를 안내해 중복이라 뺌. 위젯의 "길찾기 — 누르면 출발"은 다른 맥락이라 유지. 서버 변경 없음.
+- 폰 확인: 못 봄 (assembleRelease 가드7 통과)
+- 다음 액션: 협업 상세에서 버튼이 "길찾기"로만 뜨는지 확인
