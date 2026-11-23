@@ -39,7 +39,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg && msg.type === "SGM_LOAD") {
-    loadDraft(msg.phone).then(sendResponse)
+    loadDraft(msg.phone, msg.token).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
@@ -65,12 +65,13 @@ function bufToB64(buf) {
   for (let i = 0; i < b.length; i += chunk) s += String.fromCharCode.apply(null, b.subarray(i, i + chunk));
   return btoa(s);
 }
-async function loadDraft(phone) {
+async function loadDraft(phone, token) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length < 9) return { ok: false, error: "내 전화번호를 확인해 주세요." };
+  const tokQ = token ? "&session_token=" + encodeURIComponent(String(token)) : "";
   let data;
   try {
-    const res = await fetch(`https://api.si0in.kr/api/web/naver-draft?phone=${encodeURIComponent(digits)}`, { headers: { Accept: "application/json" } });
+    const res = await fetch(`https://api.si0in.kr/api/web/naver-draft?phone=${encodeURIComponent(digits)}${tokQ}`, { headers: { Accept: "application/json" } });
     if (!res.ok) return { ok: false, error: "서버 응답 " + res.status + " (아직 준비 안 됐을 수 있어요)" };
     data = await res.json();
   } catch (e) {

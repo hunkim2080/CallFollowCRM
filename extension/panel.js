@@ -189,6 +189,7 @@
 
   // ── 시공막내 글 불러오기 (서버에서 제목·글·사진 당겨오기) ──
   function getPhone() { return new Promise((res) => { try { chrome.storage.local.get("sgmPhone", (o) => res((o && o.sgmPhone) || "")); } catch (e) { res(""); } }); }
+  function getPull() { return new Promise((res) => { try { chrome.storage.local.get("sgmPullToken", (o) => res((o && o.sgmPullToken) || "")); } catch (e) { res(""); } }); }
   function savePhone(p) { return new Promise((res) => { try { chrome.storage.local.set({ sgmPhone: p }, () => res()); } catch (e) { res(); } }); }
   const dataUrlToBlob = (u) => fetch(u).then((r) => r.blob());
 
@@ -196,7 +197,8 @@
     const phone = await getPhone();
     if (!phone) { $("#phoneRow").style.display = "block"; setOut("내 전화번호를 한 번만 입력해 주세요(생성 글 찾기용).", ""); return false; }
     setOut("⏳ 불러오는 중…", "work");
-    const resp = await send({ type: "SGM_LOAD", phone });
+    const token = await getPull();
+    const resp = await send({ type: "SGM_LOAD", phone, token });
     if (!resp || !resp.ok) { setOut("아직 못 불러와요: " + ((resp && resp.error) || "오류"), "err"); $("#editBox").style.display = "block"; return false; }
     if (resp.title) $("#title").value = resp.title;
     if (resp.draft) $("#text").value = resp.draft;

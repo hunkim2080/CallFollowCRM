@@ -21,6 +21,9 @@
       // 로그인된 '검증 번호'가 실려오면 그걸 저장(사장님이 직접 타이핑 안 함 → 오타·허위 원천 차단)
       var digits = String((ev.data && ev.data.phone) || "").replace(/\D/g, "");
       if (digits.length >= 9) upd.sgmPhone = digits;
+      // 로그인한 뷰어가 쿠키로 받은 단기 통행증(토큰) — 확장이 naver-draft 인증에 씀
+      var tok = String((ev.data && ev.data.token) || "");
+      if (tok) upd.sgmPullToken = tok;
       try { chrome.storage.local.set(upd); } catch (e) {}
     } else if (kind === "ping") {
       // 뷰어가 설치 여부 물음 → 마커 재확인 + 응답
