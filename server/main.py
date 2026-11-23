@@ -17964,6 +17964,7 @@ class SharedRespondRequest(BaseModel):
     partner_phone: str
     accept: bool
     partner_name: Optional[str] = None   # §I (2026-06-18) — B 본인 상호 ('박지훈전문줄눈'). by-me 의 partner_name echo 용.
+    reason: Optional[str] = None   # 거절 사유(선택) — accept=false 일 때만, A 에게 FCM 으로 전달 (2026-11-23)
 
 
 @app.post("/api/shared/respond")
@@ -18045,6 +18046,7 @@ async def shared_respond(req: SharedRespondRequest, request: Request = None) -> 
         "step": new_status,             # 'accepted' or 'declined'
         "partner_name": partner_name_for_fcm,
         "title": site_title or "협업 현장",
+        "decline_reason": (req.reason or "").strip()[:100] if not req.accept else "",
     })
     return {"ok": True, "share_id": share_id, "status": new_status, "updated_at_ms": now}
 

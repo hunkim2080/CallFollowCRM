@@ -16842,3 +16842,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: 앱만. SharedSiteScreen StepActionButton 라벨만 축약(동작 그대로 — 눌러도 출발 자동). 밑 설명글이 이미 "길찾기를 누르면 출발이 자동으로…"를 안내해 중복이라 뺌. 위젯의 "길찾기 — 누르면 출발"은 다른 맥락이라 유지. 서버 변경 없음.
 - 폰 확인: 못 봄 (assembleRelease 가드7 통과)
 - 다음 액션: 협업 상세에서 버튼이 "길찾기"로만 뜨는지 확인
+
+## 2026-11-23 16:47 · android (+ server)
+협업 거절 사유 — 서버가 받아 A에게 FCM 전달 (2026-07-08 핸드오프 미구현분 완료)
+- 변경: 라이브 서버 + repo/server/main.py 2곳. ① SharedRespondRequest 에 reason: Optional[str]=None(앱은 이미 보냈으나 모델에 칸이 없어 pydantic이 버리던 것) ② 거절 collab_event FCM 에 "decline_reason": (req.reason or "")[:100] (accept면 "") 추가. 앱 수신(RingGoFcmService data["decline_reason"])·표시(NotificationHelper declined 본문)는 이미 배선돼 있어 서버만 하면 끝. 컬럼 저장(핸드오프 #2)·by-me echo(#4)는 알림엔 불필요해 생략.
+- 라이브 절차: GOTCHAS §3 — scp→패치→py_compile(로컬·서버)→백업(main.py.bak-20261123-164631)→교체→kickstart→smoke 10/10 ✅. 통짜 배포 아님.
+- 폰 확인: 못 봄 (서버 smoke만). 사장님이 협업폰에서 거절 사유 골라 거절 → 요청한 폰(A) 알림에 "— 「사유」" 뜨는지 확인 필요.
+- 다음 액션: A 폰에서 거절 사유 표시 확인
