@@ -17031,3 +17031,8 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 앱: SharedSiteRepository.photos(thumb) + photoFull(), ViewerPhoto.OfRemote.loadFull(크게볼때 원본), JobCollabPhotoStrip onLoadFull, CustomerDetailViewModel.refreshCollabPhotos(thumb=true)+collabPhotoFull. 뒤호환·실패시 썸네일 폴백.
 - 범위: 고객상세 협업 탭 사진. (SharedSiteScreen 자체 사진 목록은 아직 원본 — 추후)
 - 폰 확인: 못 봄(서버는 실측 검증). 내부배포 뜨면 협업 사진 빨리 뜨는지 확인 요망.
+
+## 2026-11-25 01:20 · android
+현장 사진 **중복 업로드 자동 차단** — 느리게 떠서 같은 걸 또 올리던 문제(사장님). 같은 고객에 내용 같은 사진 있으면 건너뜀 + 몇 장 건너뛰었는지 토스트.
+- 변경: SitePhotoRepository.addFromUri → SitePhotoAddResult(ADDED/DUPLICATE/FAILED), 파일크기 같을 때만 sha256 비교(싸게). SitePhotoDao.listByCustomer 추가. addSitePhotos 결과 집계+문구. DB 변경 없음.
+- 폰 확인: 못 봄.

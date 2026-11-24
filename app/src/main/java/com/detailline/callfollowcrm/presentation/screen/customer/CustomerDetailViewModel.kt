@@ -429,11 +429,10 @@ class CustomerDetailViewModel(
         _collabPhotosByShare.value = out
     }
 
-    /** 🔍 협업 사진 크게보기 탭 → 그 1장의 원본 base64. (목록은 썸네일이라 선명히 보려면 원본을 받는다) */
-    suspend fun collabPhotoFull(shareId: String, photoId: Long): String? {
+    suspend fun collabPhotoFull(shareId: String, photoId: Long): String? {  // 🔍 크게보기 탭 → 원본 1장(목록은 썸네일)
         val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
-        if (myPhone.isBlank() || shareId.isBlank() || photoId <= 0L) return null
-        return container.sharedSiteRepository.photoFull(photoId, shareId, myPhone).getOrNull()
+        return if (myPhone.isBlank() || shareId.isBlank() || photoId <= 0L) null
+        else container.sharedSiteRepository.photoFull(photoId, shareId, myPhone).getOrNull()
     }
 
     /**
@@ -536,20 +535,29 @@ class CustomerDetailViewModel(
         val toAdd = uris.take(room)
         val capped = uris.size - toAdd.size   // 내 20장이 차서 아예 안 넣은 수
         var ok = 0
+        var dup = 0   // 🚫 이미 있어 건너뛴 중복 사진 수 (2026-11-25 사장님 "중복사진은 알아서 안올라가게")
         withContext(NonCancellable) {
-            toAdd.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it, jid)) ok++ }
+            toAdd.forEach {
+                when (container.sitePhotoRepository.addFromUri(customerId, it, jid)) {
+                    com.detailline.callfollowcrm.data.repository.SitePhotoAddResult.ADDED -> ok++
+                    com.detailline.callfollowcrm.data.repository.SitePhotoAddResult.DUPLICATE -> dup++
+                    com.detailline.callfollowcrm.data.repository.SitePhotoAddResult.FAILED -> {}
+                }
+            }
         }
         // 🐞 복사가 실패한 수 — 전엔 성공 장수만 세고 **실패 장수를 안 알려서** 사진이 조용히 사라졌다.
         //   (2026-10-15 신고) 이제 **실패 장수를 화면에 또렷이 말한다** + 실패 사유는 로그로 남긴다(SitePhotoRepository). §13①
-        val failed = toAdd.size - ok
+        val failed = toAdd.size - ok - dup
         // 웹 로그인 상태면 방금 추가한 사진을 서버로도 바로 올림(PC 웹에 즉시 반영). 아니면 매니저가 조용히 skip.
         if (ok > 0) container.ownerPhotoUploadManager.kick(viewModelScope)
+        val dupTxt = if (dup > 0) " · 중복 ${dup}장 건너뜀" else ""
         _toast.value = when {
-            ok == 0 -> "사진을 못 올렸어요 — 잠시 후 다시 시도해주세요"
-            failed > 0 && capped > 0 -> "${ok}장 추가 · ${failed}장 실패 · ${capped}장은 내 ${sitePhotoMax}장 초과"
-            failed > 0 -> "${toAdd.size}장 중 ${ok}장만 올라갔어요 · ${failed}장 실패 (다시 시도해주세요)"
-            capped > 0 -> "내 사진은 ${sitePhotoMax}장까지 — ${ok}장 추가 (${capped}장은 자리 없음)"
-            else -> "현장 사진 ${ok}장 추가했어요"
+            ok == 0 && failed == 0 && capped == 0 && dup > 0 -> "이미 있는 사진이라 안 올렸어요 (${dup}장)"
+            ok == 0 && dup == 0 && capped == 0 -> "사진을 못 올렸어요 — 잠시 후 다시 시도해주세요"
+            failed > 0 && capped > 0 -> "${ok}장 추가 · ${failed}장 실패 · ${capped}장 초과$dupTxt"
+            failed > 0 -> "${ok}장 추가 · ${failed}장 실패$dupTxt (다시 시도해주세요)"
+            capped > 0 -> "내 사진은 ${sitePhotoMax}장까지 — ${ok}장 추가$dupTxt (${capped}장 자리 없음)"
+            else -> "현장 사진 ${ok}장 추가했어요$dupTxt"
         }
     }
 

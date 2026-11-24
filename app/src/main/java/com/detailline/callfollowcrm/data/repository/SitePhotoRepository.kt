@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** 현장 사진 한 장 추가 결과 — 추가됨 / 이미 있어 건너뜀(중복) / 실패. (2026-11-25 중복 차단) */
+enum class SitePhotoAddResult { ADDED, DUPLICATE, FAILED }
+
 /**
  * 현장 사진 로컬 저장소 (2026-06-04). 갤러리에서 고른 사진을 앱 내부 저장소로 복사 후 경로 보관.
  *   - 외부 content:// URI 는 권한이 휘발되므로 반드시 복사해서 영구 보관.
@@ -93,7 +96,7 @@ class SitePhotoRepository(
      *   🔴 전엔 이 값이 **항상 null** 이라, 건 탭을 만들어도 1차·2차 사진이 안 갈렸다.
      *   (2026-09-18 사장님: "현장사진도 1차 2차 개별로 들어가야해")
      */
-    suspend fun addFromUri(customerId: Long, uri: Uri, jobId: Long? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun addFromUri(customerId: Long, uri: Uri, jobId: Long? = null): SitePhotoAddResult = withContext(Dispatchers.IO) {
         runCatching {
             val nowMs = System.currentTimeMillis()
             val file = File(photoDir(), "${customerId}_${nowMs}_${System.nanoTime()}.jpg")
@@ -108,7 +111,19 @@ class SitePhotoRepository(
                 //   (개인정보 아닌 실패 사유만). 부른 쪽(addSitePhotos)이 **실패 장수를 화면에 알린다**. §13①
                 android.util.Log.w("SitePhoto", "photo skipped — empty/null stream (likely cloud photo not downloaded yet)")
                 runCatching { file.delete() }
-                return@runCatching false
+                return@runCatching SitePhotoAddResult.FAILED
+            }
+            // 🚫 **같은 사진 두 번 막기** — 현장사진이 늦게 떠 사장님이 같은 걸 또 올리던 문제. (2026-11-25 사장님)
+            //   싸게: 파일 **크기**가 같은 기존 사진만 골라 그때만 내용 해시(sha256)를 비교한다.
+            //   같은 고객에 내용이 똑같은 사진이 이미 있으면 **새 파일은 지우고** 건너뛴다.
+            val newLen = file.length()
+            val dup = dao.listByCustomer(customerId).any { existing ->
+                val ef = File(existing.filePath)
+                ef.exists() && ef.length() == newLen && sha256(ef) == sha256(file)
+            }
+            if (dup) {
+                runCatching { file.delete() }
+                return@runCatching SitePhotoAddResult.DUPLICATE
             }
             dao.insert(
                 SitePhotoEntity(
@@ -116,10 +131,22 @@ class SitePhotoRepository(
                     filePath = file.absolutePath, createdAt = nowMs
                 )
             )
-            true
+            SitePhotoAddResult.ADDED
         }.onFailure {
             android.util.Log.w("SitePhoto", "photo copy failed: ${it.javaClass.simpleName} ${it.message}")
-        }.getOrDefault(false)
+        }.getOrDefault(SitePhotoAddResult.FAILED)
+    }
+
+    /** 파일 내용 지문(sha256) — 중복 사진 판별용. 같은 파일을 두 번 읽지 않게 경로별 1회 캐시. */
+    private val hashCache = HashMap<String, String>()
+    private fun sha256(f: File): String = hashCache.getOrPut(f.absolutePath + ":" + f.length()) {
+        java.security.MessageDigest.getInstance("SHA-256").let { md ->
+            f.inputStream().use { ins ->
+                val buf = ByteArray(64 * 1024)
+                while (true) { val n = ins.read(buf); if (n < 0) break; md.update(buf, 0, n) }
+            }
+            md.digest().joinToString("") { "%02x".format(it) }
+        }
     }
 
     /**

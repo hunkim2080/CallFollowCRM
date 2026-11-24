@@ -18,6 +18,10 @@ interface SitePhotoDao {
     @Query("SELECT * FROM site_photos ORDER BY createdAt ASC")
     fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>>
 
+    /** 그 고객의 사진 전부(목록) — 중복 업로드 검사(파일 크기·내용 비교)에 쓴다. (2026-11-25 사장님) */
+    @Query("SELECT * FROM site_photos WHERE customerId = :customerId")
+    suspend fun listByCustomer(customerId: Long): List<SitePhotoEntity>
+
     @Insert
     suspend fun insert(photo: SitePhotoEntity): Long
 
