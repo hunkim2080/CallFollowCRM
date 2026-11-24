@@ -16996,3 +16996,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 함정: 공용을 새 파일로 두니 style_guard 새파일 엄격검사(hex·fontSize 토큰강제)로 막힘. SharedSiteParts로 옮겨도 그 파일 카운트 +3(파일별 기준선). → SharedSiteScreen.kt 안 private 로 두니 인라인 제거분이 더 커 그 파일 리터럴 순감 → 통과.
 - 함정2: 연속 실패빌드로 Kotlin 증분캐시 꼬여 유령 unresolved(1721+). IDE 진단 0에러 확인 후 clean 빌드로 해소.
 - 검증: clean assembleRelease BUILD=0(가드 7종 통과) · IDE 진단 0. 폰확인: 못 봄 — 받은요청/상세 양쪽 수락·거절 같은 모양 + 지난 날짜 요청 상세에서 수락 막히는지 확인 필요.
+
+## 2026-11-24 · android
+협업 수락 상세에 "그날 되나 + 그 주 띠" 추가 (사장님 안① 승인, 프로토 artifact/1RTfivYLuRGc7bdehcxBGE)
+- 배경: 수락 결정의 핵심="그날/그 주에 내가 되나"인데 상세 수락 페이지엔 그게 없어 일정 탭으로 나갔다 와야 했다. 받은요청 목록(PendingInbox)엔 이미 있었음.
+- 고침: DetailBody pending 카드(현장명·날짜 아래, 일당 위)에 CollabVerdict(그날 되나 ✓/겹침)·CollabWeekStrip(그 주 7칸) 추가. 둘 다 목록이 쓰던 **같은 공용 재사용**(§12), 판정도 CollabDayCheck.check 동일. DetailBody에 myJobs 파라미터 추가(호출부에서 전달).
+- 두 벌 아님: 목록·상세가 같은 CollabVerdict/CollabWeekStrip/CollabDayCheck 호출(§12-I 역할 같은 판정 1벌).
+- 검증: assembleRelease BUILD=0(가드 7종) · IDE 진단 0. 폰확인: 못 봄 — 협업 요청 상세 열면 "그날 비어있어요/겹쳐요" + 그 주 띠 뜨는지, 바쁜 날 요청이면 겹침 경고 뜨는지.

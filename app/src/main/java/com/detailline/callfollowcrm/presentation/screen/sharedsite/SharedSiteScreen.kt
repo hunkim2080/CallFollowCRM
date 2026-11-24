@@ -399,6 +399,7 @@ fun SharedSiteScreen(
             } else if (selected != null) {
                 DetailBody(
                     site = selected,
+                    myJobs = myJobs,
                     hasAccount = payoutNo.isNotBlank(),
                     payoutBank = payoutBank,
                     payoutNo = payoutNo,
@@ -1084,6 +1085,8 @@ private fun CollabRespondButtons(
 @Composable
 private fun DetailBody(
     site: SharedSiteRepository.SharedSite,
+    // 🤝 내 시공 일정 — 수락 전 "그날 되나 + 그 주 띠"에 필요(받은요청 목록과 같은 판정). (2026-11-24 사장님 안①)
+    myJobs: List<com.detailline.callfollowcrm.domain.collab.CollabDayCheck.MyJob>,
     hasAccount: Boolean,
     payoutBank: String,
     payoutNo: String,
@@ -1157,6 +1160,19 @@ private fun DetailBody(
             // "이 현장" 대신 실제 현장명(주소) + 날짜를 보여줌(사장님 요청 2026-06-18·06-20).
             Text("${siteDisplayName(site)} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
             Spacer(Modifier.height(8.dp))
+            // 🤝 **그날 되나 + 그 주 일정** — 수락은 "그날 내가 비었나"로 정해진다(사장님). 받은요청 목록과
+            //   **같은 판정·같은 조각**(CollabVerdict·CollabWeekStrip, §12). 전엔 상세엔 이게 없어 일정 탭으로 나갔다 와야 했다. (2026-11-24 사장님 안①)
+            if (site.scheduledAtMs > 0L) {
+                val dayCheck = com.detailline.callfollowcrm.domain.collab.CollabDayCheck.check(
+                    requestAtMs = site.scheduledAtMs,
+                    requestHasTime = timeText(site) != null,
+                    myJobs = myJobs
+                )
+                CollabVerdict(dayCheck, timeText(site))
+                Spacer(Modifier.height(8.dp))
+                CollabWeekStrip(site.scheduledAtMs, myJobs)
+                Spacer(Modifier.height(10.dp))
+            }
             // 일당 = 수락 판단에 제일 중요 → 크게 강조(프로토 b-invite). 없으면 "미정".
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 11.dp),
