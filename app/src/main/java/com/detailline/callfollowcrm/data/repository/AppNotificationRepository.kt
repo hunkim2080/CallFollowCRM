@@ -37,10 +37,10 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
      */
     suspend fun bumpCollabPhoto(who: String, where: String, shareId: String): Int = photoBumpMutex.withLock {
         val now = System.currentTimeMillis()
-        val title = "협업 현장 새 사진"
+        val title = COLLAB_PHOTO_TITLE
         val existing = dao.latestUnreadCollab(title, shareId, now - BATCH_WINDOW_MS)
         val newCount = (if (existing != null) parsePhotoCount(existing.body) else 0) + 1
-        // 1장이면 숫자 없이(자연스럽게), 2장부터 「사진 N장」. 시스템 알림(showCollabPhoto)과 같은 문구.
+        // 1장이면 숫자 없이(자연스럽게), 2장부터 「사진 N장」. 묶음 상태바 알림(showCollabPhotoPush)과 같은 센터 줄.
         val body = if (newCount <= 1) "${who}님이 '${where}'에 사진을 올렸어요"
                    else "${who}님이 '${where}'에 사진 ${newCount}장을 올렸어요"
         if (existing != null) {
@@ -55,6 +55,18 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
             runCatching { dao.trimTo(KEEP_MAX) }
         }
         newCount
+    }
+
+    /**
+     * 🤝 지금 이 협업 현장에 쌓인(안 읽은, 12h 창) 사진 수 — **5분 디바운스 묶음 알림**이 몇 장으로 울릴지.
+     *   센터 묶음 줄(bumpCollabPhoto)과 **같은 기준·같은 제목**으로 세어, 알림 숫자와 목록 숫자가 어긋나지 않게. (2026-11-24 사장님)
+     */
+    suspend fun currentCollabPhotoCount(shareId: String): Int = photoBumpMutex.withLock {
+        if (shareId.isBlank()) return@withLock 0
+        val existing = dao.latestUnreadCollab(
+            COLLAB_PHOTO_TITLE, shareId, System.currentTimeMillis() - BATCH_WINDOW_MS
+        )
+        if (existing != null) parsePhotoCount(existing.body) else 0
     }
 
     /**
@@ -90,6 +102,8 @@ class AppNotificationRepository(private val dao: AppNotificationDao) {
         body?.let { Regex("사진 (\\d+)장").find(it)?.groupValues?.getOrNull(1)?.toIntOrNull() } ?: 1
 
     companion object {
+        /** 🤝 협업 사진 묶음 알림 제목 — bumpCollabPhoto 와 currentCollabPhotoCount 가 같은 줄을 찾게 하는 한 곳. */
+        const val COLLAB_PHOTO_TITLE = "협업 현장 새 사진"
         private const val KEEP_MAX = 500
 
         /** 같은 현장 사진을 한 줄로 묶는 시간 창 — 이 안에 또 오면 개수만 올린다(12시간). */

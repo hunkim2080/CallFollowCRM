@@ -926,12 +926,16 @@ object NotificationHelper {
         )
     }
 
-    /** 협업 현장 새 사진 알림 — 상대 사장이 현장 증거사진을 올리면. 탭 → 그 현장 상세(사진). (2026-07-02 사장님) */
-    fun showCollabPhoto(
+    /** 협업 현장 사진 **묶음 상태바 알림**을 한 번 띄운다([CollabPhotoNotifyWorker] 가 5분 조용 뒤 호출).
+     *   도착 즉시 센터 기록·5분 디바운스는 [CollabPhotoNotifyWorker.onPhotoArrived] 가 맡고, 여긴 **렌더만**.
+     *   탭 → 그 현장 상세(사진). [bigPicture] 있으면 대표 사진 1장을 크게(카톡 사진 알림처럼). (2026-11-24 사장님) */
+    fun showCollabPhotoPush(
         context: Context,
         siteId: String,
-        uploaderName: String,
-        siteTitle: String
+        who: String,
+        where: String,
+        count: Int,
+        bigPicture: android.graphics.Bitmap? = null
     ) {
         if (siteId.isBlank()) return
         val notifId = famId(FAM_COLLAB_PHOTO, siteId.hashCode())
@@ -944,24 +948,17 @@ object NotificationHelper {
             context, notifId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val who = uploaderName.ifBlank { "협업 사장님" }
-        val where = siteTitle.ifBlank { "협업 현장" }
-        // 📸 **한 장당 알림 하나**로 도배되던 걸 → 같은 현장이면 **「사진 N장」 한 줄**로 묶는다. (2026-10-15 사장님)
-        //   센터 기록은 bumpCollabPhoto 가 **직접(묶어서)** 하고 묶인 수(N)를 돌려준다 → 시스템 알림도 그 N 으로.
-        //   시스템 알림은 같은 notifId 라 덮인다(= 상태바엔 하나). setOnlyAlertOnce 라 소리/진동도 한 번.
-        NotificationLog.bumpCollabPhoto(who, where, siteId) { count ->
-            val msg = if (count <= 1) "${who}님이 '${where}'에 사진을 올렸어요"
-                      else "${who}님이 '${where}'에 사진 ${count}장을 올렸어요"
-            showProtoPush(
-                context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_BLUE,   // 댓글과 한 칸 (사장님 지시)
-                title = "협업 현장 새 사진",
-                msg = msg,
-                contentIntent = pending,
-                navTarget = "collab", navShareId = siteId,
-                actions = listOf(PushAction("사진 보기", pending)),
-                logToCenter = false,   // 위 bump 가 센터에 한 줄(묶음)로 이미 기록함 — 여기서 또 쌓지 않는다
-            )
-        }
+        val n = if (count < 1) 1 else count   // 5분 묶은 뒤라 '최종 몇 장'이 정확히 찍힌다
+        showProtoPush(
+            context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_BLUE,   // 댓글과 한 칸 (사장님 지시)
+            title = "협업 현장 사진 ${n}장",
+            msg = "${who}님이 '${where}'에 사진 ${n}장을 올렸어요 · 눌러서 한눈에 보기",
+            contentIntent = pending,
+            navTarget = "collab", navShareId = siteId,
+            actions = listOf(PushAction("사진 보기", pending)),
+            logToCenter = false,   // 센터는 onCollabPhotoArrived 가 이미 묶어 기록
+            bigPicture = bigPicture,
+        )
     }
 
     /**
@@ -1230,6 +1227,8 @@ object NotificationHelper {
         onlyAlertOnce: Boolean = true,
         // 🤝 펼쳤을 때 쓸 커스텀 본문(협업 진행 스텝 그림). 있으면 BigText 대신 이걸 그린다 — 접힌 모습은 그대로 제목+한 줄.
         bigContentView: RemoteViews? = null,
+        // 📸 펼쳤을 때 큰 사진 1장(협업 사진 묶음 알림). 있으면 BigPictureStyle — 접힌 모습은 제목+한 줄+작은 썸네일. (2026-11-24)
+        bigPicture: android.graphics.Bitmap? = null,
     ) {
         val bigText = buildString {
             append(msg)
@@ -1248,8 +1247,13 @@ object NotificationHelper {
             // 같은 알림 id(같은 shareId 등)를 FCM·폴링이 각각 띄워도 소리/진동은 한 번만.
             //   협업 초대가 2~3번 울리던 문제 fix (FCM + 앱루프폴링 + ReminderWorker폴링이 같은 건을 재게시).
             .setOnlyAlertOnce(onlyAlertOnce)
-        // 🤝 스텝 그림이 있으면 펼침 본문으로(앱 머리는 DecoratedCustomViewStyle). 없으면 긴 글. 접힌 모습은 둘 다 제목+한 줄.
-        if (bigContentView != null) {
+        // 📸 큰 사진이 있으면 그 사진을 펼침으로(카톡 사진 알림처럼). 접힌 모습엔 작은 썸네일(largeIcon). 없고
+        //    스텝 그림이 있으면 그걸(DecoratedCustomViewStyle). 둘 다 없으면 긴 글. 접힌 모습은 다 제목+한 줄.
+        if (bigPicture != null) {
+            builder.setLargeIcon(bigPicture).setStyle(
+                NotificationCompat.BigPictureStyle().bigPicture(bigPicture)
+                    .bigLargeIcon(null as android.graphics.Bitmap?).setSummaryText(msg))
+        } else if (bigContentView != null) {
             builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
             builder.setCustomBigContentView(bigContentView)
         } else builder.setStyle(NotificationCompat.BigTextStyle().bigText(bigText))

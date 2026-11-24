@@ -16957,3 +16957,18 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 두 벌 세기(§12-G): 옛 표기 2곳 → 0곳(home만), 새 공용 1개(쓰는 곳 2곳), dup 규칙 `collab-stepper` 추가, §12 표 한 줄 추가, CLAUDE.md 27→28 갱신.
 - 연결지점 훑음(§12-K): 눈금 표시 2곳(둘 다 교체) · 상태 딱지 collabStatusTag(단어 1개라 영향 없음, 둠) · 푸시/센터 트래커(역할 달라 둠) · 위젯 길찾기(상태만 바꿈, 눈금 안 그림).
 - 검증: assembleRelease BUILD=0(가드 7개 통과·[dup]18곳 불변·[style]통과) · 단위시험 1447개 통과 · health 기록. 폰확인: 못 봄 — S9/S23U에서 협업현장 상세 열어 출발 상태 눈금 ✓ 확인 필요.
+
+## 2026-11-24 · android
+협업 현장 새 사진 알림 — 한 장씩 울리던 걸 **5분 묶음 + 새 문구**로 (사장님 지시)
+- 증상(사장님): 협업사장이 사진을 한 장씩 올릴 때마다 알림이 와서, 눌러도 한 장뿐 → 또 나갔다와서 확인. "다 올라온 뒤 한 번에 떠야."
+- 원인: 서버가 /api/shared/photo 업로드마다 collab_photo FCM 1건 → 받는 쪽이 즉시 showProtoPush(소리). 첫 장부터 바로 울림.
+- 고침(앱만, 서버 안 건드림): 받는 쪽에서 5분 디바운스.
+  · FCM 도착 → `CollabPhotoNotifyWorker.onPhotoArrived`: ① 센터엔 「사진 N장」 **즉시 조용히** 묶어 기록(bumpCollabPhoto) ② 상태바 알림은 WorkManager 5분(ExistingWorkPolicy.REPLACE — 또 오면 타이머 리셋).
+  · 5분 조용 → Worker.doWork → `NotificationHelper.showCollabPhotoPush` 한 번. 수 = `AppNotificationRepository.currentCollabPhotoCount`(센터와 같은 제목 상수 COLLAB_PHOTO_TITLE·12h 창 → 알림 숫자=목록 숫자).
+- 새 문구(사장님 택1=장수+한눈에): 제목 "협업 현장 사진 N장" / 본문 "○○님이 '△△'에 사진 N장을 올렸어요 · 눌러서 한눈에 보기". 5분 묶은 뒤라 항상 최종 N.
+- 썸네일 자리: showProtoPush 에 `bigPicture: Bitmap?` 추가(BigPictureStyle+largeIcon). **실제 대표사진 연결은 Phase B**(서버 썸네일 문)에서 — 지금은 글자만(null).
+- 두 벌/크기(§12): showCollabPhoto → onPhotoArrived(Worker, 내부無) + showCollabPhotoPush(렌더) 로 쪼갬. NotificationHelper 가 size_guard 에 걸려(+43) 진입부를 Worker 로 옮겨 **크기 안 늘림**. dup/rules 가드 통과(새 §12 표 줄 불필요 — 3곳 미만 단일 사용).
+- §12-K 연결점: collab_photo FCM 수신부(RingGoFcmService) 1곳 교체 · 센터 묶기(bumpCollabPhoto) 재사용 · 알림센터 목록(onPhotoArrived 가 바로 기록, 조용) · 서버/업로더쪽 변경 없음.
+- 느린망·빈값·연타(§13): 연타=REPLACE 로 타이머 리셋 · 빈 siteId=skip · 앱 종료=WorkManager 생존 · count 는 로컬 DB(망 불필요).
+- 검증: assembleRelease BUILD=0(가드 7개 통과·[dup]18곳 불변·[brand] 이상無) · health 기록. 폰확인: 못 봄 — 협업사장이 사진 여러 장 올린 뒤 5분 지나 사장님 폰에 "사진 N장" 한 번만 뜨는지 확인 필요.
+- 남음(사장님 "올려" 대기): Phase B = 협업 사진 **로딩 제대로(목록 먼저·하나씩)** + 알림 **대표사진 1장** — 서버 썸네일 문 신설(/api/shared/photos?meta_only + 사진별 thumb, Pillow 축소) 필요라 서버 배포는 지시 대기.

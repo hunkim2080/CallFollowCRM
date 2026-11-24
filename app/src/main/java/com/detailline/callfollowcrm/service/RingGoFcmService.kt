@@ -138,10 +138,11 @@ class RingGoFcmService : FirebaseMessagingService() {
             }
             // 협업 현장 새 사진 — 상대 사장이 현장 증거사진을 올리면 받는 쪽에 알림. (2026-07-02 사장님)
             //   서버는 업로더 본인 빼고 상대 참여자에게만 push. site_id = share_id.
+            //   한 장씩 바로 안 울리고 센터에 묶어 기록 + 5분 조용하면 한 번만 운다(onCollabPhotoArrived). (2026-11-24 사장님)
             "collab_photo" -> {
                 val siteId = (data["site_id"] ?: data["share_id"]).orEmpty()
                 if (siteId.isNotBlank()) {
-                    NotificationHelper.showCollabPhoto(
+                    CollabPhotoNotifyWorker.onPhotoArrived(
                         context = this,
                         siteId = siteId,
                         uploaderName = data["uploader_name"].orEmpty(),
