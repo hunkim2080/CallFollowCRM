@@ -407,7 +407,7 @@ fun SharedSiteScreen(
                         viewModel.saveAccount(b, n, h)
                         payoutBank = b.trim(); payoutNo = n.trim(); payoutHolder = h.trim()
                     },
-                    acceptExpired = viewModel.acceptExpired(selected),
+                    blockReason = viewModel.cannotAcceptReason(selected),
                     photos = photos,
                     pending = pendingPhotos,
                     comments = comments,
@@ -833,7 +833,7 @@ private fun ListArea(
 /**
  * 응답 안 한 협업 요청 inbox — 공유받은 현장 맨 위. 푸시를 놓쳐도 여기서 바로 수락/거절. (2026-06-18 사장님)
  *   17·24일 사건(요청을 다시 볼 곳이 없어 묻힘) 해결. 카드 본문 탭 = 상세, [수락]/[거절] = 바로 응답.
- *   24h 만료(acceptExpired)면 수락 막고 "지났어요" + 거절은 '지우기'로.
+ *   수락 불가(지난 날짜·24h 만료 등)면 수락 막고 사유 + 거절은 '지우기'로. 버튼·판정은 상세와 공용(CollabRespondButtons·cannotAcceptReason, §12).
  */
 @Composable
 private fun PendingInbox(
@@ -861,7 +861,6 @@ private fun PendingInbox(
     }
     sites.forEach { site ->
         val blockWhy = blockReason(site)
-        val expired = blockWhy != null
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
@@ -993,20 +992,12 @@ private fun PendingInbox(
                     color = com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 16.sp)
             }
             Spacer(Modifier.height(11.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(Color.White)
-                        .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(11.dp))
-                        .clickable { onReject(site) }.padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text(if (expired) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
-                        .background(if (expired) Color(0xFFE2E6EC) else CollabPurple)
-                        .clickable { onAccept(site) }.padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (expired) TossTextTertiary else Color.White) }
-            }
+            // 거절·수락 — 현장 상세와 **같은 공용 버튼**(§12). blockWhy 있으면 수락 막고 사유 토스트·거절='지우기'.
+            CollabRespondButtons(
+                blockReason = blockWhy,
+                onReject = { onReject(site) },
+                onAccept = { onAccept(site) }
+            )
         }
         Spacer(Modifier.height(10.dp))
     }
@@ -1056,6 +1047,40 @@ private fun TrashView(
 // 현장 줄(SiteRow · 현장순 Feed · 업체 내역 PartnerDetail · 내가 공유한 MyShared)과 달 머리줄은 같은 패키지 SharedSiteRows.kt —
 //   틀은 CollabPillarRow 한 곳. 이 파일은 더 키우지 않는다(size_guard).
 
+/**
+ * 🤝 협업 수락 카드의 **공용 거절·수락 버튼** — 받은요청 목록(PendingInbox)·현장 상세(DetailBody)
+ *   **두 곳이 같은 모양·같은 판정**을 쓰게 한 곳(§12). 전엔 두 곳이 버튼을 따로 그려 11/12dp·
+ *   흰+보라테두리/회색으로 어긋났고, 상세는 TTL 만 봐서 '지난 날짜'를 안 막았다.
+ *   이제 둘 다 [blockReason](= SharedSiteViewModel.cannotAcceptReason) 하나로 판정한다 —
+ *   있으면 수락 회색·탭하면 사유 토스트·거절='지우기', 없으면 거절/수락은 호출부 [onReject]·[onAccept].
+ */
+@Composable
+private fun CollabRespondButtons(
+    blockReason: String?,
+    onReject: () -> Unit,
+    onAccept: () -> Unit
+) {
+    val ctx = LocalContext.current
+    val blocked = blockReason != null
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                .clickable { onReject() }.padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center
+        ) { Text(if (blocked) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+        Box(
+            Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                .background(if (blocked) Color(0xFFE2E6EC) else CollabPurple)
+                .clickable {
+                    if (blocked) android.widget.Toast.makeText(ctx, blockReason, android.widget.Toast.LENGTH_LONG).show()
+                    else onAccept()
+                }
+                .padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center
+        ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (blocked) TossTextTertiary else Color.White) }
+    }
+}
+
 @Composable
 private fun DetailBody(
     site: SharedSiteRepository.SharedSite,
@@ -1064,7 +1089,8 @@ private fun DetailBody(
     payoutNo: String,
     payoutHolder: String,
     onSavePayout: (bank: String, no: String, holder: String) -> Unit,
-    acceptExpired: Boolean,
+    // 🚧 수락 불가 사유(= cannotAcceptReason). null 이면 받아도 됨. 받은요청 목록과 **같은 판정**(§12).
+    blockReason: String?,
     photos: List<SharedSiteRepository.SharedPhoto>,
     pending: List<CollabPhotoUploadManager.Pending>,
     comments: List<SharedSiteRepository.SiteComment>,
@@ -1149,42 +1175,26 @@ private fun DetailBody(
                 Text("출근 $it", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
             }
             Spacer(Modifier.height(10.dp))
-            if (acceptExpired) {
-                // 수락 유효시간(24h) 경과 — 수락 막고 "지났어요" 안내. 거절(지우기)만 열어둠.
+            if (blockReason != null) {
+                // 수락 불가(지난 날짜·수락시간 만료 등) — 왜인지 그대로 보여주고 수락은 막는다.
+                //   판정·문구는 cannotAcceptReason 한 곳(받은요청 목록과 같은 기준·§12). 전엔 TTL 만 봐서 '지난 날짜'를 안 막았다.
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                         .background(AppTheme.colors.unpaidBg).border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 11.dp)
                 ) {
-                    Text("⏰ 수락 시간이 지났어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = com.detailline.callfollowcrm.presentation.theme.TossError)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "보낸 지 ${com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_HOURS}시간이 지나 만료됐어요. 함께 하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
-                        fontSize = 12.sp, color = Color(0xFF8A4B43), lineHeight = 17.sp
-                    )
+                    Text("⏰ $blockReason", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 17.sp)
                 }
             } else {
                 Text("수락하면 내 '협업 현장'에 들어오고 진행을 같이 기록해요.", fontSize = 12.sp, color = Color(0xFF5A4A7A), lineHeight = 17.sp)
             }
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                        .clickable { onRespond(false) }.padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text(if (acceptExpired) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                        .background(if (acceptExpired) Color(0xFFE2E6EC) else CollabPurple)
-                        .clickable {
-                            if (acceptExpired) {
-                                android.widget.Toast.makeText(ctx, "수락 시간이 지났어요 — ${com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_HOURS}시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
-                            } else onRespond(true)
-                        }
-                        .padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (acceptExpired) TossTextTertiary else Color.White) }
-            }
+            // 거절·수락 — 받은요청 목록과 **같은 공용 버튼**(§12). 막힘이면 수락 회색·탭하면 사유 토스트.
+            CollabRespondButtons(
+                blockReason = blockReason,
+                onReject = { onRespond(false) },
+                onAccept = { onRespond(true) }
+            )
         }
         return
     }

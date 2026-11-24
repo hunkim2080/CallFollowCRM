@@ -16987,3 +16987,12 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 폰 확인: 못 봄. 프로토 artifact/T8N16v7f2UKHiURbYHF6w1은 웹·브라우저 접근 불가로 직접 대조 못 함. 사용자 제공 상세 사양을 적용했고, docs/PROTOTYPES.md·docs/PHONE_CHECK_TODO.md에 출처·확인 항목 기록.
 - 커밋·푸시·배포·태그 없음. 서버 변경 없음.
 - 시험: testDebugUnitTest BUILD SUCCESSFUL / TEST=0. 결과 XML 158개 집계: 1447개, 실패 0·오류 0·건너뜀 0. health BUILD SUCCESSFUL / HEALTH=0, docs/HEALTH.md 기록(앱 543파일·126244줄, 2000줄 초과 8개, 가드 7개).
+
+## 2026-11-24 · android
+협업 수락 2곳(목록·상세) 버튼 공용화 + 상세도 전체 판정 사용 (사장님 "둘 다 두되 코드 하나로")
+- 증상: 수락 화면이 2개 같다 → 확인결과 공유받은현장 탭에 목록(PendingInbox) 수락 + 상세(DetailBody) 수락 둘 다. "함께하재요+그날일당+수락/거절" 버튼이 두 벌(11/12dp·흰+보라테두리/회색 어긋남). 판정도 상세는 TTL(acceptExpired)만 봐 '지난 날짜'를 안 막음(버튼이 enabled로 보임).
+- 고침: 공용 private CollabRespondButtons(SharedSiteScreen.kt) 하나로 두 곳 버튼 합침(12dp·회색거절·보라수락 통일). DetailBody 파라미터 acceptExpired(Boolean)→blockReason(String?) 로 바꿔 cannotAcceptReason 전체 판정 사용 — 지난 날짜도 막고 사유 그대로 표시. 막힘이면 수락 회색·탭하면 사유 토스트·거절='지우기'.
+- §12-I: 진입점(목록 triage vs 상세 deep-look)은 역할 달라 둘 다 유지. 중복이던 버튼·판정만 하나로. val expired 미사용 제거.
+- 함정: 공용을 새 파일로 두니 style_guard 새파일 엄격검사(hex·fontSize 토큰강제)로 막힘. SharedSiteParts로 옮겨도 그 파일 카운트 +3(파일별 기준선). → SharedSiteScreen.kt 안 private 로 두니 인라인 제거분이 더 커 그 파일 리터럴 순감 → 통과.
+- 함정2: 연속 실패빌드로 Kotlin 증분캐시 꼬여 유령 unresolved(1721+). IDE 진단 0에러 확인 후 clean 빌드로 해소.
+- 검증: clean assembleRelease BUILD=0(가드 7종 통과) · IDE 진단 0. 폰확인: 못 봄 — 받은요청/상세 양쪽 수락·거절 같은 모양 + 지난 날짜 요청 상세에서 수락 막히는지 확인 필요.
