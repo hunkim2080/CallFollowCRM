@@ -638,13 +638,14 @@ internal fun JobDetailCard(
             }
             CdCardDivider()
             Column {
-                    // 🤝 이 건에 걸린 협업 사장 사진 — shareIdsForJob(그 N차 날짜) 한 곳으로 골라 1차/2차 안 섞임. 업체별 묶음. (2026-11-22 사장님)
+                    // 🤝 이 건에 걸린 협업 사장 사진 — 건 날짜(days)로 골라 1차/2차 안 섞임. 빈 shareId 는 VM이 서버로 채운
+                    //   collabResolvedLines 를 쓴다(그래야 배정표에 shareId 없어도 토글에 뜸). (2026-11-25 사장님)
                     val collabPhotosByShare by host.viewModel.collabPhotosByShare.collectAsState()
-                    val collabGroups = remember(collabPhotosByShare, host.collabRefresh, jobDays, c.id) {
-                        val raw = host.container.preferences.collabAssignments
-                        val sids = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(raw, c.id, jobDays)
-                        val names = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine
-                            .forJob(raw, c.id, jobDays).associate { it.shareId to it.name }
+                    val collabResolved by host.viewModel.collabResolvedLines.collectAsState()
+                    val collabGroups = remember(collabPhotosByShare, collabResolved, jobDays, c.id) {
+                        val forThisJob = collabResolved.filter { it.shareId.isNotBlank() && it.days.any { d -> d in jobDays } }
+                        val sids = forThisJob.map { it.shareId }.distinct()
+                        val names = forThisJob.associate { it.shareId to it.name }
                         com.detailline.callfollowcrm.domain.collab.CollabJobPhotos.group(sids, collabPhotosByShare, names)
                     }
                     val collabCount = com.detailline.callfollowcrm.domain.collab.CollabJobPhotos.total(collabGroups)

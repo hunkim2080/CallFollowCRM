@@ -414,16 +414,28 @@ class CustomerDetailViewModel(
         MutableStateFlow<Map<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>>(emptyMap())
     val collabPhotosByShare = _collabPhotosByShare.asStateFlow()
 
+    /** 이 고객의 협업 배정 줄(빈 shareId 는 서버로 채워둠) — 토글이 건별(days)로 골라 쓴다. (2026-11-25 사장님 "토글에도 떠야") */
+    private val _collabResolvedLines =
+        MutableStateFlow<List<com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine>>(emptyList())
+    val collabResolvedLines = _collabResolvedLines.asStateFlow()
+
     fun refreshCollabPhotos() = viewModelScope.launch {
         val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
-        val sids = container.preferences.collabAssignments
-            .mapNotNull { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it) }
-            .filter { it.customerId == customerId && it.shareId.isNotBlank() }
-            .map { it.shareId }.distinct()
-        if (myPhone.isBlank() || sids.isEmpty()) { _collabPhotosByShare.value = emptyMap(); return@launch }
+        val raw = container.preferences.collabAssignments
+        val mine = raw.any { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it)?.customerId == customerId }
+        if (myPhone.isBlank() || !mine) {
+            _collabResolvedLines.value = emptyList(); _collabPhotosByShare.value = emptyMap(); return@launch
+        }
+        // 빈 shareId(옛·받은 협업)는 서버 이벤트(제목+상호)로 채운다 — 아래 협업 카드와 같은 매칭(§12). 그래야 토글에도 뜬다.
+        val title = com.detailline.callfollowcrm.util.AddressExtractor
+            .siteLabel(customer.first()?.address.orEmpty()).takeIf { it.isNotBlank() }?.let { "$it 현장" }.orEmpty()
+        val events = container.sharedSiteRepository.ownerEvents(myPhone).getOrNull().orEmpty()
+            .map { com.detailline.callfollowcrm.domain.collab.CollabShareResolve.EventLite(it.shareId, it.title, it.partnerName, it.atMs) }
+        val resolved = com.detailline.callfollowcrm.domain.collab.CollabShareResolve.resolveForCustomer(raw, customerId, title, events)
+        _collabResolvedLines.value = resolved
+        // 목록은 **썸네일만**(44배 가벼움 → 빨리 뜸). 크게보기 탭 때 collabPhotoFull 로 원본 1장. (2026-11-24 사장님 "왜 늦게 떠")
         val out = LinkedHashMap<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>()
-        sids.forEach { sid ->
-            // 목록은 **썸네일만**(44배 가벼움 → 빨리 뜸). 크게보기 탭 때 collabPhotoFull 로 원본 1장. (2026-11-24 사장님 "왜 늦게 떠")
+        resolved.map { it.shareId }.filter { it.isNotBlank() }.distinct().forEach { sid ->
             container.sharedSiteRepository.photos(sid, myPhone, thumb = true).onSuccess { out[sid] = it }
         }
         _collabPhotosByShare.value = out
@@ -548,17 +560,15 @@ class CustomerDetailViewModel(
         // 🐞 복사가 실패한 수 — 전엔 성공 장수만 세고 **실패 장수를 안 알려서** 사진이 조용히 사라졌다.
         //   (2026-10-15 신고) 이제 **실패 장수를 화면에 또렷이 말한다** + 실패 사유는 로그로 남긴다(SitePhotoRepository). §13①
         val failed = toAdd.size - ok - dup
-        // 웹 로그인 상태면 방금 추가한 사진을 서버로도 바로 올림(PC 웹에 즉시 반영). 아니면 매니저가 조용히 skip.
-        if (ok > 0) container.ownerPhotoUploadManager.kick(viewModelScope)
-        val dupTxt = if (dup > 0) " · 중복 ${dup}장 건너뜀" else ""
-        _toast.value = when {
-            ok == 0 && failed == 0 && capped == 0 && dup > 0 -> "이미 있는 사진이라 안 올렸어요 (${dup}장)"
-            ok == 0 && dup == 0 && capped == 0 -> "사진을 못 올렸어요 — 잠시 후 다시 시도해주세요"
-            failed > 0 && capped > 0 -> "${ok}장 추가 · ${failed}장 실패 · ${capped}장 초과$dupTxt"
-            failed > 0 -> "${ok}장 추가 · ${failed}장 실패$dupTxt (다시 시도해주세요)"
-            capped > 0 -> "내 사진은 ${sitePhotoMax}장까지 — ${ok}장 추가$dupTxt (${capped}장 자리 없음)"
-            else -> "현장 사진 ${ok}장 추가했어요$dupTxt"
+        if (ok > 0) container.ownerPhotoUploadManager.kick(viewModelScope)  // 웹 로그인 시 서버로도 즉시 반영
+        // 결과를 조각으로 모아 한 줄로 — 추가/중복/실패/자리없음. (2026-11-25 중복 차단)
+        val parts = buildList {
+            if (ok > 0) add("현장 사진 ${ok}장 추가")
+            if (dup > 0) add("이미 있는 ${dup}장은 건너뜀")
+            if (failed > 0) add("${failed}장 실패(다시 시도)")
+            if (capped > 0) add("${capped}장은 내 ${sitePhotoMax}장 초과")
         }
+        _toast.value = parts.joinToString(" · ").ifEmpty { "사진을 못 올렸어요 — 잠시 후 다시 시도해주세요" }
     }
 
     fun deleteSitePhoto(id: Long) = viewModelScope.launch {

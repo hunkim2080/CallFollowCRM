@@ -17036,3 +17036,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 현장 사진 **중복 업로드 자동 차단** — 느리게 떠서 같은 걸 또 올리던 문제(사장님). 같은 고객에 내용 같은 사진 있으면 건너뜀 + 몇 장 건너뛰었는지 토스트.
 - 변경: SitePhotoRepository.addFromUri → SitePhotoAddResult(ADDED/DUPLICATE/FAILED), 파일크기 같을 때만 sha256 비교(싸게). SitePhotoDao.listByCustomer 추가. addSitePhotos 결과 집계+문구. DB 변경 없음.
 - 폰 확인: 못 봄.
+
+## 2026-11-25 02:10 · android
+협업 사진이 **「현장 사진」 토글에도** 뜨게 — 전엔 배정표에 shareId 없으면(옛·받은 협업) 토글에 안 뜨고 아래 협업 카드에서만 떴음(사장님).
+- 원인: 토글은 shareId 빈 배정을 걸러냄. 카드는 서버 ownerEvents(제목+상호)로 빈 shareId를 채워 떴음.
+- 고침: 그 매칭을 공용 domain/collab/CollabShareResolve.kt(순수+단위테스트 6개)로 모아, refreshCollabPhotos가 빈 shareId를 채운 collabResolvedLines를 만들고, JobCard가 그걸 건 날짜(days)로 골라 그룹(1차/2차 유지).
+- ⚠️ 에뮬에 협업 데이터가 없어 **UI는 검증 못 함**(로직만 단위테스트). 폰 확인 필요.
+- 크기: CustomerDetailViewModel 오늘 실기능 3개로 +50줄 → 사장님 승인받아 sizeBaselineUpdate. (추후 협업 로직 leaf 추출 여지)

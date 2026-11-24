@@ -1,22 +1,22 @@
 # 📏 1200줄 넘는 파일의 **지금 줄 수**. 늘어나면 빌드 실패(여유 40줄).
 # 천장이 아니라 **지금 위치**다 — 기능을 더하려면 그만큼 떼어내라.
 # 다시 적기: gradlew sizeBaselineUpdate   (줄였을 때만 하세요)
-# 큰 파일 18개 / 합 38094줄
-data/local/AppDatabase.kt 1443
-data/preferences/AppPreferences.kt 1338
+# 큰 파일 18개 / 합 38244줄
+data/local/AppDatabase.kt 1481
+data/preferences/AppPreferences.kt 1377
 data/repository/SmsRepository.kt 1403
-presentation/screen/chat/ChatScreen.kt 5616
-presentation/screen/chat/ChatViewModel.kt 2152
-presentation/screen/customer/CustomerDetailJobCard.kt 1330
-presentation/screen/customer/CustomerDetailScreen.kt 2574
-presentation/screen/customer/CustomerDetailViewModel.kt 1334
+presentation/screen/chat/ChatScreen.kt 5464
+presentation/screen/chat/ChatViewModel.kt 2172
+presentation/screen/customer/CustomerDetailJobCard.kt 1370
+presentation/screen/customer/CustomerDetailScreen.kt 2576
+presentation/screen/customer/CustomerDetailViewModel.kt 1384
 presentation/screen/expo/ExpoScreen.kt 2345
-presentation/screen/home/HomeScreen.kt 3335
-presentation/screen/home/HomeViewModel.kt 1904
+presentation/screen/home/HomeScreen.kt 3337
+presentation/screen/home/HomeViewModel.kt 1936
 presentation/screen/schedule/ScheduleScreen.kt 2210
 presentation/screen/settings/SettingsCards.kt 1215
-presentation/screen/settings/SettingsScreen.kt 2617
-presentation/screen/sharedsite/SharedSiteScreen.kt 1907
+presentation/screen/settings/SettingsScreen.kt 2640
+presentation/screen/sharedsite/SharedSiteScreen.kt 1941
 presentation/screen/stats/StatsScreen.kt 1748
 service/IncomingCallOverlay.kt 1595
-service/NotificationHelper.kt 2028
+service/NotificationHelper.kt 2050
