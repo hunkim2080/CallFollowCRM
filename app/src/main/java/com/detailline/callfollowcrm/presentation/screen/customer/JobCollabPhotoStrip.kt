@@ -6,9 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,7 +85,9 @@ private fun PhotoTabSeg(text: String, on: Boolean, onClick: () -> Unit) {
  * 🤝 **협업 사장 사진** 가로 스트립 — 그 건에 걸린 협업 사진만(1차/2차 안 섞임, [CollabJobPhotos.group] 로 걸러서 들어온다).
  *   업체 2곳 이상이면 **업체 칩**으로 가르고(1곳이면 칩 생략), 각 사진엔 `🤝 상호` 이름표. **보기 전용**(×·＋ 없음).
  *   탭하면 그 업체 사진 전부를 뷰어로(크게보기는 원본 dataUrl 에서 고해상 재디코딩 — 512 썸네일을 키워 흐리던 것 방지).
+ *   **바둑판(3칸 그리드)** — 20장도 옆으로 안 밀고 한눈에. 보기 전용이라 편집 스트립(내 사진)보다 칸이 넉넉하다. (2026-11-24 사장님)
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun JobCollabPhotoStrip(
     groups: List<CollabJobPhotos.Group<SharedPhoto>>,
@@ -121,33 +127,39 @@ internal fun JobCollabPhotoStrip(
     val viewerCells = remember(active) {
         active.photos.mapNotNull { p -> p.bitmap?.let { ViewerPhoto.OfRemote(it, p.dataUrl) } }
     }
-    Row(
-        Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        active.photos.forEach { p ->
-            Box(Modifier.size(64.dp).clip(AppShape.md).background(TossGrayBg)) {
-                val bmp = p.bitmap
-                if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "협업 사진 (${active.partnerName})",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clickable {
-                            val start = viewerCells.indexOfFirst {
-                                it is ViewerPhoto.OfRemote && it.thumb === bmp
-                            }.coerceAtLeast(0)
-                            onOpenPhoto(viewerCells, start)
-                        }
-                    )
-                }
-                // 🤝 업체 이름표 — 누구 사진인지. 위쪽 딱지(대표·전)와 안 겹치게 아래.
-                Box(
-                    Modifier.align(Alignment.BottomStart).padding(4.dp)
-                        .clip(AppShape.sm).background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(active.partnerName, style = AppType.micro, color = Color.White)
+    // 🔲 바둑판 3칸 — 칸 너비는 화면에 맞춰 (내 사진 64 스트립보다 넉넉). 칸을 딱 맞춰 재니 4번째는 저절로 다음 줄로.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = 8.dp
+        val cell = (maxWidth - gap * 2) / 3
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(gap),
+            verticalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            active.photos.forEach { p ->
+                Box(Modifier.size(cell).clip(AppShape.md).background(TossGrayBg)) {
+                    val bmp = p.bitmap
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "협업 사진 (${active.partnerName})",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clickable {
+                                val start = viewerCells.indexOfFirst {
+                                    it is ViewerPhoto.OfRemote && it.thumb === bmp
+                                }.coerceAtLeast(0)
+                                onOpenPhoto(viewerCells, start)
+                            }
+                        )
+                    }
+                    // 🤝 업체 이름표 — 누구 사진인지. 위쪽 딱지(대표·전)와 안 겹치게 아래.
+                    Box(
+                        Modifier.align(Alignment.BottomStart).padding(4.dp)
+                            .clip(AppShape.sm).background(Color.Black.copy(alpha = 0.5f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(active.partnerName, style = AppType.micro, color = Color.White)
+                    }
                 }
             }
         }

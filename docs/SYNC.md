@@ -17003,3 +17003,8 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 고침: DetailBody pending 카드(현장명·날짜 아래, 일당 위)에 CollabVerdict(그날 되나 ✓/겹침)·CollabWeekStrip(그 주 7칸) 추가. 둘 다 목록이 쓰던 **같은 공용 재사용**(§12), 판정도 CollabDayCheck.check 동일. DetailBody에 myJobs 파라미터 추가(호출부에서 전달).
 - 두 벌 아님: 목록·상세가 같은 CollabVerdict/CollabWeekStrip/CollabDayCheck 호출(§12-I 역할 같은 판정 1벌).
 - 검증: assembleRelease BUILD=0(가드 7종) · IDE 진단 0. 폰확인: 못 봄 — 협업 요청 상세 열면 "그날 비어있어요/겹쳐요" + 그 주 띠 뜨는지, 바쁜 날 요청이면 겹침 경고 뜨는지.
+
+## 2026-11-24 22:30 · android
+협업 탭 사진을 **바둑판(3칸 그리드)**으로 — 20장도 옆으로 안 밀고 한눈에, 칸도 넉넉(64 스트립 → 화면폭/3).
+- 변경: JobCollabPhotoStrip.kt 만. 내 사진 탭(프로토 가로 스트립)은 그대로 — 편집용이라 역할 다름(§12-I). UI만, 데이터·서버 영향 없음.
+- 폰 확인: 못 봄 (내부배포 뜨면 사장님 눈확인)
