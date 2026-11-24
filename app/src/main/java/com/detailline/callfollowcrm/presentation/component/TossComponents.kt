@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppSpace
+import com.detailline.callfollowcrm.presentation.theme.AppTheme
 import com.detailline.callfollowcrm.presentation.theme.Pretendard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
@@ -236,11 +237,16 @@ fun TossChip(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    filled: Boolean = false
 ) {
-    val bg = if (selected) TossBlueSoft else Color.White
-    val fg = if (selected) TossBlueDark else TossTextSecondary  // 선택 칩: 연파랑 위 파랑 대비 부족 → 진파랑(프로토 --blue-dark). (2026-08-12 접근성 감사)
-    val border = if (selected) TossBlue else TossDivider
+    // 채움형은 선택 시 파랑·흰 글자, 미선택 시 회색 면을 사용한다.
+    val colors = AppTheme.colors
+    val bg = if (filled) { if (selected) colors.primary else colors.surfaceMuted }
+        else if (selected) TossBlueSoft else Color.White
+    val fg = if (filled) { if (selected) colors.textOnPrimary else colors.textSub }
+        else if (selected) TossBlueDark else TossTextSecondary
+    val border = if (filled) bg else if (selected) TossBlue else TossDivider
     Surface(
         modifier = modifier
             .heightIn(min = 38.dp)  // height→heightIn: 큰글씨서 칩 라벨 세로 잘림 방지(1x 동일). (2026-08-11 접근성 감사)

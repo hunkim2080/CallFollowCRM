@@ -16977,3 +16977,13 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 협업 사진 알림 배포 재시도 — Play API 일시 다운(503)
 - upload-20261124-1418 run#768 실패: 단위테스트·bundleRelease ✅ 통과, "Play 업로드" 단계만 `The service is currently unavailable.`(구글 Play API 503, 일시).
 - 코드/versionCode/리뷰플래그 문제 아님 — 재시도. 새 커밋으로 versionCode 한 칸 올려 중복 꼬임 방지.
+
+## 2026-11-24 · android (Codex, 워킹트리만)
+승인 UI 2건 — 위젯 지역 눈썹 · 문구 넣기 카테고리 칩
+- 변경: widget_today.xml 한 곳에서 featured·compact 공유 지역을 아파트명 위 10sp 회색 눈썹으로 이동(기존 색 리소스). TodayWidgetProvider에는 없던 빈 지역 GONE 처리를 보완. 다른 텍스트·동호수·길찾기 유지.
+- 변경: TemplatePickerDialog의 remember 선택 상태·분류 필터. TemplateCategoryChips(49줄)에서 전체→견적→예약→사진→시공 전→부재중→직접 작성 순, 빈 분류 숨김. 공용 TossChip에 기본값 false인 filled 옵션만 추가해 파랑/흰 글자·회색 면 구현, 기존 4개 호출 모양 유지. ChatScreen 5466→5464줄.
+- 중복 확인: 위젯 지역 XML 1곳(featured·compact 공유), 문구 선택창 1곳(진입 2곳), 새 칩 조각 호출 1곳. 새 칩 틀 중복 없음. 사진 썸네일·삽입·꾹 누르기 동작 유지.
+- 검증: assembleRelease BUILD SUCCESSFUL / BUILD=0, compose·brand·dup·style·rules·save·size 7종 통과. 기본 빌드는 Crashlytics 매핑 업로드가 네트워크 권한으로 실패해 외부 업로드 작업만 -x :app:uploadCrashlyticsMappingFileRelease로 제외. Kotlin 데몬 폴더 쓰기 제한은 -Pkotlin.compiler.execution.strategy=in-process로 해결. GRADLE_USER_HOME은 기존 .gradle/week-validation 캐시 사용. 가드 우회·기준선 변경 없음.
+- 폰 확인: 못 봄. 프로토 artifact/T8N16v7f2UKHiURbYHF6w1은 웹·브라우저 접근 불가로 직접 대조 못 함. 사용자 제공 상세 사양을 적용했고, docs/PROTOTYPES.md·docs/PHONE_CHECK_TODO.md에 출처·확인 항목 기록.
+- 커밋·푸시·배포·태그 없음. 서버 변경 없음.
+- 시험: testDebugUnitTest BUILD SUCCESSFUL / TEST=0. 결과 XML 158개 집계: 1447개, 실패 0·오류 0·건너뜀 0. health BUILD SUCCESSFUL / HEALTH=0, docs/HEALTH.md 기록(앱 543파일·126244줄, 2000줄 초과 8개, 가드 7개).

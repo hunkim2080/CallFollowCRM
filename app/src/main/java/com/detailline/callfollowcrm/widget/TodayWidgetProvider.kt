@@ -244,6 +244,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 txt(R.id.widget_name, current.headline); txt(R.id.widget_time, current.timeLabel)
                 show(R.id.widget_time, current.timeLabel.isNotBlank())
                 txt(R.id.widget_region, current.region)
+                show(R.id.widget_region, current.region.isNotBlank())
                 // 협업 칩 자리에 A/S 면 「🔧 A/S · 무료」(무료라 돈 얘기 없음). 둘 다 아니면 숨김.
                 txt(R.id.widget_collab_chip, if (current.isAs) "🔧 A/S · 무료" else "🤝 협업 · ${current.partner}")
                 show(R.id.widget_collab_chip, current.shareId.isNotBlank() || current.isAs)

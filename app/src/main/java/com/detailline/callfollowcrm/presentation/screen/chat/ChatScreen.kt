@@ -3886,14 +3886,12 @@ private fun TemplatePickerDialog(
     photoByTemplate: Map<Long, String> = emptyMap(),
     onDismiss: () -> Unit
 ) {
-    val filtered = remember(templates, category) {
-        val byCategory = if (category.isBlank()) templates
-        else templates.filter { it.category == category }
-        // 카테고리 비어있으면 사장님이 직접 고르도록 전체로 fallback
-        byCategory.ifEmpty { templates }
+    var selectedCategory by remember { mutableStateOf(category) }
+    val filtered = remember(templates, selectedCategory) {
+        if (selectedCategory.isBlank()) templates else templates.filter { it.category == selectedCategory }
     }
-    val title = if (category.isBlank()) "문구 넣기"
-    else "${categoryLabel(category)} 문구"
+    val title = if (selectedCategory.isBlank()) "문구 넣기"
+    else "${categoryLabel(selectedCategory)} 문구"
 
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     androidx.activity.compose.BackHandler { onDismiss() }
@@ -3923,7 +3921,7 @@ private fun TemplatePickerDialog(
                 Spacer(Modifier.height(5.dp))
                 // 꾹 누르기는 모르면 못 찾는다 → 제목 밑에 조용히 한 줄. (2026-09-16 사장님 개편)
                 com.detailline.callfollowcrm.presentation.component.HelpText("누르면 입력창에 들어가요 · 꾹 누르면 수정·삭제")
-                Spacer(Modifier.height(12.dp))
+                TemplateCategoryChips(templates, selectedCategory) { selectedCategory = it }
                 if (filtered.isEmpty()) {
                     Text(
                         "아직 저장된 문구가 없어요. 문자를 쓴 다음 ⊕ 에서 [이 글을 문구로 저장] 을 누르면 여기 쌓여요.",
