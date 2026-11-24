@@ -501,7 +501,7 @@ class SharedSiteRepository(
         })
 
     /** 그 협업 현장의 모든 증거 사진(owner+partner). 서버 미구현/실패 시 빈 목록(graceful). */
-    suspend fun photos(shareId: String, phone: String, limit: Int = 50): Result<List<SharedPhoto>> =
+    suspend fun photos(shareId: String, phone: String, limit: Int = 50, thumb: Boolean = false): Result<List<SharedPhoto>> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val url = baseUrl.toHttpUrl().newBuilder()
@@ -509,6 +509,7 @@ class SharedSiteRepository(
                     .addQueryParameter("share_id", shareId)
                     .addQueryParameter("phone", phoneKey(phone))
                     .addQueryParameter("limit", limit.toString())
+                    .apply { if (thumb) addQueryParameter("thumb", "1") }  // 목록은 작은 썸네일만(44배 가벼움) — 원본은 탭 때 photoFull. (2026-11-24)
                     .build()
                 val req = Request.Builder().url(url).get().build()
                 client.newCall(req).execute().use { resp ->
@@ -528,6 +529,25 @@ class SharedSiteRepository(
                             dataUrl = dataUrl
                         )
                     }
+                }
+            }
+        }
+
+    /** 협업 사진 1장의 **원본**(큰 이미지) base64 — 목록은 썸네일이라 크게보기 탭 때 이걸로 교체. (2026-11-24 사장님 "왜 늦게 떠") */
+    suspend fun photoFull(photoId: Long, shareId: String, phone: String): Result<String?> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = baseUrl.toHttpUrl().newBuilder()
+                    .addPathSegments("api/shared/photo")
+                    .addQueryParameter("photo_id", photoId.toString())
+                    .addQueryParameter("share_id", shareId)
+                    .addQueryParameter("phone", phoneKey(phone))
+                    .build()
+                val req = Request.Builder().url(url).get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    JSONObject(resp.body?.string().orEmpty())
+                        .optString("image_data_url").takeIf { it.isNotBlank() }
                 }
             }
         }

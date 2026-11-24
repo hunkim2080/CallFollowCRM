@@ -92,6 +92,8 @@ private fun PhotoTabSeg(text: String, on: Boolean, onClick: () -> Unit) {
 internal fun JobCollabPhotoStrip(
     groups: List<CollabJobPhotos.Group<SharedPhoto>>,
     onOpenPhoto: (List<ViewerPhoto>, Int) -> Unit,
+    /** 크게보기 탭 때 그 1장의 **원본**을 받는 로더(목록은 썸네일만 받음). null 이면 썸네일 그대로. (2026-11-24) */
+    onLoadFull: (suspend (shareId: String, photoId: Long) -> String?)? = null,
 ) {
     if (groups.isEmpty()) return
     var sel by remember(groups.map { it.shareId }) { mutableStateOf(groups.first().shareId) }
@@ -125,7 +127,14 @@ internal fun JobCollabPhotoStrip(
     }
 
     val viewerCells = remember(active) {
-        active.photos.mapNotNull { p -> p.bitmap?.let { ViewerPhoto.OfRemote(it, p.dataUrl) } }
+        active.photos.mapNotNull { p ->
+            p.bitmap?.let { bmp ->
+                ViewerPhoto.OfRemote(
+                    bmp, p.dataUrl,
+                    loadFull = onLoadFull?.let { lf -> suspend { lf(active.shareId, p.photoId) } }
+                )
+            }
+        }
     }
     Row(
         Modifier.horizontalScroll(rememberScrollState()),

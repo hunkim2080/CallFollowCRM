@@ -17024,3 +17024,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 밑줄 탭 **버그 수정** — 밑줄이 글자 폭이 아닌 Row 남은 폭 전체로 늘어나던 것(fillMaxWidth). width(IntrinsicSize.Max)로 글자 폭에 맞춤.
 - 변경: JobCollabPhotoStrip.kt(PhotoTabSeg). + 디버그 미리보기 TogglePreviewActivity(app/src/debug, 릴리스 미포함).
 - 폰 확인: **에뮬레이터 실물 캡처로 두 상태(현장/협업) 밑줄 글자폭 확인 완료.**
+
+## 2026-11-25 00:30 · android (+ server)
+협업 사진 **로딩 속도 대폭 개선** — 목록은 썸네일(400px), 원본은 크게보기 탭 때 1장만. (사장님 "왜 늦게 떠")
+- 서버(라이브 배포 완료·smoke 10/10): GET /api/shared/photos 에 ?thumb=1 (Pillow 400px, photo_id 메모리캐시) + 새 GET /api/shared/photo(단일 원본). 실측 20장 10,460KB→235KB (44.5배↓). 백업 main.py.bak.20261124-215308. repo server/main.py 동기화.
+- 앱: SharedSiteRepository.photos(thumb) + photoFull(), ViewerPhoto.OfRemote.loadFull(크게볼때 원본), JobCollabPhotoStrip onLoadFull, CustomerDetailViewModel.refreshCollabPhotos(thumb=true)+collabPhotoFull. 뒤호환·실패시 썸네일 폴백.
+- 범위: 고객상세 협업 탭 사진. (SharedSiteScreen 자체 사진 목록은 아직 원본 — 추후)
+- 폰 확인: 못 봄(서버는 실측 검증). 내부배포 뜨면 협업 사진 빨리 뜨는지 확인 요망.

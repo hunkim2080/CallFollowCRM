@@ -92,10 +92,13 @@ sealed interface ViewerPhoto {
 
     data class OfBitmap(val bitmap: android.graphics.Bitmap) : ViewerPhoto
 
-    /** [thumb] = 목록용 작은 비트맵(메모리 안전). [dataUrl] = 크게보기 고해상 재디코딩용 원본 base64. */
+    /** [thumb] = 목록용 작은 비트맵(메모리 안전). [dataUrl] = 크게보기 고해상 재디코딩용 원본 base64.
+     *   [loadFull] 이 있으면 **크게 볼 때 그걸로 원본을 받아** 디코딩한다 — 목록이 썸네일만 받는 경우(협업 사진).
+     *   null 이면 [dataUrl] 을 그대로 쓴다(팀원 사진 등 이미 원본을 가진 경우). (2026-11-24) */
     data class OfRemote(
         val thumb: android.graphics.Bitmap,
-        val dataUrl: String
+        val dataUrl: String,
+        val loadFull: (suspend () -> String?)? = null
     ) : ViewerPhoto
 }
 
@@ -589,7 +592,9 @@ private fun ViewerPage(
                 }
                 androidx.compose.runtime.LaunchedEffect(photo.dataUrl) {
                     hi = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                        com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(photo.dataUrl, 2048)
+                        // 목록이 썸네일만 받은 경우(협업) loadFull 로 원본을 받아 선명하게. 없으면 dataUrl 그대로.
+                        val full = photo.loadFull?.invoke() ?: photo.dataUrl
+                        com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(full, 2048)
                     }
                 }
                 androidx.compose.runtime.DisposableEffect(photo.dataUrl) {

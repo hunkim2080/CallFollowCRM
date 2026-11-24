@@ -18787,12 +18787,45 @@ async def shared_photo_upload(req: SharedPhotoUploadRequest) -> dict:
 # 협업 현장 사진 목록 — share_id 의 모든 사진 (owner 업로드 + partner 업로드 둘 다).
 # 사장님 워딩 그대로 ?share_id= 만. 안전벽: phone 옵셔널 query (있으면 검증).
 
+# 🖼️ 협업 사진 썸네일 — 목록은 작게(400px) 보내 빨리 뜨게. 원본은 탭 때 /api/shared/photo 로 1장만.
+#    photo_id 로 메모리 캐시(서버 재시작 시 비움 — 재생성 비용은 20장 수준이라 무시 가능).
+_COLLAB_THUMB_CACHE = {}
+_COLLAB_THUMB_CACHE_MAX = 2000
+
+def _collab_thumb_data_url(photo_id, full_data_url, maxdim=400):
+    if not full_data_url:
+        return full_data_url
+    cached = _COLLAB_THUMB_CACHE.get(photo_id)
+    if cached is not None:
+        return cached
+    if not _PIL_OK:
+        return full_data_url
+    try:
+        import io as _io, base64 as _b64
+        from PIL import Image as _Img
+        payload = full_data_url.split(",", 1)[1] if "," in full_data_url else full_data_url
+        raw = _b64.b64decode(payload)
+        im = _Img.open(_io.BytesIO(raw)).convert("RGB")
+        im.thumbnail((maxdim, maxdim))
+        buf = _io.BytesIO()
+        im.save(buf, format="JPEG", quality=72)
+        thumb = "data:image/jpeg;base64," + _b64.b64encode(buf.getvalue()).decode("ascii")
+        if len(_COLLAB_THUMB_CACHE) > _COLLAB_THUMB_CACHE_MAX:
+            _COLLAB_THUMB_CACHE.clear()
+        _COLLAB_THUMB_CACHE[photo_id] = thumb
+        return thumb
+    except Exception as e:
+        print(f"[shared/photos thumb] 실패 photo_id={photo_id}: {type(e).__name__}: {e}")
+        return full_data_url
+
+
 @app.get("/api/shared/photos")
 async def shared_photos_list(
     share_id: str,
     phone: Optional[str] = None,
     since_ms: int = 0,
     limit: int = 100,
+    thumb: int = 0,
 ) -> dict:
     """협업 현장 사진 조회. phone 제공 시 owner/partner 권한 검증."""
     share_id = (share_id or "").strip()
@@ -18835,16 +18868,51 @@ async def shared_photos_list(
         else:
             uploader_kind = "member"
             uploader_name = "팀원"
+        _out_url = image_data_url or ""
+        if thumb and _out_url:
+            _out_url = _collab_thumb_data_url(photo_id, _out_url)
         photos.append({
             "photo_id": photo_id,
             "label": label or "",
-            "image_data_url": image_data_url or "",
+            "image_data_url": _out_url,
             "note": note or "",
             "uploaded_at_ms": uploaded_at_ms,
             "uploader_kind": uploader_kind,
             "uploader_name": uploader_name,
         })
     return {"photos": photos, "count": len(photos)}
+
+
+# ─── ⑪-bis GET /api/shared/photo (단일 원본) ───  (2026-11-24 사진 빠르게: 목록은 썸네일, 원본은 탭 때 1장)
+@app.get("/api/shared/photo")
+async def shared_photo_get(
+    photo_id: int,
+    share_id: str,
+    phone: Optional[str] = None,
+) -> dict:
+    """협업 현장 사진 1장의 원본(큰 이미지). 크게보기 탭 때만 불린다."""
+    share_id = (share_id or "").strip()
+    if not share_id or not photo_id:
+        raise HTTPException(400, "share_id, photo_id 필수")
+    if phone:
+        pd = _norm_phone(phone)
+        with db_conn() as _con:
+            _row = _con.execute(
+                "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+                (share_id,),
+            ).fetchone()
+        if not _row:
+            raise HTTPException(404, "share_id 없음")
+        if pd not in (_norm_phone(_row[0]), _norm_phone(_row[1])):
+            raise HTTPException(403, "권한 없음")
+    with db_conn() as con:
+        r = con.execute(
+            "SELECT image_data_url FROM team_site_photos WHERE photo_id = ? AND share_id = ?",
+            (photo_id, share_id),
+        ).fetchone()
+    if not r:
+        raise HTTPException(404, "photo 없음")
+    return {"photo_id": photo_id, "image_data_url": r[0] or ""}
 
 
 # ─── ⑪-bis POST /api/shared/photo/delete ───  (2026-07-07 사장님 — 개별 삭제)

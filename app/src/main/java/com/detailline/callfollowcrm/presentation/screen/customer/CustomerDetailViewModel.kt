@@ -423,9 +423,17 @@ class CustomerDetailViewModel(
         if (myPhone.isBlank() || sids.isEmpty()) { _collabPhotosByShare.value = emptyMap(); return@launch }
         val out = LinkedHashMap<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>()
         sids.forEach { sid ->
-            container.sharedSiteRepository.photos(sid, myPhone).onSuccess { out[sid] = it }
+            // 목록은 **썸네일만**(44배 가벼움 → 빨리 뜸). 크게보기 탭 때 collabPhotoFull 로 원본 1장. (2026-11-24 사장님 "왜 늦게 떠")
+            container.sharedSiteRepository.photos(sid, myPhone, thumb = true).onSuccess { out[sid] = it }
         }
         _collabPhotosByShare.value = out
+    }
+
+    /** 🔍 협업 사진 크게보기 탭 → 그 1장의 원본 base64. (목록은 썸네일이라 선명히 보려면 원본을 받는다) */
+    suspend fun collabPhotoFull(shareId: String, photoId: Long): String? {
+        val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
+        if (myPhone.isBlank() || shareId.isBlank() || photoId <= 0L) return null
+        return container.sharedSiteRepository.photoFull(photoId, shareId, myPhone).getOrNull()
     }
 
     /**
