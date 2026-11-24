@@ -17019,3 +17019,8 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: dayLabel(요일) = SharedSiteParts. 댓글 스크롤 배선 = NotificationHelper→MainActivity(EXTRA_FOCUS_COMMENT)→NavEvents/AppRoot/AppNavHost(focus 인자, 뒤호환)→SharedSiteScreen(focusComment)+FocusCommentScroll(SharedSiteParts). 서버 영향 없음.
 - 범위: 공유받은 현장 댓글 알림(협업자 B) 경로. 내가 공유한 현장(주인)이 고객카드로 열리는 경로는 미적용(추후).
 - 폰 확인: 못 봄 (내부배포 뜨면 사장님 눈확인)
+
+## 2026-11-24 23:55 · android
+밑줄 탭 **버그 수정** — 밑줄이 글자 폭이 아닌 Row 남은 폭 전체로 늘어나던 것(fillMaxWidth). width(IntrinsicSize.Max)로 글자 폭에 맞춤.
+- 변경: JobCollabPhotoStrip.kt(PhotoTabSeg). + 디버그 미리보기 TogglePreviewActivity(app/src/debug, 릴리스 미포함).
+- 폰 확인: **에뮬레이터 실물 캡처로 두 상태(현장/협업) 밑줄 글자폭 확인 완료.**

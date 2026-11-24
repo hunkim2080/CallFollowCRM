@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,9 +64,11 @@ internal fun PhotoTabToggle(
 
 @Composable
 private fun PhotoTabSeg(text: String, on: Boolean, onClick: () -> Unit) {
+    // width(IntrinsicSize.Max) = 글자 폭에 맞춰 칸을 잡는다 → 밑줄 fillMaxWidth 가 글자 폭만큼만.
+    //   (이거 없으면 밑줄이 Row 남은 폭 전체로 늘어난다 — 2026-11-24 그 버그)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }.padding(vertical = 4.dp)
+        modifier = Modifier.width(IntrinsicSize.Max).clickable { onClick() }.padding(vertical = 4.dp)
     ) {
         Text(
             text, style = AppType.label,

@@ -5,6 +5,10 @@
             android:name=".debug.WidgetPreviewActivity"
             android:exported="true"
             android:theme="@android:style/Theme.NoTitleBar" />
+        <activity
+            android:name=".debug.TogglePreviewActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoTitleBar" />
         <receiver
             android:name=".debug.DebugMmsSendReceiver"
             android:exported="false">
