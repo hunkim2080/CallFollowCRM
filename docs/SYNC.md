@@ -16972,3 +16972,8 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 느린망·빈값·연타(§13): 연타=REPLACE 로 타이머 리셋 · 빈 siteId=skip · 앱 종료=WorkManager 생존 · count 는 로컬 DB(망 불필요).
 - 검증: assembleRelease BUILD=0(가드 7개 통과·[dup]18곳 불변·[brand] 이상無) · health 기록. 폰확인: 못 봄 — 협업사장이 사진 여러 장 올린 뒤 5분 지나 사장님 폰에 "사진 N장" 한 번만 뜨는지 확인 필요.
 - 남음(사장님 "올려" 대기): Phase B = 협업 사진 **로딩 제대로(목록 먼저·하나씩)** + 알림 **대표사진 1장** — 서버 썸네일 문 신설(/api/shared/photos?meta_only + 사진별 thumb, Pillow 축소) 필요라 서버 배포는 지시 대기.
+
+## 2026-11-24 · android
+협업 사진 알림 배포 재시도 — Play API 일시 다운(503)
+- upload-20261124-1418 run#768 실패: 단위테스트·bundleRelease ✅ 통과, "Play 업로드" 단계만 `The service is currently unavailable.`(구글 Play API 503, 일시).
+- 코드/versionCode/리뷰플래그 문제 아님 — 재시도. 새 커밋으로 versionCode 한 칸 올려 중복 꼬임 방지.
