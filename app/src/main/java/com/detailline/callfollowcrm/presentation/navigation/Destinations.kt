@@ -100,12 +100,14 @@ object Destinations {
     /** 더보기 → 박람회 모드 — 박람회 팀 전용 창구(완전 별개 공간, 카톡 스타일). (2026-07-21 사장님) */
     const val EXPO = "expo"
     const val COLLAB_SITES = "collab_sites"
-    /** 협업 현장 — share 로 그 현장 자동 열기, tab="shared" 면 "내가 공유한 현장" 탭부터. 더보기 진입은 인자 없음. */
-    const val COLLAB_SITES_WITH_ARG = "collab_sites?share={share}&tab={tab}"
-    fun collabSites(shareId: String? = null, tab: String? = null): String {
+    /** 협업 현장 — share 로 그 현장 자동 열기, tab="shared" 면 "내가 공유한 현장" 탭부터. 더보기 진입은 인자 없음.
+     *   focus="comment" 면 그 현장 상세를 열고 **현장 한마디(댓글)로 바로 스크롤** — 새 댓글 알림 탭. (2026-11-24 사장님) */
+    const val COLLAB_SITES_WITH_ARG = "collab_sites?share={share}&tab={tab}&focus={focus}"
+    fun collabSites(shareId: String? = null, tab: String? = null, focus: String? = null): String {
         val s = shareId?.takeIf { it.isNotBlank() }?.let { "share=$it" }.orEmpty()
         val t = tab?.takeIf { it.isNotBlank() }?.let { "tab=$it" }.orEmpty()
-        val q = listOf(s, t).filter { it.isNotEmpty() }.joinToString("&")
+        val f = focus?.takeIf { it.isNotBlank() }?.let { "focus=$it" }.orEmpty()
+        val q = listOf(s, t, f).filter { it.isNotEmpty() }.joinToString("&")
         return if (q.isEmpty()) COLLAB_SITES else "collab_sites?$q"
     }
     /** 더보기 → 협업 기록 — 협업 사장별·월별 집계(받은/준). 기록·세금용. (2026-08-01 사장님) */

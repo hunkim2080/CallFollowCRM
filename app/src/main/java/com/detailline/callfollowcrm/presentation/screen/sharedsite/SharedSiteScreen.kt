@@ -98,7 +98,9 @@ fun SharedSiteScreen(
     /** 공유 링크(App Link)로 들어왔을 때 그 현장 상세를 자동으로 연다. */
     initialShareId: String? = null,
     /** "shared" 면 "내가 공유한 현장" 탭부터 연다(협업 수락/진행 알림 탭). 기본은 받은 현장. (2026-06-20 사장님) */
-    initialTab: String? = null
+    initialTab: String? = null,
+    /** 새 댓글 알림으로 들어왔을 때 그 현장 상세를 열고 **현장 한마디(댓글)로 바로 스크롤**. (2026-11-24 사장님) */
+    focusComment: Boolean = false
 ) {
     val sites by viewModel.sites.collectAsState()
     // 🤝 내 시공 일정 — 협업 요청 카드가 「그날 되나?」를 말하는 데 쓴다. (2026-09-30 사장님)
@@ -315,6 +317,8 @@ fun SharedSiteScreen(
         //   뷰 정체성(아래 상태들)이 바뀌면 맨 위로. (2026-08-03 사장님 — 더보기 서브탭과 같은 부류)
         val scrollState = rememberScrollState()
         LaunchedEffect(selectedId, topMode, bizPartner, myPartner, showTrash, listView, myListView) { scrollState.scrollTo(0) }
+        // 🔔 새 댓글 알림이면 상세 열고 현장 한마디(댓글)로 스크롤 — 로직은 SharedSiteParts 한 곳.
+        FocusCommentScroll(focusComment, selectedId, initialShareId, scrollState)
         Column(
             Modifier
                 .padding(inner)

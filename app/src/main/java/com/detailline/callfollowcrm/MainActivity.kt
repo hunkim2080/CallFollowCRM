@@ -69,7 +69,9 @@ class MainActivity : ComponentActivity() {
                             container = container,
                             text = incoming.text
                         )
-                        is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
+                        is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(
+                            incoming.shareId, focus = if (incoming.focusComment) "comment" else null
+                        )
                         is IncomingIntent.OpenCustomer -> container.navEvents.requestCustomerDetail(incoming.customerId)
                         is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
                         is IncomingIntent.WidgetRoute -> container.navEvents.requestWidgetRoute(incoming.route)
@@ -226,9 +228,10 @@ class MainActivity : ComponentActivity() {
                 //   아니면(내가 협업자 B) 협업 현장 상세로. (2026-07-02 사장님)
                 val sid = intent.getStringExtra(EXTRA_SHARE_ID).orEmpty()
                 val cid = customerIdForShareId(sid)
+                val focusComment = intent.getBooleanExtra(EXTRA_FOCUS_COMMENT, false)
                 pendingIntentState.value =
                     if (cid != null) IncomingIntent.OpenCustomer(cid)
-                    else IncomingIntent.SharedSite(sid.takeIf { it.isNotBlank() })
+                    else IncomingIntent.SharedSite(sid.takeIf { it.isNotBlank() }, focusComment)
             }
             ACTION_COLLAB_ENDED -> {
                 // 협업 해제 알림 탭 → 무엇이 해제됐는지 토스트 + 목록. (2026-06-21 사장님)
@@ -337,7 +340,7 @@ class MainActivity : ComponentActivity() {
         data class CallSummary(val phoneNumber: String, val displayName: String?) : IncomingIntent
         object ClosingBrief : IncomingIntent
         /** 협업 현장 공유 App Link. shareId = /shared/{share_id} 의 마지막 조각(없으면 목록). */
-        data class SharedSite(val shareId: String?) : IncomingIntent
+        data class SharedSite(val shareId: String?, val focusComment: Boolean = false) : IncomingIntent
         /** 협업 댓글/사진 알림 탭 → 그 현장이 내 고객이면 고객정보로 바로. (2026-07-02 사장님) */
         data class OpenCustomer(val customerId: Long) : IncomingIntent
         /** 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님) */
@@ -385,6 +388,8 @@ class MainActivity : ComponentActivity() {
         /** 협업 현장 특정 shareId 로 바로 상세 열기(댓글 등). EXTRA_SHARE_ID 로 shareId 전달. (2026-07-02 사장님) */
         const val ACTION_COLLAB_SITE = "com.detailline.callfollowcrm.ACTION_COLLAB_SITE"
         const val EXTRA_SHARE_ID = "extra_share_id"
+        /** 새 댓글 알림 탭 → 현장 상세 열고 **현장 한마디(댓글)로 바로 스크롤**. (2026-11-24 사장님) */
+        const val EXTRA_FOCUS_COMMENT = "extra_focus_comment"
         const val EXTRA_COLLAB_TITLE = "extra_collab_title"
         const val EXTRA_COLLAB_BY = "extra_collab_by"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"

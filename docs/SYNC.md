@@ -17013,3 +17013,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 ① 협업 바둑판 **되돌림**(사장님: 원래 가로 스트립). ② 「협업 20」 토글을 **밑줄 탭**으로(둥근 상자 없앰 — "둥근게 어색").
 - 변경: JobCollabPhotoStrip.kt 만. UI만, 데이터·서버 영향 없음.
 - 폰 확인: 못 봄 (내부배포 뜨면 사장님 눈확인)
+
+## 2026-11-24 23:30 · android
+① 협업 수락/일정 날짜에 **요일** 붙임(「11/27(금)」) — dayLabel 한 곳(formatDateLabel). ② **새 댓글 알림 탭 → 현장 한마디(댓글)로 바로 스크롤**.
+- 변경: dayLabel(요일) = SharedSiteParts. 댓글 스크롤 배선 = NotificationHelper→MainActivity(EXTRA_FOCUS_COMMENT)→NavEvents/AppRoot/AppNavHost(focus 인자, 뒤호환)→SharedSiteScreen(focusComment)+FocusCommentScroll(SharedSiteParts). 서버 영향 없음.
+- 범위: 공유받은 현장 댓글 알림(협업자 B) 경로. 내가 공유한 현장(주인)이 고객카드로 열리는 경로는 미적용(추후).
+- 폰 확인: 못 봄 (내부배포 뜨면 사장님 눈확인)

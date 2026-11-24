@@ -139,7 +139,7 @@ fun AppRoot(container: AppContainer) {
                             navController.navigate(Destinations.CLOSING_BRIEF) { launchSingleTop = true }
                         }
                         is NavEvent.OpenCollabSites -> {
-                            navController.navigate(Destinations.collabSites(event.shareId, event.tab)) {
+                            navController.navigate(Destinations.collabSites(event.shareId, event.tab, event.focus)) {
                                 popUpTo(Destinations.COLLAB_SITES_WITH_ARG) { inclusive = true }
                                 launchSingleTop = true
                             }

@@ -908,6 +908,7 @@ object NotificationHelper {
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_COLLAB_SITE
             putExtra(MainActivity.EXTRA_SHARE_ID, siteId)
+            putExtra(MainActivity.EXTRA_FOCUS_COMMENT, true)   // 탭 → 현장 한마디(댓글)로 바로 스크롤. (2026-11-24 사장님)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pending = PendingIntent.getActivity(

@@ -40,8 +40,8 @@ class NavEvents {
     /** 협업 현장 공유 링크(App Link) 탭 → 협업 현장 화면 (shareId 있으면 그 현장 바로 열기).
      *   tab="shared" 면 "내가 공유한 현장" 탭부터 — 협업 수락/진행 알림은 주인(A)이 받는데, 그 현장은
      *   A 의 '받은 현장' 목록엔 없어서 받은목록을 열면 빈 화면이 뜸 → A 의 '내가 공유한 현장' 으로 보냄. (2026-06-20 사장님) */
-    fun requestCollabSites(shareId: String? = null, tab: String? = null) {
-        channel.trySend(NavEvent.OpenCollabSites(shareId, tab))
+    fun requestCollabSites(shareId: String? = null, tab: String? = null, focus: String? = null) {
+        channel.trySend(NavEvent.OpenCollabSites(shareId, tab, focus))
     }
 
     /** 특정 고객 상세로 바로 (협업 댓글/사진 알림 탭 → 주인은 늘 쓰는 고객정보 협업 탭으로). (2026-07-02 사장님) */
@@ -79,8 +79,9 @@ sealed interface NavEvent {
     ) : NavEvent
     /** "오늘 하루 마감 브리핑" 알림 탭 → 마감 브리핑 화면. */
     object OpenClosingBrief : NavEvent
-    /** 협업 현장 공유 링크 → 협업 현장 화면. shareId 있으면 그 현장 상세 자동 열기. tab="shared" 면 내가 공유한 현장 탭부터. */
-    data class OpenCollabSites(val shareId: String? = null, val tab: String? = null) : NavEvent
+    /** 협업 현장 공유 링크 → 협업 현장 화면. shareId 있으면 그 현장 상세 자동 열기. tab="shared" 면 내가 공유한 현장 탭부터.
+     *   focus="comment" 면 상세 열고 현장 한마디(댓글)로 스크롤. */
+    data class OpenCollabSites(val shareId: String? = null, val tab: String? = null, val focus: String? = null) : NavEvent
     /** 특정 고객 상세로 바로. (협업 댓글/사진 알림 탭 → 고객정보 협업 탭) */
     data class OpenCustomerDetail(val customerId: Long) : NavEvent
     /** 팀원 진행 알림 탭 → 팀 관리(현황). */

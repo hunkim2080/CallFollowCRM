@@ -174,8 +174,8 @@ internal fun dayLabel(ms: Long): String {
     return when {
         diff == 0 -> "오늘"
         diff == 1 -> "내일"
-        // 짧은 날짜는 앱 표준 「10/8」 — 공용 한 곳(2026-10-18 UX 감사: 협업만 점이었다).
-        else -> DateTimeUtils.formatMonthDay(ms)
+        // 요일까지 「11/27(금)」 — 협업 수락/일정 확인 때 무슨 요일인지 바로 보이게. (2026-11-24 사장님)
+        else -> DateTimeUtils.formatDateLabel(ms)
     }
 }
 
@@ -186,6 +186,30 @@ internal fun timeOf(ms: Long): String? {
     val h = cal.get(Calendar.HOUR_OF_DAY); val m = cal.get(Calendar.MINUTE)
     if (h == 0 && m == 0) return null
     return DateTimeUtils.timeLabel(h, m)
+}
+
+/** 🔔 새 댓글 알림으로 들어왔을 때 — 그 현장 상세(selectedId==targetId)를 열고 **현장 한마디(댓글)로 스크롤**.
+ *   댓글은 상세 맨 아래라, 사진이 늦게 떠 높이가 커져도 ~1.8초간 바닥에 맞춰 댓글이 보이게 한다. (2026-11-24 사장님) */
+@Composable
+internal fun FocusCommentScroll(
+    active: Boolean,
+    selectedId: String?,
+    targetId: String?,
+    scrollState: androidx.compose.foundation.ScrollState,
+) {
+    if (active) {
+        LaunchedEffect(selectedId) {
+            if (selectedId != null && selectedId == targetId) {
+                var last = -1
+                val until = System.currentTimeMillis() + 1800
+                while (System.currentTimeMillis() < until) {
+                    val max = scrollState.maxValue
+                    if (max > 0 && max != last) { last = max; scrollState.scrollTo(max) }
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+        }
+    }
 }
 
 @Composable
