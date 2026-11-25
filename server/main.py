@@ -18011,14 +18011,14 @@ async def shared_respond(req: SharedRespondRequest, request: Request = None) -> 
                 return d.year * 10000 + d.month * 100 + d.day
             if _ymd(sched_ms) < _ymd(now):
                 raise HTTPException(409, "시공 날짜가 지난 현장입니다 — 날짜를 다시 잡아 보내달라고 하세요.")
-        # 🕒 **공유 뒤 24시간 안 받으면 만료 — 수락 불가.** (2026-10-20 사장님)
-        #   앱도 「만료됨」으로 막지만(domain/collab/CollabInviteExpiry.TTL_MS = 24h), 옛 버전은 통과한다 →
+        # 🕒 **공유 뒤 12시간 안 받으면 만료 — 수락 불가.** (2026-11-25 사장님, 24h→12h)
+        #   앱도 「만료됨」으로 막지만(domain/collab/CollabInviteExpiry.TTL_MS = 12h), 옛 버전은 통과한다 →
         #   **서버가 최종 결정권자**(§13②). 거절은 언제든 되고(지난-날짜와 같은 원칙), **수락만** 막는다.
-        #   ⚠️ 24h 는 앱 CollabInviteExpiry.TTL_MS 와 **같은 값**이어야 한다 — 바꾸면 양쪽 같이.
+        #   ⚠️ 12h 는 앱 CollabInviteExpiry.TTL_MS 와 **같은 값**이어야 한다 — 바꾸면 양쪽 같이.
         created_ms = row[5] or 0
-        _SHARE_TTL_MS = 24 * 60 * 60 * 1000
+        _SHARE_TTL_MS = 12 * 60 * 60 * 1000
         if req.accept and created_ms > 0 and (now - created_ms) >= _SHARE_TTL_MS:
-            raise HTTPException(409, "요청이 만료됐어요 (보낸 지 24시간 지남) — 사장님께 다시 보내달라고 하세요.")
+            raise HTTPException(409, "요청이 만료됐어요 (보낸 지 12시간 지남) — 사장님께 다시 보내달라고 하세요.")
         owner_phone_for_fcm = row[2]
         site_title = row[3] or ""
         # §I (2026-06-18) — B 가 보낸 partner_name(상호) 박기 (있을 때만).

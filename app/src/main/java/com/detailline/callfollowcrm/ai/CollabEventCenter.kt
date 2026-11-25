@@ -181,7 +181,8 @@ class CollabEventCenter(
             val deadline = if (anchor > 0L) anchor + com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_MS else 0L
             NotificationHelper.showCollabInvite(
                 context, s.shareId, s.ownerName, s.title, silent = s.shareId in seen,
-                deadlineMs = deadline, dailyWage = s.dailyWage
+                deadlineMs = deadline, dailyWage = s.dailyWage,
+                scheduledAtMs = s.scheduledAtMs, timeLabel = s.timeLabel, addr = s.addr
             )
         }
         preferences.seenCollabInviteShareIds = shownIds

@@ -17100,3 +17100,15 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 원인: ongoing 재게시(pollInvites 폴마다)가 showProtoPush logToCenter=기본 true → NotificationLog 에 매번 한 줄 → 벨에 "협업 요청" 수십 개.
 - 고침: showCollabInvite 가 logToCenter=!silent — **처음(새 요청)만 센터 기록, 재게시(silent)는 안 쌓음**. 푸시 샤드는 그대로 하나(onlyAlertOnce).
 - 폰 확인: 이제 협업 요청당 벨에 하나만. (이미 쌓인 과거분은 밀려서 사라짐)
+
+## 2026-11-25 21:10 · android (+ server)
+협업 요청 알림 **배너 잘림 해결 + 바로 수락/거절 버튼 + 마감 12시간** (사장님 "배너가 다 노출 안 됨"·"수락도 배너에서 바로"·"12시간으로"). 에뮬 검증 완료.
+- 🐞 근본: 어제 커스텀 호박칩(notification_collab_invite.xml)이 삼성 좁은 배너에서 잘림. → **표준 글자 알림**으로 전환(어떤 폰에서도 안 잘림 · 커스텀 RemoteViews 반복 사고 영역이라 버림).
+- 제목=날짜·[지역]·지원요청 / 본문=마감·시공시각·일당·업체. 라이브 카운트다운은 **막판 1시간만** setWhen+Chronometer(표준). 지역=`AddressExtractor.region`(신설, roughSite와 한 셈)·시각=`DateTimeUtils.timeLabel`·날짜=`formatDateLabel` 재사용.
+- 🤝 배너 [거절][수락] → `CollabRespondReceiver`(service 신설) → **Outbox `COLLAB_RESPOND`**(신설 kind + `CollabRespondHandler`) → /api/shared/respond. 오프라인·연타 안전(TERMINAL 합치기 + markResponded 낙관).
+- 🕒 마감 **24h→12h**: 앱 `CollabInviteExpiry.TTL_HOURS=12` **+ 서버 `main.py _SHARE_TTL_MS=12h`**(§13② 짝). ⚠️ **서버는 repo 만 바뀜 — 라이브 배포 아직**(GOTCHAS §3 로 올려야 진짜 막힘).
+- 정리: 안 쓰는 커스텀 2파일(notification_collab_invite.xml·noti_cd_chip.xml)·colors(collab_cd_*) 삭제. `CollabInviteNotifier`=글자 조립기로. 단위테스트 5건 신설.
+- 숫자(§12-G): 옛 커스텀칩 표기 0곳 · dup 18=18 · size 통과(2050) · 테스트 통과 · 표시/소비: showCollabInvite 호출 1곳(pollInvites) + OutboxKind when 2곳(OutboxWording·OutboxTroubleScreen) 다 고침.
+- 검증(에뮬 API35): 라이트/다크 둘 다 제목·본문 안 잘림 · [거절][수락] · 막판 카운트다운 37:25→35:44 똑딱 · inflate 0.
+- 다음 액션(server): `main.py _SHARE_TTL_MS=12h` 를 라이브(100.86.114.49)에 scp 핫픽스 + smoke(아직 안 함).
+- 폰 확인: 사장님 S23U 에서 협업 요청 오면 배너 안 잘리고 수락/거절 뜨는지.

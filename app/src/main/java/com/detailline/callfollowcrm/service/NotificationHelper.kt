@@ -969,8 +969,8 @@ object NotificationHelper {
      */
     fun showCollabInvite(
         context: Context, shareId: String, ownerName: String, title: String, silent: Boolean = false,
-        deadlineMs: Long = 0L,     // ⏳ 수락 마감 epoch ms (anchor+24h) — 있으면 라이브 카운트다운 칩. (2026-11-25 프로토)
-        dailyWage: Int? = null     // 일당(만원) — 있으면 현장 줄에 "· N만"
+        deadlineMs: Long = 0L,     // ⏳ 수락 마감 epoch ms. 마지막 1시간이면 제목 옆 라이브 카운트다운. (2026-11-25)
+        dailyWage: Int? = null, scheduledAtMs: Long = 0L, timeLabel: String? = null, addr: String? = null
     ) {
         val notifId = famId(FAM_COLLAB_INVITE, shareId.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -979,25 +979,21 @@ object NotificationHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
-            context, notifId, openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            context, notifId, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val who = ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" } ?: "다른 사장님"
-        val site = title.takeIf { it.isNotBlank() } ?: "현장"
-        val cdView = if (deadlineMs > System.currentTimeMillis())   // ⏳ 마감 남으면 카운트다운 칩, 없거나 실패면 글자 폴백
-            CollabInviteNotifier.buildView(context, who, site, dailyWage, deadlineMs) else null
+        val now = System.currentTimeMillis()
+        val lines = CollabInviteNotifier.lines(scheduledAtMs, addr, title, timeLabel, ownerName, dailyWage, deadlineMs, now)  // 글자 조립은 Notifier 한 곳 (§12)
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
-            title = "협업 요청이 왔어요",
-            msg = "${who}이 '${site}' 협업을 요청했어요. 눌러서 수락하기",
-            note = "수락/거절 전까지 계속 떠 있어요",   // 📌 ongoing 안내 (왜 안 지워지나)
-            contentIntent = pending,
-            navTarget = "collab", navShareId = shareId,
-            actions = listOf(PushAction("수락하러 가기", pending)),
-            ongoing = true,        // 📌 '오늘의 현장'처럼 안 지워지고 계속. 응답/만료 때 cancelCollabInvite 로 내림.
-            silent = silent,       // 폴마다 재게시 — 처음만 울리고(새 요청), 이미 본 건 조용히.
-            logToCenter = !silent, // 🔔 **센터엔 처음 1번만** — 재게시(silent)는 안 쌓는다(폴마다 쌓여 도배되던 것). (2026-11-25 사장님)
-            contentView = cdView   // 있으면 접힘·펼침 둘 다 카운트다운 칩
+            title = lines.title, msg = lines.body,
+            note = "수락/거절 전까지 계속 떠 있어요",   // 📌 ongoing 안내
+            contentIntent = pending, navTarget = "collab", navShareId = shareId,
+            actions = listOf(   // 🤝 배너에서 바로 [거절]/[수락] — 앱 안 열고 Outbox 전송(쿠팡식). (2026-11-25 사장님)
+                PushAction("거절", CollabRespondReceiver.intent(context, shareId, accept = false)),
+                PushAction("수락", CollabRespondReceiver.intent(context, shareId, accept = true)),
+            ),
+            ongoing = true, silent = silent, logToCenter = !silent,
+            countdownToMs = if (deadlineMs - now in 1..3_600_000L) deadlineMs else 0L
         )
     }
 
@@ -1243,6 +1239,7 @@ object NotificationHelper {
         contentView: RemoteViews? = null,  // 🤝 접힘까지 커스텀(협업 요청 카운트다운 칩). 접힘·펼침 둘 다. (2026-11-25 프로토)
         // 📸 펼쳤을 때 큰 사진 1장(협업 사진 묶음 알림). 있으면 BigPictureStyle — 접힌 모습은 제목+한 줄+작은 썸네일. (2026-11-24)
         bigPicture: android.graphics.Bitmap? = null,
+        countdownToMs: Long = 0L,   // ⏳ 막판 1시간 라이브 카운트다운(제목 옆). 부르는 쪽이 1시간 미만만. (2026-11-25)
     ) {
         val bigText = buildString {
             append(msg)
@@ -1263,6 +1260,8 @@ object NotificationHelper {
             // 같은 알림 id(같은 shareId 등)를 FCM·폴링이 각각 띄워도 소리/진동은 한 번만.
             //   협업 초대가 2~3번 울리던 문제 fix (FCM + 앱루프폴링 + ReminderWorker폴링이 같은 건을 재게시).
             .setOnlyAlertOnce(onlyAlertOnce)
+        if (countdownToMs > System.currentTimeMillis())   // ⏳ 막판 1시간: 제목 옆 라이브 카운트다운(표준, 안 잘림)
+            builder.setWhen(countdownToMs).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
         // 📸 큰 사진이 있으면 그 사진을 펼침으로(카톡 사진 알림처럼). 접힌 모습엔 작은 썸네일(largeIcon). 없고
         //    스텝 그림이 있으면 그걸(DecoratedCustomViewStyle). 둘 다 없으면 긴 글. 접힌 모습은 다 제목+한 줄.
         if (bigPicture != null) {

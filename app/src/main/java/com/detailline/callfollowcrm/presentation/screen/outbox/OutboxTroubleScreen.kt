@@ -192,6 +192,7 @@ private fun emojiOf(kind: OutboxKind?): String = when (kind) {
     OutboxKind.COLLAB_END -> "👥"
     OutboxKind.COLLAB_PROGRESS -> "🚚"
     OutboxKind.COLLAB_COMMENT -> "💬"
+    OutboxKind.COLLAB_RESPOND -> "🤝"
     OutboxKind.SITE_PHOTO -> "📷"
     null -> "📮"
 }

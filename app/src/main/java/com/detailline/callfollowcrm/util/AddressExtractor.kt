@@ -184,14 +184,20 @@ object AddressExtractor {
         val s = tidyAddress(raw)
         if (s.isBlank()) return ""
         val bldg = BUILDING_RX.findAll(s).lastOrNull()?.value?.trim()
-        val metro = METRO_CITIES.firstOrNull { s.contains(it) }
-        val region = if (metro != null) {
-            GU_RX.find(s)?.groupValues?.get(1) ?: metro
-        } else {
-            SI_GUN_RX.find(s)?.groupValues?.get(1) ?: GU_RX.find(s)?.groupValues?.get(1)
-        }
-        val out = listOfNotNull(region, bldg).joinToString(" ").trim()
+        val out = listOfNotNull(region(raw), bldg).joinToString(" ").trim()
         return out.ifBlank { siteLabel(raw) }
+    }
+
+    /**
+     * 지역만 뽑기 — 광역시면 구, 그 외엔 시/군(없으면 구). 협업 요청 알림 제목 "[용인]" 등에 쓴다. (2026-11-25)
+     *   [roughSite] 와 **같은 셈**(여기 하나) — 못 뽑으면 null.
+     */
+    fun region(raw: String?): String? {
+        val s = tidyAddress(raw)
+        if (s.isBlank()) return null
+        val metro = METRO_CITIES.firstOrNull { s.contains(it) }
+        return if (metro != null) GU_RX.find(s)?.groupValues?.get(1) ?: metro
+        else SI_GUN_RX.find(s)?.groupValues?.get(1) ?: GU_RX.find(s)?.groupValues?.get(1)
     }
 
     /**

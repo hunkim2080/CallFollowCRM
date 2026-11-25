@@ -29,6 +29,7 @@ enum class OutboxKind(val wire: String, val coalesce: Coalesce) {
     COLLAB_ADDRESS("collab_address", Coalesce.LATEST_WINS),
     COLLAB_END("collab_end", Coalesce.TERMINAL),
     COLLAB_PROGRESS("collab_progress", Coalesce.LATEST_WINS),  // 같은 현장 마지막 단계만(출발→도착→완료)
+    COLLAB_RESPOND("collab_respond", Coalesce.TERMINAL),       // 받은 요청 수락/거절 — 한 현장 마지막 결정만(연타·번복 정리)
     COLLAB_COMMENT("collab_comment", Coalesce.APPEND),         // 댓글은 쌓인다
     SITE_PHOTO("site_photo", Coalesce.KEEP_EXISTING);  // payload({photoId})가 안 바뀜 → 이미 있으면 그대로 둔다
 
