@@ -17051,3 +17051,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 범위: B 달력은 collabAssignments 아니라 withMe(서버) 직독 확인 → B쪽 코드 변경 불필요. reconcileCollabAssignments 는 byMe(주인 self-heal)라 손 안 댐(멀티데이 뭉갤 위험).
 - 변경: CollabAssignmentLine.shiftDay 신설(+테스트 4), CustomerDetailViewModel.notifyCollabReschedule 재작성. 서버 영향 없음(기존 /api/shared/reschedule 그대로).
 - 폰 확인: 못 봄(에뮬에 협업 데이터 없음 — 로직 단위테스트만). 내부배포 뜨면 사장님 2폰으로 날짜 옮겨 양쪽 확인 요망.
+
+## 2026-11-25 15:30 · android
+오늘의 현장 알림 — **아파트명+동호수만 크게** (사장님 프로토 A 「가」).
+- 현장 1곳: 제목=아파트명+동호수(buildingUnit, 큰 글씨), 작은 줄="오늘의 현장 · 오전 9시", 펼치면 전체 주소. 여러 곳: 제목 "오늘의 현장 N곳", 각 줄이 아파트명+동호수(도로명 뺌).
+- 변경: NotificationHelper.showTodaySites(bigTitle/subText/bigBody 인자 추가·뒤호환), ReminderWorker.refreshTodaySites(todayBigLabel=buildingUnit?:siteLabel?:tidyAddress, todayName 헬퍼). 뽑기 한 곳. brand_allow.txt 에 「📍 $big·$full」(기존 📍 $address 와 같은 줄머리 핀).
+- 공용: 아파트명+동호수 = AddressExtractor.buildingUnit 재사용(§12). 서버 영향 없음.
+- 폰 확인: 못 봄. 긴 이름(사장님 수지 현장)은 buildingUnit 이 괄호 안 쉼표로 "동아 아파트 718동 602호"로 짧게 나와 안 잘림. 내부배포 뜨면 확인 요망.

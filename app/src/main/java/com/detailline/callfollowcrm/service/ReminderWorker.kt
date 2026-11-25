@@ -226,21 +226,46 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                 !c.isWorkDone
             }.sortedBy { it.scheduledWorkMinutes ?: 0 }
             if (today.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
+            // 전화번호는 표시 안 함(탭하면 어차피 문자로 감) — "주소만 딱 잘 보이게". (2026-07-15 사장님)
+            //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다 → '번호 모양' 이름은 뺀다(todayName).
+            //   🏢 주소는 **아파트명+동호수만** 크게 — 도로명/지역은 뺀다(todayBigLabel). (2026-11-25 사장님 "딱 아파트명과 동호수만 크게")
             val lines = today.map { c ->
-                // 전화번호는 표시 안 함(탭하면 어차피 문자로 감) — "주소만 딱 잘 보이게". (2026-07-15 사장님)
-                //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다(이름 없이 저장되면 번호가 이름이 됨).
-                //   그래서 c.phoneNumber 만 빼는 걸론 부족 — 이름이 '번호 모양'이면 그것도 뺀다.
-                //   (사장님 신고 2026-07-15: 번호 뺐다는데 알림에 "…24 A동 1호 01054790582" 가 계속 떴음)
-                val nm = c.name?.takeIf {
-                    it.isNotBlank() && !com.detailline.callfollowcrm.util.PhoneNumberFormatter.looksLikePhone(it)
-                } ?: ""
+                val nm = todayName(c.name)
                 val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
-                val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address)
+                val big = todayBigLabel(c.address)
                 val second = listOf(nm, t).filter { it.isNotBlank() }.joinToString(" ")
-                if (second.isNotBlank()) "📍 $addr\n$second" else "📍 $addr"
+                if (second.isNotBlank()) "📍 $big\n$second" else "📍 $big"
             }
-            NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
+            // 현장이 하나면 **아파트명+동호수를 제목(큰 글씨)** 으로, 전체 주소는 펼치면 남긴다. (2026-11-25 사장님 프로토 A)
+            val single = today.singleOrNull()
+            if (single != null) {
+                val nm = todayName(single.name)
+                val t = single.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                val full = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(single.address)
+                val detail = listOf("📍 $full", listOf(nm, t).filter { it.isNotBlank() }.joinToString(" "))
+                    .filter { it.isNotBlank() }.joinToString("\n")
+                NotificationHelper.showTodaySites(
+                    context, 1, lines, single.phoneNumber,
+                    bigTitle = todayBigLabel(single.address),
+                    subText = listOf("오늘의 현장", t).filter { it.isNotBlank() }.joinToString(" · "),
+                    bigBody = detail
+                )
+            } else {
+                NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
+            }
         }
+
+        /** 오늘의 현장 알림에 쓸 이름 — '번호 모양'(이름 칸에 번호) 이면 뺀다. (2026-07-15 사장님) */
+        private fun todayName(name: String?): String =
+            name?.takeIf {
+                it.isNotBlank() && !com.detailline.callfollowcrm.util.PhoneNumberFormatter.looksLikePhone(it)
+            } ?: ""
+
+        /** 오늘의 현장에 **크게** 보일 한 줄 — 아파트명+동호수(없으면 단지명, 그것도 없으면 전체주소). 공용 AddressExtractor. (2026-11-25 사장님) */
+        private fun todayBigLabel(address: String?): String =
+            com.detailline.callfollowcrm.util.AddressExtractor.buildingUnit(address)
+                ?: com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(address).takeIf { it.isNotBlank() }
+                ?: com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(address)
     }
 
     /** 정기 문자 발송 대상 — 시공일 + 주기 배수 = 오늘. 오전 9시경, 하루 1회 집계 알림. */

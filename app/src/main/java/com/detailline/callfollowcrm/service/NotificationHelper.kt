@@ -1326,12 +1326,23 @@ object NotificationHelper {
      *   현장에서 "몇동 몇호였지?" 바로 확인. 무음·상단고정(ongoing)·배지 없음. 탭 = 첫 현장 채팅.
      *   갱신/철거는 ReminderWorker.refreshTodaySites 가 담당(주기+앱시작).
      */
-    fun showTodaySites(context: Context, count: Int, lines: List<String>, openPhone: String?) {
+    fun showTodaySites(
+        context: Context, count: Int, lines: List<String>, openPhone: String?,
+        bigTitle: String? = null,   // 현장 1곳: 아파트명+동호수를 **제목(큰 글씨)** 으로. (2026-11-25 사장님 프로토 A)
+        subText: String? = null,    // 현장 1곳: 접힌 줄 "오늘의 현장 · 오전 9시"
+        bigBody: String? = null     // 현장 1곳: 펼치면 전체 주소+이름(완료 안내는 여기서 붙임)
+    ) {
         if (lines.isEmpty()) { clearTodaySites(context); return }
-        val title = if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
         // 왜 안 지워지는지 + 언제 사라지는지 알려준다 — 상시(ongoing) 알림이라 스와이프로 안 지워져서
         //   안내가 없으면 "이거 왜 계속 있지?" 가 된다. (2026-07-15 사장님 "안내가 어디 있으면 좋을듯")
-        val body = lines.joinToString("\n") + "\n\n완료하면 자동으로 사라져요"
+        val foot = "완료하면 자동으로 사라져요"
+        // 현장 1곳이면 아파트명+동호수가 제목(크게), '오늘의 현장'은 작은 줄로 내리고 전체주소는 펼치면. 여러 곳이면 옛 모양.
+        val single = bigTitle != null && bigTitle.isNotBlank()
+        val title = if (single) bigTitle!! else if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
+        val collapsed = if (single) subText.orEmpty().ifBlank { "오늘의 현장" } else lines.first()
+        val body = if (single)
+            listOf(subText.orEmpty(), bigBody.orEmpty()).filter { it.isNotBlank() }.joinToString("\n") + "\n\n$foot"
+        else lines.joinToString("\n") + "\n\n$foot"
         val pending = openPhone?.takeIf { it.isNotBlank() }?.let {
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_CHAT
@@ -1347,7 +1358,7 @@ object NotificationHelper {
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ACCENT_TEAL)
             .setContentTitle(title)
-            .setContentText(lines.first())
+            .setContentText(collapsed)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)        // 상단 고정(스와이프로 안 지워짐) — "계속 나오게"
