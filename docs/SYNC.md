@@ -17153,3 +17153,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: AppPreferences collab_rep_photo 키 추가 / 협업 사진 캐시 cacheDir/collab_reel/<photoId>.jpg / 공용 CollabRepPhoto.pick
 - 폰 확인: 못 봄 — 다음 폰에서 ①협업 사진 꾹눌러 대표 지정(⭐) ②협업만 있는 달 영상에 협업 사진 나오는지 ③내 기록 탭 느려졌나(목록 재조회) 확인 필요
 - 다음 액션: (서버) 없음. 앱 측 ② 저장 속도 개선이 다음 차례
+
+## 2026-11-26 11:55 · android
+fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진으로 나오던 버그
+- 변경: SitePhotoRepository.representativeOf — isRepresentative 를 건/고객 범위로 한정 (전엔 전역 첫 대표)
+- 폰 확인: 못 봄 — 다음 폰에서 사진 배경 영상에 현장마다 다른 사진 나오는지 확인
+- 다음 액션: 없음
