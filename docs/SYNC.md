@@ -17058,3 +17058,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: NotificationHelper.showTodaySites(bigTitle/subText/bigBody 인자 추가·뒤호환), ReminderWorker.refreshTodaySites(todayBigLabel=buildingUnit?:siteLabel?:tidyAddress, todayName 헬퍼). 뽑기 한 곳. brand_allow.txt 에 「📍 $big·$full」(기존 📍 $address 와 같은 줄머리 핀).
 - 공용: 아파트명+동호수 = AddressExtractor.buildingUnit 재사용(§12). 서버 영향 없음.
 - 폰 확인: 못 봄. 긴 이름(사장님 수지 현장)은 buildingUnit 이 괄호 안 쉼표로 "동아 아파트 718동 602호"로 짧게 나와 안 잘림. 내부배포 뜨면 확인 요망.
+
+## 2026-11-25 16:40 · android
+오늘의 현장 알림 — **커스텀 배너**(왼쪽 청록 바 + 동호수 밑줄·색). 쿠팡식 '눈에 띄게' ② (사장님 "색·밑줄"). ①(협업 카운트다운)은 폰 확인 후 이어서.
+- 변경: res/layout/notification_today_site.xml(신규), TodaySiteNotifier.kt(신규·RemoteViews 빌더, 동호수만 today_accent+밑줄 span, 실패시 null 폴백), colors.xml today_accent, NotificationHelper.showTodaySites(단일이면 DecoratedCustomViewStyle+커스텀뷰, 실패/다중은 글자 폴백), ReminderWorker 가 bannerRoad(도로명)·bannerMeta(⏰시각·탭하면길찾기) 넘김.
+- 테마안전: 글자색은 알림 전용 TextAppearance 로 라이트/다크 자동 적응(하드코딩 금지), 포인트(바·동호수)만 청록. 그려도 실패하면 글자 BigText 폴백이라 안 깨짐.
+- 폰 확인: **못 봄 — 다크폰에서 글자 잘 보이는지·바·밑줄 모양 꼭 확인 요망**(커스텀 알림은 기기/테마별 함정). 이게 OK여야 ① 카운트다운도 같은 방식으로 간다.

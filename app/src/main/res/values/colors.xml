@@ -12,4 +12,8 @@
     <color name="collab_step_body">#49515D</color>
     <color name="collab_step_label_on">#3A4350</color>
     <color name="collab_step_label_off">#9AA2AD</color>
+
+    <!-- 📍 오늘의 현장 알림 배너 포인트 — 라이트/다크 둘 다에서 읽히는 청록. 글자(아파트명)는 테마적응,
+         동호수만 이 색+밑줄로 강조. 왼쪽 세로 바도 이 색. (2026-11-25 사장님 "색·밑줄로 눈에 띄게") -->
+    <color name="today_accent">#12A594</color>
 </resources>

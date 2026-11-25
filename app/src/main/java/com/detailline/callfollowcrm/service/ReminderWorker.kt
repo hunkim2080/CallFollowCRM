@@ -244,11 +244,17 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                 val full = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(single.address)
                 val detail = listOf("📍 $full", listOf(nm, t).filter { it.isNotBlank() }.joinToString(" "))
                     .filter { it.isNotBlank() }.joinToString("\n")
+                // 커스텀 배너 2·3번째 줄 — 도로명/지역 + 시각·안내. (2026-11-25 사장님 "색·밑줄로 눈에 띄게")
+                val road = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(single.address).first
+                    .takeIf { it.isNotBlank() && it != todayBigLabel(single.address) }
+                val meta = listOfNotNull(t.takeIf { it.isNotBlank() }?.let { "⏰ $it" }, "탭하면 길찾기").joinToString(" · ")
                 NotificationHelper.showTodaySites(
                     context, 1, lines, single.phoneNumber,
                     bigTitle = todayBigLabel(single.address),
                     subText = listOf("오늘의 현장", t).filter { it.isNotBlank() }.joinToString(" · "),
-                    bigBody = detail
+                    bigBody = detail,
+                    bannerRoad = road,
+                    bannerMeta = meta
                 )
             } else {
                 NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
