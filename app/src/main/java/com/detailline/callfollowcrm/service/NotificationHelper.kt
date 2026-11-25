@@ -1330,9 +1330,7 @@ object NotificationHelper {
         context: Context, count: Int, lines: List<String>, openPhone: String?,
         bigTitle: String? = null,   // 현장 1곳: 아파트명+동호수를 **제목(큰 글씨)** 으로. (2026-11-25 사장님 프로토 A)
         subText: String? = null,    // 현장 1곳: 접힌 줄 "오늘의 현장 · 오전 9시"
-        bigBody: String? = null,    // 현장 1곳: 펼치면 전체 주소+이름(글자 폴백용)
-        bannerRoad: String? = null, // 현장 1곳 커스텀 배너: 2번째 줄(도로명·지역)
-        bannerMeta: String? = null  // 현장 1곳 커스텀 배너: 3번째 줄(⏰ 시각·안내)
+        bigBody: String? = null     // 현장 1곳: 펼치면 전체 주소+이름(완료 안내는 여기서 붙임)
     ) {
         if (lines.isEmpty()) { clearTodaySites(context); return }
         // 왜 안 지워지는지 + 언제 사라지는지 알려준다 — 상시(ongoing) 알림이라 스와이프로 안 지워져서
@@ -1361,21 +1359,13 @@ object NotificationHelper {
             .setColor(ACCENT_TEAL)
             .setContentTitle(title)
             .setContentText(collapsed)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)        // 상단 고정(스와이프로 안 지워짐) — "계속 나오게"
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setShowWhen(false)
         pending?.let { builder.setContentIntent(it) }
-        // 현장 1곳이면 **커스텀 배너**(왼쪽 청록 바 + 동호수 밑줄) — 눈에 띄게. 실패(기기별 inflate)하면 글자 BigText 로 폴백. (2026-11-25 사장님)
-        val rv = if (single) TodaySiteNotifier.buildView(context, bigTitle!!, bannerRoad, bannerMeta ?: subText) else null
-        if (rv != null) {
-            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                .setCustomContentView(rv)
-                .setCustomBigContentView(rv)
-        } else {
-            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
-        }
         try {
             NotificationManagerCompat.from(context).notify(TODAY_SITE_ID, builder.build())
         } catch (_: SecurityException) { }
