@@ -17133,3 +17133,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 🔎 분류 저장 계측: `setCategory` 직후 DB readback 로그(`CatDebug`) — 사장님 "미분류로 바꿔도 재진입하면 택배". 코드 3회 정독에도 결정적 범인 불명확(markTodayCallsAsHandled=통화기록만·init=persona만·upsertByPhone=categoryId `copy` 유지) → **추측 수정 대신 계측**(§측정 먼저). 재현 후 logcat `CatDebug` 로 저장실패 vs 복원 판별.
 - 🆕 미착수: **달력 칸 지역명 3개** — 협업/A/S/요청이 각 "한 줄"로 뭉쳐 한 날 여러 개면 하나만 뜸([ScheduleScreen:1053]). lane 구조 변경 필요 → 프로토 먼저.
 - 폰 확인: 협업 알림 **업체명만** 뜨는지 / 분류 미분류 재현 시 `adb logcat | grep CatDebug`.
+
+## 2026-11-26 00:00 · android
+협업 사진 올림 알림에 **현장명** (사장님 "어느 현장인지 친절하게 안내").
+- `CollabPhotoUploadManager.notifyProgress`/`finish` 제목에 「{현장명} · 협업 사진 올리는 중」 / 「{현장명} · 사진 일부를 못 올렸어요」. `enqueue` 에 `siteLabel` 파라미터 추가. `SharedSiteViewModel.uploadPhotos` 가 `_sites` 에서 title(없으면 `AddressExtractor.roughSite(addr)`) 뽑아 전달.
+- ⚠️ 직전 배포(upload-20261125-2345, B+A)가 **CI `testReleaseUnitTest` 실패**했는데 로컬 debug·release(--rerun-tasks 강제) **둘 다 통과** → 코드 아닌 **CI flaky**(날짜 바뀜 11/26, UTC 자정 경계에서 'today' 테스트 순간 깨짐 의심). 이 커밋으로 재배포해 재시도(9ed0d44a = B+A 도 이 빌드에 포함). 또 실패하면 날짜 의존 테스트를 고정 시각으로.
+- 폰 확인: 협업 사진 올릴 때 알림 제목에 현장명 뜨는지.

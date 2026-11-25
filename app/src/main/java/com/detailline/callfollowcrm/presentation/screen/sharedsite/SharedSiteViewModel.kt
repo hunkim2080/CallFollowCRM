@@ -397,7 +397,11 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
      */
     fun uploadPhotos(shareId: String, uris: List<android.net.Uri>, encode: suspend (android.net.Uri) -> String?) {
         if (shareId.isBlank() || noBizPhone) return
-        container.collabPhotoUploads.enqueue(shareId, myPhone, uris, encode)
+        // 🏷️ 알림에 현장명 — _sites 에서 그 현장 title(없으면 주소 요약). (2026-11-25 사장님 "어느 현장인지 친절하게")
+        val label = _sites.value.firstOrNull { it.shareId == shareId }?.let { s ->
+            s.title.takeIf { it.isNotBlank() } ?: com.detailline.callfollowcrm.util.AddressExtractor.roughSite(s.addr)
+        }?.takeIf { it.isNotBlank() }
+        container.collabPhotoUploads.enqueue(shareId, myPhone, uris, label, encode)
     }
 
     /** 🔁 못 올린 썸네일 한 장만 다시 올린다 — 카톡식(수백 장 다시 안 고름). (2026-11-06 사장님) */

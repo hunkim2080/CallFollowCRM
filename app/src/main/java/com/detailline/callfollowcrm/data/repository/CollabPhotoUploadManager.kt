@@ -65,13 +65,13 @@ class CollabPhotoUploadManager(
      * 사진 여러 장을 올린다. encode 는 Context 가 필요해 화면이 준 람다로 받는다(여긴 Context 가 있지만
      * Uri→base64 변환은 호출부의 ImageEncoder 를 그대로 쓰도록 람다로 넘긴다).
      */
-    fun enqueue(shareId: String, ownerPhone: String, uris: List<Uri>, encode: suspend (Uri) -> String?) {
+    fun enqueue(shareId: String, ownerPhone: String, uris: List<Uri>, siteLabel: String?, encode: suspend (Uri) -> String?) {
         if (shareId.isBlank() || ownerPhone.isBlank() || uris.isEmpty()) return
-        scope.launch { mutex.withLock { runBatch(shareId, ownerPhone, uris, encode) } }
+        scope.launch { mutex.withLock { runBatch(shareId, ownerPhone, uris, siteLabel, encode) } }
     }
 
     private suspend fun runBatch(
-        shareId: String, ownerPhone: String, uris: List<Uri>, encode: suspend (Uri) -> String?
+        shareId: String, ownerPhone: String, uris: List<Uri>, siteLabel: String?, encode: suspend (Uri) -> String?
     ) {
         // 이번에 다시 골랐으니 이 현장의 지난 '못 올림' 썸네일은 치운다.
         _pending.value = _pending.value.filterNot { it.shareId == shareId && it.failed }
@@ -81,7 +81,7 @@ class CollabPhotoUploadManager(
         var done = 0       // 새로 올라간 장
         var skipped = 0    // 이미 있는 사진이라 서버가 건너뛴 장(같은 사진 두 번 막기)
         var failed = 0
-        notifyProgress(0, total)
+        notifyProgress(0, total, siteLabel)
         for (item in items) {
             val b64 = withContext(Dispatchers.IO) { runCatching { encode(item.uri) }.getOrNull() }
             val result = if (b64.isNullOrBlank()) null else repo.uploadPhoto(shareId, ownerPhone, b64)
@@ -96,9 +96,9 @@ class CollabPhotoUploadManager(
                 // 실패한 칸은 "못 올림"으로 남긴다(조용히 안 삼킴 §13①). 다음에 다시 고르면 지워진다.
                 _pending.value = _pending.value.map { if (it.id == item.id) it.copy(failed = true) else it }
             }
-            notifyProgress(done + skipped + failed, total)
+            notifyProgress(done + skipped + failed, total, siteLabel)
         }
-        finish(shareId, done, skipped, failed, total)
+        finish(shareId, done, skipped, failed, total, siteLabel)
     }
 
     /**
@@ -141,11 +141,13 @@ class CollabPhotoUploadManager(
         }
     }
 
-    private fun notifyProgress(progress: Int, total: Int) {
+    private fun notifyProgress(progress: Int, total: Int, siteLabel: String?) {
         ensureChannel()
+        // 🏷️ 어느 현장인지 제목에 — 여러 현장 올릴 때 헷갈리지 않게. (2026-11-25 사장님 "어느 현장인지 친절하게")
+        val title = siteLabel?.takeIf { it.isNotBlank() }?.let { "$it · 협업 사진 올리는 중" } ?: "협업 사진 올리는 중"
         val n = NotificationCompat.Builder(appContext, CHANNEL)
             .setSmallIcon(R.drawable.ic_noti_collab)
-            .setContentTitle("협업 사진 올리는 중")
+            .setContentTitle(title)
             .setContentText("$progress / $total")
             .setProgress(total, progress, false)
             .setOngoing(true)
@@ -155,7 +157,7 @@ class CollabPhotoUploadManager(
         runCatching { NotificationManagerCompat.from(appContext).notify(NOTIF_ID, n) }
     }
 
-    private fun finish(shareId: String, done: Int, skipped: Int, failed: Int, total: Int) {
+    private fun finish(shareId: String, done: Int, skipped: Int, failed: Int, total: Int, siteLabel: String?) {
         val nm = NotificationManagerCompat.from(appContext)
         runCatching { nm.cancel(NOTIF_ID) }
         // 🚫 같은 사진이라 건너뛴 게 있으면 한 줄 안내(현장 화면이 열려 있으면 토스트). (2026-11-04 사장님)
@@ -181,7 +183,7 @@ class CollabPhotoUploadManager(
             )
             val n = NotificationCompat.Builder(appContext, CHANNEL)
                 .setSmallIcon(R.drawable.ic_noti_collab)
-                .setContentTitle("사진 일부를 못 올렸어요")
+                .setContentTitle(siteLabel?.takeIf { it.isNotBlank() }?.let { "$it · 사진 일부를 못 올렸어요" } ?: "사진 일부를 못 올렸어요")
                 .setContentText("${done + skipped} / $total 만 올라갔어요 — 눌러서 다시 올려주세요")
                 .setContentIntent(pending)
                 .setAutoCancel(true)

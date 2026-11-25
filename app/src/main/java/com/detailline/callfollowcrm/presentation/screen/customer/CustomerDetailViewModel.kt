@@ -17,6 +17,7 @@ import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.RecordingSourceType
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.detailline.callfollowcrm.util.PhoneKey
@@ -419,7 +421,10 @@ class CustomerDetailViewModel(
         MutableStateFlow<List<com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine>>(emptyList())
     val collabResolvedLines = _collabResolvedLines.asStateFlow()
 
+    private var collabPhotosRefreshJob: kotlinx.coroutines.Job? = null
     fun refreshCollabPhotos() = viewModelScope.launch {
+        collabPhotosRefreshJob?.cancel()
+        collabPhotosRefreshJob = coroutineContext[kotlinx.coroutines.Job]
         val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
         val raw = container.preferences.collabAssignments
         val mine = raw.any { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it)?.customerId == customerId }
@@ -429,16 +434,30 @@ class CustomerDetailViewModel(
         // 빈 shareId(옛·받은 협업)는 서버 이벤트(제목+상호)로 채운다 — 아래 협업 카드와 같은 매칭(§12). 그래야 토글에도 뜬다.
         val title = com.detailline.callfollowcrm.util.AddressExtractor
             .siteLabel(customer.first()?.address.orEmpty()).takeIf { it.isNotBlank() }?.let { "$it 현장" }.orEmpty()
-        val events = container.sharedSiteRepository.ownerEvents(myPhone).getOrNull().orEmpty()
+        val events = container.sharedSiteRepository.ownerEvents(myPhone)
+            .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
             .map { com.detailline.callfollowcrm.domain.collab.CollabShareResolve.EventLite(it.shareId, it.title, it.partnerName, it.atMs) }
+        coroutineContext.ensureActive()
         val resolved = com.detailline.callfollowcrm.domain.collab.CollabShareResolve.resolveForCustomer(raw, customerId, title, events)
         _collabResolvedLines.value = resolved
         // 목록은 **썸네일만**(44배 가벼움 → 빨리 뜸). 크게보기 탭 때 collabPhotoFull 로 원본 1장. (2026-11-24 사장님 "왜 늦게 떠")
-        val out = LinkedHashMap<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>()
-        resolved.map { it.shareId }.filter { it.isNotBlank() }.distinct().forEach { sid ->
-            container.sharedSiteRepository.photos(sid, myPhone, thumb = true).onSuccess { out[sid] = it }
+        val shareIds = resolved.map { it.shareId }.filter { it.isNotBlank() }.distinct()
+        _collabPhotosByShare.update { current -> current.filterKeys { it in shareIds } }
+        // 터널 왕복을 병렬로 진행하고, 먼저 도착한 현장부터 표시해 중복 업로드를 줄인다.
+        kotlinx.coroutines.coroutineScope {
+            shareIds.forEach { sid ->
+                launch photo@ {
+                    val photos = container.sharedSiteRepository.photos(sid, myPhone, thumb = true)
+                        .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
+                    coroutineContext.ensureActive()
+                    if (photos == null) return@photo
+                    _collabPhotosByShare.update { current ->
+                        val merged = current + (sid to photos)
+                        shareIds.mapNotNull { id -> merged[id]?.let { id to it } }.toMap()
+                    }
+                }
+            }
         }
-        _collabPhotosByShare.value = out
     }
 
     suspend fun collabPhotoFull(shareId: String, photoId: Long): String? {  // 🔍 크게보기 탭 → 원본 1장(목록은 썸네일)
