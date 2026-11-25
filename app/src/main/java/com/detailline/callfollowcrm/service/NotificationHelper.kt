@@ -984,8 +984,7 @@ object NotificationHelper {
         )
         val who = ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" } ?: "다른 사장님"
         val site = title.takeIf { it.isNotBlank() } ?: "현장"
-        // ⏳ 마감 남았으면 라이브 카운트다운 칩(커스텀, 조립은 CollabInviteNotifier). 없거나 inflate 실패면 글자 폴백.
-        val cdView = if (deadlineMs > System.currentTimeMillis())
+        val cdView = if (deadlineMs > System.currentTimeMillis())   // ⏳ 마감 남으면 카운트다운 칩, 없거나 실패면 글자 폴백
             CollabInviteNotifier.buildView(context, who, site, dailyWage, deadlineMs) else null
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
@@ -997,6 +996,7 @@ object NotificationHelper {
             actions = listOf(PushAction("수락하러 가기", pending)),
             ongoing = true,        // 📌 '오늘의 현장'처럼 안 지워지고 계속. 응답/만료 때 cancelCollabInvite 로 내림.
             silent = silent,       // 폴마다 재게시 — 처음만 울리고(새 요청), 이미 본 건 조용히.
+            logToCenter = !silent, // 🔔 **센터엔 처음 1번만** — 재게시(silent)는 안 쌓는다(폴마다 쌓여 도배되던 것). (2026-11-25 사장님)
             contentView = cdView   // 있으면 접힘·펼침 둘 다 카운트다운 칩
         )
     }

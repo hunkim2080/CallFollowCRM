@@ -17094,3 +17094,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 검증(에뮬 API35): 라이트/다크 둘 다 "수락 마감 3:20:52→47→38" **똑딱 확인**·inflate 에러 0·호박칩/흰글씨 정상. 디버그 DebugCollabInviteReceiver.
 - 크기: NotificationHelper +49→+40(여유내) — siteLine 조립을 notifier 로 옮기고 주석 인라인화(기준선 안 올림).
 - 폰 확인: 협업 요청 오면 카운트다운 칩 뜨고 줄어드는지.
+
+## 2026-11-25 19:45 · android
+협업 요청 알림 **센터(벨) 도배 수정** (사장님 "푸시 띄우려 계속 알람이 쌓이나").
+- 원인: ongoing 재게시(pollInvites 폴마다)가 showProtoPush logToCenter=기본 true → NotificationLog 에 매번 한 줄 → 벨에 "협업 요청" 수십 개.
+- 고침: showCollabInvite 가 logToCenter=!silent — **처음(새 요청)만 센터 기록, 재게시(silent)는 안 쌓음**. 푸시 샤드는 그대로 하나(onlyAlertOnce).
+- 폰 확인: 이제 협업 요청당 벨에 하나만. (이미 쌓인 과거분은 밀려서 사라짐)
