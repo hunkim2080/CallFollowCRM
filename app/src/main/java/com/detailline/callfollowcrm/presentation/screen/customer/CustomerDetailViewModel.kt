@@ -1085,29 +1085,46 @@ class CustomerDetailViewModel(
         if (owner.length < 9) return
         val oldDay = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(oldAtMs)
         val newDay = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(newAtMs)
-        // 협업은 '그 건(날짜)'에 붙는다 — **바뀌는 그 날(oldDay)을 맡은 협업자에게만** 보낸다(다른 건 1차/2차엔 안 샘).
-        //   날짜 없는 떠돌이 줄은 제외(새어나가는 것보다 안전). 타깃팅은 카드 협업 칩과 같은 한 곳(shareIdsForJob). (2026-10-09·10-15)
-        val shareIds = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob(
-            container.preferences.collabAssignments, customerId, oldDay
-        )
-        if (shareIds.isEmpty()) return
-        // 옮긴 건의 로컬 날짜도 oldDay→newDay 로 갈아끼운다(배지가 새 날짜로 따라가게).
+        // ① 로컬 배정 날짜를 oldDay→newDay 로 **shareId 유무와 무관하게** 옮긴다(셈은 CollabAssignmentLine.shiftDay 한 곳).
+        //   전엔 shareId 있는 줄만 옮겨, 빈 shareId(옛·링크 초대) 협업은 날짜가 안 따라와 건이 새 날짜로 가면
+        //   forJob 이 못 찾아 **주인 쪽 협업이 풀렸다.** (2026-11-25 사장님: "협업 요청한 쪽에서 협업이 풀림")
         if (oldDay != newDay) {
             val cur = container.preferences.collabAssignments
             val updated = cur.map { raw ->
                 val l = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(raw) ?: return@map raw
-                if (l.customerId == customerId && l.shareId in shareIds && l.days.isNotEmpty())
-                    l.withDays(l.days - oldDay + newDay).format()
-                else raw
+                if (l.customerId != customerId) return@map raw
+                val s = l.shiftDay(oldDay, newDay)
+                if (s === l) raw else s.format()
             }.toSet()
             if (updated != cur) container.preferences.collabAssignments = updated
         }
         val timeLabel = minutes?.let {
             com.detailline.callfollowcrm.util.DateTimeUtils.formatWorkMinutes(it)
         }
-        // 📮 우체통으로 — 지하철에서 바꿔도 길 뚫리면 B 에게 간다(옛날엔 runCatching 에 삼켜져 사라졌다). (설계 §1-A #1)
+        // ② 서버로 전파 — accepted 협업 B 가 새 날짜를 받게(서버가 shared_sites 날짜 갱신 + B 에게 FCM).
+        //   share_id 가 필요한데 **빈 shareId(옛·링크 초대)** 는 서버 기록(ownerEvents)에서 제목+상호로 보충한다
+        //   — 사진 토글과 **같은** CollabShareResolve(§12). 전엔 shareId 없으면 서버에 아예 안 보내 B 가 안 옮겨졌다.
+        // 📮 우체통으로 — 지하철에서 바꿔도 길 뚫리면 B 에게 간다(runCatching 에 삼켜지지 않게). (설계 §1-A #1)
         container.applicationScope.launch {
-            shareIds.forEach { sid ->
+            val afterShift = container.preferences.collabAssignments
+            val lines = com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine
+                .forJob(afterShift, customerId, newDay)
+            if (lines.isEmpty()) return@launch
+            val title = com.detailline.callfollowcrm.util.AddressExtractor
+                .siteLabel(customer.value?.address.orEmpty())
+                .takeIf { it.isNotBlank() }?.let { "$it 현장" }.orEmpty()
+            val events = if (lines.any { it.shareId.isBlank() } && title.isNotBlank()) {
+                container.sharedSiteRepository.ownerEvents(owner).getOrNull().orEmpty().map {
+                    com.detailline.callfollowcrm.domain.collab.CollabShareResolve.EventLite(
+                        it.shareId, it.title, it.partnerName, it.atMs
+                    )
+                }
+            } else emptyList()
+            val sids = lines.map { l ->
+                if (l.shareId.isNotBlank()) l.shareId
+                else com.detailline.callfollowcrm.domain.collab.CollabShareResolve.fill(l.name, "", title, events)
+            }.filter { it.isNotBlank() }.distinct()
+            sids.forEach { sid ->
                 val payload = org.json.JSONObject().apply {
                     put("newAtMs", newAtMs)
                     put("oldAtMs", oldAtMs)

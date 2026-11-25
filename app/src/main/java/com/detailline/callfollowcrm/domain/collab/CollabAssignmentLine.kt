@@ -40,6 +40,15 @@ data class CollabAssignmentLine(
 
     fun withDays(newDays: Set<Long>): CollabAssignmentLine = copy(days = newDays)
 
+    /**
+     * 주인(A)이 이 건을 oldDay→newDay 로 옮길 때 **이 줄의 날짜도 따라 옮긴다** — 그 날(oldDay)을 맡은 줄만.
+     *   ⚠️ shareId 유무와 무관하게 옮긴다 — 전엔 shareId 있는 줄만 옮겨, 빈 shareId(옛·링크 초대) 협업은
+     *   날짜가 안 따라와 건이 새 날짜로 가면 [forJob] 이 못 찾아 **주인 쪽 협업이 풀렸다.** (2026-11-25 사장님)
+     *   안 걸리는 줄(그 날 아님·날짜 없음)·안 옮기는 경우(old==new)는 **자기 자신(===) 그대로** 돌려준다.
+     */
+    fun shiftDay(oldDay: Long, newDay: Long): CollabAssignmentLine =
+        if (oldDay != newDay && oldDay in days) withDays(days - oldDay + newDay) else this
+
     /** 날짜 꼬리표가 없어 어느 건에도 안 붙는 줄. */
     val isUnassigned: Boolean get() = days.isEmpty()
 

@@ -105,6 +105,31 @@ class CollabAssignmentLineTest {
         assertTrue(after.coversDay(day(45)))
     }
 
+    // ── 🐞 2026-11-25 사장님: 협업 날짜 옮겼더니 ①요청한 쪽 협업 풀림 ②받은 쪽 날짜 안 따라옴 ──
+
+    @Test fun `shiftDay - 그 날 맡은 줄은 oldDay→newDay 로 따라 옮긴다 (shareId 유무 무관)`() {
+        // shareId 있는 줄
+        val withSid = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(26)))
+        assertEquals(setOf(day(27)), withSid.shiftDay(day(26), day(27)).days)
+        // shareId 빈 줄도 **똑같이** 옮긴다 — 전엔 이게 안 돼 주인 쪽 협업이 풀렸다
+        val blankSid = CollabAssignmentLine(7, "p", "협업사장", "", setOf(day(26)))
+        assertEquals(setOf(day(27)), blankSid.shiftDay(day(26), day(27)).days)
+    }
+
+    @Test fun `shiftDay - 그 날이 아니거나 old==new 면 자기 자신 그대로(===)`() {
+        val other = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(45)))
+        assertTrue("다른 날 줄은 안 건드림", other.shiftDay(day(26), day(27)) === other)
+        val same = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(26)))
+        assertTrue("old==new 면 안 건드림", same.shiftDay(day(26), day(26)) === same)
+        val empty = CollabAssignmentLine(7, "p", "떠돌이", "sh3", emptySet())
+        assertTrue("날짜 없는 줄은 안 건드림", empty.shiftDay(day(26), day(27)) === empty)
+    }
+
+    @Test fun `shiftDay - 멀티데이 중 바뀌는 하루만 옮긴다`() {
+        val multi = CollabAssignmentLine(7, "p", "하우스픽", "sh1", setOf(day(26), day(27)))
+        assertEquals(setOf(day(27), day(28)), multi.shiftDay(day(26), day(28)).days)  // 26→28, 27 유지
+    }
+
     // ── 🐞 사장님 실기 재현 (2026-10-15): 1차(9/30 완료)·2차(10/15 완료) 둘 다 협업. 1차 줄은 날짜 없음(옛 빌드 invite).
     //    대표 건 = 둘 다 완료라 더 나중 = 2차. 옛 규칙이면 1차 줄이 2차 카드로 넘어가 「1차엔 협업 부르기만, 2차엔 두 이름」.
 

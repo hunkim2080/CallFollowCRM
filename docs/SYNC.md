@@ -17043,3 +17043,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 고침: 그 매칭을 공용 domain/collab/CollabShareResolve.kt(순수+단위테스트 6개)로 모아, refreshCollabPhotos가 빈 shareId를 채운 collabResolvedLines를 만들고, JobCard가 그걸 건 날짜(days)로 골라 그룹(1차/2차 유지).
 - ⚠️ 에뮬에 협업 데이터가 없어 **UI는 검증 못 함**(로직만 단위테스트). 폰 확인 필요.
 - 크기: CustomerDetailViewModel 오늘 실기능 3개로 +50줄 → 사장님 승인받아 sizeBaselineUpdate. (추후 협업 로직 leaf 추출 여지)
+
+## 2026-11-25 14:30 · android
+협업 **일정 옮기면 ①요청자 협업 풀림 ②받은이 날짜 안 따라옴** 버그 수정 (사장님 신고).
+- 원인: 현장상세 날짜수정 → notifyCollabReschedule 이 그 협업 shareId 가 **비어 있으면**(옛·링크 초대) early-return → 로컬 날짜도 안 옮기고(→ forJob 못찾아 주인 협업 chip 풀림) 서버 reschedule 도 안 보냄(→ 서버 날짜 그대로 → B 의 withMe 가 옛 날짜 반환 → B 안 움직임). 한 뿌리에서 양쪽.
+- 고침(Fix A 하나로 둘 다): ① shareId 유무 무관하게 로컬 days 를 oldDay→newDay 로(공용 CollabAssignmentLine.shiftDay, 순수+단위테스트). ② 서버 전파 시 빈 shareId 는 ownerEvents+CollabShareResolve(사진 토글과 동일)로 보충해 보냄 → 서버 갱신 → B 는 withMe(서버 직독)로 자동 반영.
+- 범위: B 달력은 collabAssignments 아니라 withMe(서버) 직독 확인 → B쪽 코드 변경 불필요. reconcileCollabAssignments 는 byMe(주인 self-heal)라 손 안 댐(멀티데이 뭉갤 위험).
+- 변경: CollabAssignmentLine.shiftDay 신설(+테스트 4), CustomerDetailViewModel.notifyCollabReschedule 재작성. 서버 영향 없음(기존 /api/shared/reschedule 그대로).
+- 폰 확인: 못 봄(에뮬에 협업 데이터 없음 — 로직 단위테스트만). 내부배포 뜨면 사장님 2폰으로 날짜 옮겨 양쪽 확인 요망.
