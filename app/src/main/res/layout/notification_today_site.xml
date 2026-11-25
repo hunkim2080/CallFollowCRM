@@ -37,6 +37,18 @@
             android:maxLines="2"
             android:ellipsize="end" />
 
+        <!-- 동호수 — 단지명 아래 따로. 긴 단지명이 제목에서 어정쩡하게 접히던 것 분리. (2026-11-26 사장님)
+             색·밑줄 강조는 코드(emphasizeUnit)에서 span 으로. 동호수 없으면 GONE. -->
+        <TextView
+            android:id="@+id/today_unit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
         <TextView
             android:id="@+id/today_road"
             android:layout_width="match_parent"

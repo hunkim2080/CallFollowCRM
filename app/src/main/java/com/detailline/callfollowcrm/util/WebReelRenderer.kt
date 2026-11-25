@@ -180,7 +180,9 @@ class WebReelRenderer private constructor(
                       if(cv.width!==$RENDER_W||cv.height!==$RENDER_H){ cv.width=$RENDER_W; cv.height=$RENDER_H; }
                       W=$RENDER_W; H=$RENDER_H; UL=2; DPR=1; ctx.setTransform(1,0,0,1,0,0);
                       frame(warpTime(e));
-                      return cv.toDataURL('image/jpeg',0.92);
+                      // 🏎️ 저장 속도 — 프레임마다(240~360장) 이 JPEG 를 base64 문자열로 넘겨 다시 디코딩한다.
+                      //   품질 0.92→0.75 로 낮춰 글자당 전송·디코딩 양을 줄인다(움직이는 영상이라 눈엔 거의 같다). (2026-11-26 사장님: 저장이 느림)
+                      return cv.toDataURL('image/jpeg',0.75);
                     };
                     window.__ready=function(){ var n=0,t=0; if(window.__PHOTOS){ for(var i=0;i<__PHOTOS.length;i++){ if(__PHOTOS[i]){ t++; if(__PHOTOS[i].__ok) n++; } } } return n+'/'+t; };
                     return JSON.stringify({loop: TL.loop});

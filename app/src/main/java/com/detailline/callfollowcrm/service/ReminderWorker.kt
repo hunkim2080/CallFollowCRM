@@ -218,38 +218,59 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             val todayStart = DateTimeUtils.startOfDay(now)
             val todayEnd = todayStart + DateTimeUtils.DAY_MS
             val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
-            val today = customers.filter { c ->
-                val s = c.scheduledWorkDate ?: return@filter false
-                if (DateTimeUtils.startOfDay(s) !in todayStart until todayEnd || c.address.isNullOrBlank()) return@filter false
+            // 내 현장
+            val ownPlaces = customers.mapNotNull { c ->
+                val s = c.scheduledWorkDate ?: return@mapNotNull null
+                if (DateTimeUtils.startOfDay(s) !in todayStart until todayEnd || c.address.isNullOrBlank()) return@mapNotNull null
                 // 완료된 현장은 제외 — '완료 누름 OR 잔금 받음'(앱 공용 isWorkDone)이면 오늘의 현장에서 내림.
                 //   전엔 잔금 완납(isPaidOff)만 봤다 → 완료만 누른 현장이 알림에 계속 남았다. (2026-10-07 사장님)
-                !c.isWorkDone
-            }.sortedBy { it.scheduledWorkMinutes ?: 0 }
-            if (today.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
+                if (c.isWorkDone) return@mapNotNull null
+                TodayPlace(c.address!!, todayName(c.name), c.scheduledWorkMinutes, c.phoneNumber)
+            }
+            // 🤝 협업 현장도 '오늘 갈 데' — 위젯과 **같은 소스**(withMe). 남의 현장이라도 주소가 떠야 찾아간다. (2026-11-26 사장님)
+            //   네트워크가 안 되면 협업만 빈다 — 내 현장 알림은 그대로 뜬다.
+            val p = container.preferences
+            val collabPlaces = if (p.bizPhone.isBlank()) emptyList() else runCatching {
+                container.sharedSiteRepository.withMe(p.bizPhone, sinceMs = 0L, limit = 200).getOrDefault(emptyList())
+                    .mapNotNull { s ->
+                        val addr = s.addr
+                        if (s.status != "accepted" ||
+                            DateTimeUtils.startOfDay(s.scheduledAtMs) !in todayStart until todayEnd ||
+                            addr.isNullOrBlank() ||
+                            s.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED ||
+                            s.shareId in p.trashedSharedSiteIds || s.shareId in p.hiddenCollabShareIds
+                        ) return@mapNotNull null
+                        val mins = com.detailline.callfollowcrm.domain.schedule.DayOrder
+                            .collabMinutes(s.timeLabel, s.scheduledAtMs)
+                            .takeIf { it != com.detailline.callfollowcrm.domain.schedule.DayOrder.UNKNOWN }
+                        TodayPlace(addr, s.ownerName.ifBlank { "협업 현장" }, mins, null)
+                    }
+            }.getOrDefault(emptyList())
+
+            val places = (ownPlaces + collabPlaces).sortedBy { it.minutes ?: 0 }
+            if (places.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
             // 전화번호는 표시 안 함(탭하면 어차피 문자로 감) — "주소만 딱 잘 보이게". (2026-07-15 사장님)
             //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다 → '번호 모양' 이름은 뺀다(todayName).
             //   🏢 주소는 **아파트명+동호수만** 크게 — 도로명/지역은 뺀다(todayBigLabel). (2026-11-25 사장님 "딱 아파트명과 동호수만 크게")
-            val lines = today.map { c ->
-                val nm = todayName(c.name)
-                val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
-                val big = todayBigLabel(c.address)
-                val second = listOf(nm, t).filter { it.isNotBlank() }.joinToString(" ")
+            val lines = places.map { pl ->
+                val t = pl.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                val big = todayBigLabel(pl.address)
+                val second = listOf(pl.name, t).filter { it.isNotBlank() }.joinToString(" ")
                 if (second.isNotBlank()) "📍 $big\n$second" else "📍 $big"
             }
             // 현장이 하나면 **아파트명+동호수를 제목(큰 글씨)** 으로, 전체 주소는 펼치면 남긴다. (2026-11-25 사장님 프로토 A)
-            val single = today.singleOrNull()
+            val single = places.singleOrNull()
             if (single != null) {
-                val nm = todayName(single.name)
-                val t = single.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                val t = single.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
                 val full = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(single.address)
-                val detail = listOf("📍 $full", listOf(nm, t).filter { it.isNotBlank() }.joinToString(" "))
+                val detail = listOf("📍 $full", listOf(single.name, t).filter { it.isNotBlank() }.joinToString(" "))
                     .filter { it.isNotBlank() }.joinToString("\n")
                 // 커스텀 배너 2·3번째 줄 — 도로명/지역 + 시각·안내. (2026-11-25 사장님 "색·밑줄로 눈에 띄게")
                 val road = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(single.address).first
                     .takeIf { it.isNotBlank() && it != todayBigLabel(single.address) }
                 val meta = listOfNotNull(t.takeIf { it.isNotBlank() }?.let { "⏰ $it" }, "탭하면 길찾기").joinToString(" · ")
                 NotificationHelper.showTodaySites(
-                    context, 1, lines, single.phoneNumber,
+                    context, 1, lines, single.phone,
                     bigTitle = todayBigLabel(single.address),
                     subText = listOf("오늘의 현장", t).filter { it.isNotBlank() }.joinToString(" · "),
                     bigBody = detail,
@@ -257,9 +278,14 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                     bannerMeta = meta
                 )
             } else {
-                NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
+                NotificationHelper.showTodaySites(context, places.size, lines, places.first().phone)
             }
         }
+
+        /** 오늘 갈 한 곳 — 내 현장·협업 현장을 같은 모양으로(알림 한 벌에서 섞어 쓴다). phone 은 협업이면 null. */
+        private data class TodayPlace(
+            val address: String, val name: String, val minutes: Int?, val phone: String?
+        )
 
         /** 오늘의 현장 알림에 쓸 이름 — '번호 모양'(이름 칸에 번호) 이면 뺀다. (2026-07-15 사장님) */
         private fun todayName(name: String?): String =
