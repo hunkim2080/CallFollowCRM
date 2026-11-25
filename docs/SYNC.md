@@ -17139,3 +17139,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - `CollabPhotoUploadManager.notifyProgress`/`finish` 제목에 「{현장명} · 협업 사진 올리는 중」 / 「{현장명} · 사진 일부를 못 올렸어요」. `enqueue` 에 `siteLabel` 파라미터 추가. `SharedSiteViewModel.uploadPhotos` 가 `_sites` 에서 title(없으면 `AddressExtractor.roughSite(addr)`) 뽑아 전달.
 - ⚠️ 직전 배포(upload-20261125-2345, B+A)가 **CI `testReleaseUnitTest` 실패**했는데 로컬 debug·release(--rerun-tasks 강제) **둘 다 통과** → 코드 아닌 **CI flaky**(날짜 바뀜 11/26, UTC 자정 경계에서 'today' 테스트 순간 깨짐 의심). 이 커밋으로 재배포해 재시도(9ed0d44a = B+A 도 이 빌드에 포함). 또 실패하면 날짜 의존 테스트를 고정 시각으로.
 - 폰 확인: 협업 사진 올릴 때 알림 제목에 현장명 뜨는지.
+
+## 2026-11-26 00:30 · android (아스트라 codex + 검토)
+달력 칸 **하루 일정 3개까지 + 4개부터 「+N 더」** (사장님 "27일 3곳인데 2개만 — 3개까지, 4개부터 다른 표기").
+- 원인: 협업/A/S/요청이 각 "한 줄"로 뭉쳐 하루 여러 개면 하나만(`collabRegions` 등 `Map<Long,String>`).
+- 고침: `collab/pending/asRegions` → `Map<Long,List<String>>`. `ScheduleCalendarGrid` 에 `CalendarDayItem`(시공/협업/AS/요청/More) + `calendarDayItems`(시공 lane 유지 + 빈 줄 채움 · 3개까지 · 4개+는 2줄+More) + `asCalendarRegions`. `CalendarDay` 렌더가 이걸로 통합. 색·미수색·여러날 이어짐 유지. `ScheduleScreen` 142줄 간소화(로직 Grid 로 → size 안 늘림).
+- 아스트라(codex) 작성 → **내가 diff 전수 검토**(색·lane·More·BarSeg 보존 확인) → 빌드·가드·테스트 통과.
+- ⚠️ 에뮬 검증 생략(27일 3개는 실데이터라 세팅 어려움) → **폰 확인 필수**.
+- 폰 확인: 27일(금) 3곳 다 뜨고, 4개 이상 날 「+N 더」, 달력 안 깨지는지.

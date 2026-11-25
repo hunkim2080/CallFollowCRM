@@ -7,7 +7,7 @@ import java.util.Calendar
 // 🍃 일정 달력 격자(月 7×6=42칸)의 **순수 계산** — 화면 파일(ScheduleScreen)에서 떼어냄. (2026-10-08, §12-F 잎 추출)
 //   시공·간단 일정을 lane 에 배치하고 START/MID/END 막대 조각으로 만든다. Composable 없음(그리는 건 ScheduleScreen).
 
-/** 달력 한 칸에 그리는 막대 줄 수 상한 (lane 0~1 = 최대 2줄). 칸 렌더러와 반드시 같은 값. */
+/** 달력 한 칸의 마지막 표시 lane (0~2, 최대 세 줄). */
 internal const val CAL_MAX_LANE = 2
 
 internal enum class BarSeg { SINGLE, START, MID, END }
@@ -42,6 +42,47 @@ internal data class CalendarCell(
     val hasUpcomingSchedule: Boolean,
     val bars: List<DayBar> = emptyList()
 )
+
+internal sealed interface CalendarDayItem {
+    data class Bar(val bar: DayBar) : CalendarDayItem
+    data class Collab(val region: String) : CalendarDayItem
+    data class As(val region: String) : CalendarDayItem
+    data class Pending(val region: String) : CalendarDayItem
+    data class More(val count: Int) : CalendarDayItem
+}
+
+/** 시공의 고정 lane을 유지하고 빈 줄에는 하루짜리 항목을 채운다. null은 빈 lane이다. */
+internal fun calendarDayItems(
+    bars: List<DayBar>,
+    collabRegions: List<String> = emptyList(),
+    asRegions: List<String> = emptyList(),
+    pendingRegions: List<String> = emptyList()
+): List<CalendarDayItem?> {
+    val items = bars.sortedBy { it.lane }.map { CalendarDayItem.Bar(it) } +
+        collabRegions.map { CalendarDayItem.Collab(it) } +
+        asRegions.map { CalendarDayItem.As(it) } +
+        pendingRegions.map { CalendarDayItem.Pending(it) }
+    val overflow = items.size > CAL_MAX_LANE + 1 || bars.any { it.lane > CAL_MAX_LANE }
+    val slots = MutableList<CalendarDayItem?>(if (overflow) CAL_MAX_LANE else CAL_MAX_LANE + 1) { null }
+    for (item in items) {
+        val lane = if (item is CalendarDayItem.Bar) item.bar.lane else slots.indexOfFirst { it == null }
+        if (lane in slots.indices && slots[lane] == null) slots[lane] = item
+    }
+    val remaining = items.size - slots.count { it != null }
+    return if (remaining > 0) slots + CalendarDayItem.More(remaining) else slots.dropLastWhile { it == null }
+}
+
+internal fun asCalendarRegions(customers: List<CustomerEntity>): Map<Long, List<String>> {
+    val regions = linkedMapOf<Long, MutableList<String>>()
+    for (customer in customers) {
+        val start = customer.asScheduledDate?.let { DateTimeUtils.startOfDay(it) } ?: continue
+        val region = com.detailline.callfollowcrm.util.RegionName.shortRegion(customer.address) ?: "A/S"
+        repeat(customer.asScheduledDays.coerceAtLeast(1)) { offset ->
+            regions.getOrPut(start + offset * DateTimeUtils.DAY_MS) { mutableListOf() }.add(region)
+        }
+    }
+    return regions
+}
 
 /**
  * 한 달치 일정에 lane(세로 칸) 배정 — 같은 일정은 며칠짜리든 매일 같은 lane 에 와야 막대가 가로로 이어진다.
@@ -123,7 +164,7 @@ internal fun buildCalendarCells(
             }
             val firstDay = seg == BarSeg.SINGLE || seg == BarSeg.START
             DayBar(
-                lane = (laneMap[laneKeyOf(c)] ?: 0).coerceAtMost(CAL_MAX_LANE),
+                lane = laneMap[laneKeyOf(c)] ?: 0,
                 seg = seg,
                 past = dayStart < todayStart,
                 // 글자는 첫날에만. 홈 띠에서 "동대문" 뽑을 때 쓰는 그 함수를 그대로 쓴다.
@@ -150,7 +191,7 @@ internal fun buildCalendarCells(
                 else -> BarSeg.MID
             }
             DayBar(
-                lane = (laneMap["sm-${e.id}"] ?: 0).coerceAtMost(CAL_MAX_LANE),
+                lane = laneMap["sm-${e.id}"] ?: 0,
                 seg = seg,
                 past = dayStart < todayStart,
                 label = if (seg == BarSeg.SINGLE || seg == BarSeg.START) e.title else null,

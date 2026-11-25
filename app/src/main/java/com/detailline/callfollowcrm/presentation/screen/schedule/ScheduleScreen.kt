@@ -165,10 +165,7 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val asList by viewModel.asScheduled.collectAsState()           // A/S 예약 고객(시공과 별개 흐름). (DB v43)
-    val asDays by viewModel.asDayStarts.collectAsState()           // 캘린더 A/S 주황 점
-    val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라 띠 (#7)
     val simpleEvents by viewModel.simpleEvents.collectAsState()    // 번호 없는 간단 일정 (2026-09-16). 달력엔 청록 띠로. (v64)
-    val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "이름"
     // 「방금 · N건」 탭 → 올린 일정 목록 시트. (2026-10-05 사장님) 자동 동기화라 그 자리는 '확인용'.
@@ -178,30 +175,19 @@ fun ScheduleScreen(
     val collabSites by viewModel.collabSites.collectAsState()
     // 협업 현장에도 **주소가 있다**. 달력 칸에 지역명을 적으려고 날짜→지역명으로 바꿔둔다.
     //   (2026-09-22 사장님 "협업도 주소지가 있는데 왜 이렇게 하니" — 내가 없다고 잘못 알았다.)
-    val collabRegions = remember(collabSites) {
-        collabSites.filter { it.scheduledAtMs > 0L }.associate { site ->
-            DateTimeUtils.startOfDay(site.scheduledAtMs) to
-                (com.detailline.callfollowcrm.util.RegionName.shortRegion(site.addr) ?: "협업")
-        }
+    val collabRegions: Map<Long, List<String>> = remember(collabSites) {
+        collabSites.filter { it.scheduledAtMs > 0L }.groupBy(
+            { DateTimeUtils.startOfDay(it.scheduledAtMs) },
+            { com.detailline.callfollowcrm.util.RegionName.shortRegion(it.addr) ?: "협업" }
+        )
     }
-    val pendingRegions = remember(pendingCollabSites) {
-        pendingCollabSites.filter { it.scheduledAtMs > 0L }.associate { site ->
-            DateTimeUtils.startOfDay(site.scheduledAtMs) to
-                (com.detailline.callfollowcrm.util.RegionName.shortRegion(site.addr) ?: "요청")
-        }
+    val pendingRegions: Map<Long, List<String>> = remember(pendingCollabSites) {
+        pendingCollabSites.filter { it.scheduledAtMs > 0L }.groupBy(
+            { DateTimeUtils.startOfDay(it.scheduledAtMs) },
+            { com.detailline.callfollowcrm.util.RegionName.shortRegion(it.addr) ?: "요청" }
+        )
     }
-    // A/S 칸에도 **지역명**을 적는다 — "A/S"만으론 어디인지 모른다. (2026-10-07 사장님 "지역+A/S 로")
-    //   asDayStarts 와 같은 방식으로 여러 날 A/S(asScheduledDays)까지 덮는다.
-    val asRegions = remember(asList) {
-        val m = HashMap<Long, String>()
-        for (c in asList) {
-            val s = c.asScheduledDate?.let { DateTimeUtils.startOfDay(it) } ?: continue
-            val region = com.detailline.callfollowcrm.util.RegionName.shortRegion(c.address) ?: continue
-            val days = c.asScheduledDays.coerceAtLeast(1)
-            for (i in 0 until days) m[s + i * DateTimeUtils.DAY_MS] = region
-        }
-        m
-    }
+    val asRegions = remember(asList) { asCalendarRegions(asList) }
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
 
@@ -463,11 +449,8 @@ fun ScheduleScreen(
                                     CalendarWeekRow(
                                         cells = monthCells.subList(week * 7, week * 7 + 7),
                                         selectedDayMs = selectedDayMs,
-                                        collabDays = collabDays,
                                         collabRegions = collabRegions,
                                         pendingRegions = pendingRegions,
-                                        pendingCollabDays = pendingCollabDays,
-                                        asDays = asDays,
                                         asRegions = asRegions,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
@@ -992,12 +975,9 @@ private fun MonthHeader(
 private fun CalendarWeekRow(
     cells: List<CalendarCell>,
     selectedDayMs: Long?,
-    collabDays: Set<Long>,
-    collabRegions: Map<Long, String> = emptyMap(),
-    pendingRegions: Map<Long, String> = emptyMap(),
-    pendingCollabDays: Set<Long>,
-    asDays: Set<Long>,
-    asRegions: Map<Long, String> = emptyMap(),
+    collabRegions: Map<Long, List<String>> = emptyMap(),
+    pendingRegions: Map<Long, List<String>> = emptyMap(),
+    asRegions: Map<Long, List<String>> = emptyMap(),
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
 ) {
@@ -1006,12 +986,9 @@ private fun CalendarWeekRow(
             CalendarDay(
                 cell = cell,
                 isSelected = selectedDayMs == cell.dayStartMs,
-                isCollab = cell.dayStartMs in collabDays,
-                collabRegion = collabRegions[cell.dayStartMs],
-                pendingRegion = pendingRegions[cell.dayStartMs],
-                isPendingCollab = cell.dayStartMs in pendingCollabDays,
-                isAs = cell.dayStartMs in asDays,
-                asRegion = asRegions[cell.dayStartMs],
+                collabRegions = collabRegions[cell.dayStartMs].orEmpty(),
+                pendingRegions = pendingRegions[cell.dayStartMs].orEmpty(),
+                asRegions = asRegions[cell.dayStartMs].orEmpty(),
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
@@ -1025,15 +1002,12 @@ private fun CalendarWeekRow(
 private fun CalendarDay(
     cell: CalendarCell,
     isSelected: Boolean,
-    isCollab: Boolean = false,
     /** 협업 현장 지역명 — 없으면 "협업". */
-    collabRegion: String? = null,
+    collabRegions: List<String> = emptyList(),
     /** 아직 응답 안 한 협업 요청의 지역명 — 없으면 "요청". */
-    pendingRegion: String? = null,
-    isPendingCollab: Boolean = false,
-    isAs: Boolean = false,
+    pendingRegions: List<String> = emptyList(),
     /** A/S 현장 지역명 — 없으면 "A/S"만. (2026-10-07 사장님) */
-    asRegion: String? = null,
+    asRegions: List<String> = emptyList(),
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1047,15 +1021,7 @@ private fun CalendarDay(
         cell.dayOfWeek == Calendar.SATURDAY -> TossBlue
         else -> TossTextSecondary
     }
-    // 프로토 jbar: 점 대신 일정 1건 = 막대 1줄(lane). 1건/2건/여러날이 한눈에 구분됨. (2026-06-11)
-    //   선택칸 막대는 흰색, 지난 시공은 회색, 다가올 시공은 초록, 협업은 보라.
-    val schedMaxLane = cell.bars.maxOfOrNull { it.lane } ?: -1
-    val collabLane = if (isCollab) schedMaxLane + 1 else -1
-    // 응답 안 한 협업 요청 = 주황 막대(초록 일정·보라 협업과 확실히 구분). 푸시 놓쳐도 일정 보다 눈에 띄게. (2026-07-08 사장님)
-    val pendingLane = if (isPendingCollab) maxOf(schedMaxLane, collabLane) + 1 else -1
-    // A/S 도 띠로. 점은 **어디인지를 못 적는다.** (2026-09-22, 레퍼런스 그림)
-    val asLane = if (isAs) maxOf(maxOf(schedMaxLane, collabLane), pendingLane) + 1 else -1
-    val lastLane = minOf(maxOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), asLane), CAL_MAX_LANE)
+    val items = calendarDayItems(cell.bars, collabRegions, asRegions, pendingRegions)
     Box(
         modifier = modifier
             // 날짜 15dp + 사이 2 + 띠 세 줄(13×3 + 1.5×2) = 59, 여유 3 = 62dp.
@@ -1082,47 +1048,39 @@ private fun CalendarDay(
                     fontWeight = FontWeight.Bold
                 )
             }
-            if (lastLane >= 0) {
+            if (items.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(1.5.dp), modifier = Modifier.fillMaxWidth()) {
-                    for (lane in 0..lastLane) {
-                        when {
-                            // 종류는 **색**으로만 가른다. 연한 바탕 + 진한 글자 — 세 줄이 쌓여도 안 답답하다.
-                            lane == asLane ->
-                                CalRegionBar(
-                                    BarSeg.SINGLE, AppTheme.colors.primaryBg, AppTheme.colors.primaryText,
-                                    // 지역명이 있으면 "목동 A/S"처럼. 없으면 "A/S"만. (2026-10-07 사장님)
-                                    asRegion?.let { "$it A/S" } ?: "A/S"
-                                )
-                            lane == pendingLane -> PendingCalBar(pendingRegion ?: "요청")
-                            lane == collabLane ->
-                                CalRegionBar(
-                                    BarSeg.SINGLE, AppTheme.colors.categoryBg, AppTheme.colors.categoryText,
-                                    collabRegion ?: "협업"
-                                )
-                            else -> {
-                                val bar = cell.bars.firstOrNull { it.lane == lane }
-                                if (bar != null) {
-                                    // 간단 일정 = 청록(지난 회색·시공 초록과 구분). 시공은 지난이면 회색, 아니면 초록. (2026-10-08 사장님)
-                                    val bg = when {
-                                        bar.kind == BarKind.IMPORTED -> AppTheme.colors.importBg   // 가져온 일정 = 갈색 (2026-10-31)
-                                        bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleBg
-                                        bar.past -> AppTheme.colors.surfaceMuted
-                                        else -> AppTheme.colors.doneBg
-                                    }
-                                    val fg = when {
-                                        bar.kind == BarKind.IMPORTED -> AppTheme.colors.importText
-                                        bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleText
-                                        bar.past -> TossTextSecondary
-                                        else -> AppTheme.colors.doneText
-                                    }
-                                    // 「금액」 토글 켬이면 bar.money(「65」/「–」)가 와서 「동대문 [65]」. 끔이면 null = 전과 같다.
-                                    CalRegionBar(bar.seg, bg, fg, bar.label, bar.money, bar.moneyStage)
-                                } else {
-                                    // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 띠가 가로로 이어지게.
-                                    Box(Modifier.fillMaxWidth().height(13.dp))
+                    for (item in items) {
+                        when (item) {
+                            is CalendarDayItem.As -> CalRegionBar(
+                                BarSeg.SINGLE, AppTheme.colors.primaryBg, AppTheme.colors.primaryText,
+                                if (item.region == "A/S") item.region else "${item.region} A/S"
+                            )
+                            is CalendarDayItem.Pending -> PendingCalBar(item.region)
+                            is CalendarDayItem.Collab -> CalRegionBar(
+                                BarSeg.SINGLE, AppTheme.colors.categoryBg, AppTheme.colors.categoryText, item.region
+                            )
+                            is CalendarDayItem.More -> CalRegionBar(
+                                BarSeg.SINGLE, AppTheme.colors.surfaceMuted, AppTheme.colors.textSub, "+${item.count} 더"
+                            )
+                            is CalendarDayItem.Bar -> {
+                                val bar = item.bar
+                                val bg = when {
+                                    bar.kind == BarKind.IMPORTED -> AppTheme.colors.importBg
+                                    bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleBg
+                                    bar.past -> AppTheme.colors.surfaceMuted
+                                    else -> AppTheme.colors.doneBg
                                 }
+                                val fg = when {
+                                    bar.kind == BarKind.IMPORTED -> AppTheme.colors.importText
+                                    bar.kind == BarKind.SIMPLE -> AppTheme.colors.simpleText
+                                    bar.past -> AppTheme.colors.textSub
+                                    else -> AppTheme.colors.doneText
+                                }
+                                CalRegionBar(bar.seg, bg, fg, bar.label, bar.money, bar.moneyStage)
                             }
+                            null -> Box(Modifier.fillMaxWidth().height(13.dp))
                         }
                     }
                 }
