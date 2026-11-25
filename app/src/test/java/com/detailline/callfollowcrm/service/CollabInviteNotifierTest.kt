@@ -33,7 +33,7 @@ class CollabInviteNotifierTest {
             scheduledAtMs = ms(2026, 11, 27), addr = "경기 용인시 기흥구 두산위브", title = "용인 현장",
             timeLabel = "14:00", ownerName = "하우스픽", dailyWage = 25
         )
-        assertEquals("작업시작 오후 2시 · 일당 25만 · 하우스픽 사장님", l.body)
+        assertEquals("작업시작 오후 2시 · 일당 25만 · 하우스픽", l.body)
         assertFalse(l.body.contains("마감"))
     }
 
@@ -44,7 +44,7 @@ class CollabInviteNotifierTest {
             ownerName = "", dailyWage = null
         )
         assertEquals("협업 지원 요청", l.title)
-        assertEquals("다른 사장님", l.body)
+        assertEquals("다른 업체", l.body)
     }
 
     @Test
@@ -54,6 +54,6 @@ class CollabInviteNotifierTest {
             ownerName = "김", dailyWage = 0
         )
         assertEquals("[수원] 지원 요청", l.title)
-        assertEquals("김 사장님", l.body)
+        assertEquals("김", l.body)
     }
 }

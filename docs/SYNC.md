@@ -17126,3 +17126,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - ② 서버 `_SHARE_TTL_MS` 24h→12h **라이브 배포 완료**(GOTCHAS §3: scp→줄번호 20414/20416 패치→py_compile→백업 `main.py.bak-20261125-230737`→swap→kickstart→**smoke 10/10**). 앱·서버 둘 다 12h.
 - 폰 확인: 달력 금액 토글 켜고 **완료+미수 현장이 빨강**(완납은 회색 취소선)으로 뜨는지.
 - 다음(미착수): 상담함 목록에 **분류(카테고리) 태그가 안 뜨는** 건 조사 — HomeViewModel 목록 item 에 categoryId 가 실리는지.
+
+## 2026-11-25 23:40 · android
+협업 알림 **업체명만**(「사장님」 뺌) + 분류 저장 **계측 로그**.
+- 협업 알림 본문 who = ownerName 만(「사장님」 안 붙임) — 상호가 길어 두 줄 되던 것(사장님 실기). 빈값이면 「다른 업체」. `CollabInviteNotifier` + 테스트 갱신.
+- 🔎 분류 저장 계측: `setCategory` 직후 DB readback 로그(`CatDebug`) — 사장님 "미분류로 바꿔도 재진입하면 택배". 코드 3회 정독에도 결정적 범인 불명확(markTodayCallsAsHandled=통화기록만·init=persona만·upsertByPhone=categoryId `copy` 유지) → **추측 수정 대신 계측**(§측정 먼저). 재현 후 logcat `CatDebug` 로 저장실패 vs 복원 판별.
+- 🆕 미착수: **달력 칸 지역명 3개** — 협업/A/S/요청이 각 "한 줄"로 뭉쳐 한 날 여러 개면 하나만 뜸([ScheduleScreen:1053]). lane 구조 변경 필요 → 프로토 먼저.
+- 폰 확인: 협업 알림 **업체명만** 뜨는지 / 분류 미분류 재현 시 `adb logcat | grep CatDebug`.

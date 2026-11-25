@@ -687,6 +687,10 @@ class CustomerDetailViewModel(
     fun setCategory(categoryId: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.categoryRepository.assignCustomer(customerId, categoryId)
+            // 🔎 분류 저장 계측 (2026-11-25 사장님 "미분류로 바꿔도 다시 들어오면 택배") — 저장 직후 DB 재확인.
+            //   원인(저장 실패 vs 다른 곳서 복원) 잡으면 이 줄 제거. readback 이 넘긴 값과 다르면 복원 범인 추적.
+            val catBack = container.customerRepository.findById(customerId)?.categoryId
+            android.util.Log.i("CatDebug", "setCategory id=$customerId set=$categoryId readback=$catBack")
             markTodayCallsAsHandled()
         }
     }

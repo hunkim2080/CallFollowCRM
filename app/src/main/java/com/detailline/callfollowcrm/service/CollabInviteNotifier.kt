@@ -27,7 +27,7 @@ object CollabInviteNotifier {
         scheduledAtMs: Long, addr: String?, title: String, timeLabel: String?,
         ownerName: String, dailyWage: Int?
     ): Lines {
-        val who = ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" } ?: "다른 사장님"
+        val who = ownerName.takeIf { it.isNotBlank() } ?: "다른 업체"   // 업체명만(「사장님」 안 붙임) — 상호가 길어 두 줄 되던 것. (2026-11-25 사장님)
         val date = scheduledAtMs.takeIf { it > 0L }?.let { DateTimeUtils.formatDateLabel(it) }
         val rgn = AddressExtractor.region(addr ?: title)?.let { "[$it]" }
         val head = listOfNotNull(date, rgn).joinToString(" · ")
