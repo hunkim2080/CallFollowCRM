@@ -621,7 +621,7 @@ internal fun PendingCalBar(label: String) {
  *   null(끔·A/S·협업·요청·간단)이면 전과 완전히 같다. (2026-10-19 사장님 프로토)
  */
 @Composable
-internal fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?, money: String? = null) {
+internal fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?, money: String? = null, moneyStage: com.detailline.callfollowcrm.domain.job.CompletionStage? = null) {
     val shape = calBarShape(seg)
     // 여러 날 일정은 **이어 붙는 쪽 여백을 0**으로 둬서 칸과 칸 사이 틈 없이 하나의 띠로 흐르게.
     //   붙지 않는 쪽(START 왼쪽·END 오른쪽·SINGLE 양쪽)은 1dp 여백 → 다른 날 일정과 안 붙는다. (2026-10-08 사장님)
@@ -635,11 +635,19 @@ internal fun CalRegionBar(seg: BarSeg, bg: Color, fg: Color, label: String?, mon
     ) {
         if (!label.isNullOrBlank() || money != null) {
             val faint = AppTheme.colors.textHint
-            val moneyColor = if (money == CalendarMoneyLabel.NONE) faint else AppTheme.colors.primaryText
+            val paidOff = moneyStage == com.detailline.callfollowcrm.domain.job.CompletionStage.PAID_OFF
+            val moneyColor = when {
+                money == CalendarMoneyLabel.NONE -> faint
+                moneyStage == com.detailline.callfollowcrm.domain.job.CompletionStage.DONE ->
+                    com.detailline.callfollowcrm.presentation.component.OverdueColor   // 완료+미수 = 받을 돈(목록 딱지와 같은 색)
+                paidOff -> faint                                                       // 완납 = 흐림(+취소선)
+                else -> AppTheme.colors.primaryText
+            }
             val text = if (money == null) AnnotatedString(label.orEmpty()) else buildAnnotatedString {
                 if (!label.isNullOrBlank()) append("$label ")
                 withStyle(SpanStyle(color = faint)) { append("[") }
-                withStyle(SpanStyle(color = moneyColor)) { append(money) }
+                withStyle(SpanStyle(color = moneyColor,
+                    textDecoration = if (paidOff) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)) { append(money) }
                 withStyle(SpanStyle(color = faint)) { append("]") }
             }
             Text(

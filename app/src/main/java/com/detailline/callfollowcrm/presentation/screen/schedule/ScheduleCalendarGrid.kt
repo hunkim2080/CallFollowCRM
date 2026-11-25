@@ -26,7 +26,9 @@ internal data class DayBar(
      * 「금액」 토글 켬일 때 시공 띠에 붙는 금액 글자 — 「65」(만원) 또는 「–」(아직 안 적음). 끔이면 null = 지금 모양.
      *   label 과 같은 날(첫날)에만. 셈은 `CalendarMoneyLabel.moneyOf` 한 곳. (2026-10-19 사장님 프로토)
      */
-    val money: String? = null
+    val money: String? = null,
+    /** 금액 색 가름 — DONE=미수(OverdueColor)·PAID_OFF=완납(흐림+취소선)·그외=기본. 금액 켬+첫날만. (2026-11-25 사장님) */
+    val moneyStage: com.detailline.callfollowcrm.domain.job.CompletionStage? = null
 )
 
 internal data class CalendarCell(

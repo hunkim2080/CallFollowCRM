@@ -35,6 +35,9 @@ fun startOfTodayMs(): Long {
  */
 val DONE_STATUSES: Set<String> = setOf("완료", "완납")
 
+/** 미수(돈 받을 것) 색 — 목록 딱지·달력 금액이 **같은 색**(§12 한 곳). 주황빨강. */
+val OverdueColor = Color(0xFFE0620D)
+
 /**
  * 상태 계산 (단일 출처) — 미래 시공일=예약 · 끝난 손님은 잔금 안받음=잔금미수 · 다받음=**완납** · 돈 없음=완료 ·
  *   그 외 **오늘 생긴 손님만**=신규, 그 밖은 딱지 없음. (2026-09-27 사장님)
@@ -85,7 +88,7 @@ private fun statusColors(s: String): Pair<Color, Color> = when (s) {
     "완료", "완납" -> Color(0xFF0E9F56) to LightColors.doneBg   // green (완납 = 완료 + 돈까지, 같은 초록)
     "신규", "시공확인" -> Color(0xFFB7791F) to LightColors.cautionBg   // amber (봐야 할 것 — 오늘 온 손님 / 완료 확인)
     "미전환" -> LightColors.textHint to LightColors.bg // gray
-    "잔금미수" -> Color(0xFFE0620D) to LightColors.cautionBg // orange (돈 받을 것)
+    "잔금미수" -> OverdueColor to LightColors.cautionBg // orange (돈 받을 것) — 달력 금액도 같은 색
     else -> LightColors.primary to LightColors.primaryBg     // blue (예약)
 }
 

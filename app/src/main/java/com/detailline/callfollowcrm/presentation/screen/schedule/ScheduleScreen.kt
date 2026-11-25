@@ -1117,7 +1117,7 @@ private fun CalendarDay(
                                         else -> AppTheme.colors.doneText
                                     }
                                     // 「금액」 토글 켬이면 bar.money(「65」/「–」)가 와서 「동대문 [65]」. 끔이면 null = 전과 같다.
-                                    CalRegionBar(bar.seg, bg, fg, bar.label, bar.money)
+                                    CalRegionBar(bar.seg, bg, fg, bar.label, bar.money, bar.moneyStage)
                                 } else {
                                     // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 띠가 가로로 이어지게.
                                     Box(Modifier.fillMaxWidth().height(13.dp))

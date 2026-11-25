@@ -17119,3 +17119,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - C 강제종료(💥 #37·#40): 전부 `REASON_EXCESSIVE_RESOURCE_USAGE` = **앱 고장이 아니라 OS 백그라운드 리소스 정리**(§11 AOSP 커밋 확인: "Too many Binders sent to SYSTEM"). `CrashCatcher.ABNORMAL` 에서 **제외** — 진짜 죽음(ANR·네이티브·시그널·메모리)만 💥로. 백그라운드 폴링은 이미 `isForeground` 로 막혀 과도하지 않음.
 - 검증(에뮬): 제목 "👥 11/27(금)·[용인] 지원 요청" / 본문 "작업시작 오후 2시·일당 25만·하우스픽 사장님"(마감 없음) 확인. 빌드·가드·테스트 통과.
 - 폰 확인: 업데이트 받으면 마감 글자 없이·작업시작 뜨고, 💥상자에 '자원 과다' 안 쌓이는지.
+
+## 2026-11-25 23:15 · android (+ server)
+① 달력 **미수금 금액 빨강** ② 서버 마감 12h **라이브 반영**. (사장님 지시)
+- ① 달력 금액 색 — 완료+미수 = `OverdueColor`(목록 딱지와 **같은** 주황빨강) · 완납 = 흐림+취소선 · 예정/진행 = 기본. 판정은 `Completion.stageOf` 재사용(§12-K 목록·달력 한 색). `DayBar.moneyStage` 추가 · `CalRegionBar` 색 입힘 · 미수색은 `CustomerStatusTag.OverdueColor` **한 곳**(딱지도 이걸 씀). 금액 토글 켬+첫날만.
+- ② 서버 `_SHARE_TTL_MS` 24h→12h **라이브 배포 완료**(GOTCHAS §3: scp→줄번호 20414/20416 패치→py_compile→백업 `main.py.bak-20261125-230737`→swap→kickstart→**smoke 10/10**). 앱·서버 둘 다 12h.
+- 폰 확인: 달력 금액 토글 켜고 **완료+미수 현장이 빨강**(완납은 회색 취소선)으로 뜨는지.
+- 다음(미착수): 상담함 목록에 **분류(카테고리) 태그가 안 뜨는** 건 조사 — HomeViewModel 목록 item 에 categoryId 가 실리는지.
