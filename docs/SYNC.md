@@ -17058,3 +17058,9 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 변경: NotificationHelper.showTodaySites(bigTitle/subText/bigBody 인자 추가·뒤호환), ReminderWorker.refreshTodaySites(todayBigLabel=buildingUnit?:siteLabel?:tidyAddress, todayName 헬퍼). 뽑기 한 곳. brand_allow.txt 에 「📍 $big·$full」(기존 📍 $address 와 같은 줄머리 핀).
 - 공용: 아파트명+동호수 = AddressExtractor.buildingUnit 재사용(§12). 서버 영향 없음.
 - 폰 확인: 못 봄. 긴 이름(사장님 수지 현장)은 buildingUnit 이 괄호 안 쉼표로 "동아 아파트 718동 602호"로 짧게 나와 안 잘림. 내부배포 뜨면 확인 요망.
+
+## 2026-11-25 17:00 · android
+오늘의 현장 **커스텀 배너 되돌림**(revert) — 안정 글자 버전으로 복귀. (사장님 "완료 안 눌렀는데 오늘의현장 푸시 사라짐")
+- 왜: 커스텀 알림(RemoteViews)은 다크폰에서 통째로 안 뜨는 실패가 잦은데, 현장용 핵심 알림이 사라진 게 그 증상으로 의심. 폰 검증 못 한 상태라 일단 되돌림. 폰에서 제대로 볼 수 있을 때(무선디버깅/에뮬 시드) 다시 올린다.
+- 되돌린 것: notification_today_site.xml·TodaySiteNotifier.kt 삭제, showTodaySites/refreshTodaySites 는 글자(동호수 제목 A버전)로. 협업 일정 수정·동호수 A버전 텍스트는 유지.
+- 미해결 조사중: ① ANR("응답하지 않음") 일정 화면 — 폰 로그 필요(현재 adb=에뮬만). ② 알림 사라짐이 배너 탓인지 확인 대기(사장님 앱 재시작 후 복귀 여부).
