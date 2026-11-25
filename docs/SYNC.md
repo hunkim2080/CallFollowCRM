@@ -17159,3 +17159,9 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 변경: SitePhotoRepository.representativeOf — isRepresentative 를 건/고객 범위로 한정 (전엔 전역 첫 대표)
 - 폰 확인: 못 봄 — 다음 폰에서 사진 배경 영상에 현장마다 다른 사진 나오는지 확인
 - 다음 액션: 없음
+
+## 2026-11-26 12:30 · android
+오늘의 현장 알림 가독성(단지명/동호수 2줄) + 협업 현장 포함 + 영상 저장 속도(JPEG 0.75)
+- 변경: ReminderWorker.refreshTodaySites 가 withMe(협업)도 담음 / TodaySiteNotifier 2줄 / WebReelRenderer toDataURL 0.75
+- 폰 확인: 못 봄 — ①알림 단지명/동호수 2줄 ②협업 현장 오늘의현장 알림에 주소 뜨는지 ③영상 저장 체감 빨라졌는지
+- 다음 액션: 없음
