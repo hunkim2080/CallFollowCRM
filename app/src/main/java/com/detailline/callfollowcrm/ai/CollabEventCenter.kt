@@ -167,11 +167,18 @@ class CollabEventCenter(
             return
         }
         val seen = preferences.seenCollabInviteShareIds
-        for (s in pending.filter { it.shareId !in seen }) {
-            NotificationHelper.showCollabInvite(context, s.shareId, s.ownerName, s.title)
+        val shownIds = pending.map { it.shareId }.toSet()
+        // 🔻 더는 유효하지 않은(수락·거절·만료·휴지통) 요청의 '계속 떠있는'(ongoing) 알림은 내린다.
+        //   안 그러면 ongoing 이라 안 지워지는 알림이 죽은 요청에 남는다.
+        (seen - shownIds).forEach { NotificationHelper.cancelCollabInvite(context, it) }
+        // 📌 유효한 pending 요청은 **오늘의 현장처럼 계속 떠 있게**(ongoing) 재게시 — 한 번 밀어도 안 사라지게.
+        //   소리는 처음 한 번만: 이미 본(seen) 건은 조용히(silent), 새 요청만 울린다. (2026-11-25 사장님)
+        for (s in pending) {
+            NotificationHelper.showCollabInvite(
+                context, s.shareId, s.ownerName, s.title, silent = s.shareId in seen
+            )
         }
-        // 현재 pending 전체로 갱신 — 수락/거절돼 사라진 건 빠지므로 재초대 시 다시 알림.
-        preferences.seenCollabInviteShareIds = pendingIds
+        preferences.seenCollabInviteShareIds = shownIds
     }
 
     /**

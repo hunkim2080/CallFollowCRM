@@ -17072,3 +17072,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - §12 표에 DiagnosticsReporter 한 줄 등록(3곳 사용 → 공용 승격) + rulesBaselineUpdate(공용 56). 서버 변경 없음(엔드포인트 기존).
 - 보너스: 이미 난 ANR 이 OS 기록에 남아 있으면 이 버전 설치 후 첫 실행에 소급 캡처됨.
 - 폰 확인: 설치 후 앱 한번 켜면 💥상자(api.si0in.kr/admin/diagnostics)에 지난 ANR 떠야. 사장님 확인 요망.
+
+## 2026-11-25 17:50 · android
+협업 요청 푸시 **'오늘의 현장처럼 계속 떠있기'(ongoing)** (사장님 "한번 꺼서 다시 안뜨네").
+- showProtoPush 에 ongoing/silent 인자 추가(기본 false=기존 그대로). ongoing 이면 setOngoing+setAutoCancel(false). showCollabInvite 는 ongoing=true, note "수락/거절 전까지 계속 떠 있어요".
+- pollInvites: pending 전부 재게시(한번 밀어도 복구)·이미 본 건 silent(소리 처음만)·무효해진(수락/거절/만료/휴지통) 건은 cancelCollabInvite 로 내림(seen - shownIds).
+- 커스텀 레이아웃 아님(일반 알림 설정)이라 다크폰 안전. 다른 알림은 기본값이라 영향 없음.
+- 폰 확인: 협업 요청 밀어도 다시 뜨고, 수락/거절하면 사라지는지.
