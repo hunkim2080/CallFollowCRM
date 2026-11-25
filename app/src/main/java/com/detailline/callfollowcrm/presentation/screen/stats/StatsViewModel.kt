@@ -15,6 +15,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
+import com.detailline.callfollowcrm.domain.collab.CollabRepPhoto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
@@ -172,9 +177,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
 
     @kotlinx.coroutines.ExperimentalCoroutinesApi
     val myRecord: StateFlow<MyRecordState> =
-        startAddrFlow.flatMapLatest {
+        combine(startAddrFlow, container.preferences.collabRepPhotoFlow) { _, chosen -> chosen }.flatMapLatest { chosen ->
             combine(customers, jobsFlow, recordMonth, sitePhotosFlow, collabSites) { cs, js, m, ph, co ->
-                buildMyRecord(cs, js, m, ph, co)
+                suspend { buildMyRecord(cs, js, m, ph, co, chosen) }
+            }.mapLatest { build ->
+                withContext(Dispatchers.IO) { build() }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyRecordState())
 
@@ -203,13 +210,14 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
     }.timeInMillis
 
-    private fun buildMyRecord(
+    private suspend fun buildMyRecord(
         cs: List<CustomerEntity>,
         js: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
         monthDelta: Int = 0,
         photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity> = emptyList(),
         /** 🤝 남의 현장에 불려 간 것. 서버에서 온다 — 못 불러오면 빈 목록이고, 화면은 그대로 뜬다. */
-        collab: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList()
+        collab: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList(),
+        chosenPhotos: Map<String, Long> = emptyMap()
     ): MyRecordState {
         val now = System.currentTimeMillis()
         val monthStart = DateTimeUtils.shiftMonth(DateTimeUtils.startOfMonth(now), monthDelta)
@@ -265,6 +273,10 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         }
         val collabMonth = collabDone.filter { it.scheduledAtMs in monthStart until monthEnd }
             .sortedByDescending { it.scheduledAtMs }
+        val collabPhotoPaths = LinkedHashMap<String, String>()
+        for (s in collabMonth.distinctBy { it.shareId }) {
+            collabRepresentativeFile(s.shareId, chosenPhotos[s.shareId])?.let { collabPhotoPaths[s.shareId] = it }
+        }
         for (s in collabMonth) {
             val t = com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr)
             if (t == null) noAddr++ else towns.add(t)
@@ -318,6 +330,13 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             counts[spot.name] = Triple(spot.lat, spot.lon, (prev?.third ?: 0) + 1)
             firstAt.putIfAbsent(spot.name, s.scheduledAtMs)
             moneyOf[spot.name] = (moneyOf[spot.name] ?: 0) + (s.dailyWage ?: 0)
+            if (photoOf[spot.name] == null) {
+                collabPhotoPaths[s.shareId]?.let { path ->
+                    photoOf[spot.name] = path
+                    com.detailline.callfollowcrm.util.AddressExtractor.complexName(s.addr)
+                        ?.let { apartmentOf[spot.name] = it }
+                }
+            }
         }
         val orderOf = firstAt.entries.sortedBy { it.value }.mapIndexed { i, e -> e.key to i }.toMap()
         val siteDots = counts.map { (nm, v) ->
@@ -479,7 +498,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
             areaLabel = area,
             monthKm = monthKm,
-            photoPath = representativePhoto(month, photos)
+            photoPath = representativePhoto(month, photos, collabPhotoPaths.values)
         )
     }
 
@@ -494,16 +513,62 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
      */
     private fun representativePhoto(
         monthJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
-        photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>
+        photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>,
+        collabPaths: Collection<String>
     ): String? {
-        if (photos.isEmpty()) return null
         for (j in monthJobs) {
             val hit = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
                 .representativeOf(photos, j.customerId, j.id)
             val path = hit?.filePath ?: continue
             if (java.io.File(path).exists()) return path
         }
-        return null
+        return collabPaths.firstOrNull { java.io.File(it).isFile }
+    }
+
+    /** IO에서 목록은 썸네일로, 대표 원본만 받는다. 완성된 JPEG만 공개해 중단된 저장을 재사용하지 않는다. */
+    private suspend fun collabRepresentativeFile(shareId: String, chosenPhotoId: Long?): String? {
+        var photos = emptyList<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>()
+        return try {
+            val phone = container.preferences.bizPhone
+            photos = container.sharedSiteRepository.photos(shareId, phone, thumb = true).getOrThrow()
+            kotlin.coroutines.coroutineContext.ensureActive()
+            val rep = CollabRepPhoto.pick(photos, chosenPhotoId) ?: return null
+            val dir = java.io.File(container.appContext.cacheDir, "collab_reel")
+            check(dir.isDirectory || dir.mkdirs()) { "협업 사진 캐시 폴더 생성 실패" }
+            val file = java.io.File(dir, "${rep.photoId}.jpg")
+            if (file.isFile && file.length() > 0L) return file.absolutePath
+            // thumb 목록의 dataUrl은 작은 사진이다. 기존 원본 경로로 대표 1장만 교체한다.
+            val dataUrl = container.sharedSiteRepository.photoFull(rep.photoId, shareId, phone).getOrThrow()
+            kotlin.coroutines.coroutineContext.ensureActive()
+            val bitmap = checkNotNull(com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(dataUrl, 2048)) {
+                "협업 대표 사진 디코딩 실패"
+            }
+            try {
+                val atomic = android.util.AtomicFile(file)
+                val out = atomic.startWrite()
+                try {
+                    check(bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, out)) {
+                        "협업 대표 사진 JPEG 저장 실패"
+                    }
+                    out.fd.sync()
+                    atomic.finishWrite(out)
+                    check(file.isFile && file.length() > 0L) { "협업 대표 사진 캐시 확정 실패" }
+                } catch (e: Exception) {
+                    atomic.failWrite(out)
+                    throw e
+                }
+            } finally {
+                bitmap.recycle()
+            }
+            file.absolutePath
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("StatsViewModel", "협업 대표 사진 불러오기/캐시 저장 실패", e)
+            null
+        } finally {
+            photos.forEach { it.bitmap?.recycle() }
+        }
     }
 
     /**
@@ -752,7 +817,10 @@ data class MyRecordState(
      *   → 사진이 들어가는 갈래(지도+사진 · 사진 배경)를 **아예 안 보여준다.**
      */
     val photoPath: String? = null
-)
+) {
+    /** 협업에는 내 현장 번호가 없어도 기록을 만들 수 있다. */
+    val canMakeRecord: Boolean get() = lastNo > 0 || monthSites > 0
+}
 
 /** 「내 기록」 한 줄. */
 data class MyRecordRow(

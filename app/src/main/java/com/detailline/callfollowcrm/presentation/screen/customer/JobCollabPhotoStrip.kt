@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.screen.customer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto
 import com.detailline.callfollowcrm.domain.collab.CollabJobPhotos
+import com.detailline.callfollowcrm.domain.collab.CollabRepPhoto
 import com.detailline.callfollowcrm.presentation.component.ViewerPhoto
 import com.detailline.callfollowcrm.presentation.theme.AppShape
 import com.detailline.callfollowcrm.presentation.theme.AppTheme
@@ -85,19 +87,23 @@ private fun PhotoTabSeg(text: String, on: Boolean, onClick: () -> Unit) {
 
 /**
  * 🤝 **협업 사장 사진** 가로 스트립 — 그 건에 걸린 협업 사진만(1차/2차 안 섞임, [CollabJobPhotos.group] 로 걸러서 들어온다).
- *   업체 2곳 이상이면 **업체 칩**으로 가르고(1곳이면 칩 생략), 각 사진엔 `🤝 상호` 이름표. **보기 전용**(×·＋ 없음).
+ *   업체 2곳 이상이면 **업체 칩**으로 가르고, 각 사진엔 이름표. 꾹 누르면 내 기록의 대표로 지정.
  *   탭하면 그 업체 사진 전부를 뷰어로(크게보기는 원본 dataUrl 에서 고해상 재디코딩 — 512 썸네일을 키워 흐리던 것 방지).
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun JobCollabPhotoStrip(
     groups: List<CollabJobPhotos.Group<SharedPhoto>>,
     onOpenPhoto: (List<ViewerPhoto>, Int) -> Unit,
+    chosenPhotos: Map<String, Long>,
+    onPickRepresentative: (shareId: String, photoId: Long) -> Unit,
     /** 크게보기 탭 때 그 1장의 **원본**을 받는 로더(목록은 썸네일만 받음). null 이면 썸네일 그대로. (2026-11-24) */
     onLoadFull: (suspend (shareId: String, photoId: Long) -> String?)? = null,
 ) {
     if (groups.isEmpty()) return
     var sel by remember(groups.map { it.shareId }) { mutableStateOf(groups.first().shareId) }
     val active = groups.firstOrNull { it.shareId == sel } ?: groups.first()
+    val representative = CollabRepPhoto.pick(active.photos, chosenPhotos[active.shareId])
 
     if (groups.size > 1) {
         Spacer(Modifier.height(2.dp))
@@ -141,20 +147,31 @@ internal fun JobCollabPhotoStrip(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         active.photos.forEach { p ->
-            Box(Modifier.size(64.dp).clip(AppShape.md).background(TossGrayBg)) {
+            Box(Modifier.size(64.dp).clip(AppShape.md).background(TossGrayBg)
+                .combinedClickable(
+                    onLongClickLabel = "대표 사진으로 지정",
+                    onLongClick = { onPickRepresentative(active.shareId, p.photoId) },
+                    onClick = {
+                        val start = viewerCells.indexOfFirst {
+                            it is ViewerPhoto.OfRemote && it.thumb === p.bitmap
+                        }
+                        if (start >= 0) onOpenPhoto(viewerCells, start)
+                    }
+                )) {
                 val bmp = p.bitmap
                 if (bmp != null) {
                     Image(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = "협업 사진 (${active.partnerName})",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clickable {
-                            val start = viewerCells.indexOfFirst {
-                                it is ViewerPhoto.OfRemote && it.thumb === bmp
-                            }.coerceAtLeast(0)
-                            onOpenPhoto(viewerCells, start)
-                        }
+                        modifier = Modifier.fillMaxSize()
                     )
+                }
+                if (p.photoId == representative?.photoId) {
+                    Text("⭐", style = AppType.micro,
+                        modifier = Modifier.align(Alignment.TopStart).padding(3.dp)
+                            .clip(AppShape.sm).background(AppTheme.colors.surface)
+                            .padding(horizontal = 3.dp, vertical = 1.dp))
                 }
                 // 🤝 업체 이름표 — 누구 사진인지. 위쪽 딱지(대표·전)와 안 겹치게 아래.
                 Box(

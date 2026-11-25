@@ -2,6 +2,8 @@
 # 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
 # 줄 모양: <파일이름> <쓰는 파일 수> <경로>
 # 총 56개 (3곳 이상에서 쓰이는 것)
+# 명시 등록: 아래 CollabRepPhoto는 사용처 2곳이어도 공용으로 관리한다.
+CollabRepPhoto 2 domain/collab/CollabRepPhoto.kt
 DateTimeUtils 102 util/DateTimeUtils.kt
 PhoneNumberFormatter 54 util/PhoneNumberFormatter.kt
 PhoneKey 50 util/PhoneKey.kt

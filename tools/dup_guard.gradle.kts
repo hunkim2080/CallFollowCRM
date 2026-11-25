@@ -35,6 +35,12 @@ data class DupRule(
 )
 
 val dupRules = listOf(
+    DupRule(
+        id = "collab-photo-pick",
+        regex = Regex("""firstOrNull\s*\{\s*\w+\.photoId\s*==\s*chosenPhotoId"""),
+        instead = "CollabRepPhoto.pick(photos, chosenPhotoId)  (domain/collab/CollabRepPhoto.kt)",
+        homes = listOf("/domain/collab/CollabRepPhoto.kt")
+    ),
     // 📅 날짜 고르는 달력 — Material3 범위선택을 다시 쓰면 **또 두 벌**이 된다. (2026-10-24 사장님 "왜 캘린더 종류가 2개야?")
     //   접수서·간단일정의 커스텀 달력과 섞여 세 종류였다 → 공용 WorkRangeCalendar/WorkRangePickerDialog 하나로.
     //   (주석엔 그 Material3 이름을 쓰지 말 것 — 가드가 주석도 센다. `rememberDateRangePickerState` 만 막는다.)

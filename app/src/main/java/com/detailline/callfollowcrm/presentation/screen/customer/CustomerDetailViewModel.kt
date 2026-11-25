@@ -406,15 +406,19 @@ class CustomerDetailViewModel(
         }
     }
 
-    /**
-     * 🤝 이 고객의 **협업 사장(사장↔사장) 증거 사진** — shareId → 그 share 의 사진들. (§F GET /api/shared/photos, A 는 보기만)
-     *   어느 share 가 어느 건(N차)인지는 카드가 [com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.shareIdsForJob]
-     *   로 고른다(그 건 날짜에 걸린 share 만 = 같은 고객 1차·2차가 안 섞인다). 고객 상세 열 때 가져온다.
-     *   올리기/팀원 사진(team_site_photos)과는 별개 기능.
-     */
+    /** 협업 사진은 share별 보관. 건별 범위는 CollabAssignmentLine이 고른다. */
     private val _collabPhotosByShare =
         MutableStateFlow<Map<String, List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>>>(emptyMap())
     val collabPhotosByShare = _collabPhotosByShare.asStateFlow()
+    val collabRepPhotos = container.preferences.collabRepPhotoFlow
+    fun setCollabRepresentativePhoto(shareId: String, photoId: Long) = viewModelScope.launch {
+        withContext(NonCancellable + Dispatchers.IO) {
+            val saved = SaveGuard.run("대표 사진", _toast) {
+                container.preferences.setCollabRepPhoto(shareId, photoId)
+            }
+            if (saved != null) _toast.value = "대표 사진으로 정했어요"
+        }
+    }
 
     /** 이 고객의 협업 배정 줄(빈 shareId 는 서버로 채워둠) — 토글이 건별(days)로 골라 쓴다. (2026-11-25 사장님 "토글에도 떠야") */
     private val _collabResolvedLines =
@@ -466,10 +470,7 @@ class CustomerDetailViewModel(
         else container.sharedSiteRepository.photoFull(photoId, shareId, myPhone).getOrNull()
     }
 
-    /**
-     * 🔄 사진을 돌려 저장한다. **크게 보기를 닫을 때 한 번만** 부른다 —
-     *   누를 때마다 쓰면 그만큼 화질이 깎인다. 0 도면 아무것도 안 한다.
-     */
+    /** 크게 보기를 닫을 때 회전 저장. 0도는 생략해 재압축을 피한다. */
     fun rotatePhoto(photoId: Long, degrees: Int) = viewModelScope.launch {
         if (degrees % 360 == 0) return@launch
         val ok = withContext(NonCancellable) {
@@ -504,10 +505,7 @@ class CustomerDetailViewModel(
         MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())
     val restorable = _restorable.asStateFlow()
 
-    /**
-     * 🛟 서버 사진을 폰으로 되살린다. 보기만 되던 것을 **기록으로** 돌려놓는다 —
-     *   내 기록·영상·인증샷·백업이 전부 로컬 사진을 본다.
-     */
+    /** 서버 사진을 로컬로 복원하면 내 기록·영상·인증샷·백업이 함께 읽는다. */
     fun restorePhotosFromServer() = viewModelScope.launch {
         val list = _restorable.value
         if (list.isEmpty()) return@launch

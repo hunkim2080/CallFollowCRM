@@ -359,15 +359,17 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 가드 | 무엇을 막나 | 실패하면 |
 |---|---|---|
-| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (28가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
+| `tools/dup_guard.gradle.kts` | 옛 표기가 **늘어나면** (29가지 규칙) | 「두 벌로 적힌 곳이 늘었습니다」 |
 | `tools/save_guard.gradle.kts` | **사장님이 누른 저장**인데 실패해도 화면이 말하지 않는 곳이 **늘어나면** (지금 **0곳** — 11곳 다 봤다. 조용해도 되는 건 `save-silent-ok` 로 이유를 적어둠) | 「조용히 실패하는 곳이 생겼습니다」 |
 | `tools/size_guard.gradle.kts` | 1,200줄 넘는 파일이 **더 커지면**(여유 40줄 · 지금 14개 38,787줄) | 「화면 파일이 더 커졌습니다」 |
 | `tools/rules_guard.gradle.kts` | ① 문서가 **없는 파일**을 가리킴 ② 가드 목록·숫자가 문서와 다름 ③ **새로 공용이 됐는데 §12 표에 없음** ④ `XxxNew`·`Xxx2` 같은 **복사본 이름** ⑤ **스펙 출처**(`docs/PROTOTYPES.md`)가 비거나 썩음 | 「룰 문서가 코드와 어긋났습니다」 |
 
-**`dup_guard` 가 지금 막는 28가지** — 이게 **빌드가 막아주는 전부**다:
+**`dup_guard` 가 지금 막는 29가지** — 이게 **빌드가 막아주는 전부**다:
 `keyboard-pad` · `day-start` · `month-start` · `upload-cap` · `phone-key` · `dial-tel` · `dialog-white` · `drag-reorder` · `customer-insert-raw` · `rep-job` · `collab-freq-local` · `sms-intent-raw` · `okhttp-raw` · `outbox-direct-send` · `balance-paid-stamp` · `deposit-paid-stamp` · `inbox-ad-inline` · `collab-rep-fallback` · `collab-event-notify` · `thread-classify-raw` · `avatar-tints` · `money-format-raw` · `short-date-raw` · `time-label-raw` · `snackbar-raw` · `date-range-picker` · `new-inquiry` · `collab-stepper`
 
 → **아래 「공용이 있는 자리」 표의 나머지 줄은 사람이 지켜야 한다.** "빌드가 막아줄 거야" 라고 믿지 말 것.
+
+협업 사진 대표 직접 선택 셈은 `collab-photo-pick`으로 막는다.
 
 - **공용 전체 목록은 `tools/shared_baseline.txt` 에 빌드가 직접 적는다** (지금 24개).
   3곳 이상에서 쓰이기 시작한 파일이 생기면 **표에 적으라고 빌드가 멈춘다.**
@@ -452,6 +454,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 | 전화 걸기 | `util/PhoneDialer.kt` | `"tel:" ` URI 직접 |
 | 저장 실패를 **화면에 말하기** | `presentation/util/SaveGuard.kt` | `runCatching` 으로 덮고 조용히 넘기기 |
 | 대표 건 고르기 | `domain/job/RepresentativeJob.kt` | `firstOrNull { … >= today } ?: last()` 를 직접 |
+| 협업 대표사진 선택(지정 ID 우선, 없거나 삭제됐으면 목록 첫 사진) | `domain/collab/CollabRepPhoto.kt` — `pick(photos, chosenPhotoId)`; 선택 저장은 `AppPreferences.collabRepPhoto`, 딱지와 내 기록이 함께 사용 | 화면·기록에서 대표 선택 폴백을 다시 구현 |
 | 그날 갈 곳 순서 | `domain/schedule/DayOrder.kt` | 화면에서 직접 시각 파싱 |
 | A/S 가 그 날을 덮나·덮는 날 목록(무료·시공과 **별개**) | `domain/schedule/AsSchedule.kt` — `coversDay` · `coveredDayStarts`. 홈 띠·일정 탭(`asCoversDay` 입구)·위젯이 같은 판정 | 화면·위젯마다 `asScheduledDate..+days` 직접 전개, `asScheduledDate != null` 로 직접 판정(2026-11-11: 홈이 A/S 를 안 봐 "오늘 일정 없어요") |
 | 한 건(JobEntity)을 **그 건의 고객 카드 사본**으로(일정·날짜·주소·**돈·완료까지 그 건 것**) | `domain/job/JobCardRow.kt` — `rowOf(customer, job)` (일정 탭·달력·고객 상세 건 카드가 부름) | 화면·VM 에서 `c.copy(scheduledWorkDate = j.…)` 를 직접(돈을 안 옮기면 2차 날짜에 1차 돈·완납이 묻어난다 — 2026-10-05 짬뽕 전표) |

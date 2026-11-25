@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.data.preferences
 import android.content.Context
 import android.content.SharedPreferences
 import com.detailline.callfollowcrm.util.PhoneKey
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 간단한 키-값 영속화. v1 에서는 DataStore 도입 부담을 피하고 SharedPreferences 직접 사용.
@@ -1058,6 +1059,33 @@ class AppPreferences(context: Context) {
     }
 
     fun collabInviteFirstSeenMs(shareId: String): Long = collabInviteFirstSeen[shareId] ?: 0L
+
+    /** 협업 대표 선택의 SoT. 디스크 저장에 성공한 값만 화면·기록에 알린다. */
+    private val _collabRepPhoto = kotlinx.coroutines.flow.MutableStateFlow(readCollabRepPhoto())
+    val collabRepPhotoFlow: kotlinx.coroutines.flow.StateFlow<Map<String, Long>> =
+        _collabRepPhoto.asStateFlow()
+    val collabRepPhoto: Map<String, Long> get() = _collabRepPhoto.value
+
+    private fun readCollabRepPhoto(): Map<String, Long> = try {
+        val o = org.json.JSONObject(prefs.getString("collab_rep_photo", "{}") ?: "{}")
+        buildMap { o.keys().forEach { k -> put(k, o.getLong(k)) } }
+    } catch (e: Exception) {
+        android.util.Log.e("AppPreferences", "협업 대표 사진 읽기 실패", e)
+        emptyMap()
+    }
+
+    /** IO에서 호출. 같은 선택 연타는 무해하고, 다른 share 갱신도 유실되지 않는다. */
+    @Synchronized
+    fun setCollabRepPhoto(shareId: String, photoId: Long) {
+        require(shareId.isNotBlank() && photoId > 0)
+        if (collabRepPhoto[shareId] == photoId) return
+        val next = collabRepPhoto + (shareId to photoId)
+        val o = org.json.JSONObject().apply { next.forEach { (k, v) -> put(k, v) } }
+        check(prefs.edit().putString("collab_rep_photo", o.toString()).commit()) {
+            "협업 대표 사진 저장 실패"
+        }
+        _collabRepPhoto.value = next
+    }
 
     /** A가 협업 사장에게 배정 요청한 현장 — 일정 카드 "🤝 이름" 표시용. "customerId|이름" Set. (2026-06-13) */
     var collabAssignments: Set<String>

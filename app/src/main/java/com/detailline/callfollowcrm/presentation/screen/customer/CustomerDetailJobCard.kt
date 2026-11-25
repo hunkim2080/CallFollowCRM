@@ -722,8 +722,11 @@ internal fun JobDetailCard(
                     }
                     Spacer(Modifier.height(10.dp))
                     if (tab != "mine") {
-                        // 🤝 협업 탭 — 그 건에 걸린 협업 사장 사진(업체 칩 + 이름표 · 보기 전용). 새 컴포넌트 한 곳.
-                        JobCollabPhotoStrip(collabGroups, host.onOpenPhoto) { sid, pid -> host.viewModel.collabPhotoFull(sid, pid) }
+                        val collabRepPhotos by viewModel.collabRepPhotos.collectAsState()
+                        JobCollabPhotoStrip(collabGroups, host.onOpenPhoto,
+                            chosenPhotos = collabRepPhotos,
+                            onPickRepresentative = { sid, pid -> viewModel.setCollabRepresentativePhoto(sid, pid) },
+                            onLoadFull = { sid, pid -> viewModel.collabPhotoFull(sid, pid) })
                     } else
                     androidx.compose.foundation.layout.Row(
                         modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),

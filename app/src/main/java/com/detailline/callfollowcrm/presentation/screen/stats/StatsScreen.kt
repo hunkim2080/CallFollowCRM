@@ -131,7 +131,7 @@ fun StatsScreen(
     //   영상은 전엔 인증샷 창을 열어야 나와서 **있는 줄도 몰랐다.** (프로토 "만들기 버튼")
     var shotOpen by remember { mutableStateOf(false) }
     var shotAutoVideo by remember { mutableStateOf(false) }
-    if (shotOpen && rec.lastNo > 0) {
+    if (shotOpen && rec.canMakeRecord) {
         ShotPreviewDialog(
             rec, mapZoom, mapPanX, mapPanY, autoVideo = shotAutoVideo
         ) { shotOpen = false }
@@ -193,7 +193,7 @@ fun StatsScreen(
             // ── ② 할 일 — **있으면** 맨 위 한 줄. 없으면 아예 안 뜬다. (프로토 .todobar)
             //   전엔 자랑하는 화면 한복판에 파랑·빨강 경고가 두 줄 박혀 있었다.
             item(key = "todo") {
-                if (rec.lastNo <= 0) {
+                if (!rec.canMakeRecord) {
                     MyRecordEmpty()
                     Spacer(Modifier.height(12.dp))
                 }
@@ -449,7 +449,7 @@ private fun MyRecordMap(
         // ── 만들기 — **영상이 주인공.** (2026-09-30 사장님 프로토)
         //   전엔 회색 버튼 둘이 나란했다. **뭘 만드는지 눌러야 알아서** 처음 쓰는 분은 안 눌렀다.
         //   ⚠️ 둘 다 크면 **둘 다 안 누른다.** 하나만 주인공으로 두고 나머지는 조용한 줄로.
-        if (rec.lastNo > 0) {
+        if (rec.canMakeRecord) {
             Spacer(Modifier.height(AppSpace.s12))
             Row(
                 Modifier.fillMaxWidth().clip(AppShape.lg).background(TossBlue)
@@ -586,7 +586,7 @@ private fun ShotPreviewDialog(
         )
     }
     // 동네별 사진 — **영상과 똑같이** 미리 읽어둔다. 창을 닫을 때 놓아준다.
-    val previewPhotos = remember(rec.dots) {
+    val previewPhotos = remember(rec.dots, rec.photoPath) {
         val m = LinkedHashMap<String, android.graphics.Bitmap>()
         for (dot in rec.dots.sortedBy { it.order }.take(12)) {
             val pp = dot.photoPath ?: continue
