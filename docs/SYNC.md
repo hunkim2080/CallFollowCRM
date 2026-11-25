@@ -17064,3 +17064,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 왜: 커스텀 알림(RemoteViews)은 다크폰에서 통째로 안 뜨는 실패가 잦은데, 현장용 핵심 알림이 사라진 게 그 증상으로 의심. 폰 검증 못 한 상태라 일단 되돌림. 폰에서 제대로 볼 수 있을 때(무선디버깅/에뮬 시드) 다시 올린다.
 - 되돌린 것: notification_today_site.xml·TodaySiteNotifier.kt 삭제, showTodaySites/refreshTodaySites 는 글자(동호수 제목 A버전)로. 협업 일정 수정·동호수 A버전 텍스트는 유지.
 - 미해결 조사중: ① ANR("응답하지 않음") 일정 화면 — 폰 로그 필요(현재 adb=에뮬만). ② 알림 사라짐이 배너 탓인지 확인 대기(사장님 앱 재시작 후 복귀 여부).
+
+## 2026-11-25 17:30 · android
+**강제종료(ANR·네이티브·메모리) 자동 캡처** 추가 (사장님 "앱 강제종료되면 잡히게").
+- 구멍: CrashCatcher 는 예외(크래시)만 잡음 — ANR(메인스레드 멈춤)·네이티브·메모리 킬은 예외가 아니라 못 잡았다(오늘 ANR 을 우리가 못 본 이유).
+- 추가: CrashCatcher.lastAbnormalExit(OS ApplicationExitInfo, API30+, 최근10 중 미보고 비정상 1건·timestamp dedup·ANR 이면 메인스레드 trace 포함, REASON_CRASH 는 핸들러가 이미 잡아 제외). DiagnosticsReporter.sendForceExit(에뮬 제외 → /api/diagnostics/report=💥상자). CallFollowCrmApplication 시작 때 takeSaved 옆에서 호출(journey app_force_exit + 진단함 직송).
+- §12 표에 DiagnosticsReporter 한 줄 등록(3곳 사용 → 공용 승격) + rulesBaselineUpdate(공용 56). 서버 변경 없음(엔드포인트 기존).
+- 보너스: 이미 난 ANR 이 OS 기록에 남아 있으면 이 버전 설치 후 첫 실행에 소급 캡처됨.
+- 폰 확인: 설치 후 앱 한번 켜면 💥상자(api.si0in.kr/admin/diagnostics)에 지난 ANR 떠야. 사장님 확인 요망.

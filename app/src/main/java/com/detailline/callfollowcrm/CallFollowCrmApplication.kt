@@ -176,6 +176,24 @@ class CallFollowCrmApplication : Application() {
                         android.util.Log.w("CrashCatcher", "지난번 죽은 기록을 보냅니다")
                     }
             }
+            // 🧊 **강제종료(ANR·네이티브·메모리)도 잡는다.** (2026-11-25 사장님 "앱 강제종료되면 잡히게")
+            //   위 핸들러는 예외(크래시)만 본다. 멈춤(ANR)·네이티브는 OS 가 적어둔 종료사유를 다음 켤 때 읽어
+            //   진단함(💥상자)으로 자동 전송(에뮬 제외·중복 1회). ANR 이면 멈춘 메인스레드 덤프까지 온다.
+            runCatching {
+                com.detailline.callfollowcrm.util.CrashCatcher
+                    .lastAbnormalExit(this@CallFollowCrmApplication)?.let { report ->
+                        container.journeyEventRepository.track(
+                            "app_force_exit", screen = "app",
+                            extra = mapOf("report" to report.take(4000))
+                        )
+                        appScope.launch {
+                            com.detailline.callfollowcrm.util.DiagnosticsReporter.sendForceExit(
+                                this@CallFollowCrmApplication, container.preferences, report
+                            )
+                        }
+                        android.util.Log.w("CrashCatcher", "지난번 강제종료(ANR/네이티브) 기록을 보냅니다")
+                    }
+            }
             // 🔎 **버전이 바뀌었으면 여정에 찍는다.** (2026-09-30 사장님)
             //   "이 부분에도 날짜 부분에 업데이트한 게 찍히면 좋겠네."
             //   관리자 여정에서 「이 사람 그때 올렸구나 → 그 뒤로 이게 터졌네」가 보인다.

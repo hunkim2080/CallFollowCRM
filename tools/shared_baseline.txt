@@ -1,36 +1,38 @@
 # 지금 「공용」인 파일들 — 새로 생기면 CLAUDE.md §12 표에 한 줄 적어야 빌드가 통과한다.
 # 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
 # 줄 모양: <파일이름> <쓰는 파일 수> <경로>
-# 총 52개 (3곳 이상에서 쓰이는 것)
-DateTimeUtils 98 util/DateTimeUtils.kt
-PhoneNumberFormatter 53 util/PhoneNumberFormatter.kt
+# 총 56개 (3곳 이상에서 쓰이는 것)
+DateTimeUtils 102 util/DateTimeUtils.kt
+PhoneNumberFormatter 54 util/PhoneNumberFormatter.kt
 PhoneKey 50 util/PhoneKey.kt
 MoneyFormatter 37 util/MoneyFormatter.kt
+AddressExtractor 26 util/AddressExtractor.kt
 SettlementCalc 25 domain/settlement/SettlementCalc.kt
-AddressExtractor 23 util/AddressExtractor.kt
-SmsSender 13 util/SmsSender.kt
-PermissionHelper 12 util/PermissionHelper.kt
-PhoneDialer 12 util/PhoneDialer.kt
+PermissionHelper 14 util/PermissionHelper.kt
+PhoneDialer 13 util/PhoneDialer.kt
+SaveGuard 12 presentation/util/SaveGuard.kt
+SmsSender 12 util/SmsSender.kt
 AvatarInitial 11 domain/ui/AvatarInitial.kt
+RegionName 11 util/RegionName.kt
+SmsIntentHelper 11 util/SmsIntentHelper.kt
 AvatarTints 10 presentation/component/AvatarTints.kt
-RegionName 10 util/RegionName.kt
-SmsIntentHelper 10 util/SmsIntentHelper.kt
 SpamPrefix 10 util/SpamPrefix.kt
+CollabAssignmentLine 9 domain/collab/CollabAssignmentLine.kt
 DefaultSmsAppHelper 9 util/DefaultSmsAppHelper.kt
 LogRedact 9 util/LogRedact.kt
-SaveGuard 8 presentation/util/SaveGuard.kt
-CollabAssignmentLine 7 domain/collab/CollabAssignmentLine.kt
+ContactNameResolver 8 util/ContactNameResolver.kt
 CollabPartnerGroups 7 domain/collab/CollabPartnerGroups.kt
+RepQuestionRules 7 domain/faq/RepQuestionRules.kt
 Completion 7 domain/job/Completion.kt
 NavApp 7 util/NavApp.kt
 RecordShot 7 util/RecordShot.kt
-CollabInviteExpiry 6 domain/collab/CollabInviteExpiry.kt
 OnHold 6 domain/customer/OnHold.kt
 PhoneMatch 6 util/PhoneMatch.kt
+TemplatePhotoStore 6 util/TemplatePhotoStore.kt
+CollabInviteExpiry 5 domain/collab/CollabInviteExpiry.kt
 InboxClassifier 5 domain/inbox/InboxClassifier.kt
 RepresentativeJob 5 domain/job/RepresentativeJob.kt
 OutboxRules 5 domain/outbox/OutboxRules.kt
-ContactNameResolver 5 util/ContactNameResolver.kt
 MapGeo 5 util/MapGeo.kt
 SpamKeywordMatch 4 domain/inbox/SpamKeywordMatch.kt
 OutboxWording 4 presentation/util/OutboxWording.kt
@@ -52,5 +54,7 @@ CalendarMoneyLabel 3 domain/schedule/CalendarMoneyLabel.kt
 RangePick 3 domain/schedule/RangePick.kt
 CashFlowCalc 3 domain/settlement/CashFlowCalc.kt
 PhotoFit 3 domain/ui/PhotoFit.kt
+DiagnosticsReporter 3 util/DiagnosticsReporter.kt
 ImageDownsample 3 util/ImageDownsample.kt
+ImageEncoder 3 util/ImageEncoder.kt
 PhotoModel 3 util/PhotoModel.kt

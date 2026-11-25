@@ -509,6 +509,7 @@ find app/src/test -name "*Test.kt" -exec basename {} \; | sort | uniq -d
 
 | 유입경로 모아보기 집계(접수서 "어디서 보셨어요?" 경로별 전체 누적 + 세부 키워드) | `domain/intake/InflowStats.kt` — `aggregate(labels)` → `InflowGroup`(경로·수·세부) · `total`. 라벨은 `IntakeFormRepository` 가 만든 "네이버 · 블로그 · '줄눈'"(경로 · 세부), 저장은 `IntakeEventEntity.inflowSource`, 내 기록 카드는 `StatsInflowCard` | 화면·VM 에서 유입경로 문자를 직접 `split`/`groupBy`, 세부 집계를 화면마다 새로 |
 | 저장한 말(문구·손님 FAQ 통합) — 공개 토글·질문/답·사진 / 입력칸에 글 넣기 | 저장은 `data/repository/MessageTemplateRepository.kt`·`TemplateAttachmentRepository.kt`, 공개분은 `observePublic()` → `ai/FaqPublishRepository.kt`. 편집은 `presentation/screen/template/TemplateEditScreen.kt` 한 곳. 기존 대표질문은 `data/repository/RepQuestionTemplateMerge.kt`에서 비공개로 1회 복사하고 원본은 백업 보존. 질문 규칙·강조 제거는 `domain/faq/RepQuestionRules.kt`(`QUESTION_MAX`=28), 사진 창고는 `util/TemplatePhotoStore`, 문자 삽입은 `domain/ui/ComposerInsert.append(input, piece)` 재사용 | 공개 토글 기본 켜기, 발행에 비공개 문구 포함, 원본 `rep_questions` 또는 그 사진 삭제, 대표질문 전용 폼에 새 데이터 저장, 문자 삽입·사진 복사를 화면마다 다시 구현 |
+| 문제 신고·진단·**강제종료(ANR·네이티브) 자동 캡처** 서버 전송 | `util/DiagnosticsReporter.kt` — 보내는 통로 한 곳(`postReport`→`/api/diagnostics/report`→💥상자). 강제종료 **감지**는 `util/CrashCatcher.lastAbnormalExit`(OS `ApplicationExitInfo` 읽기, ANR 이면 메인스레드 덤프까지), 예외 크래시는 `CrashCatcher.install`(UncaughtExceptionHandler). 앱 시작 때 `CallFollowCrmApplication` 이 둘 다 다음 켤 때 전송 | 화면·앱에서 `/api/diagnostics/report` 직접 호출, ANR 을 또 다른 데로 감지·전송, 크래시 핸들러 새로 달기 |
 
 > **새 공용을 만들면 이 표에 한 줄 추가한다** — 안 적으면 **빌드가 실패한다**(12-H).
 > 전체 목록(3곳 이상에서 쓰이는 24개)은 `tools/shared_baseline.txt` — **빌드가 직접 적는다.**

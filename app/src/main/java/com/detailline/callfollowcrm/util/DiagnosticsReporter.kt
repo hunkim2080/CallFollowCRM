@@ -83,6 +83,16 @@ object DiagnosticsReporter {
         return sendToServer(context, prefs, note = "[막힘 자동진단] $tag\n$extra", imageUri = null)
     }
 
+    /**
+     * 💥 자동 감지된 **강제종료(ANR·네이티브·메모리)** 를 진단함(💥상자)으로 직송 — 예외핸들러가 못 잡는 죽음.
+     *   [com.detailline.callfollowcrm.util.CrashCatcher.lastAbnormalExit] 가 만든 리포트를 그대로 note 로 보낸다.
+     *   에뮬레이터(Play 테스트팜)는 제외 — 진짜 사용자 것만. (2026-11-25 사장님 "앱 강제종료되면 잡히게")
+     */
+    suspend fun sendForceExit(context: Context, prefs: AppPreferences, report: String): Boolean {
+        if (isProbablyEmulator()) return false
+        return sendToServer(context, prefs, note = "[강제종료 자동감지]\n$report", imageUri = null)
+    }
+
     /** 에뮬레이터(구글 테스트 farm·우리 테스트)인가 — 표준 지문 휴리스틱. */
     private fun isProbablyEmulator(): Boolean {
         val fp = (android.os.Build.FINGERPRINT ?: "")
