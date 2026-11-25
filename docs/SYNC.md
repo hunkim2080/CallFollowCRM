@@ -17079,3 +17079,11 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - pollInvites: pending 전부 재게시(한번 밀어도 복구)·이미 본 건 silent(소리 처음만)·무효해진(수락/거절/만료/휴지통) 건은 cancelCollabInvite 로 내림(seen - shownIds).
 - 커스텀 레이아웃 아님(일반 알림 설정)이라 다크폰 안전. 다른 알림은 기본값이라 영향 없음.
 - 폰 확인: 협업 요청 밀어도 다시 뜨고, 수락/거절하면 사라지는지.
+
+## 2026-11-25 18:25 · android
+오늘의 현장 **커스텀 배너 재도입 — 이번엔 에뮬 검증 완료** (사장님 "고고"). 색/밑줄 되살림.
+- 🐞 지난번 '알림 사라짐' 진짜 원인 **에뮬에서 재현·확정**: RemoteViews 가 순수 `<View>`(왼쪽 바)를 못 그려 `InflateException: Class not allowed` → 알림 통째 드롭. → **`<View>`→`<FrameLayout>`**.
+- 검증: 디버그 리시버(DebugTodayNotiReceiver, app/src/debug)로 알림 띄워 **라이트/다크 둘 다 캡처** — 청록 바·동호수(청록+밑줄)·도로명 멀쩡, inflate 에러 0, dumpsys 게시 확인.
+- 복구: notification_today_site.xml(FrameLayout 바)·TodaySiteNotifier.kt·colors.today_accent·showTodaySites(DecoratedCustomView+실패시 글자폴백)·refreshTodaySites(bannerRoad/meta). 글자색은 TextAppearance.Compat.Notification 으로 테마적응(하드코딩X).
+- 교훈 메모리: reference_remoteviews_notification_no_plain_view (커스텀알림 검증법). 커스텀 알림 블라인드배포 금지.
+- 폰 확인: 에뮬 검증됐지만 사장님 폰에서도 '오늘의 현장' 배너 뜨는지 최종 확인 요망.

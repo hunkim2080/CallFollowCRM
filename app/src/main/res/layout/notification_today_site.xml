@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  📍 오늘의 현장 알림(현장 1곳) 커스텀 배너 — 왼쪽 청록 바 + 동호수 크게/밑줄 + 도로명 + 시각.
+  DecoratedCustomViewStyle 이 위에 앱 머리(아이콘·시각)를 붙이고, 이 뷰가 본문이 된다.
+  ⚠️ 글자색은 알림 전용 TextAppearance 로 **테마(라이트/다크) 자동 적응** — 하드코딩 금지.
+     동호수만 코드에서 today_accent 색+밑줄 span 으로 강조. (2026-11-25 사장님)
+  그리기 실패(기기별 inflate)면 NotificationHelper 가 글자 알림으로 폴백(안 깨짐).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingTop="2dp"
+    android:paddingBottom="6dp"
+    android:paddingEnd="8dp">
+
+    <!-- 왼쪽 청록 세로 바 (글 높이에 맞춰 늘어남).
+         ⚠️ RemoteViews 는 순수 <View> inflate 금지(Class not allowed) → **FrameLayout** 로. (2026-11-25 에뮬에서 '알림 사라짐' 원인) -->
+    <FrameLayout
+        android:layout_width="5dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="12dp"
+        android:background="@color/today_accent" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/today_big"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/today_road"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Line2"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/today_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Line2"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+</LinearLayout>
