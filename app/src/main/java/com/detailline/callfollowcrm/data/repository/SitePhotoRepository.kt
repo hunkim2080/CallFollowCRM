@@ -63,13 +63,17 @@ class SitePhotoRepository(
         fun representativeOf(
             photos: List<SitePhotoEntity>, customerId: Long, jobId: Long?
         ): SitePhotoEntity? =
-            // 🔴 사장님이 **꾹 눌러 직접 고른 것**이 최우선. (2026-10-15 사장님)
-            photos.firstOrNull { it.isRepresentative }
+            // 🔴 사장님이 **꾹 눌러 직접 고른 것**이 최우선 — 단 **그 범위 안에서만** 본다.
+            //   ⚠️ 전엔 `firstOrNull { isRepresentative }` 라 고객·건을 안 가렸다. 한 현장 사진을
+            //      대표로 지정해두면 **모든 현장이 그 한 장을 대표로** 받아, 내 기록 영상에서
+            //      1·2·3번 현장이 전부 같은 사진만 반복됐다. (2026-11-26 사장님)
+            //   그 건 안: 대표 우선 → 아무 것. 그다음 건 없는 옛 사진(그 고객): 대표 우선 → 아무 것.
+            //   마지막 수단 — 그 고객의 아무 사진(대표 우선). (2026-09-25 "5집인데 사진 4개")
+            photos.firstOrNull { it.isRepresentative && it.jobId != null && it.jobId == jobId }
                 ?: photos.firstOrNull { it.jobId != null && it.jobId == jobId }
+                ?: photos.firstOrNull { it.isRepresentative && it.jobId == null && it.customerId == customerId }
                 ?: photos.firstOrNull { it.jobId == null && it.customerId == customerId }
-                // 마지막 수단 — **그 고객의 아무 사진.** (2026-09-25 "5집인데 사진 4개")
-                //   사장님이 1차 탭에서 올린 사진이 2차 건에 안 붙어 **조용히 빠지던** 경우를 건진다.
-                //   그 고객 현장 사진인 건 맞으니, 아예 안 나오는 것보다 낫다.
+                ?: photos.firstOrNull { it.isRepresentative && it.customerId == customerId }
                 ?: photos.firstOrNull { it.customerId == customerId }
 
         /**
