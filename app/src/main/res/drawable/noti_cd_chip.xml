@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ⏳ 협업 요청 알림 카운트다운 칩 배경 — 호박색 알약. (2026-11-25 사장님 프로토) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/collab_cd_chip" />
+    <corners android:radius="9dp" />
+</shape>

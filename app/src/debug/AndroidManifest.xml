@@ -37,5 +37,12 @@
                 <action android:name="com.detailline.callfollowcrm.debug.TODAY_NOTI" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".debug.DebugCollabInviteReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.detailline.callfollowcrm.debug.COLLAB_INVITE" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

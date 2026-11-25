@@ -17087,3 +17087,10 @@ MMS 깨짐 원인 **확정**(샘플 해부) + 버그 신고 **사진 여러 장*
 - 복구: notification_today_site.xml(FrameLayout 바)·TodaySiteNotifier.kt·colors.today_accent·showTodaySites(DecoratedCustomView+실패시 글자폴백)·refreshTodaySites(bannerRoad/meta). 글자색은 TextAppearance.Compat.Notification 으로 테마적응(하드코딩X).
 - 교훈 메모리: reference_remoteviews_notification_no_plain_view (커스텀알림 검증법). 커스텀 알림 블라인드배포 금지.
 - 폰 확인: 에뮬 검증됐지만 사장님 폰에서도 '오늘의 현장' 배너 뜨는지 최종 확인 요망.
+
+## 2026-11-25 19:00 · android
+협업 요청 푸시 **라이브 카운트다운 칩** (사장님 "프로토 모습 아닌데" — 프로토 SeBrR85). 에뮬 검증 완료.
+- 커스텀: res/layout/notification_collab_invite.xml(Chronometer countdown + 호박칩, <View> 안 씀)·drawable/noti_cd_chip·CollabInviteNotifier.kt(buildView, siteLine 조립)·colors(collab_cd_*). showProtoPush 에 contentView(접힘까지 커스텀) 인자. showCollabInvite(deadlineMs·dailyWage) → pollInvites 가 CollabInviteExpiry.anchorOf+TTL 로 마감 넘김.
+- 검증(에뮬 API35): 라이트/다크 둘 다 "수락 마감 3:20:52→47→38" **똑딱 확인**·inflate 에러 0·호박칩/흰글씨 정상. 디버그 DebugCollabInviteReceiver.
+- 크기: NotificationHelper +49→+40(여유내) — siteLine 조립을 notifier 로 옮기고 주석 인라인화(기준선 안 올림).
+- 폰 확인: 협업 요청 오면 카운트다운 칩 뜨고 줄어드는지.

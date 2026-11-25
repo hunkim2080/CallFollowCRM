@@ -967,7 +967,11 @@ object NotificationHelper {
      *   탭하면 협업 현장 화면(/shared/{shareId})이 열려 수락/거절 가능. (2026-06-12 사장님 요청)
      *   고객 번호/대화는 안 들어옴(벽) — 보내는 사장 이름 + 현장 라벨만.
      */
-    fun showCollabInvite(context: Context, shareId: String, ownerName: String, title: String, silent: Boolean = false) {
+    fun showCollabInvite(
+        context: Context, shareId: String, ownerName: String, title: String, silent: Boolean = false,
+        deadlineMs: Long = 0L,     // ⏳ 수락 마감 epoch ms (anchor+24h) — 있으면 라이브 카운트다운 칩. (2026-11-25 프로토)
+        dailyWage: Int? = null     // 일당(만원) — 있으면 현장 줄에 "· N만"
+    ) {
         val notifId = famId(FAM_COLLAB_INVITE, shareId.hashCode())
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
@@ -980,6 +984,9 @@ object NotificationHelper {
         )
         val who = ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" } ?: "다른 사장님"
         val site = title.takeIf { it.isNotBlank() } ?: "현장"
+        // ⏳ 마감 남았으면 라이브 카운트다운 칩(커스텀, 조립은 CollabInviteNotifier). 없거나 inflate 실패면 글자 폴백.
+        val cdView = if (deadlineMs > System.currentTimeMillis())
+            CollabInviteNotifier.buildView(context, who, site, dailyWage, deadlineMs) else null
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
             title = "협업 요청이 왔어요",
@@ -989,7 +996,8 @@ object NotificationHelper {
             navTarget = "collab", navShareId = shareId,
             actions = listOf(PushAction("수락하러 가기", pending)),
             ongoing = true,        // 📌 '오늘의 현장'처럼 안 지워지고 계속. 응답/만료 때 cancelCollabInvite 로 내림.
-            silent = silent        // 폴마다 재게시 — 처음만 울리고(새 요청), 이미 본 건 조용히.
+            silent = silent,       // 폴마다 재게시 — 처음만 울리고(새 요청), 이미 본 건 조용히.
+            contentView = cdView   // 있으면 접힘·펼침 둘 다 카운트다운 칩
         )
     }
 
@@ -1229,12 +1237,10 @@ object NotificationHelper {
         // 🤝 협업 진행 '단계 전진'처럼 같은 알림 id 를 갱신하며 **매번 울려야** 할 땐 false.
         //   (중복은 부르는 쪽이 이미 걸러서(dedup+전진 게이트) 전진 때만 여기 온다 — 2026-11-05 사장님 쿠팡 스텝)
         onlyAlertOnce: Boolean = true,
-        // 📌 '오늘의 현장'처럼 **안 지워지고 계속 떠 있게**(ongoing). 탭해도 안 사라짐 — 응답/만료 때 부르는 쪽이 cancel. (2026-11-25 사장님)
-        ongoing: Boolean = false,
-        // 🔇 소리/진동 없이 조용히 재게시(ongoing 요청을 폴마다 다시 띄울 때 처음 한 번만 울리게). (2026-11-25)
-        silent: Boolean = false,
-        // 🤝 펼쳤을 때 쓸 커스텀 본문(협업 진행 스텝 그림). 있으면 BigText 대신 이걸 그린다 — 접힌 모습은 그대로 제목+한 줄.
-        bigContentView: RemoteViews? = null,
+        ongoing: Boolean = false,          // 📌 안 지워지고 계속(ongoing). 응답/만료 때 부르는 쪽이 cancel. (2026-11-25)
+        silent: Boolean = false,           // 🔇 조용히 재게시(ongoing 폴마다 다시 띄울 때 처음만 울림). (2026-11-25)
+        bigContentView: RemoteViews? = null,  // 🤝 펼침 커스텀 본문(협업 진행 스텝). 있으면 BigText 대신.
+        contentView: RemoteViews? = null,  // 🤝 접힘까지 커스텀(협업 요청 카운트다운 칩). 접힘·펼침 둘 다. (2026-11-25 프로토)
         // 📸 펼쳤을 때 큰 사진 1장(협업 사진 묶음 알림). 있으면 BigPictureStyle — 접힌 모습은 제목+한 줄+작은 썸네일. (2026-11-24)
         bigPicture: android.graphics.Bitmap? = null,
     ) {
@@ -1263,6 +1269,10 @@ object NotificationHelper {
             builder.setLargeIcon(bigPicture).setStyle(
                 NotificationCompat.BigPictureStyle().bigPicture(bigPicture)
                     .bigLargeIcon(null as android.graphics.Bitmap?).setSummaryText(msg))
+        } else if (contentView != null) {   // 접힘·펼침 둘 다 커스텀뷰(협업 카운트다운). 펼침 없으면 같은 뷰. (2026-11-25)
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            builder.setCustomContentView(contentView)
+            builder.setCustomBigContentView(bigContentView ?: contentView)
         } else if (bigContentView != null) {
             builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
             builder.setCustomBigContentView(bigContentView)

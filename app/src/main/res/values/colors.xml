@@ -15,4 +15,9 @@
 
     <!-- 📍 오늘의 현장 알림 배너 포인트 — 라이트/다크 둘 다에서 읽히는 청록. 왼쪽 세로 바 + 동호수 강조색. (2026-11-25 사장님) -->
     <color name="today_accent">#12A594</color>
+
+    <!-- ⏳ 협업 요청 알림 카운트다운 칩 — 항상 호박색(라이트/다크 무관). 그 위 글자는 어두운색 고정. (2026-11-25 사장님 프로토) -->
+    <color name="collab_cd_chip">#FFB020</color>
+    <color name="collab_cd_on">#1A1200</color>
+    <color name="collab_cd_label">#6A4A00</color>
 </resources>

@@ -174,8 +174,14 @@ class CollabEventCenter(
         // 📌 유효한 pending 요청은 **오늘의 현장처럼 계속 떠 있게**(ongoing) 재게시 — 한 번 밀어도 안 사라지게.
         //   소리는 처음 한 번만: 이미 본(seen) 건은 조용히(silent), 새 요청만 울린다. (2026-11-25 사장님)
         for (s in pending) {
+            // ⏳ 수락 마감 = 앵커(서버 공유시각 or 첫 관측) + 24h → 라이브 카운트다운 칩. (2026-11-25 프로토)
+            val anchor = com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.anchorOf(
+                s.createdAtMs, preferences.collabInviteFirstSeenMs(s.shareId)
+            )
+            val deadline = if (anchor > 0L) anchor + com.detailline.callfollowcrm.domain.collab.CollabInviteExpiry.TTL_MS else 0L
             NotificationHelper.showCollabInvite(
-                context, s.shareId, s.ownerName, s.title, silent = s.shareId in seen
+                context, s.shareId, s.ownerName, s.title, silent = s.shareId in seen,
+                deadlineMs = deadline, dailyWage = s.dailyWage
             )
         }
         preferences.seenCollabInviteShareIds = shownIds
