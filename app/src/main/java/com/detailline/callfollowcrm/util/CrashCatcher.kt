@@ -112,14 +112,16 @@ object CrashCatcher {
         return sb.toString().take(MAX_CHARS)
     }
 
-    /** 비정상 = 사용자/시스템의 정상 종료가 아닌 것. REASON_CRASH(앱 예외)는 핸들러가 이미 잡아 제외. */
+    /** 비정상 = 사용자/시스템의 정상 종료가 아닌 것. REASON_CRASH(앱 예외)는 핸들러가 이미 잡아 제외.
+     *   ⚠️ REASON_EXCESSIVE_RESOURCE_USAGE(자원 과다)는 **뺀다** — 이건 "앱 고장"이 아니라 OS 가 백그라운드에서
+     *   리소스(바인더·CPU) 아끼려고 앱을 잠깐 정리한 것(포그라운드 복귀하면 정상). 진짜 신호(ANR·네이티브)를
+     *   묻어버려 💥 상자가 도배됐다(사장님 2026-11-25 "이거 왜 계속 나와" — #37·#40 전부 이것). 진짜 죽음만 본다. */
     private val ABNORMAL: Set<Int>
         get() = setOf(
             android.app.ApplicationExitInfo.REASON_ANR,                        // 응답 없음
             android.app.ApplicationExitInfo.REASON_CRASH_NATIVE,               // 네이티브 크래시
             android.app.ApplicationExitInfo.REASON_SIGNALED,                   // 시그널 강제종료
-            android.app.ApplicationExitInfo.REASON_LOW_MEMORY,                 // 메모리 부족 킬
-            android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE    // 자원 과다
+            android.app.ApplicationExitInfo.REASON_LOW_MEMORY                  // 메모리 부족 킬
         )
 
     private fun reasonName(r: Int): String = when (r) {

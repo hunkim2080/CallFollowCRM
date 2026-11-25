@@ -982,7 +982,7 @@ object NotificationHelper {
             context, notifId, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val now = System.currentTimeMillis()
-        val lines = CollabInviteNotifier.lines(scheduledAtMs, addr, title, timeLabel, ownerName, dailyWage, deadlineMs, now)  // 글자 조립은 Notifier 한 곳 (§12)
+        val lines = CollabInviteNotifier.lines(scheduledAtMs, addr, title, timeLabel, ownerName, dailyWage)  // 글자 조립은 Notifier 한 곳 (§12)
         showProtoPush(
             context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
             title = lines.title, msg = lines.body,
