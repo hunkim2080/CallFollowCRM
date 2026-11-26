@@ -1495,6 +1495,10 @@ fun ChatScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                         Spacer(Modifier.height(4.dp))
+                        // 프로토 1gLbSn1 — 맨 위 '문자 보내기'(가장 자주 쓸 것). 못 열면 공용이 화면에 말한다(§13①).
+                        BubbleActionRow(Icons.AutoMirrored.Filled.Chat, TossBlue, "문자 보내기", "이 번호로 문자를 보내요", onClick = {
+                            com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, target.digits, ""); linkActionTarget = null
+                        })
                         BubbleActionRow(Icons.Default.Phone, TossBlue, "전화 걸기", "이 번호로 전화해요", onClick = {
                             dialPhone(context, target.digits); linkActionTarget = null
                         })

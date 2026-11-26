@@ -17183,3 +17183,10 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
   - SitePhotoRepository.listByCustomer 공개 · AppContainer 에 sitePhotoRestoreManager 배선 · 임시 진단(photoDiag) 제거.
 - 폰 확인: 못 봄 (배포 후 사장님 S9에서 내 기록 영상에 사진 뜨는지 확인 예정)
 - 보류: ①전화번호 탭 '문자 보내기'(프로토 1gLbSn1) ②영상 속도 540+15fps (사진 뜬 뒤 화질 보고 재논의)
+
+## 2026-11-27 09:00 · android
+챗 전화번호 탭 시트에 '문자 보내기' 추가 (프로토 1gLbSn1 · 맨 위 줄)
+- 변경: ChatScreen LinkTapAction.Phone 시트 맨 위에 BubbleActionRow('문자 보내기'/말풍선/파랑) → 공용 SmsIntentHelper.openSmsCompose(번호, "") 호출. 못 열면 공용이 토스트로 말함(§13①). 순서=문자 보내기→전화 걸기→번호 복사.
+- 연결지점 확인(§12-K): "문자 속 번호 탭 → 액션시트"는 이 한 곳(LinkTapAction.Phone)뿐. 나머지 dialPhone(헤더·명함)은 바로 전화라 시트 아님 → 대상 아님.
+- 폰 확인: 못 봄 (배포 후 S9에서 문자 속 번호 탭 → 문자 보내기 뜨는지)
+- 다음 액션: 홈 위젯 '오늘 갈 현장' 글자 가독성 개선 — 프로토 먼저(단지명 11sp 작음·줄 여백 과다). 사장님 "가" 대기.
