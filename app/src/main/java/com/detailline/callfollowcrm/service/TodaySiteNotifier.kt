@@ -53,7 +53,7 @@ object TodaySiteNotifier {
             val id = idFor(it.key)
             val (complex, unit) = splitComplexUnit(it.bigLabel)
             val b = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_TODAY_SITE)
-                .setSmallIcon(R.drawable.ic_notification)
+                .setSmallIcon(R.drawable.ic_today_site)   // 아파트 건물(현장) — 막내 얼굴 대신. (2026-11-26 사장님)
                 .setColor(teal)
                 .setContentTitle(complex)
                 .setContentText(listOfNotNull(unit, it.meta).joinToString(" · "))

@@ -215,7 +215,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
             v.setTextViewText(R.id.widget_unanswered_count, badge)
             txt(R.id.widget_unanswered_name, p.widgetUnansweredName.takeIf { it.any(Char::isLetter) }?.let { "$it 고객님" } ?: "이름 미등록 고객")
             txt(R.id.widget_unanswered_elapsed, p.widgetUnansweredElapsed)
-            txt(R.id.widget_unanswered_msg, p.widgetUnansweredMsg.takeIf { it.isNotBlank() }?.let { "문자 · $it" }.orEmpty())
+            // 메시지 미리보기가 없으면(부재중·본문 미확보) 빈 줄로 휑하게 두지 말고 대체 문구로 채운다. (2026-11-26 사장님 "하다만 느낌")
+            txt(R.id.widget_unanswered_msg, p.widgetUnansweredMsg.takeIf { it.isNotBlank() }?.let { "문자 · $it" } ?: "답장을 기다리고 있어요")
             txt(R.id.widget_reply_done_sub, if (current == null) "한숨 돌려도 괜찮아요." else "이제 오늘 현장을 확인해보세요.")
             // 답장 안 함 탭 → **그 고객 대화로 바로**(답장하러). 번호 없으면 상담함 폴백. (2026-11-05 사장님 "눌러서 바로 답장")
             v.setOnClickPendingIntent(R.id.widget_reply,

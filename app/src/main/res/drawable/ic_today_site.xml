@@ -1,0 +1,11 @@
+<!-- 오늘 갈 현장 알림(상태바·알림) 작은 아이콘 — 아파트 건물. (2026-11-26 사장님: 막내 얼굴 대신 건물)
+     상태바 아이콘은 알파(실루엣)만 쓰이고 색은 시스템/NotificationCompat.setColor 가 입힌다 → 흰색 단색. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,21V5a1,1 0 0 1 1,-1h7a1,1 0 0 1 1,1v4h7a1,1 0 0 1 1,1v11H3ZM6,18h2v-2H6v2ZM6,14h2v-2H6v2ZM6,10h2V8H6v2ZM9,18h2v-2H9v2ZM9,14h2v-2H9v2ZM9,10h2V8H9v2ZM15,18h3v-2h-3v2ZM15,14h3v-2h-3v2Z" />
+</vector>
