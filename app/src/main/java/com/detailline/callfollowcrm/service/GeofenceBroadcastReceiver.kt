@@ -42,17 +42,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         if (key in prefs.reminderNotifiedKeys) continue // 1회만
                         val myPhone = prefs.bizPhone.filter { it.isDigit() }
                         if (myPhone.length < 9) continue
-                        val payload = org.json.JSONObject().apply {
-                            put("step", "arrived")
-                            put("partnerPhone", myPhone)
-                            put("auto", false)   // 코앞 = 진짜 '도착'(auto 아님) → A "도착" 표시
-                        }
-                        val ok = runCatching {
-                            container.outbox.enqueue(
-                                com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS, shareId, payload.toString()
-                            )
-                        }.isSuccess
-                        container.outbox.tryNow()
+                        // 협업 진행 전송은 공용 한 경로(§12). 코앞(300m)=진짜 '도착'(auto=false) → A "도착". 자동 이벤트라 화면 낙관반영 X.
+                        val ok = com.detailline.callfollowcrm.ai.CollabProgressSubmit.submit(
+                            container, shareId, com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.ARRIVED,
+                            auto = false, localProgress = false
+                        )
                         // 도착했으니 **둘 다** 정리(3km·300m). 우체통에 들어갔을 때만(실패하면 다음 진입 재시도). Fable #9
                         if (ok) {
                             prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
@@ -67,18 +61,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         if (key in prefs.reminderNotifiedKeys) continue // 1회만
                         val myPhone = prefs.bizPhone.filter { it.isDigit() }
                         if (myPhone.length < 9) continue
-                        // 📮 우체통으로 — 자동 도착도 오프라인에 안 사라지게(설계 §1-A #6). 넣었으면 1회표시+펜스정리(전송은 우체통이).
-                        val payload = org.json.JSONObject().apply {
-                            put("step", "arrived")
-                            put("partnerPhone", myPhone)
-                            put("auto", true)
-                        }
-                        val ok = runCatching {
-                            container.outbox.enqueue(
-                                com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS, shareId, payload.toString()
-                            )
-                        }.isSuccess
-                        container.outbox.tryNow()
+                        // 📮 공용 경로(§12)로 — 자동 도착(auto=true)도 오프라인에 안 사라지게 Outbox. 자동이라 화면 낙관반영 X.
+                        val ok = com.detailline.callfollowcrm.ai.CollabProgressSubmit.submit(
+                            container, shareId, com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.ARRIVED,
+                            auto = true, localProgress = false
+                        )
                         // ⚠️ 우체통에 들어갔을 때만 '1회 완료'로 찍고 **3km 펜스만** 정리 — 300m "도착" 펜스는 남긴다(코앞에서 또 쏘게). Fable #9
                         if (ok) {
                             prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key

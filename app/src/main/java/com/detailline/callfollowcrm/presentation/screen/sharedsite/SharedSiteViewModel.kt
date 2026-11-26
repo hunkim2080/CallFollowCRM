@@ -259,38 +259,22 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun updateProgress(site: SharedSiteRepository.SharedSite, step: SharedSiteRepository.Progress) {
-        val withAccount = step == SharedSiteRepository.Progress.COMPLETED
         // 완료(COMPLETED) → 도착(ARRIVED) = 되돌리기. 서버도 is_revert 로 처리(재알림 X). (2026-06-21 cowork/사장님)
         val reverting = site.progress == SharedSiteRepository.Progress.COMPLETED &&
             step == SharedSiteRepository.Progress.ARRIVED
         viewModelScope.launch {
-            // 📮 우체통으로 + **낙관적 로컬 반영** — 오프라인에도 바로 보이게. (설계 §1-A #6)
-            //   ⚠️ 이 화면이 그리는 건 _sites 다(홈 띠용 updateLocalProgress 와 별개) → **둘 다** 바꾼다. (Fable #2)
-            container.collabEventCenter.updateLocalProgress(site.shareId, step)
+            // 📮 화면 state(_sites) 는 여기서(홈 띠용 updateLocalProgress 와 별개). 서버 전송·낙관 반영·미러는 공용 경로.
+            //   ⚠️ 알림의 완료 버튼도 **같은 CollabProgressSubmit** 을 쓴다 — payload 가 두 벌이면 안 된다(§12).
             _sites.value = _sites.value.map { if (it.shareId == site.shareId) it.copy(progress = step) else it }
-            val payload = org.json.JSONObject().apply {
-                put("step", step.name.lowercase())
-                put("partnerPhone", myPhone)
-                if (withAccount) {
-                    container.preferences.bizBank.takeIf { it.isNotBlank() }?.let { put("bank", it) }
-                    container.preferences.bizAccountNo.takeIf { it.isNotBlank() }?.let { put("accountNo", it) }
-                    (container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
-                        ?: container.preferences.bizOwner.takeIf { it.isNotBlank() })?.let { put("holder", it) }
-                }
-                myBizName().takeIf { it.isNotBlank() }?.let { put("partnerName", it) }
-            }
-            val queued = runCatching {
-                container.outbox.enqueue(
-                    com.detailline.callfollowcrm.domain.outbox.OutboxKind.COLLAB_PROGRESS,
-                    site.shareId, payload.toString()
-                )
-            }.isSuccess
-            if (!queued) {
+            val ok = com.detailline.callfollowcrm.ai.CollabProgressSubmit.submit(
+                container, site.shareId, step,
+                mirror = step == SharedSiteRepository.Progress.COMPLETED || reverting
+            )
+            if (!ok) {
                 // 🗣 넣기(Room) 실패는 드물지만, 실패하면 **말한다** — 조용히 넘기면 전달이 영영 안 된다(§13①·Fable #9).
                 _toast.value = "저장에 문제가 생겼어요 — 다시 눌러주세요"
                 return@launch
             }
-            container.outbox.tryNow()
             _toast.value = when {
                 reverting -> "완료를 해제했어요 — 다시 '도착' 상태로 돌렸어요"
                 step == SharedSiteRepository.Progress.DEPARTED -> "출발 알렸어요"
@@ -307,10 +291,6 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
             }
             // ⚠️ load() 안 부른다 — 방금 enqueue 한 건 서버가 아직 처리 전이라, 지금 서버를 읽으면
             //   낙관적 반영이 **옛 단계로 되돌아간다**. 다음 폴링/재진입이 서버와 맞춘다. (Fable #2)
-            // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영.
-            if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {
-                runCatching { container.mirrorSyncManager.pushNow(force = true) }
-            }
         }
     }
 

@@ -225,7 +225,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                 // 완료된 현장은 제외 — '완료 누름 OR 잔금 받음'(앱 공용 isWorkDone)이면 오늘의 현장에서 내림.
                 //   전엔 잔금 완납(isPaidOff)만 봤다 → 완료만 누른 현장이 알림에 계속 남았다. (2026-10-07 사장님)
                 if (c.isWorkDone) return@mapNotNull null
-                TodayPlace(c.address!!, todayName(c.name), c.scheduledWorkMinutes, c.phoneNumber)
+                TodayPlace(c.address!!, todayName(c.name), c.scheduledWorkMinutes, c.phoneNumber, customerId = c.id, shareId = null)
             }
             // 🤝 협업 현장도 '오늘 갈 데' — 위젯과 **같은 소스**(withMe). 남의 현장이라도 주소가 떠야 찾아간다. (2026-11-26 사장님)
             //   네트워크가 안 되면 협업만 빈다 — 내 현장 알림은 그대로 뜬다.
@@ -243,59 +243,46 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                         val mins = com.detailline.callfollowcrm.domain.schedule.DayOrder
                             .collabMinutes(s.timeLabel, s.scheduledAtMs)
                             .takeIf { it != com.detailline.callfollowcrm.domain.schedule.DayOrder.UNKNOWN }
-                        TodayPlace(addr, s.ownerName.ifBlank { "협업 현장" }, mins, null)
+                        TodayPlace(addr, s.ownerName.ifBlank { "협업 현장" }, mins, phone = null, customerId = null, shareId = s.shareId)
                     }
             }.getOrDefault(emptyList())
 
             val places = (ownPlaces + collabPlaces).sortedBy { it.minutes ?: 0 }
-            if (places.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
-            // 전화번호는 표시 안 함(탭하면 어차피 문자로 감) — "주소만 딱 잘 보이게". (2026-07-15 사장님)
+            if (places.isEmpty()) { TodaySiteNotifier.clear(context); return }
+            // 📍 현장마다 알림 한 건씩(TodaySiteNotifier). 각 건: 아파트명/동호수(크게·밑줄) + 도로명 + 시각 + [길찾기]·[완료].
             //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다 → '번호 모양' 이름은 뺀다(todayName).
-            //   🏢 주소는 **아파트명+동호수만** 크게 — 도로명/지역은 뺀다(todayBigLabel). (2026-11-25 사장님 "딱 아파트명과 동호수만 크게")
-            // 📍 여러 곳이면 목록(글자) — 1곳 커스텀 배너와 **같은 모양**으로 단지명/동호수를 두 줄로 쪼갠다.
-            //   쪼개는 셈은 TodaySiteNotifier.splitComplexUnit 한 곳(§12). 동호수 줄이 업체·시각보다 앞 = 주인공. (2026-11-26 사장님)
-            //   동호수 강조(청록+밑줄)는 TodaySiteNotifier.buildListBody 가 listLines 로 입힌다 — 1곳 배너와 같은 emphasize.
-            val listLines = places.map { pl ->
+            //   🏢 크게 보일 건 **아파트명+동호수만**(todayBigLabel), 도로명/지역은 2번째 줄. (2026-11-25 사장님)
+            //   완료 버튼용 식별자 — 내 현장은 customerId, 협업은 shareId. (2026-11-26 사장님 "완료 버튼으로 바로 내리기")
+            val items = places.map { pl ->
                 val t = pl.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
-                val (complex, unit) = TodaySiteNotifier.splitComplexUnit(todayBigLabel(pl.address))
+                val big = todayBigLabel(pl.address)
+                val road = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(pl.address).first
+                    .takeIf { it.isNotBlank() && it != big }
+                val (complex, unit) = TodaySiteNotifier.splitComplexUnit(big)
                 val who = listOf(pl.name, t).filter { it.isNotBlank() }.joinToString(" ")
-                TodaySiteNotifier.ListLine(complex, unit, who)
-            }
-            // 접힌 줄(collapsed)·강조 없는 폴백용 글자 목록.
-            val lines = listLines.map { ll ->
-                val second = listOf(ll.unit ?: "", ll.who).filter { it.isNotBlank() }.joinToString(" · ")
-                if (second.isNotBlank()) "📍 ${ll.complex}\n$second" else "📍 ${ll.complex}"
-            }
-            // 현장이 하나면 **아파트명+동호수를 제목(큰 글씨)** 으로, 전체 주소는 펼치면 남긴다. (2026-11-25 사장님 프로토 A)
-            val single = places.singleOrNull()
-            if (single != null) {
-                val t = single.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
-                val full = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(single.address)
-                val detail = listOf("📍 $full", listOf(single.name, t).filter { it.isNotBlank() }.joinToString(" "))
-                    .filter { it.isNotBlank() }.joinToString("\n")
-                // 커스텀 배너 2·3번째 줄 — 도로명/지역 + 시각·안내. (2026-11-25 사장님 "색·밑줄로 눈에 띄게")
-                val road = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(single.address).first
-                    .takeIf { it.isNotBlank() && it != todayBigLabel(single.address) }
-                val meta = listOfNotNull(t.takeIf { it.isNotBlank() }?.let { "⏰ $it" }, "탭하면 길찾기").joinToString(" · ")
-                NotificationHelper.showTodaySites(
-                    context, 1, lines, single.phone,
-                    bigTitle = todayBigLabel(single.address),
-                    subText = listOf("오늘의 현장", t).filter { it.isNotBlank() }.joinToString(" · "),
-                    bigBody = detail,
-                    bannerRoad = road,
-                    bannerMeta = meta
-                )
-            } else {
-                NotificationHelper.showTodaySites(
-                    context, places.size, lines, places.first().phone,
-                    listLines = listLines // 동호수 청록+밑줄 강조(1곳 배너와 같은 emphasize)
+                // 요약(묶음 머리) 한 줄 — 동호수만 청록+밑줄+굵게(배너와 같은 강조 §12).
+                val summary = android.text.SpannableStringBuilder("📍 $complex")
+                if (!unit.isNullOrBlank()) summary.append("  ").append(TodaySiteNotifier.emphasize(context, unit))
+                if (who.isNotBlank()) summary.append(" · ").append(who)
+                TodaySiteNotifier.Item(
+                    key = pl.customerId?.let { "own:$it" } ?: "collab:${pl.shareId}",
+                    bigLabel = big,
+                    road = road,
+                    meta = t.takeIf { it.isNotBlank() }?.let { "⏰ $it" },
+                    navName = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(pl.address),
+                    openPhone = pl.phone,
+                    customerId = pl.customerId,
+                    shareId = pl.shareId,
+                    summaryLine = summary
                 )
             }
+            TodaySiteNotifier.post(context, items)
         }
 
-        /** 오늘 갈 한 곳 — 내 현장·협업 현장을 같은 모양으로(알림 한 벌에서 섞어 쓴다). phone 은 협업이면 null. */
+        /** 오늘 갈 한 곳 — 내 현장·협업 현장을 같은 모양으로. phone/customerId 는 내 현장, shareId 는 협업. */
         private data class TodayPlace(
-            val address: String, val name: String, val minutes: Int?, val phone: String?
+            val address: String, val name: String, val minutes: Int?, val phone: String?,
+            val customerId: Long?, val shareId: String?
         )
 
         /** 오늘의 현장 알림에 쓸 이름 — '번호 모양'(이름 칸에 번호) 이면 뺀다. (2026-07-15 사장님) */

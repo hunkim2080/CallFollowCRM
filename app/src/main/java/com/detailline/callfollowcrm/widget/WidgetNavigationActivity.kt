@@ -45,13 +45,8 @@ class WidgetNavigationActivity : Activity() {
                 ?: error("현장을 찾을 수 없음")
             // Repeated navigation never moves ARRIVED/COMPLETED backwards or resends departure.
             if (site.progress != SharedSiteRepository.Progress.ASSIGNED || site.status != "accepted") return@withLock
-            val payload = JSONObject().apply {
-                put("step", "departed"); put("partnerPhone", c.preferences.bizPhone)
-                put("partnerName", c.preferences.bizName)
-            }
-            c.outbox.enqueue(OutboxKind.COLLAB_PROGRESS, shareId, payload.toString())
-            c.collabEventCenter.updateLocalProgress(shareId, SharedSiteRepository.Progress.DEPARTED)
-            c.outbox.tryNow()
+            // 협업 진행 전송은 공용 한 경로(§12) — 화면·알림·지오펜스와 같은 payload.
+            com.detailline.callfollowcrm.ai.CollabProgressSubmit.submit(c, shareId, SharedSiteRepository.Progress.DEPARTED)
             TodayWidgetProvider.refresh(app)
         }
     }

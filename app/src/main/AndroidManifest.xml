@@ -247,6 +247,11 @@
             android:name=".service.CollabRespondReceiver"
             android:exported="false" />
 
+        <!-- ✅ '오늘의 현장' 알림 [완료] 버튼 → 앱 안 열고 그 현장 완료·내림. (2026-11-26) -->
+        <receiver
+            android:name=".service.TodaySiteCompleteReceiver"
+            android:exported="false" />
+
         <!--
             고객 SMS 수신 즉시 맥미니 서버에 답변 추천 준비 요청 (Phase 1).
 

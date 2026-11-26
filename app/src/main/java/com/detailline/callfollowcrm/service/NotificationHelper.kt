@@ -36,7 +36,7 @@ object NotificationHelper {
     /** 시간 기반 리마인더(시공 D-1·잔금 미수·마감 브리핑). */
     private const val CHANNEL_REMINDER = "reminder_2"
     /** 오늘의 현장 상시 알림 — 현장에서 주소(동/호) 계속 확인용. 무음·상단고정(ongoing), 하루 1건. (2026-07-10 사장님) */
-    private const val CHANNEL_TODAY_SITE = "today_site"
+    internal const val CHANNEL_TODAY_SITE = "today_site"
 
     // ══════════════ 알림 번호(ID) 체계 — 종류마다 100만 칸 (2026-09-15 사장님) ══════════════
     //
@@ -80,6 +80,7 @@ object NotificationHelper {
     internal const val FAM_MMS_FAIL = 18         // MMS 발송 실패
     internal const val FAM_SMS_FAIL = 20         // 문자 발송 실패
     internal const val FAM_SINGLE = 19           // 하나짜리 알림들(아래 상수로 번호 고정)
+    internal const val FAM_TODAY_SITE = 21       // 오늘의 현장(현장마다 한 건, TodaySiteNotifier)
 
     /**
      * 종류 목록 — 단위테스트(NotificationIdTest)가 "어떤 두 종류도 번호가 안 겹친다"를 매번 검사한다.
@@ -106,6 +107,7 @@ object NotificationHelper {
         "MMS 발송실패" to FAM_MMS_FAIL,
         "문자 발송실패" to FAM_SMS_FAIL,
         "하나짜리 알림" to FAM_SINGLE,
+        "오늘의 현장" to FAM_TODAY_SITE,
     )
 
     internal const val BRIEF_ID = FAM_SINGLE * ID_BAND + 1
@@ -1339,70 +1341,8 @@ object NotificationHelper {
         return if (e.isNotBlank() && !title.startsWith(e)) "$e $title" else title
     }
 
-    /**
-     * 오늘의 현장 상시 알림 (2026-07-10 사장님) — 오늘 시공(주소 있는) 현장 주소(동·호)를 상단에 계속 띄워
-     *   현장에서 "몇동 몇호였지?" 바로 확인. 무음·상단고정(ongoing)·배지 없음. 탭 = 첫 현장 채팅.
-     *   갱신/철거는 ReminderWorker.refreshTodaySites 가 담당(주기+앱시작).
-     */
-    fun showTodaySites(
-        context: Context, count: Int, lines: List<String>, openPhone: String?,
-        bigTitle: String? = null,   // 현장 1곳: 아파트명+동호수를 **제목(큰 글씨)** 으로. (2026-11-25 사장님 프로토 A)
-        subText: String? = null,    // 현장 1곳: 접힌 줄 "오늘의 현장 · 오전 9시"
-        bigBody: String? = null,    // 현장 1곳: 펼치면 전체 주소+이름(글자 폴백용)
-        bannerRoad: String? = null, // 현장 1곳 커스텀 배너: 2번째 줄(도로명·지역)
-        bannerMeta: String? = null, // 현장 1곳 커스텀 배너: 3번째 줄(⏰ 시각·안내)
-        listLines: List<TodaySiteNotifier.ListLine>? = null // 현장 2곳+: 동호수 강조(청록+밑줄) 본문 — 있으면 lines 대신 이걸로. (2026-11-26)
-    ) {
-        if (lines.isEmpty()) { clearTodaySites(context); return }
-        // 상시(ongoing) 알림이라 스와이프로 안 지워짐 → 왜 계속 있는지·언제 사라지는지 안내. (2026-07-15 사장님)
-        val foot = "완료하면 자동으로 사라져요"
-        // 현장 1곳이면 아파트명+동호수가 제목(크게), '오늘의 현장'은 작은 줄로 내리고 전체주소는 펼치면. 여러 곳이면 옛 모양.
-        val single = bigTitle != null && bigTitle.isNotBlank()
-        val title = if (single) bigTitle!! else if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
-        val collapsed = if (single) subText.orEmpty().ifBlank { "오늘의 현장" } else lines.first()
-        val body: CharSequence = if (single)
-            listOf(subText.orEmpty(), bigBody.orEmpty()).filter { it.isNotBlank() }.joinToString("\n") + "\n\n$foot"
-        else TodaySiteNotifier.buildListBody(context, listLines.orEmpty(), foot) // 2곳+: 동호수 청록+밑줄+굵게 강조. listLines 비면 footer만
-        val pending = openPhone?.takeIf { it.isNotBlank() }?.let {
-            val intent = Intent(context, MainActivity::class.java).apply {
-                action = MainActivity.ACTION_CHAT
-                putExtra(MainActivity.EXTRA_PHONE_NUMBER, it)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            PendingIntent.getActivity(
-                context, TODAY_SITE_ID, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        }
-        val builder = NotificationCompat.Builder(context, CHANNEL_TODAY_SITE)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ACCENT_TEAL)
-            .setContentTitle(title)
-            .setContentText(collapsed)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)        // 상단 고정(스와이프로 안 지워짐) — "계속 나오게"
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setShowWhen(false)
-        pending?.let { builder.setContentIntent(it) }
-        // 현장 1곳이면 **커스텀 배너**(왼쪽 청록 바 + 동호수 밑줄) — 눈에 띄게. 실패(기기별 inflate)하면 글자 BigText 폴백. (2026-11-25 사장님)
-        val rv = if (single) TodaySiteNotifier.buildView(context, bigTitle!!, bannerRoad, bannerMeta ?: subText) else null
-        if (rv != null) {
-            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                .setCustomContentView(rv)
-                .setCustomBigContentView(rv)
-        } else {
-            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
-        }
-        try {
-            NotificationManagerCompat.from(context).notify(TODAY_SITE_ID, builder.build())
-        } catch (_: SecurityException) { }
-    }
-
-    /** 오늘의 현장 상시 알림 내리기 — 오늘 현장이 없거나 날짜가 지났을 때. */
-    fun clearTodaySites(context: Context) {
-        runCatching { NotificationManagerCompat.from(context).cancel(TODAY_SITE_ID) }
-    }
+    // 📍 '오늘의 현장' 상시 알림은 **현장마다 한 건씩** → [TodaySiteNotifier] 가 담당(요약=TODAY_SITE_ID).
+    //    갱신/철거는 ReminderWorker.refreshTodaySites 가 TodaySiteNotifier.post/clear 로. (2026-11-26 사장님 "한 건씩 나눠, 완료 버튼")
 
     /**
      * MMS(사진) 수신 실패 알림 (2026-06-17 사장님).
