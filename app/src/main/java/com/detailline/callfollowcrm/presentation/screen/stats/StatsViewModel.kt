@@ -469,8 +469,16 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 it.address?.takeIf { a -> a.isNotBlank() } ?: addrOf[it.customerId]
             )
         }
+        // (임시 진단) "사진 올렸는데 영상 0/11" 원인 가르기 — 원인 잡으면 뺀다. (2026-11-27 사장님)
+        val monthCustIds = month.map { it.customerId }.toSet()
+        fun diagFileOk(p: String) = runCatching { java.io.File(p).exists() }.getOrDefault(false)
+        val photoDiag = "진단 DB:${photos.size} 파일:${photos.count { diagFileOk(it.filePath) }}" +
+            " 완료건:${month.size} 고객:${monthCustIds.size}" +
+            " 일치:${photos.count { it.customerId in monthCustIds }}" +
+            " 일치+파일:${photos.count { it.customerId in monthCustIds && diagFileOk(it.filePath) }}"
         return MyRecordState(
             lastNo = lastNo,
+            photoDiag = photoDiag,
             monthSites = month.size + collabMonth.size,
             towns = towns.toList(),
             noAddrCount = noAddrJobs,
@@ -816,7 +824,9 @@ data class MyRecordState(
      * 인증샷에 넣을 **대표 사진** 파일 경로. null = 그 달 현장에 올린 사진이 없다
      *   → 사진이 들어가는 갈래(지도+사진 · 사진 배경)를 **아예 안 보여준다.**
      */
-    val photoPath: String? = null
+    val photoPath: String? = null,
+    /** (임시 진단) "사진 올렸는데 영상 0/11" 원인 가르기 — 원인 잡으면 뺀다. (2026-11-27 사장님) */
+    val photoDiag: String = ""
 ) {
     /** 협업에는 내 현장 번호가 없어도 기록을 만들 수 있다. */
     val canMakeRecord: Boolean get() = lastNo > 0 || monthSites > 0

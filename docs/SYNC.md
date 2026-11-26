@@ -17165,3 +17165,11 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 변경: ReminderWorker.refreshTodaySites 가 withMe(협업)도 담음 / TodaySiteNotifier 2줄 / WebReelRenderer toDataURL 0.75
 - 폰 확인: 못 봄 — ①알림 단지명/동호수 2줄 ②협업 현장 오늘의현장 알림에 주소 뜨는지 ③영상 저장 체감 빨라졌는지
 - 다음 액션: 없음
+
+## 2026-11-27 00:20 · android
+내 기록 영상 "현장 사진 0/11(안 뜸)" 임시 진단 한 줄 추가 — 원인 가르기(추측수정 금지)
+- 변경: StatsViewModel.MyRecordState.photoDiag(+계산) · StatsScreen 현장사진 문구 끝에 진단 붙임. 기능 변화 없음(표시만).
+- 진단 내용: "DB:전체장수 파일:존재 완료건:N 고객:수 일치:customerId일치사진 일치+파일:…" → DB=0=flow빔 / 일치=0=customerId 어긋남 / 일치+파일=0=파일없음 / 그 외=그룹핑버그
+- 폰 확인: 못 봄 (배포 후 사장님이 '내 기록'에서 숫자 읽어 전달 예정)
+- 다음 액션: 사장님이 진단 숫자 알려주면 근본 수정. 원인 잡으면 photoDiag 제거.
+- 보류: ①전화번호 탭 '문자 보내기' 추가(프로토 1gLbSn1·동작=SmsIntentHelper 확정) ②영상 속도 540+15fps(화질 저하 지적과 충돌 → 사진 먼저)

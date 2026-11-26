@@ -743,12 +743,13 @@ private fun ShotPreviewDialog(
                     if (rec.dots.isNotEmpty()) {
                         Spacer(Modifier.height(AppSpace.s4))
                         Text(
-                            if (noPhoto.isEmpty())
+                            (if (noPhoto.isEmpty())
                                 "현장 사진 ${rec.dots.size}/${rec.dots.size} — 도착할 때마다 바뀌어요"
                             else
                                 "현장 사진 ${rec.dots.size - noPhoto.size}/${rec.dots.size} · " +
                                     noPhoto.joinToString(" · ") { it.name } +
-                                    "은 아직 없어요 (고객 상세에서 올리면 들어가요)",
+                                    "은 아직 없어요 (고객 상세에서 올리면 들어가요)") +
+                                (if (rec.photoDiag.isNotBlank()) "\n" + rec.photoDiag else ""),
                             style = AppType.caption,
                             color = if (noPhoto.isEmpty()) TossTextTertiary else AppTheme.colors.unpaid,
                             lineHeight = 16.sp,
