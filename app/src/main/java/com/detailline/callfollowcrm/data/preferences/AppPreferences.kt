@@ -1032,6 +1032,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("hidden_today_site_keys", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("hidden_today_site_keys", value).commit() }
 
+    /** '오늘의 현장' 알림으로 지금 **올려둔** 현장 키들(own:id/collab:shareId) — 끝난(빠진) 현장 알림을 치울 때 쓴다(묶음 없이 개별 발행). */
+    var postedTodaySiteKeys: Set<String>
+        get() = prefs.getStringSet("posted_today_site_keys", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("posted_today_site_keys", value).commit() }
+
     /** 협업 요청(받는 쪽 pending) 알림 중복 방지 — 이미 알림 띄운 share_id 들. */
     var seenCollabInviteShareIds: Set<String>
         get() = prefs.getStringSet("seen_collab_invite_share_ids", emptySet()) ?: emptySet()

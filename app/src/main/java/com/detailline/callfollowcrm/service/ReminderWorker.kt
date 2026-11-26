@@ -261,20 +261,13 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                 val big = todayBigLabel(pl.address)
                 val road = com.detailline.callfollowcrm.util.AddressExtractor.roadThenBuilding(pl.address).first
                     .takeIf { it.isNotBlank() && it != big }
-                val (complex, unit) = TodaySiteNotifier.splitComplexUnit(big)
-                val who = listOf(pl.name, t).filter { it.isNotBlank() }.joinToString(" ")
-                // 요약(묶음 머리) 한 줄 — 동호수만 청록+밑줄+굵게(배너와 같은 강조 §12).
-                val summary = android.text.SpannableStringBuilder("📍 $complex")
-                if (!unit.isNullOrBlank()) summary.append("  ").append(TodaySiteNotifier.emphasize(context, unit))
-                if (who.isNotBlank()) summary.append(" · ").append(who)
                 TodaySiteNotifier.Item(
                     key = pl.key,
                     bigLabel = big,
                     road = road,
                     meta = t.takeIf { it.isNotBlank() }?.let { "⏰ $it" },
                     navName = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(pl.address),
-                    openPhone = pl.phone,
-                    summaryLine = summary
+                    openPhone = pl.phone
                 )
             }
             TodaySiteNotifier.post(context, items)

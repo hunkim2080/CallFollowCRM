@@ -1,6 +1,5 @@
 package com.detailline.callfollowcrm.service
 
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -15,6 +14,7 @@ import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.MainActivity
 import com.detailline.callfollowcrm.R
 
@@ -29,8 +29,6 @@ import com.detailline.callfollowcrm.R
  */
 object TodaySiteNotifier {
 
-    private const val GROUP = "today_sites"
-
     /** 현장 하나 — 알림 한 건에 필요한 것 다. */
     data class Item(
         val key: String,              // "own:123" / "collab:abc" — 알림 ID·요청코드·숨김 기록용
@@ -38,20 +36,21 @@ object TodaySiteNotifier {
         val road: String?,            // 도로명·지역 (없으면 줄 숨김)
         val meta: String?,            // ⏰ 시각 (없으면 줄 숨김)
         val navName: String,          // 길찾기 목적지(주소)
-        val openPhone: String?,       // 내 현장 채팅 열 번호(없으면 앱만 열기)
-        val summaryLine: CharSequence // 요약 알림 한 줄
+        val openPhone: String?        // 내 현장 채팅 열 번호(없으면 앱만 열기)
     )
 
-    /** 현장별 알림을 전부 (다시) 띄운다. 비면 모두 내린다. 끝난(목록에서 빠진) 현장 알림은 자동으로 치운다. */
+    /**
+     * 현장별 알림을 전부 (다시) 띄운다. 비면 모두 내린다. 끝난(목록에서 빠진) 현장 알림은 치운다.
+     *   ⚠️ **묶음(group) 안 쓴다** — S9(옛 One UI)는 묶음을 작은 요약으로 접어 "펼쳐야 크게 보임". 개별 발행이라야
+     *   각 알림이 배너째(단지명+큰 동호수)로 바로 뜬다(S23U 처럼). 끝난 알림 추적은 prefs.postedTodaySiteKeys 로. (2026-11-26 사장님)
+     */
     fun post(context: Context, items: List<Item>) {
         if (items.isEmpty()) { clear(context); return }
         val nmc = NotificationManagerCompat.from(context)
         val teal = ContextCompat.getColor(context, R.color.today_accent)
-        val keep = ArrayList<Int>()
 
         for (it in items) {
             val id = idFor(it.key)
-            keep.add(id)
             val (complex, unit) = splitComplexUnit(it.bigLabel)
             val b = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_TODAY_SITE)
                 .setSmallIcon(R.drawable.ic_notification)
@@ -63,7 +62,6 @@ object TodaySiteNotifier {
                 .setOnlyAlertOnce(true)
                 .setSilent(true)
                 .setShowWhen(false)
-                .setGroup(GROUP)
                 .setContentIntent(openIntent(context, it))
                 .addAction(R.drawable.ic_notification, "길찾기", navIntent(context, it))
                 // [숨기기] — 알림만 내리고 오늘 하루 안 뜨게(데이터·서버 안 건드림). 실제 완료는 앱에서.
@@ -77,51 +75,24 @@ object TodaySiteNotifier {
             runCatching { nmc.notify(id, b.build()) }
         }
 
-        // 묶음 머리(요약) — 2곳 이상일 때만. 접혔을 때 '오늘의 현장 N곳', 펼치면 각 현장. 1곳이면 그 한 건만(요약 불필요).
-        if (items.size >= 2) {
-            val summary = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_TODAY_SITE)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setColor(teal)
-                .setContentTitle("오늘의 현장 ${items.size}곳")
-                .setContentText("완료하면 자동으로 사라져요")
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setSilent(true)
-                .setShowWhen(false)
-                .setGroup(GROUP)
-                .setGroupSummary(true)
-                .setStyle(NotificationCompat.InboxStyle().also { st ->
-                    items.forEach { st.addLine(it.summaryLine) }
-                    st.setSummaryText("완료하면 자동으로 사라져요")
-                })
-            runCatching { nmc.notify(NotificationHelper.TODAY_SITE_ID, summary.build()) }
-            keep.add(NotificationHelper.TODAY_SITE_ID)
-        } else {
-            // 1곳 — 묶음 머리/옛 단일 알림 내림(그 한 건만 남긴다).
-            runCatching { nmc.cancel(NotificationHelper.TODAY_SITE_ID) }
-        }
-
-        // 끝난 현장(이번 목록에 없는) 알림 치우기 — 같은 묶음(GROUP)에서 keep 아닌 것.
-        cancelStale(context, keep.toSet())
+        // 끝난 현장(지난번엔 올렸는데 이번 목록엔 없는) 알림 치우기 + 옛 단일 알림(TODAY_SITE_ID) 정리.
+        val nowKeys = items.map { it.key }.toSet()
+        val gone = context.appPrefs.postedTodaySiteKeys - nowKeys
+        gone.forEach { runCatching { nmc.cancel(idFor(it)) } }
+        runCatching { nmc.cancel(NotificationHelper.TODAY_SITE_ID) } // 옛 버전 묶음/단일 알림 흔적 제거
+        context.appPrefs.postedTodaySiteKeys = nowKeys
     }
 
-    /** 오늘 현장이 없을 때 — 묶음 전부 + 요약(옛 단일 알림 포함) 내린다. */
+    /** 오늘 현장이 없을 때 — 올려둔 현장 알림 전부 + 옛 단일 알림 내린다. */
     fun clear(context: Context) {
         val nmc = NotificationManagerCompat.from(context)
-        cancelStale(context, emptySet())
+        context.appPrefs.postedTodaySiteKeys.forEach { runCatching { nmc.cancel(idFor(it)) } }
         runCatching { nmc.cancel(NotificationHelper.TODAY_SITE_ID) }
+        context.appPrefs.postedTodaySiteKeys = emptySet()
     }
 
-    private fun cancelStale(context: Context, keep: Set<Int>) {
-        val nmc = NotificationManagerCompat.from(context)
-        runCatching {
-            val raw = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            raw.activeNotifications
-                .filter { it.notification.group == GROUP && it.id !in keep }
-                .forEach { nmc.cancel(it.id) }
-        }
-    }
+    private val Context.appPrefs
+        get() = (applicationContext as CallFollowCrmApplication).container.preferences
 
     private fun idFor(key: String): Int =
         NotificationHelper.famId(NotificationHelper.FAM_TODAY_SITE, ("site:$key").hashCode())
@@ -184,8 +155,8 @@ object TodaySiteNotifier {
             rv
         }.getOrNull()
 
-    /** 동호수를 청록색 + 밑줄 + 굵게 — 요약/배너가 같이 쓴다. (굵게는 색을 테마가 덮는 기기에서도 두드러지게) */
-    fun emphasize(context: Context, unit: String): CharSequence {
+    /** 동호수를 청록색 + 밑줄 + 굵게 — 배너의 동호수 줄 강조. (굵게는 색을 테마가 덮는 기기에서도 두드러지게) */
+    private fun emphasize(context: Context, unit: String): CharSequence {
         val accent = ContextCompat.getColor(context, R.color.today_accent)
         return SpannableString(unit).apply {
             setSpan(ForegroundColorSpan(accent), 0, unit.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
