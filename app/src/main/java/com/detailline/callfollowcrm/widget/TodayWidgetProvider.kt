@@ -74,7 +74,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val minutes: Int?, val day: Long, val completed: Boolean,
             val customerId: Long = 0, val shareId: String = "", val partner: String = "",
             /** A/S 현장(무료·시간 미정) 표시용. 시공·협업과 구분. (2026-11-11) */
-            val isAs: Boolean = false
+            val isAs: Boolean = false,
+            /** 🏢 여러 곳 줄 표시용 **현장 메모(JobEntity.memo)만** — 고객 메모(CustomerEntity.memo)는 안 샌다. (2026-11-26 사장님) */
+            val jobMemo: String = ""
         )
 
         fun refresh(context: Context) {
@@ -148,7 +150,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 주간 줄은 저녁의 내일 미리보기와 무관하게 항상 오늘부터 7일.
             val week = all.filter { it.day < today + 7 * DateTimeUtils.DAY_MS }.groupBy { it.day }
             if (!tick && networkOk) p.widgetUpdatedAt = now
-            val v = buildViews(app, anchorSites.size, current, week, today, now, tomorrow)
+            val v = buildViews(app, anchorSites.size, current, arranged.ordered, week, today, now, tomorrow)
             ids.forEach { manager.updateAppWidget(it, v) }
             // Non-wakeup/inexact: no exact-alarm permission, no API 31 dependency. Doze can defer it.
             (app.getSystemService(Context.ALARM_SERVICE) as AlarmManager).setInexactRepeating(
@@ -166,7 +168,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 unit = unitOf(AddressExtractor.splitDongHo(addr)), memo = (j?.memo ?: c.memo).trim(), items = "",
                 timeLabel = minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(), navAddress = AddressExtractor.tidyAddress(addr),
                 minutes = minutes, day = (if (j != null) j.scheduledWorkDate else c.scheduledWorkDate)?.let(DateTimeUtils::startOfDay) ?: 0,
-                completed = j?.let(Completion::isDone) ?: Completion.isDone(c), customerId = c.id)
+                completed = j?.let(Completion::isDone) ?: Completion.isDone(c), customerId = c.id,
+                jobMemo = j?.memo?.trim().orEmpty())  // 줄 표시 메모는 현장(건) 메모만 — 고객 메모 폴백 X
         }
 
         /** 🔧 A/S 현장 한 줄 — 무료·시간 미정(minutes null). day = 덮는 그 날. 시공(siteOf)과 별개. */
@@ -196,10 +199,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 timeLabel = minutes?.let(DateTimeUtils::formatWorkMinutes).orEmpty(),
                 navAddress = AddressExtractor.tidyAddress(addr), minutes = minutes,
                 day = DateTimeUtils.startOfDay(s.scheduledAtMs),
-                completed = s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName)
+                completed = s.progress == SharedSiteRepository.Progress.COMPLETED, shareId = s.shareId, partner = s.ownerName,
+                jobMemo = s.memo.orEmpty().trim())  // 협업은 공유받은 현장 메모(= 현장 메모)
         }
 
-        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, week: Map<Long, List<Site>>, today: Long, now: Long, tomorrow: Boolean): RemoteViews {
+        private fun buildViews(app: CallFollowCrmApplication, count: Int, current: Site?, sites: List<Site>, week: Map<Long, List<Site>>, today: Long, now: Long, tomorrow: Boolean): RemoteViews {
             val p = app.container.preferences
             val v = RemoteViews(app.packageName, R.layout.widget_today)
             fun show(id: Int, yes: Boolean) = v.setViewVisibility(id, if (yes) View.VISIBLE else View.GONE)
@@ -233,14 +237,19 @@ class TodayWidgetProvider : AppWidgetProvider() {
             })
             v.setOnClickPendingIntent(R.id.widget_refresh, PendingIntent.getBroadcast(app, 8,
                 Intent(app, TodayWidgetProvider::class.java).setAction(ACTION_WIDGET_REFRESH), FLAGS))
+            // 여러 곳(2곳+)이면 큰 카드 대신 **같은 크기 줄**. 1곳은 지금처럼 큰 카드. (2026-11-26 사장님)
+            val multi = current != null && sites.size >= 2
             show(R.id.widget_primary, current != null); show(R.id.widget_empty, current == null)
+            show(R.id.widget_site_card, current != null && !multi); show(R.id.widget_open, current != null && !multi)
+            show(R.id.widget_site_rows, multi)
+            if (multi) fillSiteRows(app, v, sites)
             txt(R.id.widget_empty_sub, when {
                 tomorrow -> "내일은 아직 현장이 없어요.\n여유로운 하루가 되겠네요."
                 reply -> "기다리는 고객에게\n여유 있게 답장해보세요."
                 else -> "오늘은 여유 있게,\n다음 일정을 확인해보세요."
             })
             v.setOnClickPendingIntent(R.id.widget_schedule, routePending(app, "schedule"))
-            if (current != null) {
+            if (current != null && !multi) {
                 val density = TodayWidgetDensity.of(current.memo, current.items)
                 txt(R.id.widget_name, current.headline); txt(R.id.widget_time, current.timeLabel)
                 show(R.id.widget_time, current.timeLabel.isNotBlank())
@@ -272,6 +281,46 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 🏠 집으로 길찾기 — 주소 있으면 바로 네비, 없으면 **집 주소 입력창으로 바로** 보낸다. (2026-11-05 사장님)
             v.setOnClickPendingIntent(R.id.widget_home, if (p.homeAddress.isBlank()) routePending(app, "home_address") else navigationPending(app, p.homeAddress))
             return v
+        }
+
+        /** 🏢 여러 곳(2곳+) — 같은 크기 줄 3개 채우기. 각 줄: 시간 | 단지명+딱지 / 동호수 / 현장메모 | ›. 줄 탭=그 현장 길찾기. */
+        private fun fillSiteRows(app: CallFollowCrmApplication, v: RemoteViews, sites: List<Site>) {
+            val rows = arrayOf(
+                intArrayOf(R.id.widget_row0, R.id.widget_row0_time, R.id.widget_row0_cx, R.id.widget_row0_tag, R.id.widget_row0_unit, R.id.widget_row0_memo),
+                intArrayOf(R.id.widget_row1, R.id.widget_row1_time, R.id.widget_row1_cx, R.id.widget_row1_tag, R.id.widget_row1_unit, R.id.widget_row1_memo),
+                intArrayOf(R.id.widget_row2, R.id.widget_row2_time, R.id.widget_row2_cx, R.id.widget_row2_tag, R.id.widget_row2_unit, R.id.widget_row2_memo)
+            )
+            val divs = intArrayOf(R.id.widget_rowdiv0, R.id.widget_rowdiv1)
+            val shown = minOf(sites.size, 3)
+            rows.forEachIndexed { i, ids ->
+                if (i >= shown) { v.setViewVisibility(ids[0], View.GONE); return@forEachIndexed }
+                val s = sites[i]
+                v.setViewVisibility(ids[0], View.VISIBLE)
+                v.setTextViewText(ids[1], if (s.isAs) "A/S" else s.timeLabel.ifBlank { "–" })
+                val cx = s.complex.ifBlank { s.headline }
+                v.setTextViewText(ids[2], cx)
+                val tag = when {
+                    s.shareId.isNotBlank() -> "🤝 ${s.partner}"
+                    s.isAs -> "🔧 A/S"
+                    else -> ""
+                }
+                v.setViewVisibility(ids[3], if (tag.isBlank()) View.GONE else View.VISIBLE)
+                if (tag.isNotBlank()) {
+                    v.setTextViewText(ids[3], tag)
+                    v.setTextColor(ids[3], if (s.isAs) 0xFFB26A00.toInt() else 0xFF6246EA.toInt())
+                }
+                v.setTextViewText(ids[4], s.unit.ifBlank { cx })   // 동호수 없으면 단지명/이름
+                v.setViewVisibility(ids[5], if (s.jobMemo.isBlank()) View.GONE else View.VISIBLE)
+                if (s.jobMemo.isNotBlank()) v.setTextViewText(ids[5], "📝 ${s.jobMemo}")  // 현장 메모만(고객 메모 아님)
+                v.setOnClickPendingIntent(ids[0], navigationPending(app, s.navAddress, s.shareId))
+            }
+            divs.forEachIndexed { i, id -> v.setViewVisibility(id, if (i < shown - 1) View.VISIBLE else View.GONE) }
+            val more = sites.size - 3
+            v.setViewVisibility(R.id.widget_rows_more, if (more > 0) View.VISIBLE else View.GONE)
+            if (more > 0) {
+                v.setTextViewText(R.id.widget_rows_more, "외 ${more}곳 더  ›")
+                v.setOnClickPendingIntent(R.id.widget_rows_more, routePending(app, "schedule", 30))
+            }
         }
 
         private fun fillWeek(app: CallFollowCrmApplication, v: RemoteViews, week: Map<Long, List<Site>>, today: Long) {
