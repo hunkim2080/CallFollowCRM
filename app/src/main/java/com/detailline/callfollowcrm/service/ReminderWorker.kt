@@ -252,11 +252,14 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             // 전화번호는 표시 안 함(탭하면 어차피 문자로 감) — "주소만 딱 잘 보이게". (2026-07-15 사장님)
             //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다 → '번호 모양' 이름은 뺀다(todayName).
             //   🏢 주소는 **아파트명+동호수만** 크게 — 도로명/지역은 뺀다(todayBigLabel). (2026-11-25 사장님 "딱 아파트명과 동호수만 크게")
+            // 📍 여러 곳이면 목록(글자) — 1곳 커스텀 배너와 **같은 모양**으로 단지명/동호수를 두 줄로 쪼갠다.
+            //   쪼개는 셈은 TodaySiteNotifier.splitComplexUnit 한 곳(§12). 동호수 줄이 업체·시각보다 앞 = 주인공. (2026-11-26 사장님)
             val lines = places.map { pl ->
                 val t = pl.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
-                val big = todayBigLabel(pl.address)
-                val second = listOf(pl.name, t).filter { it.isNotBlank() }.joinToString(" ")
-                if (second.isNotBlank()) "📍 $big\n$second" else "📍 $big"
+                val (complex, unit) = TodaySiteNotifier.splitComplexUnit(todayBigLabel(pl.address))
+                val who = listOf(pl.name, t).filter { it.isNotBlank() }.joinToString(" ")
+                val second = listOf(unit ?: "", who).filter { it.isNotBlank() }.joinToString(" · ")
+                if (second.isNotBlank()) "📍 $complex\n$second" else "📍 $complex"
             }
             // 현장이 하나면 **아파트명+동호수를 제목(큰 글씨)** 으로, 전체 주소는 펼치면 남긴다. (2026-11-25 사장님 프로토 A)
             val single = places.singleOrNull()
