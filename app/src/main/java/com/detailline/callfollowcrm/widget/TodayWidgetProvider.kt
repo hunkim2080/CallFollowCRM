@@ -296,7 +296,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 if (i >= shown) { v.setViewVisibility(ids[0], View.GONE); return@forEachIndexed }
                 val s = sites[i]
                 v.setViewVisibility(ids[0], View.VISIBLE)
-                v.setTextViewText(ids[1], if (s.isAs) "A/S" else s.timeLabel.ifBlank { "–" })
+                v.setTextViewText(ids[1], pillTime(s))
                 val cx = s.complex.ifBlank { s.headline }
                 v.setTextViewText(ids[2], cx)
                 val tag = when {
@@ -314,13 +314,33 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 if (s.jobMemo.isNotBlank()) v.setTextViewText(ids[5], "📝 ${s.jobMemo}")  // 현장 메모만(고객 메모 아님)
                 v.setOnClickPendingIntent(ids[0], navigationPending(app, s.navAddress, s.shareId))
             }
-            divs.forEachIndexed { i, id -> v.setViewVisibility(id, if (i < shown - 1) View.VISIBLE else View.GONE) }
+            divs.forEach { v.setViewVisibility(it, View.GONE) }   // 카드 사이 여백으로 구분 — 줄은 안 쓴다 (프로토 MnzdxVU)
             val more = sites.size - 3
             v.setViewVisibility(R.id.widget_rows_more, if (more > 0) View.VISIBLE else View.GONE)
             if (more > 0) {
                 v.setTextViewText(R.id.widget_rows_more, "외 ${more}곳 더  ›")
                 v.setOnClickPendingIntent(R.id.widget_rows_more, routePending(app, "schedule", 30))
             }
+        }
+
+        /**
+         * 시간 알약 글자 — '오전/오후'는 크게(XML 14sp), 뒤 '9시'는 작게(0.75× ≈ 10.5sp) 2줄.
+         * A/S·빈값·분까지 없는 꼴은 한 줄 그대로. 크기는 프로토 MnzdxVU 와 같다.
+         */
+        private fun pillTime(s: Site): CharSequence {
+            if (s.isAs) return "A/S"
+            val t = s.timeLabel.ifBlank { "–" }
+            val sp = t.indexOf(' ')
+            if (sp <= 0) return t                       // 공백 없으면(‘–’ 등) 한 줄
+            val period = t.substring(0, sp)             // 오전 / 오후
+            val rest = t.substring(sp + 1)              // 9시 / 1시 30분
+            val out = android.text.SpannableString(period + "\n" + rest)
+            out.setSpan(
+                android.text.style.RelativeSizeSpan(0.75f),
+                period.length + 1, out.length,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            return out
         }
 
         private fun fillWeek(app: CallFollowCrmApplication, v: RemoteViews, week: Map<Long, List<Site>>, today: Long) {
