@@ -247,9 +247,9 @@
             android:name=".service.CollabRespondReceiver"
             android:exported="false" />
 
-        <!-- ✅ '오늘의 현장' 알림 [완료] 버튼 → 앱 안 열고 그 현장 완료·내림. (2026-11-26) -->
+        <!-- 🙈 '오늘의 현장' 알림 [숨기기] 버튼 → 알림만 내리고 오늘 하루 숨김(데이터·서버 안 건드림). (2026-11-26) -->
         <receiver
-            android:name=".service.TodaySiteCompleteReceiver"
+            android:name=".service.TodaySiteHideReceiver"
             android:exported="false" />
 
         <!--

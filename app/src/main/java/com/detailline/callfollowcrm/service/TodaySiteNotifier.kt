@@ -22,7 +22,7 @@ import com.detailline.callfollowcrm.R
  * 📍 '오늘의 현장' 상시 알림 — **현장마다 한 건씩** 띄운다(삼성에선 '시공막내'로 묶임). (2026-11-26 사장님)
  *   한 알림에 다 넣으면 접혔을 때 첫 줄만 보여 "펼쳐야 보인다" → 현장별로 나눠 각각:
  *     · 왼쪽 청록 바 + **동호수 크게/밑줄/굵게** + 도로명 + 시각 (커스텀 배너, 기기별 실패 시 글자 폴백)
- *     · [길찾기] (지도앱) · [완료] (앱 안 열고 바로 내림 — [TodaySiteCompleteReceiver])
+ *     · [길찾기] (지도앱) · [숨기기] (알림만 내리고 오늘 하루 숨김 — [TodaySiteHideReceiver], 작업 완료 아님)
  *   글자색은 레이아웃의 알림 전용 TextAppearance 가 **테마(라이트/다크) 자동 적응**, 동호수만 여기서 강조.
  *
  *   알림 ID 는 FAM_TODAY_SITE 대역(현장 key 해시) — 다른 종류와 구조상 안 겹침. 요약(묶음 머리)은 TODAY_SITE_ID 재사용.
@@ -31,16 +31,14 @@ object TodaySiteNotifier {
 
     private const val GROUP = "today_sites"
 
-    /** 현장 하나 — 알림 한 건에 필요한 것 다. (내 현장이면 customerId, 협업이면 shareId) */
+    /** 현장 하나 — 알림 한 건에 필요한 것 다. */
     data class Item(
-        val key: String,              // "own:123" / "collab:abc" — 알림 ID·요청코드용
+        val key: String,              // "own:123" / "collab:abc" — 알림 ID·요청코드·숨김 기록용
         val bigLabel: String,         // 아파트명+동호수
         val road: String?,            // 도로명·지역 (없으면 줄 숨김)
         val meta: String?,            // ⏰ 시각 (없으면 줄 숨김)
         val navName: String,          // 길찾기 목적지(주소)
         val openPhone: String?,       // 내 현장 채팅 열 번호(없으면 앱만 열기)
-        val customerId: Long?,        // 완료(내 현장)
-        val shareId: String?,         // 완료(협업)
         val summaryLine: CharSequence // 요약 알림 한 줄
     )
 
@@ -68,11 +66,8 @@ object TodaySiteNotifier {
                 .setGroup(GROUP)
                 .setContentIntent(openIntent(context, it))
                 .addAction(R.drawable.ic_notification, "길찾기", navIntent(context, it))
-                .addAction(
-                    R.drawable.ic_notification, "완료",
-                    if (it.customerId != null) TodaySiteCompleteReceiver.own(context, it.customerId, id)
-                    else TodaySiteCompleteReceiver.collab(context, it.shareId.orEmpty(), id)
-                )
+                // [숨기기] — 알림만 내리고 오늘 하루 안 뜨게(데이터·서버 안 건드림). 실제 완료는 앱에서.
+                .addAction(R.drawable.ic_notification, "숨기기", TodaySiteHideReceiver.intent(context, it.key, id))
             val rv = buildView(context, it.bigLabel, it.road, it.meta)
             if (rv != null) {
                 b.setStyle(NotificationCompat.DecoratedCustomViewStyle())

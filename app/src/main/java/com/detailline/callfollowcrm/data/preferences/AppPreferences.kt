@@ -1026,6 +1026,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("hidden_collab_share_ids", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("hidden_collab_share_ids", value).commit() }
 
+    /** '오늘의 현장' 알림에서 [숨기기] 누른 현장 — "<오늘0시ms>|<키>"(own:id/collab:shareId). 오늘 하루만 숨김(날 바뀌면 자동 무효).
+     *   작업 완료가 아니라 **알림만** 숨기는 것(데이터·서버 안 건드림). (2026-11-26 사장님) */
+    var hiddenTodaySiteKeys: Set<String>
+        get() = prefs.getStringSet("hidden_today_site_keys", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("hidden_today_site_keys", value).commit() }
+
     /** 협업 요청(받는 쪽 pending) 알림 중복 방지 — 이미 알림 띄운 share_id 들. */
     var seenCollabInviteShareIds: Set<String>
         get() = prefs.getStringSet("seen_collab_invite_share_ids", emptySet()) ?: emptySet()

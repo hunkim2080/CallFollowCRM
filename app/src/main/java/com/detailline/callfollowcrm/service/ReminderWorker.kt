@@ -247,12 +247,15 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                     }
             }.getOrDefault(emptyList())
 
-            val places = (ownPlaces + collabPlaces).sortedBy { it.minutes ?: 0 }
+            // 🙈 [숨기기] 누른 현장은 **오늘 하루** 뺀다 — 알림만 숨긴 것(작업 완료 아님). 날 바뀌면 자동 무효. (2026-11-26 사장님)
+            val hiddenToday = container.preferences.hiddenTodaySiteKeys
+            val places = (ownPlaces + collabPlaces)
+                .filter { "$todayStart|${it.key}" !in hiddenToday }
+                .sortedBy { it.minutes ?: 0 }
             if (places.isEmpty()) { TodaySiteNotifier.clear(context); return }
-            // 📍 현장마다 알림 한 건씩(TodaySiteNotifier). 각 건: 아파트명/동호수(크게·밑줄) + 도로명 + 시각 + [길찾기]·[완료].
+            // 📍 현장마다 알림 한 건씩(TodaySiteNotifier). 각 건: 아파트명/동호수(크게·밑줄) + 도로명 + 시각 + [길찾기]·[숨기기].
             //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다 → '번호 모양' 이름은 뺀다(todayName).
             //   🏢 크게 보일 건 **아파트명+동호수만**(todayBigLabel), 도로명/지역은 2번째 줄. (2026-11-25 사장님)
-            //   완료 버튼용 식별자 — 내 현장은 customerId, 협업은 shareId. (2026-11-26 사장님 "완료 버튼으로 바로 내리기")
             val items = places.map { pl ->
                 val t = pl.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
                 val big = todayBigLabel(pl.address)
@@ -265,14 +268,12 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                 if (!unit.isNullOrBlank()) summary.append("  ").append(TodaySiteNotifier.emphasize(context, unit))
                 if (who.isNotBlank()) summary.append(" · ").append(who)
                 TodaySiteNotifier.Item(
-                    key = pl.customerId?.let { "own:$it" } ?: "collab:${pl.shareId}",
+                    key = pl.key,
                     bigLabel = big,
                     road = road,
                     meta = t.takeIf { it.isNotBlank() }?.let { "⏰ $it" },
                     navName = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(pl.address),
                     openPhone = pl.phone,
-                    customerId = pl.customerId,
-                    shareId = pl.shareId,
                     summaryLine = summary
                 )
             }
@@ -283,7 +284,10 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         private data class TodayPlace(
             val address: String, val name: String, val minutes: Int?, val phone: String?,
             val customerId: Long?, val shareId: String?
-        )
+        ) {
+            /** 알림 ID·숨김 기록용 키 — 한 곳에서 짓는다(§12). */
+            val key: String get() = customerId?.let { "own:$it" } ?: "collab:$shareId"
+        }
 
         /** 오늘의 현장 알림에 쓸 이름 — '번호 모양'(이름 칸에 번호) 이면 뺀다. (2026-07-15 사장님) */
         private fun todayName(name: String?): String =
