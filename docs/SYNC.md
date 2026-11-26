@@ -17173,3 +17173,13 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 폰 확인: 못 봄 (배포 후 사장님이 '내 기록'에서 숫자 읽어 전달 예정)
 - 다음 액션: 사장님이 진단 숫자 알려주면 근본 수정. 원인 잡으면 photoDiag 제거.
 - 보류: ①전화번호 탭 '문자 보내기' 추가(프로토 1gLbSn1·동작=SmsIntentHelper 확정) ②영상 속도 540+15fps(화질 저하 지적과 충돌 → 사진 먼저)
+
+## 2026-11-27 05:17 · android
+내 기록 영상 "현장 사진 0/N(안 뜸)" 근본 수정 — 서버 사진 폰 자동복원 + 죽은줄 방어 (진단 줄 제거)
+- 원인: 재설치/백업복원으로 현장사진이 서버(team_site_photos)에만 남음. 고객상세는 로컬+서버를 보지만 내 기록 영상·인증샷은 **로컬만** 봐서 0/N. (서버 DB 확인: owner 01064610131 사진 346장 존재. 코드 근거 CustomerDetailViewModel:508)
+- 변경:
+  - 신규 공용 data/repository/SitePhotoRestoreManager.restoreMissing(customers) — 폰에 살아있는 파일 0인 고객만 서버(isOwner) addFromBitmap 으로 로컬 복원. 고객상세 수동 '되살리기'와 같은 잣대(§12). 버스트 방지로 호출부가 고객 범위 좁혀 넘김(save-silent-ok: 백그라운드 자동복원).
+  - StatsViewModel: 보는 달 현장 고객만 자동복원 트리거(달마다 1회·실패시 재시도) + 대표/시공전 사진 조회를 photosAlive(파일 있는 줄만)로 → 죽은 줄에 막혀 폴백 못하던 것 방어.
+  - SitePhotoRepository.listByCustomer 공개 · AppContainer 에 sitePhotoRestoreManager 배선 · 임시 진단(photoDiag) 제거.
+- 폰 확인: 못 봄 (배포 후 사장님 S9에서 내 기록 영상에 사진 뜨는지 확인 예정)
+- 보류: ①전화번호 탭 '문자 보내기'(프로토 1gLbSn1) ②영상 속도 540+15fps (사진 뜬 뒤 화질 보고 재논의)

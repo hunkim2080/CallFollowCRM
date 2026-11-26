@@ -171,6 +171,12 @@ class AppContainer(context: Context) {
 
     val preferences = AppPreferences(context)
 
+    // 🛟 서버에만 있는 내 현장 사진을 폰으로 되살리는 공용(내 기록 영상·인증샷·백업이 로컬만 읽는 틈 메움).
+    //   sitePhotoRepository·sitePhotoServerRepository·jobRepository·preferences 뒤에 생성한다.
+    val sitePhotoRestoreManager = com.detailline.callfollowcrm.data.repository.SitePhotoRestoreManager(
+        sitePhotoRepository, sitePhotoServerRepository, jobRepository, preferences
+    )
+
     // 손님 FAQ 발행은 공개 문구와 첨부를 읽는다. preferences 초기화 뒤에 생성한다.
     val faqPublishRepository = com.detailline.callfollowcrm.ai.FaqPublishRepository(
         context.applicationContext, preferences, messageTemplateRepository, templateAttachmentRepository

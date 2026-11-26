@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
@@ -152,7 +153,42 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     private val collabSites =
         kotlinx.coroutines.flow.MutableStateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>>(emptyList())
 
-    init { refreshCollab() }
+    /** 이미 자동복원을 시도한 달(중복 호출 방지). */
+    private val restoredMonths = java.util.Collections.synchronizedSet(HashSet<Int>())
+
+    init {
+        refreshCollab()
+        // 🛟 서버에만 있는 내 현장 사진을 폰으로 자동 복원 — 재설치·백업복원으로 폰엔 없고 서버에만 있던 사진이
+        //   내 기록 영상·인증샷에 안 뜨던 것(2026-11-27 사장님). **보는 달의 현장 고객만** 추려(버스트 방지)
+        //   폰에 사진이 없는 고객만 되살린다. 달을 넘기면 그 달치도 한 번 더 받는다.
+        viewModelScope.launch { recordMonth.collect { md -> autoRestorePhotos(md) } }
+    }
+
+    private fun autoRestorePhotos(monthDelta: Int) {
+        if (!restoredMonths.add(monthDelta)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val cs = customers.first()
+                val js = jobsFlow.first()
+                val mStart = DateTimeUtils.shiftMonth(
+                    DateTimeUtils.startOfMonth(System.currentTimeMillis()), monthDelta
+                )
+                val mEnd = DateTimeUtils.shiftMonth(mStart, +1)
+                val ids = js.asSequence()
+                    .filter { (it.scheduledWorkDate ?: 0L) in mStart until mEnd }
+                    .map { it.customerId }.toSet()
+                if (ids.isEmpty()) return@runCatching
+                val targets = cs.filter { it.id in ids }
+                container.sitePhotoRestoreManager.restoreMissing(targets)
+            }.onFailure {
+                // save-silent-ok: 이건 **사장님이 누른 저장이 아니라 백그라운드 자동 복원**이다.
+                //   실패해도 영상은 지도로 폴백되고, 달 셋에서 빼 **다음에 다시 시도**한다 → 화면에 띄울 필요 없음.
+                //   (진짜 사장님 저장은 공용 SaveGuard 로 화면에 말한다 — CLAUDE.md §13①)
+                restoredMonths.remove(monthDelta)
+                android.util.Log.w("StatsVM", "현장사진 자동복원 실패: " + it.message)
+            }
+        }
+    }
 
     fun refreshCollab() {
         viewModelScope.launch {
@@ -298,6 +334,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         // 그 동네 대표 현장의 단지명 · 시공 전 사진 — 사진과 **한 짝**(같은 현장). (2026-10-28 사장님: 영상 ①단지명 ③전/후)
         val apartmentOf = LinkedHashMap<String, String>()
         val beforePhotoOf = LinkedHashMap<String, String>()
+        // 🩹 **파일이 실제로 있는 사진 줄만** 대표 고르기에 넘긴다. (2026-11-27 사장님)
+        //   백업복원·재설치 폰은 "줄은 있고 파일은 없는" 사진이 섞인다. representativeOf 가 그 죽은 줄을
+        //   골라버리면 File.exists() 에서 null 이 되고 **살아있는 다른 사진으로 폴백을 못 해** 0/N 이 됐다.
+        //   살아있는 것만 추려 넘기면 그 고객의 멀쩡한 사진이 대표로 잡힌다. (서버→폰 자동복원과 짝)
+        val photosAlive = photos.filter { runCatching { java.io.File(it.filePath).exists() }.getOrDefault(false) }
         for (j in month.sortedBy { it.scheduledWorkDate ?: 0L }) {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             val spot = spotOf(a) ?: continue
@@ -309,7 +350,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             //   한 동네에 현장이 여럿이면, 사진이 있는 **첫 현장** 것을 쓴다.
             if (photoOf[spot.name] == null) {
                 val repPath = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
-                    .representativeOf(photos, j.customerId, j.id)
+                    .representativeOf(photosAlive, j.customerId, j.id)
                     ?.filePath?.takeIf { java.io.File(it).exists() }
                 if (repPath != null) {
                     photoOf[spot.name] = repPath
@@ -317,7 +358,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                     com.detailline.callfollowcrm.util.AddressExtractor.complexName(a)
                         ?.let { apartmentOf[spot.name] = it }
                     com.detailline.callfollowcrm.data.repository.SitePhotoRepository
-                        .beforeOf(photos, j.customerId, j.id)
+                        .beforeOf(photosAlive, j.customerId, j.id)
                         ?.filePath?.takeIf { java.io.File(it).exists() }
                         ?.let { beforePhotoOf[spot.name] = it }
                 }
@@ -469,16 +510,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 it.address?.takeIf { a -> a.isNotBlank() } ?: addrOf[it.customerId]
             )
         }
-        // (임시 진단) "사진 올렸는데 영상 0/11" 원인 가르기 — 원인 잡으면 뺀다. (2026-11-27 사장님)
-        val monthCustIds = month.map { it.customerId }.toSet()
-        fun diagFileOk(p: String) = runCatching { java.io.File(p).exists() }.getOrDefault(false)
-        val photoDiag = "진단 DB:${photos.size} 파일:${photos.count { diagFileOk(it.filePath) }}" +
-            " 완료건:${month.size} 고객:${monthCustIds.size}" +
-            " 일치:${photos.count { it.customerId in monthCustIds }}" +
-            " 일치+파일:${photos.count { it.customerId in monthCustIds && diagFileOk(it.filePath) }}"
         return MyRecordState(
             lastNo = lastNo,
-            photoDiag = photoDiag,
             monthSites = month.size + collabMonth.size,
             towns = towns.toList(),
             noAddrCount = noAddrJobs,
@@ -506,7 +539,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
             areaLabel = area,
             monthKm = monthKm,
-            photoPath = representativePhoto(month, photos, collabPhotoPaths.values)
+            photoPath = representativePhoto(month, photosAlive, collabPhotoPaths.values)
         )
     }
 
@@ -824,9 +857,7 @@ data class MyRecordState(
      * 인증샷에 넣을 **대표 사진** 파일 경로. null = 그 달 현장에 올린 사진이 없다
      *   → 사진이 들어가는 갈래(지도+사진 · 사진 배경)를 **아예 안 보여준다.**
      */
-    val photoPath: String? = null,
-    /** (임시 진단) "사진 올렸는데 영상 0/11" 원인 가르기 — 원인 잡으면 뺀다. (2026-11-27 사장님) */
-    val photoDiag: String = ""
+    val photoPath: String? = null
 ) {
     /** 협업에는 내 현장 번호가 없어도 기록을 만들 수 있다. */
     val canMakeRecord: Boolean get() = lastNo > 0 || monthSites > 0

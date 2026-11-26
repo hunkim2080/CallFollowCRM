@@ -47,6 +47,9 @@ class SitePhotoRepository(
     /** 전부, 올린 순서대로. 「내 기록」이 대표 사진을 고를 때 쓴다. */
     fun observeAllOldestFirst(): Flow<List<SitePhotoEntity>> = dao.observeAllOldestFirst()
 
+    /** 그 고객의 사진 줄 전부(파일 존재 여부 무관) — 서버→폰 자동복원이 '폰에 살아있는지' 셀 때 쓴다([SitePhotoRestoreManager]). */
+    suspend fun listByCustomer(customerId: Long): List<SitePhotoEntity> = dao.listByCustomer(customerId)
+
     companion object {
         /**
          * **그 현장의 대표 사진 고르는 규칙 — 여기 하나뿐이다.**
