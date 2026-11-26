@@ -1,9 +1,12 @@
 package com.detailline.callfollowcrm.service
 
 import android.content.Context
+import android.graphics.Typeface
 import android.text.Spannable
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -50,12 +53,37 @@ object TodaySiteNotifier {
             rv
         }.getOrNull()
 
-    /** 동호수 줄 전체에 청록색 + 밑줄. */
+    /** 오늘의 현장 목록(2곳+)의 한 줄 — 단지명 / 동호수 / 업체·시각. */
+    data class ListLine(val complex: String, val unit: String?, val who: String)
+
+    /**
+     * 📍 여러 현장 **글자 목록** 본문(BigTextStyle) — 동호수만 1곳 배너와 **같은** emphasize(청록+밑줄)로 강조.
+     *   1곳 커스텀 배너는 동호수를 크게/밑줄, 목록은 글자라 크기는 못 키워도 **색·밑줄은 똑같이**. (2026-11-26 사장님 "동호수 두드러지게")
+     *   강조 셈은 emphasize 한 곳(§12) — 여기서도 그걸 그대로 부른다.
+     */
+    fun buildListBody(context: Context, items: List<ListLine>, footer: String): CharSequence =
+        SpannableStringBuilder().apply {
+            for (it in items) {
+                if (isNotEmpty()) append("\n")
+                append("📍 ").append(it.complex)
+                val parts = ArrayList<CharSequence>()
+                it.unit?.takeIf { u -> u.isNotBlank() }?.let { u -> parts.add(emphasize(context, u)) }
+                it.who.takeIf { w -> w.isNotBlank() }?.let { w -> parts.add(w) }
+                if (parts.isNotEmpty()) {
+                    append("\n")
+                    parts.forEachIndexed { i, p -> if (i > 0) append(" · "); append(p) }
+                }
+            }
+            if (footer.isNotBlank()) append("\n\n").append(footer)
+        }
+
+    /** 동호수 줄 전체에 청록색 + 밑줄 + 굵게. (굵게는 색을 테마가 덮는 기기에서도 두드러지게 — 2026-11-26) */
     private fun emphasize(context: Context, unit: String): CharSequence {
         val accent = ContextCompat.getColor(context, R.color.today_accent)
         return SpannableString(unit).apply {
             setSpan(ForegroundColorSpan(accent), 0, unit.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             setSpan(UnderlineSpan(), 0, unit.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(StyleSpan(Typeface.BOLD), 0, unit.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
 

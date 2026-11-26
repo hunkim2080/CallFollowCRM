@@ -254,12 +254,17 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             //   🏢 주소는 **아파트명+동호수만** 크게 — 도로명/지역은 뺀다(todayBigLabel). (2026-11-25 사장님 "딱 아파트명과 동호수만 크게")
             // 📍 여러 곳이면 목록(글자) — 1곳 커스텀 배너와 **같은 모양**으로 단지명/동호수를 두 줄로 쪼갠다.
             //   쪼개는 셈은 TodaySiteNotifier.splitComplexUnit 한 곳(§12). 동호수 줄이 업체·시각보다 앞 = 주인공. (2026-11-26 사장님)
-            val lines = places.map { pl ->
+            //   동호수 강조(청록+밑줄)는 TodaySiteNotifier.buildListBody 가 listLines 로 입힌다 — 1곳 배너와 같은 emphasize.
+            val listLines = places.map { pl ->
                 val t = pl.minutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
                 val (complex, unit) = TodaySiteNotifier.splitComplexUnit(todayBigLabel(pl.address))
                 val who = listOf(pl.name, t).filter { it.isNotBlank() }.joinToString(" ")
-                val second = listOf(unit ?: "", who).filter { it.isNotBlank() }.joinToString(" · ")
-                if (second.isNotBlank()) "📍 $complex\n$second" else "📍 $complex"
+                TodaySiteNotifier.ListLine(complex, unit, who)
+            }
+            // 접힌 줄(collapsed)·강조 없는 폴백용 글자 목록.
+            val lines = listLines.map { ll ->
+                val second = listOf(ll.unit ?: "", ll.who).filter { it.isNotBlank() }.joinToString(" · ")
+                if (second.isNotBlank()) "📍 ${ll.complex}\n$second" else "📍 ${ll.complex}"
             }
             // 현장이 하나면 **아파트명+동호수를 제목(큰 글씨)** 으로, 전체 주소는 펼치면 남긴다. (2026-11-25 사장님 프로토 A)
             val single = places.singleOrNull()
@@ -281,7 +286,10 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                     bannerMeta = meta
                 )
             } else {
-                NotificationHelper.showTodaySites(context, places.size, lines, places.first().phone)
+                NotificationHelper.showTodaySites(
+                    context, places.size, lines, places.first().phone,
+                    listLines = listLines // 동호수 청록+밑줄 강조(1곳 배너와 같은 emphasize)
+                )
             }
         }
 

@@ -1350,19 +1350,19 @@ object NotificationHelper {
         subText: String? = null,    // 현장 1곳: 접힌 줄 "오늘의 현장 · 오전 9시"
         bigBody: String? = null,    // 현장 1곳: 펼치면 전체 주소+이름(글자 폴백용)
         bannerRoad: String? = null, // 현장 1곳 커스텀 배너: 2번째 줄(도로명·지역)
-        bannerMeta: String? = null  // 현장 1곳 커스텀 배너: 3번째 줄(⏰ 시각·안내)
+        bannerMeta: String? = null, // 현장 1곳 커스텀 배너: 3번째 줄(⏰ 시각·안내)
+        listLines: List<TodaySiteNotifier.ListLine>? = null // 현장 2곳+: 동호수 강조(청록+밑줄) 본문 — 있으면 lines 대신 이걸로. (2026-11-26)
     ) {
         if (lines.isEmpty()) { clearTodaySites(context); return }
-        // 왜 안 지워지는지 + 언제 사라지는지 알려준다 — 상시(ongoing) 알림이라 스와이프로 안 지워져서
-        //   안내가 없으면 "이거 왜 계속 있지?" 가 된다. (2026-07-15 사장님 "안내가 어디 있으면 좋을듯")
+        // 상시(ongoing) 알림이라 스와이프로 안 지워짐 → 왜 계속 있는지·언제 사라지는지 안내. (2026-07-15 사장님)
         val foot = "완료하면 자동으로 사라져요"
         // 현장 1곳이면 아파트명+동호수가 제목(크게), '오늘의 현장'은 작은 줄로 내리고 전체주소는 펼치면. 여러 곳이면 옛 모양.
         val single = bigTitle != null && bigTitle.isNotBlank()
         val title = if (single) bigTitle!! else if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
         val collapsed = if (single) subText.orEmpty().ifBlank { "오늘의 현장" } else lines.first()
-        val body = if (single)
+        val body: CharSequence = if (single)
             listOf(subText.orEmpty(), bigBody.orEmpty()).filter { it.isNotBlank() }.joinToString("\n") + "\n\n$foot"
-        else lines.joinToString("\n") + "\n\n$foot"
+        else TodaySiteNotifier.buildListBody(context, listLines.orEmpty(), foot) // 2곳+: 동호수 청록+밑줄+굵게 강조. listLines 비면 footer만
         val pending = openPhone?.takeIf { it.isNotBlank() }?.let {
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_CHAT
