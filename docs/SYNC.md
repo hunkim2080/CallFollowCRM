@@ -17237,3 +17237,10 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 안전: 로컬 있으면 그대로(기존 동작). 서버 폴백은 로컬 0일 때만. 첫 조회만 네트워크(이후 캐시).
 - 검증: 가드7·테스트 통과. 단 **테스트폰(시드 데이터)은 서버에 사진 없어 서버폴백 end-to-end 검증 불가** → 사장님 실제 폰에서 확인 필요(영상에 세컨폰 사진 뜨는지).
 - 임시 진단줄(🔎) 유지 — 사장님이 '사진 떴다' 확인하면 다음 커밋에서 제거.
+
+## 2026-11-27 22:20 · android
+내 기록 영상 사진 — 공유현장(shareId) 사진도 폴백 (세컨폰 협업 업로드의 진짜 저장소)
+- 앞 수정(serverSiteFile=team_site_photos)은 못 찾음(사장님 폰 업뎃 후에도 영상 빔). 원인: 세컨폰을 협업 초대해 올린 사진은 **공유현장(SharedSiteRepository, shareId별)**에 있음 — 고객 상세가 collabPhotosByShare 로 보여주는 그곳. team_site_photos 아님.
+- 변경(StatsViewModel): collabShareOf = collabAssignments(customerId→shareId). 영상 photoOf·인증샷 representativePhoto 폴백 순서 = 로컬 → serverSiteFile(team) → collabRepresentativeFile(shareId, 공유현장). 진단줄에 공유:N 추가(이달현장 중 협업공유 수).
+- 검증: 가드7·테스트 통과(속도테스트 1회 플레이키 후 통과). 테스트폰 검증 불가(서버 데이터 없음) → 사장님 폰 확인.
+- 폰 확인: 업뎃 후 11월 영상 사진 뜨는지 + 🔎 공유:N 이 이달고객(13) 근처인지.

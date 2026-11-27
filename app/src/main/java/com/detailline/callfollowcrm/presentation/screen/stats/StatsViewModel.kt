@@ -260,6 +260,12 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val monthEnd = DateTimeUtils.shiftMonth(monthStart, +1)
         val addrOf = cs.associate { it.id to it.address }
         val phoneOf = cs.associate { it.id to it.phoneNumber }   // 서버 사진 조회용(세컨폰=협업이 올린 사진 포함)
+        // 🤝 **내 현장을 (세컨폰 등) 협업에 공유한 것** — customerId→shareId. 그 현장 사진은 team_site_photos 가
+        //   아니라 공유현장(SharedSiteRepository)에 있다. 고객 상세가 그걸 보여주는데 영상은 못 봤다. (2026-11-27 사장님)
+        val collabShareOf = container.preferences.collabAssignments
+            .mapNotNull { com.detailline.callfollowcrm.domain.collab.CollabAssignmentLine.parse(it) }
+            .filter { it.shareId.isNotBlank() }
+            .associate { it.customerId to it.shareId }
         val todayStart = DateTimeUtils.startOfDay(now)
         // **다녀온 현장** = 시공일이 지난 건. 「다녀온 현장」 화면과 **같은 기준**이라야 숫자가 안 엇갈린다.
         //   (2026-09-24 폰에서 7곳 vs 4곳으로 엇갈렸다 — 완료를 안 누른 3곳 때문)
@@ -356,6 +362,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                     // 🖼️ 로컬에 없으면 **서버에서** 끌어온다 — 세컨폰(협업으로 초대)이 올린 사진처럼
                     //   폰엔 없고 서버에만 있는 현장사진. 고객 상세가 보여주는 그 사진을 영상도 쓰게. (2026-11-27 사장님)
                     ?: serverSiteFile(j.customerId, phoneOf[j.customerId] ?: "")
+                    // 🤝 그래도 없으면 **내가 협업 공유한 현장**(세컨폰이 올린 공유현장 사진) — shareId 로.
+                    ?: collabShareOf[j.customerId]?.let { collabRepresentativeFile(it, chosenPhotos[it]) }
                 if (repPath != null) {
                     photoOf[spot.name] = repPath
                     // 같은 현장의 단지명 · 시공 전 사진을 같이 — 사진·단지·전후가 **한 집**을 가리킨다.
@@ -543,7 +551,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
             areaLabel = area,
             monthKm = monthKm,
-            photoPath = representativePhoto(month, photosAlive, collabPhotoPaths.values, phoneOf),
+            photoPath = representativePhoto(month, photosAlive, collabPhotoPaths.values, phoneOf, collabShareOf, chosenPhotos),
             // 🔎 (임시 진단) 사진 안 뜸 원인 가르기 — 사장님 폰 실제 데이터로. (2026-11-27)
             //   DB=사진 줄 수 · 파일=로컬에 실제 파일 있는 줄 · 이달고객=이달 현장 고객 수
             //   이달줄=이달 고객의 사진 줄 · 이달파일=그중 파일 있는 것 · 협업=협업사진 받은수/협업현장수
@@ -552,6 +560,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 "DB:${photos.size} 파일:${photosAlive.size} · 이달고객:${mc.size}" +
                     " 이달줄:${photos.count { it.customerId in mc }}" +
                     " 이달파일:${photosAlive.count { it.customerId in mc }}" +
+                    " 공유:${mc.count { it in collabShareOf }}" +
                     " · 협업:${collabPhotoPaths.size}/${collabMonth.size}"
             }
         )
@@ -570,15 +579,19 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         monthJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
         photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>,
         collabPaths: Collection<String>,
-        phoneOf: Map<Long, String>
+        phoneOf: Map<Long, String>,
+        collabShareOf: Map<Long, String>,
+        chosenPhotos: Map<String, Long>
     ): String? {
         for (j in monthJobs) {
             val local = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
                 .representativeOf(photos, j.customerId, j.id)
                 ?.filePath?.takeIf { java.io.File(it).exists() }
             if (local != null) return local
-            // 로컬에 없으면 서버(세컨폰=협업이 올린 사진 포함)에서. 고객 상세와 같은 사진. (2026-11-27)
+            // 로컬에 없으면 서버(team_site_photos, 팀 업로드)에서.
             serverSiteFile(j.customerId, phoneOf[j.customerId] ?: "")?.let { return it }
+            // 그래도 없으면 내가 협업 공유한 현장(세컨폰이 올린 공유현장 사진) — shareId 로. (2026-11-27 사장님)
+            collabShareOf[j.customerId]?.let { collabRepresentativeFile(it, chosenPhotos[it]) }?.let { return it }
         }
         return collabPaths.firstOrNull { java.io.File(it).isFile }
     }
