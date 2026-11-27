@@ -30,6 +30,14 @@ object RecordReel {
     const val H = 1280
 
     /**
+     * 초당 그리는 컷 수 — **영상 저장 속도를 정하는 값**(세 인코딩 경로가 다 이걸 쓴다, §12 한 곳).
+     * 만화는 폰이 한 컷씩 직접 그려 잇는 거라, 컷이 많을수록 그만큼 오래 걸린다.
+     * 24→15 로 낮춰 ~40% 빨라진다 — 만화라 눈엔 거의 티 안 난다. (2026-11-28 사장님: 금 간 S9 에서 저장이 느림)
+     * 소리는 fps 와 무관(durationSec 기준 PCM)이라 느려지든 빨라지든 그대로 맞는다.
+     */
+    const val FPS = 15
+
+    /**
      * 영상에 담을 것. [RecordShot.Data] 와 같은 값에 **보여줄 숫자 고르기**가 더해진다.
      *
      * @param metricValue 크게 보여줄 숫자(예: "671"). @param metricUnit 단위("만원"/"집"/"km").
@@ -311,7 +319,7 @@ object RecordReel {
      *
      * 전엔 **10초 고정**이었다. 3곳이든 12곳이든 10초 —
      * 많이 다닌 달일수록 트럭이 **한 곳당 1초도 못 쓰고** 튀듯 지나갔다.
-     * 컷 수(24)는 멀쩡한데 **한 컷 사이에 움직이는 거리가 커서** 버벅이는 것처럼 보인다.
+     * 초당 컷 수([FPS])는 멀쩡한데 **한 컷 사이에 움직이는 거리가 커서** 버벅이는 것처럼 보인다.
      *
      * 재는 것은 **들르는 횟수**(구간 수)다. 점 개수가 아니라 — 출발점은 달리는 구간이 아니다.
      * 끝에서 [END_HOLD] 만큼은 멈춰 있으니 그만큼 빼고 나눈다.
@@ -764,21 +772,21 @@ object RecordReel {
                 }
                 // ① 하드웨어 인코더
                 VideoMaker.make(
-                    outFile = out, width = W, height = H, fps = 24, seconds = secW, audio = webAudio, progress = forward
+                    outFile = out, width = W, height = H, fps = FPS, seconds = secW, audio = webAudio, progress = forward
                 ) { canvas, t -> web.drawFrame(canvas, t, W, H) }
                     ?.let { lastMadeSize = "$W × $H"; return it }
                 retrying = true
                 // ② 소프트웨어 인코더
                 VideoMaker.softwareEncoder()?.let { sw ->
                     VideoMaker.make(
-                        outFile = out, width = W, height = H, fps = 24, seconds = secW, codecName = sw, audio = webAudio, progress = forward
+                        outFile = out, width = W, height = H, fps = FPS, seconds = secW, codecName = sw, audio = webAudio, progress = forward
                     ) { canvas, t -> web.drawFrame(canvas, t, W, H) }
                         ?.let { lastMadeSize = "$W × $H"; return it }
                 }
                 // ③ 작게 한 번 더
                 val w3 = 540; val h3 = 960
                 VideoMaker.make(
-                    outFile = out, width = w3, height = h3, fps = 24, seconds = secW, bitRate = 4_200_000, audio = webAudio, progress = forward
+                    outFile = out, width = w3, height = h3, fps = FPS, seconds = secW, bitRate = 4_200_000, audio = webAudio, progress = forward
                 ) { canvas, t -> web.drawFrame(canvas, t, w3, h3) }
                     ?.let { lastMadeSize = "$w3 × $h3"; return it }
                 android.util.Log.e("RecordReel", "만화 인코딩 세 길 모두 실패 — 지도로 폴백")
@@ -793,7 +801,7 @@ object RecordReel {
             .getOrNull()
         // ① 폰이 고르는 인코더(보통 하드웨어)로.
         VideoMaker.make(
-            outFile = out, width = W, height = H, fps = 24, seconds = seconds, audio = audio, progress = forward
+            outFile = out, width = W, height = H, fps = FPS, seconds = seconds, audio = audio, progress = forward
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, beforePhotos, END_HOLD) }
             ?.let { lastMadeSize = "$W × $H"; return it }
         retrying = true   // 여기부터는 "다른 방법으로 다시 만드는 중"
@@ -801,7 +809,7 @@ object RecordReel {
         //   (갤S23U·안드로이드 16 에서 하드웨어가 말썽이었다 — 2026-09-25 사장님 폰)
         VideoMaker.softwareEncoder()?.let { sw ->
             VideoMaker.make(
-                outFile = out, width = W, height = H, fps = 24, seconds = seconds,
+                outFile = out, width = W, height = H, fps = FPS, seconds = seconds,
                 codecName = sw, audio = audio, progress = forward
             ) { canvas, t -> drawFrame(ctx, canvas, d, t, W, H, photos, beforePhotos, END_HOLD) }
                 ?.let { lastMadeSize = "$W × $H"; return it }
@@ -810,11 +818,11 @@ object RecordReel {
         //   ⚠️ 전엔 이 길만 **20컷**이었다 — 안 되는 건 **크기** 때문이지 컷 수 때문이 아니다.
         //   이 길로 떨어진 폰은 작긴 작은데 **뚝뚝 끊기까지** 했다.
         //   (2026-09-30 사장님 "영상이 … 약간 버벅이는데")
-        //   크기만 줄이고 컷 수는 **24로 맞춘다.** 한 컷당 받는 양이 줄지 않게 양도 올렸다.
+        //   크기만 줄이고 초당 컷 수는 **[FPS] 그대로.** 한 컷당 받는 양이 줄지 않게 양도 올렸다.
         val w2 = 540
         val h2 = 960
         return VideoMaker.make(
-            outFile = out, width = w2, height = h2, fps = 24, seconds = seconds,
+            outFile = out, width = w2, height = h2, fps = FPS, seconds = seconds,
             bitRate = 4_200_000, audio = audio, progress = forward
         ) { canvas, t -> drawFrame(ctx, canvas, d, t, w2, h2, photos, beforePhotos, END_HOLD) }
             ?.also { lastMadeSize = "$w2 × $h2" }
