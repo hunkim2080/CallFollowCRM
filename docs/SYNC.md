@@ -17252,3 +17252,11 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 사진 수정 자체는 정상(사장님 확인: 공유:10·7/12 사진 뜸).
 - 검증: 가드7·테스트 통과. 폰: 완료 즉시 반영·전반 속도 확인.
 - 남음: 영상 저장(인코딩) 속도는 구형 S9 자체 + 큰사진 디코딩 — 필요시 영상용 사진 축소 디코딩 별도.
+
+## 2026-11-27 23:30 · android
+내 기록 목록 — 사진 없는 다녀온 현장에 「사진 없음」 딱지 (사장님 아이디어)
+- 각 행 hasPhoto 계산: 로컬(photosAlive) → 협업공유(collabShareHas, shareId) → 서버팀(serverSiteHas). 가벼운 '존재 확인'(목록, 다운로드 X)+세션캐시(serverHasCache·collabHasCache, 영상 캐시도 재사용). 예정 행은 true(딱지 X).
+- UI: 다녀온 현장 중 !hasPhoto 에만 회색 「사진 없음」 딱지(TossGrayBg). 사진 있는 곳엔 안 붙음.
+- brand_guard: 맨 앞 이모지(📷) 금지 → 글자만 「사진 없음」.
+- 검증: 가드7·테스트 통과. 폰 확인 예정.
+- 참고: 🔎 임시 진단줄은 아직 유지(정식 전 제거). [[reference_owner_second_phone_as_collab_uploads_photos]]

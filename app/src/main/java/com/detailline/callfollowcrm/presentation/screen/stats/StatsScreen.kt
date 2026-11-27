@@ -1344,6 +1344,16 @@ private fun MyRecordRows(
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
+                    // 📷 **사진 없는 현장만** 회색 딱지 — 어디에 사진을 채우면 되는지 한눈에. (2026-11-27 사장님)
+                    if (!r.upcoming && !r.hasPhoto) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            "사진 없음", style = AppType.caption, color = TossTextTertiary,
+                            modifier = Modifier.clip(AppShape.sm)
+                                .background(TossGrayBg)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
                 // 번호가 없는 줄 = 아직 완료를 안 누른 것. **여기서 바로** 누르게 한다.
                 //   전엔 이 글씨를 눌러도 목록으로만 갔다 — 버튼처럼 생겼는데 아무 일도 안 났다.

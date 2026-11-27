@@ -462,7 +462,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val upcoming = js.filter { (it.scheduledWorkDate ?: 0L) >= todayStart && it.cancelledAt == null }
             .sortedBy { it.scheduledWorkDate ?: Long.MAX_VALUE }
             .firstOrNull()
-        fun rowOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity, soon: Boolean): MyRecordRow {
+        suspend fun rowOf(j: com.detailline.callfollowcrm.data.local.entity.JobEntity, soon: Boolean): MyRecordRow {
             val a = j.address?.takeIf { it.isNotBlank() } ?: addrOf[j.customerId]
             return MyRecordRow(
                 jobId = j.id,
@@ -478,7 +478,9 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 days = j.scheduledWorkDays.coerceAtLeast(1),
                 amountManwon = ((j.totalAmount ?: 0L) / 10_000L).toInt(),
                 done = j.workCompletedAt != null,
-                upcoming = soon
+                upcoming = soon,
+                // 📷 예정 현장은 사진 없는 게 당연 → 딱지 안 붙임(true). 다녀온 현장만 실제로 있는지 본다.
+                hasPhoto = if (soon) true else sitePhotoExists(j.customerId, j.id, photosAlive, phoneOf, collabShareOf)
             )
         }
         val rows = buildList {
@@ -502,7 +504,8 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                         shareId = s.shareId,
                         collabProgress =
                             if (s.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository
-                                    .Progress.COMPLETED) "완료" else "도착"
+                                    .Progress.COMPLETED) "완료" else "도착",
+                        hasPhoto = collabShareHas(s.shareId)   // 협업 현장도 사진 있나
                     )
                 )
             }
@@ -609,6 +612,41 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val p = collabRepresentativeFile(shareId, chosenPhotoId)
         collabFileCache[shareId] = p ?: ""
         return p
+    }
+
+    // ── 📷 목록 "사진 없음" 딱지용 — 사진이 **하나라도 있나**만 가볍게(목록 확인·다운로드 X)+캐시 ──
+    private val serverHasCache = java.util.concurrent.ConcurrentHashMap<Long, Boolean>()
+    private suspend fun serverSiteHas(customerId: Long, customerPhone: String): Boolean {
+        serverSiteCache[customerId]?.let { return it.isNotBlank() }   // 영상이 이미 받아둠
+        serverHasCache[customerId]?.let { return it }
+        val owner = container.preferences.bizPhone.trim(); val cust = customerPhone.trim()
+        if (owner.isBlank() || cust.isBlank()) return false
+        val has = container.sitePhotoServerRepository.fetch(owner, cust).getOrNull()?.isNotEmpty() == true
+        serverHasCache[customerId] = has
+        return has
+    }
+
+    private val collabHasCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    private suspend fun collabShareHas(shareId: String): Boolean {
+        if (shareId.isBlank()) return false
+        collabFileCache[shareId]?.let { return it.isNotBlank() }   // 영상이 이미 받아둠
+        collabHasCache[shareId]?.let { return it }
+        val phone = container.preferences.bizPhone.filter { it.isDigit() }
+        val has = container.sharedSiteRepository.photos(shareId, phone, thumb = true).getOrNull()?.isNotEmpty() == true
+        collabHasCache[shareId] = has
+        return has
+    }
+
+    /** 이 현장(고객·건)에 사진이 하나라도 있나 — 로컬 → 협업공유 → 서버팀 순(싼 것부터). */
+    private suspend fun sitePhotoExists(
+        customerId: Long, jobId: Long,
+        photosAlive: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>,
+        phoneOf: Map<Long, String>, collabShareOf: Map<Long, String>
+    ): Boolean {
+        if (com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                .representativeOf(photosAlive, customerId, jobId) != null) return true
+        collabShareOf[customerId]?.let { if (collabShareHas(it)) return true }
+        return serverSiteHas(customerId, phoneOf[customerId] ?: "")
     }
 
     /**
@@ -967,7 +1005,9 @@ data class MyRecordRow(
      */
     val shareId: String? = null,
     /** 「도착」·「완료」 — 협업은 완료를 **저 화면에서** 눌러야 주인 사장님도 안다. */
-    val collabProgress: String? = null
+    val collabProgress: String? = null,
+    /** 이 현장에 **사진이 하나라도 있나**(로컬·서버·협업 통틀어). false 면 목록에 「📷 사진 없음」. 예정·판정전은 true(딱지 안 붙임). (2026-11-27 사장님) */
+    val hasPhoto: Boolean = true
 )
 
 data class StatsTrendState(
