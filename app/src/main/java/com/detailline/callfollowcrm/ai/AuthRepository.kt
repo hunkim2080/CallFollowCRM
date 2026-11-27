@@ -139,6 +139,23 @@ class AuthRepository(
         }
     }
 
+    /**
+     * 최신 동의 상태 조회 — GET /api/consent/status?phone=. 해당 docType 기록이 없으면 null,
+     *   있으면 agreed(true/철회면 false). (2026-11-27 통화요약 동의 복원용)
+     */
+    suspend fun getConsent(phone: String, docType: String): Result<Boolean?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val p = phone.filter { it.isDigit() }
+            val req = Request.Builder().url("$baseUrl/api/consent/status?phone=$p").get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw AuthException(resp.code, "동의 상태 조회 실패")
+                val consents = parseBody(resp.body?.string()).optJSONObject("consents")
+                val node = consents?.optJSONObject(docType)   // 키가 없거나 JSON null 이면 null = 기록 없음
+                node?.optBoolean("agreed", false)
+            }
+        }
+    }
+
     private fun parseBody(text: String?): JSONObject =
         runCatching { JSONObject(text ?: "{}") }.getOrDefault(JSONObject())
 }

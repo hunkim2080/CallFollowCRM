@@ -1,31 +1,29 @@
 # 지금 「공용」인 파일들 — 새로 생기면 CLAUDE.md §12 표에 한 줄 적어야 빌드가 통과한다.
 # 다시 적기: gradlew rulesBaselineUpdate   (표에 적은 뒤에 하세요)
 # 줄 모양: <파일이름> <쓰는 파일 수> <경로>
-# 총 56개 (3곳 이상에서 쓰이는 것)
-# 명시 등록: 아래 CollabRepPhoto는 사용처 2곳이어도 공용으로 관리한다.
-CollabRepPhoto 2 domain/collab/CollabRepPhoto.kt
-DateTimeUtils 102 util/DateTimeUtils.kt
+# 총 58개 (3곳 이상에서 쓰이는 것)
+DateTimeUtils 104 util/DateTimeUtils.kt
 PhoneNumberFormatter 54 util/PhoneNumberFormatter.kt
 PhoneKey 50 util/PhoneKey.kt
 MoneyFormatter 37 util/MoneyFormatter.kt
-AddressExtractor 26 util/AddressExtractor.kt
+AddressExtractor 28 util/AddressExtractor.kt
 SettlementCalc 25 domain/settlement/SettlementCalc.kt
 PermissionHelper 14 util/PermissionHelper.kt
 PhoneDialer 13 util/PhoneDialer.kt
 SaveGuard 12 presentation/util/SaveGuard.kt
+SmsIntentHelper 12 util/SmsIntentHelper.kt
 SmsSender 12 util/SmsSender.kt
 AvatarInitial 11 domain/ui/AvatarInitial.kt
 RegionName 11 util/RegionName.kt
-SmsIntentHelper 11 util/SmsIntentHelper.kt
 AvatarTints 10 presentation/component/AvatarTints.kt
 SpamPrefix 10 util/SpamPrefix.kt
 CollabAssignmentLine 9 domain/collab/CollabAssignmentLine.kt
+Completion 9 domain/job/Completion.kt
 DefaultSmsAppHelper 9 util/DefaultSmsAppHelper.kt
 LogRedact 9 util/LogRedact.kt
 ContactNameResolver 8 util/ContactNameResolver.kt
 CollabPartnerGroups 7 domain/collab/CollabPartnerGroups.kt
 RepQuestionRules 7 domain/faq/RepQuestionRules.kt
-Completion 7 domain/job/Completion.kt
 NavApp 7 util/NavApp.kt
 RecordShot 7 util/RecordShot.kt
 OnHold 6 domain/customer/OnHold.kt
@@ -40,6 +38,7 @@ SpamKeywordMatch 4 domain/inbox/SpamKeywordMatch.kt
 OutboxWording 4 presentation/util/OutboxWording.kt
 CallLogHelper 4 util/CallLogHelper.kt
 DataBackup 4 util/DataBackup.kt
+ImageDownsample 4 util/ImageDownsample.kt
 CollabDayCheck 3 domain/collab/CollabDayCheck.kt
 CollabProgressSteps 3 domain/collab/CollabProgressSteps.kt
 CollabTogether 3 domain/collab/CollabTogether.kt
@@ -53,10 +52,11 @@ IntakeScheduleState 3 domain/intake/IntakeScheduleState.kt
 JobCardRow 3 domain/job/JobCardRow.kt
 AsSchedule 3 domain/schedule/AsSchedule.kt
 CalendarMoneyLabel 3 domain/schedule/CalendarMoneyLabel.kt
+DayOrder 3 domain/schedule/DayOrder.kt
 RangePick 3 domain/schedule/RangePick.kt
 CashFlowCalc 3 domain/settlement/CashFlowCalc.kt
 PhotoFit 3 domain/ui/PhotoFit.kt
+CallSummaryConsentSync 3 util/CallSummaryConsentSync.kt
 DiagnosticsReporter 3 util/DiagnosticsReporter.kt
-ImageDownsample 3 util/ImageDownsample.kt
 ImageEncoder 3 util/ImageEncoder.kt
 PhotoModel 3 util/PhotoModel.kt

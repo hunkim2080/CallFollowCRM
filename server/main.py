@@ -14263,7 +14263,10 @@ async def privacy_page():
 # ============================================================================
 
 _CONSENT_DOC_VERSION = "2026-07-06.3"  # 추가100 — 운영사 막내컴퍼니 명의
-_CONSENT_DOC_TYPES = {"required", "optional_quality"}
+# call_summary_upload (2026-11-27) — 통화요약 '녹음 서버 전송 동의'를 계정에 기억.
+#   앱이 재설치/업데이트로 로컬 동의가 풀려도 GET /api/consent/status 로 복원한다
+#   (앱: util/CallSummaryConsentSync, doc_type 동일해야 함).
+_CONSENT_DOC_TYPES = {"required", "optional_quality", "call_summary_upload"}
 
 
 @app.get("/terms", response_class=HTMLResponse, include_in_schema=False)

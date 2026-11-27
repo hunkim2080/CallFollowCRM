@@ -218,6 +218,11 @@ class CallFollowCrmApplication : Application() {
                     this@CallFollowCrmApplication, container.preferences, container.journeyEventRepository, n
                 )
             }
+            // 🔓 통화요약 '녹음 서버 전송 동의'를 계정에서 복원 — 업뎃/재설치로 토글이 풀리지 않게. (2026-11-27 사장님)
+            //   서버가 '동의함'이면 로컬 복원 · 서버에 없고 로컬이 동의면 올려둠. 자리: util/CallSummaryConsentSync
+            runCatching {
+                com.detailline.callfollowcrm.util.CallSummaryConsentSync.restore(this@CallFollowCrmApplication)
+            }
             // 🌙 마감 브리핑 기본값을 **한 번만** 정한다. (2026-09-30 사장님)
             //   새로 깐 폰 = 꺼진 채로(놀라지 않게). 이미 쓰시던 폰 = 켜둔 채로(갑자기 사라지면 안 되니).
             //   판단은 「손님이 한 명이라도 있나」 — 빈 폰이면 방금 깐 것이다.

@@ -230,6 +230,7 @@ fun ChatScreen(
                 prefs.callSummaryConsented = true
                 prefs.autoSummaryEnabled = true          // 동의했으면 자동 요약도 같이 켠다
                 pendingSummarizeRecord = null
+                com.detailline.callfollowcrm.util.CallSummaryConsentSync.push(context, true)  // 계정에도 기록 → 업뎃/재설치 복원
                 viewModel.summarizeCall(rec, context)    // 누른 그 통화를 이어서 바로 요약
             },
             onDecline = { pendingSummarizeRecord = null }

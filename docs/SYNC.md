@@ -17208,3 +17208,12 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 검증: testReleaseUnitTest + assembleRelease BUILD SUCCESSFUL(가드 7 통과).
 - 폰 확인: 못 봄 — 배포 후 S9/S23U 에서 ①일정 날짜 카드 금액(완료+잔금미수)=빨강 ②달력 칸 금액(금액 토글 ON)도 완료+미수=빨강·완납=취소선
 - 다음 액션: (사장님 지시) 통화요약 '서버 전송 동의'를 계정(서버)에 저장해 업데이트/재설치해도 안 풀리게 — 설계 후 서버+앱 작업 예정.
+
+## 2026-11-27 18:25 · android (+ server)
+통화요약 '녹음 서버 전송 동의'를 계정(서버)에 기억 → 업뎃/재설치해도 토글 안 풀리게 (사장님 제보+승인)
+- 원인: 동의 플래그 callSummaryConsented 기본 false + Manifest allowBackup=false → 재설치/큰 버전점프 때 로컬 동의 초기화 → autoSummaryEnabled(true)여도 토글이 꺼져 보임.
+- 서버(라이브 직접, GOTCHAS §3): main.py `_CONSENT_DOC_TYPES` 에 "call_summary_upload" 추가 1줄. 백업 main.py.bak.20261127-182310 · py_compile OK · kickstart · smoke 10/10 · end-to-end 확인(POST ok·GET status 반환). repo server/main.py 도 같이 수정.
+- 앱: 신규 공용 util/CallSummaryConsentSync(push/restore) — 저장은 기존 동의 인프라(POST /api/consent·GET /api/consent/status, doc_type=call_summary_upload) 그대로, 새 테이블/엔드포인트 X. AuthRepository.getConsent 추가. 동의/철회 push=설정 onAgree/onDecline·챗 onAgree. 복원 restore=CallFollowCrmApplication 시작(서버 동의면 로컬 복원·기록없고 로컬동의면 backfill). §12 표에 한 줄+rulesBaseline 58.
+- 플레이 정책 OK: "한 번 실제로 받은 동의"를 계정이 기억(기본 true로 박던 옛 위반과 다름).
+- 폰 확인: 못 봄 — 배포 후 ①재설치/업뎃해도 설정 통화요약 토글 유지 ②동의 1번 뒤 다음 실행에서 복원.
+- 다음 액션: 없음.

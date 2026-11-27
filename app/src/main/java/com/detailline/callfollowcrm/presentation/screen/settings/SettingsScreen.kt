@@ -1275,11 +1275,14 @@ private fun AutoSmsSection(
                     prefs.callSummaryConsented = true; consented = true
                     prefs.autoSummaryEnabled = true; autoSumOn = true
                     showConsent = false
+                    // 계정(서버)에도 동의 기록 → 업뎃/재설치해도 복원. (2026-11-27)
+                    com.detailline.callfollowcrm.util.CallSummaryConsentSync.push(ctx, true)
                 },
                 onDecline = {
                     prefs.callSummaryConsented = false; consented = false
                     prefs.autoSummaryEnabled = false; autoSumOn = false
                     showConsent = false
+                    com.detailline.callfollowcrm.util.CallSummaryConsentSync.push(ctx, false)
                 }
             )
         }
