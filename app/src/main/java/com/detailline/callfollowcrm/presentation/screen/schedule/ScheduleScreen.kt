@@ -1151,18 +1151,25 @@ private fun DayJobCard(
     ).joinToString(" · ")
     // 초록 = 끝난 것 · 회색 = 그냥 지나간 것 · 파랑 = 앞으로 올 것. (2026-09-20 사장님)
     //   며칠 남았는지는 날짜 칸이 말해주지만 **끝낸 건지 아닌지는 카드만 안다** → 딱지는 남긴다.
-    val isDone = customer.workCompletedAt != null
+    // 완료/완납 판정은 공용 한 곳(Completion) — 완료 도장뿐 아니라 잔금 도장도 '끝'으로 치는 규칙과 통일. (§12)
+    val stage = com.detailline.callfollowcrm.domain.job.Completion.stageOf(customer)
+    val isDone = stage.isDone
     // 딱지 = **얼마짜리 일인지.** 며칠 남았는지는 달력 칸이 이미 말한다. (2026-09-24 사장님)
     //   금액을 아직 안 적은 일만 예전처럼 D-day/완료/지남 을 보여준다(빈 딱지보다 낫다).
     val moneyTag = customer.totalAmount?.takeIf { it > 0L }?.let { manwonTag(it) }
     val tagText = moneyTag
         ?: if (isDone) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
+    // 완료인데 잔금이 남았으면(=미수) 금액 딱지는 **받을 돈 색(빨강)** — 고객정보·달력 금액과 같은 색. (2026-11-27 사장님 "일정에도 빨강")
+    //   달력 칸(CalRegionBar)과 같은 규칙(§12-K): DONE=미수 빨강 · PAID_OFF 완납·돈 없는 완료=초록.
+    val overdue = moneyTag != null && stage == com.detailline.callfollowcrm.domain.job.CompletionStage.DONE
     val tagBg = when {
+        overdue -> AppTheme.colors.cautionBg
         isDone -> AppTheme.colors.doneBg
         isPast -> TossGrayBg
         else -> AppTheme.colors.primaryBg
     }
     val tagFg = when {
+        overdue -> com.detailline.callfollowcrm.presentation.component.OverdueColor
         isDone -> AppTheme.colors.doneText
         isPast -> TossTextTertiary
         else -> AppTheme.colors.primaryText

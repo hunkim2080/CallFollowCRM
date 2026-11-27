@@ -17197,3 +17197,14 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 기능/배선 변화 없음(표시만). 다른 섹션(답장 안 함·이번 주 달력·집으로 길찾기)·단일현장 카드 그대로.
 - 폰 확인: 못 봄 — 배포 후 S9/S23U 홈위젯에서 ①2곳일 때 카드·큰 글자 ②알약 '오전/9시' 2줄 ③한 곳일 때(단일 카드) 영향 없는지
 - 다음 액션: 없음
+
+## 2026-11-27 17:10 · android
+일정 화면 완료+잔금미수 금액 빨강 안 뜨던 것 수정 (사장님 제보 · 고객정보는 빨강인데 일정은 초록)
+- 원인: 2026-11-25 '달력 금액 색 가름(완료+미수=빨강·완납=취소선)' 이 **반쪽 배선**이었다. DayBar.moneyStage 필드·CalRegionBar 소비부·시험은 있는데 **생산 지점(ScheduleCalendarGrid DayBar 만드는 곳)에서 moneyStage 를 안 채워** 항상 null → 달력 칸도 색이 안 입혀졌다. 날짜 카드(ScheduleScreen)는 아예 isDone(초록)만 봤다.
+- 변경:
+  - ScheduleCalendarGrid: DayBar 에 `moneyStage = if (firstDay && showMoney) Completion.stageOf(c) else null` 배선(공용 그대로, 새 규칙 X §12).
+  - ScheduleScreen 날짜 카드: isDone=workCompletedAt!=null → `Completion.stageOf(customer)` 로 통일. 금액 딱지 완료+미수(DONE)=OverdueColor/cautionBg(빨강, 고객정보·달력과 같은 색), 완납/돈없는완료=초록.
+- 연결지점(§12-K): 이 금액 색은 일정 화면 두 곳(달력 칸 CalRegionBar + 날짜 카드)만. 홈 띠·위젯은 이 경로(manwonTag/CalRegionBar/OverdueColor) 안 씀 → 대상 아님. manwonTag 소비부 1곳(날짜 카드)뿐.
+- 검증: testReleaseUnitTest + assembleRelease BUILD SUCCESSFUL(가드 7 통과).
+- 폰 확인: 못 봄 — 배포 후 S9/S23U 에서 ①일정 날짜 카드 금액(완료+잔금미수)=빨강 ②달력 칸 금액(금액 토글 ON)도 완료+미수=빨강·완납=취소선
+- 다음 액션: (사장님 지시) 통화요약 '서버 전송 동의'를 계정(서버)에 저장해 업데이트/재설치해도 안 풀리게 — 설계 후 서버+앱 작업 예정.

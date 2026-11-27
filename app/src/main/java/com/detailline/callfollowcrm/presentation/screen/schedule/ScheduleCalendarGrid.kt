@@ -172,7 +172,9 @@ internal fun buildCalendarCells(
                 // 금액도 첫날에만 — 그 건 총액(rowOf 가 jobs 에서 채운 totalAmount). 줄마다 각각, 합치지 않는다.
                 money = if (firstDay)
                     com.detailline.callfollowcrm.domain.schedule.CalendarMoneyLabel.moneyOf(c.totalAmount, showMoney)
-                else null
+                else null,
+                // 금액 색 가름 — 완료+미수=빨강·완납=취소선. 생산 지점에서 채워야 CalRegionBar 가 색을 입힌다. (2026-11-27: 11-25 배선 누락 보강)
+                moneyStage = if (firstDay && showMoney) com.detailline.callfollowcrm.domain.job.Completion.stageOf(c) else null
             )
         }
         // 간단 일정 띠 — 시공과 같은 lane 공간을 나눠 쓴다. 여러 날이면 START/MID/END 로 이어지고 첫날에 제목. (v64)
