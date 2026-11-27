@@ -40,8 +40,9 @@ class SitePhotoRestoreManager(
         for (c in customers) {
             val cust = c.phoneNumber.trim()
             if (cust.isBlank()) continue
-            // 폰에 **살아있는 파일**이 하나라도 있으면 건드리지 않는다.
-            //   (줄만 있고 파일이 없는 '백업복원' 상태는 0 으로 세어 복원 대상이 된다 — 수동 되살리기와 같은 셈.)
+            // 폰에 **살아있는 파일**이 하나라도 있으면 건드리지 않는다(대표 폴백이 그걸 쓴다, 중복 방지).
+            //   살아있는 파일 0 = 재설치(줄도 없음)이거나 '서버에만 남음'(줄은 있는데 파일 빠짐) → 둘 다 복원 대상.
+            //   (고객 상세는 서버로 보여주지만 내 기록 영상은 로컬 파일만 봐서 안 뜬다 — 2026-11-27 사장님)
             val alive = sitePhotoRepository.listByCustomer(c.id).count {
                 runCatching { File(it.filePath).exists() }.getOrDefault(false)
             }
@@ -53,7 +54,9 @@ class SitePhotoRestoreManager(
             // 느린 네트워크로 화면을 떠나도 끝까지 — 받아둔 비트맵을 버리지 않는다.
             withContext(NonCancellable) {
                 mine.sortedBy { it.uploadedAtMs }.forEach { p ->
-                    val bmp = p.bitmap ?: return@forEach
+                    // 🖼️ 영상·인증샷에 쓸 거라 **풀해상도(dataUrl 2048)** 로 되살린다 — 목록 썸네일(흐림)로 넣지 않는다.
+                    val bmp = com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(p.dataUrl, 2048)
+                        ?: p.bitmap ?: return@forEach
                     if (sitePhotoRepository.addFromBitmap(c.id, bmp, jid, p.uploadedAtMs)) restored++
                 }
             }

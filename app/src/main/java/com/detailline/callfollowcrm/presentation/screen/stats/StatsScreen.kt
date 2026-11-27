@@ -212,6 +212,14 @@ fun StatsScreen(
                     onReel = { shotAutoVideo = true; shotOpen = true },
                     onSetStart = { viewModel.setStartAddr(it) }
                 )
+                // 🔎 (임시 진단) 사진 안 뜸 원인 가르기 — 사장님 폰에서 이 줄을 캡처해 주세요. 원인 잡으면 뺍니다. (2026-11-27)
+                if (rec.photoDiag.isNotBlank()) {
+                    Text(
+                        "🔎 " + rec.photoDiag,
+                        fontSize = 10.sp, color = TossTextTertiary,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
             }
             // 현장 목록 — 번호가 붙어 쌓이는 곳.
