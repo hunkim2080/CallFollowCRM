@@ -259,6 +259,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val monthStart = DateTimeUtils.shiftMonth(DateTimeUtils.startOfMonth(now), monthDelta)
         val monthEnd = DateTimeUtils.shiftMonth(monthStart, +1)
         val addrOf = cs.associate { it.id to it.address }
+        val phoneOf = cs.associate { it.id to it.phoneNumber }   // 서버 사진 조회용(세컨폰=협업이 올린 사진 포함)
         val todayStart = DateTimeUtils.startOfDay(now)
         // **다녀온 현장** = 시공일이 지난 건. 「다녀온 현장」 화면과 **같은 기준**이라야 숫자가 안 엇갈린다.
         //   (2026-09-24 폰에서 7곳 vs 4곳으로 엇갈렸다 — 완료를 안 누른 3곳 때문)
@@ -349,9 +350,12 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             // 그 동네 사진 — **그 현장에 제일 먼저 올린 것.** [photos] 가 올린 순서라 먼저 걸리는 게 대표.
             //   한 동네에 현장이 여럿이면, 사진이 있는 **첫 현장** 것을 쓴다.
             if (photoOf[spot.name] == null) {
-                val repPath = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+                val repPath = (com.detailline.callfollowcrm.data.repository.SitePhotoRepository
                     .representativeOf(photosAlive, j.customerId, j.id)
-                    ?.filePath?.takeIf { java.io.File(it).exists() }
+                    ?.filePath?.takeIf { java.io.File(it).exists() })
+                    // 🖼️ 로컬에 없으면 **서버에서** 끌어온다 — 세컨폰(협업으로 초대)이 올린 사진처럼
+                    //   폰엔 없고 서버에만 있는 현장사진. 고객 상세가 보여주는 그 사진을 영상도 쓰게. (2026-11-27 사장님)
+                    ?: serverSiteFile(j.customerId, phoneOf[j.customerId] ?: "")
                 if (repPath != null) {
                     photoOf[spot.name] = repPath
                     // 같은 현장의 단지명 · 시공 전 사진을 같이 — 사진·단지·전후가 **한 집**을 가리킨다.
@@ -539,7 +543,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             bizPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(phoneForRecord),
             areaLabel = area,
             monthKm = monthKm,
-            photoPath = representativePhoto(month, photosAlive, collabPhotoPaths.values),
+            photoPath = representativePhoto(month, photosAlive, collabPhotoPaths.values, phoneOf),
             // 🔎 (임시 진단) 사진 안 뜸 원인 가르기 — 사장님 폰 실제 데이터로. (2026-11-27)
             //   DB=사진 줄 수 · 파일=로컬에 실제 파일 있는 줄 · 이달고객=이달 현장 고객 수
             //   이달줄=이달 고객의 사진 줄 · 이달파일=그중 파일 있는 것 · 협업=협업사진 받은수/협업현장수
@@ -562,18 +566,51 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
      * · 건(件)에 붙은 사진이 우선. 옛 사진은 jobId 가 없으니 고객으로 찾는다.
      * · 파일이 사라졌으면(폰 정리·복원 등) 없는 셈 친다 — 깨진 그림을 넣느니 안 넣는다.
      */
-    private fun representativePhoto(
+    private suspend fun representativePhoto(
         monthJobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
         photos: List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>,
-        collabPaths: Collection<String>
+        collabPaths: Collection<String>,
+        phoneOf: Map<Long, String>
     ): String? {
         for (j in monthJobs) {
-            val hit = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
+            val local = com.detailline.callfollowcrm.data.repository.SitePhotoRepository
                 .representativeOf(photos, j.customerId, j.id)
-            val path = hit?.filePath ?: continue
-            if (java.io.File(path).exists()) return path
+                ?.filePath?.takeIf { java.io.File(it).exists() }
+            if (local != null) return local
+            // 로컬에 없으면 서버(세컨폰=협업이 올린 사진 포함)에서. 고객 상세와 같은 사진. (2026-11-27)
+            serverSiteFile(j.customerId, phoneOf[j.customerId] ?: "")?.let { return it }
         }
         return collabPaths.firstOrNull { java.io.File(it).isFile }
+    }
+
+    /** 이미 서버에서 받아 캐시한 현장사진(고객id→경로). ""=서버에도 없음(다시 안 받음). */
+    private val serverSiteCache = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    /**
+     * 🖼️ 폰에 없는 현장사진을 **서버에서** 받아 캐시 파일로 돌려준다 — 영상·인증샷이 쓸 로컬 경로.
+     *   세컨폰(협업으로 초대)이 올린 사진처럼 **서버에만** 있는 것을 영상에도 넣기 위함. (2026-11-27 사장님)
+     *   내 것(isOwner) 우선, 없으면 남(협업·팀)이 올린 것. 로컬 DB 는 안 건드린다(고객 상세 중복 방지) — 캐시에만.
+     */
+    private suspend fun serverSiteFile(customerId: Long, customerPhone: String): String? {
+        serverSiteCache[customerId]?.let { return it.ifBlank { null } }
+        val owner = container.preferences.bizPhone.trim()
+        val cust = customerPhone.trim()
+        if (owner.isBlank() || cust.isBlank()) return null
+        val dir = java.io.File(container.appContext.cacheDir, "record_site").apply { mkdirs() }
+        val file = java.io.File(dir, "$customerId.jpg")
+        if (file.isFile && file.length() > 0L) { serverSiteCache[customerId] = file.absolutePath; return file.absolutePath }
+        val list = container.sitePhotoServerRepository.fetch(owner, cust).getOrNull()
+        val pick = list?.sortedBy { it.uploadedAtMs }?.let { s -> s.firstOrNull { it.isOwner } ?: s.firstOrNull() }
+        if (pick == null) { serverSiteCache[customerId] = ""; return null }
+        val bmp = com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(pick.dataUrl, 2048) ?: pick.bitmap
+        if (bmp == null) { serverSiteCache[customerId] = ""; return null }
+        val ok = runCatching {
+            java.io.FileOutputStream(file).use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
+            file.length() > 0L
+        }.getOrDefault(false)
+        val path = if (ok) file.absolutePath else null
+        serverSiteCache[customerId] = path ?: ""
+        return path
     }
 
     /** IO에서 목록은 썸네일로, 대표 원본만 받는다. 완성된 JPEG만 공개해 중단된 저장을 재사용하지 않는다. */
