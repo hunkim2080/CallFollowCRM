@@ -318,7 +318,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             .sortedByDescending { it.scheduledAtMs }
         val collabPhotoPaths = LinkedHashMap<String, String>()
         for (s in collabMonth.distinctBy { it.shareId }) {
-            collabRepresentativeFile(s.shareId, chosenPhotos[s.shareId])?.let { collabPhotoPaths[s.shareId] = it }
+            collabSiteFileCached(s.shareId, chosenPhotos[s.shareId])?.let { collabPhotoPaths[s.shareId] = it }
         }
         for (s in collabMonth) {
             val t = com.detailline.callfollowcrm.util.RegionName.shortRegion(s.addr)
@@ -363,7 +363,7 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                     //   폰엔 없고 서버에만 있는 현장사진. 고객 상세가 보여주는 그 사진을 영상도 쓰게. (2026-11-27 사장님)
                     ?: serverSiteFile(j.customerId, phoneOf[j.customerId] ?: "")
                     // 🤝 그래도 없으면 **내가 협업 공유한 현장**(세컨폰이 올린 공유현장 사진) — shareId 로.
-                    ?: collabShareOf[j.customerId]?.let { collabRepresentativeFile(it, chosenPhotos[it]) }
+                    ?: collabShareOf[j.customerId]?.let { collabSiteFileCached(it, chosenPhotos[it]) }
                 if (repPath != null) {
                     photoOf[spot.name] = repPath
                     // 같은 현장의 단지명 · 시공 전 사진을 같이 — 사진·단지·전후가 **한 집**을 가리킨다.
@@ -591,13 +591,25 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             // 로컬에 없으면 서버(team_site_photos, 팀 업로드)에서.
             serverSiteFile(j.customerId, phoneOf[j.customerId] ?: "")?.let { return it }
             // 그래도 없으면 내가 협업 공유한 현장(세컨폰이 올린 공유현장 사진) — shareId 로. (2026-11-27 사장님)
-            collabShareOf[j.customerId]?.let { collabRepresentativeFile(it, chosenPhotos[it]) }?.let { return it }
+            collabShareOf[j.customerId]?.let { collabSiteFileCached(it, chosenPhotos[it]) }?.let { return it }
         }
         return collabPaths.firstOrNull { java.io.File(it).isFile }
     }
 
     /** 이미 서버에서 받아 캐시한 현장사진(고객id→경로). ""=서버에도 없음(다시 안 받음). */
     private val serverSiteCache = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    /** 협업 공유현장 대표사진 경로 캐시(shareId→경로). ""=없음. buildMyRecord 재계산마다 서버 재조회 방지(느림·완료후 갱신멈춤 원인). */
+    private val collabFileCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** [collabRepresentativeFile] 의 세션 캐시판 — 같은 shareId 를 재계산마다 다시 받지 않게. */
+    private suspend fun collabSiteFileCached(shareId: String, chosenPhotoId: Long?): String? {
+        if (shareId.isBlank()) return null
+        collabFileCache[shareId]?.let { return it.ifBlank { null } }
+        val p = collabRepresentativeFile(shareId, chosenPhotoId)
+        collabFileCache[shareId] = p ?: ""
+        return p
+    }
 
     /**
      * 🖼️ 폰에 없는 현장사진을 **서버에서** 받아 캐시 파일로 돌려준다 — 영상·인증샷이 쓸 로컬 경로.

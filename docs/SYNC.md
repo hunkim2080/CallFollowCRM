@@ -17244,3 +17244,11 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 변경(StatsViewModel): collabShareOf = collabAssignments(customerId→shareId). 영상 photoOf·인증샷 representativePhoto 폴백 순서 = 로컬 → serverSiteFile(team) → collabRepresentativeFile(shareId, 공유현장). 진단줄에 공유:N 추가(이달현장 중 협업공유 수).
 - 검증: 가드7·테스트 통과(속도테스트 1회 플레이키 후 통과). 테스트폰 검증 불가(서버 데이터 없음) → 사장님 폰 확인.
 - 폰 확인: 업뎃 후 11월 영상 사진 뜨는지 + 🔎 공유:N 이 이달고객(13) 근처인지.
+
+## 2026-11-27 22:55 · android
+내 기록 느림/완료 느리게 반영 — 협업사진 재조회 캐시
+- 원인: 앞 커밋이 buildMyRecord 재계산마다 협업 공유현장 사진(공유:10곳)을 서버에서 매번 다시 받음(collabRepresentativeFile 세션캐시 없음) → 느림 + 완료 누른 뒤 목록 재계산이 계속 취소·재시작돼 "느리게 바뀜"(사장님).
+- 변경: collabFileCache(shareId→경로) + collabSiteFileCached 래퍼. 월 루프·영상카드·인증샷 3곳 다 캐시 버전으로. 첫 1회만 서버, 이후 재계산은 캐시 히트.
+- 사진 수정 자체는 정상(사장님 확인: 공유:10·7/12 사진 뜸).
+- 검증: 가드7·테스트 통과. 폰: 완료 즉시 반영·전반 속도 확인.
+- 남음: 영상 저장(인코딩) 속도는 구형 S9 자체 + 큰사진 디코딩 — 필요시 영상용 사진 축소 디코딩 별도.
