@@ -5889,6 +5889,7 @@ _PROCESS_STARTED_MS = _now_ms()
 def _alert_send(text: str) -> None:
     """슬랙 웹훅으로 한 줄. 백그라운드 스레드라 요청을 안 늦추고, **실패해도 아무 영향 없다.**
     상한 없음 — 부르는 쪽(_alert_500·건강검진·기동)이 각자 조절한다."""
+    _telegram_sync(text, "health")  # 추가147 — 관제실 건강방으로(슬랙 없어도 감)
     try:
         url = _alert_webhook_url()
         if not url:
@@ -8852,8 +8853,20 @@ async def _slack_send(url: str, payload) -> None:
 
 
 async def _slack_post(payload) -> None:
-    """베타 신청 채널로 전송."""
+    """베타 신청 채널로 전송 + 관제실(텔레그램 주제방)에도 같은 내용 중계."""
     await _slack_send(SLACK_SIGNUP_WEBHOOK, payload)
+    try:  # 추가147 — 관제실 미러(슬랙과 겹겹의 문)
+        _txt = payload if isinstance(payload, str) else (
+            payload.get("text", "") if isinstance(payload, dict) else "")
+        if _txt:
+            _topic = "health"
+            for _emo, _t in _TG_TOPIC_BY_EMOJI:
+                if _emo in _txt[:16]:
+                    _topic = _t
+                    break
+            _fire_bg(_telegram_topic(_topic, _txt))
+    except Exception:
+        pass
 
 
 # 추가146 — 새 가입 시 텔레그램 알림. env 없으면 무동작 = 안전(슬랙과 같은 패턴).
@@ -8862,19 +8875,74 @@ async def _slack_post(payload) -> None:
 #     TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+# 추가147 — 관제실(주제방). 그룹 chat_id + 주제별 thread_id. 없으면 DM 폴백.
+#   (2026-11-28 사장님: "슬랙 알람 전부 텔레그램으로 이전" — 성장/건강/보안 주제방)
+TELEGRAM_GROUP_CHAT_ID = os.environ.get("TELEGRAM_GROUP_CHAT_ID", "").strip()
+_TELEGRAM_TOPICS = {
+    "growth": os.environ.get("TELEGRAM_TOPIC_GROWTH", "").strip(),
+    "health": os.environ.get("TELEGRAM_TOPIC_HEALTH", "").strip(),
+    "security": os.environ.get("TELEGRAM_TOPIC_SECURITY", "").strip(),
+}
+# 슬랙 메시지 앞머리 이모지로 주제방 자동분류. 안 걸리면 health(기본).
+_TG_TOPIC_BY_EMOJI = [
+    ("\U0001F399", "growth"),    # 🎙️ 새 베타 신청
+    ("\U0001F575", "security"),  # 🕵️ 번호 긁기
+    ("\U0001F4F5", "security"),  # 📵 인증문자 안 감
+    ("\U0001F6A7", "security"),  # 🚧 IP 폭주
+    ("\U0001F6D1", "security"),  # 🛑 번호 그만
+]
 
 
-async def _telegram_send(text: str) -> None:
-    """텔레그램으로 사장님께 알림. 토큰/챗ID 없으면 조용히 꺼짐.
-    ⚠️ 가입 경로에서 부른다 — 알림 실패가 본 기능(가입)을 절대 막으면 안 된다."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+async def _telegram_send(text: str, chat_id: str = "", thread_id: str = "") -> None:
+    """텔레그램 알림. chat_id 없으면 사장님 DM. thread_id 있으면 그 주제방.
+    토큰 없으면 조용히 꺼짐 — 알림 실패가 본 기능을 절대 막으면 안 된다."""
+    cid = chat_id or TELEGRAM_CHAT_ID
+    if not TELEGRAM_BOT_TOKEN or not cid:
         return
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": cid, "text": text}
+        if thread_id:
+            payload["message_thread_id"] = int(thread_id)
         async with httpx.AsyncClient(timeout=8) as _c:
-            await _c.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text})
-    except Exception as e:  # noqa: BLE001 — 알림 실패가 가입을 막으면 안 됨
+            await _c.post(url, json=payload)
+    except Exception as e:  # noqa: BLE001 — 알림 실패가 기능을 막으면 안 됨
         print(f"[telegram] 알림 전송 실패(무시): {type(e).__name__}: {e}")
+
+
+async def _telegram_topic(topic: str, text: str) -> None:
+    """관제실 주제방으로. 그룹·주제 env 없으면 DM 폴백(알림은 끊기지 않게)."""
+    tid = _TELEGRAM_TOPICS.get(topic, "")
+    if TELEGRAM_GROUP_CHAT_ID and tid:
+        await _telegram_send(text, chat_id=TELEGRAM_GROUP_CHAT_ID, thread_id=tid)
+    else:
+        await _telegram_send(text)
+
+
+def _telegram_sync(text: str, topic: str = "health") -> None:
+    """동기(스레드) 텔레그램 — _alert_send 처럼 async 아닌 곳에서 관제실로."""
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    cid = TELEGRAM_GROUP_CHAT_ID or TELEGRAM_CHAT_ID
+    if not cid:
+        return
+    tid = _TELEGRAM_TOPICS.get(topic, "")
+    def _go():
+        try:
+            _payload = {"chat_id": cid, "text": text}
+            if TELEGRAM_GROUP_CHAT_ID and tid:
+                _payload["message_thread_id"] = int(tid)
+            _data = json.dumps(_payload).encode("utf-8")
+            _req = urllib.request.Request(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                data=_data, headers={"Content-Type": "application/json; charset=utf-8"})
+            urllib.request.urlopen(_req, timeout=5).read()
+        except Exception:
+            pass
+    try:
+        threading.Thread(target=_go, daemon=True).start()
+    except Exception:
+        pass
 
 
 def _today_cost_krw() -> tuple:
@@ -8915,6 +8983,9 @@ async def _cost_alert_loop() -> None:
                         ],
                     })
                     print(f"[cost-alert] 발송: ₩{krw} > ₩{COST_ALERT_KRW}")
+                    _fire_bg(_telegram_topic(  # 추가147 — 관제실 서버건강 방에도
+                        "health",
+                        f"🚨 AI 비용 경보\n오늘 누적 ₩{krw:,} ({calls}건) — 기준 ₩{COST_ALERT_KRW:,} 초과"))
         except Exception as e:  # noqa: BLE001
             print(f"[cost-alert] 오류(무시): {type(e).__name__}: {e}")
         await asyncio.sleep(3600)
@@ -27284,7 +27355,7 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
             )
             con.commit()
             print(f"[auth/verify] {_rp(phone)} → enrolled (자동 등업 {current + 1}/{AUTO_ENROLL_CAP})")
-            _fire_bg(_telegram_send(  # 추가146 — 새 가입 알림(텔레그램)
+            _fire_bg(_telegram_topic("growth",  # 추가146/147 — 새 가입(관제실 성장방)
                 "🎉 새 가입!\n"
                 f"• 번호: {_fmt_phone_dashed(phone)}\n"
                 f"• 지금 바로 설치 가능 ({current + 1}/{AUTO_ENROLL_CAP}명)"
@@ -27306,7 +27377,7 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
             )
         con.commit()
         print(f"[auth/verify] {_rp(phone)} → waitlisted (cap {AUTO_ENROLL_CAP} 초과)")
-        _fire_bg(_telegram_send(  # 추가146 — 새 신청(대기자) 알림(텔레그램)
+        _fire_bg(_telegram_topic("growth",  # 추가146/147 — 새 신청(대기자)(관제실 성장방)
             "⏳ 새 신청 (대기자)\n"
             f"• 번호: {_fmt_phone_dashed(phone)}\n"
             f"• 50명 꽉 참 — 멤버관리에서 등업할 수 있어요"

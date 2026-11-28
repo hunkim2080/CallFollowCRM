@@ -17315,3 +17315,13 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 반영: PlistBuddy Add → plutil lint OK → launchctl bootout+bootstrap(새 env) → ps eww 로 AUTO_ENROLL_CAP=100000 로딩 확인 → smoke 10/10
 - 대기자(waitlisted) 로직은 그대로 — 10만 넘기 전엔 안 걸림. 텔레그램 가입알림도 그대로 동작
 - 폰 확인: 해당없음(서버) · 다음: 실제 신규 가입이 enrolled 로 바로 되는지 (진짜 새 번호 테스트 시 확인)
+
+## 2026-11-28 · android (+ server) — 📨→📲 슬랙 알람 전부 텔레그램 관제실로 이전
+사장님 "하우스픽처럼 텔레그램 관제실" → "슬랙 오는 모든 알람 텔레그램으로 이전". 봇으로 주제방 생성 + 서버 중계 배선
+- 텔레그램 "시공막내 관제" 그룹(주제 켬·봇 관리자). 주제방 3개 봇 API(createForumTopic)로 생성: 📈성장(thread 2)·🩺서버건강(3)·🔒보안(4)
+- 슬랙 통로 2개 다 잡음: ① `_slack_post`(가입·보안·문자·베타신청) → 앞머리 이모지로 주제 자동분류(🎙️=성장, 🕵️📵🚧🛑=보안, 나머지=건강) 후 `_telegram_topic` 중계 ② `_alert_send`(서버켜짐·기동실패·건강검진) → `_telegram_sync`(동기)로 건강방. + 비용경보(_slack_send 직접) 한 줄. + 가입/대기 알림은 성장방으로
+- 공용: `_telegram_send(text, chat_id, thread_id)` 확장 · `_telegram_topic(topic,text)`(async) · `_telegram_sync(text,topic)`(스레드). 그룹·주제 env 없으면 DM 폴백(알림 안 끊김)
+- **슬랙은 당분간 유지**(겹겹의 문 §12-I) — 텔레그램 안정 확인되면 끄기. 지금은 슬랙+텔레그램 둘 다 감
+- 라이브: GOTCHAS §3 (scp→패치스크립트 6곳 각1회·LF보존→로컬+서버(3.9.6) py_compile→백업 main.py.bak-20261128-1720-tg-relay→swap→plist env 4개(GROUP_CHAT_ID=-1005710955380·GROWTH=2·HEALTH=3·SECURITY=4)→bootout+bootstrap→ps eww 로딩확인→smoke 10/10). 부팅 클린·텔레그램 에러 0
+- repo 반영: 동일 6곳 Edit(repo는 live와 docstring 미세차이라 스크립트 대신 Edit). 컴파일 OK
+- 폰 확인: 사장님이 🩺서버건강 방에 "🟢 서버 켜짐" 떴는지 확인(재기동 배너) · 다음 실제 가입/크래시 때 성장/건강 방에 자동
