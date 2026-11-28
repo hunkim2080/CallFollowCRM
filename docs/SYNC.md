@@ -17299,3 +17299,11 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 가입 안 깨지게: 알림은 fire-and-forget(8s timeout·try 감쌈), 이름 전부 grep 확인, py_compile OK
 - 서버 라이브: **아직 안 올림** — 사장님이 ①@BotFather 봇 토큰 + chat_id 주고 ②"서버 올려" 하면 GOTCHAS §3 로 반영 후 실제 번호로 가입 테스트
 - 폰 확인: 해당 없음(서버) · 다음 액션: 사장님 텔레그램 봇 1회 세팅
+
+## 2026-11-28 · android (+ server) — 🚀 텔레그램 새가입 알림 라이브 배포
+사장님 "서버에 올려" → GOTCHAS §3 절차로 라이브 반영 완료
+- 방식: scp 다운 → 패치스크립트(정확문자열 3곳, 각 1회보장·LF보존) → 로컬 py_compile → 업로드 → 서버 py_compile(venv 3.9.6) → 백업(main.py.bak-20261128-1347-telegram) → swap → launchctl bootout+bootstrap(새 env 반영 위해 kickstart 아님) → smoke 10/10
+- plist 환경변수 추가(PlistBuddy, lint OK): TELEGRAM_BOT_TOKEN · TELEGRAM_CHAT_ID (봇 @sigongmagne_bot). ps eww 로 실행 프로세스 로딩 확인(둘다=1)
+- 검증: smoke 10/10 · telegram 로그에러 0 · 수동 sendMessage 로 사장님 폰 실제 수신 확인. 실제 신규 가입(enrolled/waitlisted) 때 서버가 자동 딩동
+- repo==라이브 (텔레그램 한정). ⚠️ 통화요약 todos 한글필터는 여전히 라이브 미반영(별건·안 섞음)
+- 폰 확인: 해당없음(서버) · 다음: 진짜 새 번호 가입 시 딩동 확인(원하면)
