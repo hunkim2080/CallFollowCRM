@@ -17272,3 +17272,12 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 변경: assets/reel/record_cartoon.html 에 fitFont() 추가 — 폴라로이드 캡션·대표 전후 컷 캡션 2곳에서 긴 이름 자동 축소(최대 48%). 그리기 좌표·내용 그대로, 폰트 px만 맞춤
 - 프로토 동기화: 아티팩트 ME2TXRa 도 같은 fit 필요(이미 훅 동기화 밀려있던 것과 함께)
 - 폰 확인: 못 봄 (node 로 fitFont 로직만 검증 — 짧은 이름 유지·긴 이름 딱 맞춤)
+
+## 2026-11-28 · android (+ server repo)
+통화요약 '할 일'에 또 필드명 누수 — `suggested_followup_sms formulation notice…`(필드명+영어, 공백) 가 할 일로 떴다
+- 원인: 2026-11-23 필터는 **공백 없는 순수 snake_case** 만 버려, 공백 섞인 이 모양을 놓침(§13 증상만 누른 것)
+- 근본 잣대: **할 일은 늘 한글이 있다** → 한글 0 인 줄 버림. 공용 parseCallTodos 에서 걸러 **이미 저장된 요약도 표시 때 정리됨**
+- 변경: 앱 CallSummaryBody — isRealCallTodo(순수 함수) 추출 + 한글 필수. 단위테스트 CallTodoFilterTest 추가. 서버 repo main.py todos 루프에도 같은 한글 필터(§12-I 겹겹의 문)
+- 서버 라이브: **아직 안 올림** — "서버 올려" 때 GOTCHAS §3 로 (repo main.py 만 반영됨)
+- 폰 확인: 못 봄 (가드7 통과·단위테스트 통과)
+- 다음 액션: 그 통화카드에서 영어 줄 사라졌는지 · (원하면) 서버 라이브 반영

@@ -194,14 +194,25 @@ fun hasSpeakerGuess(rawLines: List<String>): Boolean =
 
 /** 서버 todos JSON 배열 → 문자열 목록(빈 값 제거). 체크리스트(시트)·챗 카드 칩이 **같이 쓴다**. (2026-11-19)
  *   ⚠️ LLM 이 가끔 스키마 필드명(suggested_followup_sms·tags 등)을 todos 배열에 토해낸다 — 할 일처럼 떠버림.
- *     (2026-11-23 사장님) 할 일은 한국어 문장이라, **공백 없는 ascii 소문자 식별자(snake_case)** 는 전부 버린다. */
+ *     (2026-11-23 사장님) 처음엔 **공백 없는 snake_case** 만 버렸는데, LLM 이 이번엔
+ *     `suggested_followup_sms formulation notice…`(필드명+영어, 공백 포함)로 토해 비껴갔다(2026-11-28 사장님).
+ *     → 근본 잣대: **할 일은 늘 한글이 들어간다.** 한글이 하나도 없는 줄은 버린다(누수 영어 조각은 한글 0). */
 private val TODO_JUNK_KEY = Regex("^[a-z][a-z0-9_]*$")
+private val TODO_HANGUL = Regex("[가-힣]")
+
+/** 할 일 한 줄이 **진짜 할 일**인가 — 비어있지 않고, snake_case 필드명이 아니고, **한글이 들어있다.**
+ *  순수 함수라 단위 테스트로 지킨다([CallTodoFilterTest]). 누수 영어 조각(필드명+english)은 한글이 0 이라 걸린다. */
+fun isRealCallTodo(raw: String): Boolean {
+    val s = raw.trim()
+    return s.isNotBlank() && !TODO_JUNK_KEY.matches(s) && TODO_HANGUL.containsMatchIn(s)
+}
+
 fun parseCallTodos(todosJson: String?): List<String> =
     if (todosJson.isNullOrBlank()) emptyList()
     else runCatching {
         val arr = org.json.JSONArray(todosJson)
         (0 until arr.length()).mapNotNull {
-            arr.optString(it).trim().takeIf { s -> s.isNotBlank() && !TODO_JUNK_KEY.matches(s) }
+            arr.optString(it).trim().takeIf { s -> isRealCallTodo(s) }
         }
     }.getOrDefault(emptyList())
 

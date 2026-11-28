@@ -16618,6 +16618,10 @@ def _coerce_call_summary(parsed: dict, duration_sec: int = 0) -> dict:
             # LLM 이 가끔 스키마 필드명(suggested_followup_sms·tags 등)을 todos 에 토해낸다 — 공백 없는 소문자 식별자는 버림. (2026-11-23)
             if re.match(r"^[a-z][a-z0-9_]*$", s):
                 continue
+            # 필드명+영어(공백 포함)로도 토해낸다("suggested_followup_sms formulation notice…") — 위 필터를 비껴감.
+            #   잣대: 진짜 할 일은 늘 한글이 있다. 한글 0 이면 버림. (2026-11-28 사장님)
+            if not re.search(r"[가-힣]", s):
+                continue
             if len(s) > 40:
                 s = s[:40].rstrip() + "…"
             todos.append(s)
