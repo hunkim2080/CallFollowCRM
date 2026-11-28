@@ -555,17 +555,6 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             areaLabel = area,
             monthKm = monthKm,
             photoPath = representativePhoto(month, photosAlive, collabPhotoPaths.values, phoneOf, collabShareOf, chosenPhotos),
-            // 🔎 (임시 진단) 사진 안 뜸 원인 가르기 — 사장님 폰 실제 데이터로. (2026-11-27)
-            //   DB=사진 줄 수 · 파일=로컬에 실제 파일 있는 줄 · 이달고객=이달 현장 고객 수
-            //   이달줄=이달 고객의 사진 줄 · 이달파일=그중 파일 있는 것 · 협업=협업사진 받은수/협업현장수
-            photoDiag = run {
-                val mc = month.map { it.customerId }.toSet()
-                "DB:${photos.size} 파일:${photosAlive.size} · 이달고객:${mc.size}" +
-                    " 이달줄:${photos.count { it.customerId in mc }}" +
-                    " 이달파일:${photosAlive.count { it.customerId in mc }}" +
-                    " 공유:${mc.count { it in collabShareOf }}" +
-                    " · 협업:${collabPhotoPaths.size}/${collabMonth.size}"
-            }
         )
     }
 
@@ -968,8 +957,6 @@ data class MyRecordState(
      *   → 사진이 들어가는 갈래(지도+사진 · 사진 배경)를 **아예 안 보여준다.**
      */
     val photoPath: String? = null,
-    /** 🔎 (임시 진단) 사진이 영상에 왜 안 뜨나 가르는 숫자 — 사장님 폰에서 눈으로 확인용. 원인 잡으면 뺀다. (2026-11-27) */
-    val photoDiag: String = ""
 ) {
     /** 협업에는 내 현장 번호가 없어도 기록을 만들 수 있다. */
     val canMakeRecord: Boolean get() = lastNo > 0 || monthSites > 0
