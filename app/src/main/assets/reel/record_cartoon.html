@@ -267,6 +267,13 @@ function birds(t){ for(var i=0;i<3;i++){ var life=(t*0.11+i*0.37)%1; var x=W*(1.
   var fw=Math.sin(t*9+i)*4*UL; ctx.strokeStyle='rgba(42,63,99,.7)'; ctx.lineWidth=2*UL; ctx.lineCap='round'; ctx.beginPath();
   ctx.moveTo(x-7*UL,y+fw); ctx.quadraticCurveTo(x,y-2*UL,x+0,y); ctx.quadraticCurveTo(x,y-2*UL,x+7*UL,y+fw); ctx.stroke(); } }
 
+// 🔤 긴 이름이 틀 밖으로 삐져나오지 않게 — 현재 ctx.font 의 px 를 maxW 에 맞춰 줄인다(최대 48%까지).
+//   실제 아파트명("e편한세상"·"힐스테이트" 등)은 샘플보다 길어 고정 크기면 넘친다. (2026-11-28 사장님)
+function fitFont(str,maxW){ var m=ctx.font.match(/([0-9]+(?:\.[0-9]+)?)px/); if(!m) return;
+  var w=ctx.measureText(str).width; if(w<=maxW) return;
+  var px=parseFloat(m[1]), npx=Math.max(px*0.48, px*maxW/w);
+  ctx.font=ctx.font.replace(/[0-9]+(?:\.[0-9]+)?px/, npx.toFixed(2)+'px'); }
+
 // 🏠 지나가는 현장(업종 중립 · 간판 없음) + 완료 폴라로이드(지역·단지명·사진·✓)
 function site(x,gy,s,col,stampP,region,apt,photo,idx){
   if(x<-W*0.4||x>W+W*0.4) return;
@@ -322,6 +329,7 @@ function site(x,gy,s,col,stampP,region,apt,photo,idx){
     ctx.beginPath(); ctx.moveTo(bx2-br*0.42,by2+br*0.02); ctx.lineTo(bx2-br*0.08,by2+br*0.36); ctx.lineTo(bx2+br*0.46,by2-br*0.34); ctx.stroke();
     // 캡션: 📍지역 · 단지명
     ctx.textAlign='center'; ctx.fillStyle='#2b3f5c'; ctx.font='800 '+(pw*0.108)+'px "Noto Sans KR"';
+    fitFont(region+' · '+apt, pw*0.92);
     ctx.fillText(region+' · '+apt,0,ph/2-capH*0.32);
     if(stampP<0.55){ ctx.fillStyle='#ffd34a'; var tw=(0.55-stampP); star(-pw*0.5,-ph*0.5,3*UL+tw*16*UL); star(pw*0.52,ph*0.1,2.5*UL+tw*12*UL); }
     ctx.restore();
@@ -533,6 +541,7 @@ function heroBeforeAfter(t){
   tag(ix+iw-7*UL,iy+7*UL,'시공 후','r',clamp((wp-0.08)*2.2));
   // 지역·단지명 캡션
   ctx.textAlign='center'; ctx.fillStyle='#2b3f5c'; ctx.font='800 '+(W*0.036)+'px "Noto Sans KR"';
+  fitFont('📍 '+SITE_REGION[0]+' · '+SITE_APT[0], pw*0.96);
   ctx.fillText('📍 '+SITE_REGION[0]+' · '+SITE_APT[0],0,iy+ih+capH*0.75);
   ctx.restore();
   // "내가 다녀간 뒤."
