@@ -2,12 +2,16 @@ name: Play 배포 (AAB 자동 빌드·업로드)
 
 # 무엇: AAB 를 빌드해서 Google Play 에 자동 업로드 (수동 업로드 끝).
 # 언제:
-#  · [Run workflow] 버튼(workflow_dispatch) — 트랙 골라서 배포. 정식(production) 낼 때 이걸 씀.
-#  · **push 로는 아무 데도 안 올라간다.** (2026-09-18 사장님)
+#  · 태그 `upload-*` → **내부테스트(internal)**. 수정마다 자동으로 붙인다(사장님 승인하에).
+#  · 태그 `release-*` → **정식출시(production)**. 내부와 똑같이 태그 하나로 나간다.
+#    단 **정식은 자동 아님** — 사장님이 "정식 올려" 하실 때만 `release-*` 태그를 붙인다.
+#    (내부=upload-*, 정식=release-*. 같은 길·같은 방식, 태그 접두어만 다르다.)
+#  · [Run workflow] 버튼(workflow_dispatch) — 트랙 직접 골라서 배포(수동 대안).
+#  · **평소 push(브랜치) 로는 아무 데도 안 올라간다.** (2026-09-18 사장님)
 #    테스트폰은 `adb install -r` 로 직접 깔고, 경우의 수를 통과한 다음에만
-#    [Run workflow] 를 눌러 **플레이에** 올린다. (si0in.kr 업로드는 2026-09-18 제거)
+#    태그(또는 [Run workflow])로 **플레이에** 올린다. (si0in.kr 업로드는 2026-09-18 제거)
 #    전엔 push 마다 둘 다 자동으로 나가서, 베타 회원(13명)에게 검증 안 된 빌드가
-#    '새 버전' 배너로 떴다.
+#    '새 버전' 배너로 떴다. 태그를 붙이는 건 **승인받았을 때뿐.**
 # 준비물(1회): GitHub 저장소 Settings > Secrets 에 아래 6개 등록 — docs/PLAY_AUTO_DEPLOY_SETUP.md 참고.
 #   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD / GOOGLE_SERVICES_JSON / PLAY_SERVICE_ACCOUNT_JSON
 # versionCode: CI 는 git 커밋수+1 로 자동 산출(현재 커밋수 1179 > 마지막 1157 이라 안전). fetch-depth:0 필수.
@@ -17,7 +21,7 @@ on:
   #   "내가 없애자고 했던 건 테스트 안 된 걸 올리지 말자였지. 내부테스트는 내 승인하에 바로 업로드가 가능해야지."
   #   평소 push 로는 아무 데도 안 올라간다(브랜치 트리거 없음). 태그를 붙이는 건 승인받았을 때뿐.
   push:
-    tags: ["upload-*"]
+    tags: ["upload-*", "release-*"]   # upload-*=내부테스트 · release-*=정식출시
   workflow_dispatch:
     inputs:
       track:
@@ -110,7 +114,8 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.detailline.callfollowcrm
           releaseFiles: app/build/outputs/bundle/release/*.aab
-          track: ${{ github.event.inputs.track || 'internal' }}
+          # 트랙 정하기: 수동 버튼이면 고른 값 · release-* 태그면 정식 · 그 외(upload-* 등)는 내부테스트.
+          track: ${{ github.event.inputs.track || (startsWith(github.ref, 'refs/tags/release-') && 'production' || 'internal') }}
           status: completed
           # ⚠️ Play 가 성숙도에 따라 이걸 **뒤집는다**(배포 실패의 단골 원인):
           #   10-08 true → 10-13 false → 10-15 true → 10-23 false → 10-25 true → **2026-10-27 다시 false 요구**
