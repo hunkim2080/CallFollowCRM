@@ -8856,6 +8856,27 @@ async def _slack_post(payload) -> None:
     await _slack_send(SLACK_SIGNUP_WEBHOOK, payload)
 
 
+# 추가146 — 새 가입 시 텔레그램 알림. env 없으면 무동작 = 안전(슬랙과 같은 패턴).
+#   (2026-11-28 사장님: "앱에서 인증번호 받고 가입할 때 텔레그램으로 알람 와라")
+#   사장님이 @BotFather 로 봇을 만들고 토큰 + 본인 chat_id 를 plist 에 넣으면 켜진다:
+#     TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+
+
+async def _telegram_send(text: str) -> None:
+    """텔레그램으로 사장님께 알림. 토큰/챗ID 없으면 조용히 꺼짐.
+    ⚠️ 가입 경로에서 부른다 — 알림 실패가 본 기능(가입)을 절대 막으면 안 된다."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        async with httpx.AsyncClient(timeout=8) as _c:
+            await _c.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text})
+    except Exception as e:  # noqa: BLE001 — 알림 실패가 가입을 막으면 안 됨
+        print(f"[telegram] 알림 전송 실패(무시): {type(e).__name__}: {e}")
+
+
 def _today_cost_krw() -> tuple:
     """오늘(KST 자정 이후) 누적 AI 비용(원)·호출수."""
     kst_now = _dt.datetime.now(_KST)
@@ -27263,6 +27284,11 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
             )
             con.commit()
             print(f"[auth/verify] {_rp(phone)} → enrolled (자동 등업 {current + 1}/{AUTO_ENROLL_CAP})")
+            _fire_bg(_telegram_send(  # 추가146 — 새 가입 알림(텔레그램)
+                "🎉 새 가입!\n"
+                f"• 번호: {_fmt_phone_dashed(phone)}\n"
+                f"• 지금 바로 설치 가능 ({current + 1}/{AUTO_ENROLL_CAP}명)"
+            ))
             _tok, _exp = _issue_session_token(phone)
             return {"ok": True, "status": "enrolled", "freeUntilMs": free_until,
                     "freeDays": FREE_TRIAL_DAYS,
@@ -27280,6 +27306,11 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
             )
         con.commit()
         print(f"[auth/verify] {_rp(phone)} → waitlisted (cap {AUTO_ENROLL_CAP} 초과)")
+        _fire_bg(_telegram_send(  # 추가146 — 새 신청(대기자) 알림(텔레그램)
+            "⏳ 새 신청 (대기자)\n"
+            f"• 번호: {_fmt_phone_dashed(phone)}\n"
+            f"• 50명 꽉 참 — 멤버관리에서 등업할 수 있어요"
+        ))
         return {"ok": True, "status": "waitlisted"}
 
 
