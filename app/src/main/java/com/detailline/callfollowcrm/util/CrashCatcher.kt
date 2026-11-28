@@ -80,7 +80,7 @@ object CrashCatcher {
     private const val EXIT_TS_KEY = "last_reported_exit_ts"
 
     /**
-     * 지난 **비정상 종료**(ANR·네이티브·시그널·메모리·자원과다) 1건을 리포트 문자열로. 없거나 이미 보냈으면 null.
+     * 지난 **비정상 종료**(ANR·네이티브·시그널) 1건을 리포트 문자열로. 없거나 이미 보냈으면 null.
      *   앱 예외 크래시(REASON_CRASH)는 위 핸들러가 이미 파일로 적으니 여기선 제외(중복 방지).
      *   ANR·네이티브면 trace(멈춘 순간 메인스레드 덤프 = 어느 줄에서 멈췄나)도 함께 담는다.
      */
@@ -113,15 +113,17 @@ object CrashCatcher {
     }
 
     /** 비정상 = 사용자/시스템의 정상 종료가 아닌 것. REASON_CRASH(앱 예외)는 핸들러가 이미 잡아 제외.
-     *   ⚠️ REASON_EXCESSIVE_RESOURCE_USAGE(자원 과다)는 **뺀다** — 이건 "앱 고장"이 아니라 OS 가 백그라운드에서
-     *   리소스(바인더·CPU) 아끼려고 앱을 잠깐 정리한 것(포그라운드 복귀하면 정상). 진짜 신호(ANR·네이티브)를
-     *   묻어버려 💥 상자가 도배됐다(사장님 2026-11-25 "이거 왜 계속 나와" — #37·#40 전부 이것). 진짜 죽음만 본다. */
+     *   ⚠️ REASON_EXCESSIVE_RESOURCE_USAGE(자원 과다) · REASON_LOW_MEMORY(메모리 부족)는 **둘 다 뺀다** —
+     *   이건 "앱 고장"이 아니라 OS 가 메모리/리소스 아끼려고 백그라운드 앱을 잠깐 정리한 것(포그라운드 복귀하면 정상).
+     *   안드로이드가 매일 하는 집안일이라 폰마다 하루에도 몇 번씩 뜬다 → 진짜 신호(ANR·네이티브)를 묻어버리고
+     *   💥 상자가 도배됐다 (자원과다: 2026-11-25 "이거 왜 계속 나와" #37·#40 / 메모리부족: 2026-11-28
+     *   "왜 자꾸 버그신고 들어와" #41~#57 — 전부 사장님 본인 폰의 정상 메모리 정리였다). 진짜 죽음만 본다.
+     *   (진짜 앱 OOM = Java OutOfMemoryError 는 위 UncaughtExceptionHandler 가 REASON_CRASH 로 잡으니 안 샌다.) */
     private val ABNORMAL: Set<Int>
         get() = setOf(
             android.app.ApplicationExitInfo.REASON_ANR,                        // 응답 없음
             android.app.ApplicationExitInfo.REASON_CRASH_NATIVE,               // 네이티브 크래시
-            android.app.ApplicationExitInfo.REASON_SIGNALED,                   // 시그널 강제종료
-            android.app.ApplicationExitInfo.REASON_LOW_MEMORY                  // 메모리 부족 킬
+            android.app.ApplicationExitInfo.REASON_SIGNALED                    // 시그널 강제종료
         )
 
     private fun reasonName(r: Int): String = when (r) {

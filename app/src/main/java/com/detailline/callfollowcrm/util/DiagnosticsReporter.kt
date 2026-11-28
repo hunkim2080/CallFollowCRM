@@ -84,7 +84,7 @@ object DiagnosticsReporter {
     }
 
     /**
-     * 💥 자동 감지된 **강제종료(ANR·네이티브·메모리)** 를 진단함(💥상자)으로 직송 — 예외핸들러가 못 잡는 죽음.
+     * 💥 자동 감지된 **강제종료(ANR·네이티브)** 를 진단함(💥상자)으로 직송 — 예외핸들러가 못 잡는 죽음.
      *   [com.detailline.callfollowcrm.util.CrashCatcher.lastAbnormalExit] 가 만든 리포트를 그대로 note 로 보낸다.
      *   에뮬레이터(Play 테스트팜)는 제외 — 진짜 사용자 것만. (2026-11-25 사장님 "앱 강제종료되면 잡히게")
      */

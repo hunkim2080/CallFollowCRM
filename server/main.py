@@ -31768,7 +31768,17 @@ async def diagnostics_report(req: DiagnosticsReport, request: Request) -> dict:
     body_txt += "```" + report[:1500] + "```"
     if image_paths:
         body_txt += f"\n📎 스크린샷 {len(image_paths)}장 첨부됨"
-    await _slack_post(head + "\n" + body_txt)
+    # 추가150 (2026-11-28 사장님 "너만 알수있게, 나한텐 깔끔하게") — 슬랙엔 전문(백업·DB),
+    #   관제실엔 **제목 한 줄만** 깔끔하게. 코드포인트 덤프·스택 전문은 /admin/diagnostics 에서 Claude 가 본다.
+    #   (_slack_post 로 보내면 관제실 미러가 전문을 그대로 쏴 U+XXXX 덤프로 도배됨 → 통로를 둘로 가른다.)
+    await _slack_send(SLACK_SIGNUP_WEBHOOK, head + "\n" + body_txt)
+    _diag_clean = head
+    if (req.note or "").strip():
+        _diag_clean += "\n메모: " + req.note.strip()[:200]
+    if image_paths:
+        _diag_clean += f"\n📎 스크린샷 {len(image_paths)}장"
+    _diag_clean += f"\n자세히 → /admin/diagnostics (#{rid})"
+    _fire_bg(_telegram_topic("health", _diag_clean))
     return {"ok": True, "id": rid}
 
 

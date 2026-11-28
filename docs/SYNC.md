@@ -17325,3 +17325,13 @@ fix: 내 기록 영상에서 서로 다른 현장이 전부 같은 대표사진�
 - 라이브: GOTCHAS §3 (scp→패치스크립트 6곳 각1회·LF보존→로컬+서버(3.9.6) py_compile→백업 main.py.bak-20261128-1720-tg-relay→swap→plist env 4개(GROUP_CHAT_ID=-1005710955380·GROWTH=2·HEALTH=3·SECURITY=4)→bootout+bootstrap→ps eww 로딩확인→smoke 10/10). 부팅 클린·텔레그램 에러 0
 - repo 반영: 동일 6곳 Edit(repo는 live와 docstring 미세차이라 스크립트 대신 Edit). 컴파일 OK
 - 폰 확인: 사장님이 🩺서버건강 방에 "🟢 서버 켜짐" 떴는지 확인(재기동 배너) · 다음 실제 가입/크래시 때 성장/건강 방에 자동
+
+## 2026-11-28 · android (+ server) — 🧊 '메모리 부족 강제종료' 오신고 중단 + 진단 관제실 표시 깔끔
+사장님 "왜 자꾸 2080(내 S23U) 번호로 버그신고 들어와? 너만 알수있게, 나한텐 깔끔하게"
+- 원인(실측): diagnostics_reports #41~#57 전부 `[강제종료 자동감지] reason=메모리 부족` — 사장님 본인 폰들(01080052080 S23U 등)에서 하루 몇 번씩. **앱 고장 아님** — 안드로이드가 백그라운드 앱을 메모리 아끼려 정리한 정상 집안일(REASON_LOW_MEMORY)을 "강제종료"로 오신고
+- **「두 벌」 재발**: 2026-11-25 "이거 왜 계속 나와"로 쌍둥이 `REASON_EXCESSIVE_RESOURCE_USAGE`(자원 과다)는 뺐는데 `REASON_LOW_MEMORY`를 안 뺐었음. 이번에 같이 뺌
+- 앱 변경(`util/CrashCatcher.kt`): `ABNORMAL` 셋에서 `REASON_LOW_MEMORY` 제거 → ANR·네이티브·시그널만 신고. 진짜 앱 OOM(Java OutOfMemoryError)은 UncaughtExceptionHandler가 REASON_CRASH로 이미 잡으니 안 샘. 코멘트 2곳(DiagnosticsReporter·Application) 메모리 언급 정정
+- 서버 변경(`main.py` diagnostics_report): 통로 둘로 가름 — 슬랙엔 전문(백업), DB엔 전문(report[:20000], admin `/admin/diagnostics`에서 Claude가 봄), **관제실(텔레그램 건강방)엔 제목 한 줄 + 메모 + "자세히 → #id"만**. U+코드포인트 덤프·스택은 사장님 눈엔 안 보이고 Claude만 admin에서 봄. (`_slack_post` 미러는 전문을 그대로 쏴서 도배 → `_slack_send`+`_telegram_topic` 직접 호출로 분리)
+- 라이브: GOTCHAS §3 (scp down→패치스크립트 1곳·LF보존→로컬+서버(3.9.6) py_compile→백업 main.py.bak-20261128-1935-diag-clean→swap→kickstart(env 변경 없어 kickstart로 충분)→smoke 10/10)
+- 검증: 로컬 localhost:8000 에 테스트 진단 POST(#58) → DB에 전문(U+덤프 포함) 저장 확인. 관제실엔 한 줄만(사장님 확인)
+- 폰 확인: 앱은 내부배포 후 S23U에서 더이상 '메모리 부족 강제종료' 신고 안 오는지(며칠 관찰) · 관제실 진단 한 줄 표시 확인
